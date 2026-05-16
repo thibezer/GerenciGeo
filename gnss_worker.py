@@ -2,6 +2,10 @@ import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+import logging
+
+# Configuração do Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def open_file_dialog(driver, file_path):
     # Encontrar o campo de entrada de arquivo
@@ -34,18 +38,20 @@ def main():
     driver.get('http://example.com')
     
     try:
+        logging.info("Aguardando até que o campo de entrada de arquivo esteja disponível")
         # Esperar até que o campo de entrada de arquivo esteja disponível
         input_element = wait_for_element(driver, By.CSS_SELECTOR, 'input[type="file"]')
         
         # Caminho do arquivo a ser selecionado
         file_path = 'C:\\path\\to\\your\\file.txt'
         
+        logging.info(f"Selecionando o arquivo: {file_path}")
         # Abrir a janela de diálogo do sistema e digitar o caminho do arquivo
         open_file_dialog(driver, file_path)
         
-        print("Arquivo selecionado com sucesso!")
+        logging.info("Arquivo selecionado com sucesso!")
     except Exception as e:
-        print(f"Erro ao selecionar o arquivo: {e}")
+        logging.error(f"Erro ao selecionar o arquivo: {e}")
     finally:
         driver.quit()
 
