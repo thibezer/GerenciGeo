@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    @apply bg-forest-deep text-white font-manrope selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
+    scrollbar-width: thin;
+    scrollbar-color: #00f5a022 transparent;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface-glass border border-border-glass backdrop-blur-md rounded-technical;
+  }
+  
+  .glass-input {
+    @apply bg-white/5 border border-white/10 rounded-technical px-3 py-2 outline-none focus:border-mint-vibrant/50 transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-mint-vibrant text-forest-deep font-bold px-4 py-2 rounded-technical hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-white/5 border border-white/10 text-white/80 font-medium px-4 py-2 rounded-technical hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-2;
+  }
+
+  .terminal-line {
+    @apply font-mono text-sm py-0.5;
+  }
+
+  .nav-link.active {
+    @apply bg-mint-vibrant/10 text-mint-vibrant border-r-2 border-mint-vibrant;
+  }
+
+  .nav-link.active i {
+    @apply text-mint-vibrant;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 245, 160, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 245, 160, 0.3);
+}
+
+/* Leaflet Adjustments */
+.leaflet-container {
+    background: #0c1510 !important;
+    font-family: 'Manrope', sans-serif !important;
+}
+
+.leaflet-control-layers {
+    background: rgba(12, 21, 16, 0.8) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border-radius: 4px !important;
+}
+
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    background: rgba(12, 21, 16, 0.8) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.leaflet-bar a:hover {
+    background: rgba(0, 245, 160, 0.2) !important;
+    color: #00f5a0 !important;
+}
+
+/* Classe para Tela Cheia customizada do Mapa */
+.map-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1000 !important; /* Acima de tudo exceto modais */
+    border-radius: 0 !important;
+    margin: 0 !important;
+}
+
+/* Filtro para recolorir a camada do SIGEF (de vermelho escuro para amarelo translúcido) */
+.sigef-wms-layer {
+    filter: hue-rotate(55deg) saturate(1.5) brightness(1.3) opacity(0.85);
+}
+
+/* Animations and Transitions */
+.opacity-100 {
+    opacity: 1 !important;
+}
+
+#parcel-modal {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#parcel-modal.opacity-100 {
+    pointer-events: auto;
+}
+
+#parcel-modal .glass-card {
+    transform: scale(0.95);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#parcel-modal.opacity-100 .glass-card {
+    transform: scale(1);
+}
+
+/* Customização de selects e options glass-input */
+select.glass-input {
+  color: white !important;
+  background-color: #0c1510 !important;
+}
+select.glass-input option {
+  background-color: #0c1510 !important;
+  color: white !important;
+}

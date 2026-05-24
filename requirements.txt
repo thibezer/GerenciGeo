@@ -1,0 +1,6 @@
+pywinauto==0.6.8
+python-dotenv
+fastapi
+uvicorn
+python-multipart
+

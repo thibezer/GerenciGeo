@@ -1,0 +1,51 @@
+# Python Compilados
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.svelte-kit/
+frontend/.nuxt/
+frontend/.next/
+frontend/out/
+.npm
+.yarn
+
+# Banco de Dados SQLite local
+*.db
+*.db.backup
+gerencigeo.db
+gerencigeo.db.backup
+
+# Logs locais
+*.log
+gerencigeo.log
+
+# Ambientes virtuais e segredos
+env/
+venv/
+.env
+.venv
+ENV/
+.env.*
+
+# Rascunhos e saídas de teste temporárias
+saida.txt
+err.txt
+scratch/test_*
+scratch/*.txt
+saida_rinex/
+saida_ppp/
+saida_hgo/
+
+# Arquivos de Ferramentas / Editores / IDEs
+.vscode/
+.idea/
+.aider*
+.antigravityignore
+.DS_Store
+Thumbs.db

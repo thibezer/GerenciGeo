@@ -1,0 +1,165 @@
+Documentação Técnica de Implementação - GerenciGeo
+
+1. Visão Geral do Sistema
+
+O GerenciGeo é um ecossistema de georreferenciamento de alta precisão. A implementação deve seguir uma arquitetura de desacoplamento entre o Frontend (HTML5/Tailwind CSS) e o Backend (Python/GNSS Engine).
+
+2. Especificações de Design (Technical Precision)
+
+
+
+
+
+Paleta de Cores:
+
+
+
+
+
+Background: #0c1510 (Deep Forest Green)
+
+
+
+Surface: #151e18 (Layered Card background)
+
+
+
+Accent/Action: #00f5a0 (Vibrant Mint) - Usar para botões primários, status "Concluído" e indicadores ativos.
+
+
+
+Warning: #ffcc00 (Amber) - Usar para status "Sigma Médio" ou "Pendente".
+
+
+
+Error: #ff4d4d (Red) - Usar para falhas de processamento ou "Erro Sigma".
+
+
+
+Tipografia:
+
+
+
+
+
+Primary: Manrope (UI geral, labels, cabeçalhos).
+
+
+
+Technical: JetBrains Mono ou Consolas (Logs do terminal, coordenadas LAT/LON, IDs de Job).
+
+
+
+Estética: 
+
+
+
+
+
+Glassmorphism sutil (backdrop-blur-md).
+
+
+
+Bordas com 1px de espessura em #323b35.
+
+
+
+Border-radius de 4px (estilo técnico rigoroso).
+
+3. Estrutura de Telas e Componentes
+
+Abaixo estão as referências para os arquivos HTML gerados:
+
+3.1 Dashboard Operacional ({{DATA:SCREEN:SCREEN_8}})
+
+
+
+
+
+Mapa Live Tracking: Container interativo com estilos de mapa escuro (custom tiles).
+
+
+
+Cards de Métricas: Visualização de "Bases Processadas", "Clientes Ativos" e "Saúde do Sistema".
+
+
+
+Terminal Lateral: Log de eventos em tempo real com timestamp.
+
+3.2 Módulo PPP - Processamento ({{DATA:SCREEN:SCREEN_16}})
+
+
+
+
+
+Dropzone: Área de upload para arquivos .GNS com suporte a drag-and-drop.
+
+
+
+Tabela de Jobs Ativos: Lista com barras de progresso reais vinculadas ao status do IBGE.
+
+
+
+Terminal de Sistema: Console monospaced para logs detalhados do motor Python.
+
+3.3 Módulo PPP - Organizador HGO ({{DATA:SCREEN:SCREEN_15}})
+
+
+
+
+
+Tree View: Navegação estruturada de pastas e arquivos GNSS brutos.
+
+
+
+Integridade de Dados: Gráfico de barras minimalista mostrando a qualidade do sinal por época.
+
+3.4 Módulo PPP - Histórico ({{DATA:SCREEN:SCREEN_11}})
+
+
+
+
+
+Data Table Densa: Suporte a filtragem avançada por período e técnico responsável.
+
+
+
+Indicadores Sigma: Badges coloridos baseados no valor numérico da precisão.
+
+3.5 Registro de Levantamentos ({{DATA:SCREEN:SCREEN_4}})
+
+
+
+
+
+Gestão de Missões: Lista completa de propriedades georreferenciadas.
+
+
+
+Ações Rápidas: Exportação UTM (TXT) e abertura direta no Google Earth (KML).
+
+4. Requisitos de Integração (Python + HTML)
+
+
+
+
+
+API Endpoints: O motor Python deve expor rotas para:
+
+
+
+
+
+/api/upload-gns: Receber arquivos e iniciar conversão RINEX.
+
+
+
+/api/ppp-status: Retornar o progresso real consultado no IBGE.
+
+
+
+/api/hgo-structure: Retornar a árvore de arquivos para o Organizador.
+
+
+
+/api/surveys: Listar registros do banco de dados geod
