@@ -66,6 +66,8 @@ def create_tables(conn):
             nome_propriedade TEXT NOT NULL,
             codigo_car TEXT,
             codigo_ccir TEXT,
+            caminho_arquivo_car TEXT,
+            caminho_arquivo_ccir TEXT,
             municipio TEXT NOT NULL,
             uf TEXT NOT NULL CHECK(length(uf) = 2),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -90,6 +92,10 @@ def create_tables(conn):
             ccir TEXT,
             itr TEXT,
             area_ha REAL,
+            cri_comarca TEXT,
+            cri_circunscricao TEXT,
+            livro_registro TEXT,
+            folha_registro TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
         );
@@ -133,9 +139,12 @@ def create_tables(conn):
             sigma_n REAL,
             sigma_e REAL,
             sigma_z REAL,
+            arquivo_rinex TEXT,
+            arquivo_resultado_ppp TEXT,
             
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
-            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE
+            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+            UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
         );
         """,
         """
@@ -145,6 +154,15 @@ def create_tables(conn):
             nome TEXT NOT NULL,
             cpf_cnpj TEXT,
             tipo_relacao TEXT,
+            rg TEXT,
+            nacionalidade TEXT DEFAULT 'brasileiro(a)',
+            profissao TEXT,
+            estado_civil TEXT,
+            regime_bens TEXT,
+            endereco_completo TEXT,
+            nome_conjuge TEXT,
+            cpf_conjuge TEXT,
+            rg_conjuge TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
@@ -199,6 +217,30 @@ def create_tables(conn):
             prioridade TEXT DEFAULT 'MEDIA' CHECK(prioridade IN ('ALTA', 'MEDIA', 'BAIXA')),
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS anuencias_confrontantes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            levantamento_id INTEGER NOT NULL,
+            confrontante_id INTEGER NOT NULL,
+            status_anuencia TEXT DEFAULT 'PENDENTE' CHECK(status_anuencia IN ('PENDENTE', 'GERADO', 'ASSINADO', 'DISPENSADO')),
+            caminho_documento_assinado TEXT,
+            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
+            FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE CASCADE,
+            UNIQUE(levantamento_id, confrontante_id)
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS logs_auditoria_seguranca (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            levantamento_id INTEGER NOT NULL,
+            rota TEXT NOT NULL,
+            metodo TEXT NOT NULL,
+            usuario TEXT DEFAULT 'Operador_Sistema',
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
+        );
         """
     ]
 
@@ -237,7 +279,9 @@ def create_tables(conn):
         
         # Migração dinâmica para a tabela propriedades (codigo_ccir)
         colunas_propriedades = [
-            ("codigo_ccir", "TEXT")
+            ("codigo_ccir", "TEXT"),
+            ("caminho_arquivo_car", "TEXT"),
+            ("caminho_arquivo_ccir", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(propriedades)")
         colunas_propriedades_existentes = {row[1] for row in cursor.fetchall()}
@@ -249,7 +293,133 @@ def create_tables(conn):
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em propriedades: {ex_mig}")
         
+        # Migração dinâmica para a tabela confrontantes
+        colunas_confrontantes = [
+            ("rg", "TEXT"),
+            ("nacionalidade", "TEXT DEFAULT 'brasileiro(a)'"),
+            ("profissao", "TEXT"),
+            ("estado_civil", "TEXT"),
+            ("regime_bens", "TEXT"),
+            ("endereco_completo", "TEXT"),
+            ("nome_conjuge", "TEXT"),
+            ("cpf_conjuge", "TEXT"),
+            ("rg_conjuge", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(confrontantes)")
+        colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_confrontantes:
+            if col not in colunas_confrontantes_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE confrontantes ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em confrontantes: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em confrontantes: {ex_mig}")
+
+        # Migração dinâmica para a tabela matriculas
+        colunas_matriculas = [
+            ("cri_comarca", "TEXT"),
+            ("cri_circunscricao", "TEXT"),
+            ("livro_registro", "TEXT"),
+            ("folha_registro", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(matriculas)")
+        colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_matriculas:
+            if col not in colunas_matriculas_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE matriculas ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em matriculas: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em matriculas: {ex_mig}")
+        
         conn.commit()
+        # Executa migração de restrição única composto em pontos se necessário
+        migrar_restricao_unicidade_pontos(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
+
+def migrar_restricao_unicidade_pontos(conn):
+    """Garante a inserção da restrição UNIQUE composto na tabela pontos de forma segura"""
+    cursor = conn.cursor()
+    # Verifica se já existe um índice único cobrindo os campos desejados
+    cursor.execute("PRAGMA index_list(pontos)")
+    indexes = cursor.fetchall()
+    
+    ja_migrado = False
+    for idx in indexes:
+        idx_name = idx[1]
+        cursor.execute(f"PRAGMA index_info({idx_name})")
+        columns = {col[2] for col in cursor.fetchall()}
+        if {'levantamento_id', 'matricula_id', 'nome_vertice', 'tipo_ponto'}.issubset(columns):
+            ja_migrado = True
+            break
+            
+    if not ja_migrado:
+        logger.info("[MIGRAÇÃO] Iniciando atualização de restrição de unicidade composta na tabela pontos...")
+        try:
+            cursor.execute("BEGIN TRANSACTION;")
+            
+            # 1. Cria tabela temporária com a estrutura correta contendo a constraint UNIQUE
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pontos_backup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                levantamento_id INTEGER NOT NULL,
+                matricula_id INTEGER NOT NULL,
+                nome_vertice TEXT NOT NULL,       
+                tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V')),
+                lat REAL,
+                lon REAL,
+                alt REAL,
+                sigma_lat REAL,                   
+                sigma_lon REAL,                
+                sigma_alt REAL,                     
+                ordem_caminhamento INTEGER,       
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                n_original REAL,
+                e_original REAL,
+                alt_original REAL,
+                lat_corrigido REAL,
+                lon_corrigido REAL,
+                alt_corrigido REAL,
+                sigma_n REAL,
+                sigma_e REAL,
+                sigma_z REAL,
+                arquivo_rinex TEXT,
+                arquivo_resultado_ppp TEXT,
+                FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
+                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+                UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
+            );
+            """)
+            
+            # 2. Copia os dados existentes resolvendo potenciais conflitos via INSERT OR IGNORE
+            cursor.execute("""
+            INSERT OR IGNORE INTO pontos_backup (
+                id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
+                n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
+                sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp
+            )
+            SELECT id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                   sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
+                   n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
+                   sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp
+            FROM pontos;
+            """)
+            
+            # 3. Elimina a tabela antiga
+            cursor.execute("DROP TABLE pontos;")
+            
+            # 4. Renomeia a tabela nova
+            cursor.execute("ALTER TABLE pontos_backup RENAME TO pontos;")
+            
+            cursor.execute("COMMIT;")
+            logger.info("[MIGRAÇÃO] Tabela 'pontos' migrada com sucesso para a especificação de unicidade composta.")
+        except Exception as e:
+            try:
+                cursor.execute("ROLLBACK;")
+            except Exception:
+                pass
+            logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela pontos: {e}")
+            raise e

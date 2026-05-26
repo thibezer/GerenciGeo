@@ -9,54 +9,63 @@
   </head>
   <body class="h-screen flex overflow-hidden">
     <!-- Sidebar -->
-    <aside class="w-64 glass-card border-r-0 border-y-0 rounded-none flex flex-col p-4 z-20">
-      <div class="flex items-center gap-3 mb-10 px-2">
-        <div class="w-10 h-10 bg-mint-vibrant rounded-technical flex items-center justify-center shadow-[0_0_15px_rgba(0,245,160,0.3)]">
-          <i data-lucide="crosshair" class="text-forest-deep w-6 h-6"></i>
+    <aside id="sidebar" class="w-64 glass-card border-r-0 border-y-0 rounded-none flex flex-col p-4 z-20">
+      <div class="flex items-center justify-between mb-10 px-2" id="sidebar-header">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 bg-mint-vibrant rounded-technical flex items-center justify-center shadow-[0_0_15px_rgba(0,245,160,0.3)] shrink-0">
+            <i data-lucide="crosshair" class="text-forest-deep w-6 h-6"></i>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight sidebar-text truncate">Gerenci<span class="text-mint-vibrant">Geo</span></h1>
         </div>
-        <h1 class="text-xl font-bold tracking-tight">Gerenci<span class="text-mint-vibrant">Geo</span></h1>
+        <button id="btn-toggle-sidebar" class="text-white/60 hover:text-mint-vibrant p-1 hover:bg-white/5 rounded transition-all shrink-0 ml-1" title="Recolher menu">
+          <i data-lucide="chevron-left" class="w-5 h-5"></i>
+        </button>
       </div>
 
       <nav class="flex-1 space-y-2">
         <a href="#dashboard" class="nav-link active flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="layout-dashboard" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Dashboard</span>
-        </a>
-        <a href="#ppp" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="cpu" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Módulo PPP</span>
-        </a>
-        <a href="#hgo" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="folder-tree" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Organizador HGO</span>
-        </a>
-        <a href="#historico" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="history" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Histórico</span>
-        </a>
-        <a href="#levantamentos" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="map-pin" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Levantamentos</span>
+          <i data-lucide="layout-dashboard" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Dashboard</span>
         </a>
         <a href="#clientes" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
-          <i data-lucide="users" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant"></i>
-          <span>Clientes</span>
+          <i data-lucide="users" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Clientes</span>
+        </a>
+        <a href="#levantamentos" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
+          <i data-lucide="map-pin" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Levantamentos</span>
+        </a>
+        <a href="#propriedades" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
+          <i data-lucide="home" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Propriedades</span>
+        </a>
+        <a href="#ppp" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
+          <i data-lucide="cpu" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Módulo PPP</span>
+        </a>
+        <a href="#historico" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
+          <i data-lucide="history" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Histórico</span>
+        </a>
+        <a href="#hgo" class="nav-link flex items-center gap-3 px-3 py-2 rounded-technical transition-all hover:bg-white/5 group">
+          <i data-lucide="folder-tree" class="w-5 h-5 text-white/60 group-hover:text-mint-vibrant shrink-0"></i>
+          <span class="sidebar-text">Organizador HGO</span>
         </a>
       </nav>
 
-      <div class="mt-auto pt-6 border-t border-white/10 space-y-4">
+      <div class="mt-auto pt-6 border-t border-white/10 space-y-4" id="sidebar-footer">
         <div class="flex items-center gap-3 px-2">
-          <div class="w-8 h-8 rounded-full bg-mint-vibrant/20 border border-mint-vibrant/40 flex items-center justify-center text-xs font-bold text-mint-vibrant">
+          <div class="w-8 h-8 rounded-full bg-mint-vibrant/20 border border-mint-vibrant/40 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
             AD
           </div>
-          <div class="flex-1 min-w-0">
+          <div class="flex-1 min-w-0 sidebar-text">
             <p class="text-sm font-semibold truncate">Admin</p>
             <p class="text-[10px] text-white/40 truncate">Licença Profissional</p>
           </div>
         </div>
-        <button class="w-full btn-secondary text-sm py-1.5">
-          <i data-lucide="settings" class="w-4 h-4"></i>
-          Configurações
+        <button class="w-full btn-secondary text-sm py-1.5 flex items-center justify-center gap-2" id="btn-sidebar-settings">
+          <i data-lucide="settings" class="w-4 h-4 shrink-0"></i>
+          <span class="sidebar-text">Configurações</span>
         </button>
       </div>
     </aside>

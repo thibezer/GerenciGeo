@@ -16,7 +16,88 @@ from database.models import create_tables
 from business.workspace_manager import WorkspaceManager
 from business.txt_parser import TxtGeodesicParser
 
-app = FastAPI(title="GerenciGeo API")
+from fastapi import Depends
+from business.sigef_validator import SigefValidator
+
+def registrar_tentativa_violacao(levantamento_id: int, rota: str, metodo: str):
+    try:
+        execute_query(
+            "INSERT INTO logs_auditoria_seguranca (levantamento_id, rota, metodo) VALUES (?, ?, ?)",
+            params=(levantamento_id, rota, metodo),
+            commit=True
+        )
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao registrar log de violação: {e}")
+
+async def verificar_tranca_read_only(request: Request):
+    """
+    Middleware/Dependency do FastAPI. 
+    Analisa requisições de escrita e bloqueia se o levantamento estiver ARQUIVADO.
+    """
+    if request.method not in ["POST", "PUT", "DELETE"]:
+        return
+
+    levantamento_id = None
+    
+    # 1. Tenta extrair levantamento_id ou lev_id do Path Params
+    path_params = request.path_params
+    if "id" in path_params and "levantamentos" in request.url.path:
+        levantamento_id = path_params["id"]
+    elif "lev_id" in path_params:
+        levantamento_id = path_params["lev_id"]
+    
+    # 2. Se for rotas de pontos, segmentos, matriculas ou confrontantes sem levantamento_id direto no path:
+    if not levantamento_id:
+        path_str = request.url.path
+        partes = path_str.split("/")
+        
+        # /pontos/{pid}
+        if "/pontos/" in path_str and len(partes) >= 3:
+            entidade_id = partes[-1]
+            if entidade_id.isdigit():
+                row = execute_query("SELECT levantamento_id FROM pontos WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
+                if row: levantamento_id = row["levantamento_id"]
+                
+        # /segmentos/{sid}
+        elif "/segmentos/" in path_str and len(partes) >= 3:
+            entidade_id = partes[-1]
+            if entidade_id.isdigit():
+                row = execute_query("SELECT levantamento_id FROM segmentos WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
+                if row: levantamento_id = row["levantamento_id"]
+
+        # /confrontantes/{cid}
+        elif "/confrontantes/" in path_str and len(partes) >= 3:
+            entidade_id = partes[-1]
+            if entidade_id.isdigit():
+                row = execute_query("SELECT levantamento_id FROM confrontantes WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
+                if row: levantamento_id = row["levantamento_id"]
+
+        # /matriculas/{mid}
+        elif "/matriculas/" in path_str and len(partes) >= 3:
+            entidade_id = partes[-1]
+            if entidade_id.isdigit():
+                row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
+                if row:
+                    prop_id = row["propriedade_id"]
+                    row_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(prop_id,), fetch_one=True)
+                    if row_lev:
+                        levantamento_id = row_lev["id"]
+
+    if levantamento_id and str(levantamento_id).isdigit():
+        try:
+            row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(int(levantamento_id),), fetch_one=True)
+            if row and dict(row).get("status") == "ARQUIVADO":
+                registrar_tentativa_violacao(int(levantamento_id), request.url.path, request.method)
+                raise HTTPException(
+                    status_code=403,
+                    detail="Operação Bloqueada: O Levantamento correspondente está ARQUIVADO (Tranca de Segurança Read-Only ativa)."
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+app = FastAPI(title="GerenciGeo API", dependencies=[Depends(verificar_tranca_read_only)])
 
 def verificar_levantamento_arquivado(levantamento_id: int):
     """Tranca de Segurança Read-Only (Módulo 7): Impede escrita/exclusão em projetos ARQUIVADOS"""
@@ -208,6 +289,19 @@ def get_clientes():
             # Verifica levantamentos vinculados a propriedades desse cliente
             levs = execute_query("SELECT count(l.id) as qtd FROM propriedade_clientes pc JOIN propriedades p ON pc.propriedade_id = p.id JOIN levantamentos l ON p.id = l.propriedade_id WHERE pc.cliente_id = ?", params=(c['id'],), fetch_one=True)
             c['total_levantamentos'] = levs['qtd'] if levs else 0
+            
+            # Total de propriedades vinculadas
+            props_count = execute_query("SELECT COUNT(*) as qtd FROM propriedade_clientes WHERE cliente_id = ?", params=(c['id'],), fetch_one=True)
+            c['total_propriedades'] = props_count['qtd'] if props_count else 0
+            
+            # Lista de propriedades vinculadas (detalhada)
+            props_detail_query = """
+                SELECT p.id, p.nome_propriedade, pc.percentual_participacao
+                FROM propriedade_clientes pc
+                JOIN propriedades p ON pc.propriedade_id = p.id
+                WHERE pc.cliente_id = ?
+            """
+            c['propriedades'] = [dict(r) for r in execute_query(props_detail_query, params=(c['id'],), fetch_all=True)]
         return clientes
     except Exception as e:
         return {"error": str(e)}
@@ -301,6 +395,206 @@ def update_cliente(cliente_id: int, cli: ClienteCreate):
     except Exception as e:
         return {"error": str(e)}
 
+# --- PROPRIEDADES ---
+
+class PropriedadeCreate(BaseModel):
+    nome_propriedade: str
+    codigo_car: str = None
+    codigo_ccir: str = None
+    caminho_arquivo_car: str = None
+    caminho_arquivo_ccir: str = None
+    municipio: str
+    uf: str
+
+class PropriedadeClienteCreate(BaseModel):
+    cliente_id: int
+    percentual_participacao: float = 0.0
+
+@app.get("/propriedades")
+def get_propriedades():
+    try:
+        propriedades = [dict(r) for r in execute_query("SELECT * FROM propriedades", fetch_all=True)]
+        for p in propriedades:
+            # Busca clientes vinculados
+            clients_query = """
+                SELECT c.id, c.nome_completo, c.cpf_cnpj, pc.percentual_participacao
+                FROM propriedade_clientes pc
+                JOIN clientes c ON pc.cliente_id = c.id
+                WHERE pc.propriedade_id = ?
+            """
+            p['clientes'] = [dict(r) for r in execute_query(clients_query, params=(p['id'],), fetch_all=True)]
+        return propriedades
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/propriedades")
+def create_propriedade(p: PropriedadeCreate):
+    if len(p.uf) != 2:
+        return {"error": "UF deve conter exatamente 2 caracteres"}
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, caminho_arquivo_car, caminho_arquivo_ccir, municipio, uf)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.caminho_arquivo_car, p.caminho_arquivo_ccir, p.municipio, p.uf.upper()))
+            prop_id = cursor.lastrowid
+            conn.commit()
+        return {"id": prop_id, "message": "Propriedade cadastrada com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.put("/propriedades/{prop_id}")
+def update_propriedade(prop_id: int, p: PropriedadeCreate):
+    if len(p.uf) != 2:
+        return {"error": "UF deve conter exatamente 2 caracteres"}
+    try:
+        execute_query("""
+            UPDATE propriedades
+            SET nome_propriedade = ?, codigo_car = ?, codigo_ccir = ?, caminho_arquivo_car = ?, caminho_arquivo_ccir = ?, municipio = ?, uf = ?
+            WHERE id = ?
+        """, params=(p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.caminho_arquivo_car, p.caminho_arquivo_ccir, p.municipio, p.uf.upper(), prop_id), commit=True)
+        return {"message": "Propriedade atualizada com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.delete("/propriedades/{prop_id}")
+def delete_propriedade(prop_id: int):
+    try:
+        execute_query("DELETE FROM propriedades WHERE id = ?", params=(prop_id,), commit=True)
+        return {"message": "Propriedade excluída com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# --- UPLOAD / DOWNLOAD DE ARQUIVOS CAR E CCIR ---
+from fastapi.responses import FileResponse
+from pathlib import Path
+import re
+
+@app.post("/propriedades/{prop_id}/upload-car")
+async def upload_propriedade_car(prop_id: int, file: UploadFile = File(...)):
+    try:
+        prop = execute_query("SELECT id, nome_propriedade FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+        if not prop:
+            raise HTTPException(status_code=404, detail="Propriedade não localizada.")
+        
+        dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Limpa caracteres especiais
+        safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
+        dest_path = dest_dir / f"CAR_{safe_filename}"
+        
+        with open(dest_path, "wb") as buffer:
+            buffer.write(await file.read())
+            
+        execute_query(
+            "UPDATE propriedades SET caminho_arquivo_car = ? WHERE id = ?",
+            params=(str(dest_path), prop_id),
+            commit=True
+        )
+        
+        return {"message": "Arquivo do CAR enviado com sucesso", "caminho": str(dest_path)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/propriedades/{prop_id}/upload-ccir")
+async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
+    try:
+        prop = execute_query("SELECT id, nome_propriedade FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+        if not prop:
+            raise HTTPException(status_code=404, detail="Propriedade não localizada.")
+        
+        dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        
+        safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
+        dest_path = dest_dir / f"CCIR_{safe_filename}"
+        
+        with open(dest_path, "wb") as buffer:
+            buffer.write(await file.read())
+            
+        execute_query(
+            "UPDATE propriedades SET caminho_arquivo_ccir = ? WHERE id = ?",
+            params=(str(dest_path), prop_id),
+            commit=True
+        )
+        
+        return {"message": "Arquivo do CCIR enviado com sucesso", "caminho": str(dest_path)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/propriedades/{prop_id}/arquivo-car")
+def download_propriedade_car(prop_id: int):
+    row = execute_query("SELECT caminho_arquivo_car FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+    if not row or not row["caminho_arquivo_car"]:
+        raise HTTPException(status_code=404, detail="Arquivo do CAR não cadastrado para esta propriedade.")
+    path = Path(row["caminho_arquivo_car"])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo do CAR físico não foi localizado no disco.")
+    return FileResponse(path, filename=path.name)
+
+@app.get("/propriedades/{prop_id}/arquivo-ccir")
+def download_propriedade_ccir(prop_id: int):
+    row = execute_query("SELECT caminho_arquivo_ccir FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+    if not row or not row["caminho_arquivo_ccir"]:
+        raise HTTPException(status_code=404, detail="Arquivo do CCIR não cadastrado para esta propriedade.")
+    path = Path(row["caminho_arquivo_ccir"])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo do CCIR físico não foi localizado no disco.")
+    return FileResponse(path, filename=path.name)
+
+@app.post("/propriedades/{prop_id}/clientes")
+def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
+    try:
+        # Validação estrita de 100% de participação
+        # 1. Pega a soma das participações dos OUTROS clientes vinculados
+        soma_outros_row = execute_query(
+            "SELECT SUM(percentual_participacao) as soma FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id != ?",
+            params=(prop_id, pc.cliente_id),
+            fetch_one=True
+        )
+        soma_outros = float(soma_outros_row['soma']) if (soma_outros_row and soma_outros_row['soma'] is not None) else 0.0
+        
+        if soma_outros + pc.percentual_participacao > 100.0:
+            restante = max(0.0, 100.0 - soma_outros)
+            return {"error": f"Participação inválida. A soma das participações não pode exceder 100%. Restante disponível: {restante:.2f}%"}
+
+        # 2. Verifica se o vínculo já existe para atualizar ou se deve criar
+        exists = execute_query(
+            "SELECT id FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",
+            params=(prop_id, pc.cliente_id),
+            fetch_one=True
+        )
+        if exists:
+            execute_query(
+                "UPDATE propriedade_clientes SET percentual_participacao = ? WHERE propriedade_id = ? AND cliente_id = ?",
+                params=(pc.percentual_participacao, prop_id, pc.cliente_id),
+                commit=True
+            )
+            return {"message": "Participação do proprietário atualizada com sucesso"}
+        else:
+            execute_query(
+                "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, ?)",
+                params=(prop_id, pc.cliente_id, pc.percentual_participacao),
+                commit=True
+            )
+            return {"message": "Proprietário vinculado com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.delete("/propriedades/{prop_id}/clientes/{cliente_id}")
+def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
+    try:
+        execute_query(
+            "DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",
+            params=(prop_id, cliente_id),
+            commit=True
+        )
+        return {"message": "Proprietário desvinculado com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
 # --- LEVANTAMENTOS E WORKSPACE MANAGER ---
 
 class LevantamentoCreate(BaseModel):
@@ -339,16 +633,36 @@ class SegmentoCreate(BaseModel):
     tipo_limite_sigef: str
     metodo_posicionamento_sigef: str
 
+class LevantamentoUpdate(BaseModel):
+    propriedade_id: int
+    profissional_id: int
+    data_inicio: str
+    status: str = "EM_ANDAMENTO"
+
 @app.get("/levantamentos")
 def get_levantamentos():
     try:
         query = """
             SELECT l.*, 
-                   (SELECT COUNT(*) FROM pontos p WHERE p.levantamento_id = l.id) as total_pontos,
+                   p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf,
+                   (SELECT COUNT(*) FROM pontos p_pts WHERE p_pts.levantamento_id = l.id) as total_pontos,
                    (SELECT COUNT(*) FROM segmentos s WHERE s.levantamento_id = l.id) as total_segmentos
             FROM levantamentos l
+            JOIN propriedades p ON l.propriedade_id = p.id
         """
-        return [dict(r) for r in execute_query(query, fetch_all=True)]
+        levantamentos = [dict(r) for r in execute_query(query, fetch_all=True)]
+        
+        # Busca proprietários vinculados para cada levantamento
+        for l in levantamentos:
+            clients_query = """
+                SELECT c.id, c.nome_completo, c.cpf_cnpj, pc.percentual_participacao
+                FROM propriedade_clientes pc
+                JOIN clientes c ON pc.cliente_id = c.id
+                WHERE pc.propriedade_id = ?
+            """
+            l['clientes'] = [dict(r) for r in execute_query(clients_query, params=(l['propriedade_id'],), fetch_all=True)]
+            
+        return levantamentos
     except Exception as e:
         return {"error": str(e)}
 
@@ -376,6 +690,25 @@ def create_levantamento(lev: LevantamentoCreate):
             
             return {"id": lev_id, "pasta_projeto": pasta, "message": "Levantamento e workspace criados"}
     except Exception as e:
+        return {"error": str(e)}
+
+@app.put("/levantamentos/{lev_id}")
+def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
+    verificar_levantamento_arquivado(lev_id)
+    try:
+        execute_query("""
+            UPDATE levantamentos
+            SET propriedade_id = ?, profissional_id = ?, data_inicio = ?, status = ?
+            WHERE id = ?
+        """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.status, lev_id), commit=True)
+        
+        # Regenera o Workspace DADOS_GERAIS.json
+        wm = WorkspaceManager()
+        wm.gerar_documento_cliente_workspace(lev_id)
+        
+        return {"message": "Levantamento atualizado com sucesso"}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
         return {"error": str(e)}
 
 @app.delete("/levantamentos/{lev_id}")
@@ -410,6 +743,98 @@ async def upload_documento_levantamento(lev_id: int, file: UploadFile = File(...
             buffer.write(await file.read())
             
         return {"message": "Documento anexado", "path": file_path}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        return {"error": str(e)}
+
+@app.post("/levantamentos/{lev_id}/upload-arquivo")
+async def upload_arquivo_categoria(lev_id: int, categoria: str = Form(...), file: UploadFile = File(...)):
+    verificar_levantamento_arquivado(lev_id)
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        categorias = ["Brutos", "Rinex", "Processados", "Documentos", "Exportacoes"]
+        if categoria not in categorias:
+            raise HTTPException(status_code=400, detail="Categoria de pasta de arquivos inválida.")
+            
+        pasta_destino = folder / categoria
+        pasta_destino.mkdir(parents=True, exist_ok=True)
+        
+        file_path = pasta_destino / file.filename
+        
+        # Destrava permissão de escrita se já existir para poder sobrescrever se desejado
+        import stat
+        if file_path.exists():
+            try:
+                os.chmod(file_path, stat.S_IWRITE)
+            except Exception:
+                pass
+                
+        with open(file_path, "wb") as buffer:
+            buffer.write(await file.read())
+            
+        # Blindagem física se for Brutos
+        if categoria == "Brutos":
+            try:
+                os.chmod(file_path, os.stat(file_path).st_mode & ~stat.S_IWRITE)
+            except Exception:
+                pass
+                
+        # Sincroniza
+        wm.gerar_documento_cliente_workspace(lev_id)
+        
+        return {"success": True, "message": f"Arquivo '{file.filename}' carregado com sucesso na pasta '{categoria}'."}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/levantamentos/{lev_id}/arquivos")
+def get_arquivos_levantamento(lev_id: int):
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        
+        categorias = ["Brutos", "Rinex", "Processados", "Documentos", "Exportacoes"]
+        resultado = {cat: [] for cat in categorias}
+        
+        if not folder.exists():
+            return resultado
+            
+        import datetime
+        for cat in categorias:
+            cat_folder = folder / cat
+            if cat_folder.exists() and cat_folder.is_dir():
+                for f in cat_folder.iterdir():
+                    if f.is_file():
+                        stat = f.stat()
+                        size_kb = stat.st_size / 1024
+                        size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB"
+                        mod_time = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M")
+                        resultado[cat].append({
+                            "nome": f.name,
+                            "tamanho": size_str,
+                            "modificado": mod_time
+                        })
+                        
+        return resultado
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/levantamentos/{lev_id}/arquivos/download")
+def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        
+        categorias = ["Brutos", "Rinex", "Processados", "Documentos", "Exportacoes"]
+        if categoria not in categorias:
+            raise HTTPException(status_code=400, detail="Categoria de pasta de arquivos inválida.")
+            
+        file_path = folder / categoria / nome
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail="Arquivo não localizado no disco.")
+            
+        return FileResponse(file_path, filename=file_path.name)
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         return {"error": str(e)}
@@ -596,9 +1021,116 @@ async def importar_caderneta_txt(id: int, matricula_id: int = Form(...), file: U
             "layout_detectado": "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
         }
         
+    except ValueError as val_err:
+        # Retorna erro amigável de duplicidade ou violação de regra de negócio com HTTP 400
+        logging.getLogger(__name__).warning(f"Tentativa de importação inválida: {val_err}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "erro": "VIOLACAO_REGRA_NEGOCIO",
+                "mensagem": str(val_err)
+            }
+        )
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro na importação de caderneta TXT: {e}")
-        return {"error": f"Falha no processamento: {str(e)}"}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "erro": "ERRO_INTERNO_PROCESSAMENTO",
+                "mensagem": f"Falha no processamento: {str(e)}"
+            }
+        )
+
+@app.post("/levantamentos/{id}/matriculas/{matricula_id}/reordenar")
+def post_reordenar_perimetro(id: int, matricula_id: int):
+    verificar_levantamento_arquivado(id)
+    from business.geoprocessamento import reordenar_perimetro_matricula
+    
+    resultado = reordenar_perimetro_matricula(id, matricula_id)
+    if not resultado["sucesso"]:
+        raise HTTPException(status_code=400, detail=resultado["erro"])
+        
+    # Sincroniza o DADOS_GERAIS.json no workspace físico
+    wm = WorkspaceManager()
+    wm.gerar_documento_cliente_workspace(id)
+    
+    return resultado
+
+@app.post("/levantamentos/{id}/consolidar-pontos")
+def endpoint_consolidar_pontos(id: int):
+    """
+    Executa a consolidação espacial de todos os pontos do levantamento,
+    gravando o arquivo TXT na pasta física de exportações.
+    """
+    verificar_levantamento_arquivado(id)
+    try:
+        wm = WorkspaceManager()
+        caminho_arquivo = wm.consolidar_pontos_levantamento(id)
+        
+        return {
+            "success": True,
+            "message": "Pontos consolidados com coordenadas UTM corrigidas e confrontantes mapeados com sucesso!",
+            "arquivo": "PONTOS_CONSOLIDADOS_UTM.txt",
+            "caminho_completo": caminho_arquivo
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/levantamentos/{lev_id}/arquivos/deletar")
+def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
+    verificar_levantamento_arquivado(lev_id)
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        
+        categorias = ["Brutos", "Rinex", "Processados", "Documentos", "Exportacoes"]
+        if categoria not in categorias:
+            raise HTTPException(status_code=400, detail="Categoria de pasta de arquivos inválida.")
+            
+        file_path = folder / categoria / nome
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail="Arquivo não localizado no disco.")
+            
+        # Destrava a permissão de escrita temporariamente para deletar
+        import stat
+        try:
+            os.chmod(file_path, stat.S_IWRITE)
+        except Exception:
+            pass
+            
+        os.remove(file_path)
+        return {"success": True, "message": f"Arquivo '{nome}' excluído com sucesso do repositório físico."}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ConversaoRinexPayload(BaseModel):
+    levantamento_id: int
+    arquivo: str
+
+@app.post("/process/converter-gns-rinex")
+def converter_gns_rinex(payload: ConversaoRinexPayload):
+    verificar_levantamento_arquivado(payload.levantamento_id)
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(payload.levantamento_id)
+        
+        caminho_bruto = folder / "Brutos" / payload.arquivo
+        if not caminho_bruto.exists():
+            raise HTTPException(status_code=404, detail="Arquivo bruto original não encontrado no disco.")
+            
+        pasta_dest_rinex = folder / "Rinex"
+        pasta_dest_rinex.mkdir(parents=True, exist_ok=True)
+        
+        from business.gnss_worker import GNSSPipelineWorker
+        worker = GNSSPipelineWorker([str(caminho_bruto)], str(pasta_dest_rinex), LogQueue())
+        worker.run()
+        
+        return {"success": True, "message": "Conversão do arquivo bruto .GNS para RINEX universal concluída com sucesso!"}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- ROTAS DE CONFRONTANTES ---
 @app.get("/levantamentos/{id}/confrontantes")
@@ -857,6 +1389,433 @@ async def proxy_sigef(url: str):
     except Exception as e:
         print(f"Erro na requisição proxy: {e}")
         return {"error": str(e)}
+            
+# --- NOVAS ROTAS DO MÓDULO 6: REGISTRO EM CARTÓRIO ---
+from fastapi.responses import HTMLResponse
+import math
+
+@app.get("/levantamentos/{id}/documentos/gerar-requerimento", response_class=HTMLResponse)
+def gerar_requerimento(id: int, matricula_id: int):
+    """Gera um requerimento em HTML formatado para impressão (CSS Print) endereçado ao CRI local"""
+    lev_row = execute_query(
+        "SELECT l.*, p.nome as nome_profissional, p.registro as registro_profissional, p.codigo_credenciado FROM levantamentos l JOIN profissionais p ON l.profissional_id = p.id WHERE l.id = ?",
+        params=(id,), fetch_one=True
+    )
+    if not lev_row: 
+        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+    lev_data = dict(lev_row)
+    
+    prop_row = execute_query("SELECT * FROM propriedades WHERE id = ?", params=(lev_data["propriedade_id"],), fetch_one=True)
+    prop_data = dict(prop_row) if prop_row else {}
+    
+    mat_row = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+    if not mat_row: 
+        raise HTTPException(status_code=404, detail="Matrícula não localizada.")
+    mat_data = dict(mat_row)
+    
+    cli_rows = execute_query(
+        "SELECT c.*, pc.percentual_participacao FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+        params=(lev_data["propriedade_id"],), fetch_all=True
+    )
+    clientes = [dict(c) for c in cli_rows]
+    
+    cli_html = ""
+    for c in clientes:
+        civil_info = f", {c['estado_civil']}" if c['estado_civil'] else ""
+        prof_info = f", {c['profissao']}" if c['profissao'] else ""
+        conj_info = ""
+        if c['estado_civil'] and c['estado_civil'].upper() == "CASADO":
+            conj_info = f" casado sob o regime de {c['regime_bens']} com {c['nome_conjuge']}, portador(a) do CPF nº {c['cpf_conjuge']} e RG nº {c['rg_conjuge']}"
+        
+        cli_html += f"<p><b>{c['nome_completo']}</b>, nacionalidade {c['nacionalidade']}{civil_info}{prof_info}{conj_info}, portador(a) do CPF/CNPJ nº {c['cpf_cnpj']} e RG nº {c['rg_ie']}, residente e domiciliado(a) em {c['endereco_completo']}, {c['cidade']}-{c['estado']}.</p>"
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <title>Requerimento de Retificação de Área - {prop_data.get('nome_propriedade', 'Imóvel')}</title>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; background-color: #fff; }}
+            .page {{ max-width: 800px; margin: 0 auto; }}
+            .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
+            .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; letter-spacing: 2px; }}
+            .logo span {{ color: #00f5a0; }}
+            .document-title {{ font-size: 18px; font-weight: 700; text-transform: uppercase; margin-top: 15px; color: #1a202c; }}
+            .address {{ font-weight: 700; margin-top: 30px; margin-bottom: 30px; }}
+            .content {{ text-align: justify; font-size: 15px; }}
+            .footer-signature {{ margin-top: 60px; page-break-inside: avoid; }}
+            .sig-line {{ width: 320px; border-top: 1px solid #4a5568; margin: 50px auto 10px auto; text-align: center; }}
+            .sig-title {{ text-align: center; font-size: 13px; color: #718096; font-weight: 600; }}
+            .btn-print {{ background-color: #00f5a0; color: #0c1510; padding: 10px 20px; font-weight: 700; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }}
+            .btn-print:hover {{ opacity: 0.8; }}
+            @media print {{ body {{ padding: 0; }} .no-print {{ display: none; }} }}
+        </style>
+    </head>
+    <body>
+        <div class="page">
+            <div class="no-print" style="text-align: right; margin-bottom: 20px;">
+                <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+            </div>
+            <div class="header">
+                <div class="logo">Gerenci<span>Geo</span></div>
+                <div class="document-title">Requerimento de Retificação de Registro de Imóvel Rural</div>
+            </div>
+            <div class="address">
+                AO ILUSTRÍSSIMO OFICIAL DO CARTÓRIO DE REGISTRO DE IMÓVEIS DE {str(mat_data.get('cri_comarca') or prop_data.get('municipio', '')).upper()} - UF: {prop_data.get('uf', '').upper()}
+            </div>
+            <div class="content">
+                <p>Senhor Oficial,</p>
+                {cli_html}
+                <p>Proprietários do imóvel rural denominado <b>{prop_data.get('nome_propriedade')}</b>, localizado no município de {prop_data.get('municipio')}-{prop_data.get('uf')}, com área registrada de <b>{mat_data.get('area_ha')} ha</b>, sob a Matrícula nº <b>{mat_data.get('numero_matricula')}</b> do {mat_data.get('cri_circunscricao') or 'CRI local'}, registrada no {mat_data.get('livro_registro') or 'Livro 2-RG'}, {mat_data.get('folha_registro') or 'Folha correspondente'}, vêm respeitosamente requerer a Vossa Senhoria, com fundamento no Artigo 213, Inciso II da Lei Federal nº 6.015 de 31 de dezembro de 1973 (Lei dos Registros Públicos), com as alterações introduzidas pela Lei nº 10.267 de 28 de agosto de 2001, a <b>RETIFICAÇÃO DE REGISTRO</b> de seu imóvel rural.</p>
+                
+                <p>O presente pedido justifica-se por haver divergência nas dimensões perimetrais e na área do imóvel, estando a realidade de divisa consolidada de campo descrita nos trabalhos técnicos de georreferenciamento elaborados pelo Engenheiro/Responsável Técnico <b>{lev_data.get('nome_profissional')}</b>, credenciado perante o INCRA sob o código <b>{lev_data.get('codigo_credenciado')}</b>, conforme planta, memorial descritivo e anexo de confrontações anexados à presente.</p>
+                
+                <p>Os confrontantes anuíram expressamente aos limites e divisas retificados, tendo assinado individualmente as respectivas cartas de anuência anexadas, com firmas reconhecidas em cartório.</p>
+                
+                <p>Nestes termos, pede e espera deferimento.</p>
+                
+                <p style="margin-top: 40px; text-align: right;">{prop_data.get('municipio')}-{prop_data.get('uf')}, _____ de ____________________ de 20___.</p>
+            </div>
+            
+            <div class="footer-signature">
+                <div class="sig-line"></div>
+                <div class="sig-title">Requerente Proprietário</div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
+
+@app.get("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/pdf", response_class=HTMLResponse)
+def gerar_termo_anuencia(id: int, confrontante_id: int):
+    """Gera Carta de Anuência preenchida com a ordenação perimetral dos segmentos lindeiros daquele confrontante"""
+    conf_row = execute_query("SELECT * FROM confrontantes WHERE id = ?", params=(confrontante_id,), fetch_one=True)
+    if not conf_row: 
+        raise HTTPException(status_code=404, detail="Confrontante não localizado.")
+    conf = dict(conf_row)
+    
+    lev_row = execute_query(
+        "SELECT l.*, p.nome as nome_profissional, p.registro as registro_profissional, p.codigo_credenciado FROM levantamentos l JOIN profissionais p ON l.profissional_id = p.id WHERE l.id = ?",
+        params=(id,), fetch_one=True
+    )
+    if not lev_row: 
+        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+    lev_data = dict(lev_row)
+    
+    prop_row = execute_query("SELECT * FROM propriedades WHERE id = ?", params=(lev_data["propriedade_id"],), fetch_one=True)
+    prop_data = dict(prop_row) if prop_row else {}
+    
+    cli_rows = execute_query(
+        "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+        params=(lev_data["propriedade_id"],), fetch_all=True
+    )
+    clientes = [dict(c) for c in cli_rows]
+    
+    # Busca segmentos lindeiros
+    seg_rows = execute_query(
+        """
+        SELECT s.*, p_ini.nome_vertice as nome_p_ini, p_ini.lat as lat_ini, p_ini.lon as lon_ini,
+                    p_fim.nome_vertice as nome_p_fim, p_fim.lat as lat_fim, p_fim.lon as lon_fim
+        FROM segmentos s
+        JOIN pontos p_ini ON s.ponto_inicio_id = p_ini.id
+        JOIN pontos p_fim ON s.ponto_fim_id = p_fim.id
+        WHERE s.levantamento_id = ? AND s.confrontante_id = ?
+        """,
+        params=(id, confrontante_id), fetch_all=True
+    )
+    
+    if not seg_rows:
+        raise HTTPException(status_code=404, detail="Nenhum segmento de divisa associado a este confrontante para este levantamento.")
+        
+    segmentos = [dict(s) for s in seg_rows]
+    
+    divisas_html = ""
+    total_dist = 0.0
+    
+    lon0 = segmentos[0]["lon_ini"]
+    zona_utm = int((lon0 + 180) / 6) + 1
+    
+    from pyproj import Transformer
+    transformer = Transformer.from_crs("epsg:4674", f"epsg:319{zona_utm}", always_xy=True)
+    
+    for s in segmentos:
+        e_ini, n_ini = transformer.transform(s["lon_ini"], s["lat_ini"])
+        e_fim, n_fim = transformer.transform(s["lon_fim"], s["lat_fim"])
+        
+        de = e_fim - e_ini
+        dn = n_fim - n_ini
+        dist = math.sqrt(de**2 + dn**2)
+        total_dist += dist
+        
+        az = math.degrees(math.atan2(de, dn)) % 360.0
+        
+        graus = int(az)
+        minutos_dec = (az - graus) * 60.0
+        minutos = int(minutos_dec)
+        segundos = (minutos_dec - minutos) * 60.0
+        az_format = f"{graus}° {minutos:02d}' {segundos:04.1f}\""
+        
+        divisas_html += f"<tr><td>{s['nome_p_ini']}</td><td>{s['nome_p_fim']}</td><td>{az_format}</td><td>{dist:.2f} m</td><td>{s['tipo_limite_sigef']}</td><td>{s['metodo_posicionamento_sigef']}</td></tr>"
+    
+    proprietarios_nomes = ", ".join([c["nome_completo"] for c in clientes])
+    
+    conj_info = ""
+    if conf.get("estado_civil") and conf.get("estado_civil").upper() == "CASADO":
+        conj_info = f" e seu cônjuge <b>{conf.get('nome_conjuge')}</b>, nacionalidade {conf.get('nacionalidade') or 'brasileiro(a)'}, portador(a) do CPF nº {conf.get('cpf_conjuge')} e RG nº {conf.get('rg_conjuge')},"
+        
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <title>Termo de Anuência de Confrontante - {conf['nome']}</title>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; }}
+            .page {{ max-width: 800px; margin: 0 auto; }}
+            .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
+            .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; }}
+            .logo span {{ color: #00f5a0; }}
+            .document-title {{ font-size: 18px; font-weight: 700; text-transform: uppercase; margin-top: 15px; color: #1a202c; }}
+            .content {{ text-align: justify; font-size: 14px; margin-bottom: 30px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 13px; }}
+            th, td {{ border: 1px solid #cbd5e0; padding: 10px; text-align: center; }}
+            th {{ background-color: #f7fafc; font-weight: 700; }}
+            .signatures {{ display: flex; justify-content: space-between; margin-top: 60px; page-break-inside: avoid; }}
+            .sig-block {{ width: 45%; text-align: center; }}
+            .sig-line {{ border-top: 1px solid #4a5568; margin-top: 40px; margin-bottom: 10px; }}
+            .sig-title {{ font-size: 12px; color: #718096; font-weight: 600; }}
+            .btn-print {{ background-color: #00f5a0; color: #0c1510; padding: 10px 20px; font-weight: 700; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; }}
+            @media print {{ body {{ padding: 0; }} .no-print {{ display: none; }} }}
+        </style>
+    </head>
+    <body>
+        <div class="page">
+            <div class="no-print" style="text-align: right; margin-bottom: 20px;">
+                <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+            </div>
+            <div class="header">
+                <div class="logo">Gerenci<span>Geo</span></div>
+                <div class="document-title">Carta de Anuência de Limites de Confrontação</div>
+            </div>
+            <div class="content">
+                <p>Pelo presente instrumento particular de anuência e reconhecimento de divisas, eu <b>{conf['nome']}</b>, nacionalidade {conf.get('nacionalidade') or 'brasileiro(a)'}, {conf.get('estado_civil') or 'estado civil não informado'}, {conf.get('profissao') or 'profissão não informada'}, portador(a) do CPF nº {conf.get('cpf_cnpj')} e RG nº {conf.get('rg') or 'não informado'}, residente e domiciliado(a) em {conf.get('endereco_completo') or 'endereço não informado'}{conj_info} na qualidade de confrontante e proprietário legal de área lindeira à propriedade denominada <b>{prop_data.get('nome_propriedade')}</b>, declaro expressamente e sob responsabilidade jurídica:</p>
+                
+                <p>1. Que **ANUO E CONCORDOS** de forma irrestrita com as novas divisas, marcos e coordenadas levantadas e descritas no perímetro da propriedade de <b>{proprietarios_nomes}</b>, referente ao perímetro delimitado pelos segmentos de divisa listados na tabela abaixo, cujo trabalho de demarcação de campo foi executado em conformidade com as normas do INCRA/SIGEF.</p>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>De Vértice</th>
+                            <th>Para Vértice</th>
+                            <th>Azimute</th>
+                            <th>Distância</th>
+                            <th>Tipo Limite</th>
+                            <th>Método Pos.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {divisas_html}
+                    </tbody>
+                </table>
+                
+                <p>2. A soma linear de confrontação corresponde a uma extensão perimetral total de <b>{total_dist:.2f} metros</b> de divisa retificada.</p>
+                <p>3. Reconheço e atesto que as cercas ou marcos instalados neste trecho representam fielmente os limites históricos consolidados da posse e propriedade, não havendo invasões, sobreposições ou litígios de divisa de qualquer natureza.</p>
+                
+                <p style="margin-top: 40px; text-align: right;">{prop_data.get('municipio')}-{prop_data.get('uf')}, _____ de ____________________ de 20___.</p>
+            </div>
+            
+            <div class="signatures">
+                <div class="sig-block">
+                    <div class="sig-line"></div>
+                    <div class="sig-title">Confrontante Proprietário</div>
+                    <div class="sig-title">{conf['nome']}</div>
+                </div>
+                {"<div class='sig-block'><div class='sig-line'></div><div class='sig-title'>Cônjuge do Confrontante</div><div class='sig-title'>" + conf.get('nome_conjuge', '') + "</div></div>" if conj_info else ""}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
+
+@app.post("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/upload")
+async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFile = File(...)):
+    """Recebe o termo assinado digitalizado e atualiza o status de anuência da confrontação"""
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(id)
+        pasta_anuencias = folder / "Documentos" / "Anuancias"
+        pasta_anuencias.mkdir(parents=True, exist_ok=True)
+        
+        caminho_salvo = pasta_anuencias / f"anuencia_{confrontante_id}_assinado.pdf"
+        with open(caminho_salvo, "wb") as buffer:
+            buffer.write(await file.read())
+            
+        # Atualiza o status
+        exists = execute_query("SELECT id FROM anuencias_confrontantes WHERE levantamento_id = ? AND confrontante_id = ?", params=(id, confrontante_id), fetch_one=True)
+        if exists:
+            execute_query(
+                "UPDATE anuencias_confrontantes SET status_anuencia = 'ASSINADO', caminho_documento_assinado = ? WHERE levantamento_id = ? AND confrontante_id = ?",
+                params=(str(caminho_salvo), id, confrontante_id), commit=True
+            )
+        else:
+            execute_query(
+                "INSERT INTO anuencias_confrontantes (levantamento_id, confrontante_id, status_anuencia, caminho_documento_assinado) VALUES (?, ?, 'ASSINADO', ?)",
+                params=(id, confrontante_id, str(caminho_salvo)), commit=True
+            )
+            
+        return {"message": "Anuência assinada arquivada e registrada com sucesso.", "caminho_fisico": str(caminho_salvo)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/levantamentos/{id}/documentos/status-cartorio")
+def status_cartorio(id: int):
+    """Consolida um relatório completo de pendências civis, de CRI e de confrontantes para dar entrada no cartório"""
+    lev_row = execute_query(
+        "SELECT l.*, p.nome_propriedade FROM levantamentos l JOIN propriedades p ON l.propriedade_id = p.id WHERE l.id = ?",
+        params=(id,), fetch_one=True
+    )
+    if not lev_row: 
+        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+    lev = dict(lev_row)
+    prop_id = lev["propriedade_id"]
+    
+    # Valida qualificação dos proprietários
+    clientes_prop = execute_query(
+        "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+        params=(prop_id,), fetch_all=True
+    )
+    clientes_qualificados = True
+    proprietarios_pendencias = []
+    for c in clientes_prop:
+        civil = dict(c)
+        if not civil.get("cpf_cnpj") or not civil.get("endereco_completo") or not civil.get("rg_ie"):
+            clientes_qualificados = False
+            proprietarios_pendencias.append(f"Proprietário {civil.get('nome_completo')} com qualificação civil incompleta.")
+            
+    # Valida metadados de matrículas
+    matriculas_prop = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(prop_id,), fetch_all=True)
+    matriculas_qualificadas = True
+    matriculas_pendencias = []
+    for m in matriculas_prop:
+        mat = dict(m)
+        if not mat.get("cri_comarca") or not mat.get("cri_circunscricao") or not mat.get("livro_registro") or not mat.get("folha_registro"):
+            matriculas_qualificadas = False
+            matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
+            
+    # Valida anuências
+    confrontantes = execute_query("SELECT * FROM confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
+    conf_total = len(confrontantes)
+    
+    anuencias_rows = execute_query("SELECT * FROM anuencias_confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
+    anuencias = {a["confrontante_id"]: dict(a) for a in anuencias_rows}
+    
+    conf_assinados = 0
+    conf_pendentes_nomes = []
+    
+    for c in confrontantes:
+        conf_id = c["id"]
+        status_anu = anuencias.get(conf_id, {}).get("status_anuencia", "PENDENTE")
+        if status_anu in ["ASSINADO", "DISPENSADO"]:
+            conf_assinados += 1
+        else:
+            conf_pendentes_nomes.append(c["nome"])
+            
+    pronto = clientes_qualificados and matriculas_qualificadas and (conf_assinados == conf_total)
+    
+    pendencias = proprietarios_pendencias + matriculas_pendencias
+    for nome in conf_pendentes_nomes:
+        pendencias.append(f"Falta assinatura do Termo de Anuência de {nome}.")
+        
+    return {
+        "levantamento_id": id,
+        "propriedade": lev["nome_propriedade"],
+        "proprietarios_qualificados": clientes_qualificados,
+        "matriculas_qualificadas": matriculas_qualificadas,
+        "confrontantes_totais": conf_total,
+        "confrontantes_assinados": conf_assinados,
+        "confrontantes_pendentes": conf_pendentes_nomes,
+        "pronto_para_registro": pronto,
+        "pendencias_cartorio": pendencias
+    }
+
+
+# --- NOVAS ROTAS DO MÓDULO 7: ARQUIVAMENTO SEGURO E TRANCA ---
+
+@app.post("/levantamentos/{id}/arquivar")
+def arquivar_levantamento(id: int):
+    """Arquiva logicamente o levantamento (Tranca Read-Only), gera snapshot JSON e tranca a pasta no Windows"""
+    lev_row = execute_query("SELECT id, status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
+    if not lev_row: 
+        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+    
+    wm = WorkspaceManager()
+    snap_path = wm.gerar_snapshot_arquivamento(id)
+    
+    # Atualiza banco de dados
+    execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
+    
+    # Trava todos os arquivos físicos no Windows
+    wm.travar_workspace_inteiro_readonly(id)
+    
+    return {
+        "message": "Levantamento arquivado com sucesso. Tranca de Segurança Read-Only ativada em banco e em disco.",
+        "snapshot_fechamento": snap_path
+    }
+
+class DesarquivarPayload(BaseModel):
+    justificativa: str
+
+@app.post("/levantamentos/{id}/desarquivar")
+def desarquivar_levantamento(id: int, payload: DesarquivarPayload):
+    """Desarquiva sob justificativa formal de auditoria, restabelecendo a escrita lindeira"""
+    lev_row = execute_query("SELECT id, status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
+    if not lev_row: 
+        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+    
+    # Registra no log de auditoria
+    execute_query(
+        "INSERT INTO logs_auditoria_seguranca (levantamento_id, rota, metodo, usuario) VALUES (?, ?, ?, ?)",
+        params=(id, f"/desarquivar - Justificativa: {payload.justificativa}", "POST", "Operador_Administrador"),
+        commit=True
+    )
+    
+    # Atualiza banco de dados
+    execute_query("UPDATE levantamentos SET status = 'EM_ANDAMENTO' WHERE id = ?", params=(id,), commit=True)
+    
+    # Destrava os arquivos físicos no Windows
+    wm = WorkspaceManager()
+    wm.destravar_workspace_inteiro(id)
+    
+    return {"message": "Levantamento desarquivado com sucesso. Permissão de escrita restabelecida."}
+
+
+# --- ROTA DE AUDITORIA TOPOLÓGICA DE MATRÍCULAS ---
+
+@app.get("/matriculas/{mid}/auditoria")
+def auditar_perimetro_matricula(mid: int):
+    """Efetua a auditoria topológica completa de caminhamento e área real da matrícula rústica"""
+    mat_row = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+    if not mat_row: 
+        raise HTTPException(status_code=404, detail="Matrícula não cadastrada.")
+    mat = dict(mat_row)
+    
+    pontos_rows = execute_query(
+        "SELECT id, nome_vertice, lat, lon, alt, ordem_caminhamento FROM pontos WHERE matricula_id = ? ORDER BY ordem_caminhamento ASC, id ASC",
+        params=(mid,), fetch_all=True
+    )
+    if not pontos_rows:
+        return {"sucesso": False, "erro": "Nenhum ponto geodésico cadastrado para esta matrícula."}
+        
+    pontos = [dict(p) for p in pontos_rows]
+    
+    res_auditoria = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=mat.get("area_ha") or 0.0)
+    return res_auditoria
+
 
 def sou_administrador():
     import ctypes

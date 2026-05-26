@@ -2,6 +2,7 @@ import os
 import logging
 from pyproj import Transformer
 from database.connection import execute_query, DatabaseManager
+from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,11 @@ class TxtGeodesicParser:
     def obter_base_ppp(self) -> dict:
         """
         Varre o levantamento no banco para encontrar se já existe uma base pós-processada pelo IBGE-PPP.
-        Retorna as coordenadas corrigidas geodésicas (lat, lon, alt) do Marco de Apoio (tipo 'M').
+        Retorna as coordenadas corrigidas geodésicas (lat, lon, alt) do Marco de Apoio (tipo 'M')
+        com seus respectivos sigmas (sigma_lat, sigma_lon, sigma_alt).
         """
         query = """
-            SELECT lat, lon, alt 
+            SELECT lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
             FROM pontos 
             WHERE levantamento_id = ? AND tipo_ponto = 'M' AND lat IS NOT NULL AND lat != 0.0 
             LIMIT 1
@@ -58,8 +60,9 @@ class TxtGeodesicParser:
     def processar_arquivo(self, caminho_arquivo: str) -> list:
         """
         Lê o arquivo de texto, detecta o layout, calcula o vetor de translação da base
-        e aplica a translação em bloco sobre os rovers, convertendo tudo para lat/lon SIRGAS 2000 Geodésico.
-        Utiliza projeção UTM dinâmica baseada na longitude da base geodésica corrigida pós-PPP.
+        no espaço tridimensional cartesiano geocêntrico ECEF e aplica a translação em bloco
+        sobre os rovers, convertendo tudo de volta para lat/lon SIRGAS 2000 Geodésico.
+        Propaga quadraticamente os desvios padrão (Sigmas) da base e rovers.
         """
         if not os.path.exists(caminho_arquivo):
             raise FileNotFoundError(f"Arquivo não localizado: {caminho_arquivo}")
@@ -70,9 +73,10 @@ class TxtGeodesicParser:
         layout = self.identificar_layout(linhas)
         logger.info(f"[PARSER] Layout identificado para {os.path.basename(caminho_arquivo)}: {layout.upper()}")
 
-        delta_n = 0.0
-        delta_e = 0.0
-        delta_h = 0.0
+        aplicar_translace_ecef = False
+        delta_x = 0.0
+        delta_y = 0.0
+        delta_z = 0.0
 
         pontos_brutos = []
 
@@ -98,7 +102,6 @@ class TxtGeodesicParser:
                 sig_z = 0.0
 
                 if layout == "rtk":
-                    # RTK: [Nome, Norte, Este, Alt, Descrição, SigmaN, SigmaE, SigmaZ]
                     if len(partes) >= 5:
                         desc = partes[4].lower()
                     if len(partes) >= 8:
@@ -106,7 +109,6 @@ class TxtGeodesicParser:
                         sig_e = float(partes[6])
                         sig_z = float(partes[7])
                 else:
-                    # Topcon: [Nome, Norte, Este, Alt, SigmaN, SigmaE, SigmaZ, ...]
                     if len(partes) >= 7:
                         sig_n = float(partes[4])
                         sig_e = float(partes[5])
@@ -132,42 +134,41 @@ class TxtGeodesicParser:
         base_ppp = self.obter_base_ppp()
         if base_ppp:
             longitude_base = base_ppp["lon"]
-            # Cálculo matemático e dinâmico da zona UTM e EPSG correspondente no hemisfério Sul no Brasil
             zona_utm = int((longitude_base + 180) / 6) + 1
             epsg_dinamico = f"319{zona_utm}"
             logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com base na longitude {longitude_base:.6f}")
         else:
-            # Fallback seguro caso não encontre base PPP: Fuso UTM 22S (EPSG:31982)
             epsg_dinamico = "31982"
             logger.warning(f"[PARSER] Nenhuma base PPP ativa encontrada no banco para este levantamento. Usando Fuso de Fallback: 22S (EPSG:{epsg_dinamico})")
 
-        # CRS de destino: SIRGAS 2000 Geodésico (EPSG:4674) - Referencial Oficial do INCRA
         crs_geodesica = "epsg:4674"
         crs_plana = f"epsg:{epsg_dinamico}"
 
-        # Configuração bidirecional do pyproj instanciada dinamicamente
-        # O parâmetro always_xy=True força o padrão matemático: X = Este/Longitude, Y = Norte/Latitude
         transformer_to_utm = Transformer.from_crs(crs_geodesica, crs_plana, always_xy=True)
         transformer_to_latlon = Transformer.from_crs(crs_plana, crs_geodesica, always_xy=True)
 
-        # 3. Algoritmo de Translação Computacional (Exclusivo RTK)
+        # 3. Algoritmo de Translação Computacional Rigorosa no Espaço ECEF (Exclusivo RTK)
         if layout == "rtk":
-            # Procura a linha definida como 'set_base'
             base_bruta = next((p for p in pontos_brutos if p["descricao"] == "set_base"), None)
             
             if base_bruta:
                 logger.info(f"[PARSER] Base bruta identificada no arquivo: {base_bruta['nome']}")
                 
                 if base_ppp:
-                    # Converte a base PPP geodésica (Lon, Lat) para UTM plana (E, N) usando o transformer dinâmico
-                    e_ppp, n_ppp = transformer_to_utm.transform(base_ppp["lon"], base_ppp["lat"])
+                    # Converte a base PPP geodésica para ECEF
+                    x_ppp, y_ppp, z_ppp = geodesic_to_ecef(base_ppp["lat"], base_ppp["lon"], base_ppp["alt"])
                     
-                    # Cálculo matemático do Vetor de Translação (Delta)
-                    delta_n = n_ppp - base_bruta["n_original"]
-                    delta_e = e_ppp - base_bruta["e_original"]
-                    delta_h = base_ppp["alt"] - base_bruta["alt_original"]
+                    # Converte a base bruta UTM para Geodésica e depois para ECEF
+                    lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base_bruta["e_original"], base_bruta["n_original"])
+                    x_bruto_base, y_bruto_base, z_bruto_base = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base_bruta["alt_original"])
                     
-                    logger.info(f"[PARSER] Vetor de Translação Calculado com Sucesso: Delta_N={delta_n:.4f}m, Delta_E={delta_e:.4f}m, Delta_H={delta_h:.4f}m")
+                    # Cálculo do Vetor Delta 3D ECEF
+                    delta_x = x_ppp - x_bruto_base
+                    delta_y = y_ppp - y_bruto_base
+                    delta_z = z_ppp - z_bruto_base
+                    
+                    aplicar_translace_ecef = True
+                    logger.info(f"[PARSER] Vetor de Translação ECEF 3D Calculado: Delta_X={delta_x:.4f}m, Delta_Y={delta_y:.4f}m, Delta_Z={delta_z:.4f}m")
                 else:
                     logger.warning("[PARSER] AVISO: Ponto de Base Bruta encontrado, mas nenhuma Base PPP processada existe no banco de dados para este levantamento.")
             else:
@@ -175,38 +176,65 @@ class TxtGeodesicParser:
 
         # 4. Translação e Conversão Reversa em Lote
         pontos_processados = []
+        vertices_vistos = set()
         ordem = 1
+        import math
+
+        # Incertezas da Base PPP para propagação
+        sigma_base_lat = base_ppp.get("sigma_lat") or 0.0 if base_ppp else 0.0
+        sigma_base_lon = base_ppp.get("sigma_lon") or 0.0 if base_ppp else 0.0
+        sigma_base_alt = base_ppp.get("sigma_alt") or 0.0 if base_ppp else 0.0
 
         for p in pontos_brutos:
-            # Aplica a translação
-            n_corrigido = p["n_original"] + delta_n
-            e_corrigido = p["e_original"] + delta_e
-            alt_corrigido = p["alt_original"] + delta_h
+            if aplicar_translace_ecef:
+                # Converte coordenada plana bruta para geodésica bruta
+                lon_bruto, lat_bruto = transformer_to_latlon.transform(p["e_original"], p["n_original"])
+                # Converte geodésica bruta para ECEF
+                x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, p["alt_original"])
+                # Aplica translação 3D no espaço geocêntrico
+                x_corrigido = x_bruto + delta_x
+                y_corrigido = y_bruto + delta_y
+                z_corrigido = z_bruto + delta_z
+                # Reconverte ECEF para geodésica final
+                lat_corrigido, lon_corrigido, alt_corrigido = ecef_to_geodesic(x_corrigido, y_corrigido, z_corrigido)
+            else:
+                # Caso não translade, apenas converte de UTM para lat/lon
+                lon_corrigido, lat_corrigido = transformer_to_latlon.transform(p["e_original"], p["n_original"])
+                alt_corrigido = p["alt_original"]
 
-            # Conversão Reversa: Projeta UTM (E, N) de volta para Célula Geodésica SIRGAS 2000 (Lon, Lat)
-            lon_corrigido, lat_corrigido = transformer_to_latlon.transform(e_corrigido, n_corrigido)
+            # Lei de Propagação de Variâncias (Composição Quadrática das Incertezas)
+            # sigma_final = sqrt(sigma_bruto^2 + sigma_base^2)
+            sigma_lat_prop = math.sqrt(p["sigma_n"]**2 + sigma_base_lat**2)
+            sigma_lon_prop = math.sqrt(p["sigma_e"]**2 + sigma_base_lon**2)
+            sigma_alt_prop = math.sqrt(p["sigma_z"]**2 + sigma_base_alt**2)
 
-            # Determina o tipo de ponto baseado na inicial do nome do vértice
             tipo = "P"
             if p["nome"].upper().startswith("M"):
                 tipo = "M"
             elif p["nome"].upper().startswith("V"):
                 tipo = "V"
 
+            # VALIDAR INTEGRIDADE INTERNA DO ARQUIVO IMPORTADO
+            identificador_unico = (p["nome"].upper(), tipo)
+            if identificador_unico in vertices_vistos:
+                raise ValueError(
+                    f"Vértice duplicado detectado no próprio arquivo de importação: "
+                    f"Código '{p['nome']}' de Tipo '{tipo}' aparece mais de uma vez."
+                )
+            vertices_vistos.add(identificador_unico)
+
             ponto_final = {
                 "levantamento_id": self.levantamento_id,
                 "matricula_id": self.matricula_id,
                 "nome_vertice": p["nome"],
                 "tipo_ponto": tipo,
-                # Compatibilidade retroativa total com mapas e tabelas existentes
                 "lat": lat_corrigido,
                 "lon": lon_corrigido,
                 "alt": alt_corrigido,
-                "sigma_lat": p["sigma_n"],
-                "sigma_lon": p["sigma_e"],
-                "sigma_alt": p["sigma_z"],
+                "sigma_lat": sigma_lat_prop,
+                "sigma_lon": sigma_lon_prop,
+                "sigma_alt": sigma_alt_prop,
                 "ordem_caminhamento": ordem,
-                # Rastreabilidade geodésica "Antes e Depois" do Manifesto
                 "n_original": p["n_original"],
                 "e_original": p["e_original"],
                 "alt_original": p["alt_original"],
@@ -227,6 +255,7 @@ class TxtGeodesicParser:
         Salva os pontos processados na tabela 'pontos' do SQLite de forma transacional e
         retorna uma lista com os IDs inseridos correspondentes.
         """
+        import sqlite3
         ids_inseridos = []
         query = """
             INSERT INTO pontos (
@@ -241,14 +270,22 @@ class TxtGeodesicParser:
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
                 for p in pontos:
-                    cursor.execute(query, (
-                        p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p["tipo_ponto"],
-                        p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
-                        p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
-                        p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
-                        p["sigma_n"], p["sigma_e"], p["sigma_z"]
-                    ))
-                    ids_inseridos.append(cursor.lastrowid)
+                    try:
+                        cursor.execute(query, (
+                            p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p["tipo_ponto"],
+                            p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
+                            p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
+                            p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
+                            p["sigma_n"], p["sigma_e"], p["sigma_z"]
+                        ))
+                        ids_inseridos.append(cursor.lastrowid)
+                    except sqlite3.IntegrityError as e_integ:
+                        if "UNIQUE constraint failed" in str(e_integ):
+                            raise ValueError(
+                                f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
+                                f"neste levantamento/matrícula. Remova a duplicata antes de prosseguir."
+                            )
+                        raise e_integ
                 conn.commit()
             logger.info(f"[PARSER] {len(pontos)} pontos geodésicos persistidos com sucesso.")
         except Exception as e:
