@@ -117,7 +117,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS pontos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             levantamento_id INTEGER NOT NULL,
-            matricula_id INTEGER NOT NULL,
+            matricula_id INTEGER,
             nome_vertice TEXT NOT NULL,       
             tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V')),
             lat REAL,
@@ -142,8 +142,14 @@ def create_tables(conn):
             arquivo_rinex TEXT,
             arquivo_resultado_ppp TEXT,
             
+            -- Múltiplas Bases, Estados de Rover e Ajuste de Caminhamento
+            status_ponto TEXT DEFAULT 'BRUTO' CHECK(status_ponto IN ('BRUTO', 'CORRIGIDO')),
+            ponto_base_id INTEGER,
+            metodo_posicionamento TEXT DEFAULT 'PG1',
+            
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
-            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
+            FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
             UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
         );
         """,
@@ -232,6 +238,17 @@ def create_tables(conn):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS historico_alteracoes_campo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            levantamento_id INTEGER NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tipo_evento TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            dados_detalhados TEXT,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
+        );
+        """,
+        """
         CREATE TABLE IF NOT EXISTS logs_auditoria_seguranca (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             levantamento_id INTEGER NOT NULL,
@@ -263,7 +280,10 @@ def create_tables(conn):
             ("sigma_e", "REAL"),
             ("sigma_z", "REAL"),
             ("arquivo_rinex", "TEXT"),
-            ("arquivo_resultado_ppp", "TEXT")
+            ("arquivo_resultado_ppp", "TEXT"),
+            ("status_ponto", "TEXT DEFAULT 'BRUTO'"),
+            ("ponto_base_id", "INTEGER"),
+            ("metodo_posicionamento", "TEXT DEFAULT 'PG1'")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -340,32 +360,43 @@ def create_tables(conn):
         raise e
 
 def migrar_restricao_unicidade_pontos(conn):
-    """Garante a inserção da restrição UNIQUE composto na tabela pontos de forma segura"""
+    """Garante a inserção da restrição UNIQUE composto na tabela pontos de forma segura e remove NOT NULL de matricula_id"""
     cursor = conn.cursor()
-    # Verifica se já existe um índice único cobrindo os campos desejados
+    
+    # 1. Verifica se a coluna matricula_id é NOT NULL
+    cursor.execute("PRAGMA table_info(pontos)")
+    colunas = cursor.fetchall()
+    matricula_is_not_null = False
+    for col in colunas:
+        if col[1] == 'matricula_id' and col[3] == 1:  # col[3] é notnull (1 se for NOT NULL)
+            matricula_is_not_null = True
+            break
+            
+    # 2. Verifica se já existe o índice composto de unicidade
     cursor.execute("PRAGMA index_list(pontos)")
     indexes = cursor.fetchall()
     
-    ja_migrado = False
+    indice_composto_presente = False
     for idx in indexes:
         idx_name = idx[1]
         cursor.execute(f"PRAGMA index_info({idx_name})")
         columns = {col[2] for col in cursor.fetchall()}
         if {'levantamento_id', 'matricula_id', 'nome_vertice', 'tipo_ponto'}.issubset(columns):
-            ja_migrado = True
+            indice_composto_presente = True
             break
             
-    if not ja_migrado:
-        logger.info("[MIGRAÇÃO] Iniciando atualização de restrição de unicidade composta na tabela pontos...")
+    # Se ainda estiver como NOT NULL ou sem o índice composto, executa a migração
+    if matricula_is_not_null or not indice_composto_presente:
+        logger.info("[MIGRAÇÃO] Iniciando migração da tabela 'pontos' (removendo restrição NOT NULL de matricula_id e garantindo índice composto UNIQUE)...")
         try:
             cursor.execute("BEGIN TRANSACTION;")
             
-            # 1. Cria tabela temporária com a estrutura correta contendo a constraint UNIQUE
+            # 1. Cria tabela temporária com a estrutura correta permitindo matricula_id nula
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS pontos_backup (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 levantamento_id INTEGER NOT NULL,
-                matricula_id INTEGER NOT NULL,
+                matricula_id INTEGER,
                 nome_vertice TEXT NOT NULL,       
                 tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V')),
                 lat REAL,
@@ -387,8 +418,12 @@ def migrar_restricao_unicidade_pontos(conn):
                 sigma_z REAL,
                 arquivo_rinex TEXT,
                 arquivo_resultado_ppp TEXT,
+                status_ponto TEXT DEFAULT 'BRUTO' CHECK(status_ponto IN ('BRUTO', 'CORRIGIDO')),
+                ponto_base_id INTEGER,
+                metodo_posicionamento TEXT DEFAULT 'PG1',
                 FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
-                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
+                FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
                 UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
             );
             """)
@@ -399,12 +434,13 @@ def migrar_restricao_unicidade_pontos(conn):
                 id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp
+                sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id, metodo_posicionamento
             )
             SELECT id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                    sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                    n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                   sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp
+                   sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id,
+                   metodo_posicionamento
             FROM pontos;
             """)
             
@@ -415,7 +451,7 @@ def migrar_restricao_unicidade_pontos(conn):
             cursor.execute("ALTER TABLE pontos_backup RENAME TO pontos;")
             
             cursor.execute("COMMIT;")
-            logger.info("[MIGRAÇÃO] Tabela 'pontos' migrada com sucesso para a especificação de unicidade composta.")
+            logger.info("[MIGRAÇÃO] Tabela 'pontos' migrada com sucesso (matricula_id agora é opcional).")
         except Exception as e:
             try:
                 cursor.execute("ROLLBACK;")

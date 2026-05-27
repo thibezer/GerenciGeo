@@ -7,9 +7,10 @@ from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 logger = logging.getLogger(__name__)
 
 class TxtGeodesicParser:
-    def __init__(self, levantamento_id: int, matricula_id: int):
+    def __init__(self, levantamento_id: int, matricula_id: int = None, base_escolhida_id: int = None):
         self.levantamento_id = levantamento_id
         self.matricula_id = matricula_id
+        self.base_escolhida_id = base_escolhida_id
 
     def identificar_layout(self, linhas: list) -> str:
         """
@@ -37,24 +38,34 @@ class TxtGeodesicParser:
         # Fallback seguro
         return "topcon"
 
-    def obter_base_ppp(self) -> dict:
+    def obter_base_ppp(self, base_id: int = None) -> dict:
         """
-        Varre o levantamento no banco para encontrar se já existe uma base pós-processada pelo IBGE-PPP.
-        Retorna as coordenadas corrigidas geodésicas (lat, lon, alt) do Marco de Apoio (tipo 'M')
-        com seus respectivos sigmas (sigma_lat, sigma_lon, sigma_alt).
+        Varre o levantamento no banco para encontrar a coordenada corrigida da base.
+        Se base_id for fornecido, busca especificamente aquela base por ID.
+        Caso contrário, faz o fallback para buscar a primeira base ativa do tipo 'M' no levantamento.
         """
-        query = """
-            SELECT lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
-            FROM pontos 
-            WHERE levantamento_id = ? AND tipo_ponto = 'M' AND lat IS NOT NULL AND lat != 0.0 
-            LIMIT 1
-        """
+        if base_id:
+            query = """
+                SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
+                FROM pontos 
+                WHERE id = ? AND lat IS NOT NULL AND lat != 0.0
+            """
+            params = (base_id,)
+        else:
+            query = """
+                SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
+                FROM pontos 
+                WHERE levantamento_id = ? AND tipo_ponto = 'M' AND lat IS NOT NULL AND lat != 0.0 
+                LIMIT 1
+            """
+            params = (self.levantamento_id,)
+            
         try:
-            row = execute_query(query, params=(self.levantamento_id,), fetch_one=True)
+            row = execute_query(query, params=params, fetch_one=True)
             if row:
                 return dict(row)
         except Exception as e:
-            logger.error(f"[PARSER] Erro ao buscar base PPP no banco: {e}")
+            logger.error(f"[PARSER] Erro ao buscar base no banco (base_id={base_id}): {e}")
         return None
 
     def processar_arquivo(self, caminho_arquivo: str) -> list:
@@ -131,11 +142,11 @@ class TxtGeodesicParser:
                 continue
 
         # 2. Resolução da Zona UTM e Instanciação Dinâmica dos Transformers
-        base_ppp = self.obter_base_ppp()
+        base_ppp = self.obter_base_ppp(self.base_escolhida_id)
         if base_ppp:
             longitude_base = base_ppp["lon"]
             zona_utm = int((longitude_base + 180) / 6) + 1
-            epsg_dinamico = f"319{zona_utm}"
+            epsg_dinamico = f"3198{zona_utm}"
             logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com base na longitude {longitude_base:.6f}")
         else:
             epsg_dinamico = "31982"
@@ -149,10 +160,17 @@ class TxtGeodesicParser:
 
         # 3. Algoritmo de Translação Computacional Rigorosa no Espaço ECEF (Exclusivo RTK)
         if layout == "rtk":
-            base_bruta = next((p for p in pontos_brutos if p["descricao"] == "set_base"), None)
+            base_bruta = None
+            if base_ppp:
+                # Tenta achar no arquivo um ponto com descrição "set_base"
+                base_bruta = next((p for p in pontos_brutos if p["descricao"] == "set_base"), None)
+                # Se não achar por descrição, tenta coincidir pelo nome exato do vértice geodésico
+                if not base_bruta:
+                    nome_base_db = base_ppp.get("nome_vertice", "").upper()
+                    base_bruta = next((p for p in pontos_brutos if p["nome"].upper() == nome_base_db), None)
             
             if base_bruta:
-                logger.info(f"[PARSER] Base bruta identificada no arquivo: {base_bruta['nome']}")
+                logger.info(f"[PARSER] Base bruta identificada no arquivo para amarração: {base_bruta['nome']}")
                 
                 if base_ppp:
                     # Converte a base PPP geodésica para ECEF
@@ -172,7 +190,7 @@ class TxtGeodesicParser:
                 else:
                     logger.warning("[PARSER] AVISO: Ponto de Base Bruta encontrado, mas nenhuma Base PPP processada existe no banco de dados para este levantamento.")
             else:
-                logger.warning("[PARSER] AVISO: Arquivo no layout RTK mas sem nenhuma linha com a descrição 'set_base'. A translação não será aplicada.")
+                logger.warning("[PARSER] AVISO: Arquivo no layout RTK mas sem ponto de amarração correspondente à base escolhida. A translação não será aplicada.")
 
         # 4. Translação e Conversão Reversa em Lote
         pontos_processados = []
@@ -238,12 +256,14 @@ class TxtGeodesicParser:
                 "n_original": p["n_original"],
                 "e_original": p["e_original"],
                 "alt_original": p["alt_original"],
-                "lat_corrigido": lat_corrigido,
-                "lon_corrigido": lon_corrigido,
-                "alt_corrigido": alt_corrigido,
+                "lat_corrigido": lat_corrigido if aplicar_translace_ecef else None,
+                "lon_corrigido": lon_corrigido if aplicar_translace_ecef else None,
+                "alt_corrigido": alt_corrigido if aplicar_translace_ecef else None,
                 "sigma_n": p["sigma_n"],
                 "sigma_e": p["sigma_e"],
-                "sigma_z": p["sigma_z"]
+                "sigma_z": p["sigma_z"],
+                "status_ponto": "CORRIGIDO" if aplicar_translace_ecef else "BRUTO",
+                "ponto_base_id": self.base_escolhida_id
             }
             pontos_processados.append(ponto_final)
             ordem += 1
@@ -262,8 +282,8 @@ class TxtGeodesicParser:
                 levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                sigma_n, sigma_e, sigma_z
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         try:
@@ -276,7 +296,7 @@ class TxtGeodesicParser:
                             p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
                             p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
                             p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
-                            p["sigma_n"], p["sigma_e"], p["sigma_z"]
+                            p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"]
                         ))
                         ids_inseridos.append(cursor.lastrowid)
                     except sqlite3.IntegrityError as e_integ:
@@ -300,6 +320,10 @@ class TxtGeodesicParser:
         e a divisa de fechamento obrigatória (do último ponto de volta ao primeiro).
         Mantém as regras de domínio no núcleo lógico de negócio de geoprocessamento.
         """
+        if not self.matricula_id:
+            logger.info("[PARSER] Matrícula não fornecida. Pontos salvos de forma geral sem gerar topologia perimetral.")
+            return 0
+
         if len(ids_pontos) < 2:
             logger.info("[PARSER] Menos de 2 pontos importados. Topologia perimetral não gerada.")
             return 0

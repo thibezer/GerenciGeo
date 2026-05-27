@@ -195,7 +195,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
         # 3. Conversão UTM Dinâmica para Cálculo do Shoelace
         lon_referencia = pontos[0]["lon"]
         zona_utm = int((lon_referencia + 180) / 6) + 1
-        epsg_utm = f"319{zona_utm}"  # EPSG para Hemisfério Sul
+        epsg_utm = f"3198{zona_utm}"  # EPSG para Hemisfério Sul
         
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         
@@ -332,3 +332,158 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
             "sucesso": False,
             "erro": str(e)
         }
+
+def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
+    """
+    Busca no banco de dados a Base informada (base_id) e, caso ela possua coordenadas corrigidas
+    válidas (lat != 0 e status_ponto = 'CORRIGIDO'), calcula o vetor Delta ECEF 3D entre a
+    sua UTM original (e_original, n_original, alt_original) e a sua posição corrigida geodésica (lat, lon, alt).
+    Em seguida, aplica rigorosamente essa mesma translação cartesiana ECEF tridimensional
+    em todos os pontos Rover vinculados àquela base (ponto_base_id = base_id) que estejam no estado 'BRUTO',
+    propagando suas incertezas geodésicas e atualizando o status dos rovers para 'CORRIGIDO'.
+    Retorna a quantidade de rovers corrigidos em bloco.
+    """
+    import math
+    import logging
+    from database.connection import execute_query, DatabaseManager
+    from business.historico_campo import HistoricoCampoLogger
+    
+    logger = logging.getLogger(__name__)
+    
+    # 1. Recupera as informações da Base
+    row_base = execute_query(
+        "SELECT id, nome_vertice, lat, lon, alt, e_original, n_original, alt_original, sigma_lat, sigma_lon, sigma_alt, status_ponto FROM pontos WHERE id = ? AND levantamento_id = ?",
+        params=(base_id, levantamento_id),
+        fetch_one=True
+    )
+    if not row_base:
+        logger.warning(f"[GEOPROCESSAMENTO] Base com ID {base_id} não encontrada no levantamento {levantamento_id}.")
+        return 0
+        
+    base = dict(row_base)
+    if not base["lat"] or base["lat"] == 0.0 or base["status_ponto"] != 'CORRIGIDO':
+        logger.info(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} ainda está no estado BRUTO. Translação adiada.")
+        return 0
+        
+    # Se a base não possuir as originais em UTM (por ex. foi digitada manual), simulamos a partir das coordenadas
+    if not base["e_original"] or not base["n_original"]:
+        logger.warning(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} não possui coordenadas originais UTM de campo para referenciar a translação.")
+        return 0
+        
+    # 2. Computa o Vetor de Translação Cartesianas 3D ECEF da Base
+    try:
+        # A. ECEF da Base Corrigida (SIRGAS 2000)
+        x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
+        
+        # B. ECEF da Base Bruta original de campo
+        # Resolve o Fuso UTM com base na longitude da base corrigida
+        longitude_base = base["lon"]
+        zona_utm = int((longitude_base + 180) / 6) + 1
+        epsg_utm = f"3198{zona_utm}"
+        
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base["e_original"], base["n_original"])
+        x_base_bruta, y_base_bruta, z_base_bruta = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base["alt_original"])
+        
+        # Vetor Delta ECEF
+        delta_x = x_base_corr - x_base_bruta
+        delta_y = y_base_corr - y_base_bruta
+        delta_z = z_base_corr - z_base_bruta
+        
+        logger.info(f"[GEOPROCESSAMENTO] Vetor Delta ECEF para Base {base['nome_vertice']}: dX={delta_x:.4f}m, dY={delta_y:.4f}m, dZ={delta_z:.4f}m")
+    except Exception as e_ecef:
+        logger.error(f"[GEOPROCESSAMENTO] Falha crítica ao calcular vetor Delta ECEF para Base {base['nome_vertice']}: {e_ecef}")
+        return 0
+        
+    # 3. Recupera todos os rovers ativos vinculados a essa Base
+    query_rovers = """
+        SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
+        FROM pontos 
+        WHERE levantamento_id = ? AND ponto_base_id = ? AND status_ponto = 'BRUTO'
+    """
+    rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
+    if not rows_rovers:
+        logger.info(f"[GEOPROCESSAMENTO] Nenhum rover bruto pendente de translação para a Base {base['nome_vertice']}.")
+        return 0
+        
+    rovers = [dict(r) for r in rows_rovers]
+    
+    # 4. Transla e atualiza em transação atômica
+    total_corrigidos = 0
+    detalhamento_logs = []
+    
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Incertezas da Base corrigida para propagação
+            sig_base_lat = base["sigma_lat"] or 0.0
+            sig_base_lon = base["sigma_lon"] or 0.0
+            sig_base_alt = base["sigma_alt"] or 0.0
+            
+            for r in rovers:
+                if not r["e_original"] or not r["n_original"]:
+                    continue
+                    
+                # A. Plana Bruta -> Geodésica Bruta
+                lon_bruto, lat_bruto = transformer_to_latlon.transform(r["e_original"], r["n_original"])
+                # B. Geodésica Bruta -> ECEF Bruta
+                x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, r["alt_original"])
+                # C. Translação 3D
+                x_corr = x_bruto + delta_x
+                y_corr = y_bruto + delta_y
+                z_corr = z_bruto + delta_z
+                # D. ECEF Corrigida -> Geodésica Corrigida
+                lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
+                
+                # E. Propagação de Incertezas
+                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
+                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
+                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+                
+                # F. Atualiza no banco
+                cursor.execute(
+                    """
+                    UPDATE pontos 
+                    SET lat = ?, lon = ?, alt = ?, 
+                        lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                        status_ponto = 'CORRIGIDO' 
+                    WHERE id = ? AND levantamento_id = ?
+                    """,
+                    (lat_corr, lon_corr, alt_corr, 
+                     lat_corr, lon_corr, alt_corr,
+                     sig_lat_prop, sig_lon_prop, sig_alt_prop,
+                     r["id"], levantamento_id)
+                )
+                total_corrigidos += 1
+                detalhamento_logs.append({
+                    "id": r["id"],
+                    "nome": r["nome_vertice"],
+                    "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
+                    "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
+                })
+                
+            conn.commit()
+            
+        # 5. Registra o evento no Histórico de Campo para transparência absoluta
+        if total_corrigidos > 0:
+            desc_auditoria = f"Translação ECEF 3D em lote aplicada com sucesso para {total_corrigidos} rovers vinculados à Base {base['nome_vertice']}."
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="CORRECAO_TRANSLACAO",
+                descricao=desc_auditoria,
+                dados_detalhados={
+                    "base_id": base_id,
+                    "base_nome": base["nome_vertice"],
+                    "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
+                    "rovers_corrigidos": detalhamento_logs
+                }
+            )
+            
+        logger.info(f"[GEOPROCESSAMENTO] Translação em bloco concluída. {total_corrigidos} rovers corrigidos com base no PPP de {base['nome_vertice']}.")
+    except Exception as e_db:
+        logger.error(f"[GEOPROCESSAMENTO] Falha crítica ao persistir rovers corrigidos no banco: {e_db}")
+        return 0
+        
+    return total_corrigidos

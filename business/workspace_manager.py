@@ -302,7 +302,7 @@ class WorkspaceManager:
         ponto_base = next((p for p in pontos if p["lon"] and p["lon"] != 0.0), pontos[0])
         lon0 = ponto_base["lon"]
         zona_utm = int((lon0 + 180) / 6) + 1
-        epsg_utm = f"319{zona_utm}"  # Família SIRGAS 2000 UTM Sul
+        epsg_utm = f"3198{zona_utm}"  # Família SIRGAS 2000 UTM Sul
 
         # Instancia o conversor geodésico -> plano UTM
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)

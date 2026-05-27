@@ -1,6 +1,5 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
 
 export const clientesRoute: RouteDef = {
   render: () => `

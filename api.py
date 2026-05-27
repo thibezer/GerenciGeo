@@ -972,19 +972,43 @@ def create_ponto(id: int, p: PontoCreate):
 @app.delete("/pontos/{pid}")
 def delete_ponto(pid: int):
     try:
-        row = execute_query("SELECT levantamento_id FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        row = execute_query("SELECT levantamento_id, nome_vertice, tipo_ponto, lat, lon, alt FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
         if row:
-            verificar_levantamento_arquivado(row["levantamento_id"])
+            p_data = dict(row)
+            verificar_levantamento_arquivado(p_data["levantamento_id"])
             
-        execute_query("DELETE FROM pontos WHERE id = ?", params=(pid,), commit=True)
-        return {"message": "Ponto removido com sucesso"}
+            execute_query("DELETE FROM pontos WHERE id = ?", params=(pid,), commit=True)
+            
+            # Registrar exclusão de ponto no Histórico de Campo
+            from business.historico_campo import HistoricoCampoLogger
+            desc = f"Vértice {p_data['nome_vertice']} do Tipo '{p_data['tipo_ponto']}' foi excluído definitivamente pelo usuário."
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=p_data["levantamento_id"],
+                tipo_evento="EXCLUSAO_PONTO",
+                descricao=desc,
+                dados_detalhados={
+                    "ponto_id": pid,
+                    "nome_vertice": p_data["nome_vertice"],
+                    "tipo_ponto": p_data["tipo_ponto"],
+                    "coordenadas_ultimo_estado": {"lat": p_data["lat"], "lon": p_data["lon"], "alt": p_data["alt"]}
+                }
+            )
+            
+            return {"message": "Ponto removido com sucesso"}
+        else:
+            return {"error": "Ponto não encontrado"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         return {"error": str(e)}
 
 # --- IMPORTAÇÃO DE CADERNETAS .TXT (MÓDULO 4 - MANIFESTO) ---
 @app.post("/levantamentos/{id}/importar-txt")
-async def importar_caderneta_txt(id: int, matricula_id: int = Form(...), file: UploadFile = File(...)):
+async def importar_caderneta_txt(
+    id: int, 
+    matricula_id: int = Form(None), 
+    base_escolhida_id: int = Form(None), 
+    file: UploadFile = File(...)
+):
     verificar_levantamento_arquivado(id)
     try:
         # 1. Utiliza o WorkspaceManager para localizar/criar a pasta /Processados no Windows
@@ -1000,7 +1024,7 @@ async def importar_caderneta_txt(id: int, matricula_id: int = Form(...), file: U
             buffer.write(await file.read())
             
         # 2. Instancia o parser geodésico e processa as coordenadas UTM + translação do RTK
-        parser = TxtGeodesicParser(id, matricula_id)
+        parser = TxtGeodesicParser(id, matricula_id, base_escolhida_id)
         pontos_processados = parser.processar_arquivo(str(caminho_salvo))
         
         if not pontos_processados:
@@ -1015,10 +1039,35 @@ async def importar_caderneta_txt(id: int, matricula_id: int = Form(...), file: U
         wm.gerar_documento_cliente_workspace(id)
         
         primeiro_pt = pontos_processados[0]
+        layout = "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
+        
+        # Registrar evento de importação de arquivo no Histórico de Campo
+        from business.historico_campo import HistoricoCampoLogger
+        pontos_nomes = [pt["nome_vertice"] for pt in pontos_processados]
+        desc = f"Importação de caderneta no layout '{layout}' do arquivo '{file.filename}' com {len(ids_pontos)} ponto(s)."
+        if base_escolhida_id:
+            row_base_nome = execute_query("SELECT nome_vertice FROM pontos WHERE id = ?", params=(base_escolhida_id,), fetch_one=True)
+            if row_base_nome:
+                desc += f" Vinculado à Base de Campo: {row_base_nome['nome_vertice']}."
+                
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=id,
+            tipo_evento="IMPORTACAO_TXT",
+            descricao=desc,
+            dados_detalhados={
+                "arquivo_nome": file.filename,
+                "layout_detectado": layout,
+                "total_pontos_importados": len(ids_pontos),
+                "pontos": pontos_nomes,
+                "base_escolhida_id": base_escolhida_id,
+                "matricula_id": matricula_id
+            }
+        )
+        
         return {
             "message": f"Sucesso: {len(ids_pontos)} pontos importados e {total_segmentos} segmentos perimetrais gerados automaticamente.",
             "pontos_importados": len(ids_pontos),
-            "layout_detectado": "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
+            "layout_detectado": layout
         }
         
     except ValueError as val_err:
@@ -1040,6 +1089,82 @@ async def importar_caderneta_txt(id: int, matricula_id: int = Form(...), file: U
                 "mensagem": f"Falha no processamento: {str(e)}"
             }
         )
+
+# --- NOVAS ROTAS DO MÓDULO DE LEVANTAMENTOS V2 (ORDENAÇÃO MANUAL) ---
+class ItemOrdemPonto(BaseModel):
+    id: int
+    ordem: int
+
+class PayloadSalvarOrdem(BaseModel):
+    pontos_ordem: List[ItemOrdemPonto]
+
+@app.post("/levantamentos/{id}/matriculas/{matricula_id}/salvar-ordem")
+def post_salvar_ordem_perimetro(id: int, matricula_id: int, payload: PayloadSalvarOrdem):
+    verificar_levantamento_arquivado(id)
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # A. Atualiza a ordem_caminhamento de cada ponto de forma atômica
+            for item in payload.pontos_ordem:
+                cursor.execute(
+                    "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id = ?",
+                    (item.ordem, item.id, id, matricula_id)
+                )
+            
+            # B. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
+            cursor.execute(
+                "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
+                (id, matricula_id)
+            )
+            
+            # C. Resgata a nova lista de pontos na ordem atualizada
+            cursor.execute(
+                "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? ORDER BY ordem_caminhamento ASC",
+                (id, matricula_id)
+            )
+            rows = cursor.fetchall()
+            if len(rows) < 2:
+                conn.commit()
+                return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem salva. Menos de 2 pontos ativos."}
+            
+            pts_ordenados_ids = [r["id"] for r in rows]
+            primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
+            metodo_padrao = "PG1" if primeiro_pt_sigma > 0.0 else "MC1"
+            
+            # D. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
+            query_seg = """
+                INSERT INTO segmentos (
+                    levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
+                    confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                ) VALUES (?, ?, ?, ?, NULL, 'LN1', ?)
+            """
+            
+            for i in range(len(pts_ordenados_ids) - 1):
+                cursor.execute(query_seg, (
+                    id, matricula_id, 
+                    pts_ordenados_ids[i], pts_ordenados_ids[i+1], metodo_padrao
+                ))
+                
+            cursor.execute(query_seg, (
+                id, matricula_id, 
+                pts_ordenados_ids[-1], pts_ordenados_ids[0], metodo_padrao
+            ))
+            
+            conn.commit()
+            
+        # Sincroniza metadados no workspace físico
+        wm = WorkspaceManager()
+        wm.gerar_documento_cliente_workspace(id)
+        
+        return {
+            "sucesso": True, 
+            "segmentos_gerados": len(pts_ordenados_ids), 
+            "mensagem": f"Ordem de caminhamento salva com sucesso e {len(pts_ordenados_ids)} segmentos perimetrais recalculados!"
+        }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao salvar ordem de caminhamento personalizada: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/levantamentos/{id}/matriculas/{matricula_id}/reordenar")
 def post_reordenar_perimetro(id: int, matricula_id: int):
@@ -1816,6 +1941,287 @@ def auditar_perimetro_matricula(mid: int):
     res_auditoria = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=mat.get("area_ha") or 0.0)
     return res_auditoria
 
+
+class PontoUpdate(BaseModel):
+    nome_vertice: str = None
+    tipo_ponto: str = None
+    metodo_posicionamento: str = None
+    matricula_id: int = None
+    ponto_base_id: int = None
+    lat: float = None
+    lon: float = None
+    alt: float = None
+    sigma_lat: float = None
+    sigma_lon: float = None
+    sigma_alt: float = None
+    status_ponto: str = None
+
+@app.put("/pontos/{pid}")
+def update_ponto(pid: int, payload: PontoUpdate):
+    try:
+        # Recupera o ponto atual antes de alterar
+        row = execute_query("SELECT * FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Ponto não encontrado.")
+            
+        pt_antigo = dict(row)
+        levantamento_id = pt_antigo["levantamento_id"]
+        verificar_levantamento_arquivado(levantamento_id)
+        
+        from business.historico_campo import HistoricoCampoLogger
+        from business.geoprocessamento import corrigir_rovers_em_bloco
+        from pyproj import Transformer
+        
+        # Novo: A.0. Atualiza Nome do Vértice
+        if payload.nome_vertice is not None and payload.nome_vertice.strip() != pt_antigo["nome_vertice"]:
+            nome_novo = payload.nome_vertice.strip()
+            if not nome_novo:
+                raise HTTPException(status_code=400, detail="O nome do vértice não pode ser vazio.")
+                
+            # Verifica restrição de unicidade
+            exists = execute_query(
+                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                params=(levantamento_id, pt_antigo["matricula_id"], nome_novo, payload.tipo_ponto or pt_antigo["tipo_ponto"], pid),
+                fetch_one=True
+            )
+            if exists:
+                raise HTTPException(status_code=400, detail=f"Já existe um vértice com o nome '{nome_novo}' para este mesmo tipo e matrícula.")
+                
+            execute_query("UPDATE pontos SET nome_vertice = ? WHERE id = ?", params=(nome_novo, pid), commit=True)
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="EDICAO_PONTO",
+                descricao=f"Nome do vértice ID {pid} alterado de '{pt_antigo['nome_vertice']}' para '{nome_novo}'.",
+                dados_detalhados={"ponto_id": pid, "anterior": pt_antigo["nome_vertice"], "novo": nome_novo}
+            )
+            pt_antigo["nome_vertice"] = nome_novo
+
+        # Novo: A.1. Atualiza Tipo de Ponto ('M', 'P', 'V')
+        if payload.tipo_ponto is not None and payload.tipo_ponto != pt_antigo["tipo_ponto"]:
+            if payload.tipo_ponto not in ['M', 'P', 'V']:
+                raise HTTPException(status_code=400, detail="Tipo de ponto inválido. Deve ser 'M', 'P' ou 'V'.")
+                
+            # Verifica restrição de unicidade
+            exists = execute_query(
+                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                params=(levantamento_id, pt_antigo["matricula_id"], pt_antigo["nome_vertice"], payload.tipo_ponto, pid),
+                fetch_one=True
+            )
+            if exists:
+                raise HTTPException(status_code=400, detail=f"Conflito de unicidade: já existe um vértice com nome '{pt_antigo['nome_vertice']}' do tipo '{payload.tipo_ponto}' nesta matrícula.")
+                
+            execute_query("UPDATE pontos SET tipo_ponto = ? WHERE id = ?", params=(payload.tipo_ponto, pid), commit=True)
+            
+            # Se mudou para M (Base), limpa ponto_base_id pois bases não se amarram a outras bases
+            if payload.tipo_ponto == 'M':
+                execute_query("UPDATE pontos SET ponto_base_id = NULL WHERE id = ?", params=(pid,), commit=True)
+                pt_antigo["ponto_base_id"] = None
+                
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="EDICAO_PONTO",
+                descricao=f"Tipo do vértice '{pt_antigo['nome_vertice']}' alterado de '{pt_antigo['tipo_ponto']}' para '{payload.tipo_ponto}'.",
+                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior": pt_antigo["tipo_ponto"], "novo": payload.tipo_ponto}
+            )
+            pt_antigo["tipo_ponto"] = payload.tipo_ponto
+
+        # A. Atualiza Método de Posicionamento
+        if payload.metodo_posicionamento is not None and payload.metodo_posicionamento != pt_antigo["metodo_posicionamento"]:
+            execute_query("UPDATE pontos SET metodo_posicionamento = ? WHERE id = ?", params=(payload.metodo_posicionamento, pid), commit=True)
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="EDICAO_METODO",
+                descricao=f"Método de posicionamento do vértice {pt_antigo['nome_vertice']} alterado de {pt_antigo['metodo_posicionamento']} para {payload.metodo_posicionamento}.",
+                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior": pt_antigo["metodo_posicionamento"], "novo": payload.metodo_posicionamento}
+            )
+            
+        # B. Atualiza Matrícula
+        if payload.matricula_id is not None and payload.matricula_id != pt_antigo["matricula_id"]:
+            m_id = payload.matricula_id if payload.matricula_id > 0 else None
+            execute_query("UPDATE pontos SET matricula_id = ? WHERE id = ?", params=(m_id, pid), commit=True)
+            
+            # Registrar alteração de matrícula
+            desc_mat = f"Vértice {pt_antigo['nome_vertice']} atrelado à matrícula ID {m_id} (anteriormente ID {pt_antigo['matricula_id']})."
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="ALTERACAO_MATRICULA",
+                descricao=desc_mat,
+                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior_matricula_id": pt_antigo["matricula_id"], "nova_matricula_id": m_id}
+            )
+
+        # C. Atualiza Vínculo de Base de Campo (ponto_base_id) - EXCLUSIVO ROVERS
+        recalcular_rover = False
+        if payload.ponto_base_id is not None and payload.ponto_base_id != pt_antigo["ponto_base_id"]:
+            new_base_id = payload.ponto_base_id if payload.ponto_base_id > 0 else None
+            execute_query("UPDATE pontos SET ponto_base_id = ? WHERE id = ?", params=(new_base_id, pid), commit=True)
+            
+            # Log de alteração de amarração
+            desc_base = f"Amarração de campo do vértice {pt_antigo['nome_vertice']} alterada de Base ID {pt_antigo['ponto_base_id']} para Base ID {new_base_id}."
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="ALTERACAO_BASE",
+                descricao=desc_base,
+                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior_base_id": pt_antigo["ponto_base_id"], "nova_base_id": new_base_id}
+            )
+            
+            # Força o recálculo do rover individual
+            recalcular_rover = True
+            
+        # D. Coordenadas Espaciais e Status
+        atualizar_coordenadas = False
+        updates = []
+        params = []
+        
+        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto"]:
+            val = getattr(payload, campo)
+            if val is not None and val != pt_antigo[campo]:
+                updates.append(f"{campo} = ?")
+                params.append(val)
+                atualizar_coordenadas = True
+                
+        if atualizar_coordenadas:
+            if payload.lat is not None:
+                updates.append("lat_corrigido = ?")
+                params.append(payload.lat)
+            if payload.lon is not None:
+                updates.append("lon_corrigido = ?")
+                params.append(payload.lon)
+            if payload.alt is not None:
+                updates.append("alt_corrigido = ?")
+                params.append(payload.alt)
+                
+            params.append(pid)
+            query_update = f"UPDATE pontos SET {', '.join(updates)} WHERE id = ?"
+            execute_query(query_update, params=tuple(params), commit=True)
+            
+            # Registra auditoria de mudança espacial
+            desc_spatial = f"Coordenadas espaciais do vértice {pt_antigo['nome_vertice']} atualizadas com sucesso."
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=levantamento_id,
+                tipo_evento="CORRECAO_PONTO",
+                descricao=desc_spatial,
+                dados_detalhados={
+                    "ponto_id": pid,
+                    "nome_vertice": pt_antigo["nome_vertice"],
+                    "anterior": {"lat": pt_antigo["lat"], "lon": pt_antigo["lon"], "alt": pt_antigo["alt"], "status": pt_antigo["status_ponto"]},
+                    "novo": {"lat": payload.lat or pt_antigo["lat"], "lon": payload.lon or pt_antigo["lon"], "alt": payload.alt or pt_antigo["alt"], "status": payload.status_ponto or pt_antigo["status_ponto"]}
+                }
+            )
+            
+            # Se for base (tipo 'M') e seu status agora for 'CORRIGIDO', propaga em bloco
+            novo_status = payload.status_ponto or pt_antigo["status_ponto"]
+            if pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
+                rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
+                logging.getLogger(__name__).info(f"[API] Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+
+        # E. Se apenas o vínculo de base do rover mudou, fazemos a re-translação instantânea dele
+        if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
+            new_base_id = payload.ponto_base_id if payload.ponto_base_id and payload.ponto_base_id > 0 else None
+            if new_base_id:
+                row_new_base = execute_query(
+                    "SELECT lat, lon, alt, e_original, n_original, alt_original, sigma_lat, sigma_lon, sigma_alt, status_ponto, nome_vertice FROM pontos WHERE id = ?",
+                    params=(new_base_id,),
+                    fetch_one=True
+                )
+                if row_new_base and row_new_base["status_ponto"] == "CORRIGIDO":
+                    base = dict(row_new_base)
+                    
+                    import math
+                    from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
+                    
+                    x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
+                    zona_utm = int((base["lon"] + 180) / 6) + 1
+                    transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
+                    lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base["e_original"], base["n_original"])
+                    x_base_bruta, y_base_bruta, z_base_bruta = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base["alt_original"])
+                    
+                    dX = x_base_corr - x_base_bruta
+                    dY = y_base_corr - y_base_bruta
+                    dZ = z_base_corr - z_base_bruta
+                    
+                    lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
+                    x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, pt_antigo["alt_original"])
+                    
+                    x_c = x_bruto + dX
+                    y_c = y_bruto + dY
+                    z_c = z_bruto + dZ
+                    
+                    lat_c, lon_c, alt_c = ecef_to_geodesic(x_c, y_c, z_c)
+                    sig_lat_prop = math.sqrt((pt_antigo["sigma_n"] or 0.0)**2 + (base["sigma_lat"] or 0.0)**2)
+                    sig_lon_prop = math.sqrt((pt_antigo["sigma_e"] or 0.0)**2 + (base["sigma_lon"] or 0.0)**2)
+                    sig_alt_prop = math.sqrt((pt_antigo["sigma_z"] or 0.0)**2 + (base["sigma_alt"] or 0.0)**2)
+                    
+                    execute_query(
+                        """
+                        UPDATE pontos 
+                        SET lat = ?, lon = ?, alt = ?, 
+                            lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                            sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                            status_ponto = 'CORRIGIDO' 
+                        WHERE id = ?
+                        """,
+                        (lat_c, lon_c, alt_c, lat_c, lon_c, alt_c, sig_lat_prop, sig_lon_prop, sig_alt_prop, pid),
+                        commit=True
+                    )
+                else:
+                    zona_utm = 22 # Fallback
+                    transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
+                    lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
+                    
+                    execute_query(
+                        """
+                        UPDATE pontos 
+                        SET lat = ?, lon = ?, alt = ?, 
+                            lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
+                            status_ponto = 'BRUTO' 
+                        WHERE id = ?
+                        """,
+                        (lat_bruto, lon_bruto, pt_antigo["alt_original"], pid),
+                        commit=True
+                    )
+            else:
+                zona_utm = 22 # Fallback
+                transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
+                lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
+                
+                execute_query(
+                    """
+                    UPDATE pontos 
+                    SET lat = ?, lon = ?, alt = ?, 
+                        lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
+                        status_ponto = 'BRUTO' 
+                    WHERE id = ?
+                    """,
+                    (lat_bruto, lon_bruto, pt_antigo["alt_original"], pid),
+                    commit=True
+                )
+        
+        return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao atualizar ponto: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/historico-campo")
+def obter_historico_campo(id: int):
+    """Retorna o histórico cronológico de logs de auditoria e alterações de campo do levantamento"""
+    try:
+        rows = execute_query(
+            "SELECT id, levantamento_id, timestamp, tipo_evento, descricao, dados_detalhados FROM historico_alteracoes_campo WHERE levantamento_id = ? ORDER BY timestamp DESC, id DESC",
+            params=(id,),
+            fetch_all=True
+        )
+        logs = []
+        for r in rows:
+            import json
+            log_item = dict(r)
+            try:
+                log_item["dados_detalhados"] = json.loads(log_item["dados_detalhados"]) if log_item["dados_detalhados"] else {}
+            except Exception:
+                pass
+            logs.append(log_item)
+        return logs
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 def sou_administrador():
     import ctypes

@@ -213,3 +213,5 @@ Tranca de Segurança (Read-Only Lock): Ao mudar o status do levantamento para AR
 
 Movimentação de Backup: O WorkspaceManager move a pasta física do projeto para um diretório de histórico definitivo (HD Externo ou Nuvem Fria), limpando o espaço de trabalho ativo do dia a dia.
 """
+
+Abobrinha
