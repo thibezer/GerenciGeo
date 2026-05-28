@@ -38,6 +38,7 @@ export const propriedadesRoute: RouteDef = {
                  <div class="flex border-b border-white/5">
                     <button class="px-6 py-3 text-sm font-bold border-b-2 border-mint-vibrant text-mint-vibrant prop-tab-btn" data-tab="tab-prop-dados">Dados Gerais</button>
                     <button class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors prop-tab-btn" data-tab="tab-prop-proprietarios">Proprietários</button>
+                    <button class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors prop-tab-btn" data-tab="tab-prop-matriculas">Matrículas</button>
                  </div>
                  <div class="flex gap-2">
                     <button class="text-white/40 hover:text-mint-vibrant transition-colors p-2" id="btn-editar-propriedade" title="Editar Propriedade">
@@ -169,6 +170,57 @@ export const propriedadesRoute: RouteDef = {
                           <tbody id="tbl-prop-proprietarios-corpo" class="divide-y divide-white/5 text-xs text-white/80">
                              <tr>
                                 <td colspan="4" class="text-center py-6 text-white/30 italic">Nenhum proprietário atrelado a esta propriedade.</td>
+                             </tr>
+                          </tbody>
+                       </table>
+                    </div>
+                 </div>
+
+                 <!-- TAB 3: MATRÍCULAS VINCULADAS -->
+                 <div id="tab-prop-matriculas" class="prop-tab-content hidden space-y-6">
+                    <!-- Formulário de cadastro de matrícula -->
+                    <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-4">
+                       <h5 class="text-xs font-bold text-mint-vibrant flex items-center gap-1.5">
+                          <i data-lucide="plus" class="w-4 h-4"></i>
+                          Cadastrar Nova Matrícula
+                       </h5>
+                       <form id="form-cadastrar-matricula-prop" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                          <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Número da Matrícula *</label>
+                             <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Área (Hectares) *</label>
+                             <input type="number" step="0.0001" id="input-new-mat-area" required placeholder="Ex: 45.1234" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Código CCIR</label>
+                             <input type="text" id="input-new-mat-ccir" placeholder="Ex: 950.082.012.345-6" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
+                             <input type="text" id="input-new-mat-itr" placeholder="Ex: 1.234.567-8" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div class="md:col-span-4 flex justify-end">
+                             <button type="submit" class="btn-primary py-2.5 px-6 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white">Salvar Matrícula</button>
+                          </div>
+                       </form>
+                    </div>
+
+                    <!-- Tabela de Matrículas -->
+                    <div class="bg-white/5 rounded-technical overflow-hidden border border-white/5">
+                       <table class="w-full text-left text-sm border-collapse">
+                          <thead>
+                             <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/40 border-b border-white/5">
+                                <th class="px-4 py-3">Número</th>
+                                <th class="px-4 py-3 text-right">Área Registrada</th>
+                                <th class="px-4 py-3">CCIR / ITR</th>
+                                <th class="px-4 py-3 text-center w-16">Ação</th>
+                             </tr>
+                          </thead>
+                          <tbody id="tbl-prop-matriculas-corpo" class="divide-y divide-white/5 text-xs text-white/80 font-mono">
+                             <tr>
+                                <td colspan="4" class="text-center py-6 text-white/30 italic font-sans">Nenhuma matrícula cadastrada para esta propriedade.</td>
                              </tr>
                           </tbody>
                        </table>
@@ -451,6 +503,7 @@ export const propriedadesRoute: RouteDef = {
 
       // Renderiza proprietários e atualiza quota restante
       renderProprietariosTabela(p.clientes || []);
+      loadMatriculasDaPropriedade(id);
     };
 
     const configurarExibicaoArquivo = (tipo: 'car' | 'ccir', caminho: string | null) => {
@@ -733,6 +786,111 @@ export const propriedadesRoute: RouteDef = {
 
     configurarDropzone('car');
     configurarDropzone('ccir');
+
+    // --- LÓGICA DE MATRÍCULAS DA PROPRIEDADE ---
+    const loadMatriculasDaPropriedade = async (propId: number) => {
+      const corpo = document.getElementById('tbl-prop-matriculas-corpo');
+      if (!corpo) return;
+
+      corpo.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-white/30 italic font-sans">Carregando matrículas...</td></tr>';
+
+      try {
+        const res = await fetch(`${API_BASE}/propriedades/${propId}/matriculas`);
+        const matriculas = await res.json();
+
+        if (matriculas.error) {
+          corpo.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-red-400 font-sans">${matriculas.error}</td></tr>`;
+          return;
+        }
+
+        if (!Array.isArray(matriculas) || matriculas.length === 0) {
+          corpo.innerHTML = `
+            <tr>
+               <td colspan="4" class="text-center py-6 text-white/30 italic font-sans">Nenhuma matrícula cadastrada para esta propriedade.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        corpo.innerHTML = matriculas.map(m => `
+          <tr class="hover:bg-white/[0.01] border-b border-white/5">
+             <td class="px-4 py-3 font-bold text-white">Matrícula nº ${m.numero_matricula}</td>
+             <td class="px-4 py-3 text-right font-mono text-white/80">${(m.area_ha || 0).toFixed(4)} ha</td>
+             <td class="px-4 py-3 text-white/60">
+                <span class="block">CCIR: ${m.ccir || 'N/A'}</span>
+                <span class="block">ITR: ${m.itr || 'N/A'}</span>
+             </td>
+             <td class="px-4 py-3 text-center">
+                <button class="text-white/40 hover:text-red-400 p-1 btn-excluir-matricula-prop" data-mat-id="${m.id}" title="Excluir Matrícula">
+                   <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+             </td>
+          </tr>
+        `).join('');
+
+        initIcons();
+
+        // Evento de exclusão de matrícula
+        corpo.querySelectorAll('.btn-excluir-matricula-prop').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const matId = btn.getAttribute('data-mat-id');
+            if (confirm("ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente esta matrícula? Todos os vértices e polígonos a ela vinculados serão impactados.")) {
+              try {
+                const deleteRes = await fetch(`${API_BASE}/matriculas/${matId}`, { method: 'DELETE' });
+                const deleteData = await deleteRes.json();
+                if (deleteData.error) {
+                  alert(deleteData.error);
+                } else {
+                  loadMatriculasDaPropriedade(propId);
+                }
+              } catch (err) {
+                alert("Erro de conexão ao excluir matrícula.");
+              }
+            }
+          });
+        });
+
+      } catch (err) {
+        console.error("Erro ao carregar matrículas:", err);
+        corpo.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-red-400 font-sans">Erro de conexão ao carregar.</td></tr>';
+      }
+    };
+
+    // Submissão do formulário de matrícula
+    document.getElementById('form-cadastrar-matricula-prop')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!propriedadeSelecionadaId) return;
+
+      const numero_matricula = (document.getElementById('input-new-mat-numero') as HTMLInputElement).value.trim();
+      const area_ha = parseFloat((document.getElementById('input-new-mat-area') as HTMLInputElement).value);
+      const ccir = (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value.trim();
+      const itr = (document.getElementById('input-new-mat-itr') as HTMLInputElement).value.trim();
+
+      if (!numero_matricula || isNaN(area_ha)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/matriculas`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ numero_matricula, ccir, itr, area_ha })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert(data.error);
+        } else {
+          // Limpa
+          (document.getElementById('input-new-mat-numero') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-area') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = '';
+
+          // Recarrega
+          loadMatriculasDaPropriedade(propriedadeSelecionadaId);
+        }
+      } catch (err) {
+        alert("Erro de conexão ao cadastrar matrícula.");
+      }
+    });
 
     // --- INICIALIZADORES ---
     loadPropriedades();

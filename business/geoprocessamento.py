@@ -158,7 +158,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
         query_pontos = """
             SELECT id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento, sigma_lat
             FROM pontos
-            WHERE levantamento_id = ? AND matricula_id = ?
+            WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
             ORDER BY id ASC
         """
         rows = execute_query(query_pontos, params=(levantamento_id, matricula_id), fetch_all=True)
@@ -195,7 +195,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
         # 3. Conversão UTM Dinâmica para Cálculo do Shoelace
         lon_referencia = pontos[0]["lon"]
         zona_utm = int((lon_referencia + 180) / 6) + 1
-        epsg_utm = f"3198{zona_utm}"  # EPSG para Hemisfério Sul
+        epsg_utm = f"319{60 + zona_utm}"  # EPSG para Hemisfério Sul
         
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         
@@ -335,13 +335,10 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
 
 def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     """
-    Busca no banco de dados a Base informada (base_id) e, caso ela possua coordenadas corrigidas
-    válidas (lat != 0 e status_ponto = 'CORRIGIDO'), calcula o vetor Delta ECEF 3D entre a
-    sua UTM original (e_original, n_original, alt_original) e a sua posição corrigida geodésica (lat, lon, alt).
-    Em seguida, aplica rigorosamente essa mesma translação cartesiana ECEF tridimensional
-    em todos os pontos Rover vinculados àquela base (ponto_base_id = base_id) que estejam no estado 'BRUTO',
-    propagando suas incertezas geodésicas e atualizando o status dos rovers para 'CORRIGIDO'.
-    Retorna a quantidade de rovers corrigidos em bloco.
+    Propaga a correção da Base (base_id) para todos os rovers vinculados (ponto_base_id = base_id)
+    utilizando translação plana rigorosa em UTM + Altitude para conservar as distâncias de campo
+    e manter os deltas constantes, e depois converte os resultados de volta para geodésicas (Lat/Lon)
+    no elipsoide GRS80 (SIRGAS 2000) para gravação.
     """
     import math
     import logging
@@ -365,45 +362,39 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         logger.info(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} ainda está no estado BRUTO. Translação adiada.")
         return 0
         
-    # Se a base não possuir as originais em UTM (por ex. foi digitada manual), simulamos a partir das coordenadas
     if not base["e_original"] or not base["n_original"]:
         logger.warning(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} não possui coordenadas originais UTM de campo para referenciar a translação.")
         return 0
         
-    # 2. Computa o Vetor de Translação Cartesianas 3D ECEF da Base
     try:
-        # A. ECEF da Base Corrigida (SIRGAS 2000)
-        x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
-        
-        # B. ECEF da Base Bruta original de campo
-        # Resolve o Fuso UTM com base na longitude da base corrigida
+        # A. Converte as coordenadas geodésicas corrigidas da Base para UTM (SIRGAS 2000)
+        # Determina o fuso com base na longitude da base corrigida
         longitude_base = base["lon"]
         zona_utm = int((longitude_base + 180) / 6) + 1
-        epsg_utm = f"3198{zona_utm}"
+        epsg_utm = f"319{60 + zona_utm}"
         
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-        lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base["e_original"], base["n_original"])
-        x_base_bruta, y_base_bruta, z_base_bruta = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base["alt_original"])
+        transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        e_base_corr, n_base_corr = transformer_to_utm.transform(base["lon"], base["lat"])
         
-        # Vetor Delta ECEF
-        delta_x = x_base_corr - x_base_bruta
-        delta_y = y_base_corr - y_base_bruta
-        delta_z = z_base_corr - z_base_bruta
+        # B. Vetor Delta UTM plano e altitude
+        delta_e = e_base_corr - base["e_original"]
+        delta_n = n_base_corr - base["n_original"]
+        delta_h = base["alt"] - base["alt_original"]
         
-        logger.info(f"[GEOPROCESSAMENTO] Vetor Delta ECEF para Base {base['nome_vertice']}: dX={delta_x:.4f}m, dY={delta_y:.4f}m, dZ={delta_z:.4f}m")
-    except Exception as e_ecef:
-        logger.error(f"[GEOPROCESSAMENTO] Falha crítica ao calcular vetor Delta ECEF para Base {base['nome_vertice']}: {e_ecef}")
+        logger.info(f"[GEOPROCESSAMENTO] Vetor Delta UTM para Base {base['nome_vertice']}: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+    except Exception as e_trans:
+        logger.error(f"[GEOPROCESSAMENTO] Falha ao calcular vetor Delta UTM para Base {base['nome_vertice']}: {e_trans}")
         return 0
         
     # 3. Recupera todos os rovers ativos vinculados a essa Base
     query_rovers = """
         SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
         FROM pontos 
-        WHERE levantamento_id = ? AND ponto_base_id = ? AND status_ponto = 'BRUTO'
+        WHERE levantamento_id = ? AND ponto_base_id = ?
     """
     rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
     if not rows_rovers:
-        logger.info(f"[GEOPROCESSAMENTO] Nenhum rover bruto pendente de translação para a Base {base['nome_vertice']}.")
+        logger.info(f"[GEOPROCESSAMENTO] Nenhum rover vinculado para a Base {base['nome_vertice']}.")
         return 0
         
     rovers = [dict(r) for r in rows_rovers]
@@ -413,10 +404,11 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     detalhamento_logs = []
     
     try:
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # Incertezas da Base corrigida para propagação
             sig_base_lat = base["sigma_lat"] or 0.0
             sig_base_lon = base["sigma_lon"] or 0.0
             sig_base_alt = base["sigma_alt"] or 0.0
@@ -425,16 +417,13 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 if not r["e_original"] or not r["n_original"]:
                     continue
                     
-                # A. Plana Bruta -> Geodésica Bruta
-                lon_bruto, lat_bruto = transformer_to_latlon.transform(r["e_original"], r["n_original"])
-                # B. Geodésica Bruta -> ECEF Bruta
-                x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, r["alt_original"])
-                # C. Translação 3D
-                x_corr = x_bruto + delta_x
-                y_corr = y_bruto + delta_y
-                z_corr = z_bruto + delta_z
-                # D. ECEF Corrigida -> Geodésica Corrigida
-                lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
+                # A. Translação plana UTM rigorosa
+                e_corr = r["e_original"] + delta_e
+                n_corr = r["n_original"] + delta_n
+                alt_corr = r["alt_original"] + delta_h
+                
+                # B. UTM Corrigida -> Geodésica Corrigida
+                lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
                 
                 # E. Propagação de Incertezas
                 sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
@@ -466,9 +455,8 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 
             conn.commit()
             
-        # 5. Registra o evento no Histórico de Campo para transparência absoluta
         if total_corrigidos > 0:
-            desc_auditoria = f"Translação ECEF 3D em lote aplicada com sucesso para {total_corrigidos} rovers vinculados à Base {base['nome_vertice']}."
+            desc_auditoria = f"Translação rigorosa UTM/Plana em lote aplicada com sucesso para {total_corrigidos} rovers vinculados à Base {base['nome_vertice']}."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
                 tipo_evento="CORRECAO_TRANSLACAO",
@@ -476,14 +464,416 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 dados_detalhados={
                     "base_id": base_id,
                     "base_nome": base["nome_vertice"],
-                    "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
+                    "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
                     "rovers_corrigidos": detalhamento_logs
                 }
             )
             
-        logger.info(f"[GEOPROCESSAMENTO] Translação em bloco concluída. {total_corrigidos} rovers corrigidos com base no PPP de {base['nome_vertice']}.")
+        logger.info(f"[GEOPROCESSAMENTO] Translação em bloco concluída. {total_corrigidos} rovers corrigidos com base no de {base['nome_vertice']}.")
     except Exception as e_db:
         logger.error(f"[GEOPROCESSAMENTO] Falha crítica ao persistir rovers corrigidos no banco: {e_db}")
         return 0
         
     return total_corrigidos
+
+def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
+    """
+    Associa uma base PPP processada e corrigida a um lote de pontos importados (mesmo arquivo_origem),
+    recalculando rigorosamente as coordenadas de todos os pontos do lote através de translação plana rigorosa.
+    """
+    import math
+    import logging
+    from database.connection import execute_query, DatabaseManager
+    from business.historico_campo import HistoricoCampoLogger
+    from pyproj import Transformer
+    from business.workspace_manager import WorkspaceManager
+    from business.txt_parser import TxtGeodesicParser
+    
+    logger = logging.getLogger(__name__)
+    
+    # 1. Identifica o ponto selecionado no banco
+    row_selecionado = execute_query(
+        "SELECT levantamento_id, arquivo_origem, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z FROM pontos WHERE id = ?",
+        params=(ponto_id_selecionado,),
+        fetch_one=True
+    )
+    if not row_selecionado:
+        logger.error(f"[VINCULO_TARDE] Ponto com ID {ponto_id_selecionado} não encontrado no banco.")
+        raise ValueError("Ponto selecionado não encontrado.")
+        
+    ponto_sel = dict(row_selecionado)
+    arquivo_origem = ponto_sel.get("arquivo_origem")
+    levantamento_id = ponto_sel.get("levantamento_id")
+    
+    if not arquivo_origem:
+        logger.error(f"[VINCULO_TARDE] Ponto {ponto_id_selecionado} não possui 'arquivo_origem' definido no banco.")
+        raise ValueError("Ponto selecionado não possui arquivo de origem associado.")
+
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(levantamento_id)
+        caminho_arquivo = folder / "Processados" / arquivo_origem
+        if caminho_arquivo.exists():
+            with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
+                linhas = f.readlines()
+            parser_layout = TxtGeodesicParser(levantamento_id)
+            layout = parser_layout.identificar_layout(linhas)
+            if layout != "rtk":
+                raise ValueError("Este arquivo de pontos não é do tipo RTK (foi gerado por software próprio e seus pontos já estão corrigidos).")
+    except Exception as e_layout:
+        logger.warning(f"[VINCULO_TARDE] Verificação de layout do arquivo {arquivo_origem}: {e_layout}")
+        if "não é do tipo RTK" in str(e_layout):
+            raise e_layout
+        
+    # 2. Recupera as informações corrigidas oficiais da base_ppp_id
+    row_base = execute_query(
+        "SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, status_ponto, status_correcao FROM pontos WHERE id = ?",
+        params=(base_ppp_id,),
+        fetch_one=True
+    )
+    if not row_base:
+        logger.error(f"[VINCULO_TARDE] Base com ID {base_ppp_id} não encontrada.")
+        raise ValueError("Base PPP especificada não encontrada.")
+        
+    base_corr = dict(row_base)
+    if not base_corr["lat"] or base_corr["lat"] == 0.0:
+        logger.error(f"[VINCULO_TARDE] A base selecionada {base_corr['nome_vertice']} não possui coordenadas corrigidas.")
+        raise ValueError("A base selecionada ainda não possui coordenadas corrigidas.")
+        
+    # 3. Determina o Vetor Delta UTM plano e altitude
+    longitude_base = base_corr["lon"]
+    zona_utm = int((longitude_base + 180) / 6) + 1
+    epsg_utm = f"319{60 + zona_utm}"
+    
+    transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+    e_base_corr, n_base_corr = transformer_to_utm.transform(base_corr["lon"], base_corr["lat"])
+    
+    delta_e = e_base_corr - ponto_sel["e_original"]
+    delta_n = n_base_corr - ponto_sel["n_original"]
+    delta_h = base_corr["alt"] - ponto_sel["alt_original"]
+    
+    logger.info(f"[VINCULO_TARDE] Vetor Delta UTM calculado: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+    
+    # 4. Recupera todos os rovers pertencentes ao mesmo arquivo_origem e levantamento
+    query_rovers = """
+        SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
+        FROM pontos 
+        WHERE levantamento_id = ? AND arquivo_origem = ? AND id != ?
+    """
+    rows_rovers = execute_query(query_rovers, params=(levantamento_id, arquivo_origem, ponto_id_selecionado), fetch_all=True)
+    rovers = [dict(r) for r in rows_rovers]
+    
+    total_atualizados = 0
+    detalhamento_logs = []
+    
+    try:
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            sig_base_lat = base_corr["sigma_lat"] or 0.0
+            sig_base_lon = base_corr["sigma_lon"] or 0.0
+            sig_base_alt = base_corr["sigma_alt"] or 0.0
+            
+            sig_lat_sel = math.sqrt((ponto_sel["sigma_n"] or 0.0)**2 + sig_base_lat**2)
+            sig_lon_sel = math.sqrt((ponto_sel["sigma_e"] or 0.0)**2 + sig_base_lon**2)
+            sig_alt_sel = math.sqrt((ponto_sel["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+            
+            cursor.execute(
+                """
+                UPDATE pontos
+                SET lat = ?, lon = ?, alt = ?,
+                    lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                    sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                    status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                    ponto_base_id = ?
+                WHERE id = ?
+                """,
+                (base_corr["lat"], base_corr["lon"], base_corr["alt"],
+                 base_corr["lat"], base_corr["lon"], base_corr["alt"],
+                 sig_lat_sel, sig_lon_sel, sig_alt_sel,
+                 base_ppp_id, ponto_id_selecionado)
+            )
+            total_atualizados += 1
+            detalhamento_logs.append({
+                "id": ponto_id_selecionado,
+                "nome": "Base_Amarração_" + base_corr["nome_vertice"],
+                "original": {"E": ponto_sel["e_original"], "N": ponto_sel["n_original"], "H": ponto_sel["alt_original"]},
+                "corrigido": {"lat": base_corr["lat"], "lon": base_corr["lon"], "H": base_corr["alt"]}
+            })
+            
+            for r in rovers:
+                if not r["e_original"] or not r["n_original"]:
+                    continue
+                    
+                e_corr = r["e_original"] + delta_e
+                n_corr = r["n_original"] + delta_n
+                alt_corr = r["alt_original"] + delta_h
+                
+                lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
+                
+                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
+                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
+                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+                
+                cursor.execute(
+                    """
+                    UPDATE pontos
+                    SET lat = ?, lon = ?, alt = ?,
+                        lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                        status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                        ponto_base_id = ?
+                    WHERE id = ?
+                    """,
+                    (lat_corr, lon_corr, alt_corr,
+                     lat_corr, lon_corr, alt_corr,
+                     sig_lat_prop, sig_lon_prop, sig_alt_prop,
+                     base_ppp_id, r["id"])
+                )
+                total_atualizados += 1
+                detalhamento_logs.append({
+                    "id": r["id"],
+                    "nome": r["nome_vertice"],
+                    "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
+                    "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
+                })
+                
+            conn.commit()
+            
+        desc_auditoria = f"Vínculo Tardio V.L.A.E.G. aplicado com sucesso. {total_atualizados} pontos do arquivo '{arquivo_origem}' foram transladados e amarrados à Base '{base_corr['nome_vertice']}'."
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=levantamento_id,
+            tipo_evento="VINCULO_BASE_TARDE",
+            descricao=desc_auditoria,
+            dados_detalhados={
+                "arquivo_origem": arquivo_origem,
+                "base_id": base_ppp_id,
+                "base_nome": base_corr["nome_vertice"],
+                "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
+                "total_pontos_vinculados": total_atualizados,
+                "detalhes": detalhamento_logs
+            }
+        )
+        
+        logger.info(f"[VINCULO_TARDE] Processamento de amarração tardia concluído. {total_atualizados} atualizados.")
+        return total_atualizados
+        
+    except Exception as e_db:
+        logger.error(f"[VINCULO_TARDE] Falha crítica de transação ao atualizar rovers: {e_db}")
+        raise e_db
+
+def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquivo_origem: str, dados_brutos: dict, dados_corrigidos: dict, base_id: int = None) -> int:
+    """
+    Aplica a correção manual por translação plana rigorosa em todo o lote de pontos
+    pertencente ao arquivo_origem, usando dados brutos de campo e coordenadas oficiais homologadas.
+    Insere/atualiza o ponto base de campo como Tipo 'M' com coordenadas oficiais.
+    """
+    import math
+    import logging
+    from database.connection import execute_query, DatabaseManager
+    from business.historico_campo import HistoricoCampoLogger
+    from pyproj import Transformer
+    from business.workspace_manager import WorkspaceManager
+    from business.txt_parser import TxtGeodesicParser
+    
+    logger = logging.getLogger(__name__)
+
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(levantamento_id)
+        caminho_arquivo = folder / "Processados" / arquivo_origem
+        if caminho_arquivo.exists():
+            with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
+                linhas = f.readlines()
+            parser_layout = TxtGeodesicParser(levantamento_id)
+            layout = parser_layout.identificar_layout(linhas)
+            if layout != "rtk":
+                raise ValueError("Este arquivo de pontos não é do tipo RTK (foi gerado por software próprio e seus pontos já estão corrigidos).")
+    except Exception as e_layout:
+        logger.warning(f"[OVERRIDE_MANUAL] Verificação de layout do arquivo {arquivo_origem}: {e_layout}")
+        if "não é do tipo RTK" in str(e_layout):
+            raise e_layout
+    
+    # 1. Determina a Coordenada Corrigida Oficinal da Base (em Lat/Lon/Alt Geodésica)
+    lat_corr_oficial = 0.0
+    lon_corr_oficial = 0.0
+    alt_corr_oficial = float(dados_corrigidos.get("alt_corrigida") or dados_corrigidos.get("alt") or 0.0)
+    
+    fuso_selecionado = dados_corrigidos.get("fuso")
+    zona = int(''.join(filter(str.isdigit, fuso_selecionado or "22S")))
+    epsg_utm = f"319{60 + zona}"
+    
+    transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+    
+    if dados_corrigidos.get("tipo_entrada") == "utm":
+        e_corr = float(dados_corrigidos["e_corrigido"])
+        n_corr = float(dados_corrigidos["n_corrigido"])
+        lon_corr_oficial, lat_corr_oficial = transformer_to_latlon.transform(e_corr, n_corr)
+        logger.info(f"[OVERRIDE_MANUAL] Projeção reversa da Base Corrigida concluída: Lat={lat_corr_oficial:.8f}, Lon={lon_corr_oficial:.8f}")
+    else:
+        lat_corr_oficial = float(dados_corrigidos["lat_corrigida"])
+        lon_corr_oficial = float(dados_corrigidos["lon_corrigida"])
+        
+        transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        e_corr, n_corr = transformer_to_utm.transform(lon_corr_oficial, lat_corr_oficial)
+    
+    # 2. Dados brutos
+    e_bruto = float(dados_brutos["e_bruto"])
+    n_bruto = float(dados_brutos["n_bruto"])
+    alt_bruta = float(dados_brutos["alt_bruta"])
+    nome_base = dados_brutos.get("nome_base", "BASE-MANUAL")
+    
+    # 3. Determina o Vetor Delta UTM plano e altitude
+    delta_e = e_corr - e_bruto
+    delta_n = n_corr - n_bruto
+    delta_h = alt_corr_oficial - alt_bruta
+    
+    logger.info(f"[OVERRIDE_MANUAL] Delta UTM gerado: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+    
+    # A. Recupera a matrícula id e pontos do lote
+    query_mat = """
+        SELECT matricula_id FROM pontos 
+        WHERE levantamento_id = ? AND arquivo_origem = ? AND matricula_id IS NOT NULL 
+        LIMIT 1
+    """
+    row_mat = execute_query(query_mat, params=(levantamento_id, arquivo_origem), fetch_one=True)
+    matricula_id_efetiva = row_mat["matricula_id"] if row_mat else None
+    
+    sig_base_lat = float(dados_corrigidos.get("sigma_lat") or 0.0050)
+    sig_base_lon = float(dados_corrigidos.get("sigma_lon") or 0.0050)
+    sig_base_alt = float(dados_corrigidos.get("sigma_alt") or 0.0100)
+    
+    if base_id is None:
+        query_check_base = """
+            SELECT id FROM pontos
+            WHERE levantamento_id = ? AND nome_vertice = ? AND tipo_ponto = 'M'
+        """
+        row_base = execute_query(query_check_base, params=(levantamento_id, nome_base), fetch_one=True)
+        base_id = row_base["id"] if row_base else None
+    
+    if base_id:
+        query_upsert_base = """
+            UPDATE pontos
+            SET matricula_id = ?, lat = ?, lon = ?, alt = ?,
+                lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                n_original = ?, e_original = ?, alt_original = ?,
+                sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                sigma_n = ?, sigma_e = ?, sigma_z = ?,
+                status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                arquivo_origem = ?, ignorar_poligono = 1, nome_vertice = ?
+            WHERE id = ?
+        """
+        execute_query(query_upsert_base, params=(
+            matricula_id_efetiva, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+            lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+            n_bruto, e_bruto, alt_bruta,
+            sig_base_lat, sig_base_lon, sig_base_alt,
+            sig_base_lat, sig_base_lon, sig_base_alt,
+            arquivo_origem, nome_base, base_id
+        ), commit=True)
+    else:
+        query_upsert_base = """
+            INSERT INTO pontos (
+                levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
+                lat_corrigido, lon_corrigido, alt_corrigido,
+                n_original, e_original, alt_original,
+                sigma_lat, sigma_lon, sigma_alt,
+                sigma_n, sigma_e, sigma_z,
+                status_ponto, status_correcao, arquivo_origem, ignorar_poligono
+            ) VALUES (?, ?, ?, 'M', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?, 1)
+        """
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query_upsert_base, (
+                levantamento_id, matricula_id_efetiva, nome_base, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+                lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+                n_bruto, e_bruto, alt_bruta,
+                sig_base_lat, sig_base_lon, sig_base_alt,
+                sig_base_lat, sig_base_lon, sig_base_alt,
+                arquivo_origem
+            ))
+            conn.commit()
+            base_id = cursor.lastrowid
+            
+    # 4. Abre uma transação no banco e faz o loop para os rovers
+    query_rovers = """
+        SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
+        FROM pontos 
+        WHERE levantamento_id = ? AND arquivo_origem = ?
+    """
+    rows_rovers = execute_query(query_rovers, params=(levantamento_id, arquivo_origem), fetch_all=True)
+    rovers = [dict(r) for r in rows_rovers]
+    
+    total_corrigidos = 0
+    detalhamento_logs = []
+    
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            for r in rovers:
+                if r["id"] == base_id:
+                    continue
+                if not r["e_original"] or not r["n_original"]:
+                    continue
+                    
+                e_rover_corr = r["e_original"] + delta_e
+                n_rover_corr = r["n_original"] + delta_n
+                alt_rover_corr = r["alt_original"] + delta_h
+                
+                lon_corr, lat_corr = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
+                alt_corr = alt_rover_corr
+                
+                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
+                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
+                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+                
+                cursor.execute(
+                    """
+                    UPDATE pontos 
+                    SET lat = ?, lon = ?, alt = ?, 
+                        lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                        status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                        ponto_base_id = ?
+                    WHERE id = ? AND levantamento_id = ?
+                    """,
+                    (lat_corr, lon_corr, alt_corr, 
+                     lat_corr, lon_corr, alt_corr,
+                     sig_lat_prop, sig_lon_prop, sig_alt_prop,
+                     base_id, r["id"], levantamento_id)
+                )
+                total_corrigidos += 1
+                detalhamento_logs.append({
+                    "id": r["id"],
+                    "nome": r["nome_vertice"],
+                    "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
+                    "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
+                })
+                
+            conn.commit()
+            
+        desc_auditoria = f"Override Manual / Forçar Correção UTM plana aplicada em lote para {total_corrigidos} pontos do arquivo '{arquivo_origem}'."
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=levantamento_id,
+            tipo_evento="CORRECAO_MANUAL_OVERRIDE",
+            descricao=desc_auditoria,
+            dados_detalhados={
+                "arquivo_origem": arquivo_origem,
+                "dados_brutos_base": dados_brutos,
+                "dados_corrigidos_base": dados_corrigidos,
+                "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
+                "total_pontos_corrigidos": total_corrigidos,
+                "detalhes": detalhamento_logs
+            }
+        )
+        
+        logger.info(f"[OVERRIDE_MANUAL] Correção plana aplicada com sucesso. {total_corrigidos} corrigidos.")
+        return total_corrigidos
+        
+    except Exception as e_db:
+        logger.error(f"[OVERRIDE_MANUAL] Falha crítica de transação ao aplicar correção manual: {e_db}")
+        raise e_db
+

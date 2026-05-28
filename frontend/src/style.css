@@ -290,3 +290,15 @@ select.glass-input option {
   transform: scale(1);
 }
 
+/* ==========================================================================
+   Correção de transparência nos cabeçalhos de tabela sticky
+   ========================================================================== */
+th.resizable-col,
+tr.sticky th,
+thead th,
+#tbl-pontos-header th {
+   background-color: #0b130e !important; /* Fundo escuro totalmente opaco combinando com forest-deep */
+   opacity: 1 !important;
+   z-index: 10;
+}
+

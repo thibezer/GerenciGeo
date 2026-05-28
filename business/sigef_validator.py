@@ -76,7 +76,7 @@ class SigefValidator:
         # 1. Determinação dinâmica da Zona UTM e EPSG SIRGAS 2000 correspondente no Hemisfério Sul
         lon0 = pontos_ordenados[0]["lon"]
         zona_utm = int((lon0 + 180) / 6) + 1
-        epsg_utm = f"3198{zona_utm}"
+        epsg_utm = f"319{60 + zona_utm}"
         
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         

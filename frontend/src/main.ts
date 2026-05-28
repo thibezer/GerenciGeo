@@ -4,6 +4,7 @@ import { initIcons, clearTimeoutsAndIntervals } from './utils';
 import { dashboardRoute } from './views/dashboard';
 import { clientesRoute } from './views/clientes';
 import { levantamentosRoute } from './views/levantamentos';
+import { mesaTrabalhoRoute } from './views/mesa_trabalho';
 import { propriedadesRoute } from './views/propriedades';
 import { pppRoute } from './views/ppp';
 import { hgoRoute } from './views/hgo';
@@ -16,6 +17,7 @@ const routes: Record<string, RouteDef> = {
   dashboard: dashboardRoute,
   clientes: clientesRoute,
   levantamentos: levantamentosRoute,
+  mesa_trabalho: mesaTrabalhoRoute,
   propriedades: propriedadesRoute,
   ppp: pppRoute,
   hgo: hgoRoute,

@@ -146,6 +146,9 @@ def create_tables(conn):
             status_ponto TEXT DEFAULT 'BRUTO' CHECK(status_ponto IN ('BRUTO', 'CORRIGIDO')),
             ponto_base_id INTEGER,
             metodo_posicionamento TEXT DEFAULT 'PG1',
+            arquivo_origem TEXT,
+            status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
+            ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
             
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
@@ -283,7 +286,10 @@ def create_tables(conn):
             ("arquivo_resultado_ppp", "TEXT"),
             ("status_ponto", "TEXT DEFAULT 'BRUTO'"),
             ("ponto_base_id", "INTEGER"),
-            ("metodo_posicionamento", "TEXT DEFAULT 'PG1'")
+            ("metodo_posicionamento", "TEXT DEFAULT 'PG1'"),
+            ("arquivo_origem", "TEXT"),
+            ("status_correcao", "TEXT DEFAULT 'BRUTO'"),
+            ("ignorar_poligono", "INTEGER DEFAULT 0")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -421,6 +427,9 @@ def migrar_restricao_unicidade_pontos(conn):
                 status_ponto TEXT DEFAULT 'BRUTO' CHECK(status_ponto IN ('BRUTO', 'CORRIGIDO')),
                 ponto_base_id INTEGER,
                 metodo_posicionamento TEXT DEFAULT 'PG1',
+                arquivo_origem TEXT,
+                status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
+                ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
                 FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
                 FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
                 FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
@@ -434,13 +443,14 @@ def migrar_restricao_unicidade_pontos(conn):
                 id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id, metodo_posicionamento
+                sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id, metodo_posicionamento,
+                arquivo_origem, status_correcao, ignorar_poligono
             )
             SELECT id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                    sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                    n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
                    sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id,
-                   metodo_posicionamento
+                   metodo_posicionamento, arquivo_origem, status_correcao, ignorar_poligono
             FROM pontos;
             """)
             

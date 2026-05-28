@@ -78,11 +78,13 @@ class TxtGeodesicParser:
         if not os.path.exists(caminho_arquivo):
             raise FileNotFoundError(f"Arquivo não localizado: {caminho_arquivo}")
 
+        nome_arquivo = os.path.basename(caminho_arquivo)
+
         with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
             linhas = f.readlines()
 
         layout = self.identificar_layout(linhas)
-        logger.info(f"[PARSER] Layout identificado para {os.path.basename(caminho_arquivo)}: {layout.upper()}")
+        logger.info(f"[PARSER] Layout identificado para {nome_arquivo}: {layout.upper()}")
 
         aplicar_translace_ecef = False
         delta_x = 0.0
@@ -146,7 +148,7 @@ class TxtGeodesicParser:
         if base_ppp:
             longitude_base = base_ppp["lon"]
             zona_utm = int((longitude_base + 180) / 6) + 1
-            epsg_dinamico = f"3198{zona_utm}"
+            epsg_dinamico = f"319{60 + zona_utm}"
             logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com base na longitude {longitude_base:.6f}")
         else:
             epsg_dinamico = "31982"
@@ -158,7 +160,12 @@ class TxtGeodesicParser:
         transformer_to_utm = Transformer.from_crs(crs_geodesica, crs_plana, always_xy=True)
         transformer_to_latlon = Transformer.from_crs(crs_plana, crs_geodesica, always_xy=True)
 
-        # 3. Algoritmo de Translação Computacional Rigorosa no Espaço ECEF (Exclusivo RTK)
+        # 3. Algoritmo de Translação Computacional Rigorosa Plana UTM (Exclusivo RTK)
+        aplicar_translace_plana = False
+        delta_e = 0.0
+        delta_n = 0.0
+        delta_h = 0.0
+
         if layout == "rtk":
             base_bruta = None
             if base_ppp:
@@ -173,20 +180,22 @@ class TxtGeodesicParser:
                 logger.info(f"[PARSER] Base bruta identificada no arquivo para amarração: {base_bruta['nome']}")
                 
                 if base_ppp:
-                    # Converte a base PPP geodésica para ECEF
-                    x_ppp, y_ppp, z_ppp = geodesic_to_ecef(base_ppp["lat"], base_ppp["lon"], base_ppp["alt"])
+                    # Converte a base PPP geodésica para UTM
+                    e_base_corr, n_base_corr = transformer_to_utm.transform(base_ppp["lon"], base_ppp["lat"])
+                    alt_base_corr = base_ppp["alt"]
                     
-                    # Converte a base bruta UTM para Geodésica e depois para ECEF
-                    lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base_bruta["e_original"], base_bruta["n_original"])
-                    x_bruto_base, y_bruto_base, z_bruto_base = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base_bruta["alt_original"])
+                    # Coordenadas UTM brutas da base do arquivo
+                    e_base_bruta = base_bruta["e_original"]
+                    n_base_bruta = base_bruta["n_original"]
+                    alt_base_bruta = base_bruta["alt_original"]
                     
-                    # Cálculo do Vetor Delta 3D ECEF
-                    delta_x = x_ppp - x_bruto_base
-                    delta_y = y_ppp - y_bruto_base
-                    delta_z = z_ppp - z_bruto_base
+                    # Cálculo do Vetor de Translação Plana constante
+                    delta_e = e_base_corr - e_base_bruta
+                    delta_n = n_base_corr - n_base_bruta
+                    delta_h = alt_base_corr - alt_base_bruta
                     
-                    aplicar_translace_ecef = True
-                    logger.info(f"[PARSER] Vetor de Translação ECEF 3D Calculado: Delta_X={delta_x:.4f}m, Delta_Y={delta_y:.4f}m, Delta_Z={delta_z:.4f}m")
+                    aplicar_translace_plana = True
+                    logger.info(f"[PARSER] Vetor de Translação Plana UTM Calculado: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
                 else:
                     logger.warning("[PARSER] AVISO: Ponto de Base Bruta encontrado, mas nenhuma Base PPP processada existe no banco de dados para este levantamento.")
             else:
@@ -204,27 +213,41 @@ class TxtGeodesicParser:
         sigma_base_alt = base_ppp.get("sigma_alt") or 0.0 if base_ppp else 0.0
 
         for p in pontos_brutos:
-            if aplicar_translace_ecef:
-                # Converte coordenada plana bruta para geodésica bruta
-                lon_bruto, lat_bruto = transformer_to_latlon.transform(p["e_original"], p["n_original"])
-                # Converte geodésica bruta para ECEF
-                x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, p["alt_original"])
-                # Aplica translação 3D no espaço geocêntrico
-                x_corrigido = x_bruto + delta_x
-                y_corrigido = y_bruto + delta_y
-                z_corrigido = z_bruto + delta_z
-                # Reconverte ECEF para geodésica final
-                lat_corrigido, lon_corrigido, alt_corrigido = ecef_to_geodesic(x_corrigido, y_corrigido, z_corrigido)
+            if aplicar_translace_plana:
+                # Aplica translação rigorosa plana UTM de corpo rígido
+                e_corrigido = p["e_original"] + delta_e
+                n_corrigido = p["n_original"] + delta_n
+                alt_corrigido = p["alt_original"] + delta_h
+                
+                # Retroprojeta UTM plana de volta para Geodésica elipsoidal no SIRGAS 2000
+                lon_corrigido, lat_corrigido = transformer_to_latlon.transform(e_corrigido, n_corrigido)
             else:
                 # Caso não translade, apenas converte de UTM para lat/lon
                 lon_corrigido, lat_corrigido = transformer_to_latlon.transform(p["e_original"], p["n_original"])
                 alt_corrigido = p["alt_original"]
 
-            # Lei de Propagação de Variâncias (Composição Quadrática das Incertezas)
-            # sigma_final = sqrt(sigma_bruto^2 + sigma_base^2)
-            sigma_lat_prop = math.sqrt(p["sigma_n"]**2 + sigma_base_lat**2)
-            sigma_lon_prop = math.sqrt(p["sigma_e"]**2 + sigma_base_lon**2)
-            sigma_alt_prop = math.sqrt(p["sigma_z"]**2 + sigma_base_alt**2)
+            # Para layout RTK, controlamos a correção com base no sucesso da translação da base PPP.
+            # Para layouts não-RTK (como Topcon estático processado fora), os rovers já estão corrigidos ("antes e depois").
+            if layout == "rtk":
+                status_ponto_final = "CORRIGIDO" if aplicar_translace_ecef else "BRUTO"
+                lat_corr_val = lat_corrigido if aplicar_translace_ecef else None
+                lon_corr_val = lon_corrigido if aplicar_translace_ecef else None
+                alt_corr_val = alt_corrigido if aplicar_translace_ecef else None
+                
+                # Lei de Propagação de Variâncias (Composição Quadrática das Incertezas)
+                sigma_lat_prop = math.sqrt(p["sigma_n"]**2 + sigma_base_lat**2)
+                sigma_lon_prop = math.sqrt(p["sigma_e"]**2 + sigma_base_lon**2)
+                sigma_alt_prop = math.sqrt(p["sigma_z"]**2 + sigma_base_alt**2)
+            else:
+                status_ponto_final = "CORRIGIDO"
+                lat_corr_val = lat_corrigido
+                lon_corr_val = lon_corrigido
+                alt_corr_val = alt_corrigido
+                
+                # Para rovers externos corrigidos, mantemos as incertezas originais do arquivo
+                sigma_lat_prop = p["sigma_n"]
+                sigma_lon_prop = p["sigma_e"]
+                sigma_alt_prop = p["sigma_z"]
 
             tipo = "P"
             if p["nome"].upper().startswith("M"):
@@ -256,14 +279,16 @@ class TxtGeodesicParser:
                 "n_original": p["n_original"],
                 "e_original": p["e_original"],
                 "alt_original": p["alt_original"],
-                "lat_corrigido": lat_corrigido if aplicar_translace_ecef else None,
-                "lon_corrigido": lon_corrigido if aplicar_translace_ecef else None,
-                "alt_corrigido": alt_corrigido if aplicar_translace_ecef else None,
+                "lat_corrigido": lat_corr_val,
+                "lon_corrigido": lon_corr_val,
+                "alt_corrigido": alt_corr_val,
                 "sigma_n": p["sigma_n"],
                 "sigma_e": p["sigma_e"],
                 "sigma_z": p["sigma_z"],
-                "status_ponto": "CORRIGIDO" if aplicar_translace_ecef else "BRUTO",
-                "ponto_base_id": self.base_escolhida_id
+                "status_ponto": status_ponto_final,
+                "ponto_base_id": self.base_escolhida_id,
+                "arquivo_origem": nome_arquivo,
+                "status_correcao": status_ponto_final
             }
             pontos_processados.append(ponto_final)
             ordem += 1
@@ -282,8 +307,9 @@ class TxtGeodesicParser:
                 levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id,
+                arquivo_origem, status_correcao
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         try:
@@ -296,7 +322,8 @@ class TxtGeodesicParser:
                             p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
                             p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
                             p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
-                            p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"]
+                            p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
+                            p["arquivo_origem"], p["status_correcao"]
                         ))
                         ids_inseridos.append(cursor.lastrowid)
                     except sqlite3.IntegrityError as e_integ:

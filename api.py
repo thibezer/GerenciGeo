@@ -15,6 +15,16 @@ from database.connection import DatabaseManager, execute_query
 from database.models import create_tables
 from business.workspace_manager import WorkspaceManager
 from business.txt_parser import TxtGeodesicParser
+from business.levantamento_manager import (
+    cadastrar_cliente,
+    atualizar_cliente,
+    vincular_cliente_propriedade,
+    salvar_ordem_caminhamento,
+    recomputar_rover_apos_vinculo_base,
+    atualizar_ponto_geodesico,
+    gerar_requerimento_html,
+    gerar_termo_anuencia_html
+)
 
 from fastapi import Depends
 from business.sigef_validator import SigefValidator
@@ -246,38 +256,10 @@ class ClienteCreate(BaseModel):
 
 @app.post("/clientes")
 def create_cliente(cli: ClienteCreate):
-    import re
-    # Sanitização de CPF/CNPJ
-    cli.cpf_cnpj = re.sub(r'\D', '', cli.cpf_cnpj) if cli.cpf_cnpj else ""
-    if cli.cpf_conjuge:
-        cli.cpf_conjuge = re.sub(r'\D', '', cli.cpf_conjuge)
-
-    if not validar_cpf_cnpj(cli.cpf_cnpj):
-        return {"error": "CPF/CNPJ inválido"}
-    try:
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM clientes WHERE cpf_cnpj = ?", (cli.cpf_cnpj,))
-            if cursor.fetchone():
-                return {"error": "CPF/CNPJ já cadastrado"}
-            
-            cursor.execute("""
-                INSERT INTO clientes (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cli.nome_completo, cli.cpf_cnpj, cli.rg_ie, cli.data_nascimento_fundacao, cli.estado_civil, cli.profissao, cli.nacionalidade, cli.nome_conjuge, cli.cpf_conjuge, cli.rg_conjuge, cli.regime_bens, cli.email, cli.telefone, cli.endereco_completo, cli.cidade, cli.estado, cli.cep))
-            cliente_id = cursor.lastrowid
-            
-            if cli.metadados:
-                for k, v in cli.metadados.items():
-                    cursor.execute("INSERT INTO cliente_metadados (id_cliente, chave, valor) VALUES (?, ?, ?)", (cliente_id, k, v))
-            conn.commit()
-            
-        mgr = ClienteManager()
-        mgr.verificar_dados_conjuge(cliente_id)
-        
-        return {"id": cliente_id, "message": "Cliente cadastrado"}
-    except Exception as e:
-        return {"error": str(e)}
+    res = cadastrar_cliente(cli.dict())
+    if "error" in res:
+        return {"error": res["error"]}
+    return res
 
 @app.get("/clientes")
 def get_clientes():
@@ -325,75 +307,10 @@ def delete_cliente(cliente_id: int):
 
 @app.put("/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
-    import re
-    # Sanitização de CPF/CNPJ
-    cli.cpf_cnpj = re.sub(r'\D', '', cli.cpf_cnpj) if cli.cpf_cnpj else ""
-    if cli.cpf_conjuge:
-        cli.cpf_conjuge = re.sub(r'\D', '', cli.cpf_conjuge)
-
-    if not validar_cpf_cnpj(cli.cpf_cnpj):
-        return {"error": "CPF/CNPJ inválido"}
-        
-    try:
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            # Pega dados antigos para histórico
-            cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
-            row = cursor.fetchone()
-            if not row:
-                return {"error": "Cliente não encontrado."}
-            old_data = dict(row)
-            
-            # Valida se o CPF já pertence a outro cliente
-            cursor.execute("SELECT id FROM clientes WHERE cpf_cnpj = ? AND id != ?", (cli.cpf_cnpj, cliente_id))
-            if cursor.fetchone():
-                return {"error": "CPF/CNPJ já cadastrado para outro cliente"}
-            
-            cursor.execute("""
-                UPDATE clientes 
-                SET nome_completo=?, cpf_cnpj=?, rg_ie=?, data_nascimento_fundacao=?, estado_civil=?, profissao=?, nacionalidade=?, 
-                    nome_conjuge=?, cpf_conjuge=?, rg_conjuge=?, regime_bens=?, email=?, telefone=?, endereco_completo=?, 
-                    cidade=?, estado=?, cep=?
-                WHERE id=?
-            """, (cli.nome_completo, cli.cpf_cnpj, cli.rg_ie, cli.data_nascimento_fundacao, cli.estado_civil, cli.profissao, cli.nacionalidade, 
-                  cli.nome_conjuge, cli.cpf_conjuge, cli.rg_conjuge, cli.regime_bens, cli.email, cli.telefone, cli.endereco_completo, 
-                  cli.cidade, cli.estado, cli.cep, cliente_id))
-            
-            # Atualiza metadados (limpa e insere novos)
-            cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
-            if cli.metadados:
-                for k, v in cli.metadados.items():
-                    cursor.execute("INSERT INTO cliente_metadados (id_cliente, chave, valor) VALUES (?, ?, ?)", (cliente_id, k, v))
-            
-            conn.commit()
-            
-        # AUDITORIA COMPLETA: Itera sobre todos os campos para registrar mudanças
-        mgr = ClienteManager()
-        new_data = cli.dict()
-        for campo, valor_novo in new_data.items():
-            if campo == 'metadados': continue
-            valor_antigo = old_data.get(campo)
-            if str(valor_antigo) != str(valor_novo) and valor_novo is not None:
-                mgr.registrar_historico(cliente_id, campo, valor_antigo, valor_novo)
-        
-        # SINCRONIZAÇÃO DE WORKSPACE: Atualiza JSON em todos os levantamentos ATIVOS vinculados
-        query_ativos = """
-            SELECT l.id 
-            FROM propriedade_clientes pc 
-            JOIN propriedades p ON pc.propriedade_id = p.id 
-            JOIN levantamentos l ON p.id = l.propriedade_id 
-            WHERE pc.cliente_id = ? AND l.status = 'EM_ANDAMENTO'
-        """
-        levs_vinculados = execute_query(query_ativos, params=(cliente_id,), fetch_all=True)
-        wm = WorkspaceManager()
-        for lev in levs_vinculados:
-            wm.gerar_documento_cliente_workspace(lev['id'])
-        
-        mgr.verificar_dados_conjuge(cliente_id)
-            
-        return {"message": "Cliente atualizado e sincronizado com sucesso"}
-    except Exception as e:
-        return {"error": str(e)}
+    res = atualizar_cliente(cliente_id, cli.dict())
+    if "error" in res:
+        return {"error": res["error"]}
+    return res
 
 # --- PROPRIEDADES ---
 
@@ -409,6 +326,12 @@ class PropriedadeCreate(BaseModel):
 class PropriedadeClienteCreate(BaseModel):
     cliente_id: int
     percentual_participacao: float = 0.0
+
+class MatriculaCreate(BaseModel):
+    numero_matricula: str
+    ccir: str = None
+    itr: str = None
+    area_ha: float = 0.0
 
 @app.get("/propriedades")
 def get_propriedades():
@@ -524,6 +447,29 @@ async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/propriedades/{prop_id}/matriculas")
+def get_matriculas_da_propriedade(prop_id: int):
+    try:
+        rows = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ? ORDER BY numero_matricula ASC", params=(prop_id,), fetch_all=True)
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/propriedades/{prop_id}/matriculas")
+def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
+    try:
+        exists = execute_query("SELECT id FROM matriculas WHERE propriedade_id = ? AND numero_matricula = ?", params=(prop_id, m.numero_matricula), fetch_one=True)
+        if exists:
+            raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
+            
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha) VALUES (?, ?, ?, ?, ?)"
+        execute_query(query, params=(prop_id, m.numero_matricula, m.ccir, m.itr, m.area_ha), commit=True)
+        return {"message": "Matrícula cadastrada com sucesso na propriedade."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/propriedades/{prop_id}/arquivo-car")
 def download_propriedade_car(prop_id: int):
     row = execute_query("SELECT caminho_arquivo_car FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
@@ -546,42 +492,10 @@ def download_propriedade_ccir(prop_id: int):
 
 @app.post("/propriedades/{prop_id}/clientes")
 def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
-    try:
-        # Validação estrita de 100% de participação
-        # 1. Pega a soma das participações dos OUTROS clientes vinculados
-        soma_outros_row = execute_query(
-            "SELECT SUM(percentual_participacao) as soma FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id != ?",
-            params=(prop_id, pc.cliente_id),
-            fetch_one=True
-        )
-        soma_outros = float(soma_outros_row['soma']) if (soma_outros_row and soma_outros_row['soma'] is not None) else 0.0
-        
-        if soma_outros + pc.percentual_participacao > 100.0:
-            restante = max(0.0, 100.0 - soma_outros)
-            return {"error": f"Participação inválida. A soma das participações não pode exceder 100%. Restante disponível: {restante:.2f}%"}
-
-        # 2. Verifica se o vínculo já existe para atualizar ou se deve criar
-        exists = execute_query(
-            "SELECT id FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",
-            params=(prop_id, pc.cliente_id),
-            fetch_one=True
-        )
-        if exists:
-            execute_query(
-                "UPDATE propriedade_clientes SET percentual_participacao = ? WHERE propriedade_id = ? AND cliente_id = ?",
-                params=(pc.percentual_participacao, prop_id, pc.cliente_id),
-                commit=True
-            )
-            return {"message": "Participação do proprietário atualizada com sucesso"}
-        else:
-            execute_query(
-                "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, ?)",
-                params=(prop_id, pc.cliente_id, pc.percentual_participacao),
-                commit=True
-            )
-            return {"message": "Proprietário vinculado com sucesso"}
-    except Exception as e:
-        return {"error": str(e)}
+    res = vincular_cliente_propriedade(prop_id, pc.cliente_id, pc.percentual_participacao)
+    if "error" in res:
+        return {"error": res["error"]}
+    return res
 
 @app.delete("/propriedades/{prop_id}/clientes/{cliente_id}")
 def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
@@ -601,12 +515,6 @@ class LevantamentoCreate(BaseModel):
     propriedade_id: int
     profissional_id: int
     data_inicio: str
-
-class MatriculaCreate(BaseModel):
-    numero_matricula: str
-    ccir: str = None
-    itr: str = None
-    area_ha: float = 0.0
 
 class PontoCreate(BaseModel):
     matricula_id: int
@@ -944,11 +852,30 @@ def get_pontos(id: int):
         query = """
             SELECT p.*, m.numero_matricula 
             FROM pontos p
-            JOIN matriculas m ON p.matricula_id = m.id
+            LEFT JOIN matriculas m ON p.matricula_id = m.id
             WHERE p.levantamento_id = ?
             ORDER BY p.ordem_caminhamento ASC, p.id ASC
         """
-        return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        
+        # Computa rigorosamente as UTMs corrigidas no backend via pyproj
+        from pyproj import Transformer
+        for p in rows:
+            p["e_corrigido"] = None
+            p["n_corrigido"] = None
+            lat_c = p.get("lat_corrigido") or p.get("lat")
+            lon_c = p.get("lon_corrigido") or p.get("lon")
+            if lat_c and lon_c:
+                try:
+                    zona_utm = int((lon_c + 180) / 6) + 1
+                    epsg_code = f"319{60 + zona_utm}"
+                    transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
+                    e_corr, n_corr = transformer.transform(lon_c, lat_c)
+                    p["e_corrigido"] = round(e_corr, 3)
+                    p["n_corrigido"] = round(n_corr, 3)
+                except Exception:
+                    pass
+        return rows
     except Exception as e:
         return {"error": str(e)}
 
@@ -1091,6 +1018,47 @@ async def importar_caderneta_txt(
         )
 
 # --- NOVAS ROTAS DO MÓDULO DE LEVANTAMENTOS V2 (ORDENAÇÃO MANUAL) ---
+class PayloadAssociarBase(BaseModel):
+    ponto_id_selecionado: int
+    base_ppp_id: int
+
+class PayloadOverrideManual(BaseModel):
+    arquivo_origem: str
+    dados_brutos: dict
+    dados_corrigidos: dict
+
+@app.post("/levantamentos/{id}/pontos/associar-base")
+def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
+    verificar_levantamento_arquivado(id)
+    try:
+        from business.geoprocessamento import associar_base_ao_lote
+        qtd = associar_base_ao_lote(payload.ponto_id_selecionado, payload.base_ppp_id)
+        # Sincroniza metadados
+        wm = WorkspaceManager()
+        wm.gerar_documento_cliente_workspace(id)
+        return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Vínculo tardio e translação em bloco aplicados com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/levantamentos/{id}/pontos/corrigir-manual")
+def post_corrigir_manual_lote(id: int, payload: PayloadOverrideManual):
+    verificar_levantamento_arquivado(id)
+    try:
+        from business.geoprocessamento import aplicar_correcao_manual_lote
+        qtd = aplicar_correcao_manual_lote(
+            id, 
+            None, 
+            payload.arquivo_origem, 
+            payload.dados_brutos, 
+            payload.dados_corrigidos
+        )
+        # Sincroniza metadados
+        wm = WorkspaceManager()
+        wm.gerar_documento_cliente_workspace(id)
+        return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Override manual e translação ECEF 3D aplicados com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 class ItemOrdemPonto(BaseModel):
     id: int
     ordem: int
@@ -1101,70 +1069,11 @@ class PayloadSalvarOrdem(BaseModel):
 @app.post("/levantamentos/{id}/matriculas/{matricula_id}/salvar-ordem")
 def post_salvar_ordem_perimetro(id: int, matricula_id: int, payload: PayloadSalvarOrdem):
     verificar_levantamento_arquivado(id)
-    try:
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            
-            # A. Atualiza a ordem_caminhamento de cada ponto de forma atômica
-            for item in payload.pontos_ordem:
-                cursor.execute(
-                    "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id = ?",
-                    (item.ordem, item.id, id, matricula_id)
-                )
-            
-            # B. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
-            cursor.execute(
-                "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
-                (id, matricula_id)
-            )
-            
-            # C. Resgata a nova lista de pontos na ordem atualizada
-            cursor.execute(
-                "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? ORDER BY ordem_caminhamento ASC",
-                (id, matricula_id)
-            )
-            rows = cursor.fetchall()
-            if len(rows) < 2:
-                conn.commit()
-                return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem salva. Menos de 2 pontos ativos."}
-            
-            pts_ordenados_ids = [r["id"] for r in rows]
-            primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
-            metodo_padrao = "PG1" if primeiro_pt_sigma > 0.0 else "MC1"
-            
-            # D. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
-            query_seg = """
-                INSERT INTO segmentos (
-                    levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
-                    confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                ) VALUES (?, ?, ?, ?, NULL, 'LN1', ?)
-            """
-            
-            for i in range(len(pts_ordenados_ids) - 1):
-                cursor.execute(query_seg, (
-                    id, matricula_id, 
-                    pts_ordenados_ids[i], pts_ordenados_ids[i+1], metodo_padrao
-                ))
-                
-            cursor.execute(query_seg, (
-                id, matricula_id, 
-                pts_ordenados_ids[-1], pts_ordenados_ids[0], metodo_padrao
-            ))
-            
-            conn.commit()
-            
-        # Sincroniza metadados no workspace físico
-        wm = WorkspaceManager()
-        wm.gerar_documento_cliente_workspace(id)
-        
-        return {
-            "sucesso": True, 
-            "segmentos_gerados": len(pts_ordenados_ids), 
-            "mensagem": f"Ordem de caminhamento salva com sucesso e {len(pts_ordenados_ids)} segmentos perimetrais recalculados!"
-        }
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Erro ao salvar ordem de caminhamento personalizada: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    pontos_ordem = [item.dict() for item in payload.pontos_ordem]
+    res = salvar_ordem_caminhamento(id, matricula_id, pontos_ordem)
+    if not res.get("sucesso"):
+        raise HTTPException(status_code=400, detail=res.get("erro", "Erro ao salvar ordem"))
+    return res
 
 @app.post("/levantamentos/{id}/matriculas/{matricula_id}/reordenar")
 def post_reordenar_perimetro(id: int, matricula_id: int):
@@ -1225,7 +1134,31 @@ def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
             pass
             
         os.remove(file_path)
-        return {"success": True, "message": f"Arquivo '{nome}' excluído com sucesso do repositório físico."}
+
+        # Purga reativa de pontos no banco de dados se for uma caderneta processada .txt
+        pontos_removidos = 0
+        if categoria == "Processados" and nome.lower().endswith(".txt"):
+            from database.connection import execute_query
+            # Descobre quantos pontos serão deletados para auditoria/log
+            count_row = execute_query(
+                "SELECT COUNT(*) as qtd FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
+                params=(lev_id, nome),
+                fetch_one=True
+            )
+            pontos_removidos = count_row["qtd"] if count_row else 0
+            
+            execute_query(
+                "DELETE FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
+                params=(lev_id, nome),
+                commit=True
+            )
+            logging.getLogger(__name__).info(f"[WORKSPACE] Purgados {pontos_removidos} pontos pertencentes ao lote/arquivo deletado: {nome}")
+            
+        return {
+            "success": True, 
+            "message": f"Arquivo '{nome}' excluído com sucesso do repositório físico.",
+            "pontos_removidos": pontos_removidos
+        }
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
@@ -1521,251 +1454,25 @@ import math
 
 @app.get("/levantamentos/{id}/documentos/gerar-requerimento", response_class=HTMLResponse)
 def gerar_requerimento(id: int, matricula_id: int):
-    """Gera um requerimento em HTML formatado para impressão (CSS Print) endereçado ao CRI local"""
-    lev_row = execute_query(
-        "SELECT l.*, p.nome as nome_profissional, p.registro as registro_profissional, p.codigo_credenciado FROM levantamentos l JOIN profissionais p ON l.profissional_id = p.id WHERE l.id = ?",
-        params=(id,), fetch_one=True
-    )
-    if not lev_row: 
-        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
-    lev_data = dict(lev_row)
-    
-    prop_row = execute_query("SELECT * FROM propriedades WHERE id = ?", params=(lev_data["propriedade_id"],), fetch_one=True)
-    prop_data = dict(prop_row) if prop_row else {}
-    
-    mat_row = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
-    if not mat_row: 
-        raise HTTPException(status_code=404, detail="Matrícula não localizada.")
-    mat_data = dict(mat_row)
-    
-    cli_rows = execute_query(
-        "SELECT c.*, pc.percentual_participacao FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
-        params=(lev_data["propriedade_id"],), fetch_all=True
-    )
-    clientes = [dict(c) for c in cli_rows]
-    
-    cli_html = ""
-    for c in clientes:
-        civil_info = f", {c['estado_civil']}" if c['estado_civil'] else ""
-        prof_info = f", {c['profissao']}" if c['profissao'] else ""
-        conj_info = ""
-        if c['estado_civil'] and c['estado_civil'].upper() == "CASADO":
-            conj_info = f" casado sob o regime de {c['regime_bens']} com {c['nome_conjuge']}, portador(a) do CPF nº {c['cpf_conjuge']} e RG nº {c['rg_conjuge']}"
-        
-        cli_html += f"<p><b>{c['nome_completo']}</b>, nacionalidade {c['nacionalidade']}{civil_info}{prof_info}{conj_info}, portador(a) do CPF/CNPJ nº {c['cpf_cnpj']} e RG nº {c['rg_ie']}, residente e domiciliado(a) em {c['endereco_completo']}, {c['cidade']}-{c['estado']}.</p>"
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>Requerimento de Retificação de Área - {prop_data.get('nome_propriedade', 'Imóvel')}</title>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
-            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; background-color: #fff; }}
-            .page {{ max-width: 800px; margin: 0 auto; }}
-            .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
-            .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; letter-spacing: 2px; }}
-            .logo span {{ color: #00f5a0; }}
-            .document-title {{ font-size: 18px; font-weight: 700; text-transform: uppercase; margin-top: 15px; color: #1a202c; }}
-            .address {{ font-weight: 700; margin-top: 30px; margin-bottom: 30px; }}
-            .content {{ text-align: justify; font-size: 15px; }}
-            .footer-signature {{ margin-top: 60px; page-break-inside: avoid; }}
-            .sig-line {{ width: 320px; border-top: 1px solid #4a5568; margin: 50px auto 10px auto; text-align: center; }}
-            .sig-title {{ text-align: center; font-size: 13px; color: #718096; font-weight: 600; }}
-            .btn-print {{ background-color: #00f5a0; color: #0c1510; padding: 10px 20px; font-weight: 700; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }}
-            .btn-print:hover {{ opacity: 0.8; }}
-            @media print {{ body {{ padding: 0; }} .no-print {{ display: none; }} }}
-        </style>
-    </head>
-    <body>
-        <div class="page">
-            <div class="no-print" style="text-align: right; margin-bottom: 20px;">
-                <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
-            </div>
-            <div class="header">
-                <div class="logo">Gerenci<span>Geo</span></div>
-                <div class="document-title">Requerimento de Retificação de Registro de Imóvel Rural</div>
-            </div>
-            <div class="address">
-                AO ILUSTRÍSSIMO OFICIAL DO CARTÓRIO DE REGISTRO DE IMÓVEIS DE {str(mat_data.get('cri_comarca') or prop_data.get('municipio', '')).upper()} - UF: {prop_data.get('uf', '').upper()}
-            </div>
-            <div class="content">
-                <p>Senhor Oficial,</p>
-                {cli_html}
-                <p>Proprietários do imóvel rural denominado <b>{prop_data.get('nome_propriedade')}</b>, localizado no município de {prop_data.get('municipio')}-{prop_data.get('uf')}, com área registrada de <b>{mat_data.get('area_ha')} ha</b>, sob a Matrícula nº <b>{mat_data.get('numero_matricula')}</b> do {mat_data.get('cri_circunscricao') or 'CRI local'}, registrada no {mat_data.get('livro_registro') or 'Livro 2-RG'}, {mat_data.get('folha_registro') or 'Folha correspondente'}, vêm respeitosamente requerer a Vossa Senhoria, com fundamento no Artigo 213, Inciso II da Lei Federal nº 6.015 de 31 de dezembro de 1973 (Lei dos Registros Públicos), com as alterações introduzidas pela Lei nº 10.267 de 28 de agosto de 2001, a <b>RETIFICAÇÃO DE REGISTRO</b> de seu imóvel rural.</p>
-                
-                <p>O presente pedido justifica-se por haver divergência nas dimensões perimetrais e na área do imóvel, estando a realidade de divisa consolidada de campo descrita nos trabalhos técnicos de georreferenciamento elaborados pelo Engenheiro/Responsável Técnico <b>{lev_data.get('nome_profissional')}</b>, credenciado perante o INCRA sob o código <b>{lev_data.get('codigo_credenciado')}</b>, conforme planta, memorial descritivo e anexo de confrontações anexados à presente.</p>
-                
-                <p>Os confrontantes anuíram expressamente aos limites e divisas retificados, tendo assinado individualmente as respectivas cartas de anuência anexadas, com firmas reconhecidas em cartório.</p>
-                
-                <p>Nestes termos, pede e espera deferimento.</p>
-                
-                <p style="margin-top: 40px; text-align: right;">{prop_data.get('municipio')}-{prop_data.get('uf')}, _____ de ____________________ de 20___.</p>
-            </div>
-            
-            <div class="footer-signature">
-                <div class="sig-line"></div>
-                <div class="sig-title">Requerente Proprietário</div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html_content
+    """Gera um requerimento em HTML formatado para retificação de registro"""
+    try:
+        html = gerar_requerimento_html(id, matricula_id)
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/pdf", response_class=HTMLResponse)
 def gerar_termo_anuencia(id: int, confrontante_id: int):
     """Gera Carta de Anuência preenchida com a ordenação perimetral dos segmentos lindeiros daquele confrontante"""
-    conf_row = execute_query("SELECT * FROM confrontantes WHERE id = ?", params=(confrontante_id,), fetch_one=True)
-    if not conf_row: 
-        raise HTTPException(status_code=404, detail="Confrontante não localizado.")
-    conf = dict(conf_row)
-    
-    lev_row = execute_query(
-        "SELECT l.*, p.nome as nome_profissional, p.registro as registro_profissional, p.codigo_credenciado FROM levantamentos l JOIN profissionais p ON l.profissional_id = p.id WHERE l.id = ?",
-        params=(id,), fetch_one=True
-    )
-    if not lev_row: 
-        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
-    lev_data = dict(lev_row)
-    
-    prop_row = execute_query("SELECT * FROM propriedades WHERE id = ?", params=(lev_data["propriedade_id"],), fetch_one=True)
-    prop_data = dict(prop_row) if prop_row else {}
-    
-    cli_rows = execute_query(
-        "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
-        params=(lev_data["propriedade_id"],), fetch_all=True
-    )
-    clientes = [dict(c) for c in cli_rows]
-    
-    # Busca segmentos lindeiros
-    seg_rows = execute_query(
-        """
-        SELECT s.*, p_ini.nome_vertice as nome_p_ini, p_ini.lat as lat_ini, p_ini.lon as lon_ini,
-                    p_fim.nome_vertice as nome_p_fim, p_fim.lat as lat_fim, p_fim.lon as lon_fim
-        FROM segmentos s
-        JOIN pontos p_ini ON s.ponto_inicio_id = p_ini.id
-        JOIN pontos p_fim ON s.ponto_fim_id = p_fim.id
-        WHERE s.levantamento_id = ? AND s.confrontante_id = ?
-        """,
-        params=(id, confrontante_id), fetch_all=True
-    )
-    
-    if not seg_rows:
-        raise HTTPException(status_code=404, detail="Nenhum segmento de divisa associado a este confrontante para este levantamento.")
-        
-    segmentos = [dict(s) for s in seg_rows]
-    
-    divisas_html = ""
-    total_dist = 0.0
-    
-    lon0 = segmentos[0]["lon_ini"]
-    zona_utm = int((lon0 + 180) / 6) + 1
-    
-    from pyproj import Transformer
-    transformer = Transformer.from_crs("epsg:4674", f"epsg:319{zona_utm}", always_xy=True)
-    
-    for s in segmentos:
-        e_ini, n_ini = transformer.transform(s["lon_ini"], s["lat_ini"])
-        e_fim, n_fim = transformer.transform(s["lon_fim"], s["lat_fim"])
-        
-        de = e_fim - e_ini
-        dn = n_fim - n_ini
-        dist = math.sqrt(de**2 + dn**2)
-        total_dist += dist
-        
-        az = math.degrees(math.atan2(de, dn)) % 360.0
-        
-        graus = int(az)
-        minutos_dec = (az - graus) * 60.0
-        minutos = int(minutos_dec)
-        segundos = (minutos_dec - minutos) * 60.0
-        az_format = f"{graus}° {minutos:02d}' {segundos:04.1f}\""
-        
-        divisas_html += f"<tr><td>{s['nome_p_ini']}</td><td>{s['nome_p_fim']}</td><td>{az_format}</td><td>{dist:.2f} m</td><td>{s['tipo_limite_sigef']}</td><td>{s['metodo_posicionamento_sigef']}</td></tr>"
-    
-    proprietarios_nomes = ", ".join([c["nome_completo"] for c in clientes])
-    
-    conj_info = ""
-    if conf.get("estado_civil") and conf.get("estado_civil").upper() == "CASADO":
-        conj_info = f" e seu cônjuge <b>{conf.get('nome_conjuge')}</b>, nacionalidade {conf.get('nacionalidade') or 'brasileiro(a)'}, portador(a) do CPF nº {conf.get('cpf_conjuge')} e RG nº {conf.get('rg_conjuge')},"
-        
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>Termo de Anuência de Confrontante - {conf['nome']}</title>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
-            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; }}
-            .page {{ max-width: 800px; margin: 0 auto; }}
-            .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
-            .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; }}
-            .logo span {{ color: #00f5a0; }}
-            .document-title {{ font-size: 18px; font-weight: 700; text-transform: uppercase; margin-top: 15px; color: #1a202c; }}
-            .content {{ text-align: justify; font-size: 14px; margin-bottom: 30px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 13px; }}
-            th, td {{ border: 1px solid #cbd5e0; padding: 10px; text-align: center; }}
-            th {{ background-color: #f7fafc; font-weight: 700; }}
-            .signatures {{ display: flex; justify-content: space-between; margin-top: 60px; page-break-inside: avoid; }}
-            .sig-block {{ width: 45%; text-align: center; }}
-            .sig-line {{ border-top: 1px solid #4a5568; margin-top: 40px; margin-bottom: 10px; }}
-            .sig-title {{ font-size: 12px; color: #718096; font-weight: 600; }}
-            .btn-print {{ background-color: #00f5a0; color: #0c1510; padding: 10px 20px; font-weight: 700; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; }}
-            @media print {{ body {{ padding: 0; }} .no-print {{ display: none; }} }}
-        </style>
-    </head>
-    <body>
-        <div class="page">
-            <div class="no-print" style="text-align: right; margin-bottom: 20px;">
-                <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
-            </div>
-            <div class="header">
-                <div class="logo">Gerenci<span>Geo</span></div>
-                <div class="document-title">Carta de Anuência de Limites de Confrontação</div>
-            </div>
-            <div class="content">
-                <p>Pelo presente instrumento particular de anuência e reconhecimento de divisas, eu <b>{conf['nome']}</b>, nacionalidade {conf.get('nacionalidade') or 'brasileiro(a)'}, {conf.get('estado_civil') or 'estado civil não informado'}, {conf.get('profissao') or 'profissão não informada'}, portador(a) do CPF nº {conf.get('cpf_cnpj')} e RG nº {conf.get('rg') or 'não informado'}, residente e domiciliado(a) em {conf.get('endereco_completo') or 'endereço não informado'}{conj_info} na qualidade de confrontante e proprietário legal de área lindeira à propriedade denominada <b>{prop_data.get('nome_propriedade')}</b>, declaro expressamente e sob responsabilidade jurídica:</p>
-                
-                <p>1. Que **ANUO E CONCORDOS** de forma irrestrita com as novas divisas, marcos e coordenadas levantadas e descritas no perímetro da propriedade de <b>{proprietarios_nomes}</b>, referente ao perímetro delimitado pelos segmentos de divisa listados na tabela abaixo, cujo trabalho de demarcação de campo foi executado em conformidade com as normas do INCRA/SIGEF.</p>
-                
-                <table>
-                    <thead>
-                        <tr>
-                            <th>De Vértice</th>
-                            <th>Para Vértice</th>
-                            <th>Azimute</th>
-                            <th>Distância</th>
-                            <th>Tipo Limite</th>
-                            <th>Método Pos.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {divisas_html}
-                    </tbody>
-                </table>
-                
-                <p>2. A soma linear de confrontação corresponde a uma extensão perimetral total de <b>{total_dist:.2f} metros</b> de divisa retificada.</p>
-                <p>3. Reconheço e atesto que as cercas ou marcos instalados neste trecho representam fielmente os limites históricos consolidados da posse e propriedade, não havendo invasões, sobreposições ou litígios de divisa de qualquer natureza.</p>
-                
-                <p style="margin-top: 40px; text-align: right;">{prop_data.get('municipio')}-{prop_data.get('uf')}, _____ de ____________________ de 20___.</p>
-            </div>
-            
-            <div class="signatures">
-                <div class="sig-block">
-                    <div class="sig-line"></div>
-                    <div class="sig-title">Confrontante Proprietário</div>
-                    <div class="sig-title">{conf['nome']}</div>
-                </div>
-                {"<div class='sig-block'><div class='sig-line'></div><div class='sig-title'>Cônjuge do Confrontante</div><div class='sig-title'>" + conf.get('nome_conjuge', '') + "</div></div>" if conj_info else ""}
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html_content
+    try:
+        html = gerar_termo_anuencia_html(id, confrontante_id)
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/upload")
 async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFile = File(...)):
@@ -1955,248 +1662,28 @@ class PontoUpdate(BaseModel):
     sigma_lon: float = None
     sigma_alt: float = None
     status_ponto: str = None
+    ignorar_poligono: int = None
+    n_corrigido: float = None
+    e_corrigido: float = None
+    alt_corrigido: float = None
+    fuso: str = None
 
 @app.put("/pontos/{pid}")
 def update_ponto(pid: int, payload: PontoUpdate):
     try:
-        # Recupera o ponto atual antes de alterar
-        row = execute_query("SELECT * FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        row = execute_query("SELECT levantamento_id FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
         if not row:
             raise HTTPException(status_code=404, detail="Ponto não encontrado.")
             
-        pt_antigo = dict(row)
-        levantamento_id = pt_antigo["levantamento_id"]
-        verificar_levantamento_arquivado(levantamento_id)
+        verificar_levantamento_arquivado(row["levantamento_id"])
         
-        from business.historico_campo import HistoricoCampoLogger
-        from business.geoprocessamento import corrigir_rovers_em_bloco
-        from pyproj import Transformer
-        
-        # Novo: A.0. Atualiza Nome do Vértice
-        if payload.nome_vertice is not None and payload.nome_vertice.strip() != pt_antigo["nome_vertice"]:
-            nome_novo = payload.nome_vertice.strip()
-            if not nome_novo:
-                raise HTTPException(status_code=400, detail="O nome do vértice não pode ser vazio.")
-                
-            # Verifica restrição de unicidade
-            exists = execute_query(
-                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
-                params=(levantamento_id, pt_antigo["matricula_id"], nome_novo, payload.tipo_ponto or pt_antigo["tipo_ponto"], pid),
-                fetch_one=True
-            )
-            if exists:
-                raise HTTPException(status_code=400, detail=f"Já existe um vértice com o nome '{nome_novo}' para este mesmo tipo e matrícula.")
-                
-            execute_query("UPDATE pontos SET nome_vertice = ? WHERE id = ?", params=(nome_novo, pid), commit=True)
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="EDICAO_PONTO",
-                descricao=f"Nome do vértice ID {pid} alterado de '{pt_antigo['nome_vertice']}' para '{nome_novo}'.",
-                dados_detalhados={"ponto_id": pid, "anterior": pt_antigo["nome_vertice"], "novo": nome_novo}
-            )
-            pt_antigo["nome_vertice"] = nome_novo
-
-        # Novo: A.1. Atualiza Tipo de Ponto ('M', 'P', 'V')
-        if payload.tipo_ponto is not None and payload.tipo_ponto != pt_antigo["tipo_ponto"]:
-            if payload.tipo_ponto not in ['M', 'P', 'V']:
-                raise HTTPException(status_code=400, detail="Tipo de ponto inválido. Deve ser 'M', 'P' ou 'V'.")
-                
-            # Verifica restrição de unicidade
-            exists = execute_query(
-                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
-                params=(levantamento_id, pt_antigo["matricula_id"], pt_antigo["nome_vertice"], payload.tipo_ponto, pid),
-                fetch_one=True
-            )
-            if exists:
-                raise HTTPException(status_code=400, detail=f"Conflito de unicidade: já existe um vértice com nome '{pt_antigo['nome_vertice']}' do tipo '{payload.tipo_ponto}' nesta matrícula.")
-                
-            execute_query("UPDATE pontos SET tipo_ponto = ? WHERE id = ?", params=(payload.tipo_ponto, pid), commit=True)
-            
-            # Se mudou para M (Base), limpa ponto_base_id pois bases não se amarram a outras bases
-            if payload.tipo_ponto == 'M':
-                execute_query("UPDATE pontos SET ponto_base_id = NULL WHERE id = ?", params=(pid,), commit=True)
-                pt_antigo["ponto_base_id"] = None
-                
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="EDICAO_PONTO",
-                descricao=f"Tipo do vértice '{pt_antigo['nome_vertice']}' alterado de '{pt_antigo['tipo_ponto']}' para '{payload.tipo_ponto}'.",
-                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior": pt_antigo["tipo_ponto"], "novo": payload.tipo_ponto}
-            )
-            pt_antigo["tipo_ponto"] = payload.tipo_ponto
-
-        # A. Atualiza Método de Posicionamento
-        if payload.metodo_posicionamento is not None and payload.metodo_posicionamento != pt_antigo["metodo_posicionamento"]:
-            execute_query("UPDATE pontos SET metodo_posicionamento = ? WHERE id = ?", params=(payload.metodo_posicionamento, pid), commit=True)
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="EDICAO_METODO",
-                descricao=f"Método de posicionamento do vértice {pt_antigo['nome_vertice']} alterado de {pt_antigo['metodo_posicionamento']} para {payload.metodo_posicionamento}.",
-                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior": pt_antigo["metodo_posicionamento"], "novo": payload.metodo_posicionamento}
-            )
-            
-        # B. Atualiza Matrícula
-        if payload.matricula_id is not None and payload.matricula_id != pt_antigo["matricula_id"]:
-            m_id = payload.matricula_id if payload.matricula_id > 0 else None
-            execute_query("UPDATE pontos SET matricula_id = ? WHERE id = ?", params=(m_id, pid), commit=True)
-            
-            # Registrar alteração de matrícula
-            desc_mat = f"Vértice {pt_antigo['nome_vertice']} atrelado à matrícula ID {m_id} (anteriormente ID {pt_antigo['matricula_id']})."
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="ALTERACAO_MATRICULA",
-                descricao=desc_mat,
-                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior_matricula_id": pt_antigo["matricula_id"], "nova_matricula_id": m_id}
-            )
-
-        # C. Atualiza Vínculo de Base de Campo (ponto_base_id) - EXCLUSIVO ROVERS
-        recalcular_rover = False
-        if payload.ponto_base_id is not None and payload.ponto_base_id != pt_antigo["ponto_base_id"]:
-            new_base_id = payload.ponto_base_id if payload.ponto_base_id > 0 else None
-            execute_query("UPDATE pontos SET ponto_base_id = ? WHERE id = ?", params=(new_base_id, pid), commit=True)
-            
-            # Log de alteração de amarração
-            desc_base = f"Amarração de campo do vértice {pt_antigo['nome_vertice']} alterada de Base ID {pt_antigo['ponto_base_id']} para Base ID {new_base_id}."
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="ALTERACAO_BASE",
-                descricao=desc_base,
-                dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior_base_id": pt_antigo["ponto_base_id"], "nova_base_id": new_base_id}
-            )
-            
-            # Força o recálculo do rover individual
-            recalcular_rover = True
-            
-        # D. Coordenadas Espaciais e Status
-        atualizar_coordenadas = False
-        updates = []
-        params = []
-        
-        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto"]:
-            val = getattr(payload, campo)
-            if val is not None and val != pt_antigo[campo]:
-                updates.append(f"{campo} = ?")
-                params.append(val)
-                atualizar_coordenadas = True
-                
-        if atualizar_coordenadas:
-            if payload.lat is not None:
-                updates.append("lat_corrigido = ?")
-                params.append(payload.lat)
-            if payload.lon is not None:
-                updates.append("lon_corrigido = ?")
-                params.append(payload.lon)
-            if payload.alt is not None:
-                updates.append("alt_corrigido = ?")
-                params.append(payload.alt)
-                
-            params.append(pid)
-            query_update = f"UPDATE pontos SET {', '.join(updates)} WHERE id = ?"
-            execute_query(query_update, params=tuple(params), commit=True)
-            
-            # Registra auditoria de mudança espacial
-            desc_spatial = f"Coordenadas espaciais do vértice {pt_antigo['nome_vertice']} atualizadas com sucesso."
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=levantamento_id,
-                tipo_evento="CORRECAO_PONTO",
-                descricao=desc_spatial,
-                dados_detalhados={
-                    "ponto_id": pid,
-                    "nome_vertice": pt_antigo["nome_vertice"],
-                    "anterior": {"lat": pt_antigo["lat"], "lon": pt_antigo["lon"], "alt": pt_antigo["alt"], "status": pt_antigo["status_ponto"]},
-                    "novo": {"lat": payload.lat or pt_antigo["lat"], "lon": payload.lon or pt_antigo["lon"], "alt": payload.alt or pt_antigo["alt"], "status": payload.status_ponto or pt_antigo["status_ponto"]}
-                }
-            )
-            
-            # Se for base (tipo 'M') e seu status agora for 'CORRIGIDO', propaga em bloco
-            novo_status = payload.status_ponto or pt_antigo["status_ponto"]
-            if pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
-                rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
-                logging.getLogger(__name__).info(f"[API] Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
-
-        # E. Se apenas o vínculo de base do rover mudou, fazemos a re-translação instantânea dele
-        if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
-            new_base_id = payload.ponto_base_id if payload.ponto_base_id and payload.ponto_base_id > 0 else None
-            if new_base_id:
-                row_new_base = execute_query(
-                    "SELECT lat, lon, alt, e_original, n_original, alt_original, sigma_lat, sigma_lon, sigma_alt, status_ponto, nome_vertice FROM pontos WHERE id = ?",
-                    params=(new_base_id,),
-                    fetch_one=True
-                )
-                if row_new_base and row_new_base["status_ponto"] == "CORRIGIDO":
-                    base = dict(row_new_base)
-                    
-                    import math
-                    from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
-                    
-                    x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
-                    zona_utm = int((base["lon"] + 180) / 6) + 1
-                    transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
-                    lon_bruta_base, lat_bruta_base = transformer_to_latlon.transform(base["e_original"], base["n_original"])
-                    x_base_bruta, y_base_bruta, z_base_bruta = geodesic_to_ecef(lat_bruta_base, lon_bruta_base, base["alt_original"])
-                    
-                    dX = x_base_corr - x_base_bruta
-                    dY = y_base_corr - y_base_bruta
-                    dZ = z_base_corr - z_base_bruta
-                    
-                    lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
-                    x_bruto, y_bruto, z_bruto = geodesic_to_ecef(lat_bruto, lon_bruto, pt_antigo["alt_original"])
-                    
-                    x_c = x_bruto + dX
-                    y_c = y_bruto + dY
-                    z_c = z_bruto + dZ
-                    
-                    lat_c, lon_c, alt_c = ecef_to_geodesic(x_c, y_c, z_c)
-                    sig_lat_prop = math.sqrt((pt_antigo["sigma_n"] or 0.0)**2 + (base["sigma_lat"] or 0.0)**2)
-                    sig_lon_prop = math.sqrt((pt_antigo["sigma_e"] or 0.0)**2 + (base["sigma_lon"] or 0.0)**2)
-                    sig_alt_prop = math.sqrt((pt_antigo["sigma_z"] or 0.0)**2 + (base["sigma_alt"] or 0.0)**2)
-                    
-                    execute_query(
-                        """
-                        UPDATE pontos 
-                        SET lat = ?, lon = ?, alt = ?, 
-                            lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
-                            sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                            status_ponto = 'CORRIGIDO' 
-                        WHERE id = ?
-                        """,
-                        (lat_c, lon_c, alt_c, lat_c, lon_c, alt_c, sig_lat_prop, sig_lon_prop, sig_alt_prop, pid),
-                        commit=True
-                    )
-                else:
-                    zona_utm = 22 # Fallback
-                    transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
-                    lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
-                    
-                    execute_query(
-                        """
-                        UPDATE pontos 
-                        SET lat = ?, lon = ?, alt = ?, 
-                            lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
-                            status_ponto = 'BRUTO' 
-                        WHERE id = ?
-                        """,
-                        (lat_bruto, lon_bruto, pt_antigo["alt_original"], pid),
-                        commit=True
-                    )
-            else:
-                zona_utm = 22 # Fallback
-                transformer_to_latlon = Transformer.from_crs(f"epsg:3198{zona_utm}", "epsg:4674", always_xy=True)
-                lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
-                
-                execute_query(
-                    """
-                    UPDATE pontos 
-                    SET lat = ?, lon = ?, alt = ?, 
-                        lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
-                        status_ponto = 'BRUTO' 
-                    WHERE id = ?
-                    """,
-                    (lat_bruto, lon_bruto, pt_antigo["alt_original"], pid),
-                    commit=True
-                )
-        
-        return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
+        res = atualizar_ponto_geodesico(pid, payload.dict())
+        if "error" in res:
+            status = res.get("status_code", 400)
+            raise HTTPException(status_code=status, detail=res["error"])
+        return res
+    except HTTPException:
+        raise
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao atualizar ponto: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
