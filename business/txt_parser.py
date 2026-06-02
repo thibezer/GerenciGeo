@@ -86,11 +86,6 @@ class TxtGeodesicParser:
         layout = self.identificar_layout(linhas)
         logger.info(f"[PARSER] Layout identificado para {nome_arquivo}: {layout.upper()}")
 
-        aplicar_translace_ecef = False
-        delta_x = 0.0
-        delta_y = 0.0
-        delta_z = 0.0
-
         pontos_brutos = []
 
         # 1. Parsing Inicial e Identificação da Base Bruta (se RTK)
@@ -229,10 +224,10 @@ class TxtGeodesicParser:
             # Para layout RTK, controlamos a correção com base no sucesso da translação da base PPP.
             # Para layouts não-RTK (como Topcon estático processado fora), os rovers já estão corrigidos ("antes e depois").
             if layout == "rtk":
-                status_ponto_final = "CORRIGIDO" if aplicar_translace_ecef else "BRUTO"
-                lat_corr_val = lat_corrigido if aplicar_translace_ecef else None
-                lon_corr_val = lon_corrigido if aplicar_translace_ecef else None
-                alt_corr_val = alt_corrigido if aplicar_translace_ecef else None
+                status_ponto_final = "CORRIGIDO" if aplicar_translace_plana else "BRUTO"
+                lat_corr_val = lat_corrigido if aplicar_translace_plana else None
+                lon_corr_val = lon_corrigido if aplicar_translace_plana else None
+                alt_corr_val = alt_corrigido if aplicar_translace_plana else None
                 
                 # Lei de Propagação de Variâncias (Composição Quadrática das Incertezas)
                 sigma_lat_prop = math.sqrt(p["sigma_n"]**2 + sigma_base_lat**2)

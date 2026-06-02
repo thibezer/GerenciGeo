@@ -1,0 +1,272 @@
+# 🛰️ GerenciGeo — Manifesto do Motor Geodésico e Especificação de Georreferenciamento Avançado
+**Padrão Metrológico:** Rigor Elipsoidal Científico e Automação de Campo (Field-to-Finish)
+**Versão do Documento:** 1.0.0
+**Status do Módulo:** Homologado e Consolidado
+
+Este documento detalha a arquitetura lógica, as equações matemáticas, o fluxo físico de dados no Windows e a interface gráfica (UI) do motor de **Georreferenciamento** do **GerenciGeo**. Ele atua como guia de referência técnica absoluta para desenvolvedores e agentes de IA sobre as rotinas espaciais do sistema.
+
+---
+
+## 1. Princípios e Padrões Geodésicos do Ecossistema
+
+Toda a infraestrutura matemática e cartográfica do GerenciGeo é construída sobre padrões internacionais de alta exatidão física e jurídica. O sistema atua de forma determinística, banindo aproximações planas simplistas que possam comprometer a homologação de plantas e planilhas no SIGEF / INCRA.
+
+### A. Sistemas de Referência e Projeções Oficiais
+*   **Formato Plano de Trabalho (AutoCAD UTM Default):** Adota rigidamente a projeção **SIRGAS 2000 / UTM Zone 22S (EPSG:31982)** com elipsoide de referência GRS80 e Meridiano Central 51° W para compatibilidade direta e imediata com os templates de desenho técnico e tabelas do AutoCAD/TopoCAD 2000.
+*   **Formato Geográfico de Validação e Assinatura:** Utiliza o datum geocêntrico oficial **SIRGAS 2000 (EPSG:4674)** em coordenadas geodésicas (Latitude e Longitude em graus decimais), padrão estrito para plotagem Leaflet no frontend, laudos de faixa de fronteira e assinaturas eletrônicas do SIGEF.
+*   **Modelo de Altitude:** Altitudes Elipsoidais (h) em metros para processamento geométrico espacial, com suporte a translações ortométricas baseadas no modelo geoidal vigente.
+
+---
+
+## 2. Esteira de Ingestão e Conversão Híbrida
+
+O primeiro estágio do georreferenciamento reside no recebimento dos arquivos brutos coletados em campo pelos receptores GNSS de rampa e sua preparação na esteira digital:
+
+```
+[ARQUIVOS BRUTOS DE CAMPO]
+   - Receptor GNSS (.GNS)
+   - Cadernetas RTK (.TXT)
+                 |
+                 v
+     [ESTEIRA DE INGESTÃO]
+    - gnss_worker.py (QC)
+           - < 50KB? (REJEITA)
+           - >= 50KB? (ACEITA)
+                 |
+                 v
+      [RPA CONVERTRINEX]
+    - converterrinex.py (Auto)
+    - Hi-Target ConvertRinex.exe
+                 |
+                 v
+   [ARQUIVOS RINEX GERADOS]
+     - (.obs/.nav) temporários
+```
+
+### A. Filtro e Controle de Qualidade de Campo (QC)
+No arquivo `business/gnss_worker.py` e `business/triagem_inteligente.py`, o sistema intercepta todos os carregamentos na pasta `/Brutos` aplicando a seguinte barreira:
+*   **Filesize QC:** Arquivos de tamanho inferior a **50KB** (51.200 bytes) são identificados como corrompidos ou insuficientes (tempo de rastreio nulo ou falha na gravação do receptor). O pipeline rejeita a conversão e sinaliza o arquivo como falho gravando o log com `sucesso = 0` na tabela `historico_rinex`, movendo-o para a lista de alertas para análise humana.
+
+### B. O RPA do Conversor Hi-Target (ConvertRinex.exe)
+Gerenciado por `converterrinex.py`, o sistema orquestra a automação do utilitário `ConvertRinex.exe` (instalado por padrão sob `C:\Program Files (x86)\Hi-Target Geomatics Office\bin\ConvertRinex.exe`):
+1. O robô varre recursivamente a pasta `/Brutos` localizando arquivos de rampa `.GNS` ou `.ZHD` e dispara o processo de linha de comando em background de forma silenciosa e paralela.
+2. Os binários brutos são convertidos para o formato aberto de intercâmbio de dados de navegação **RINEX** (gerando arquivos `.obs` e `.nav` ou arquivos correspondentes terminados em `o` e `n` indexados pelo ano de rastreio).
+3. Os resultados RINEX são direcionados provisoriamente para o diretório `/Rinex` pronto para o módulo de triagem lógica.
+
+---
+
+## 3. Mesa de Triagem Espacial e Organizador HGO
+
+Uma vez gerados os arquivos RINEX temporários, o módulo `business/triagem_inteligente.py` atua como um triador automatizado, organizando os rastreios com base em metadados cronológicos reais contidos nos cabeçalhos de observação.
+
+### A. Algoritmo de Extração de Metadados RINEX (`ler_metadados_rinex`)
+1. **Barreira de Segurança:** Bloqueia a leitura direta de binários pesados (`.GNS`, `.ZHD`), forçando o parsing estritamente em arquivos textuais RINEX.
+2. **Leitura de Cabeçalho:** O parser lê as colunas oficiais do formato de forma sequencial até atingir a linha `END OF HEADER`, extraindo:
+   - `MARKER NAME`: Identificação nominal dada ao marco em campo.
+   - `APPROX POSITION XYZ`: Coordenadas cartesianas geocêntricas aproximadas da coleta. O sistema converte essas coordenadas em tempo de execução para Latitude e Longitude geodésicas (SIRGAS 2000) por meio da função `xyz_to_llh` para plotagem provisória no mapa.
+   - `TIME OF FIRST OBS`: Data e hora inicial exata do rastreio.
+3. **Algoritmo Fallback de Fim de Rastreio (`TIME OF LAST OBS`):** Muitos receptores não gravam a data final no cabeçalho. Para resolver isso, o sistema implementa um leitor reverso de alta performance:
+   - Abre o arquivo, calcula seu tamanho físico e salta o ponteiro de leitura (`seek`) para os últimos **8KB** de dados para evitar estouro de memória (crash de I/O) em arquivos pesados.
+   - Para arquivos **RINEX 3**, busca as linhas iniciadas com o caractere especial `> `.
+   - Para arquivos **RINEX 2**, aplica um fatiamento rígido de strings (`linha[0:3]`, `linha[3:6]`, etc.) garantindo o resgate preciso do último registro temporal de satélite gravado.
+
+### B. Algoritmo de Agrupamento Temporal Dinâmico (Organizador HGO)
+O método principal `organizar_rastreios` analisa e categoriza em lote os arquivos observados segundo a heurística de proximidade temporal de campo:
+1. **Ordenação de Duração:** Todos os arquivos analisados são ordenados de forma decrescente pela sua duração total calculada em segundos (`duracao = fim - inicio`).
+2. **Eleição de Bases:** Arquivos que possuam duração igual ou superior a **3.600 segundos (1 hora)** são qualificados automaticamente como **Bases Estáticas de Apoio** do levantamento. Na ausência de arquivos longos, o arquivo com a maior duração absoluta do lote é eleito como a Base provisória.
+3. **Associação Ativa dos Rovers:** O sistema varre os arquivos de menor duração (Rovers Estáticos) e os associa de forma inteligente à Base correspondente. Um arquivo Rover $R$ é vinculado a uma Base $B$ se, e somente se, o seu intervalo de tempo de coleta estiver inteiramente contido dentro do período operacional daquela Base:
+   $$Inicio_{Base} \le Inicio_{Rover} \quad \text{e} \quad Fim_{Base} \ge Fim_{Rover}$$
+4. **Exportação HGO Limpa:** Para cada grupo "Base + Rovers Vinculados", o sistema gera uma pasta física unificada sob `/Processados` chamada `Pronto_HGO_Base_[marcador]_[AAAAMMDD]/`. O triador copia fisicamente o arquivo RINEX da Base, seus respectivos arquivos Rovers associados, e localiza e copia os arquivos binários originais `.GNS` de campo correspondentes a partir do diretório raiz. Isso prepara o lote perfeito para que o operador simplesmente arraste a pasta para dentro do software Topcon Tools / HGO sem necessidade de triagem manual.
+
+---
+
+## 4. O Pipeline Científico IBGE-PPP
+
+Para obter a precisão centimétrica exigida por lei nos marcos de apoio (vértices tipo 'M'), o GerenciGeo possui um automatizador integrado com o serviço científico de pós-processamento geodésico do IBGE (IBGE-PPP). O processador está estruturado sob `business/ppp_processor.py`.
+
+```
+[ARQUIVO RINEX BASE (.obs)]
+            |
+            +------------> [TENTATIVA 1: API HTTP MULTIPART]
+            |              Submete POST com e-mail e antena
+            |              Sucesso? Salva resultado .zip e extrai .sum
+            |
+            v (FALHA?)
+  [TENTATIVA 2: CONTINGÊNCIA SELENIUM]
+    - Abre WebDriver Chrome (Headless opcional)
+    - Navega na URL do IBGE-PPP
+    - Injeta arquivo, seleciona Antena "HITV60 NONE"
+    - Clica em Processar e monitora pasta de downloads
+    - Aguarda .zip e finaliza processo de forma transparente
+```
+
+### A. Submissão Automatizada via API HTTP
+O processador faz uma requisição HTTP POST multi-part enviando o arquivo RINEX (`.o` ou `.obs`) comprimido ou íntegro para o endpoint oficial do IBGE (`IBGE_PPP_URL`), passando os parâmetros configurados em `config.py`:
+- `email`: e-mail comercial do profissional técnico.
+- `modelo_antena`: antena cadastrada padrão (ex: `HITV60 NONE`).
+- `altura_antena`: `0.000` metros (coleta em tripé centrado de altura calibrada).
+- `tipo_lev`: `estatico`.
+
+Para tolerar conexões instáveis e a oscilação do servidor governamental, a chamada HTTP possui desativação ativa de verificação SSL corporativa e um timeout expandido de **120 segundos**. Ao retornar sucesso (`200 OK`), o sistema captura o binário retornado, salva o arquivo `.ZIP` na pasta `/Processados` correspondente e inicia a extração de dados.
+
+### B. Robô de Contingência Avançada (Selenium Webbot)
+Se a API direta do IBGE estiver indisponível ou retornar erro, o sistema aciona de forma reativa a contingência ativa por automação de navegador (`_enviar_via_selenium`):
+1. **Configuração do Driver:** Instancia um driver Selenium Chrome (`webdriver.Chrome`) configurando um perfil de download seguro automático direcionado para a pasta física de processamento do projeto (`prefs = {"download.default_directory": abs_pasta_saida}`).
+2. **Navegação e Input:** Acessa a interface web oficial do IBGE-PPP (`IBGE_PPP_WEB_URL`), localiza a tag de upload (`By.ID, "arquivo"`) e injeta o caminho absoluto do arquivo RINEX. Preenche o e-mail, seleciona o tipo de processamento "estático" e seleciona o modelo de antena no combobox.
+3. **Comportamento Humano Simulador:** Clica no botão "Processar".
+4. **Monitorador de Downloads Ativo:** O robô inicia uma rotina de escuta em loop (timeout de **10 minutos**) varrendo a pasta física de destino à procura de novos arquivos temporários de download do Chrome (`.crdownload`) ou arquivos `.zip` concluídos. Ao detectar a conclusão do arquivo compactado, o driver é destruído de forma segura (`driver.quit()`) e o fluxo de extração é retomado sem que o usuário perceba a falha na API.
+
+### C. Parser do Relatório PPP Científico (`business/result_parser.py`)
+Ao extrair o pacote `.ZIP` enviado pelo IBGE, o sistema localiza o relatório científico de processamento de extensão `.sum`. O parser abre este arquivo e realiza uma varredura nominal por expressões regulares para ler e persistir no SQLite:
+- Latitude, Longitude e Altitude precisas corrigidas (Datum SIRGAS 2000).
+- Desvios Padrão calculados (Sigma Latitude, Sigma Longitude, Sigma Altitude) em metros.
+- Período de rastreio processado e número de satélites utilizados.
+
+---
+
+## 5. Motor Geodésico de Translação e Vetor Delta
+
+Para propagar a exatidão centimétrica da Base (pós-processada cientificamente via IBGE-PPP) para todos os pontos coletados pelos Rovers em campo, o GerenciGeo aplica uma translação espacial tridimensional contida em `business/geoprocessamento.py`.
+
+### A. Conversão Rigorosa ECEF $\leftrightarrow$ Geodésica (Bowring e Elipsoide GRS80)
+Para transladar coordenadas no espaço tridimensional sem introduzir distorções angulares em grandes distâncias, o sistema realiza conversões geométricas no elipsoide oficial **GRS80 / SIRGAS 2000** ($a = 6378137.0$m, $f = 1/298.257222101$):
+*   **Geodésico para ECEF (`geodesic_to_ecef`):** Converte a coordenada geodésica $(\phi, \lambda, h)$ para coordenadas cartesianas geocêntricas $(X, Y, Z)$:
+    $$N = \frac{a}{\sqrt{1 - e^2 \sin^2\phi}}$$
+    $$X = (N + h) \cos\phi \cos\lambda$$
+    $$Y = (N + h) \cos\phi \sin\lambda$$
+    $$Z = \left(N(1 - e^2) + h\right) \sin\phi$$
+*   **ECEF para Geodésico (`ecef_to_geodesic`):** Converte $(X, Y, Z)$ tridimensionais de volta para $(\phi, \lambda, h)$ usando o consagrado **Algoritmo de Bowring**, garantindo precisão sub-milimétrica após apenas uma iteração em qualquer coordenada do território nacional.
+
+### B. Translação Plana Rigorosa UTM (Método do Vetor Delta)
+Para manter a coerência estrita de campo e preservar as distâncias planas medidas pelos aparelhos (essencial para posterior aprovação no SIGEF), o motor geodésico propaga a correção através do vetor Delta projetado em UTM (`corrigir_rovers_em_bloco`):
+1. **UTM da Base Corrigida:** Projetará a coordenada precisa da Base (Lat/Lon processada do PPP) em coordenadas Planas UTM Zone 22S:
+   $$(Lon_{Base\_Corr}, Lat_{Base\_Corr}) \xrightarrow{pyproj} (E_{Base\_Corr}, N_{Base\_Corr})$$
+2. **Cálculo do Vetor Delta Plano:** Subtrai as coordenadas originais brutas (de campo) da Base das coordenadas precisas convertidas:
+   $$\Delta_E = E_{Base\_Corr} - E_{Original\_Base}$$
+   $$\Delta_N = N_{Base\_Corr} - N_{Original\_Base}$$
+   $$\Delta_H = H_{Base\_Corr\_PPP} - H_{Original\_Base}$$
+3. **Propagação em Lote para os Rovers:** Varre todos os Rovers que possuam o campo `ponto_base_id` apontado para a Base correspondente e aplica a translação constante:
+   $$E_{Corrigido} = E_{Original\_Rover} + \Delta_E$$
+   $$N_{Corrigido} = N_{Original\_Rover} + \Delta_N$$
+   $$H_{Corrigido} = Alt_{Original\_Rover} + \Delta_H$$
+4. **Projeção Reversa:** Converte as coordenadas planas corrigidas e a altitude transladada de volta para coordenadas geodésicas SIRGAS 2000 decodificadas $(\phi, \lambda)$ e atualiza as colunas `lat_corrigido`, `lon_corrigido` e `alt_corrigido` no SQLite. Salva também o vetor aplicado e os novos sigmas de precisão calculados.
+
+---
+
+## 6. Algoritmo de Topologia Perimetral e Fechamento de Polígono
+
+A geração da poligonal do imóvel fundiário no GerenciGeo é controlada de forma puramente determinística pelo método `reordenar_perimetro_matricula`. O algoritmo reconstrói a topologia perimetral aplicando as normas técnicas do INCRA de caminhamento no sentido horário.
+
+```
+                  [VÉRTICES DA MATRÍCULA NO SQLite]
+                                 |
+                                 v
+                 [1. IDENTIFICA EXTREMO NORTE (P1)]
+             Maior Latitude (Desempate mais a Leste)
+                                 |
+                                 v
+                [2. CALCULA ORIENTAÇÃO SHOELACE]
+            UTM Dinâmico -> Área com Sinal (Gauss)
+                                 |
+           +---------------------+---------------------+
+           v                                           v
+    [ÁREA COM SINAL > 0]                        [ÁREA COM SINAL < 0]
+      (Sentido Anti-horário)                      (Sentido Horário)
+           |                                           |
+           v                                           v
+   [INVERTE LISTA DE PONTOS]                   [MANTÉM ORIENTAÇÃO]
+           |                                           |
+           +---------------------+---------------------+
+                                 |
+                                 v
+                   [3. ROTAÇÃO CÍCLICA CIRCULAR]
+             Garante P1 (Extremo Norte) no índice 0
+                                 |
+                                 v
+                  [4. PRESERVAÇÃO DE DADOS DE VIZINHOS]
+           Mapeia confrontantes e limites preexistentes
+                                 |
+                                 v
+                 [5. RECONSTRUÇÃO EM TRANSAÇÃO ATÔMICA]
+            - Limpa tabela 'segmentos' da matrícula
+            - Insere novos segmentos ligando P_i -> P_{i+1}
+            - Fechamento obrigatório: P_last -> P_1
+```
+
+### A. Algoritmo de Ordenação e Topologia Perimetral
+1. **Identificação do Extremo Norte:** Varre todos os pontos da matrícula e identifica o vértice mais ao Norte (Maior Latitude). Em caso de empate absoluto de latitude, adota como desempate a maior longitude (ponto localizado mais a Leste/direita). Este vértice será forçado como o **Ponto de Partida ($P_1$)** da poligonal.
+2. **Cálculo da Orientação de Gauss (Shoelace):** Projetará temporariamente os pontos em uma projeção UTM dinâmica baseada na longitude média da fazenda para evitar distorções de escala. Em seguida, calcula a área direcionada do polígono via polinômio de Shoelace:
+   $$2 \times \text{Área} = \sum_{i=1}^{n} (E_i \times N_{i+1}) - (E_{i+1} \times N_i)$$
+   - Se a área direcionada calculada for **positiva ($\text{Área} > 0$)**, a poligonal está orientada no sentido **anti-horário**. O sistema inverte automaticamente a ordem de toda a lista de pontos.
+   - Se for **negativa**, a poligonal já se encontra no sentido **horário** correto e a ordem é preservada.
+3. **Rotação Cíclica (Circular Shift):** Rotaciona ciclicamente os índices da lista de pontos para que o vértice extremo norte ($P_1$) passe a ocupar o índice `0` da lista.
+4. **Preservação de Limites e Confrontantes Históricos:** Antes de purgar as divisas antigas, o sistema salva em cache um mapa contendo o `confrontante_id`, `tipo_limite_sigef` (muros, cercas, rios) e `metodo_posicionamento_sigef` vinculados a cada divisa.
+5. **Reconstrução com Fechamento Estrito:** Abre uma transação atômica protegida no SQLite, deleta todos os registros da tabela `segmentos` atrelados àquela matrícula e insere as novas divisas sequencialmente ligando $P_n \to P_{n+1}$. O último segmento do loop é obrigatoriamente fechado conectando o Ponto Final de volta ao Ponto Inicial ($P_{last} \to P_1$). Durante a inserção, o sistema cruza as IDs dos pontos inicial/final e reinsere de forma invisível as informações históricas de confrontantes e limites salvas no passo anterior, evitando retrabalho do topógrafo.
+
+---
+
+## 7. Action Center (Alertas de Integridade e Fuso UTM)
+
+A inteligência de validação em tempo real reside em `business/triagem_inteligente.py` (`gerar_alertas_integridade`), atuando como um auditor ativo de qualidade e alertando o profissional técnico sobre erros de campo ou cadastrais.
+
+### A. Auditoria Ativa de Fuso UTM Geográfico
+Para evitar o erro clássico de plotação onde a esteira do receptor de campo é configurada em um Meridiano Central incorreto, o sistema realiza um cálculo determinístico de integridade espacial:
+1. O sistema obtém as coordenadas geodésicas de todos os pontos cadastrados e calcula a **Longitude Média** do levantamento:
+   $$\lambda_{media} = \frac{1}{m} \sum_{k=1}^{m} \lambda_k$$
+2. A partir da longitude média derivada, calcula o Fuso UTM Geográfico Real correspondente ao imóvel no globo:
+   $$\text{Fuso Derivado} = \text{int}\left( \frac{\lambda_{media} + 180}{6} \right) + 1$$
+3. Em seguida, deriva a coordenada do Meridiano Central correspondente:
+   $$MC_{\text{Derivado}} = (\text{Fuso Derivado} \times 6) - 183$$
+4. O sistema cruza este fuso derivado com o fuso geográfico padrão local configurado no projeto (Zone 22S / MC 51 W). Se houver divergência (ex: a fazenda está localizada na Zona 21S mas o projeto está setado na Zona 22S), o Action Center emite um alerta de integridade crítico com o ícone de bússola (`compass`):
+   `"Levantamento [ID]: Fuso UTM derivado (21 - MC 57 W) difere do fuso configurado no HGO (22 - MC 51 W)."`
+
+### B. Outros Alertas Cobertos pelo Action Center
+*   **QC do Arquivo (< 50KB):** Alerta crítico se houver arquivos de rinex com tamanho abaixo de 50KB ou falhas de processamento registradas.
+*   **Fluxo Incompleto (Rinex sem PPP):** Alerta se houver vértice importado com arquivo RINEX associado na tabela `pontos` mas cuja coluna `arquivo_resultado_ppp` estiver nula (processamento pendente).
+*   **Divisa sem Confrontante:** Alerta se houver segmentos na matrícula sem confrontante (vizinho) atrelado.
+*   **Ponto Órfão:** Alerta se houver pontos cadastrados no levantamento que não foram incluídos em nenhuma divisa ou segmento de caminhamento (vértices soltos no mapa).
+*   **Arquivos Brutos Pendentes:** Alerta se existirem arquivos binários `.GNS` em `/Brutos` que ainda não possuam arquivo correspondente convertido em `/Rinex` (indicativo de que a esteira precisa ser acionada).
+
+---
+
+## 8. Interface Visual e Controle na UI
+
+A gestão e visualização do georreferenciamento avançado ocorrem de forma integrada no frontend Web através do arquivo principal **`frontend/src/views/mesa_trabalho.ts`** e telas auxiliares **`ppp.ts`** e **`hgo.ts`**.
+
+### A. Mesa de Trabalho de Georreferenciamento
+Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/mesa-trabalho`), é a central de comando da engenharia fundiária:
+
+*   **Aba "Mapa do Imóvel Rural" (Visualizador Leaflet):**
+    - Renderiza dinamicamente o mapa interativo centrado nas coordenadas do levantamento.
+    - Consome as coordenadas geodésicas (`lat_corrigido`, `lon_corrigido`) desenhando os vértices com ícones customizados segundo o padrão INCRA (Marcos 'M' em azul escuro, Pontos 'P' em verde, Vértices Virtuais 'V' em cinza).
+    - Desenha as polilinhas conectando os segmentos em tempo real. Se o segmento possuir confrontante associado, a linha adquire cor sólida verde-menta; caso não possua confrontante, a linha é plotada tracejada em amarelo/vermelho indicando inconformidade.
+*   **Dropzone de Ingestão de Lote GNSS:**
+    - Localizada na lateral do mapa. Permite o arrasto de múltiplos arquivos binários brutos (`.GNS`) ou cadernetas RTK (`.TXT`) simultaneamente.
+    - **Feedback Visual:** Durante o processamento em background da esteira no servidor, a dropzone ganha a classe CSS `.animate-pulse` pulsando com brilho verde-menta e o cursor do mouse exibe o estado de ocupado (`wait`), notificando o usuário do andamento.
+*   **Aba "Vértices Importados" (Grid Paginada):**
+    - Exibe uma tabela técnica rica listando os pontos com suas colunas planificadas:
+      `[Vértice, Tipo, Norte Bruto (m), Este Bruto (m), Norte Corrigido (m), Este Corrigido (m), Lat Corrigida, Lon Corrigida, Altura (m), Sigma N (m), Sigma E (m), Sigma Z (m), Status]`
+    - **Destaque Visual de Precisão (M-Sigma):** As células correspondentes a desvios padrão (Sigmas) que apresentem precisão pior que a exigida na 3ª edição da norma técnica do INCRA (superior a **`0.10` metros** para limites artificiais) são pintadas automaticamente com texto em vermelho escuro e fundo vermelho suave. Pontos ainda no estado bruto (`status_correcao = 'BRUTO'`) pintam a linha inteira da treeview de amarelo claro, sinalizando que a translação em bloco ainda não foi aplicada.
+*   **Botão "Aplicar Ajuste Geocêntrico (Translação)":**
+    - Localizado no cabeçalho da grid de pontos. Abre o modal de seleção da Base. O usuário seleciona qual ponto pós-processado do PPP será a Base, e o sistema dispara o cálculo do Vetor Delta UTM no servidor, recalculando instantaneamente todos os rovers associados e atualizando a grid e o mapa com fundo verde-menta de sucesso.
+*   **Botão "Exportar Shapefile (.ZIP)":**
+    - Localizado na barra de controle de exportações da matrícula. Dispara a compilação in-memory gerando em tempo de execução um único arquivo comprimido contendo as camadas `pontos.shp` e `perimetro.shp` devidamente projetadas em UTM SIRGAS 2000 Zona 22S (EPSG:31982) com arquivo de projeção `.prj` com WKT injetado estrito (conforme gemini.md).
+*   **Botão "Gerar KML" e "Exportar SIGEF (Planilha ODS)":**
+    - Botões rápidos de exportação que baixam os dados prontos para o AutoCAD / TopoCAD 2000.
+
+### B. Módulo e Painel HGO / Triagem (`hgo.ts`)
+Acessado pela aba **"Organizador HGO / Triagem"** no menu de processamento:
+- Apresenta a fila de arquivos GNSS brutos e RINEX importados.
+- Contém o botão **"CONVERTER E ORGANIZAR PARA HGO"**, que inicia a esteira RPA silenciosa do `ConvertRinex.exe`.
+- Contém o botão **"RE-PROCESSAR TRIAGEM (SKIP RPA)"**, útil para reavaliar os metadados temporais de agrupamento de Rovers e Bases caso novos arquivos sejam adicionados manualmente à pasta pelo Windows Explorer.
+- Exibe o log detalhado em tempo real da alocação dos rovers.
+
+### C. Módulo e Painel de Integração PPP (`ppp.ts`)
+Acessado pela aba **"Pós-Processamento IBGE-PPP"**:
+- Apresenta uma tabela listando os arquivos observados (`.obs`) identificados como Bases operacionais.
+- Exibe o status de pós-processamento de cada Base (`Pendente`, `Enviado ao IBGE`, `Processado`, `Falhou`).
+- Contém o botão **"PROCESSAR SELECIONADOS NO IBGE-PPP"**, que inicia a rotina paralela de submissão do lote de bases pela API ou pelo robô automatizado Selenium.
+- Contém o botão **"VISUALIZAR RELATÓRIO PPP (.SUM)"**, que abre o arquivo textual de retorno do IBGE formatado para o usuário conferir as precisões de órbita e sigmas de pós-processamento científico.
+- **Painel Contingencial Manual (`FrameOverrideBase`):** Implementado no formulário lateral do processador. Possibilita ao topógrafo forçar a calibração da base manualmente em caso de falha de conexão prolongada do portal do IBGE.
+  - Oferece abas de entrada (Notebook) permitindo digitar a coordenada corrigida nas formas **Geodésica** (Latitude/Longitude em graus decimais e Altitude elipsoidal) ou **Plana UTM** (Norte, Este, Fuso selecionado).
+  - Possui botões dedicados de salvar e aplicar o vetor de override, calculando a projeção reversa no servidor e executando a translação de Rovers de forma atômica no SQLite.

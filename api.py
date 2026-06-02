@@ -1,9 +1,9 @@
 import os
 import logging
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Request, Form, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Request, Form, HTTPException, Query
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List, Optional
 import uvicorn
 
 from business.ppp_processor import LotePPPManager
@@ -252,6 +252,7 @@ class ClienteCreate(BaseModel):
     cidade: str = None
     estado: str = None
     cep: str = None
+    sexo: str = "M"
     metadados: dict = {}
 
 @app.post("/clientes")
@@ -332,6 +333,74 @@ class MatriculaCreate(BaseModel):
     ccir: str = None
     itr: str = None
     area_ha: float = 0.0
+    valor_itr: Optional[float] = None
+    denominacao: Optional[str] = None
+    georreferenciamento: Optional[str] = None
+
+class ProfissionalCreate(BaseModel):
+    nome: str
+    registro: str
+    codigo_credenciado: str = ""
+    endereco: Optional[str] = ""
+    nacionalidade: Optional[str] = "brasileiro(a)"
+    formacao: Optional[str] = ""
+    cpf: Optional[str] = ""
+    rg: Optional[str] = ""
+    conselho: Optional[str] = ""
+    endereco_residencial: Optional[str] = ""
+
+@app.get("/profissionais")
+def get_profissionais():
+    try:
+        rows = execute_query("SELECT id, nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial, contador_m, contador_p, contador_v FROM profissionais ORDER BY nome ASC", fetch_all=True)
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/profissionais")
+def create_profissional(p: ProfissionalCreate):
+    try:
+        query = """
+            INSERT INTO profissionais (nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        execute_query(query, params=(
+            p.nome, p.registro, p.codigo_credenciado, p.endereco, 
+            p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial
+        ), commit=True)
+        return {"sucesso": True, "message": "Profissional cadastrado com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put("/profissionais/{prof_id}")
+def update_profissional(prof_id: int, p: ProfissionalCreate):
+    try:
+        query = """
+            UPDATE profissionais 
+            SET nome = ?, registro = ?, codigo_credenciado = ?, endereco = ?, 
+                nacionalidade = ?, formacao = ?, cpf = ?, rg = ?, conselho = ?, endereco_residencial = ? 
+            WHERE id = ?
+        """
+        execute_query(query, params=(
+            p.nome, p.registro, p.codigo_credenciado, p.endereco, 
+            p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial, 
+            prof_id
+        ), commit=True)
+        return {"sucesso": True, "message": "Cadastro do profissional atualizado com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/profissionais/{prof_id}")
+def delete_profissional(prof_id: int):
+    try:
+        check = execute_query("SELECT COUNT(*) as count FROM levantamentos WHERE profissional_id = ?", params=(prof_id,), fetch_one=True)
+        if check and check["count"] > 0:
+            return {"error": "Não é possível excluir um profissional que possui levantamentos técnicos vinculados."}
+            
+        execute_query("DELETE FROM profissionais WHERE id = ?", params=(prof_id,), commit=True)
+        return {"sucesso": True, "message": "Profissional removido com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/propriedades")
 def get_propriedades():
@@ -462,8 +531,8 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
         if exists:
             raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
             
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha) VALUES (?, ?, ?, ?, ?)"
-        execute_query(query, params=(prop_id, m.numero_matricula, m.ccir, m.itr, m.area_ha), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(prop_id, m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
         return {"message": "Matrícula cadastrada com sucesso na propriedade."}
     except HTTPException:
         raise
@@ -772,8 +841,8 @@ def create_matricula(id: int, m: MatriculaCreate):
             return {"error": "Levantamento não encontrado"}
         propriedade_id = row['propriedade_id']
         
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha) VALUES (?, ?, ?, ?, ?)"
-        execute_query(query, params=(propriedade_id, m.numero_matricula, m.ccir, m.itr, m.area_ha), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(propriedade_id, m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
         
         # Sincroniza metadados para levantamentos ativos
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
@@ -802,10 +871,10 @@ def update_matricula(mid: int, m: MatriculaCreate):
             
         query = """
             UPDATE matriculas 
-            SET numero_matricula = ?, ccir = ?, itr = ?, area_ha = ?
+            SET numero_matricula = ?, ccir = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?
             WHERE id = ?
         """
-        execute_query(query, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, mid), commit=True)
+        execute_query(query, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento, mid), commit=True)
         
         # Sincroniza metadados para levantamentos ativos
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
@@ -1090,8 +1159,317 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
     
     return resultado
 
+class PayloadLaudoFronteira(BaseModel):
+    matricula_id: int
+    profissional_id: int
+    numero_trt: str
+    data_quitacao_trt: str = ""
+
+class PayloadLaudoFronteiraLote(BaseModel):
+    matriculas_ids: List[int]
+    profissional_id: int
+    numero_trt: str
+    data_quitacao_trt: str = ""
+
+class MatriculaFronteiraUpdate(BaseModel):
+    id: int
+    numero_matricula: str
+    ccir: Optional[str] = ""
+    itr: Optional[str] = ""
+    area_ha: float = 0.0
+    cri_comarca: Optional[str] = ""
+    cri_circunscricao: Optional[str] = ""
+    livro_registro: Optional[str] = ""
+    folha_registro: Optional[str] = ""
+
+class ProprietarioFronteiraUpdate(BaseModel):
+    id: int
+    nome_completo: str
+    cpf_cnpj: str
+    rg_ie: Optional[str] = ""
+    estado_civil: Optional[str] = ""
+    regime_bens: Optional[str] = ""
+    nome_conjuge: Optional[str] = ""
+    cpf_conjuge: Optional[str] = ""
+    rg_conjuge: Optional[str] = ""
+
+class PropriedadeFronteiraUpdate(BaseModel):
+    id: int
+    nome_propriedade: str
+    municipio: str
+    uf: str
+    codigo_car: Optional[str] = ""
+    codigo_ccir: Optional[str] = ""
+
+class PayloadAtualizarDadosFronteira(BaseModel):
+    propriedade: PropriedadeFronteiraUpdate
+    proprietario: Optional[ProprietarioFronteiraUpdate] = None
+    matriculas: List[MatriculaFronteiraUpdate]
+    profissional_id: Optional[int] = None
+
+def verificar_propriedade_arquivada(prop_id: int):
+    arquivado = execute_query(
+        "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO' LIMIT 1",
+        params=(prop_id,),
+        fetch_one=True
+    )
+    if arquivado:
+        raise HTTPException(
+            status_code=403,
+            detail="Operação bloqueada. Esta propriedade possui um levantamento arquivado no sistema (Tranca Read-Only)."
+        )
+
+@app.post("/propriedades/{prop_id}/upload-shapefile-fronteira")
+async def upload_shapefile_fronteira(prop_id: int, matricula_id: Optional[int] = Query(None), file: UploadFile = File(...)):
+    verificar_propriedade_arquivada(prop_id)
+    try:
+        from pathlib import Path
+        import re
+        if matricula_id:
+            dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira" / f"Matricula_{matricula_id}"
+        else:
+            dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira"
+            
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Purgar arquivos antigos da pasta de Shapefile
+        for f in dest_dir.glob("*"):
+            if f.is_file():
+                try:
+                    f.unlink()
+                except Exception as ue:
+                    logging.getLogger(__name__).warning(f"Não foi possível excluir {f.name}: {ue}")
+                
+        safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
+        dest_path = dest_dir / safe_filename
+        
+        with open(dest_path, "wb") as buffer:
+            buffer.write(await file.read())
+            
+        from business.report_generator import calcular_menor_distancia_fronteira
+        dist_km, lat, lon = calcular_menor_distancia_fronteira(prop_id, matricula_id)
+        
+        return {
+            "sucesso": True,
+            "distancia_fronteira_km": round(dist_km, 3),
+            "lat": lat,
+            "lon": lon,
+            "mensagem": f"Shapefile processado com sucesso! Distância de isolamento: {dist_km:.3f} km."
+        }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao processar shapefile de fronteira: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/laudo-fronteira-html", response_class=HTMLResponse)
+def get_laudo_fronteira_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = ""):
+    """Gera o laudo de fronteira em HTML estruturado de forma independente"""
+    try:
+        from business.report_generator import BorderAreaReportGenerator
+        html = BorderAreaReportGenerator.gerar_laudo_fronteira_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            numero_trt=numero_trt,
+            data_trt=data_trt
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/requerimento-ratificacao-html", response_class=HTMLResponse)
+def get_requerimento_ratificacao_html(id: int, matricula_id: int):
+    """Gera o requerimento de ratificação de fronteira em HTML estruturado de forma independente"""
+    try:
+        from business.report_generator import BorderAreaReportGenerator
+        html = BorderAreaReportGenerator.gerar_requerimento_ratificacao_html(
+            lev_id=id,
+            matricula_id=matricula_id
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/propriedades/{prop_id}/dados-fronteira")
+def get_dados_fronteira(prop_id: int):
+    """Consolida os dados da propriedade, de suas matrículas e do proprietário principal para o modal de fronteira"""
+    from pathlib import Path
+    try:
+        prop = execute_query("SELECT id, nome_propriedade, municipio, uf, codigo_car, codigo_ccir FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+        if not prop:
+            raise HTTPException(status_code=404, detail="Propriedade não encontrada")
+        
+        owner = execute_query("""
+            SELECT c.id, c.nome_completo, c.cpf_cnpj, c.rg_ie, c.estado_civil, c.regime_bens, 
+                   c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            WHERE pc.propriedade_id = ?
+            ORDER BY pc.percentual_participacao DESC, c.id ASC
+            LIMIT 1
+        """, params=(prop_id,), fetch_one=True)
+        
+        matriculas = execute_query("""
+            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro
+            FROM matriculas
+            WHERE propriedade_id = ?
+        """, params=(prop_id,), fetch_all=True)
+        
+        matriculas_list = []
+        for m in matriculas:
+            m_dict = dict(m)
+            folder_shp = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira" / f"Matricula_{m_dict['id']}"
+            has_shp = folder_shp.exists() and (list(folder_shp.glob("*.shp")) or list(folder_shp.glob("*.zip")))
+            m_dict["has_shapefile"] = bool(has_shp)
+            
+            try:
+                from business.report_generator import calcular_menor_distancia_fronteira
+                dist_km, _, _ = calcular_menor_distancia_fronteira(prop_id, m_dict['id'])
+                m_dict["distancia_fronteira_km"] = round(dist_km, 3)
+            except Exception:
+                m_dict["distancia_fronteira_km"] = None
+                
+            matriculas_list.append(m_dict)
+            
+        return {
+            "propriedade": dict(prop),
+            "proprietario": dict(owner) if owner else None,
+            "matriculas": matriculas_list
+        }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao obter dados de fronteira: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/propriedades/{prop_id}/atualizar-dados-fronteira")
+def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosFronteira):
+    """Atualiza dados de propriedade, do proprietário principal e das matrículas em lote"""
+    verificar_propriedade_arquivada(prop_id)
+    try:
+        # Verifica se já existe um levantamento cadastrado para a propriedade
+        row_lev = execute_query(
+            "SELECT id FROM levantamentos WHERE propriedade_id = ? ORDER BY status = 'EM_ANDAMENTO' DESC, id DESC LIMIT 1",
+            params=(prop_id,),
+            fetch_one=True
+        )
+        
+        lev_id = row_lev["id"] if row_lev else None
+        
+        # Se não houver nenhum levantamento e profissional_id estiver disponível, criamos um automático!
+        if not lev_id and payload.profissional_id:
+            from datetime import date
+            data_atual = date.today().strftime("%Y-%m-%d")
+            
+            with DatabaseManager() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO levantamentos (propriedade_id, profissional_id, data_inicio) VALUES (?, ?, ?)",
+                    (prop_id, payload.profissional_id, data_atual)
+                )
+                lev_id = cursor.lastrowid
+                conn.commit()
+                
+            # Criar Workspace físico e gerar DADOS_GERAIS.json
+            from business.workspace_manager import WorkspaceManager
+            wm = WorkspaceManager()
+            pasta = wm.create_workspace(lev_id)
+            
+            # Sincroniza o caminho físico da pasta no banco
+            execute_query("UPDATE levantamentos SET pasta_projeto = ? WHERE id = ?", params=(pasta, lev_id), commit=True)
+            wm.gerar_documento_cliente_workspace(lev_id)
+            logging.getLogger(__name__).info(f"[FRONTEIRA] Criado levantamento automático ID {lev_id} para a propriedade ID {prop_id}.")
+
+        p = payload.propriedade
+        execute_query("""
+            UPDATE propriedades 
+            SET nome_propriedade = ?, municipio = ?, uf = ?, codigo_car = ?, codigo_ccir = ?
+            WHERE id = ?
+        """, params=(p.nome_propriedade, p.municipio, p.uf, p.codigo_car, p.codigo_ccir, prop_id), commit=True)
+        
+        if payload.proprietario:
+            o = payload.proprietario
+            execute_query("""
+                UPDATE clientes 
+                SET nome_completo = ?, cpf_cnpj = ?, rg_ie = ?, estado_civil = ?, regime_bens = ?,
+                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
+                WHERE id = ?
+            """, params=(o.nome_completo, o.cpf_cnpj, o.rg_ie, o.estado_civil, o.regime_bens,
+                         o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, o.id), commit=True)
+            
+        for m in payload.matriculas:
+            execute_query("""
+                UPDATE matriculas 
+                SET numero_matricula = ?, ccir = ?, itr = ?, area_ha = ?, cri_comarca = ?, 
+                    cri_circunscricao = ?, livro_registro = ?, folha_registro = ?
+                WHERE id = ? AND propriedade_id = ?
+            """, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, m.cri_comarca,
+                         m.cri_circunscricao, m.livro_registro, m.folha_registro, m.id, prop_id), commit=True)
+            
+        # Sincroniza metadados para levantamentos ativos se houver
+        query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
+        ativos = execute_query(query_ativos, params=(prop_id,), fetch_all=True)
+        from business.workspace_manager import WorkspaceManager
+        wm = WorkspaceManager()
+        for at in ativos:
+            wm.gerar_documento_cliente_workspace(at['id'])
+            
+        return {
+            "sucesso": True, 
+            "mensagem": "Dados de fronteira atualizados e sincronizados com sucesso!",
+            "levantamento_id": lev_id
+        }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao atualizar dados de fronteira em lote: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/propriedades/{prop_id}/arquivos")
+def get_arquivos_propriedade(prop_id: int):
+    """Lista todos os arquivos contidos na pasta de Documentos da propriedade"""
+    try:
+        docs_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Documentos"
+        if not docs_dir.exists():
+            return {"Documentos": []}
+            
+        arquivos = []
+        import datetime
+        for f in docs_dir.glob("*.docx"):
+            if f.is_file():
+                stat = f.stat()
+                modificado = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M")
+                tamanho_kb = max(1, round(stat.st_size / 1024))
+                arquivos.append({
+                    "nome": f.name,
+                    "tamanho": f"{tamanho_kb} KB",
+                    "modificado": modificado
+                })
+        return {"Documentos": arquivos}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/propriedades/{prop_id}/arquivos/download")
+def download_arquivo_propriedade(prop_id: int, nome: str):
+    """Efetua o download seguro de um arquivo na pasta de Documentos da propriedade"""
+    try:
+        safe_name = re.sub(r'[\\/*?:"<>|]', "", nome)
+        file_path = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Documentos" / safe_name
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arquivo não localizado no workspace da propriedade.")
+            
+        return FileResponse(
+            path=str(file_path),
+            filename=safe_name,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/levantamentos/{id}/consolidar-pontos")
 def endpoint_consolidar_pontos(id: int):
+
     """
     Executa a consolidação espacial de todos os pontos do levantamento,
     gravando o arquivo TXT na pasta física de exportações.
@@ -1710,7 +2088,75 @@ def obter_historico_campo(id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# --- ENDPOINTS DE EXPORTAÇÃO E GEOMETRIAS DE SHAPEFILE (MÓDULO 5 - V.L.A.E.G.) ---
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/exportar-shapefile")
+def exportar_shapefile_endpoint(id: int, matricula_id: int):
+    """Gera e retorna o Shapefile regulamentar (.ZIP) com as duas camadas perimetrais em UTM Zona 22S"""
+    try:
+        from business.shape_exporter import ShapefileExporter
+        from fastapi import Response
+        
+        zip_bytes = ShapefileExporter.exportar_matricula_zip(id, matricula_id)
+        
+        headers = {
+            "Content-Disposition": f'attachment; filename="matricula_{matricula_id}_shapefile.zip"'
+        }
+        return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao exportar Shapefile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar o Shapefile: {str(e)}")
+
+@app.get("/dashboard/matriculas-geometrias")
+def get_dashboard_matriculas_geometrias():
+    """Retorna os polígonos perimetrais ordenados das matrículas para renderização dinâmica no mapa Leaflet"""
+    try:
+        # Busca todas as matrículas ativas
+        query_mats = """
+            SELECT m.id, m.numero_matricula, m.area_ha, m.propriedade_id,
+                   p.nome_propriedade, p.municipio, p.uf,
+                   l.id as levantamento_id
+            FROM matriculas m
+            JOIN propriedades p ON m.propriedade_id = p.id
+            JOIN levantamentos l ON l.propriedade_id = p.id
+            WHERE l.status != 'ARQUIVADO'
+        """
+        rows_mats = execute_query(query_mats, fetch_all=True)
+        
+        result = []
+        for row in rows_mats:
+            mat = dict(row)
+            # Busca os pontos perimetrais ordenados da matrícula
+            query_pts = """
+                SELECT lat, lon, lat_corrigido, lon_corrigido, nome_vertice
+                FROM pontos
+                WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            """
+            rows_pts = execute_query(query_pts, params=(mat["levantamento_id"], mat["id"]), fetch_all=True)
+            
+            coords = []
+            for r in rows_pts:
+                pt = dict(r)
+                lat = pt["lat_corrigido"] if pt["lat_corrigido"] is not None else pt["lat"]
+                lon = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
+                if lat and lon:
+                    coords.append({"lat": lat, "lon": lon, "nome": pt["nome_vertice"]})
+            
+            # Uma matrícula só é elegível se possuir uma poligonal fechável (pelo menos 3 pontos com coordenadas válidas)
+            if len(coords) >= 3:
+                mat["coordenadas"] = coords
+                result.append(mat)
+                
+        return result
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar geometrias para o dashboard: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 def sou_administrador():
+
     import ctypes
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()

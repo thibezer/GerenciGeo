@@ -4,12 +4,11 @@ import subprocess
 
 def latlon_to_utm22s(lat, lon):
     """
-    Converte coordenadas Latitude/Longitude (WGS84/SIRGAS2000) para UTM Zona 22S (SIRGAS 2000).
-    EPSG:4326 -> EPSG:31982
+    Converte coordenadas Latitude/Longitude (SIRGAS2000) para UTM Zona 22S (SIRGAS 2000).
+    EPSG:4674 -> EPSG:31982
     """
-    # Transformer.from_crs(source, target, always_xy=True)
-    # always_xy=True garante que a ordem seja (longitude, latitude) -> (easting, northing)
-    transformer = Transformer.from_crs("epsg:4326", "epsg:31982", always_xy=True)
+    # Alterado de epsg:4326 para epsg:4674 para garantir consistência matemática absoluta
+    transformer = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
     easting, northing = transformer.transform(lon, lat)
     return easting, northing
 
@@ -159,7 +158,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
             SELECT id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento, sigma_lat
             FROM pontos
             WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
-            ORDER BY id ASC
+            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
         """
         rows = execute_query(query_pontos, params=(levantamento_id, matricula_id), fetch_all=True)
         if not rows or len(rows) < 3:
@@ -431,13 +430,14 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
                 
                 # F. Atualiza no banco
+                # F. Atualiza no banco com consistência de status para o ecossistema
                 cursor.execute(
                     """
                     UPDATE pontos 
                     SET lat = ?, lon = ?, alt = ?, 
                         lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
                         sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                        status_ponto = 'CORRIGIDO' 
+                        status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO' 
                     WHERE id = ? AND levantamento_id = ?
                     """,
                     (lat_corr, lon_corr, alt_corr, 
@@ -762,7 +762,8 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
                 sigma_n = ?, sigma_e = ?, sigma_z = ?,
                 status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
-                arquivo_origem = ?, ignorar_poligono = 1, nome_vertice = ?
+                arquivo_origem = ?, ignorar_poligono = 1, nome_vertice = ?,
+                tipo_ponto = 'M', ponto_base_id = NULL
             WHERE id = ?
         """
         execute_query(query_upsert_base, params=(

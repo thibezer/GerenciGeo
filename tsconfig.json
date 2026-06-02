@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "target": "es2023",
+    "module": "esnext"
+  },
+  "exclude": [
+    "node_modules",
+    "frontend/node_modules",
+    "dist",
+    "frontend/dist",
+    "ui",
+    "__pycache__",
+    ".git",
+    ".gemini"
+  ]
+}

@@ -12,6 +12,7 @@ import { historicoRoute } from './views/historico';
 import { pendenciasRoute } from './views/pendencias';
 import { pendenciasAntigaRoute } from './views/pendenciasAntiga';
 import { configuracoesRoute } from './views/configuracoes';
+import { fronteiraRoute } from './views/fronteira';
 
 const routes: Record<string, RouteDef> = {
   dashboard: dashboardRoute,
@@ -24,16 +25,20 @@ const routes: Record<string, RouteDef> = {
   historico: historicoRoute,
   pendencias: pendenciasRoute,
   pendenciasAntiga: pendenciasAntigaRoute,
-  configuracoes: configuracoesRoute
+  configuracoes: configuracoesRoute,
+  fronteira: fronteiraRoute
 };
+
 
 const navigate = (route: string) => {
   const container = document.getElementById('view-container');
   const breadcrumbCurrent = document.getElementById('breadcrumb-current');
-  if (!container || !breadcrumbCurrent) return;
+  if (!container) return;
   
   clearTimeoutsAndIntervals();
-  breadcrumbCurrent.textContent = route.charAt(0).toUpperCase() + route.slice(1);
+  if (breadcrumbCurrent) {
+     breadcrumbCurrent.textContent = route.charAt(0).toUpperCase() + route.slice(1);
+  }
   
   const currentRoute = routes[route];
   if (currentRoute) {
@@ -61,6 +66,14 @@ const initApp = () => {
   const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
   navigate(initialRoute);
   initIcons();
+
+  // Redirecionamento do botão de Configurações do menu lateral
+  const btnSettings = document.getElementById('btn-sidebar-settings');
+  if (btnSettings) {
+    btnSettings.addEventListener('click', () => {
+      window.location.hash = '#configuracoes';
+    });
+  }
 
   // Configuração do botão de recolhimento da barra lateral
   const sidebar = document.getElementById('sidebar');

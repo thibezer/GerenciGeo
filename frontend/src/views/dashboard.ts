@@ -162,11 +162,12 @@ export const dashboardRoute: RouteDef = {
       "Satélite Google": googleSat
     };
 
-    const overlayMaps = {
+    const overlayMaps: { [key: string]: L.Layer } = {
       "Imóveis SIGEF (PR)": sigef
     };
 
-    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+    let layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
 
     // Fullscreen Control
     const FullscreenControl = L.Control.extend({
@@ -296,5 +297,186 @@ export const dashboardRoute: RouteDef = {
         if (mapContainer) mapContainer.style.cursor = '';
       }
     });
+
+    // --- RENDERIZAÇÃO DE IMÓVEIS LOCAIS E EXPORTAÇÃO (V.L.A.E.G.) ---
+    const localLayersGroup = L.layerGroup().addTo(map);
+    const localMatriculas: any[] = [];
+
+    // Função de download do Shapefile
+    const downloadShapefile = (levId: number, matId: number, numeroMatricula: string) => {
+      const url = `${API_BASE}/levantamentos/${levId}/matriculas/${matId}/exportar-shapefile`;
+      
+      // Cria um link temporário para iniciar o download direto do ZIP
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `matricula_${numeroMatricula}_shapefile.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    };
+
+    // Expõe a função globalmente para ser acionada pelos cliques em popups gerados dinamicamente no mapa
+    (window as any).downloadLocalShapefile = downloadShapefile;
+
+    fetch(`${API_BASE}/dashboard/matriculas-geometrias`)
+      .then(res => res.json())
+      .then((data: any[]) => {
+        if (!data || data.length === 0) return;
+
+        data.forEach(item => {
+          localMatriculas.push(item);
+          
+          // Formata as coordenadas para o Leaflet: [lat, lon]
+          const latLons = item.coordenadas.map((c: any) => [c.lat, c.lon] as [number, number]);
+          
+          // Estilo visual premium e vibrante Mint-vibrant (#10b981) com transições
+          const polygon = L.polygon(latLons, {
+            color: '#10b981',       // Mint vibrant
+            weight: 2,
+            fillColor: '#10b981',
+            fillOpacity: 0.15,
+            className: 'local-parcel-polygon'
+          });
+
+          // Efeitos de Hover reativos e dinâmicos para visual premium
+          polygon.on('mouseover', () => {
+            polygon.setStyle({
+              fillOpacity: 0.35,
+              weight: 3,
+              color: '#059669' // Emerald um pouco mais escuro
+            });
+          });
+
+          polygon.on('mouseout', () => {
+            polygon.setStyle({
+              fillOpacity: 0.15,
+              weight: 2,
+              color: '#10b981'
+            });
+          });
+
+          // Popup interativo estilizado em CSS vanilla dark-mode/glassmorphism
+          const popupHtml = `
+            <div class="p-3 font-sans min-w-[220px] text-white">
+              <h4 class="text-xs font-mono uppercase tracking-widest text-mint-vibrant font-bold mb-1">${item.nome_propriedade}</h4>
+              <div class="space-y-1 my-2 py-2 border-t border-b border-white/5 text-[11px]">
+                <p class="text-white/60">Matrícula: <strong class="text-white font-mono font-medium">${item.numero_matricula}</strong></p>
+                <p class="text-white/60">Área CCIR: <strong class="text-white font-mono font-medium">${(item.area_ha || 0).toFixed(4)} ha</strong></p>
+                <p class="text-white/60">Local: <strong class="text-white font-medium">${item.municipio}/${item.uf}</strong></p>
+              </div>
+              <button 
+                onclick="window.downloadLocalShapefile(${item.levantamento_id}, ${item.id}, '${item.numero_matricula}')"
+                class="w-full bg-mint-vibrant/20 hover:bg-mint-vibrant/40 border border-mint-vibrant/40 text-mint-vibrant hover:text-white text-[10px] font-mono uppercase tracking-wider font-bold py-2 px-3 rounded shadow transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Shapefile (.ZIP)
+              </button>
+            </div>
+          `;
+
+          polygon.bindPopup(popupHtml, {
+            className: 'glass-popup',
+            maxWidth: 300
+          });
+
+          localLayersGroup.addLayer(polygon);
+        });
+
+        // Atualiza a lista no Painel de Controle de Camadas do Leaflet e no Control lateral
+        if (localMatriculas.length > 0) {
+          // Centraliza o mapa dinamicamente no primeiro polígono local cadastrado
+          const firstBounds = (localLayersGroup.getLayers()[0] as any).getBounds();
+          map.fitBounds(firstBounds, { padding: [50, 50] });
+          
+          // Adiciona a camada de parcelas locais no menu de camadas oficial do Leaflet
+          overlayMaps["Nossos Imóveis"] = localLayersGroup;
+          
+          // Recria o controle de camadas para incluir as parcelas locais
+          if (layersControl) {
+            map.removeControl(layersControl);
+          }
+          layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+          
+          // Adiciona o Painel Flutuante Premium de Download / Exportador Rápido
+          const CamadasLocaisControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function () {
+              const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+              div.style.background = 'rgba(10, 16, 13, 0.9)';
+              div.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+              div.style.padding = '12px';
+              div.style.borderRadius = '8px';
+              div.style.width = '240px';
+              div.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)';
+              div.style.backdropFilter = 'blur(12px)';
+              
+              let listHtml = `
+                <div class="text-white text-xs font-mono select-none">
+                  <p class="text-[9px] uppercase tracking-widest text-mint-vibrant font-bold border-b border-white/10 pb-1.5 mb-2 flex items-center gap-1" style="display: flex; align-items: center; gap: 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    CAMADAS LOCAIS (.ZIP)
+                  </p>
+                  <div class="space-y-2 max-h-[160px] overflow-y-auto pr-1 select-text" style="display: flex; flex-direction: column; gap: 6px;">
+              `;
+
+              localMatriculas.forEach(m => {
+                listHtml += `
+                  <div class="flex justify-between items-center gap-2 hover:bg-white/[0.03] p-1.5 rounded transition-all" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="truncate text-[10px] w-2/3 cursor-pointer" onclick="window.focusLocalPolygon(${m.id})" title="Focar no Imóvel" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">
+                      <p class="font-bold text-white/80 hover:text-mint-vibrant truncate" style="margin: 0;">${m.nome_propriedade}</p>
+                      <p class="text-[8px] text-white/30 truncate" style="margin: 0;">Mat. ${m.numero_matricula}</p>
+                    </div>
+                    <button 
+                      onclick="window.downloadLocalShapefile(${m.levantamento_id}, ${m.id}, '${m.numero_matricula}')"
+                      class="bg-mint-vibrant/10 hover:bg-mint-vibrant text-mint-vibrant hover:text-white px-2 py-1 rounded text-[8px] font-mono border border-mint-vibrant/25 hover:border-transparent transition-all cursor-pointer"
+                      title="Download Shapefile"
+                      style="flex-shrink: 0;"
+                    >
+                      SHP
+                    </button>
+                  </div>
+                `;
+              });
+
+              listHtml += `
+                  </div>
+                </div>
+              `;
+              
+              div.innerHTML = listHtml;
+              
+              // Previne propagação de cliques e scroll para o mapa do Leaflet
+              L.DomEvent.disableClickPropagation(div);
+              L.DomEvent.disableScrollPropagation(div);
+              
+              return div;
+            }
+          });
+
+          // Expõe função de focar no polígono para ser acionada pelo menu de listagem
+          (window as any).focusLocalPolygon = (matId: number) => {
+            localLayersGroup.eachLayer((layer: any) => {
+              // Procura o polígono da matrícula clicada
+              const bounds = layer.getBounds();
+              const pt = bounds.getCenter();
+              
+              const targetMat = localMatriculas.find(x => x.id === matId);
+              if (targetMat) {
+                const c1 = layer.getLatLngs()[0][0];
+                const tc1 = targetMat.coordenadas[0];
+                if (Math.abs(c1.lat - tc1.lat) < 1e-6 && Math.abs(c1.lng - tc1.lon) < 1e-6) {
+                  map.fitBounds(bounds, { padding: [50, 50] });
+                  layer.openPopup(pt);
+                }
+              }
+            });
+          };
+
+          map.addControl(new CamadasLocaisControl());
+        }
+      })
+      .catch(err => console.error("Erro ao carregar geometrias locais no Dashboard:", err));
   }
 };
+

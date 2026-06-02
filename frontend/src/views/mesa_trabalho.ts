@@ -7,9 +7,9 @@ export const mesaTrabalhoRoute: RouteDef = {
   render: () => `
     <div class="space-y-6 animate-in fade-in duration-300">
       <!-- DETALHES DO PROJETO E TRIAGEM -->
-      <div id="painel-detalhe-projeto" class="space-y-6">
-        <!-- Cabeçalho de Ação -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.01] border border-white/5 p-4 rounded-xl">
+      <div id="painel-detalhe-projeto" class="space-y-4">
+        <!-- Cabeçalho de Ação Sticky e Condensado -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.01] border border-white/5 p-4 rounded-xl" id="mesa-trabalho-header">
           <div class="flex items-center gap-3">
             <button class="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1" id="btn-voltar-lista">
               <i data-lucide="chevron-right" class="w-4 h-4 rotate-180"></i>
@@ -20,7 +20,7 @@ export const mesaTrabalhoRoute: RouteDef = {
                 <span id="txt-nome-propriedade">Carregando...</span>
                 <span class="text-xs bg-mint-vibrant/20 text-mint-vibrant px-2.5 py-0.5 rounded-full font-mono uppercase" id="badge-status-lev">-</span>
               </h3>
-              <p class="text-xs text-white/40 mt-1">
+              <p class="text-xs text-white/40 mt-1 dados-secundarios-cliente">
                 Cliente: <span class="text-white/60 font-medium mr-3" id="txt-nome-cliente">-</span>
                 CAR: <span class="text-white/60 font-mono" id="txt-codigo-car">-</span>
               </p>
@@ -31,28 +31,28 @@ export const mesaTrabalhoRoute: RouteDef = {
           <div class="flex bg-white/5 border border-white/10 p-1 rounded-lg overflow-x-auto self-start md:self-auto" id="container-abas-matriculas">
             <!-- Abas carregadas dinamicamente -->
           </div>
-        </div>
 
-        <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
-        <div class="flex bg-white/5 border border-white/10 p-1 rounded-xl w-full" id="container-abas-etapas">
-          <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/20 text-mint-vibrant flex items-center justify-center gap-2" id="btn-etapa-geoprocessamento" type="button">
-            <i data-lucide="cpu" class="w-4 h-4"></i>
-            Etapa 1: Mesa Geodésica (Geoprocessamento)
-          </button>
-          <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-cartorio" type="button">
-            <i data-lucide="database" class="w-4 h-4"></i>
-            Etapa 2: Organizador de Perímetro (Cartório)
-          </button>
-          <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-auditoria" type="button">
-            <i data-lucide="history" class="w-4 h-4"></i>
-            Etapa 3: Histórico e Auditoria de Campo
-          </button>
+          <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
+          <div class="flex bg-white/5 border border-white/10 p-1 rounded-xl" id="container-abas-etapas">
+            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/20 text-mint-vibrant flex items-center justify-center gap-2" id="btn-etapa-geoprocessamento" type="button">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              Etapa 1: Mesa Geodésica (Geoprocessamento)
+            </button>
+            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-cartorio" type="button">
+              <i data-lucide="database" class="w-4 h-4"></i>
+              Etapa 2: Organizador de Perímetro (Cartório)
+            </button>
+            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-auditoria" type="button">
+              <i data-lucide="history" class="w-4 h-4"></i>
+              Etapa 3: Histórico e Auditoria de Campo
+            </button>
+          </div>
         </div>
 
         <!-- Grid Superior (Mapa + Ingestão Drag-and-Drop) -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="grid-superior-detalhe">
           <!-- Coluna 1: Mapa Leaflet -->
-          <div class="glass-card h-[420px] relative overflow-hidden flex flex-col" id="container-mapa-leaflet-parent">
+          <div class="glass-card h-[480px] relative overflow-hidden flex flex-col" id="container-mapa-leaflet-parent">
             <div class="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-white/[0.02] z-[1000]">
               <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
               <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
@@ -60,11 +60,17 @@ export const mesaTrabalhoRoute: RouteDef = {
             <div id="mapa-triagem" class="flex-1 w-full h-full"></div>
           </div>
 
-          <!-- Coluna 2: Ingestão Drag-and-Drop -->
-          <div class="glass-card p-6 flex flex-col h-[420px]" id="container-ingestao-arquivos">
+          <!-- Coluna 2: Ingestão Drag-and-Drop (Inicia Colapsada) -->
+          <div class="glass-card p-6 flex flex-col h-[480px] ingestao-collapsed" id="container-ingestao-arquivos">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm">Mesa de Ingestão de Arquivos</h4>
-              <span class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">Drag-and-Drop</span>
+              <div class="flex items-center gap-1.5">
+                 <button class="flex items-center gap-1 text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/40 px-2 py-1 rounded transition-all" id="btn-colapsar-ingestao" title="Recolher painel" type="button">
+                    <i data-lucide="minimize-2" class="w-3 h-3 text-red-400"></i>
+                    Recolher
+                 </button>
+                 <span class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">Drag-and-Drop</span>
+              </div>
             </div>
             
             <!-- Zona Drop -->
@@ -86,6 +92,15 @@ export const mesaTrabalhoRoute: RouteDef = {
               <i data-lucide="play" class="w-4 h-4"></i>
               Processar Lote em Segundo Plano
             </button>
+
+            <!-- Mini View (Exibida somente no estado colapsado) -->
+            <div class="mini-ingestao-view animate-in fade-in duration-300">
+               <div class="w-12 h-12 bg-mint-vibrant/10 border border-mint-vibrant/20 rounded-full flex items-center justify-center text-mint-vibrant">
+                  <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+               </div>
+               <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Ingestão</span>
+               <span class="text-[8px] text-white/30 leading-snug">Clique ou arraste arquivos</span>
+            </div>
           </div>
         </div>
 
@@ -134,11 +149,13 @@ export const mesaTrabalhoRoute: RouteDef = {
                Gerar Requerimento CRI
             </button>
             <button class="btn-secondary text-xs px-3 py-1.5 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0" id="btn-arquivar-projeto-seguro">
+
+
                <i data-lucide="trash-2" class="w-4 h-4"></i>
                Arquivar Projeto Seguro
             </button>
           </div>
-          <div class="text-right shrink-0">
+          <div class="text-right shrink-0" id="container-info-matricula-ativa">
             <span class="text-[10px] text-white/40 font-mono">MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span></span>
           </div>
         </div>
@@ -158,7 +175,10 @@ export const mesaTrabalhoRoute: RouteDef = {
                   Salvar Perímetro & Recomputar
                 </button>
               </div>
-              <span class="text-[9px] text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 font-bold" id="lbl-alerta-sigma">ALERTA M-SIGMA: &gt; 0.10m</span>
+              <div class="relative w-[180px] shrink-0" id="container-search-ponto">
+                <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
+              </div>
             </div>
             <div class="flex-1 overflow-auto">
               <table class="w-full text-left border-collapse">
@@ -584,6 +604,9 @@ export const mesaTrabalhoRoute: RouteDef = {
     
     let selectedPontoIds: number[] = [];
     let lastSelectedPontoId: number | null = null;
+    let currentSortColumn = 'ordem';
+    let currentSortDirection: 'asc' | 'desc' = 'asc';
+    let searchFilterValue = '';
 
     // Recupera levantamento ativo
     const activeId = localStorage.getItem('active_levantamento_id');
@@ -875,6 +898,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         initTriagemMap();
         renderFilaArquivos();
         loadWorkspaceArquivos();
+        alternarEtapa(etapaAtiva);
 
       } catch (e) {
         console.error("Erro ao carregar detalhes do levantamento:", e);
@@ -1054,11 +1078,19 @@ export const mesaTrabalhoRoute: RouteDef = {
       const badgeLateral = document.getElementById('badge-tabela-lateral');
 
       const containerAbasMatriculas = document.getElementById('container-abas-matriculas');
+      const containerInfoMatricula = document.getElementById('container-info-matricula-ativa');
       if (containerAbasMatriculas) {
          if (etapa === 'cartorio') {
             containerAbasMatriculas.classList.remove('hidden');
          } else {
             containerAbasMatriculas.classList.add('hidden');
+         }
+      }
+      if (containerInfoMatricula) {
+         if (etapa === 'cartorio') {
+            containerInfoMatricula.classList.remove('hidden');
+         } else {
+            containerInfoMatricula.classList.add('hidden');
          }
       }
       
@@ -1209,9 +1241,18 @@ export const mesaTrabalhoRoute: RouteDef = {
     const renderMatriculaDados = () => {
       if (!currentMatriculaId && etapaAtiva !== 'geoprocessamento') return;
 
-      const pontosMat = etapaAtiva === 'geoprocessamento'
+      let pontosMat = etapaAtiva === 'geoprocessamento'
          ? [...pontosList]
          : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+
+      if (searchFilterValue) {
+         pontosMat = pontosMat.filter(p => 
+            (p.nome_vertice && p.nome_vertice.toLowerCase().includes(searchFilterValue)) ||
+            (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(searchFilterValue)) ||
+            (p.tipo && p.tipo.toLowerCase().includes(searchFilterValue)) ||
+            (p.ordem_caminhamento && String(p.ordem_caminhamento).includes(searchFilterValue))
+         );
+      }
       const segmentosMat = etapaAtiva === 'geoprocessamento'
          ? []
          : segmentosList.filter(s => s.matricula_id === currentMatriculaId);
@@ -1315,8 +1356,9 @@ export const mesaTrabalhoRoute: RouteDef = {
          } else {
             if (modoCoordenadas === 'geodesico') {
                tblHeader.innerHTML = `
-                 <th class="px-4 py-3 resizable-col" data-col-id="col_vertice_nome">Vértice</th>
-                 <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_tipo">Tipo</th>
+                 <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${currentSortColumn === 'ordem' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+                 <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${currentSortColumn === 'nome' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+                 <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${currentSortColumn === 'tipo' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_lat_bruta">Lat Bruta</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_lon_bruta">Lon Bruta</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_lat_corr">Lat Corr</th>
@@ -1328,8 +1370,9 @@ export const mesaTrabalhoRoute: RouteDef = {
                `;
             } else {
                tblHeader.innerHTML = `
-                 <th class="px-4 py-3 resizable-col" data-col-id="col_vertice_nome">Vértice</th>
-                 <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_tipo">Tipo</th>
+                 <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${currentSortColumn === 'ordem' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+                 <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${currentSortColumn === 'nome' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+                 <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${currentSortColumn === 'tipo' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_n_bruto">Norte Bruto (m)</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_e_bruto">Este Bruto (m)</th>
                  <th class="px-4 py-3 text-right resizable-col" data-col-id="col_vertice_n_corr">Norte Corr (m)</th>
@@ -1342,14 +1385,67 @@ export const mesaTrabalhoRoute: RouteDef = {
                `;
             }
          }
+
+         const btnSortOrdem = document.getElementById('header-sort-ordem');
+         if (btnSortOrdem) {
+            btnSortOrdem.onclick = () => {
+               if (currentSortColumn === 'ordem') {
+                  currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+               } else {
+                  currentSortColumn = 'ordem';
+                  currentSortDirection = 'asc';
+               }
+               renderMatriculaDados();
+            };
+         }
+         const btnSortNome = document.getElementById('header-sort-nome');
+         if (btnSortNome) {
+            btnSortNome.onclick = () => {
+               if (currentSortColumn === 'nome') {
+                  currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+               } else {
+                  currentSortColumn = 'nome';
+                  currentSortDirection = 'asc';
+               }
+               renderMatriculaDados();
+            };
+         }
+         const btnSortTipo = document.getElementById('header-sort-tipo');
+         if (btnSortTipo) {
+            btnSortTipo.onclick = () => {
+               if (currentSortColumn === 'tipo') {
+                  currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+               } else {
+                  currentSortColumn = 'tipo';
+                  currentSortDirection = 'asc';
+               }
+               renderMatriculaDados();
+            };
+         }
       }
 
       const listPt = document.getElementById('tbl-pontos-triagem');
       if (listPt) {
         if (pontosMat.length === 0) {
-          listPt.innerHTML = `<tr><td colspan="${etapaAtiva === 'cartorio' ? 6 : 11}" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
+          listPt.innerHTML = `<tr><td colspan="${etapaAtiva === 'cartorio' ? 6 : 12}" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
         } else {
-          pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+          pontosMat.sort((a, b) => {
+             let valA: any = a[currentSortColumn === 'nome' ? 'nome_vertice' : (currentSortColumn === 'tipo' ? 'tipo_ponto' : 'ordem_caminhamento')];
+             let valB: any = b[currentSortColumn === 'nome' ? 'nome_vertice' : (currentSortColumn === 'tipo' ? 'tipo_ponto' : 'ordem_caminhamento')];
+             
+             if (valA === null || valA === undefined) valA = '';
+             if (valB === null || valB === undefined) valB = '';
+             
+             if (currentSortColumn === 'ordem') {
+                const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);
+                const numB = typeof valB === 'number' ? valB : (parseInt(valB) || 999999);
+                return currentSortDirection === 'asc' ? numA - numB : numB - numA;
+             } else {
+                const strA = String(valA).toLowerCase();
+                const strB = String(valB).toLowerCase();
+                return currentSortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+             }
+          });
           
           listPt.innerHTML = pontosMat.map((p, idx) => {
             let col1 = '-';
@@ -1442,8 +1538,50 @@ export const mesaTrabalhoRoute: RouteDef = {
                      deltaH = ((p.alt || 0) - (p.alt_original || 0)) * 1000;
                   }
                }
-               
-               const norteBruto = p.n_original ? p.n_original.toFixed(3) : '-';
+
+                              // Override delta with exact base delta if this is a corrected point in a lot
+                if (!isBruto) {
+                   let basePoint: any = null;
+                   if (isBase) {
+                      basePoint = p;
+                   } else if (p.ponto_base_id) {
+                      basePoint = pontosList.find((x: any) => x.id === p.ponto_base_id);
+                   }
+                   if (!basePoint && p.arquivo_origem) {
+                      basePoint = pontosList.find((x: any) => 
+                         (x.tipo_ponto === 'M' || x.tipo === 'M') && 
+                         x.arquivo_origem === p.arquivo_origem
+                      );
+                   }
+                   if (basePoint) {
+                      let baseN_original = basePoint.n_original;
+                      let baseE_original = basePoint.e_original;
+                      let baseAlt_original = basePoint.alt_original;
+                      
+                      if (!baseN_original && basePoint.lat_original && basePoint.lon_original) {
+                         const utmOrig = latLonToUTM(basePoint.lat_original, basePoint.lon_original);
+                         baseN_original = utmOrig.n;
+                         baseE_original = utmOrig.e;
+                      }
+                      
+                      let baseN_corr = basePoint.n_corrigido;
+                      let baseE_corr = basePoint.e_corrigido;
+                      
+                      if (!baseN_corr && basePoint.lat && basePoint.lon) {
+                         const utmCorr = latLonToUTM(basePoint.lat, basePoint.lon);
+                         baseN_corr = utmCorr.n;
+                         baseE_corr = utmCorr.e;
+                      }
+                      
+                      if (baseN_corr !== undefined && baseN_corr !== null && baseE_corr !== undefined && baseE_corr !== null && baseN_original && baseE_original) {
+                         deltaN = (baseN_corr - baseN_original) * 1000;
+                         deltaE = (baseE_corr - baseE_original) * 1000;
+                         deltaH = ((basePoint.alt || 0) - (baseAlt_original || 0)) * 1000;
+                      }
+                   }
+                }
+
+                const norteBruto = p.n_original ? p.n_original.toFixed(3) : '-';
                const esteBruto = p.e_original ? p.e_original.toFixed(3) : '-';
                const altBruto = p.alt_original ? p.alt_original.toFixed(3) : '-';
                
@@ -1479,6 +1617,15 @@ export const mesaTrabalhoRoute: RouteDef = {
                   
                   return `
                     <tr class="linha-ponto-tbl cursor-pointer transition-colors ${rowBgClass} ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
+                      <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1 h-full">
+                        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || '-'}</span>
+                        <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
+                          <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
+                          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                        </button>
+                      </td>
                       <td class="px-4 py-2.5 font-bold flex items-center gap-1">${isBase ? '<span class="text-indigo-400 mr-1" title="Ponto de Controle / Base">📡</span>' : ''}${p.nome_vertice}</td>
                       <td class="px-2 py-2.5 text-center font-bold text-mint-vibrant/80">${p.tipo_ponto || p.tipo || '-'}</td>
                       <td class="px-4 py-2.5 text-right font-mono text-[11px]">${latBruta}</td>
@@ -1494,6 +1641,15 @@ export const mesaTrabalhoRoute: RouteDef = {
                } else {
                   return `
                     <tr class="linha-ponto-tbl cursor-pointer transition-colors ${rowBgClass} ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
+                      <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1 h-full">
+                        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || '-'}</span>
+                        <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
+                          <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
+                          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                        </button>
+                      </td>
                       <td class="px-4 py-2.5 font-bold flex items-center gap-1">${isBase ? '<span class="text-indigo-400 mr-1" title="Ponto de Controle / Base">📡</span>' : ''}${p.nome_vertice}</td>
                       <td class="px-2 py-2.5 text-center font-bold text-mint-vibrant/80">${p.tipo_ponto || p.tipo || '-'}</td>
                       <td class="px-4 py-2.5 text-right font-mono text-[11px]">${norteBruto}</td>
@@ -2805,8 +2961,110 @@ export const mesaTrabalhoRoute: RouteDef = {
        });
     };
 
-    inicializarWorkspaceCollapse();
-    loadLevantamentoDetails();
-    inicializarMenuContextoEPontoModal();
-  }
+    const inicializarBuscaPonto = () => {
+       const searchInput = document.getElementById('input-search-ponto') as HTMLInputElement;
+       const btnClearSearch = document.getElementById('btn-clear-search');
+       
+       if (searchInput) {
+          searchInput.addEventListener('input', () => {
+             searchFilterValue = searchInput.value.trim().toLowerCase();
+             renderMatriculaDados();
+          });
+       }
+       
+       if (btnClearSearch) {
+          btnClearSearch.addEventListener('click', () => {
+             if (searchInput) {
+                searchInput.value = '';
+             }
+             searchFilterValue = '';
+             renderMatriculaDados();
+          });
+       }
+    };
+
+    
+     const inicializarScrollCollapseHeader = () => {
+        const viewContainer = document.getElementById('view-container');
+        const header = document.getElementById('mesa-trabalho-header');
+        if (!viewContainer || !header) return;
+
+        viewContainer.addEventListener('scroll', () => {
+           if (viewContainer.scrollTop > 40) {
+              if (!header.classList.contains('header-condensed')) {
+                 header.classList.add('header-condensed');
+                 if (triagemMap) {
+                    setTimeout(() => triagemMap!.invalidateSize(), 310);
+                 }
+              }
+           } else {
+              if (header.classList.contains('header-condensed')) {
+                 header.classList.remove('header-condensed');
+                 if (triagemMap) {
+                    setTimeout(() => triagemMap!.invalidateSize(), 310);
+                 }
+              }
+           }
+        });
+     };
+
+     const inicializarIngestaoCollapse = () => {
+        const containerIngestao = document.getElementById('container-ingestao-arquivos');
+        const btnColapsar = document.getElementById('btn-colapsar-ingestao');
+        
+        if (!containerIngestao) return;
+
+        const expandirIngestao = () => {
+           if (containerIngestao.classList.contains('ingestao-collapsed')) {
+              containerIngestao.classList.remove('ingestao-collapsed');
+              if (triagemMap) {
+                 setTimeout(() => triagemMap!.invalidateSize(), 310);
+              }
+           }
+        };
+
+        const colapsarIngestao = () => {
+           if (!containerIngestao.classList.contains('ingestao-collapsed')) {
+              containerIngestao.classList.add('ingestao-collapsed');
+              if (triagemMap) {
+                 setTimeout(() => triagemMap!.invalidateSize(), 310);
+              }
+           }
+        };
+
+        // Expande ao clicar no container quando colapsado
+        containerIngestao.addEventListener('click', (e) => {
+           if (containerIngestao.classList.contains('ingestao-collapsed')) {
+              expandirIngestao();
+              e.stopPropagation();
+           }
+        });
+
+        // Colapso manual via botão de minimizar
+        if (btnColapsar) {
+           btnColapsar.addEventListener('click', (e) => {
+              colapsarIngestao();
+              e.stopPropagation();
+           });
+        }
+
+        // Expande ao arrastar arquivos sobre a dropzone ou sobre o container inteiro
+        containerIngestao.addEventListener('dragover', (e) => {
+           e.preventDefault();
+           expandirIngestao();
+        });
+
+        containerIngestao.addEventListener('dragenter', (e) => {
+           e.preventDefault();
+           expandirIngestao();
+        });
+     };
+
+inicializarWorkspaceCollapse();
+     loadLevantamentoDetails();
+     inicializarMenuContextoEPontoModal();
+     inicializarBuscaPonto();
+     inicializarScrollCollapseHeader();
+     inicializarIngestaoCollapse();
+   }
 };

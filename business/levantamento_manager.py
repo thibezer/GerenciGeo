@@ -32,6 +32,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     cidade = cli_data.get("cidade")
     estado = cli_data.get("estado")
     cep = cli_data.get("cep")
+    sexo = cli_data.get("sexo", "M")
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
@@ -50,9 +51,9 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                 return {"error": "CPF/CNPJ já cadastrado"}
             
             cursor.execute("""
-                INSERT INTO clientes (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep))
+                INSERT INTO clientes (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep, sexo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep, sexo))
             cliente_id = cursor.lastrowid
             
             if metadados:
@@ -90,6 +91,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     cidade = cli_data.get("cidade")
     estado = cli_data.get("estado")
     cep = cli_data.get("cep")
+    sexo = cli_data.get("sexo", "M")
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
@@ -119,11 +121,11 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                 UPDATE clientes 
                 SET nome_completo=?, cpf_cnpj=?, rg_ie=?, data_nascimento_fundacao=?, estado_civil=?, profissao=?, nacionalidade=?, 
                     nome_conjuge=?, cpf_conjuge=?, rg_conjuge=?, regime_bens=?, email=?, telefone=?, endereco_completo=?, 
-                    cidade=?, estado=?, cep=?
+                    cidade=?, estado=?, cep=?, sexo=?
                 WHERE id=?
             """, (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, 
                   nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, 
-                  cidade, estado, cep, cliente_id))
+                  cidade, estado, cep, sexo, cliente_id))
             
             # Atualiza metadados (limpa e insere novos)
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
@@ -453,6 +455,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 data["lon"] = lon_val
                 data["alt"] = alt_corr
                 data["status_ponto"] = "CORRIGIDO"
+                data["status_correcao"] = "CORRIGIDO"
 
         # A.1. Atualiza Tipo de Ponto ('M', 'P', 'V')
         tipo_ponto = data.get("tipo_ponto")
@@ -537,7 +540,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         updates = []
         params = []
         
-        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "ignorar_poligono"]:
+        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono"]:
             val = data.get(campo)
             if val is not None and val != pt_antigo[campo]:
                 updates.append(f"{campo} = ?")

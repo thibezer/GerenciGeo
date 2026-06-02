@@ -140,9 +140,9 @@ select.glass-input option {
 }
 
 #sidebar.sidebar-collapsed {
-  width: 76px !important;
-  padding-left: 12px !important;
-  padding-right: 12px !important;
+  width: 60px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
 }
 
 /* Oculta textos suavemente */
@@ -301,4 +301,146 @@ thead th,
    opacity: 1 !important;
    z-index: 10;
 }
+
+/* ==========================================================================
+   Mesa de Trabalho Otimizada (Design Reativo & Compacto)
+   ========================================================================== */
+
+/* Cabeçalho de Ação Sticky e Condensado */
+#mesa-trabalho-header {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  background-color: rgba(12, 21, 16, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-wrap: wrap;
+}
+
+#mesa-trabalho-header.header-condensed {
+  top: -19px !important;
+  padding: 4px 12px !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+  margin-bottom: 8px !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  border-color: rgba(0, 245, 160, 0.15);
+}
+
+#mesa-trabalho-header.header-condensed #btn-voltar-lista {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+}
+
+#mesa-trabalho-header.header-condensed #btn-voltar-lista i {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+#mesa-trabalho-header.header-condensed #txt-nome-propriedade {
+  font-size: 14px !important;
+}
+
+#mesa-trabalho-header.header-condensed #badge-status-lev {
+  font-size: 8px !important;
+  padding: 1px 6px !important;
+}
+
+/* Ocultar metadados de cliente/CAR/CCIR na condensação */
+#mesa-trabalho-header.header-condensed .dados-secundarios-cliente {
+  display: none !important;
+}
+
+/* Estado Normal: Abas de etapas ocupam a linha de baixo integralmente */
+#container-abas-etapas {
+  width: 100%;
+  order: 3;
+  margin-top: 10px;
+  background-color: rgba(255, 255, 255, 0.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estado Condensado: Abas de etapas sobem e comprimem para a direita */
+#mesa-trabalho-header.header-condensed #container-abas-etapas {
+  width: auto !important;
+  order: 2 !important;
+  margin-top: 0 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  padding: 0 !important;
+  gap: 4px;
+}
+
+#mesa-trabalho-header.header-condensed #container-abas-etapas .btn-etapa-tab {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 0 !important; /* Oculta o texto */
+  border-radius: 6px !important;
+}
+
+#mesa-trabalho-header.header-condensed #container-abas-etapas .btn-etapa-tab i {
+  margin: 0 !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* --- Ingestão Colapsável Dinâmica --- */
+#grid-superior-detalhe {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  height: 480px;
+}
+
+#container-mapa-leaflet-parent {
+  flex: 1;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#container-ingestao-arquivos {
+  width: 48%; /* Metade da tela expandida */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Ingestão Colapsada (Mini View) */
+#container-ingestao-arquivos.ingestao-collapsed {
+  width: 130px !important;
+  padding: 12px !important;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(0, 245, 160, 0.08) !important;
+}
+
+#container-ingestao-arquivos.ingestao-collapsed:hover {
+  background: rgba(0, 245, 160, 0.04) !important;
+  border-color: rgba(0, 245, 160, 0.25) !important;
+}
+
+#container-ingestao-arquivos.ingestao-collapsed #triagem-dropzone,
+#container-ingestao-arquivos.ingestao-collapsed h4,
+#container-ingestao-arquivos.ingestao-collapsed span,
+#container-ingestao-arquivos.ingestao-collapsed #btn-processar-lote,
+#container-ingestao-arquivos.ingestao-collapsed #triagem-fila-container,
+#container-ingestao-arquivos.ingestao-collapsed .flex.justify-between.items-center.mb-4 {
+  display: none !important;
+}
+
+#container-ingestao-arquivos .mini-ingestao-view {
+  display: none;
+}
+
+#container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 10px;
+}
+
 

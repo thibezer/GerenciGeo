@@ -14,7 +14,14 @@ def create_tables(conn):
             contador_m INTEGER DEFAULT 0,    
             contador_p INTEGER DEFAULT 0,    
             contador_v INTEGER DEFAULT 0,    
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            endereco TEXT,
+            nacionalidade TEXT DEFAULT 'brasileiro(a)',
+            formacao TEXT,
+            cpf TEXT,
+            rg TEXT,
+            conselho TEXT,
+            endereco_residencial TEXT
         );
         """,
         """
@@ -37,6 +44,7 @@ def create_tables(conn):
             cidade TEXT,
             estado TEXT,
             cep TEXT,
+            sexo TEXT DEFAULT 'M',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """,
@@ -96,6 +104,9 @@ def create_tables(conn):
             cri_circunscricao TEXT,
             livro_registro TEXT,
             folha_registro TEXT,
+            valor_itr REAL,
+            denominacao TEXT,
+            georreferenciamento TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
         );
@@ -318,8 +329,28 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em propriedades: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em propriedades: {ex_mig}")
-        
+        # Migração dinâmica para a tabela profissionais
+        colunas_profissionais = [
+            ("endereco", "TEXT"),
+            ("nacionalidade", "TEXT DEFAULT 'brasileiro(a)'"),
+            ("formacao", "TEXT"),
+            ("cpf", "TEXT"),
+            ("rg", "TEXT"),
+            ("conselho", "TEXT"),
+            ("endereco_residencial", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(profissionais)")
+        colunas_profissionais_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_profissionais:
+            if col not in colunas_profissionais_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE profissionais ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em profissionais: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em profissionais: {ex_mig}")
+
         # Migração dinâmica para a tabela confrontantes
+
         colunas_confrontantes = [
             ("rg", "TEXT"),
             ("nacionalidade", "TEXT DEFAULT 'brasileiro(a)'"),
@@ -346,7 +377,10 @@ def create_tables(conn):
             ("cri_comarca", "TEXT"),
             ("cri_circunscricao", "TEXT"),
             ("livro_registro", "TEXT"),
-            ("folha_registro", "TEXT")
+            ("folha_registro", "TEXT"),
+            ("valor_itr", "REAL"),
+            ("denominacao", "TEXT"),
+            ("georreferenciamento", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(matriculas)")
         colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}
@@ -357,6 +391,20 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em matriculas: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em matriculas: {ex_mig}")
+        
+        # Migração dinâmica para a tabela clientes
+        colunas_clientes = [
+            ("sexo", "TEXT DEFAULT 'M'")
+        ]
+        cursor.execute("PRAGMA table_info(clientes)")
+        colunas_clientes_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_clientes:
+            if col not in colunas_clientes_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em clientes: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em clientes: {ex_mig}")
         
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário

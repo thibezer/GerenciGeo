@@ -54,6 +54,7 @@ export const clientesRoute: RouteDef = {
                        <div><p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">CPF/CNPJ</p><p class="text-sm font-mono text-mint-vibrant" id="cli-cpf">-</p></div>
                        <div><p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">RG/IE</p><p class="text-sm font-mono" id="cli-rg">-</p></div>
                        <div><p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Estado Civil</p><p class="text-sm" id="cli-estcivil">-</p></div>
+                       <div><p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Gênero (Sexo)</p><p class="text-sm" id="cli-sexo">-</p></div>
                     </div>
                     <div class="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
                        <div><p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Cônjuge</p><p class="text-sm font-medium" id="cli-conjuge">-</p></div>
@@ -133,11 +134,18 @@ export const clientesRoute: RouteDef = {
                      </select>
                   </div>
                   <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Gênero (Sexo)</label>
+                     <select name="sexo" class="glass-input w-full">
+                        <option value="M">Masculino</option>
+                        <option value="F">Feminino</option>
+                     </select>
+                  </div>
+                  <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nacionalidade</label>
                      <input type="text" name="nacionalidade" class="glass-input w-full" value="Brasileiro(a)">
                   </div>
                </div>
-               <div class="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
+               <div id="secao-conjuge" class="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
                   <div class="col-span-2"><h5 class="text-xs font-bold text-mint-vibrant">CÔNJUGE</h5></div>
                   <div class="col-span-2">
                      <input type="text" name="nome_conjuge" class="glass-input w-full" placeholder="Nome do Cônjuge">
@@ -200,10 +208,35 @@ export const clientesRoute: RouteDef = {
      
      // Modal control
      const modal = document.getElementById('modal-cliente');
+     const form = document.getElementById('form-cliente') as HTMLFormElement;
+     const selectEstadoCivil = form?.querySelector('[name="estado_civil"]') as HTMLSelectElement;
+     const secaoConjuge = document.getElementById('secao-conjuge');
+
+     const toggleConjuge = () => {
+        if (!selectEstadoCivil || !secaoConjuge) return;
+        const val = selectEstadoCivil.value;
+        const isCasado = val.includes("Casado") || val.includes("União Estável");
+        if (isCasado) {
+           secaoConjuge.classList.remove('hidden');
+        } else {
+           secaoConjuge.classList.add('hidden');
+           const nomeConj = form.querySelector('[name="nome_conjuge"]') as HTMLInputElement;
+           const cpfConj = form.querySelector('[name="cpf_conjuge"]') as HTMLInputElement;
+           const rgConj = form.querySelector('[name="rg_conjuge"]') as HTMLInputElement;
+           if (nomeConj) nomeConj.value = '';
+           if (cpfConj) cpfConj.value = '';
+           if (rgConj) rgConj.value = '';
+        }
+     };
+
+     selectEstadoCivil?.addEventListener('change', toggleConjuge);
+
      document.getElementById('btn-abrir-modal-cliente')?.addEventListener('click', () => {
          clienteSelecionadoId = null;
-         const form = document.getElementById('form-cliente') as HTMLFormElement;
-         if(form) form.reset();
+         if(form) {
+            form.reset();
+            toggleConjuge();
+         }
          const title = document.querySelector('#modal-cliente h3');
          if(title) title.textContent = 'Cadastro de Cliente';
          modal?.classList.remove('hidden');
@@ -277,6 +310,7 @@ export const clientesRoute: RouteDef = {
                     setVal('cli-cpf', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
                     setVal('cli-rg', cli.rg_ie);
                     setVal('cli-estcivil', cli.estado_civil);
+                    setVal('cli-sexo', cli.sexo === 'M' ? 'Masculino' : cli.sexo === 'F' ? 'Feminino' : '-');
                     setVal('cli-conjuge', cli.nome_conjuge);
                     setVal('cli-cpfconjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
                     setVal('cli-endereco', `${cli.endereco_completo || ''} - ${cli.cidade || ''}/${cli.estado || ''}`);
@@ -317,6 +351,7 @@ export const clientesRoute: RouteDef = {
          setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
          setFormVal('rg_ie', cli.rg_ie);
          setFormVal('estado_civil', cli.estado_civil);
+         setFormVal('sexo', cli.sexo || 'M');
          setFormVal('nacionalidade', cli.nacionalidade);
          setFormVal('nome_conjuge', cli.nome_conjuge);
          setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
@@ -326,6 +361,8 @@ export const clientesRoute: RouteDef = {
          setFormVal('endereco_completo', cli.endereco_completo);
          setFormVal('cidade', cli.cidade);
          setFormVal('estado', cli.estado);
+
+         toggleConjuge();
 
          const title = document.querySelector('#modal-cliente h3');
          if(title) title.textContent = 'Editar Cliente';

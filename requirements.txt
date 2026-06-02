@@ -3,4 +3,8 @@ python-dotenv
 fastapi
 uvicorn
 python-multipart
+pyshp
+python-docx
+
+
 

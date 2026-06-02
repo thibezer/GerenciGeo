@@ -47,3 +47,18 @@ Implementar o suporte a Múltiplas Bases Geodésicas, Estados de Rover ('BRUTO',
   - `"[RTK - Ingestão de Pontos (Vincular à Base Selecionada)]"` (valor: `rover_rtk`)
 - **AutoCAD UTM Workspace**: Coordenadas planas UTM (Norte, Este, Altitude em Metros) definidas como o formato de exibição padrão nativo inicial ao carregar qualquer levantamento.
 - **Isolação Física de Telas**: Ocultação estrita e alternância completa dos blocos HTML correspondentes entre a Etapa 1 (Processamento Geodésico) e a Etapa 2 (Perímetro & Cartório) para máximo aproveitamento do espaço útil de tela.
+
+### Fase 5: Exportação e Download de Shapefile (.ZIP) [CONCLUÍDO]
+- [x] Adicionar dependência `pyshp` em `requirements.txt` e instalar no ambiente Python.
+- [x] Criar o módulo `business/shape_exporter.py` para geração de Shapefiles in-memory (camadas de Pontos e Polígono em UTM Zona 22S).
+- [x] Adicionar o endpoint `GET /levantamentos/{id}/matriculas/{matricula_id}/exportar-shapefile` para transmissão em streaming do ZIP.
+- [x] Adicionar o endpoint `GET /dashboard/matriculas-geometrias` para listar os limites geodésicos das matrículas ativas.
+- [x] Plotar as geometrias das parcelas locais no mapa Leaflet do Dashboard (`dashboard.ts`) com visual Mint-vibrant reativo.
+- [x] Adicionar popups interativos no mapa com o botão de download direto e criar painel flutuante de controle de camadas para exportação rápida.
+- [x] Validar a integridade geométrica e tabular das camadas no QGIS e conversores CAD.
+
+### Fase 6: Laudos de Faixa de Fronteira (Módulo 8) — Pivotagem HTML [CONCLUÍDO]
+- [x] Pivotar a engenharia do Módulo 8: remover biblioteca `python-docx` e dependência de Word.
+- [x] Criar os métodos `gerar_laudo_fronteira_html` e `gerar_requerimento_ratificacao_html` em `business/report_generator.py` para gerar HTML nativo premium.
+- [x] Implementar os endpoints GET `/levantamentos/{id}/matriculas/{mid}/laudo-fronteira-html` e `GET /levantamentos/{id}/matriculas/{mid}/requerimento-ratificacao-html` para renderização direta via `HTMLResponse`.
+- [x] Ajustar o painel frontend (`fronteira.ts`) para renderizar a lista de seleção múltipla de matrículas e carregar a impressão nativa via `window.print()` e estilização premium para folha A4.

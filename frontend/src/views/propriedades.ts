@@ -190,6 +190,10 @@ export const propriedadesRoute: RouteDef = {
                              <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs py-2 font-mono" />
                           </div>
                           <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Denominação (Lote/Gleba) *</label>
+                             <input type="text" id="input-new-mat-denominacao" required placeholder="Ex: Lote 12-A Gleba X" class="glass-input w-full text-xs py-2" />
+                          </div>
+                          <div>
                              <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Área (Hectares) *</label>
                              <input type="number" step="0.0001" id="input-new-mat-area" required placeholder="Ex: 45.1234" class="glass-input w-full text-xs py-2 font-mono" />
                           </div>
@@ -200,6 +204,14 @@ export const propriedadesRoute: RouteDef = {
                           <div>
                              <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
                              <input type="text" id="input-new-mat-itr" placeholder="Ex: 1.234.567-8" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Valor do ITR (R$)</label>
+                             <input type="number" step="0.01" id="input-new-mat-valor-itr" placeholder="Ex: 150000.00" class="glass-input w-full text-xs py-2 font-mono" />
+                          </div>
+                          <div class="md:col-span-2">
+                             <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Georreferenciamento (Código SIGEF)</label>
+                             <input type="text" id="input-new-mat-georreferenciamento" placeholder="Ex: a5b4c3d2-..." class="glass-input w-full text-xs py-2 font-mono" />
                           </div>
                           <div class="md:col-span-4 flex justify-end">
                              <button type="submit" class="btn-primary py-2.5 px-6 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white">Salvar Matrícula</button>
@@ -814,11 +826,15 @@ export const propriedadesRoute: RouteDef = {
 
         corpo.innerHTML = matriculas.map(m => `
           <tr class="hover:bg-white/[0.01] border-b border-white/5">
-             <td class="px-4 py-3 font-bold text-white">Matrícula nº ${m.numero_matricula}</td>
+             <td class="px-4 py-3 text-white">
+                <span class="block font-bold">Matrícula nº ${m.numero_matricula}</span>
+                <span class="block text-[10px] text-white/40 font-sans">${m.denominacao || 'Denominação não informada'}</span>
+             </td>
              <td class="px-4 py-3 text-right font-mono text-white/80">${(m.area_ha || 0).toFixed(4)} ha</td>
              <td class="px-4 py-3 text-white/60">
                 <span class="block">CCIR: ${m.ccir || 'N/A'}</span>
-                <span class="block">ITR: ${m.itr || 'N/A'}</span>
+                <span class="block">ITR: ${m.itr || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
+                <span class="block text-[10px] text-mint-vibrant">SIGEF: ${m.georreferenciamento || 'N/A'}</span>
              </td>
              <td class="px-4 py-3 text-center">
                 <button class="text-white/40 hover:text-red-400 p-1 btn-excluir-matricula-prop" data-mat-id="${m.id}" title="Excluir Matrícula">
@@ -862,17 +878,21 @@ export const propriedadesRoute: RouteDef = {
       if (!propriedadeSelecionadaId) return;
 
       const numero_matricula = (document.getElementById('input-new-mat-numero') as HTMLInputElement).value.trim();
+      const denominacao = (document.getElementById('input-new-mat-denominacao') as HTMLInputElement).value.trim();
       const area_ha = parseFloat((document.getElementById('input-new-mat-area') as HTMLInputElement).value);
       const ccir = (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value.trim();
       const itr = (document.getElementById('input-new-mat-itr') as HTMLInputElement).value.trim();
+      const raw_valor = (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value;
+      const valor_itr = raw_valor ? parseFloat(raw_valor) : null;
+      const georreferenciamento = (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value.trim();
 
-      if (!numero_matricula || isNaN(area_ha)) return;
+      if (!numero_matricula || !denominacao || isNaN(area_ha)) return;
 
       try {
         const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/matriculas`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numero_matricula, ccir, itr, area_ha })
+          body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento })
         });
         const data = await res.json();
         if (data.error) {
@@ -880,9 +900,12 @@ export const propriedadesRoute: RouteDef = {
         } else {
           // Limpa
           (document.getElementById('input-new-mat-numero') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-denominacao') as HTMLInputElement).value = '';
           (document.getElementById('input-new-mat-area') as HTMLInputElement).value = '';
           (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value = '';
           (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value = '';
+          (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value = '';
 
           // Recarrega
           loadMatriculasDaPropriedade(propriedadeSelecionadaId);

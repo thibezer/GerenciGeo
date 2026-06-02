@@ -72,14 +72,80 @@ O sistema adota um modelo estrito de restrição de integridade referencial base
 ### 2.2 Estrutura de Tabelas Corrigida (Amostra DDL SQL)
 
 ```sql
+-- PROFISSIONAIS (Responsáveis Técnicos INCRA)
+CREATE TABLE IF NOT EXISTS profissionais (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    registro TEXT NOT NULL,          
+    codigo_credenciado TEXT NOT NULL, 
+    contador_m INTEGER DEFAULT 0,    
+    contador_p INTEGER DEFAULT 0,    
+    contador_v INTEGER DEFAULT 0,    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    endereco TEXT,
+    nacionalidade TEXT DEFAULT 'brasileiro(a)',
+    formacao TEXT,
+    cpf TEXT,
+    rg TEXT,
+    conselho TEXT,
+    endereco_residencial TEXT
+);
+
+-- CLIENTES (Proprietários de Imóveis Rurais)
+CREATE TABLE IF NOT EXISTS clientes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome_completo TEXT NOT NULL,              
+    cpf_cnpj TEXT UNIQUE NOT NULL,
+    rg_ie TEXT,
+    data_nascimento_fundacao DATE,
+    estado_civil TEXT,               
+    profissao TEXT,
+    nacionalidade TEXT,
+    nome_conjuge TEXT,
+    cpf_conjuge TEXT,
+    rg_conjuge TEXT,
+    regime_bens TEXT,
+    email TEXT,
+    telefone TEXT,
+    endereco_completo TEXT,
+    cidade TEXT,
+    estado TEXT,
+    cep TEXT,
+    sexo TEXT DEFAULT 'M',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CLIENTE METADADOS (Extensibilidade Dinâmica)
+CREATE TABLE IF NOT EXISTS cliente_metadados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente INTEGER NOT NULL,
+    chave TEXT NOT NULL,
+    valor TEXT,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+);
+
+-- CLIENTE HISTÓRICO LOGS (Auditoria de Alterações)
+CREATE TABLE IF NOT EXISTS cliente_historico_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cliente INTEGER NOT NULL,
+    campo_alterado TEXT NOT NULL,
+    valor_antigo TEXT,
+    valor_novo TEXT,
+    data_alteracao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+);
+
 -- PROPRIEDADES (Escopo Global)
 CREATE TABLE IF NOT EXISTS propriedades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome_propriedade TEXT NOT NULL,
     codigo_car TEXT,
     codigo_ccir TEXT,
+    caminho_arquivo_car TEXT,
+    caminho_arquivo_ccir TEXT,
     municipio TEXT NOT NULL,
-    uf TEXT NOT NULL
+    uf TEXT NOT NULL CHECK(length(uf) = 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- MATRÍCULAS (Individual do Lote)
@@ -90,6 +156,14 @@ CREATE TABLE IF NOT EXISTS matriculas (
     ccir TEXT,
     itr TEXT,
     area_ha REAL,
+    cri_comarca TEXT,
+    cri_circunscricao TEXT,
+    livro_registro TEXT,
+    folha_registro TEXT,
+    valor_itr REAL,
+    denominacao TEXT,
+    georreferenciamento TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
 );
 
@@ -98,9 +172,10 @@ CREATE TABLE IF NOT EXISTS levantamentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     propriedade_id INTEGER NOT NULL,
     profissional_id INTEGER NOT NULL,
-    data_inicio TEXT NOT NULL,
+    data_inicio DATE NOT NULL,
     pasta_projeto TEXT,
-    status TEXT DEFAULT 'EM_ANDAMENTO', -- EM_ANDAMENTO, CONCLUIDO, ARQUIVADO
+    status TEXT DEFAULT 'EM_ANDAMENTO' CHECK(status IN ('EM_ANDAMENTO', 'CONCLUIDO', 'ARQUIVADO')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
     FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE
 );
@@ -109,18 +184,38 @@ CREATE TABLE IF NOT EXISTS levantamentos (
 CREATE TABLE IF NOT EXISTS pontos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     levantamento_id INTEGER NOT NULL,
-    matricula_id INTEGER NOT NULL,
-    nome_vertice TEXT NOT NULL,
-    tipo_ponto TEXT NOT NULL, -- M, P, V
-    lat REAL, -- Graus Decimais (Ajustado pelo PPP/Topcon)
-    lon REAL, -- Graus Decimais (Ajustado pelo PPP/Topcon)
-    alt REAL, -- Altitude Elipsoidal (m)
-    sigma_lat REAL,
-    sigma_lon REAL,
-    sigma_alt REAL,
-    ordem_caminhamento INTEGER,
+    matricula_id INTEGER,
+    nome_vertice TEXT NOT NULL,       
+    tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V')),
+    lat REAL,
+    lon REAL,
+    alt REAL,
+    sigma_lat REAL,                   
+    sigma_lon REAL,                
+    sigma_alt REAL,                     
+    ordem_caminhamento INTEGER,       
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    n_original REAL,
+    e_original REAL,
+    alt_original REAL,
+    lat_corrigido REAL,
+    lon_corrigido REAL,
+    alt_corrigido REAL,
+    sigma_n REAL,
+    sigma_e REAL,
+    sigma_z REAL,
+    arquivo_rinex TEXT,
+    arquivo_resultado_ppp TEXT,
+    status_ponto TEXT DEFAULT 'BRUTO' CHECK(status_ponto IN ('BRUTO', 'CORRIGIDO')),
+    ponto_base_id INTEGER,
+    metodo_posicionamento TEXT DEFAULT 'PG1',
+    arquivo_origem TEXT,
+    status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
+    ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
     FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
-    FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE
+    FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
+    FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
+    UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
 );
 
 -- SEGMENTOS (Linhas de Divisa Oficiais)
@@ -131,8 +226,9 @@ CREATE TABLE IF NOT EXISTS segmentos (
     ponto_inicio_id INTEGER NOT NULL,
     ponto_fim_id INTEGER NOT NULL,
     confrontante_id INTEGER,
-    tipo_limite_sigef TEXT NOT NULL, -- LA1, LN1, LI1
-    metodo_posicionamento_sigef TEXT NOT NULL, -- PG1, MC1, MC2, etc.
+    tipo_limite_sigef TEXT NOT NULL,
+    metodo_posicionamento_sigef TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
     FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
     FOREIGN KEY (ponto_inicio_id) REFERENCES pontos(id) ON DELETE CASCADE,
@@ -140,6 +236,83 @@ CREATE TABLE IF NOT EXISTS segmentos (
     FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL
 );
 ```
+
+---
+
+## 2.3 Especificações de Qualificação de Clientes e Responsáveis Técnicos
+
+### A. Regras Lógicas de Geração Documental (Laudos e Requerimentos)
+Para garantir a validade jurídica das peças técnicas destinadas ao Cartório de Registro de Imóveis (CRI) e Defesa Nacional (Faixa de Fronteira):
+1. **Heurística de Gênero Inteligente**: O sistema traduz pronomes cadastrais baseados na coluna `sexo` do proprietário principal:
+   - Se `sexo == 'F'`: "portadora do RG", "inscrita no CPF", "legítima proprietária".
+   - Se `sexo == 'M'`: "portador do RG", "inscrito no CPF", "legítimo proprietário".
+2. **Tratamento de Estado Civil e Cônjuge**:
+   - **Caso Casado / União Estável**: O cônjuge é obrigatoriamente qualificado junto com o proprietário na mesma peça jurídica. O pronome do cônjuge é invertido inteligentemente com base no sexo do proprietário principal (ex: se proprietário é do sexo "M", cônjuge recebe "portadora" / "inscrita").
+   - **Caso Solteiro / Divorciado / Viúvo**: O estado civil (ex: "solteiro" ou "solteira" ajustado pelo gênero) é explicitamente inserido na qualificação. Os dados de cônjuge são omitidos de forma absoluta da qualificação documental.
+3. **Comportamento Dinâmico do Formulário (UI)**:
+   - Para clientes cadastrados sob estado civil `'Solteiro(a)'`, `'Divorciado(a)'` ou `'Viúvo(a)'`, a interface oculta automaticamente os campos do grupo **CÔNJUGE** no formulário, limpando e desativando valores residuais para evitar poluição de dados e manter a mesa limpa de dados irrelevantes.
+
+### B. Exemplos Práticos de Qualificação Gerada (Dados Fictícios)
+
+#### Exemplo 1: Cliente Proprietário Casado (Regime de Comunhão Parcial de Bens)
+> **Qualificação Gerada no Requerimento/Laudo:**
+> "JOÃO DA SILVA, brasileiro, produtor rural, casado sob o regime de comunhão parcial de bens com MARIA APARECIDA DA SILVA, brasileira, do lar, portadora do RG nº 9.876.543-2 e inscrita no CPF sob o nº 987.654.321-00, ambos residentes e domiciliados na Linha Central, Km 10, Cascavel-PR, portador do RG nº 1.234.567-8 e inscrito no CPF nº 123.456.789-00..."
+
+#### Exemplo 2: Cliente Proprietário Solteiro (Gênero Feminino)
+> **Qualificação Gerada no Requerimento/Laudo:**
+> "ANA BEATRIZ SOUZA, brasileira, engenheira agrónoma, solteira, portadora do RG nº 4.567.890-1 e inscrita no CPF sob o nº 456.789.012-34, residente e domiciliada na Avenida Brasil, 1500, Foz do Iguaçu-PR..."
+
+---
+
+### 2.4 Especificações Técnicas de Propriedades e Matrículas
+
+Para garantir o rigor técnico exigido na regularização fundiária nacional, o GerenciGeo divide conceitualmente o espaço territorial do imóvel rural em duas categorias complementares:
+
+1. **Propriedades (Escopo Global / Físico):**
+   - Corresponde à extensão territorial contínua unificada da fazenda (o perímetro físico global delimitado no Cadastro Ambiental Rural - CAR).
+   - Armazena códigos ambientais e cadastrais globais (`codigo_car` e `codigo_ccir`) e os caminhos de armazenamento físico seguro dos seus respectivos documentos PDF (`caminho_arquivo_car`, `caminho_arquivo_ccir`).
+   - Gerencia a copropriedade na tabela associativa `propriedade_clientes` (relação M:N), que permite o vínculo de múltiplos proprietários ou casais definindo quotas percentuais individuais.
+   - **Regra de Consistência Absoluta das Quotas (100%):** A soma acumulada das quotas percentuais de todos os proprietários atrelados a uma mesma fazenda na tabela associativa nunca poderá exceder rigidamente `100.00%`. Tentativas de inserção ou atualização que quebrem esta restrição são interceptadas e abortadas de forma atômica no banco, retornando o saldo exato disponível para alocação.
+
+2. **Matrículas (Escopo Jurídico / Parcelas SIGEF):**
+   - Representa as subdivisões registradas em Cartório (as matrículas oficiais no Cartório de Registro de Imóveis - CRI).
+   - Uma propriedade física pode conter uma ou mais matrículas vinculadas (relação 1:N). Cada matrícula atua como uma parcela independente que receberá uma aba individual no motor de exportação de dados geodésicos para o SIGEF.
+   - Além do número e denominação (Lote/Gleba), ela persiste dados cartoriais precisos (`cri_comarca`, `cri_circunscricao`, `livro_registro`, `folha_registro`), metadados tributários e fiscais (`ccir`, `itr`, `valor_itr`, `area_ha`) e a certificação digital do georreferenciamento homologada (`georreferenciamento` - UUID do SIGEF).
+
+
+
+### 2.5 Módulo de Levantamentos e Controle de Campanhas de Campo
+
+O georreferenciamento de um imóvel rural é estruturado operacionalmente no GerenciGeo através de **Campanhas de Levantamento** (tabela `levantamentos`), estabelecendo o vínculo relacional e cronológico entre a propriedade e o profissional credenciado no INCRA.
+
+1. **Estrutura de Relações e Integridade:**
+   - Vincula obrigatoriamente um profissional credenciado (`profissional_id`) e uma propriedade (`propriedade_id`), contendo a data de início da campanha de campo.
+   - **Geração Automática do Windows Workspace:** A criação ou abertura de um levantamento dispara de forma invisível no servidor o acionamento do `WorkspaceManager`. Este lê os metadados do banco e cria no sistema de arquivos do usuário a árvore de pastas padronizada do projeto (Brutos, Rinex, Documentos, Processados, Exportacoes) sob `Projetos/[Nome_Propriedade]/Lev_[ID]_[Ano]/`.
+   - **Geração Reativa do Arquivo `DADOS_GERAIS.json`:** Ao criar o levantamento, o `WorkspaceManager` compila os dados cadastrais completos dos proprietários e das matrículas atreladas e grava na subpasta `/Documentos` o arquivo físico de sincronização `DADOS_GERAIS.json`. Este atua como a única fonte de dados em disco do levantamento, sendo automaticamente atualizado caso ocorra qualquer modificação no banco global de clientes ou matrículas.
+
+2. **Travas e Estados do Ciclo de Vida (Tranca Read-Only):**
+   - Um levantamento no sistema navega estritamente por três estados sequenciais: `'EM_ANDAMENTO'`, `'CONCLUIDO'` e `'ARQUIVADO'`.
+   - **Tranca de Segurança de Cold Storage (Read-Only Lock):** Projetos que possuam seu status alterado para `'ARQUIVADO'` tornam-se imediatamente imutáveis na camada de negócio. A API do servidor implementa um middleware (`verificar_propriedade_arquivada` in `api.py`) que intercepta rotas de escrita (`POST`, `PUT`, `DELETE`) para pontos, segmentos e confrontantes daquela propriedade. Se houver tentativa de escrita, o servidor retorna instantaneamente um código de status `HTTP 403 Forbidden` informando que a operação está bloqueada devido à trava jurídica de segurança de cold storage.
+
+### 2.6 Módulo de Faixa de Fronteira e Ratificação Jurídica
+
+Como o imóvel rural localiza-se na faixa de fronteira internacional (fronteira Brasil-Paraguai), sua retificação exige a anuência e ratificação dos órgãos de Defesa Nacional. O GerenciGeo automatiza a emissão destas peças jurídicas com rigor determinístico.
+
+1. **Geração Dinâmica de Documentos em Memória:**
+   - Todos os laudos e requerimentos de faixa de fronteira são gerados dinamicamente sob demanda em formato HTML estruturado a partir de endpoints baseados em requisições HTTP GET (`/laudo-fronteira-html` e `/requerimento-ratificacao-html`).
+   - O processo ocorre estritamente na memória volátil do servidor, eliminando a gravação de arquivos temporários lixo ou PDFs estáticos em disco, simplificando auditorias de segurança e liberando espaço no HD do operador.
+
+2. **Injeção de Metadados nos Templates HTML:**
+   - O gerador de relatórios (`business/report_generator.py`) consome os dados do levantamento e injeta de forma contextual e automatizada as seguintes tags de metadados:
+     - `NOME_PROFISSIONAL` / `REGISTRO_CFTA` / `ENDERECO_PROFISSIONAL`: Extraídos do cadastro do Responsável Técnico.
+     - `NOME_PROPRIETARIO` / `CPF_PROPRIETARIO` / `RG_PROPRIETARIO` / `ESTADO_CIVIL` / `REGIME_BENS` / `NOME_CONJUGE` / `CPF_CONJUGE` / `RG_CONJUGE`: Qualificação jurídica subjetiva dinâmica tratada sob a heurística de gênero inteligente (e ocultando dados de cônjuges para clientes de estado civil solteiro(a)).
+     - `NOME_PROPRIEDADE` / `MATRICULA_NUM` / `COMARCA_CRI` / `REGISTRO_CAR` / `CODIGO_INCRA`: Metadados cadastrais do imóvel.
+     - `NUMERO_TRT` / `DATA_QUITACAO_TRT`: Informações do documento profissional CFTA injetados sob demanda no ato da visualização.
+     - `DISTANCIA_FRONTEIRA_KM`: A menor distância geodésica determinística elipsoidal calculada a partir do Shapefile do perímetro ou fallback em banco (Módulo 8) impressa com precisão de 3 casas decimais.
+
+3. **Folha de Estilos e Layout de Impressão Nativa (Tailwind CSS):**
+   - O documento retornado é estruturado semanticamente em HTML5 e estilizado nativamente com a biblioteca de design Tailwind CSS, garantindo uma renderização visual moderna e premium diretamente no navegador web do cliente.
+   - **Mapeamento de Mídia de Impressão (`@media print`):** A estrutura estilizada inclui regras de impressão no cliente (`window.print()`). O template adiciona controles e botões de ação que recebem a classe CSS `.no-print` (ou regras `@media print { .no-print { display: none !important; } }`), ocultando painéis laterais de configuração, botões de impressão e cabeçalhos residuais do navegador na folha de papel física gerada para o Cartório.
 
 ---
 
@@ -162,6 +335,39 @@ Ao criar ou abrir um Levantamento, o manager extrai do banco o nome da proprieda
 Localizado na pasta `/Documentos` de cada projeto, este arquivo mantém os metadados dos clientes e suas respectivas matrículas estruturados para consumo ágil do sistema.
 
 **Gatilho de Atualização (Trigger):** O arquivo é gerado no `POST /levantamentos`. No entanto, se o usuário alterar os dados do cliente em `PUT /clientes` ou adicionar uma nova matrícula em `POST /matriculas`, a API aciona o `WorkspaceManager` para sobrescrever e atualizar o JSON nas pastas de todos os projetos ativos daquele cliente, mitigando dados obsoletos.
+
+---
+
+### 3.3 Estrutura Física de Pastas e Uploads de Anexos Técnicos
+
+A organização dos arquivos físicos no Windows Explorer segue um padrão rigoroso gerenciado de forma reativa pelo servidor na subpasta de propriedades:
+
+#### A. Organização Física no Disco (Windows Workspace)
+A pasta raiz de cada propriedade é estruturada dinamicamente sob:
+```
+[EXPORT_BASE_FOLDER] / Propriedades / Prop_[ID] /
+    ├── /Shapefile_Fronteira               <-- Shapefile geral do perímetro fundiário
+    │   ├── /Matricula_[ID]                <-- Shapefiles específicos de cada matrícula
+    │   │   ├── perimetro.shp / pontos.shp <-- Arquivos descompactados
+    │   │   └── perimetro.zip              <-- Zip original enviado
+    │   └── perimetro_geral.shp
+    ├── CAR_[Nome_do_Arquivo].pdf          <-- Arquivo de anexo do CAR
+    └── CCIR_[Nome_do_Arquivo].pdf         <-- Arquivo de anexo do CCIR
+```
+
+#### B. Fluxo de Ingestão de Anexos Físicos (CAR & CCIR)
+No upload do arquivo do CAR ou CCIR (`POST /propriedades/{prop_id}/upload-car` e `/upload-ccir`), o sistema sanitiza o nome original removendo caracteres especiais do SO, armazena o binário fisicamente sob `[EXPORT_BASE_FOLDER]/Propriedades/Prop_[prop_id]/` sob os prefixos `CAR_` ou `CCIR_`, e registra o caminho completo correspondente no banco SQLite nas colunas `caminho_arquivo_car` ou `caminho_arquivo_ccir`. Downloads posteriores do arquivo original ocorrem via caminhos dedicados (`/arquivo-car`, `/arquivo-ccir`) que resgatam e transmitem o arquivo físico correspondente.
+
+#### C. Ingestão de Shapefiles de Divisa e Cálculo de Faixa de Fronteira (Módulo 8)
+Ao enviar uma pasta compactada `.ZIP` ou arquivos isolados de Shapefile para o contorno de uma matrícula (`POST /propriedades/{prop_id}/upload-shapefile-fronteira?matricula_id={id}`):
+1. **Purgagem Física Ativa:** Para evitar acúmulo de arquivos residuais, o sistema varre e deleta de forma absoluta todos os arquivos existentes dentro do diretório específico (`f.unlink()`) antes de salvar os novos arquivos.
+2. **Descompactação Automatizada:** Se um arquivo `.zip` for detectado, o sistema executa a extração in-memory dos componentes geográficos (`.shp`, `.shx`, `.dbf`, `.prj`) salvando-os no diretório físico.
+3. **Leitura e Conversão de Projeção:** O sistema lê os vértices do Shapefile utilizando a biblioteca `pyshp` (`shapefile.Reader`). Ele verifica as coordenadas das geometrias:
+   - Se os valores absolutos forem maiores que `10000.0`, identifica automaticamente as coordenadas como projetadas Planas (UTM).
+   - Aplica o transformador `pyproj.Transformer` para realizar a projeção reversa de UTM Zone 22S (EPSG:31982) para o formato elipsoidal Geodésico SIRGAS 2000 (EPSG:4674).
+   - Caso os valores sejam pequenos, assume as coordenadas diretamente como geodésicas.
+4. **Cálculo Determinístico de Fronteira:** O motor matemático utiliza a biblioteca `pyproj.Geod(ellps="GRS80")` para executar o cálculo geodésico rigoroso através da fórmula do inverso (`geod.inv`) a partir de cada coordenada geométrica do perímetro até o limite fixo internacional Brasil-Paraguai estabelecido na coordenada exata Lat `-24.0671222`, Lon `-54.2868778`. Ele elege o ponto com a **menor distância absoluta** (em quilômetros com 3 casas decimais) para ser registrado como a menor distância de isolamento da fazenda até a divisa internacional.
+5. **Fallback de Ponto Geodésico:** Se nenhum Shapefile físico estiver disponível para a matrícula ou propriedade, o motor executa uma busca secundária na tabela `pontos` do banco SQLite, resgatando **todos os pontos geodésicos** (independentemente de seu tipo: 'M', 'P' ou 'V') associados a levantamentos cadastrados para aquela propriedade. O sistema prioriza pontos de levantamentos ativos (`EM_ANDAMENTO`) e com estado pós-processado (`CORRIGIDO`), calcula a menor distância individual de cada ponto até o limite internacional (Lat `-24.0671222`, Lon `-54.2868778`) e retorna o menor valor de distância obtido.
 
 ---
 
@@ -249,6 +455,122 @@ Caso o operador opte por inserir o Bloco B via coordenadas Planas UTM, o motor l
     $$\Delta_Y = Y_{\text{Alvo}} - Y_{\text{Bruto}}$$
     $$\Delta_Z = Z_{\text{Alvo}} - Z_{\text{Bruto}}$$
 5.  **Translação e Atualização em Bloco:** O sistema abre uma transação atômica no SQLite e varre todos os pontos pertencentes ao `arquivo_origem` selecionado. Para cada ponto, converte suas coordenadas brutas originais para ECEF, soma o vetor $(\Delta_X, \Delta_Y, \Delta_Z)$, reconverte para Geodésica final SIRGAS 2000, calcula a composição quadrática dos sigmas e salva os dados atualizando o estado do registro para `status_correcao = 'CORRIGIDO'`.
+
+---
+
+### 4.5 Acesso e Controle de Propriedades e Matrículas na Interface do Usuário (UI)
+
+O controle e a gestão física/relacional desses módulos fundiários ocorrem de forma fluida através de painéis desacoplados estilizados com design moderno (Glassmorphism e acentuações verde-menta):
+
+#### A. Painel Lateral de Navegação e Busca
+- Acessado clicando na aba **"Propriedades"** da barra lateral da aplicação.
+- Apresenta o número consolidado de propriedades cadastradas em tempo real.
+- Inclui uma barra de pesquisa que aplica filtros de digitação instantânea, ocultando propriedades que não contenham o termo digitado no nome ou no município/UF.
+- Possui o botão **"Nova Propriedade"**, que renderiza um modal flutuante com suporte a **máscaras ativas de digitação** (formatando automaticamente caracteres de CAR e CCIR) e validação de campo de UF (maiusculização automática limitada a duas letras).
+
+#### B. Painel de Detalhes e Controle Multitabs
+Após a seleção de uma propriedade na lista lateral, o painel de detalhes é revelado, dividindo as ações administrativas e documentais em três abas dinâmicas:
+
+1. **Aba "Dados Gerais" e Mesa de Anexos Físicos:**
+   - Exibe em blocos de alta legibilidade as informações cadastrais da propriedade.
+   - **Mesa de Ingestão de Documentos:** Apresenta dropzones dedicadas para o CAR e CCIR, oferecendo drag-and-drop ativo de arquivos ou clique para seleção tradicional.
+   - **Efeito Visual Reativo:** Durante o processo de upload físico, a dropzone adquire uma animação de pulsação suave em CSS (`animate-pulse`) e altera o cursor do mouse para sinalizar a comunicação active com o servidor.
+   - Se o arquivo físico já foi associado, a dropzone dá lugar a um card de anexo com ícone indicativo do tipo de documento, o nome do arquivo sanitizado e um botão rápido que abre o link de download direto para o navegador do cliente.
+
+2. **Aba "Proprietários" (Vínculos e Quotas):**
+   - **Autocomplete de Busca Dinâmica:** Permite buscar proprietários na base global em tempo real digitando parte do nome ou CPF/CNPJ. Um menu suspenso flutuante é renderizado exibindo as opções correspondentes.
+   - **Controle Dinâmico de Quota Fundiária:** Exibe o percentual restante disponível para alocação (calculado de forma reativa subtraindo o total das quotas vinculadas de 100%).
+   - Exibe a grid de proprietários vinculados e suas quotas com botões de desassociação rápidos ("x"), que removem a relação física de copropriedade com confirmação em tela.
+
+3. **Aba "Matrículas" (Gestão Jurídica de Lotes):**
+   - **Formulário de Cadastro Técnico:** Permite adicionar matrículas ao imóvel definindo campos estruturados com formatação específica:
+     - Área (Hectares): Campo decimal com precisão estrita de 4 casas decimais para perfeita sincronia com o SIGEF.
+     - Valor do ITR (R$): Exposto na grid formatado com o padrão de moeda do Brasil (`toLocaleString('pt-BR')`).
+     - Georreferenciamento: Campo alfanumérico para guardar a assinatura digital do georreferenciamento homologado pelo INCRA.
+   - **Tabela de Matrículas Atreladas:** Lista as glebas e frações do imóvel. Cada registro apresenta um botão para exclusão física. Devido ao relacionamento estrito no banco de dados, ao excluir uma matrícula, o sistema emite um alerta de segurança severo ao operador, indicando que a ação resultará na remoção em cascata (`ON DELETE CASCADE`) de todos os vértices (tabela `pontos`) e divisas (tabela `segmentos`) vinculados àquela matrícula.
+
+### 4.6 Manual e Motor de Georreferenciamento Avançado
+
+Devido à alta complexidade matemática, física e instrumental do motor geodésico do ecossistema, toda a especificação técnica e modelagem computacional espacial do GerenciGeo foi centralizada em uma documentação apartada oficial:
+
+> [!IMPORTANT]
+> **Manual e Especificações do Motor Geodésico:**
+> Para conferir as rotinas completas de ingestão de satélites, conversão HGO / RPA, algoritmo de triagem quadripolar, processador científica IBGE-PPP (API e Selenium), motor geodésico de translação tridimensional (Bowring/GRS80 e Vetor Delta) e algoritmo de topologia perimetral (Shoelace horária e fechamento estrito), consulte o arquivo de especificação dedicado:
+> 
+> 👉 **[gerencigeo_georreferenciamento.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/gerencigeo_georreferenciamento.md)**
+
+
+
+### 4.7 Especificações Visuais dos Módulos Auxiliares (UI/UX)
+
+A operação diária e o controle administrativo do sistema ocorrem através de uma interface web de alto padrão visual, baseada em Glassmorphism, carregamentos reativos e desacoplamento radical de views no frontend:
+
+#### Layout Global e Arquitetura do Painel Principal (principal.html)
+- **Estruturação Física em Português (`principal.html`):** Para maior clareza e manutenção imediata no repositório, o arquivo de layout real do sistema foi nomeado como `principal.html`. O arquivo inicial `index.html` atua estritamente como um redirecionador invisível e instantâneo via tags `<meta refresh>` e scripts de redirecionamento, mantendo compatibilidade nativa com o servidor de desenvolvimento do Vite.
+- **Remoção Completa do Cabeçalho Superior (Headerless Experience):** O antigo `<header>` que exibia o breadcrumb e a barra de status do sistema foi fisicamente desativado e removido. Isso gerou um ganho de 64px verticais que foram integralmente devolvidos à área útil do aplicativo (especialmente benéfico para a visualização dos mapas Leaflet e as tabelas na mesa de trabalho).
+- **Roteamento Desacoplado Robustecido (`main.ts`):** O método de roteamento `navigate` no frontend foi reconfigurado para tratar o elemento de breadcrumb de forma opcional (`if (breadcrumbCurrent)`), evitando quebras na execução das views na ausência física do cabeçalho.
+- **Barra Lateral Ultra-Compacta (`aside#sidebar`):**
+  - **Modo Aberto:** Largura reduzida de `w-64` (256px) para `w-56` (224px).
+  - **Modo Colapsado:** Largura de repouso reduzida de `76px` para `60px` com paddings laterais ajustados de `12px` para `8px` (`p-4` a `px-2`).
+  - **Alinhamento Simétrico:** Todos os ícones e elementos como o logo, avatares (`AD`) e o botão de engrenagem de configurações são perfeitamente centralizados a 60px de largura.
+- **Aproveitamento de Área Útil:** O padding geral do contêiner flexível principal `#view-container` foi reduzido de `p-8` para `p-6`, aumentando expressivamente a área livre para visualização de dados nas laterais e topo.
+
+#### A. Módulo de Levantamentos (levantamentos.ts)
+- **Painel de Campanhas:** Acessado clicando em **"Levantamentos"** no menu principal. Apresenta controles de visualização híbridos e uma barra de busca dinâmica unificada.
+- **Alternador de Modos de Visualização (Grid/List Toggle):** Permite ao usuário alternar a renderização da tela em tempo real por meio de botões estilizados de layout, persistindo a escolha do operador de forma permanente no `localStorage` do navegador:
+  - **Visualização em Cards (Modo Grid Redesenhado & Ultra-Compacto):**
+    - Padding geral otimizado e reduzido de `p-6` para `p-4` para máxima economia de espaço vertical.
+    - Remove a tag nominal de ID (`LEV_ID`).
+    - Posiciona o Título da Fazenda e o Badge de Status alinhados de forma flexível no topo superior do cartão.
+    - O badge de status exibe o texto sanitizado substituindo o caractere `_` por espaço (ex: `'EM ANDAMENTO'`).
+    - **Barra de Metadados Condensada:** Exibe de forma agrupada na mesma linha horizontal (flex entre extremidades) a **Data de Início** (ao lado de um ícone de calendário) e as **Estatísticas Rápidas de Vértices** (Pts/Divisas), economizando linhas e espaços valiosos na vertical.
+    - **Bloco Estruturado de Dados Físicos:** O rodapé do card expõe o **CAR**, o **CCIR** e o **MUNICÍPIO / UF** em linhas próprias e exclusivas com espaçamento super compacto (`space-y-0.5`), resolvendo qualquer truncagem e facilitando a leitura direta sem sobreposição.
+    - **Botões e Margens Compactas:** Margem superior e interna do rodapé reduzidas (`mt-3.5 pt-2.5`) para compactar o card na altura sem perder o design moderno de vidro.
+  - **Visualização em Tabela (Modo Lista Windows Explorer):**
+    - Renderiza uma grade de alto padrão estético inspirada no design clássico do Windows Explorer.
+    - Exibe as colunas: **Nome / Localidade**, **Status**, **Data de início**, **Proprietários** e **Tamanho / Medições**, com ações rápidas de auditoria, edição e exclusão.
+    - Renderiza ícones de pastas em tom âmbar premium para cada levantamento da tabela.
+    - O clique funcional no nome da propriedade aciona diretamente a rota de auditoria de campo.
+  - **Lógica Invariante de Eventos (Resolução de Travamentos):**
+    - O gerenciamento de ações de clique (Auditoria, Edição e Exclusão) adota **Delegação de Eventos Centralizada** diretamente na propriedade `onclick` do contêiner estático pai `#grid-projetos` usando `closest()`. Isso previne o travamento e a perda crônica de ouvintes (listeners) que ocorria devido à re-renderização dinâmica da lista de projetos durante buscas e alternâncias de layout.
+- **Painel de Ações de Status (Travas de Segurança):** Na tela de detalhes do levantamento, o operador conta com botões para transicionar o status. Mudar o status para `'ARQUIVADO'` aplica a trava visual e de banco (Read-Only Lock).
+
+#### A1. Módulo de Mesa de Trabalho e Triagem Geodésica (mesa_trabalho.ts)
+- **Isolação e Ocultação Absoluta de Matrículas na Etapa 1 (Mesa Geodésica):** A Etapa 1 processa os dados de campo em lote completo (Base e Rovers) sem segregação jurídica. Por isso, ao alternar para a Etapa 1 (`geoprocessamento`), o painel de abas de matrícula (`#container-abas-matriculas`) e o indicador de matrícula ativa no rodapé técnico (`#container-info-matricula-ativa`) são **totalmente ocultados**. As matrículas e suas divisas perimetrais se tornam visíveis estritamente na Etapa 2 (`cartorio`) para a montagem de confrontações.
+- **Efeito Sticky Header Condensado no Scroll (Cabeçalho Reativo de 5px):**
+  - O cabeçalho de ação principal `#mesa-trabalho-header` é fixado no topo (`position: sticky; top: 0; z-index: 45`) com fundo desfocado translúcido (`backdrop-filter: blur(12px)`).
+  - Ao rolar a tela principal para baixo (`scrollTop > 40`), uma escuta de evento de scroll no contêiner principal `#view-container` aplica a classe `.header-condensed`.
+  - **Compactação Extrema de 5px:** No estado condensado, o cabeçalho tem seu padding reduzido para `4px 12px !important` e aplica um `gap: 6px !important`, encolhendo também o botão Voltar (`#btn-voltar-lista` recebe padding `4px 8px` e ícone menor) para preservar espaço. O cabeçalho é deslocado para `top: -19px !important` para compensar exatamente os `24px` de padding do container `#view-container`, encostando a exatos **5px da borda física superior** da tela. Os metadados secundários de Proprietário/CAR/CCIR são ocultados, o título do levantamento e badges de status são encolhidos suavemente em pixels, e a **barra de seleção de etapas se comprime**, exibindo **apenas os ícones** do Lucide (definindo `font-size: 0`), e migra de sua posição inferior horizontal para se acomodar discretamente na ponta direita superior do cabeçalho condensado (no espaço livre da matrícula). Ao retornar ao topo, o cabeçalho se expande com todos os textos longos e metadados.
+- **Mesa de Ingestão e Área de Mapa Vertical Ampliada (480px):**
+  - O contêiner de visualização espacial (`#container-mapa-leaflet-parent`) e o contêiner de ingestão (`#container-ingestao-arquivos`), juntamente com a regra estrutural do grid superior (`#grid-superior-detalhe`), são configurados com uma **altura física ampliada de 480px** (um ganho de 60px na vertical) para melhor visualização cartográfica e análise de auditoria.
+  - Por padrão, a ingestão inicia no estado **colapsado (`.ingestao-collapsed`)**, medindo apenas `130px` de largura e exibindo uma mini view limpa de upload de arquivos.
+  - Isso permite que o contêiner do mapa Leaflet (`#container-mapa-leaflet-parent`) se expanda horizontalmente e ocupe todo o restante da tela útil disponível no grid.
+  - O operador pode expandir a Ingestão clicando sobre ela ou simplesmente **arrastando um arquivo sobre sua área (dragover/dragenter)**. O card de ingestão se expande suavemente com transição de 300ms, disparando reativamente `triagemMap.invalidateSize()` após 310ms para reajustar a viewport geométrica do mapa perfeitamente.
+  - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado em vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
+
+#### B. Módulo de Faixa de Fronteira (fronteira.ts)
+- **Acesso:** Pela tela de controle de faixa de fronteira e emissão de laudos.
+- **Painel Técnico de Ratificação:** Exibe o mapa Leaflet interativo focado na divisa internacional Brasil-Paraguai e o contorno da matrícula rural.
+- **Formulário de Metadados Profissionais:** Painel lateral contendo entradas textuais para:
+  - Número do documento TRT (obrigatório).
+  - Data de quitação da TRT (caixa de calendário).
+  - Seleção e upload em dropzone do arquivo Shapefile compactado `.ZIP` da matrícula.
+- **Botões "Gerar Laudo de Fronteira (HTML)" e "Gerar Requerimento de Ratificação (HTML)":**
+  - Ao clicar, o frontend dispara uma requisição GET enviando os parâmetros da TRT. A resposta HTML retornada pelo servidor é injetada instantaneamente em uma nova janela limpa do navegador (`window.open`), acionando de forma automatizada o seletor nativo de impressão do cliente (`window.print()`). Os botões de impressão e controle laterais do template desaparecem fisicamente no PDF gerado devido à classe de exclusão `.no-print`.
+
+#### C. Módulo de Alertas (Action Center - `pendencias.ts`)
+- **Acesso:** Pelo item **"Pendências"** na barra lateral.
+- **Painel de Controle de Qualidade:** Consome reativamente o endpoint de auditoria de metadados do servidor (`/dashboard/alerts`).
+- **Cards de Pendência Estilizados:** Renderiza os avisos de integridade em duas categorias de impacto visual:
+  - **CRÍTICO (Borda vermelha e pulsação CSS ativa):** Exibidos para arquivos GNSS falhos ou menores que 50KB.
+  - **AVISO (Borda amarela):** Exibidos para divisas sem confrontantes, pontos órfãos, arquivos brutos pendentes de conversão ou discrepância de Fuso UTM derivado (compass alert).
+- **Ação Rápida de Resolução ("Ir para a Tela"):** Cada card possui um botão rápido (ícone de seta direcional) que intercepta a rota do frontend e redireciona o operador diretamente para o formulário, campo ou mapa onde o erro cadastral foi detectado, acelerando o fluxo de correção técnica de campo.
+
+#### D. Módulo de Histórico de Logs e Auditoria (`historico.ts`)
+- **Acesso:** Pelo menu lateral clicando em **"Histórico"**.
+- **Painel de Rastreabilidade Total:** Exibe de forma tabular e cronológica todos os registros de alteração e logs de importação física:
+  - **Grid de Auditoria Cadastral:** Tabela detalhada consumindo `cliente_historico_logs`, expondo a ID do cliente, o campo que foi alterado, o valor antigo, o valor novo inserido e o carimbo de data/hora preciso.
+  - **Grid de Histórico de Arquivos RINEX:** Tabela técnica rica listando os arquivos que entraram na esteira de ingestão, seu tamanho em bytes, status de sucesso e os detalhes de logs gerados no processamento.
 
 ---
 
