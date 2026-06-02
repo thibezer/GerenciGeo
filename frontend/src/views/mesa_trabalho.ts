@@ -2,590 +2,17 @@ import L from 'leaflet';
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons } from '../utils';
-
+import { renderMesaTrabalho } from './mesa_trabalho_template';
+import {
+  renderLinhaPontoCartorioHtml,
+  renderLinhaPontoGeoprocessamentoHtml,
+  renderAuditoriaTranslacaoHtml,
+  renderLinhaSegmentoHtml,
+  renderHistoricoTimelineHtml
+} from './mesa_trabalho_tabela';
+import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
 export const mesaTrabalhoRoute: RouteDef = {
-  render: () => `
-    <div class="space-y-6 animate-in fade-in duration-300">
-      <!-- DETALHES DO PROJETO E TRIAGEM -->
-      <div id="painel-detalhe-projeto" class="space-y-4">
-        <!-- Cabeçalho de Ação Sticky e Condensado -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.01] border border-white/5 p-4 rounded-xl" id="mesa-trabalho-header">
-          <div class="flex items-center gap-3">
-            <button class="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1" id="btn-voltar-lista">
-              <i data-lucide="chevron-right" class="w-4 h-4 rotate-180"></i>
-              Voltar
-            </button>
-            <div>
-              <h3 class="text-xl font-bold flex items-center gap-2">
-                <span id="txt-nome-propriedade">Carregando...</span>
-                <span class="text-xs bg-mint-vibrant/20 text-mint-vibrant px-2.5 py-0.5 rounded-full font-mono uppercase" id="badge-status-lev">-</span>
-              </h3>
-              <p class="text-xs text-white/40 mt-1 dados-secundarios-cliente">
-                Cliente: <span class="text-white/60 font-medium mr-3" id="txt-nome-cliente">-</span>
-                CAR: <span class="text-white/60 font-mono" id="txt-codigo-car">-</span>
-              </p>
-            </div>
-          </div>
-          
-          <!-- Seletor de Matrículas (Abas de Triagem) -->
-          <div class="flex bg-white/5 border border-white/10 p-1 rounded-lg overflow-x-auto self-start md:self-auto" id="container-abas-matriculas">
-            <!-- Abas carregadas dinamicamente -->
-          </div>
-
-          <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
-          <div class="flex bg-white/5 border border-white/10 p-1 rounded-xl" id="container-abas-etapas">
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/20 text-mint-vibrant flex items-center justify-center gap-2" id="btn-etapa-geoprocessamento" type="button">
-              <i data-lucide="cpu" class="w-4 h-4"></i>
-              Etapa 1: Mesa Geodésica (Geoprocessamento)
-            </button>
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-cartorio" type="button">
-              <i data-lucide="database" class="w-4 h-4"></i>
-              Etapa 2: Organizador de Perímetro (Cartório)
-            </button>
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-auditoria" type="button">
-              <i data-lucide="history" class="w-4 h-4"></i>
-              Etapa 3: Histórico e Auditoria de Campo
-            </button>
-          </div>
-        </div>
-
-        <!-- Grid Superior (Mapa + Ingestão Drag-and-Drop) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="grid-superior-detalhe">
-          <!-- Coluna 1: Mapa Leaflet -->
-          <div class="glass-card h-[480px] relative overflow-hidden flex flex-col" id="container-mapa-leaflet-parent">
-            <div class="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-white/[0.02] z-[1000]">
-              <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
-              <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
-            </div>
-            <div id="mapa-triagem" class="flex-1 w-full h-full"></div>
-          </div>
-
-          <!-- Coluna 2: Ingestão Drag-and-Drop (Inicia Colapsada) -->
-          <div class="glass-card p-6 flex flex-col h-[480px] ingestao-collapsed" id="container-ingestao-arquivos">
-            <div class="flex justify-between items-center mb-4">
-              <h4 class="font-bold text-sm">Mesa de Ingestão de Arquivos</h4>
-              <div class="flex items-center gap-1.5">
-                 <button class="flex items-center gap-1 text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/40 px-2 py-1 rounded transition-all" id="btn-colapsar-ingestao" title="Recolher painel" type="button">
-                    <i data-lucide="minimize-2" class="w-3 h-3 text-red-400"></i>
-                    Recolher
-                 </button>
-                 <span class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">Drag-and-Drop</span>
-              </div>
-            </div>
-            
-            <!-- Zona Drop -->
-            <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="triagem-dropzone">
-              <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT" />
-              <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                <i data-lucide="upload" class="w-5 h-5 text-mint-vibrant"></i>
-              </div>
-              <p class="text-xs font-bold">Arraste múltiplos arquivos para triagem</p>
-              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta binários .GNS ou relatórios .TXT</p>
-            </div>
-
-            <!-- Fila de arquivos selecionados -->
-            <div class="mt-4 flex-1 overflow-y-auto space-y-2 hidden max-h-[160px]" id="triagem-fila-container">
-              <!-- Lista de arquivos com seletor -->
-            </div>
-
-            <button class="btn-primary w-full py-2.5 mt-4 text-xs font-bold hidden flex items-center justify-center gap-1.5" id="btn-processar-lote">
-              <i data-lucide="play" class="w-4 h-4"></i>
-              Processar Lote em Segundo Plano
-            </button>
-
-            <!-- Mini View (Exibida somente no estado colapsado) -->
-            <div class="mini-ingestao-view animate-in fade-in duration-300">
-               <div class="w-12 h-12 bg-mint-vibrant/10 border border-mint-vibrant/20 rounded-full flex items-center justify-center text-mint-vibrant">
-                  <i data-lucide="upload-cloud" class="w-6 h-6"></i>
-               </div>
-               <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Ingestão</span>
-               <span class="text-[8px] text-white/30 leading-snug">Clique ou arraste arquivos</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Painel Técnico e Arquivos Físicos do Workspace -->
-        <div class="glass-card p-6 space-y-6" id="painel-workspace-gnss">
-          <div class="flex justify-between items-center border-b border-white/5 pb-4 cursor-pointer select-none" id="btn-toggle-workspace-collapse">
-            <h4 class="font-bold text-sm flex items-center gap-2">
-              <i data-lucide="chevron-right" class="w-5 h-5 text-mint-vibrant transition-transform duration-200 rotate-90" id="seta-workspace-collapse"></i>
-              <i data-lucide="folder-open" class="w-5 h-5 text-mint-vibrant"></i>
-              Workspace GNSS (Repositório Físico do Windows)
-            </h4>
-            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
-               <button class="btn-secondary text-xs py-1 px-3 flex items-center gap-1 hover:border-mint-vibrant/40" id="btn-atualizar-arquivos-list">
-                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i>
-                 Atualizar Lista
-               </button>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 transition-all duration-300" id="container-workspace-arquivos">
-             <div class="text-white/20 p-8 text-center col-span-full">Carregando arquivos do Workspace...</div>
-          </div>
-        </div>
-
-        <!-- Barra de Ferramentas Técnicas -->
-        <div class="flex justify-between items-center bg-white/[0.01] border border-white/5 p-4 rounded-xl">
-          <div class="flex items-center gap-2 overflow-x-auto pr-2">
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-exportar-kml">
-              <i data-lucide="map-icon" class="w-4 h-4 text-mint-vibrant"></i>
-              Gerar KML Temporário
-            </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-consolidar-pontos-utm">
-              <i data-lucide="download" class="w-4 h-4 text-mint-vibrant"></i>
-              Consolidar Pontos UTM
-            </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-reordenar-caminhamento">
-               <i data-lucide="refresh-cw" class="w-4 h-4 text-mint-vibrant"></i>
-               Reordenar Caminhamento
-            </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20" id="btn-override-base-manual" type="button">
-                <i data-lucide="shield-alert" class="w-4 h-4"></i>
-                Override Base Manual
-             </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-gerar-requerimento-cri">
-               <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
-               Gerar Requerimento CRI
-            </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0" id="btn-arquivar-projeto-seguro">
-
-
-               <i data-lucide="trash-2" class="w-4 h-4"></i>
-               Arquivar Projeto Seguro
-            </button>
-          </div>
-          <div class="text-right shrink-0" id="container-info-matricula-ativa">
-            <span class="text-[10px] text-white/40 font-mono">MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span></span>
-          </div>
-        </div>
-
-        <!-- Tabelas Inferiores (Pontos vs Divisas) -->
-        <div class="flex flex-col lg:flex-row gap-4 relative w-full" id="container-tabelas-inferiores">
-          <!-- Tabela 1: Vértices -->
-          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-full shrink-0" id="container-tabela-vertices">
-            <div class="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center bg-white/[0.01]">
-              <div class="flex items-center gap-3">
-                <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-vertices">Vértices Geodésicos</h4>
-                <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-toggle-coordenadas" type="button">
-                  Ver em Geodésico
-                </button>
-                <button class="btn-primary text-[10px] font-bold py-1 px-3 hidden flex items-center gap-1 hover:scale-105 transition-all bg-emerald-600 border-emerald-500 hover:bg-emerald-500" id="btn-salvar-perimetro-custom" type="button">
-                  <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                  Salvar Perímetro & Recomputar
-                </button>
-              </div>
-              <div class="relative w-[180px] shrink-0" id="container-search-ponto">
-                <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
-                <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
-              </div>
-            </div>
-            <div class="flex-1 overflow-auto">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10" id="tbl-pontos-header">
-                    <th class="px-4 py-3">Vértice</th>
-                    <th class="px-4 py-3">Tipo</th>
-                    <th class="px-4 py-3 text-right">Este (E)</th>
-                    <th class="px-4 py-3 text-right">Norte (N)</th>
-                    <th class="px-4 py-3 text-right">Altitude (m)</th>
-                    <th class="px-4 py-3 text-center">Sigmas (m)</th>
-                  </tr>
-                </thead>
-                <tbody id="tbl-pontos-triagem" class="text-xs divide-y divide-white/5 font-mono text-white/60">
-                  <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tabela 2: Lateral Dinâmica (Divisas ou Auditoria de Translação) -->
-          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-full shrink-0" id="container-tabela-divisas">
-            <div class="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center bg-white/[0.01]">
-              <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
-              <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDICAO REAL-TIME</span>
-            </div>
-            <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
-                    <th class="px-4 py-3">Ponto A</th>
-                    <th class="px-4 py-3">Ponto B</th>
-                    <th class="px-4 py-3">Confrontante</th>
-                    <th class="px-4 py-3">Tipo Limite</th>
-                    <th class="px-4 py-3">Método SIGEF</th>
-                  </tr>
-                </thead>
-                <tbody id="tbl-segmentos-triagem" class="text-xs divide-y divide-white/5 text-white/60">
-                  <tr>
-                    <td colspan="5" class="px-4 py-8 text-center text-white/30">Nenhum segmento atrelado a esta matrícula.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- Etapa 3: Histórico e Auditoria de Campo (V2.4) -->
-        <div class="glass-card p-6 hidden flex flex-col space-y-6" id="container-etapa-auditoria-campo">
-          <div class="flex justify-between items-center border-b border-white/5 pb-4">
-            <div>
-              <h4 class="font-bold text-sm flex items-center gap-2">
-                <i data-lucide="history" class="w-5 h-5 text-mint-vibrant"></i>
-                Linha do Tempo e Auditoria de Campo
-              </h4>
-              <p class="text-xs text-white/40 mt-1">Histórico completo e imutável de translações, edições, importações e exclusões no levantamento.</p>
-            </div>
-            <button class="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5" id="btn-atualizar-historico-campo" type="button">
-              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-              Atualizar Histórico
-            </button>
-          </div>
-          <div class="overflow-y-auto max-h-[500px] pr-2 space-y-4" id="timeline-historico-campo">
-            <!-- Timeline de auditoria inserida aqui dinamicamente -->
-          </div>
-        </div>
-      </div>
-
-      <!-- MENU DE CONTEXTO FLUTUANTE (BOTÃO DIREITO) -->
-      <div id="menu-contexto-ponto" class="menu-contexto-flutuante hidden">
-         <button class="menu-contexto-item" id="menu-ctx-editar" type="button">
-            <i data-lucide="edit-3" class="w-4 h-4 text-mint-vibrant"></i>
-            Editar Vértice
-         </button>
-         <button class="menu-contexto-item item-excluir text-red-400" id="menu-ctx-excluir" type="button">
-            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i>
-            Excluir Vértice
-         </button>
-      </div>
-
-      <!-- MODAL DE CONTROLE TOTAL E EDIÇÃO DE PONTO -->
-      <div id="modal-editar-ponto" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
-         <div class="glass-card w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02] shrink-0">
-               <h3 class="text-base font-bold flex items-center gap-2">
-                  <i data-lucide="crosshair" class="w-5 h-5 text-mint-vibrant"></i>
-                  Controle Individual de Vértice: <span id="modal-pt-titulo-nome" class="text-mint-vibrant">-</span>
-               </h3>
-               <button class="text-white/40 hover:text-white" id="btn-fechar-modal-pt" type="button">
-                  <i data-lucide="x" class="w-5 h-5"></i>
-               </button>
-            </div>
-            
-            <form id="form-editar-ponto" class="flex-1 overflow-y-auto p-6 space-y-6">
-               <input type="hidden" id="input-pt-id" />
-               
-               <!-- 1. DADOS ORIGINAIS DE INGESTÃO (SOMENTE LEITURA) -->
-               <div class="bg-forest-deep/60 border border-white/5 rounded-xl p-4 space-y-2">
-                  <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                     <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Dados Originais de Ingestão (Auditável)</span>
-                     <span class="text-[9px] font-mono bg-white/5 px-2 py-0.5 rounded text-white/40" id="txt-pt-arquivo-origem">Rinex: -</span>
-                  </div>
-                  <div class="grid grid-cols-3 gap-4 text-xs font-mono">
-                     <div>
-                        <span class="block text-[9px] text-white/30 uppercase">Este (E) Original</span>
-                        <span class="text-white font-medium" id="txt-pt-e-orig">-</span>
-                     </div>
-                     <div>
-                        <span class="block text-[9px] text-white/30 uppercase">Norte (N) Original</span>
-                        <span class="text-white font-medium" id="txt-pt-n-orig">-</span>
-                     </div>
-                     <div>
-                        <span class="block text-[9px] text-white/30 uppercase">Altitude Original</span>
-                        <span class="text-white font-medium" id="txt-pt-alt-orig">-</span>
-                     </div>
-                  </div>
-               </div>
-
-               <!-- 2. IDENTIFICAÇÃO E PARÂMETROS EDITÁVEIS -->
-               <div class="grid grid-cols-2 gap-4">
-                  <div>
-                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nome do Vértice *</label>
-                     <input type="text" id="input-pt-nome" required class="glass-input w-full text-xs font-mono" placeholder="Ex: P001" />
-                  </div>
-                  <div>
-                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Tipo de Ponto *</label>
-                     <select id="select-pt-tipo" required class="glass-input w-full text-xs">
-                        <option value="M">Marco de Apoio / Base (M)</option>
-                        <option value="P">Rover Estático / Rover RTK (P)</option>
-                        <option value="V">Virtual (V)</option>
-                     </select>
-                  </div>
-               </div>
-
-               <div class="grid grid-cols-3 gap-4">
-                  <div>
-                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Status do Ponto *</label>
-                     <select id="select-pt-status" required class="glass-input w-full text-xs">
-                        <option value="BRUTO">Bruto</option>
-                        <option value="CORRIGIDO">Corrigido</option>
-                     </select>
-                  </div>
-                  <div>
-                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Método SIGEF *</label>
-                     <select id="select-pt-metodo" required class="glass-input w-full text-xs">
-                        <option value="PG1">RTK Relativo (PG1)</option>
-                        <option value="MC1">Estático (MC1)</option>
-                        <option value="MC2">Estático Rápido (MC2)</option>
-                        <option value="PG2">RTK Wms/Ntrip (PG2)</option>
-                     </select>
-                  </div>
-                  <div>
-                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Base de Campo</label>
-                     <select id="select-pt-base" class="glass-input w-full text-xs">
-                        <option value="">[Sem Base Apoio]</option>
-                        <!-- Carregado dinamicamente -->
-                     </select>
-                  </div>
-               </div>
-
-               <!-- 3. COORDENADAS ATUAIS CORRIGIDAS -->
-               <div class="space-y-3" id="section-pt-ajustadas-geo">
-                  <span class="block text-[10px] font-bold text-white/40 uppercase tracking-wider border-b border-white/5 pb-1">Coordenadas Ajustadas (SIRGAS 2000)</span>
-                  
-                  <div class="grid grid-cols-3 gap-4">
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Latitude (Dec)</label>
-                        <input type="number" step="any" id="input-pt-lat" class="glass-input w-full text-xs font-mono" placeholder="-23.123456789" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Longitude (Dec)</label>
-                        <input type="number" step="any" id="input-pt-lon" class="glass-input w-full text-xs font-mono" placeholder="-53.123456789" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Altitude H (m)</label>
-                        <input type="number" step="any" id="input-pt-alt" class="glass-input w-full text-xs font-mono" placeholder="320.456" />
-                     </div>
-                  </div>
-
-                  <!-- 4. INCERTEZAS / PRECISION SIGMAS (± METROS) -->
-                  <div class="grid grid-cols-3 gap-4 pt-2">
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Incerteza Lat (Sigma ± m)</label>
-                        <input type="number" step="any" id="input-pt-sigma-lat" class="glass-input w-full text-xs font-mono" placeholder="0.0050" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Incerteza Lon (Sigma ± m)</label>
-                        <input type="number" step="any" id="input-pt-sigma-lon" class="glass-input w-full text-xs font-mono" placeholder="0.0050" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Incerteza Alt (Sigma ± m)</label>
-                        <input type="number" step="any" id="input-pt-sigma-alt" class="glass-input w-full text-xs font-mono" placeholder="0.0100" />
-                     </div>
-                  </div>
-               </div>
-
-               <!-- 3.1. COORDENADAS OFICIAIS DE CONTROLE DA BASE (EXCLUSIVO TIPO 'M') -->
-               <div class="space-y-3 hidden" id="section-pt-base-controle">
-                  <span class="block text-[10px] font-bold text-mint-vibrant uppercase tracking-wider border-b border-mint-vibrant/20 pb-1">Coordenadas Oficiais do Ponto de Controle (Base Corrigida)</span>
-                  
-                  <div class="grid grid-cols-3 gap-4">
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Norte Corrigido (m) *</label>
-                        <input type="number" step="any" id="input-pt-n-corr-base" class="glass-input w-full text-xs font-mono" placeholder="7432100.123" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Este Corrigido (m) *</label>
-                        <input type="number" step="any" id="input-pt-e-corr-base" class="glass-input w-full text-xs font-mono" placeholder="345600.456" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Alt Corrigida H (m) *</label>
-                        <input type="number" step="0.001" id="input-pt-alt-corr-base" class="glass-input w-full text-xs font-mono" placeholder="320.123" />
-                     </div>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-4">
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Fuso UTM *</label>
-                        <select id="select-pt-fuso-base" class="glass-input w-full text-xs">
-                           <option value="21S">21S (EPSG:31981)</option>
-                           <option value="22S" selected>22S (EPSG:31982)</option>
-                           <option value="23S">23S (EPSG:31983)</option>
-                           <option value="24S">24S (EPSG:31984)</option>
-                        </select>
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Hemisfério</label>
-                        <input type="text" value="Sul (SIRGAS 2000)" readonly disabled class="glass-input w-full text-xs opacity-50 cursor-not-allowed" />
-                     </div>
-                  </div>
-
-                  <!-- PAINEL DE FEEDBACK DE DELTA EM TEMPO REAL -->
-                  <div class="bg-[#0c1510]/60 border border-mint-vibrant/20 rounded-technical p-4 mt-2">
-                     <span class="block text-[9px] font-bold text-mint-vibrant uppercase tracking-wider mb-2">Vetor de Translação do Lote (Tempo Real)</span>
-                     <div class="grid grid-cols-4 gap-3 text-center text-xs font-mono">
-                        <div class="bg-white/[0.02] border border-white/5 p-2 rounded">
-                           <span class="block text-[8px] text-white/30 uppercase">dN (Norte)</span>
-                           <span class="text-white font-bold text-xs" id="lbl-pt-dn-base">-</span>
-                        </div>
-                        <div class="bg-white/[0.02] border border-white/5 p-2 rounded">
-                           <span class="block text-[8px] text-white/30 uppercase">dE (Este)</span>
-                           <span class="text-white font-bold text-xs" id="lbl-pt-de-base">-</span>
-                        </div>
-                        <div class="bg-white/[0.02] border border-white/5 p-2 rounded">
-                           <span class="block text-[8px] text-white/30 uppercase">dH (Alt)</span>
-                           <span class="text-white font-bold text-xs" id="lbl-pt-dh-base">-</span>
-                        </div>
-                        <div class="bg-mint-vibrant/10 border border-mint-vibrant/20 p-2 rounded">
-                           <span class="block text-[8px] text-mint-vibrant/60 uppercase font-bold">d3D (Total)</span>
-                           <span class="text-mint-vibrant font-bold text-xs" id="lbl-pt-d3d-base">-</span>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-
-               <!-- RODAPÉ AÇÕES -->
-               <div class="flex justify-between items-center pt-5 border-t border-white/5 shrink-0">
-                  <button type="button" class="px-4 py-2 rounded-technical bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all" id="btn-excluir-ponto-modal">
-                     <i data-lucide="trash-2" class="w-4 h-4"></i>
-                     Excluir Vértice
-                  </button>
-                  <div class="flex gap-3">
-                     <button type="button" class="btn-secondary text-xs" id="btn-cancelar-pt">Cancelar</button>
-                     <button type="submit" class="btn-primary text-xs" id="btn-salvar-pt">Aplicar Alterações</button>
-                  </div>
-               </div>
-            </form>
-         </div>
-      </div>
-      
-      <!-- MODAL OVERRIDE MANUAL DE BASE (V.L.A.E.G. CONTINGENCIAL) -->
-      <div id="modal-override-base" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
-         <div class="glass-card w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh]">
-            <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02] shrink-0">
-               <h3 class="text-base font-bold flex items-center gap-2">
-                  <i data-lucide="shield-alert" class="w-5 h-5 text-mint-vibrant"></i>
-                  Override de Coordenadas de Base (V.L.A.E.G. Contingencial)
-               </h3>
-               <button class="text-white/40 hover:text-white" id="btn-fechar-modal-override" type="button">
-                  <i data-lucide="x" class="w-5 h-5"></i>
-               </button>
-            </div>
-            
-            <form id="form-override-base" class="flex-1 overflow-y-auto p-6 space-y-6">
-               <!-- Seletor de Lote/Arquivo de Origem -->
-               <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Selecione o Lote de Campo (Arquivo Origem) *</label>
-                  <select id="select-override-arquivo" required class="glass-input w-full text-xs font-mono">
-                     <!-- Preenchido dinamicamente com arquivos do levantamento -->
-                  </select>
-               </div>
-
-               <!-- Nome do Vértice Base -->
-               <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nome do Vértice Base no Campo *</label>
-                  <input type="text" id="input-override-nome-base" required class="glass-input w-full text-xs font-mono uppercase text-mint-vibrant bg-white/5 border border-white/10" placeholder="Ex: M-0100 ou BASE-01" value="BASE-MANUAL" />
-               </div>
-
-               <!-- Bloco A: Coordenadas Brutas de Campo -->
-               <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4 space-y-3">
-                  <span class="block text-[10px] font-bold text-white/50 uppercase tracking-wider border-b border-white/5 pb-1">Bloco A: Coordenadas Brutas de Campo (Base Bruta)</span>
-                  <div class="grid grid-cols-3 gap-4">
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Norte Bruto (m) *</label>
-                        <input type="number" step="0.001" id="input-override-n-bruto" required class="glass-input w-full text-xs font-mono" placeholder="7432100.123" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Este Bruto (m) *</label>
-                        <input type="number" step="0.001" id="input-override-e-bruto" required class="glass-input w-full text-xs font-mono" placeholder="345600.456" />
-                     </div>
-                     <div>
-                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Alt Bruta (H - m) *</label>
-                        <input type="number" step="0.001" id="input-override-alt-bruta" required class="glass-input w-full text-xs font-mono" placeholder="320.123" />
-                     </div>
-                  </div>
-               </div>
-
-               <!-- Bloco B: Coordenadas Homologadas/Corrigidas -->
-               <div class="bg-[#0c1510]/40 border border-white/5 rounded-xl p-4 space-y-3">
-                  <div class="flex justify-between items-center border-b border-white/5 pb-1">
-                     <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Bloco B: Coordenadas Oficiais (Base Corrigida)</span>
-                     <div class="flex gap-2">
-                        <button type="button" id="tab-override-geodesica" class="px-2 py-0.5 text-[9px] font-bold rounded bg-mint-vibrant text-forest-deep border border-mint-vibrant/20 transition-all">Geodésica</button>
-                        <button type="button" id="tab-override-plana" class="px-2 py-0.5 text-[9px] font-bold rounded bg-white/5 text-white/60 border border-white/10 hover:text-white transition-all">Plana UTM</button>
-                     </div>
-                  </div>
-
-                  <!-- Campos Geodésicos -->
-                  <div id="panel-override-geodesico" class="space-y-3">
-                     <div class="grid grid-cols-3 gap-4">
-                        <div>
-                           <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Latitude (Dec) *</label>
-                           <input type="number" step="0.0000000001" id="input-override-lat-corr" class="glass-input w-full text-xs font-mono" placeholder="-23.12345678" />
-                        </div>
-                        <div>
-                           <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Longitude (Dec) *</label>
-                           <input type="number" step="0.0000000001" id="input-override-lon-corr" class="glass-input w-full text-xs font-mono" placeholder="-53.12345678" />
-                        </div>
-                        <div>
-                           <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Altitude H (m) *</label>
-                           <input type="number" step="0.001" id="input-override-alt-corr-geo" class="glass-input w-full text-xs font-mono" placeholder="320.123" />
-                        </div>
-                      </div>
-                      
-                      <!-- Incertezas Geodésicas -->
-                      <div class="grid grid-cols-3 gap-4 pt-1">
-                         <div>
-                            <label class="block text-[8px] text-white/30 uppercase mb-0.5">Sigma Lat (m)</label>
-                            <input type="number" step="0.0001" id="input-override-sig-lat" class="glass-input w-full text-[11px] font-mono" value="0.0050" />
-                         </div>
-                         <div>
-                            <label class="block text-[8px] text-white/30 uppercase mb-0.5">Sigma Lon (m)</label>
-                            <input type="number" step="0.0001" id="input-override-sig-lon" class="glass-input w-full text-[11px] font-mono" value="0.0050" />
-                         </div>
-                         <div>
-                            <label class="block text-[8px] text-white/30 uppercase mb-0.5">Sigma Alt (m)</label>
-                            <input type="number" step="0.0001" id="input-override-sig-alt-geo" class="glass-input w-full text-[11px] font-mono" value="0.0100" />
-                         </div>
-                      </div>
-                   </div>
-
-                   <!-- Campos Planos UTM -->
-                   <div id="panel-override-plana" class="space-y-3 hidden">
-                      <div class="grid grid-cols-3 gap-4">
-                         <div>
-                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Norte Corrigido (m) *</label>
-                            <input type="number" step="0.001" id="input-override-n-corr" class="glass-input w-full text-xs font-mono" placeholder="7432101.450" />
-                         </div>
-                         <div>
-                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Este Corrigido (m) *</label>
-                            <input type="number" step="0.001" id="input-override-e-corr" class="glass-input w-full text-xs font-mono" placeholder="345601.890" />
-                         </div>
-                         <div>
-                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Altitude H (m) *</label>
-                            <input type="number" step="0.001" id="input-override-alt-corr-plana" class="glass-input w-full text-xs font-mono" placeholder="320.123" />
-                         </div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-4">
-                         <div>
-                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Fuso UTM (Zona) *</label>
-                            <select id="select-override-fuso" class="glass-input w-full text-xs">
-                               <option value="21S">21S (EPSG:31981)</option>
-                               <option value="22S" selected>22S (EPSG:31982)</option>
-                               <option value="23S">23S (EPSG:31983)</option>
-                               <option value="24S">24S (EPSG:31984)</option>
-                            </select>
-                         </div>
-                         <div>
-                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Hemisfério</label>
-                            <input type="text" value="Sul" readonly disabled class="glass-input w-full text-xs opacity-50 cursor-not-allowed" />
-                         </div>
-                      </div>
-                   </div>
-                </div>
-
-                <!-- Botões do Form -->
-                <div class="flex justify-end gap-3 pt-4 border-t border-white/5">
-                   <button type="button" class="btn-secondary text-xs" id="btn-cancelar-override">Cancelar</button>
-                   <button type="submit" class="btn-primary text-xs" id="btn-submit-override">Aplicar Correção Reativa</button>
-                </div>
-             </form>
-          </div>
-       </div>
-    </div>
-  `,
+  render: () => renderMesaTrabalho(),
   setup: () => {
     let currentLevId: number | null = null;
     let currentMatriculaId: number | null = null;
@@ -594,13 +21,12 @@ export const mesaTrabalhoRoute: RouteDef = {
     let pontosList: any[] = [];
     let segmentosList: any[] = [];
     let confrontantesList: any[] = [];
-    
-    let markersList: L.Marker[] = [];
-    let polylineList: L.Polyline[] = [];
     let triagemMap: L.Map | null = null;
+    const mapaController = new MesaTrabalhoMapa();
     let filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[] = [];
     let modoCoordenadas = 'utm'; // Padrão AutoCAD UTM Default (Diretriz V2.3)
     let etapaAtiva = 'geoprocessamento'; // 'geoprocessamento' ou 'cartorio' (Isolação de Telas)
+    let modoReordenarAtivo = false;
     
     let selectedPontoIds: number[] = [];
     let lastSelectedPontoId: number | null = null;
@@ -706,41 +132,24 @@ export const mesaTrabalhoRoute: RouteDef = {
     };
 
     const atualizarPolilinhaMapaTemp = () => {
-      if (!triagemMap || !currentMatriculaId) return;
-
-      const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+      if (!triagemMap) return;
+      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
       
-      polylineList.forEach(pl => triagemMap!.removeLayer(pl));
-      polylineList = [];
-
-      const validPoints = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0);
-      if (validPoints.length < 2) return;
-
-      for (let i = 0; i < validPoints.length - 1; i++) {
-        const pIni = validPoints[i];
-        const pFim = validPoints[i+1];
-        const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
-          color: '#10b981', 
-          weight: 4
-        }).addTo(triagemMap!);
-        polylineList.push(polyline);
-      }
-
-      const pLast = validPoints[validPoints.length - 1];
-      const pFirst = validPoints[0];
-      const polylineClose = L.polyline([[pLast.lat, pLast.lon], [pFirst.lat, pFirst.lon]], {
-        color: '#10b981',
-        weight: 4,
-        dashArray: '4, 4'
-      }).addTo(triagemMap!);
-      polylineList.push(polylineClose);
+      const pontosMat = etapaAtiva === 'geoprocessamento'
+         ? pontosList.filter(p => p.matricula_id === null)
+         : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+         
+      mapaController.clearOverlays();
+      mapaController.plotPolilinhaTemporaria(pontosMat);
     };
 
     const subirPonto = (pontoId: number) => {
-      if (!currentMatriculaId) return;
+      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
       
-      const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
+      const pontosMat = etapaAtiva === 'geoprocessamento'
+         ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
+         : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+         
       pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
       
       const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -764,9 +173,12 @@ export const mesaTrabalhoRoute: RouteDef = {
     };
 
     const descerPonto = (pontoId: number) => {
-      if (!currentMatriculaId) return;
+      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
       
-      const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
+      const pontosMat = etapaAtiva === 'geoprocessamento'
+         ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
+         : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+         
       pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
       
       const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -789,43 +201,122 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
-    const initTriagemMap = () => {
+    const renderListaReordenarSimplificada = () => {
+      const container = document.getElementById('lista-reordenar-simplificada');
+      if (!container) return;
+
+      const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+
+      if (pontosMat.length === 0) {
+        container.innerHTML = `<div class="text-white/20 p-8 text-center">Nenhum ponto para ordenar.</div>`;
+        return;
+      }
+
+      container.innerHTML = pontosMat.map((p, idx) => `
+        <div class="flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded-technical text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] bg-mint-vibrant/25 text-mint-vibrant font-bold px-2 py-0.5 rounded">${idx + 1}</span>
+            <span class="font-bold text-white">${p.nome_vertice}</span>
+            <span class="text-[9px] text-white/30">(${p.tipo_ponto || p.tipo})</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="btn-subir-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
+              <i data-lucide="chevron-up" class="w-4 h-4"></i>
+            </button>
+            <button class="btn-descer-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.btn-subir-simplificado').forEach(b => {
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pId = parseInt(b.getAttribute('data-ponto-id') || '0');
+          subirPontoSimplificado(pId);
+        });
+      });
+
+      container.querySelectorAll('.btn-descer-simplificado').forEach(b => {
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pId = parseInt(b.getAttribute('data-ponto-id') || '0');
+          descerPontoSimplificado(pId);
+        });
+      });
+
+      initIcons();
+    };
+
+    const subirPontoSimplificado = (pontoId: number) => {
+      const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+      
+      const idx = pontosMat.findIndex(p => p.id === pontoId);
+      if (idx > 0) {
+        const p1 = pontosMat[idx];
+        const p2 = pontosMat[idx - 1];
+        
+        const tempOrdem = p1.ordem_caminhamento || idx + 1;
+        p1.ordem_caminhamento = p2.ordem_caminhamento || idx;
+        p2.ordem_caminhamento = tempOrdem;
+
+        renderListaReordenarSimplificada();
+        atualizarPolilinhaMapaTemp();
+      }
+    };
+
+    const descerPontoSimplificado = (pontoId: number) => {
+      const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+      
+      const idx = pontosMat.findIndex(p => p.id === pontoId);
+      if (idx !== -1 && idx < pontosMat.length - 1) {
+        const p1 = pontosMat[idx];
+        const p2 = pontosMat[idx + 1];
+        
+        const tempOrdem = p1.ordem_caminhamento || idx + 1;
+        p1.ordem_caminhamento = p2.ordem_caminhamento || idx + 2;
+        p2.ordem_caminhamento = tempOrdem;
+
+        renderListaReordenarSimplificada();
+        atualizarPolilinhaMapaTemp();
+      }
+    };
+
+    const alternarModoReordenarManual = (ativo: boolean) => {
+      modoReordenarAtivo = ativo;
+      const btnAtivar = document.getElementById('btn-ativar-reordenacao');
+      const containerIngestao = document.getElementById('container-ingestao-arquivos');
+      const containerReordenar = document.getElementById('container-reordenar-manual');
+
+      if (ativo) {
+        if (btnAtivar) {
+          btnAtivar.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
+          btnAtivar.classList.add('border-mint-vibrant/40');
+        }
+        if (containerIngestao) containerIngestao.classList.add('hidden');
+        if (containerReordenar) containerReordenar.classList.remove('hidden');
+        renderListaReordenarSimplificada();
+      } else {
+        if (btnAtivar) {
+          btnAtivar.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
+          btnAtivar.classList.remove('border-mint-vibrant/40');
+        }
+        if (containerIngestao) containerIngestao.classList.remove('hidden');
+        if (containerReordenar) containerReordenar.classList.add('hidden');
+        loadLevantamentoDetails();
+      }
+
       if (triagemMap) {
-        triagemMap.remove();
-        triagemMap = null;
+        setTimeout(() => triagemMap!.invalidateSize(), 150);
       }
+    };
 
-      const mapContainer = document.getElementById('mapa-triagem');
-      if (!mapContainer) return;
-
-      triagemMap = L.map('mapa-triagem').setView([-23.7661, -53.3204], 14);
-
-      // Google Satélite Pane
-      const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-        maxZoom: 20,
-        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-        attribution: 'Google Maps'
-      }).addTo(triagemMap);
-
-      // SIGEF Pane
-      triagemMap.createPane('overlayPane');
-      const overlayPane = triagemMap.getPane('overlayPane');
-      if (overlayPane) {
-        overlayPane.style.zIndex = '650';
-        overlayPane.style.pointerEvents = 'none';
-      }
-
-      const sigef = L.tileLayer.wms('https://acervofundiario.incra.gov.br/i3geo/ogc.php', {
-        layers: 'certificada_sigef_particular_pr',
-        format: 'image/png',
-        transparent: true,
-        version: '1.1.1',
-        pane: 'overlayPane',
-        attribution: 'INCRA/SIGEF',
-        className: 'sigef-wms-layer'
-      }).addTo(triagemMap);
-
-      L.control.layers({ "Satélite Google": googleSat }, { "Imóveis SIGEF (PR)": sigef }, { collapsed: true }).addTo(triagemMap);
+    const initTriagemMap = () => {
+      triagemMap = mapaController.init('mapa-triagem');
     };
 
     const loadLevantamentoDetails = async () => {
@@ -1178,58 +669,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           return;
         }
 
-        timeline.innerHTML = logs.map((log: any) => {
-          let icone = 'info';
-          let corIcone = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-          
-          if (log.tipo_evento === 'IMPORTACAO_TXT') {
-            icone = 'file-up';
-            corIcone = 'text-mint-vibrant bg-mint-vibrant/10 border-mint-vibrant/20';
-          } else if (log.tipo_evento === 'EXCLUSAO_PONTO') {
-            icone = 'trash-2';
-            corIcone = 'text-red-400 bg-red-500/10 border-red-500/20';
-          } else if (log.tipo_evento === 'CORRECAO_TRANSLACAO') {
-            icone = 'refresh-cw';
-            corIcone = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-          } else if (log.tipo_evento === 'EDICAO_METODO') {
-            icone = 'edit-3';
-            corIcone = 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-          } else if (log.tipo_evento === 'ALTERACAO_BASE') {
-            icone = 'link-2';
-            corIcone = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
-          } else if (log.tipo_evento === 'CORRECAO_PONTO') {
-            icone = 'crosshair';
-            corIcone = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-          }
-
-          const dataFormatada = new Date(log.timestamp).toLocaleString('pt-BR');
-          let extraDetailsHtml = '';
-          
-          if (log.dados_detalhados && Object.keys(log.dados_detalhados).length > 0) {
-             extraDetailsHtml = `
-               <details class="mt-2 text-[10px] text-white/40 cursor-pointer outline-none">
-                 <summary class="hover:text-white/60 select-none font-medium">Ver detalhes estruturados</summary>
-                 <pre class="mt-1 p-2 bg-[#0c1510]/80 border border-white/5 rounded text-[10px] text-mint-vibrant/80 font-mono overflow-x-auto max-w-full">${JSON.stringify(log.dados_detalhados, null, 2)}</pre>
-               </details>
-             `;
-          }
-
-          return `
-            <div class="flex items-start gap-4 p-4 border border-white/5 bg-white/[0.01] hover:bg-white/[0.02] rounded-technical transition-colors group">
-              <div class="w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${corIcone} transition-transform group-hover:scale-105">
-                <i data-lucide="${icone}" class="w-4 h-4"></i>
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex justify-between items-start gap-2">
-                  <span class="text-[10px] font-bold tracking-wider uppercase text-white/30 font-mono">${log.tipo_evento}</span>
-                  <span class="text-[9px] text-white/30 font-mono">${dataFormatada}</span>
-                </div>
-                <h5 class="text-xs font-bold text-white mt-1 leading-relaxed">${log.descricao}</h5>
-                ${extraDetailsHtml}
-              </div>
-            </div>
-          `;
-        }).join('');
+        timeline.innerHTML = logs.map((log: any) => renderHistoricoTimelineHtml(log)).join('');
         
         initIcons();
       } catch (err) {
@@ -1243,7 +683,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       let pontosMat = etapaAtiva === 'geoprocessamento'
          ? [...pontosList]
-         : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+         : pontosList.filter(p => p.matricula_id === currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
 
       if (searchFilterValue) {
          pontosMat = pontosMat.filter(p => 
@@ -1275,71 +715,18 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       if (triagemMap) {
-        markersList.forEach(m => triagemMap!.removeLayer(m));
-        markersList = [];
-        polylineList.forEach(pl => triagemMap!.removeLayer(pl));
-        polylineList = [];
-
-        pontosMat.forEach(p => {
-          if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0) {
-             const markerHtml = `
-               <div class="w-5 h-5 bg-mint-vibrant border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold text-[#0c1510] font-mono shadow-lg transition-transform hover:scale-125" id="map-marker-${p.id}">
-                 ${p.nome_vertice.substring(0, 3)}
-               </div>
-             `;
-             const customIcon = L.divIcon({
-               html: markerHtml,
-               className: 'custom-leaflet-marker',
-               iconSize: [20, 20]
-             });
-
-             const marker = L.marker([p.lat, p.lon], { icon: customIcon })
-               .bindPopup(`
-                 <div class="font-sans">
-                   <p class="font-bold text-sm text-[#0c1510]">Vértice ${p.nome_vertice}</p>
-                   <p class="text-xs text-gray-600 mt-0.5">Tipo: ${p.tipo_ponto || p.tipo}</p>
-                   <p class="text-xs text-gray-500 font-mono mt-1">Lat: ${p.lat.toFixed(6)}</p>
-                   <p class="text-xs text-gray-500 font-mono">Lon: ${p.lon.toFixed(6)}</p>
-                 </div>
-               `)
-               .addTo(triagemMap!);
-
-             marker.on('click', () => {
-               selectPontoFromTabela(p.id);
-             });
-
-             (marker as any).pontoId = p.id;
-             markersList.push(marker);
-          }
+        mapaController.clearOverlays();
+        mapaController.plotPontos(pontosMat, (pId) => {
+           selectPontoFromTabela(pId);
         });
-
-        segmentosMat.forEach(s => {
-          const pIni = pontosMat.find(p => p.id === s.ponto_inicio_id);
-          const pFim = pontosMat.find(p => p.id === s.ponto_fim_id);
-
-          if (pIni && pFim && pIni.lat && pIni.lon && pFim.lat && pFim.lon) {
-              const color = s.tipo_limite_sigef === 'LA1' ? '#10b981' : '#3b82f6';
-              const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
-                color: color,
-                weight: 4,
-                dashArray: s.tipo_limite_sigef === 'LN1' ? '6, 6' : undefined
-              }).bindPopup(`
-                <div class="font-sans">
-                  <p class="font-bold text-xs text-[#0c1510]">Segmento ${pIni.nome_vertice} ↔ ${pFim.nome_vertice}</p>
-                  <p class="text-xs text-gray-600">Limite: ${s.tipo_limite_sigef}</p>
-                  <p class="text-xs text-gray-500">Método: ${s.metodo_posicionamento_sigef}</p>
-                </div>
-              `).addTo(triagemMap!);
-
-              polylineList.push(polyline);
-          }
-        });
-
-        const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map(p => L.latLng(p.lat, p.lon));
-        if (validCoords.length > 0) {
-          const bounds = L.latLngBounds(validCoords);
-          triagemMap.fitBounds(bounds, { padding: [40, 40] });
+        
+        if (etapaAtiva !== 'geoprocessamento') {
+           mapaController.plotSegmentos(segmentosMat, pontosList);
+        } else {
+           mapaController.plotPolilinhaTemporaria(pontosMat);
         }
+        
+        mapaController.fitBounds(pontosMat);
       }
 
       const tblHeader = document.getElementById('tbl-pontos-header');
@@ -1448,223 +835,12 @@ export const mesaTrabalhoRoute: RouteDef = {
           });
           
           listPt.innerHTML = pontosMat.map((p, idx) => {
-            let col1 = '-';
-            let col2 = '-';
-            let col3 = '-';
-            
-            if (modoCoordenadas === 'geodesico') {
-               col1 = p.lat ? p.lat.toFixed(8) : '-';
-               col2 = p.lon ? p.lon.toFixed(8) : '-';
-               col3 = p.alt ? p.alt.toFixed(3) : '-';
-            } else {
-               if (p.e_corrigido !== undefined && p.e_corrigido !== null && p.n_corrigido !== undefined && p.n_corrigido !== null) {
-                  col1 = p.e_corrigido.toFixed(3);
-                  col2 = p.n_corrigido.toFixed(3);
-                  col3 = p.alt ? p.alt.toFixed(3) : (p.alt_original ? p.alt_original.toFixed(3) : '-');
-               } else if (p.e_original && p.n_original) {
-                  if (p.lat && p.lon) {
-                     const utm = latLonToUTM(p.lat, p.lon);
-                     col1 = utm.e.toFixed(3);
-                     col2 = utm.n.toFixed(3);
-                  } else {
-                     col1 = p.e_original.toFixed(3);
-                     col2 = p.n_original.toFixed(3);
-                  }
-                  col3 = p.alt ? p.alt.toFixed(3) : (p.alt_original ? p.alt_original.toFixed(3) : '-');
-               } else if (p.lat && p.lon) {
-                  const utm = latLonToUTM(p.lat, p.lon);
-                  col1 = utm.e.toFixed(3);
-                  col2 = utm.n.toFixed(3);
-                  col3 = p.alt ? p.alt.toFixed(3) : '-';
-               }
-            }
-
-            const isBase = p.tipo_ponto === 'M' || p.tipo === 'M';
-
-            if (etapaAtiva === 'cartorio') {
-               const isSelected = selectedPontoIds.includes(p.id);
-               const selectionClass = isSelected 
-                  ? 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/30' 
-                  : (isBase 
-                     ? 'bg-indigo-600/10 hover:bg-indigo-600/15 border-b border-indigo-500/20 text-indigo-100 font-semibold' 
-                     : 'hover:bg-white/[0.02] border-b border-white/5');
-               
-               return `
-                 <tr class="linha-ponto-tbl cursor-pointer transition-colors border-b ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-                   <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1.5 h-full">
-                     <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || (idx + 1)}</span>
-                     <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-                       <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-                     </button>
-                     <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-                       <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                     </button>
-                   </td>
-                   <td class="px-4 py-3 font-bold text-white flex items-center gap-1">${isBase ? '<span class="text-indigo-400 mr-1" title="Ponto de Controle / Base">📡</span>' : ''}${p.nome_vertice}</td>
-                   <td class="px-4 py-3 text-center font-bold text-mint-vibrant/80">${p.tipo_ponto || p.tipo || '-'}</td>
-                   <td class="px-4 py-3 text-right">${col1}</td>
-                   <td class="px-4 py-3 text-right">${col2}</td>
-                   <td class="px-4 py-3 text-right">${col3}</td>
-                 </tr>
-               `;
-            } else {
-               const status = p.status_correcao || 'BRUTO';
-               const isBruto = status === 'BRUTO';
-               
-               let deltaN = 0.0;
-               let deltaE = 0.0;
-               let deltaH = 0.0;
-               let corrE = '-';
-               let corrN = '-';
-               let corrH = p.alt ? p.alt.toFixed(3) : '-';
-               
-               if (p.e_corrigido !== undefined && p.e_corrigido !== null && p.n_corrigido !== undefined && p.n_corrigido !== null) {
-                  corrE = p.e_corrigido.toFixed(3);
-                  corrN = p.n_corrigido.toFixed(3);
-                  
-                  if (p.e_original && p.n_original) {
-                     deltaN = (p.n_corrigido - p.n_original) * 1000;
-                     deltaE = (p.e_corrigido - p.e_original) * 1000;
-                     deltaH = ((p.alt || 0) - (p.alt_original || 0)) * 1000;
-                  }
-               } else if (p.lat && p.lon) {
-                  const utmCorr = latLonToUTM(p.lat, p.lon);
-                  corrE = utmCorr.e.toFixed(3);
-                  corrN = utmCorr.n.toFixed(3);
-                  
-                  if (p.e_original && p.n_original) {
-                     deltaN = (utmCorr.n - p.n_original) * 1000;
-                     deltaE = (utmCorr.e - p.e_original) * 1000;
-                     deltaH = ((p.alt || 0) - (p.alt_original || 0)) * 1000;
-                  }
-               }
-
-                              // Override delta with exact base delta if this is a corrected point in a lot
-                if (!isBruto) {
-                   let basePoint: any = null;
-                   if (isBase) {
-                      basePoint = p;
-                   } else if (p.ponto_base_id) {
-                      basePoint = pontosList.find((x: any) => x.id === p.ponto_base_id);
-                   }
-                   if (!basePoint && p.arquivo_origem) {
-                      basePoint = pontosList.find((x: any) => 
-                         (x.tipo_ponto === 'M' || x.tipo === 'M') && 
-                         x.arquivo_origem === p.arquivo_origem
-                      );
-                   }
-                   if (basePoint) {
-                      let baseN_original = basePoint.n_original;
-                      let baseE_original = basePoint.e_original;
-                      let baseAlt_original = basePoint.alt_original;
-                      
-                      if (!baseN_original && basePoint.lat_original && basePoint.lon_original) {
-                         const utmOrig = latLonToUTM(basePoint.lat_original, basePoint.lon_original);
-                         baseN_original = utmOrig.n;
-                         baseE_original = utmOrig.e;
-                      }
-                      
-                      let baseN_corr = basePoint.n_corrigido;
-                      let baseE_corr = basePoint.e_corrigido;
-                      
-                      if (!baseN_corr && basePoint.lat && basePoint.lon) {
-                         const utmCorr = latLonToUTM(basePoint.lat, basePoint.lon);
-                         baseN_corr = utmCorr.n;
-                         baseE_corr = utmCorr.e;
-                      }
-                      
-                      if (baseN_corr !== undefined && baseN_corr !== null && baseE_corr !== undefined && baseE_corr !== null && baseN_original && baseE_original) {
-                         deltaN = (baseN_corr - baseN_original) * 1000;
-                         deltaE = (baseE_corr - baseE_original) * 1000;
-                         deltaH = ((basePoint.alt || 0) - (baseAlt_original || 0)) * 1000;
-                      }
-                   }
-                }
-
-                const norteBruto = p.n_original ? p.n_original.toFixed(3) : '-';
-               const esteBruto = p.e_original ? p.e_original.toFixed(3) : '-';
-               const altBruto = p.alt_original ? p.alt_original.toFixed(3) : '-';
-               
-               const dNText = isBruto ? '0.0' : (deltaN >= 0 ? '+' + deltaN.toFixed(1) : deltaN.toFixed(1));
-               const dEText = isBruto ? '0.0' : (deltaE >= 0 ? '+' + deltaE.toFixed(1) : deltaE.toFixed(1));
-               const dHText = isBruto ? '0.0' : (deltaH >= 0 ? '+' + deltaH.toFixed(1) : deltaH.toFixed(1));
-               
-               const statusTag = isBruto
-                  ? '<span class="text-[9px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-0.5 rounded-full font-bold font-mono">BRUTO</span>'
-                  : '<span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 px-2 py-0.5 rounded-full font-bold font-mono">CORRIGIDO</span>';
-                  
-               const rowBgClass = isBase 
-                  ? 'bg-indigo-600/10 hover:bg-indigo-600/15 border-b border-indigo-500/20 text-indigo-100/90 font-semibold' 
-                  : (isBruto 
-                     ? 'bg-yellow-500/5 hover:bg-yellow-500/10 border-b border-yellow-500/10 text-yellow-100/90' 
-                     : 'hover:bg-white/[0.02] border-b border-white/5 text-white/90');
-                  
-               const isSelected = selectedPontoIds.includes(p.id);
-               const selectionClass = isSelected ? 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/30' : '';
-               
-               const ignorar = p.ignorar_poligono || 0;
-               const isPoligono = ignorar === 0;
-               
-               const checkboxPoligono = `
-                  <input type="checkbox" ${isPoligono ? 'checked' : ''} class="chk-ignorar-poligono rounded border-white/20 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/40 w-3.5 h-3.5 transition-all cursor-pointer" data-ponto-id="${p.id}" />
-               `;
-               
-               if (modoCoordenadas === 'geodesico') {
-                  const latBruta = p.lat_original ? p.lat_original.toFixed(8) : '-';
-                  const lonBruta = p.lon_original ? p.lon_original.toFixed(8) : '-';
-                  const latCorr = p.lat ? p.lat.toFixed(8) : '-';
-                  const lonCorr = p.lon ? p.lon.toFixed(8) : '-';
-                  
-                  return `
-                    <tr class="linha-ponto-tbl cursor-pointer transition-colors ${rowBgClass} ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-                      <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1 h-full">
-                        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || '-'}</span>
-                        <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-                          <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-                        </button>
-                        <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-                          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                        </button>
-                      </td>
-                      <td class="px-4 py-2.5 font-bold flex items-center gap-1">${isBase ? '<span class="text-indigo-400 mr-1" title="Ponto de Controle / Base">📡</span>' : ''}${p.nome_vertice}</td>
-                      <td class="px-2 py-2.5 text-center font-bold text-mint-vibrant/80">${p.tipo_ponto || p.tipo || '-'}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px]">${latBruta}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px]">${lonBruta}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] text-mint-vibrant/90">${latCorr}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] text-mint-vibrant/90">${lonCorr}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px]">${altBruto}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] text-mint-vibrant/90">${corrH}</td>
-                      <td class="px-2 py-2.5 text-center" onclick="event.stopPropagation()">${checkboxPoligono}</td>
-                      <td class="px-4 py-2.5 text-center">${statusTag}</td>
-                    </tr>
-                  `;
-               } else {
-                  return `
-                    <tr class="linha-ponto-tbl cursor-pointer transition-colors ${rowBgClass} ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-                      <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1 h-full">
-                        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || '-'}</span>
-                        <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-                          <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-                        </button>
-                        <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-                          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                        </button>
-                      </td>
-                      <td class="px-4 py-2.5 font-bold flex items-center gap-1">${isBase ? '<span class="text-indigo-400 mr-1" title="Ponto de Controle / Base">📡</span>' : ''}${p.nome_vertice}</td>
-                      <td class="px-2 py-2.5 text-center font-bold text-mint-vibrant/80">${p.tipo_ponto || p.tipo || '-'}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px]">${norteBruto}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px]">${esteBruto}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] text-mint-vibrant/90">${corrN}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] text-mint-vibrant/90">${corrE}</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] font-bold ${isBruto ? 'text-white/30' : (deltaN !== 0 ? 'text-blue-400' : 'text-white/40')}">${dNText}mm</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] font-bold ${isBruto ? 'text-white/30' : (deltaE !== 0 ? 'text-blue-400' : 'text-white/40')}">${dEText}mm</td>
-                      <td class="px-4 py-2.5 text-right font-mono text-[11px] font-bold ${isBruto ? 'text-white/30' : (deltaH !== 0 ? 'text-blue-400' : 'text-white/40')}">${dHText}mm</td>
-                      <td class="px-2 py-2.5 text-center" onclick="event.stopPropagation()">${checkboxPoligono}</td>
-                      <td class="px-4 py-2.5 text-center">${statusTag}</td>
-                    </tr>
-                  `;
-               }
-            }
+             const isSelected = selectedPontoIds.includes(p.id);
+             if (etapaAtiva === 'cartorio') {
+                return renderLinhaPontoCartorioHtml(p, idx, modoCoordenadas, isSelected, latLonToUTM);
+             } else {
+                return renderLinhaPontoGeoprocessamentoHtml(p, idx, modoCoordenadas, selectedPontoIds, latLonToUTM);
+             }
           }).join('');
 
           document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
@@ -1760,63 +936,7 @@ export const mesaTrabalhoRoute: RouteDef = {
                  </table>
                `;
             } else {
-               const auditoriaHtml = pontosMat.map(p => {
-                  let originalE = '-';
-                  let originalN = '-';
-                  let corrE = '-';
-                  let corrN = '-';
-                  
-                  let devE = '0.0';
-                  let devN = '0.0';
-                  let devH = '0.0';
-
-                  if (p.e_corrigido !== undefined && p.e_corrigido !== null && p.n_corrigido !== undefined && p.n_corrigido !== null) {
-                     corrE = p.e_corrigido.toFixed(3);
-                     corrN = p.n_corrigido.toFixed(3);
-
-                     if (p.e_original && p.n_original) {
-                        originalE = p.e_original.toFixed(3);
-                        originalN = p.n_original.toFixed(3);
-
-                        const dE = (p.e_corrigido - p.e_original) * 1000;
-                        const dN = (p.n_corrigido - p.n_original) * 1000;
-                        const dH = ((p.alt || 0) - (p.alt_original || 0)) * 1000;
-
-                        devE = dE >= 0 ? '+' + dE.toFixed(1) : dE.toFixed(1);
-                        devN = dN >= 0 ? '+' + dN.toFixed(1) : dN.toFixed(1);
-                        devH = dH >= 0 ? '+' + dH.toFixed(1) : dH.toFixed(1);
-                     }
-                  } else if (p.lat && p.lon) {
-                     const utmCorr = latLonToUTM(p.lat, p.lon);
-                     corrE = utmCorr.e.toFixed(3);
-                     corrN = utmCorr.n.toFixed(3);
-
-                     if (p.e_original && p.n_original) {
-                        originalE = p.e_original.toFixed(3);
-                        originalN = p.n_original.toFixed(3);
-
-                        const dE = (utmCorr.e - p.e_original) * 1000;
-                        const dN = (utmCorr.n - p.n_original) * 1000;
-                        const dH = ((p.alt || 0) - (p.alt_original || 0)) * 1000;
-
-                        devE = dE >= 0 ? '+' + dE.toFixed(1) : dE.toFixed(1);
-                        devN = dN >= 0 ? '+' + dN.toFixed(1) : dN.toFixed(1);
-                        devH = dH >= 0 ? '+' + dH.toFixed(1) : dH.toFixed(1);
-                     }
-                  }
-
-                  return `
-                    <tr class="hover:bg-white/[0.01] border-b border-white/5 font-mono text-[11px]">
-                      <td class="px-4 py-2 font-bold text-white">${p.nome_vertice}</td>
-                      <td class="px-2 py-2 text-right text-white/40">${originalE}<br/><span class="text-[9px]">${originalN}</span></td>
-                      <td class="px-2 py-2 text-right text-mint-vibrant/90">${corrE}<br/><span class="text-[9px] text-mint-vibrant/70">${corrN}</span></td>
-                      <td class="px-2 py-2 text-right font-bold ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'}">${devE}mm</td>
-                      <td class="px-2 py-2 text-right font-bold ${parseFloat(devN) === 0 ? 'text-white/30' : 'text-blue-400'}">${devN}mm</td>
-                      <td class="px-2 py-2 text-right font-bold ${parseFloat(devH) === 0 ? 'text-white/30' : 'text-blue-400'}">${devH}mm</td>
-                    </tr>
-                  `;
-               }).join('');
-
+               const auditoriaHtml = pontosMat.map(p => renderAuditoriaTranslacaoHtml(p, latLonToUTM)).join('');
                containerLateral.innerHTML = `
                  <table class="w-full text-left border-collapse">
                    <thead>
@@ -1845,52 +965,7 @@ export const mesaTrabalhoRoute: RouteDef = {
                  </table>
                `;
             } else {
-               const segmentosHtml = segmentosMat.map(s => {
-                  const pIni = pontosList.find(p => p.id === s.ponto_inicio_id);
-                  const pFim = pontosList.find(p => p.id === s.ponto_fim_id);
-
-                  const confOptions = confrontantesList.map(c => `
-                    <option value="${c.id}" ${c.id === s.confrontante_id ? 'selected' : ''}>${c.nome}</option>
-                  `);
-                  confOptions.unshift(`<option value="" ${!s.confrontante_id ? 'selected' : ''}>[Sem Confrontante]</option>`);
-
-                  const limiteOptions = [
-                    { val: 'LN1', txt: 'Cerca (LN1)' },
-                    { val: 'LA1', txt: 'Muro/Parede (LA1)' },
-                    { val: 'LI1', txt: 'Córrego/Vala (LI1)' },
-                    { val: 'LI2', txt: 'Estrada (LI2)' }
-                  ].map(o => `<option value="${o.val}" ${o.val === s.tipo_limite_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
-
-                  const metodoOptions = [
-                    { val: 'PG1', txt: 'RTK Relativo (PG1)' },
-                    { val: 'MC1', txt: 'Estático (MC1)' },
-                    { val: 'MC2', txt: 'Estático Rápido (MC2)' },
-                    { val: 'PG2', txt: 'RTK Wms/Ntrip (PG2)' }
-                  ].map(o => `<option value="${o.val}" ${o.val === s.metodo_posicionamento_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
-
-                  return `
-                    <tr class="linha-segmento-tbl hover:bg-white/[0.01] border-b border-white/5" data-seg-id="${s.id}">
-                      <td class="px-4 py-2.5 font-bold font-mono text-white">${pIni ? pIni.nome_vertice : '??'}</td>
-                      <td class="px-4 py-2.5 font-bold font-mono text-white">${pFim ? pFim.nome_vertice : '??'}</td>
-                      <td class="px-4 py-2.5">
-                        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-conf w-full" data-seg-id="${s.id}">
-                          ${confOptions.join('')}
-                        </select>
-                      </td>
-                      <td class="px-4 py-2.5">
-                        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-limite w-full" data-seg-id="${s.id}">
-                          ${limiteOptions}
-                        </select>
-                      </td>
-                      <td class="px-4 py-2.5">
-                        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-metodo w-full" data-seg-id="${s.id}">
-                          ${metodoOptions}
-                        </select>
-                      </td>
-                    </tr>
-                  `;
-               }).join('');
-
+               const segmentosHtml = segmentosMat.map(s => renderLinhaSegmentoHtml(s, confrontantesList, pontosList)).join('');
                containerLateral.innerHTML = `
                  <table class="w-full text-left border-collapse">
                    <thead>
@@ -2007,12 +1082,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     const selectPontoFromTabela = (pId: number) => {
       highlightTabelaLinha(pId);
-
-      const marker = markersList.find(m => (m as any).pontoId === pId);
-      if (marker && triagemMap) {
-        triagemMap.setView(marker.getLatLng(), 18);
-        marker.openPopup();
-      }
+      mapaController.selectPonto(pId);
     };
 
     const updateSegmentoInline = async (segId: number, partialData: any) => {
@@ -2323,19 +1393,29 @@ export const mesaTrabalhoRoute: RouteDef = {
     });
 
     document.getElementById('btn-reordenar-caminhamento')?.addEventListener('click', async () => {
-       if (!currentLevId || !currentMatriculaId) {
+       if (!currentLevId) return;
+       if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) {
           alert("Selecione uma matrícula ativa antes de ordenar!");
           return;
        }
-       if (!confirm("Tem certeza que deseja reordenar as divisas desta matrícula de modo que o caminhamento comece no ponto mais ao norte (sentido horário)? As qualificações de confrontantes e limites serão preservadas.")) return;
+       
+       const msgConfirm = etapaAtiva === 'geoprocessamento'
+          ? "Tem certeza que deseja reordenar os pontos avulsos deste levantamento de modo que o caminhamento comece no ponto mais ao norte (sentido horário)?"
+          : "Tem certeza que deseja reordenar as divisas desta matrícula de modo que o caminhamento comece no ponto mais ao norte (sentido horário)? As qualificações de confrontantes e limites serão preservadas.";
+          
+       if (!confirm(msgConfirm)) return;
        
        try {
-          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/reordenar`, { method: 'POST' });
+          const url = etapaAtiva === 'geoprocessamento'
+             ? `${API_BASE}/levantamentos/${currentLevId}/reordenar`
+             : `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/reordenar`;
+             
+          const res = await fetch(url, { method: 'POST' });
           const data = await res.json();
-          if (data.error) {
-             alert(data.error);
+          if (data.error || data.detail) {
+             alert(data.error || data.detail);
           } else {
-             alert(data.mensagem);
+             alert(data.mensagem || "Pontos reordenados com sucesso!");
              loadLevantamentoDetails();
           }
        } catch(e) {
@@ -2400,12 +1480,16 @@ export const mesaTrabalhoRoute: RouteDef = {
     });
 
     document.getElementById('btn-salvar-perimetro-custom')?.addEventListener('click', async () => {
-       if (!currentLevId || !currentMatriculaId) {
+       if (!currentLevId) return;
+       if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) {
           alert("Nenhuma matrícula selecionada para salvar!");
           return;
        }
 
-       const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
+       const pontosMat = etapaAtiva === 'geoprocessamento'
+          ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
+          : pontosList.filter(p => p.matricula_id === currentMatriculaId);
+          
        if (pontosMat.length === 0) {
           alert("Nenhum ponto para salvar!");
           return;
@@ -2420,17 +1504,22 @@ export const mesaTrabalhoRoute: RouteDef = {
        };
 
        try {
-          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/salvar-ordem`, {
+          const url = etapaAtiva === 'geoprocessamento'
+             ? `${API_BASE}/levantamentos/${currentLevId}/salvar-ordem`
+             : `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/salvar-ordem`;
+
+          const res = await fetch(url, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify(payload)
           });
           const data = await res.json();
-          if (data.sucesso) {
-             alert(data.mensagem);
+          if (data.sucesso || data.success) {
+             alert(data.mensagem || "Ordem salva com sucesso!");
              const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
              if (btnSalvar) {
                 btnSalvar.classList.remove('animate-pulse');
+                btnSalvar.classList.add('hidden');
              }
              loadLevantamentoDetails();
           } else {
@@ -2595,7 +1684,13 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const selectBase = document.getElementById('select-pt-base') as HTMLSelectElement;
       if (selectBase) {
-         const basesDoLev = pontosList.filter(x => x.tipo_ponto === 'M' && x.id !== pId);
+         const basesDoLev = pontosList.filter(x => {
+            if (pt.tipo_ponto === 'B') {
+               return x.tipo_ponto === 'M' && x.id !== pId;
+            } else {
+               return (x.tipo_ponto === 'M' || x.tipo_ponto === 'B') && x.id !== pId;
+            }
+         });
          
          let baseOptionsHtml = '<option value="">[Sem Base Apoio]</option>';
          baseOptionsHtml += basesDoLev.map(b => `<option value="${b.id}" ${b.id === pt.ponto_base_id ? 'selected' : ''}>Base: ${b.nome_vertice}</option>`).join('');
@@ -2644,7 +1739,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       const alternarVisualizacaoSeçãoBase = () => {
          const tipo = (document.getElementById('select-pt-tipo') as HTMLSelectElement).value;
          const sectionGeo = document.getElementById('section-pt-ajustadas-geo');
-         if (tipo === 'M' && sectionBaseControle && inputNBase && inputEBase && inputAltBase && selectFusoBase) {
+         if ((tipo === 'M' || tipo === 'B') && sectionBaseControle && inputNBase && inputEBase && inputAltBase && selectFusoBase) {
             sectionBaseControle.classList.remove('hidden');
             if (sectionGeo) sectionGeo.classList.add('hidden');
             
@@ -2801,7 +1896,7 @@ export const mesaTrabalhoRoute: RouteDef = {
          sigma_alt
       };
 
-      if (tipo_ponto === 'M') {
+      if (tipo_ponto === 'M' || tipo_ponto === 'B') {
          const nCorr = parseFloat((document.getElementById('input-pt-n-corr-base') as HTMLInputElement).value);
          const eCorr = parseFloat((document.getElementById('input-pt-e-corr-base') as HTMLInputElement).value);
          const altCorr = parseFloat((document.getElementById('input-pt-alt-corr-base') as HTMLInputElement).value);
@@ -3060,9 +2155,56 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
      };
 
-inicializarWorkspaceCollapse();
+      const inicializarEventosReordenarManual = () => {
+        document.getElementById('btn-ativar-reordenacao')?.addEventListener('click', () => {
+          alternarModoReordenarManual(!modoReordenarAtivo);
+        });
+
+        document.getElementById('btn-fechar-reordenar')?.addEventListener('click', () => {
+          alternarModoReordenarManual(false);
+        });
+
+        document.getElementById('btn-salvar-ordem-simplificada')?.addEventListener('click', async () => {
+          if (!currentLevId) return;
+          const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+          
+          if (pontosMat.length === 0) {
+            alert("Nenhum ponto para salvar!");
+            return;
+          }
+
+          pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+          const payload = {
+            pontos_ordem: pontosMat.map((p, idx) => ({
+              id: p.id,
+              ordem: idx + 1
+            }))
+          };
+
+          try {
+            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/salvar-ordem`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.sucesso || data.success) {
+              alert(data.mensagem || "Ordem de caminhamento salva com sucesso!");
+              alternarModoReordenarManual(false);
+            } else {
+              alert(`Erro ao salvar ordem: ${data.mensagem || 'Falha no backend'}`);
+            }
+          } catch (err) {
+            console.error("Erro ao salvar ordem perimetral:", err);
+            alert("Falha de conexão com o servidor.");
+          }
+        });
+      };
+
      loadLevantamentoDetails();
      inicializarMenuContextoEPontoModal();
+     inicializarEventosReordenarManual();
+     inicializarWorkspaceCollapse();
      inicializarBuscaPonto();
      inicializarScrollCollapseHeader();
      inicializarIngestaoCollapse();

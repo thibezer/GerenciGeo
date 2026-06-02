@@ -42,23 +42,17 @@ class TxtGeodesicParser:
         """
         Varre o levantamento no banco para encontrar a coordenada corrigida da base.
         Se base_id for fornecido, busca especificamente aquela base por ID.
-        Caso contrário, faz o fallback para buscar a primeira base ativa do tipo 'M' no levantamento.
+        Se base_id for None, não tentará adivinhar (retorna None).
         """
-        if base_id:
-            query = """
-                SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
-                FROM pontos 
-                WHERE id = ? AND lat IS NOT NULL AND lat != 0.0
-            """
-            params = (base_id,)
-        else:
-            query = """
-                SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
-                FROM pontos 
-                WHERE levantamento_id = ? AND tipo_ponto = 'M' AND lat IS NOT NULL AND lat != 0.0 
-                LIMIT 1
-            """
-            params = (self.levantamento_id,)
+        if not base_id:
+            return None
+            
+        query = """
+            SELECT id, nome_vertice, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt
+            FROM pontos 
+            WHERE id = ? AND lat IS NOT NULL AND lat != 0.0
+        """
+        params = (base_id,)
             
         try:
             row = execute_query(query, params=params, fetch_one=True)
@@ -197,9 +191,25 @@ class TxtGeodesicParser:
                 logger.warning("[PARSER] AVISO: Arquivo no layout RTK mas sem ponto de amarração correspondente à base escolhida. A translação não será aplicada.")
 
         # 4. Translação e Conversão Reversa em Lote
+        # Determina a ordem inicial dinâmica incremental (evitando duplicidades de ordem perimetral)
+        ordem_inicial = 1
+        if self.matricula_id:
+            query_max = "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?"
+            params_max = (self.levantamento_id, self.matricula_id)
+        else:
+            query_max = "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ?"
+            params_max = (self.levantamento_id,)
+            
+        try:
+            row_max = execute_query(query_max, params=params_max, fetch_one=True)
+            if row_max and row_max["max_ord"] is not None:
+                ordem_inicial = row_max["max_ord"] + 1
+        except Exception as e_max:
+            logger.warning(f"[PARSER] Erro ao buscar ordem máxima no banco: {e_max}")
+            
+        ordem = ordem_inicial
         pontos_processados = []
         vertices_vistos = set()
-        ordem = 1
         import math
 
         # Incertezas da Base PPP para propagação

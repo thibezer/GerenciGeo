@@ -215,12 +215,20 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
             cursor = conn.cursor()
             
             # A. Atualiza a ordem_caminhamento de cada ponto de forma atômica
+            if matricula_id is None or matricula_id == 0:
+                query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id IS NULL"
+                params_base = lambda o, pid: (o, pid, levantamento_id)
+            else:
+                query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id = ?"
+                params_base = lambda o, pid: (o, pid, levantamento_id, matricula_id)
+
             for item in pontos_ordem:
-                cursor.execute(
-                    "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id = ?",
-                    (item.get("ordem"), item.get("id"), levantamento_id, matricula_id)
-                )
+                cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
             
+            if matricula_id is None or matricula_id == 0:
+                conn.commit()
+                return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem dos pontos avulsos salva com sucesso."}
+
             # B. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
             cursor.execute(
                 "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
@@ -413,7 +421,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         
         tipo_atual = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
         
-        if tipo_atual == 'M' and n_corr is not None and e_corr is not None and alt_corr is not None:
+        if (tipo_atual == 'M' or tipo_atual == 'B') and n_corr is not None and e_corr is not None and alt_corr is not None:
             # 1. Caso o ponto base possua arquivo_origem (Lote de RTK / Caderneta importada)
             if pt_antigo.get("arquivo_origem"):
                 from business.geoprocessamento import aplicar_correcao_manual_lote
@@ -457,11 +465,11 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 data["status_ponto"] = "CORRIGIDO"
                 data["status_correcao"] = "CORRIGIDO"
 
-        # A.1. Atualiza Tipo de Ponto ('M', 'P', 'V')
+        # A.1. Atualiza Tipo de Ponto ('M', 'P', 'V', 'B')
         tipo_ponto = data.get("tipo_ponto")
         if tipo_ponto is not None and tipo_ponto != pt_antigo["tipo_ponto"]:
-            if tipo_ponto not in ['M', 'P', 'V']:
-                return {"error": "Tipo de ponto inválido. Deve ser 'M', 'P' ou 'V'.", "status_code": 400}
+            if tipo_ponto not in ['M', 'P', 'V', 'B']:
+                return {"error": "Tipo de ponto inválido. Deve ser 'M', 'P', 'V' ou 'B'.", "status_code": 400}
                 
             # Verifica restrição de unicidade
             exists = execute_query(
@@ -474,8 +482,8 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 
             execute_query("UPDATE pontos SET tipo_ponto = ? WHERE id = ?", params=(tipo_ponto, pid), commit=True)
             
-            # Se mudou para M (Base), limpa ponto_base_id pois bases não se amarram a outras bases
-            if tipo_ponto == 'M':
+            # Se mudou para M ou B (Base), limpa ponto_base_id pois bases não se amarram a outras bases
+            if tipo_ponto in ['M', 'B']:
                 execute_query("UPDATE pontos SET ponto_base_id = NULL WHERE id = ?", params=(pid,), commit=True)
                 pt_antigo["ponto_base_id"] = None
                 

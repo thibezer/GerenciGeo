@@ -499,54 +499,14 @@ Devido à alta complexidade matemática, física e instrumental do motor geodés
 > 
 > 👉 **[gerencigeo_georreferenciamento.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/gerencigeo_georreferenciamento.md)**
 
-
-
 ### 4.7 Especificações Visuais dos Módulos Auxiliares (UI/UX)
 
-A operação diária e o controle administrativo do sistema ocorrem através de uma interface web de alto padrão visual, baseada em Glassmorphism, carregamentos reativos e desacoplamento radical de views no frontend:
+> [!IMPORTANT]
+> **Especificações de UI/UX, Design e Modularização:**
+> Para conferir o detalhamento completo sobre o Layout Principal Headerless (`principal.html`), o Módulo de Levantamentos (`levantamentos.ts`), o Módulo de Mesa de Trabalho (`mesa_trabalho.ts`), a Mesa de Ingestão Dinâmica, o cabeçalho sticky condensado a 5px e a **Modularização Arquitetural em Submódulos (V2.5)**, consulte o arquivo de georreferenciamento dedicado:
+> 
+> 👉 **[gerencigeo_georreferenciamento.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/gerencigeo_georreferenciamento.md)**
 
-#### Layout Global e Arquitetura do Painel Principal (principal.html)
-- **Estruturação Física em Português (`principal.html`):** Para maior clareza e manutenção imediata no repositório, o arquivo de layout real do sistema foi nomeado como `principal.html`. O arquivo inicial `index.html` atua estritamente como um redirecionador invisível e instantâneo via tags `<meta refresh>` e scripts de redirecionamento, mantendo compatibilidade nativa com o servidor de desenvolvimento do Vite.
-- **Remoção Completa do Cabeçalho Superior (Headerless Experience):** O antigo `<header>` que exibia o breadcrumb e a barra de status do sistema foi fisicamente desativado e removido. Isso gerou um ganho de 64px verticais que foram integralmente devolvidos à área útil do aplicativo (especialmente benéfico para a visualização dos mapas Leaflet e as tabelas na mesa de trabalho).
-- **Roteamento Desacoplado Robustecido (`main.ts`):** O método de roteamento `navigate` no frontend foi reconfigurado para tratar o elemento de breadcrumb de forma opcional (`if (breadcrumbCurrent)`), evitando quebras na execução das views na ausência física do cabeçalho.
-- **Barra Lateral Ultra-Compacta (`aside#sidebar`):**
-  - **Modo Aberto:** Largura reduzida de `w-64` (256px) para `w-56` (224px).
-  - **Modo Colapsado:** Largura de repouso reduzida de `76px` para `60px` com paddings laterais ajustados de `12px` para `8px` (`p-4` a `px-2`).
-  - **Alinhamento Simétrico:** Todos os ícones e elementos como o logo, avatares (`AD`) e o botão de engrenagem de configurações são perfeitamente centralizados a 60px de largura.
-- **Aproveitamento de Área Útil:** O padding geral do contêiner flexível principal `#view-container` foi reduzido de `p-8` para `p-6`, aumentando expressivamente a área livre para visualização de dados nas laterais e topo.
-
-#### A. Módulo de Levantamentos (levantamentos.ts)
-- **Painel de Campanhas:** Acessado clicando em **"Levantamentos"** no menu principal. Apresenta controles de visualização híbridos e uma barra de busca dinâmica unificada.
-- **Alternador de Modos de Visualização (Grid/List Toggle):** Permite ao usuário alternar a renderização da tela em tempo real por meio de botões estilizados de layout, persistindo a escolha do operador de forma permanente no `localStorage` do navegador:
-  - **Visualização em Cards (Modo Grid Redesenhado & Ultra-Compacto):**
-    - Padding geral otimizado e reduzido de `p-6` para `p-4` para máxima economia de espaço vertical.
-    - Remove a tag nominal de ID (`LEV_ID`).
-    - Posiciona o Título da Fazenda e o Badge de Status alinhados de forma flexível no topo superior do cartão.
-    - O badge de status exibe o texto sanitizado substituindo o caractere `_` por espaço (ex: `'EM ANDAMENTO'`).
-    - **Barra de Metadados Condensada:** Exibe de forma agrupada na mesma linha horizontal (flex entre extremidades) a **Data de Início** (ao lado de um ícone de calendário) e as **Estatísticas Rápidas de Vértices** (Pts/Divisas), economizando linhas e espaços valiosos na vertical.
-    - **Bloco Estruturado de Dados Físicos:** O rodapé do card expõe o **CAR**, o **CCIR** e o **MUNICÍPIO / UF** em linhas próprias e exclusivas com espaçamento super compacto (`space-y-0.5`), resolvendo qualquer truncagem e facilitando a leitura direta sem sobreposição.
-    - **Botões e Margens Compactas:** Margem superior e interna do rodapé reduzidas (`mt-3.5 pt-2.5`) para compactar o card na altura sem perder o design moderno de vidro.
-  - **Visualização em Tabela (Modo Lista Windows Explorer):**
-    - Renderiza uma grade de alto padrão estético inspirada no design clássico do Windows Explorer.
-    - Exibe as colunas: **Nome / Localidade**, **Status**, **Data de início**, **Proprietários** e **Tamanho / Medições**, com ações rápidas de auditoria, edição e exclusão.
-    - Renderiza ícones de pastas em tom âmbar premium para cada levantamento da tabela.
-    - O clique funcional no nome da propriedade aciona diretamente a rota de auditoria de campo.
-  - **Lógica Invariante de Eventos (Resolução de Travamentos):**
-    - O gerenciamento de ações de clique (Auditoria, Edição e Exclusão) adota **Delegação de Eventos Centralizada** diretamente na propriedade `onclick` do contêiner estático pai `#grid-projetos` usando `closest()`. Isso previne o travamento e a perda crônica de ouvintes (listeners) que ocorria devido à re-renderização dinâmica da lista de projetos durante buscas e alternâncias de layout.
-- **Painel de Ações de Status (Travas de Segurança):** Na tela de detalhes do levantamento, o operador conta com botões para transicionar o status. Mudar o status para `'ARQUIVADO'` aplica a trava visual e de banco (Read-Only Lock).
-
-#### A1. Módulo de Mesa de Trabalho e Triagem Geodésica (mesa_trabalho.ts)
-- **Isolação e Ocultação Absoluta de Matrículas na Etapa 1 (Mesa Geodésica):** A Etapa 1 processa os dados de campo em lote completo (Base e Rovers) sem segregação jurídica. Por isso, ao alternar para a Etapa 1 (`geoprocessamento`), o painel de abas de matrícula (`#container-abas-matriculas`) e o indicador de matrícula ativa no rodapé técnico (`#container-info-matricula-ativa`) são **totalmente ocultados**. As matrículas e suas divisas perimetrais se tornam visíveis estritamente na Etapa 2 (`cartorio`) para a montagem de confrontações.
-- **Efeito Sticky Header Condensado no Scroll (Cabeçalho Reativo de 5px):**
-  - O cabeçalho de ação principal `#mesa-trabalho-header` é fixado no topo (`position: sticky; top: 0; z-index: 45`) com fundo desfocado translúcido (`backdrop-filter: blur(12px)`).
-  - Ao rolar a tela principal para baixo (`scrollTop > 40`), uma escuta de evento de scroll no contêiner principal `#view-container` aplica a classe `.header-condensed`.
-  - **Compactação Extrema de 5px:** No estado condensado, o cabeçalho tem seu padding reduzido para `4px 12px !important` e aplica um `gap: 6px !important`, encolhendo também o botão Voltar (`#btn-voltar-lista` recebe padding `4px 8px` e ícone menor) para preservar espaço. O cabeçalho é deslocado para `top: -19px !important` para compensar exatamente os `24px` de padding do container `#view-container`, encostando a exatos **5px da borda física superior** da tela. Os metadados secundários de Proprietário/CAR/CCIR são ocultados, o título do levantamento e badges de status são encolhidos suavemente em pixels, e a **barra de seleção de etapas se comprime**, exibindo **apenas os ícones** do Lucide (definindo `font-size: 0`), e migra de sua posição inferior horizontal para se acomodar discretamente na ponta direita superior do cabeçalho condensado (no espaço livre da matrícula). Ao retornar ao topo, o cabeçalho se expande com todos os textos longos e metadados.
-- **Mesa de Ingestão e Área de Mapa Vertical Ampliada (480px):**
-  - O contêiner de visualização espacial (`#container-mapa-leaflet-parent`) e o contêiner de ingestão (`#container-ingestao-arquivos`), juntamente com a regra estrutural do grid superior (`#grid-superior-detalhe`), são configurados com uma **altura física ampliada de 480px** (um ganho de 60px na vertical) para melhor visualização cartográfica e análise de auditoria.
-  - Por padrão, a ingestão inicia no estado **colapsado (`.ingestao-collapsed`)**, medindo apenas `130px` de largura e exibindo uma mini view limpa de upload de arquivos.
-  - Isso permite que o contêiner do mapa Leaflet (`#container-mapa-leaflet-parent`) se expanda horizontalmente e ocupe todo o restante da tela útil disponível no grid.
-  - O operador pode expandir a Ingestão clicando sobre ela ou simplesmente **arrastando um arquivo sobre sua área (dragover/dragenter)**. O card de ingestão se expande suavemente com transição de 300ms, disparando reativamente `triagemMap.invalidateSize()` após 310ms para reajustar a viewport geométrica do mapa perfeitamente.
-  - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado em vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
 
 #### B. Módulo de Faixa de Fronteira (fronteira.ts)
 - **Acesso:** Pela tela de controle de faixa de fronteira e emissão de laudos.

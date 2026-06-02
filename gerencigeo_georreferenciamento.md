@@ -219,22 +219,65 @@ Para evitar o erro clássico de plotação onde a esteira do receptor de campo �
    $$MC_{\text{Derivado}} = (\text{Fuso Derivado} \times 6) - 183$$
 4. O sistema cruza este fuso derivado com o fuso geográfico padrão local configurado no projeto (Zone 22S / MC 51 W). Se houver divergência (ex: a fazenda está localizada na Zona 21S mas o projeto está setado na Zona 22S), o Action Center emite um alerta de integridade crítico com o ícone de bússola (`compass`):
    `"Levantamento [ID]: Fuso UTM derivado (21 - MC 57 W) difere do fuso configurado no HGO (22 - MC 51 W)."`
-
-### B. Outros Alertas Cobertos pelo Action Center
 *   **QC do Arquivo (< 50KB):** Alerta crítico se houver arquivos de rinex com tamanho abaixo de 50KB ou falhas de processamento registradas.
 *   **Fluxo Incompleto (Rinex sem PPP):** Alerta se houver vértice importado com arquivo RINEX associado na tabela `pontos` mas cuja coluna `arquivo_resultado_ppp` estiver nula (processamento pendente).
 *   **Divisa sem Confrontante:** Alerta se houver segmentos na matrícula sem confrontante (vizinho) atrelado.
 *   **Ponto Órfão:** Alerta se houver pontos cadastrados no levantamento que não foram incluídos em nenhuma divisa ou segmento de caminhamento (vértices soltos no mapa).
 *   **Arquivos Brutos Pendentes:** Alerta se existirem arquivos binários `.GNS` em `/Brutos` que ainda não possuam arquivo correspondente convertido em `/Rinex` (indicativo de que a esteira precisa ser acionada).
 
----
-
 ## 8. Interface Visual e Controle na UI
 
-A gestão e visualização do georreferenciamento avançado ocorrem de forma integrada no frontend Web através do arquivo principal **`frontend/src/views/mesa_trabalho.ts`** e telas auxiliares **`ppp.ts`** e **`hgo.ts`**.
+A operação diária, a gestão e a visualização do georreferenciamento avançado ocorrem de forma integrada no frontend Web através de uma interface de alto padrão baseada em Glassmorphism, carregamentos reativos e desacoplamento radical de views.
 
-### A. Mesa de Trabalho de Georreferenciamento
-Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/mesa-trabalho`), é a central de comando da engenharia fundiária:
+### A. Layout Global e Arquitetura do Painel Principal (principal.html)
+- **Estruturação Física em Português (`principal.html`):** Para maior clareza e manutenção imediata no repositório, o arquivo de layout real do sistema foi nomeado como `principal.html`. O arquivo inicial `index.html` atua estritamente como um redirecionador invisível e instantâneo via tags `<meta refresh>` e scripts de redirecionamento, mantendo compatibilidade nativa com o servidor de desenvolvimento do Vite.
+- **Remoção Completa do Cabeçalho Superior (Headerless Experience):** O antigo `<header>` que exibia o breadcrumb e a barra de status do sistema foi fisicamente desativado e removido. Isso gerou um ganho de 64px verticais que foram integralmente devolvidos à área útil do aplicativo (especialmente benéfico para a visualização dos mapas Leaflet e as tabelas na mesa de trabalho).
+- **Roteamento Desacoplado Robustecido (`main.ts`):** O método de roteamento `navigate` no frontend foi reconfigurado para tratar o elemento de breadcrumb de forma opcional (`if (breadcrumbCurrent)`), evitando quebras na execução das views na ausência física do cabeçalho.
+- **Barra Lateral Ultra-Compacta (`aside#sidebar`):**
+  - **Modo Aberto:** Largura reduzida de `w-64` (256px) para `w-56` (224px).
+  - **Modo Colapsado:** Largura de repouso reduzida de `76px` para `60px` com paddings laterais ajustados de `12px` para `8px` (`p-4` a `px-2`).
+  - **Alinhamento Simétrico:** Todos os ícones e elementos como o logo, avatares (`AD`) e o botão de engrenagem de configurações são perfeitamente centralizados a 60px de largura.
+- **Aproveitamento de Área Útil:** O padding geral do contêiner flexível principal `#view-container` foi reduzido de `p-8` para `p-6`, aumentando expressivamente a área livre para visualização de dados nas laterais e topo.
+
+### B. Módulo de Levantamentos (levantamentos.ts)
+- **Painel de Campanhas:** Acessado clicando em **"Levantamentos"** no menu principal. Apresenta controles de visualização híbridos e uma barra de busca dinâmica unificada.
+- **Alternador de Modos de Visualização (Grid/List Toggle):** Permite ao usuário alternar a renderização da tela em tempo real por meio de botões estilizados de layout, persistindo a escolha do operador de forma permanente no `localStorage` do navegador:
+  - **Visualização em Cards (Modo Grid Redesenhado & Ultra-Compacto):**
+    - Padding geral otimizado e reduzido de `p-6` para `p-4` para máxima economia de espaço vertical.
+    - Remove a tag nominal de ID (`LEV_ID`).
+    - Posiciona o Título da Fazenda e o Badge de Status alinhados de forma flexível no topo superior do cartão.
+    - O badge de status exibe o texto sanitizado substituindo o caractere `_` por espaço (ex: `'EM ANDAMENTO'`).
+    - **Barra de Metadados Condensada:** Exibe de forma agrupada na mesma linha horizontal (flex entre extremidades) a **Data de Início** (ao lado de um ícone de calendário) e as **Estatísticas Rápidas de Vértices** (Pts/Divisas), economizando linhas e espaços valiosos na vertical.
+    - **Bloco Estruturado de Dados Físicos:** O rodapé do card expõe o **CAR**, o **CCIR** e o **MUNICÍPIO / UF** em linhas próprias e exclusivas com espaçamento super compacto (`space-y-0.5`), resolvendo qualquer truncagem e facilitando a leitura direta sem sobreposição.
+    - **Botões e Margens Compactas:** Margem superior e interna do rodapé reduzidas (`mt-3.5 pt-2.5`) para compactar o card na altura sem perder o design moderno de vidro.
+  - **Visualização em Tabela (Modo Lista Windows Explorer):**
+    - Renderiza uma grade de alto padrão estético inspirada no design clássico do Windows Explorer.
+    - Exibe as colunas: **Nome / Localidade**, **Status**, **Data de início**, **Proprietários** e **Tamanho / Medições**, com ações rápidas de auditoria, edição e exclusão.
+    - Renderiza ícones de pastas em tom âmbar premium para cada levantamento da tabela.
+    - O clique funcional no nome da propriedade aciona diretamente a rota de auditoria de campo.
+  - **Lógica Invariante de Eventos (Resolução de Travamentos):**
+    - O gerenciamento de ações de clique (Auditoria, Edição e Exclusão) adota **Delegação de Eventos Centralizada** diretamente na propriedade `onclick` do contêiner estático pai `#grid-projetos` usando `closest()`. Isso previne o travamento e a perda crônica de ouvintes (listeners) que ocorria devido à re-renderização dinâmica da lista de projetos durante buscas e alternâncias de layout.
+- **Painel de Ações de Status (Travas de Segurança):** Na tela de detalhes do levantamento, o operador conta com botões para transicionar o status. Mudar o status para `'ARQUIVADO'` aplica a trava visual e de banco (Read-Only Lock).
+
+### C. Módulo de Mesa de Trabalho e Triagem Geodésica (mesa_trabalho.ts)
+Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/mesa-trabalho`), é a central de comando de engenharia e triagem:
+
+- **Isolação e Ocultação Absoluta de Matrículas na Etapa 1 (Mesa Geodésica):** A Etapa 1 processa os dados de campo em lote completo (Base e Rovers) sem segregação jurídica. Por isso, ao alternar para a Etapa 1 (`geoprocessamento`), o painel de abas de matrícula (`#container-abas-matriculas`) e o indicador de matrícula ativa no rodapé técnico (`#container-info-matricula-ativa`) são **totalmente ocultados**. As matrículas e suas divisas perimetrais se tornam visíveis estritamente na Etapa 2 (`cartorio`) para a montagem de confrontações.
+- **Efeito Sticky Header Condensado no Scroll (Cabeçalho Reativo de 5px):**
+  - O cabeçalho de ação principal `#mesa-trabalho-header` é fixado no topo (`position: sticky; top: 0; z-index: 45`) com fundo desfocado translúcido (`backdrop-filter: blur(12px)`).
+  - Ao rolar a tela principal para baixo (`scrollTop > 40`), uma escuta de evento de scroll no contêiner principal `#view-container` aplica a classe `.header-condensed`.
+  - **Compactação Extrema de 5px:** No estado condensado, o cabeçalho tem seu padding reduzido para `4px 12px !important` e aplica um `gap: 6px !important`, encolhendo também o botão Voltar (`#btn-voltar-lista` recebe padding `4px 8px` e ícone menor) para preservar espaço. O cabeçalho é deslocado para `top: -19px !important` para compensar exatamente os `24px` de padding do container `#view-container`, encostando a exatos **5px da borda física superior** da tela. Os metadados secundários de Proprietário/CAR/CCIR são ocultados, o título do levantamento e badges de status são encolhidos suavemente em pixels, e a **barra de seleção de etapas se comprime**, exibindo **apenas os ícones** do Lucide (definindo `font-size: 0`), e migra de sua posição inferior horizontal para se acomodar discretamente na ponta direita superior do cabeçalho condensado (no espaço livre da matrícula). Ao retornar ao topo, o cabeçalho se expande com todos os textos longos e metadados.
+- **Mesa de Ingestão e Área de Mapa Vertical Ampliada (480px):**
+  - O contêiner de visualização espacial (`#container-mapa-leaflet-parent`) e o contêiner de ingestão (`#container-ingestao-arquivos`), juntamente com a regra estrutural do grid superior (`#grid-superior-detalhe`), são configurados com uma **altura física ampliada de 480px** (um ganho de 60px na vertical) para melhor visualização cartográfica e análise de auditoria.
+  - Por padrão, a ingestão inicia no estado **colapsado (`.ingestao-collapsed`)**, medindo apenas `130px` de largura e exibindo uma mini view limpa de upload de arquivos.
+  - Isso permite que o contêiner do mapa Leaflet (`#container-mapa-leaflet-parent`) se expanda horizontalmente e ocupe todo o restante da tela útil disponível no grid.
+  - O operador pode expandir a Ingestão clicando sobre ela ou simplesmente **arrastando um arquivo sobre sua área (dragover/dragenter)**. O card de ingestão se expande suavemente com transição de 300ms, disparando reativamente `triagemMap.invalidateSize()` após 310ms para reajustar a viewport geométrica do mapa perfeitamente.
+  - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado em vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
+- **Modularização Arquitetural em Submódulos (V2.5):** Para evitar o crescimento insustentável do arquivo `mesa_trabalho.ts` (originalmente com mais de 3000 linhas), a Mesa de Trabalho foi decomposta em 4 partes acopladas de forma limpa na mesma pasta `src/views`:
+  * `mesa_trabalho.ts` (Orquestrador Central e Gestor de Estado): Mantém a declaração de estados (`pontosList`, `confrontantesList`, etc.) no closure de `setup()` para preservar a reatividade, gerencia a escuta de eventos delegados e chamadas à API, e atua como a rota de integração no frontend.
+  * `mesa_trabalho_template.ts` (HTML Estático): Centraliza a estrutura fixa de visualização, modais e dropzones.
+  * `mesa_trabalho_tabela.ts` (HTML Dinâmico de Tabelas): Expõe geradores puros de strings HTML para renderização rápida de linhas de vértices (Etapa 1 e Etapa 2), segmentos/confrontantes e histórico de auditoria (`renderHistoricoTimelineHtml`).
+  * `mesa_trabalho_mapa.ts` (Controller do Mapa): Encapsula a inicialização, limpeza de overlays, injeção de WMS do SIGEF e plotagem de marcadores customizados, polilinhas de segmentos e foco reativo (`selectPonto`).
 
 *   **Aba "Mapa do Imóvel Rural" (Visualizador Leaflet):**
     - Renderiza dinamicamente o mapa interativo centrado nas coordenadas do levantamento.
@@ -254,14 +297,14 @@ Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/me
 *   **Botão "Gerar KML" e "Exportar SIGEF (Planilha ODS)":**
     - Botões rápidos de exportação que baixam os dados prontos para o AutoCAD / TopoCAD 2000.
 
-### B. Módulo e Painel HGO / Triagem (`hgo.ts`)
+### D. Módulo e Painel HGO / Triagem (`hgo.ts`)
 Acessado pela aba **"Organizador HGO / Triagem"** no menu de processamento:
 - Apresenta a fila de arquivos GNSS brutos e RINEX importados.
 - Contém o botão **"CONVERTER E ORGANIZAR PARA HGO"**, que inicia a esteira RPA silenciosa do `ConvertRinex.exe`.
 - Contém o botão **"RE-PROCESSAR TRIAGEM (SKIP RPA)"**, útil para reavaliar os metadados temporais de agrupamento de Rovers e Bases caso novos arquivos sejam adicionados manualmente à pasta pelo Windows Explorer.
 - Exibe o log detalhado em tempo real da alocação dos rovers.
 
-### C. Módulo e Painel de Integração PPP (`ppp.ts`)
+### E. Módulo e Painel de Integração PPP (`ppp.ts`)
 Acessado pela aba **"Pós-Processamento IBGE-PPP"**:
 - Apresenta uma tabela listando os arquivos observados (`.obs`) identificados como Bases operacionais.
 - Exibe o status de pós-processamento de cada Base (`Pendente`, `Enviado ao IBGE`, `Processado`, `Falhou`).
@@ -270,3 +313,20 @@ Acessado pela aba **"Pós-Processamento IBGE-PPP"**:
 - **Painel Contingencial Manual (`FrameOverrideBase`):** Implementado no formulário lateral do processador. Possibilita ao topógrafo forçar a calibração da base manualmente em caso de falha de conexão prolongada do portal do IBGE.
   - Oferece abas de entrada (Notebook) permitindo digitar a coordenada corrigida nas formas **Geodésica** (Latitude/Longitude em graus decimais e Altitude elipsoidal) ou **Plana UTM** (Norte, Este, Fuso selecionado).
   - Possui botões dedicados de salvar e aplicar o vetor de override, calculando a projeção reversa no servidor e executando a translação de Rovers de forma atômica no SQLite.
+
+---
+
+## 9. Especificação de Base Física de Campo (B) e Regras de Ordenação Estritas
+
+### A. O Novo Tipo de Ponto B (Base Física de Campo)
+Como evolução do ecossistema de georreferenciamento e para atender à especificação do protocolo V.L.A.E.G., foi adicionado o tipo de ponto `'B'`, exclusivo para **Bases Físicas de Campo**.
+*   **Isolação do Traçado Perimetral:** Pontos do tipo `'B'` são mantidos rigorosamente com `ordem_caminhamento = NULL` no banco de dados e são omitidos da montagem de polígonos/divisas perimetrais de matrículas (Etapa 2) e do desenho de polilinhas temporárias de fechamento (Mesa Geodésica).
+*   **Hierarquia de Amparos Geodésicos:**
+    - Rovers (tipo `'P'`) podem se amparar em bases homologadas tipo `'M'` ou bases físicas de campo tipo `'B'`.
+    - Bases de campo (tipo `'B'`) se amparam exclusivamente em bases homologadas tipo `'M'`.
+*   **Translação Reativa de Rovers em Lote:** A alteração de coordenadas de uma base do tipo `'B'` dispara atomicamente a translação tridimensional de todos os rovers a ela vinculados no banco de dados.
+
+### B. Sanitização e Eliminação de Ordens Repetidas
+Para garantir que o caminhamento perimetral de cada matrícula seja único e linear:
+1.  **Sanitizador em Lote no Backend (`sanitizar_ordens_duplicadas`):** Uma rotina atômica sanitiza reativamente no banco de dados todas as ordens de caminhamento duplicadas, re-sequenciando os pontos de 1 a N por matrícula (para pontos com matrícula associada) e reordenando os pontos avulsos de forma contínua para evitar colisões.
+2.  **Eliminação de Duplicidades Visuais na Mesa Geodésica (Etapa 1):** Como a Mesa Geodésica (Geoprocessamento) exibe a listagem global de todos os pontos de todas as matrículas misturados, a exibição de suas ordens perimetrais individuais causava a repetição de números. Para solucionar isso de forma definitiva e elegante, o renderizador da Etapa 1 (`renderLinhaPontoGeoprocessamentoHtml`) foi modificado para exibir a coluna `ORD.` de forma estritamente consecutiva e única com base em seu índice na tabela (`idx + 1`), enquanto exibe `-` para bases do tipo `'B'`, preservando a integridade das ordens perimetrais de cada matrícula individual e eliminando as colisões visuais.

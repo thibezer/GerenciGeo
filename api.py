@@ -914,10 +914,92 @@ def delete_matricula(mid: int):
         if isinstance(e, HTTPException): raise e
         return {"error": str(e)}
 
+def sanitizar_ordens_duplicadas(levantamento_id: int):
+    """
+    Garante de forma robusta e determinística que não existam ordens de caminhamento duplicadas
+    dentro do mesmo levantamento (divididas por matrícula) ou em pontos sem matrícula associada.
+    Bases do tipo 'B' são mantidas com ordem NULL de forma rigorosa.
+    """
+    from database.connection import execute_query, DatabaseManager
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+
+            # 1. Sanitizar pontos de cada matrícula do levantamento
+            cursor.execute(
+                "SELECT DISTINCT matricula_id FROM pontos WHERE levantamento_id = ? AND matricula_id IS NOT NULL",
+                (levantamento_id,)
+            )
+            matriculas = [r["matricula_id"] for r in cursor.fetchall()]
+
+            for mid in matriculas:
+                # Seleciona todos os pontos dessa matrícula, ignorando o tipo 'B'
+                # Ordena pela ordem_caminhamento atual e id para preservar o ordenamento anterior
+                cursor.execute(
+                    """
+                    SELECT id, ordem_caminhamento, tipo_ponto
+                    FROM pontos
+                    WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B'
+                    ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+                    """,
+                    (levantamento_id, mid)
+                )
+                rows = cursor.fetchall()
+                
+                ordens = [r["ordem_caminhamento"] for r in rows if r["ordem_caminhamento"] is not None]
+                tem_duplicidade = len(ordens) != len(set(ordens))
+                tem_nulo = any(r["ordem_caminhamento"] is None for r in rows)
+
+                if tem_duplicidade or tem_nulo:
+                    logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, matricula={mid}")
+                    nova_ordem = 1
+                    for r in rows:
+                        cursor.execute(
+                            "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
+                            (nova_ordem, r["id"])
+                        )
+                        nova_ordem += 1
+
+            # 2. Sanitizar pontos sem matrícula (avulsos)
+            cursor.execute(
+                """
+                SELECT id, ordem_caminhamento, tipo_ponto
+                FROM pontos
+                WHERE levantamento_id = ? AND matricula_id IS NULL AND tipo_ponto != 'B'
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+                """,
+                (levantamento_id,)
+            )
+            rows_avulsos = cursor.fetchall()
+            
+            ordens_avulsas = [r["ordem_caminhamento"] for r in rows_avulsos if r["ordem_caminhamento"] is not None]
+            tem_duplicidade_avulsa = len(ordens_avulsas) != len(set(ordens_avulsas))
+            tem_nulo_avulso = any(r["ordem_caminhamento"] is None for r in rows_avulsos)
+
+            if tem_duplicidade_avulsa or tem_nulo_avulso:
+                logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens avulsas para levantamento={levantamento_id}")
+                nova_ordem = 1
+                for r in rows_avulsos:
+                    cursor.execute(
+                        "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
+                        (nova_ordem, r["id"])
+                    )
+                    nova_ordem += 1
+
+            conn.commit()
+    except Exception as e:
+        logger.error(f"[SANITIZACAO_ORDEM] Falha ao sanitizar ordens: {e}")
+
 # --- ROTAS DE PONTOS ---
 @app.get("/levantamentos/{id}/pontos")
 def get_pontos(id: int):
     try:
+        # Sanitiza reativamente antes de carregar
+        sanitizar_ordens_duplicadas(id)
+
         query = """
             SELECT p.*, m.numero_matricula 
             FROM pontos p
@@ -952,14 +1034,27 @@ def get_pontos(id: int):
 def create_ponto(id: int, p: PontoCreate):
     verificar_levantamento_arquivado(id)
     try:
+        ordem = p.ordem_caminhamento
+        if not ordem and p.tipo_ponto != 'B':
+            if p.matricula_id:
+                row_max = execute_query("SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?", params=(id, p.matricula_id), fetch_one=True)
+            else:
+                row_max = execute_query("SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ?", params=(id,), fetch_one=True)
+            max_ord = row_max["max_ord"] if row_max else None
+            ordem = (max_ord + 1) if max_ord is not None else 1
+
         query = """
             INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         execute_query(query, params=(
             id, p.matricula_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
-            p.sigma_lat, p.sigma_lon, p.sigma_alt, p.ordem_caminhamento
+            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem
         ), commit=True)
+        
+        # Sanitiza reativamente após inserção
+        sanitizar_ordens_duplicadas(id)
+        
         return {"message": "Ponto cadastrado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
@@ -972,6 +1067,14 @@ def delete_ponto(pid: int):
         if row:
             p_data = dict(row)
             verificar_levantamento_arquivado(p_data["levantamento_id"])
+            
+            # Verifica se este ponto é do tipo 'B' ou se serve de base de apoio para translação de rovers
+            check_base_uso = execute_query("SELECT COUNT(*) as count FROM pontos WHERE ponto_base_id = ?", params=(pid,), fetch_one=True)
+            eh_base_apoio = check_base_uso and check_base_uso["count"] > 0
+            
+            if p_data["tipo_ponto"] == "B" or eh_base_apoio:
+                from business.geoprocessamento import reverter_rovers_para_bruto
+                reverter_rovers_para_bruto(p_data["levantamento_id"], pid)
             
             execute_query("DELETE FROM pontos WHERE id = ?", params=(pid,), commit=True)
             
@@ -1150,6 +1253,30 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
     from business.geoprocessamento import reordenar_perimetro_matricula
     
     resultado = reordenar_perimetro_matricula(id, matricula_id)
+    if not resultado["sucesso"]:
+        raise HTTPException(status_code=400, detail=resultado["erro"])
+        
+    # Sincroniza o DADOS_GERAIS.json no workspace físico
+    wm = WorkspaceManager()
+    wm.gerar_documento_cliente_workspace(id)
+    
+    return resultado
+
+@app.post("/levantamentos/{id}/salvar-ordem")
+def post_salvar_ordem_global(id: int, payload: PayloadSalvarOrdem):
+    verificar_levantamento_arquivado(id)
+    pontos_ordem = [item.dict() for item in payload.pontos_ordem]
+    res = salvar_ordem_caminhamento(id, None, pontos_ordem)
+    if not res.get("sucesso"):
+        raise HTTPException(status_code=400, detail=res.get("erro", "Erro ao salvar ordem"))
+    return res
+
+@app.post("/levantamentos/{id}/reordenar")
+def post_reordenar_global(id: int):
+    verificar_levantamento_arquivado(id)
+    from business.geoprocessamento import reordenar_perimetro_matricula
+    
+    resultado = reordenar_perimetro_matricula(id, None)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
         
@@ -2059,6 +2186,10 @@ def update_ponto(pid: int, payload: PontoUpdate):
         if "error" in res:
             status = res.get("status_code", 400)
             raise HTTPException(status_code=status, detail=res["error"])
+            
+        # Sanitiza reativamente após a atualização manual de tipo de ponto ou matrícula
+        sanitizar_ordens_duplicadas(row["levantamento_id"])
+        
         return res
     except HTTPException:
         raise

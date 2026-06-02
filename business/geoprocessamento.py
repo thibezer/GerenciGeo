@@ -153,18 +153,31 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
     
     logger = logging.getLogger(__name__)
     try:
-        # 1. Recupera todos os pontos cadastrados para a matrícula
-        query_pontos = """
-            SELECT id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento, sigma_lat
-            FROM pontos
-            WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
-            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
-        """
-        rows = execute_query(query_pontos, params=(levantamento_id, matricula_id), fetch_all=True)
+        # 1. Recupera todos os pontos cadastrados para a matrícula (ou avulsos)
+        if matricula_id is None or matricula_id == 0:
+            query_pontos = """
+                SELECT id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento, sigma_lat
+                FROM pontos
+                WHERE levantamento_id = ? AND matricula_id IS NULL AND tipo_ponto != 'B' AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            """
+            params_query = (levantamento_id,)
+            msg_erro = "O levantamento precisa de pelo menos 3 pontos avulsos com coordenadas para ordenar."
+        else:
+            query_pontos = """
+                SELECT id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento, sigma_lat
+                FROM pontos
+                WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B' AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            """
+            params_query = (levantamento_id, matricula_id)
+            msg_erro = "A matrícula precisa de pelo menos 3 pontos com coordenadas para ordenar a poligonal."
+
+        rows = execute_query(query_pontos, params=params_query, fetch_all=True)
         if not rows or len(rows) < 3:
             return {
                 "sucesso": False,
-                "erro": "A matrícula precisa de pelo menos 3 pontos com coordenadas para ordenar a poligonal."
+                "erro": msg_erro
             }
             
         pontos = [dict(r) for r in rows]
@@ -245,73 +258,77 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
                 for nova_ordem, pt in enumerate(pontos_ordenados, start=1):
                     cursor.execute(query_update_pt, (nova_ordem, pt["id"]))
                 
-                # B. Obtém metadados dos limites dos segmentos anteriores para preservá-los
-                query_preservar_limites = """
-                    SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                    FROM segmentos
-                    WHERE levantamento_id = ? AND matricula_id = ?
-                """
-                cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
-                segmentos_antigos = cursor.fetchall()
-                
-                # Mapeia as conexões antigas para manter limites e confrontantes configurados pelo topógrafo
-                mapa_segmento_info = {}
-                for seg in segmentos_antigos:
-                    # Chave baseada na conexão bidirecional por segurança
-                    chave = (seg[0], seg[1])
-                    mapa_segmento_info[chave] = {
-                        "confrontante_id": seg[2],
-                        "tipo_limite_sigef": seg[3],
-                        "metodo_posicionamento_sigef": seg[4]
-                    }
-
-                # C. Remove todos os segmentos anteriores
-                cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, matricula_id))
-                
-                # D. Reconstroi a cadeia de segmentos
-                primeiro_pt = pontos_ordenados[0]
-                metodo_padrao = "PG1" if (primeiro_pt.get("sigma_lat") or 0.0) > 0.0 else "MC1"
-                
-                query_insert_seg = """
-                    INSERT INTO segmentos (
-                        levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
-                        confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """
-                
-                segmentos_criados = 0
-                for i in range(n):
-                    pt_ini = pontos_ordenados[i]
-                    pt_fim = pontos_ordenados[(i + 1) % n]
+                if matricula_id is not None and matricula_id != 0:
+                    # B. Obtém metadados dos limites dos segmentos anteriores para preservá-los
+                    query_preservar_limites = """
+                        SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                        FROM segmentos
+                        WHERE levantamento_id = ? AND matricula_id = ?
+                    """
+                    cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
+                    segmentos_antigos = cursor.fetchall()
                     
-                    # Tenta reaproveitar limites e confrontantes já inseridos
-                    chave_original = (pt_ini["id"], pt_fim["id"])
-                    chave_inversa = (pt_fim["id"], pt_ini["id"])
-                    
-                    if chave_original in mapa_segmento_info:
-                        info = mapa_segmento_info[chave_original]
-                    elif chave_inversa in mapa_segmento_info:
-                        info = mapa_segmento_info[chave_inversa]
-                    else:
-                        info = {
-                            "confrontante_id": None,
-                            "tipo_limite_sigef": "LN1",  # Limite padrão: Linha
-                            "metodo_posicionamento_sigef": metodo_padrao
+                    # Mapeia as conexões antigas para manter limites e confrontantes configurados pelo topógrafo
+                    mapa_segmento_info = {}
+                    for seg in segmentos_antigos:
+                        # Chave baseada na conexão bidirecional por segurança
+                        chave = (seg[0], seg[1])
+                        mapa_segmento_info[chave] = {
+                            "confrontante_id": seg[2],
+                            "tipo_limite_sigef": seg[3],
+                            "metodo_posicionamento_sigef": seg[4]
                         }
+
+                    # C. Remove todos os segmentos anteriores
+                    cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, matricula_id))
                     
-                    cursor.execute(query_insert_seg, (
-                        levantamento_id,
-                        matricula_id,
-                        pt_ini["id"],
-                        pt_fim["id"],
-                        info["confrontante_id"],
-                        info["tipo_limite_sigef"],
-                        info["metodo_posicionamento_sigef"]
-                    ))
-                    segmentos_criados += 1
-                
-                conn.commit()
-                logger.info(f"[TOPOLOGIA] Perímetro ordenado com sucesso. {segmentos_criados} segmentos gravados.")
+                    # D. Reconstroi a cadeia de segmentos
+                    primeiro_pt = pontos_ordenados[0]
+                    metodo_padrao = "PG1" if (primeiro_pt.get("sigma_lat") or 0.0) > 0.0 else "MC1"
+                    
+                    query_insert_seg = """
+                        INSERT INTO segmentos (
+                            levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
+                            confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """
+                    
+                    segmentos_criados = 0
+                    for i in range(n):
+                        pt_ini = pontos_ordenados[i]
+                        pt_fim = pontos_ordenados[(i + 1) % n]
+                        
+                        # Tenta reaproveitar limites e confrontantes já inseridos
+                        chave_original = (pt_ini["id"], pt_fim["id"])
+                        chave_inversa = (pt_fim["id"], pt_ini["id"])
+                        
+                        if chave_original in mapa_segmento_info:
+                            info = mapa_segmento_info[chave_original]
+                        elif chave_inversa in mapa_segmento_info:
+                            info = mapa_segmento_info[chave_inversa]
+                        else:
+                            info = {
+                                "confrontante_id": None,
+                                "tipo_limite_sigef": "LN1",  # Limite padrão: Linha
+                                "metodo_posicionamento_sigef": metodo_padrao
+                            }
+                        
+                        cursor.execute(query_insert_seg, (
+                            levantamento_id,
+                            matricula_id,
+                            pt_ini["id"],
+                            pt_fim["id"],
+                            info["confrontante_id"],
+                            info["tipo_limite_sigef"],
+                            info["metodo_posicionamento_sigef"]
+                        ))
+                        segmentos_criados += 1
+                    
+                    conn.commit()
+                    logger.info(f"[TOPOLOGIA] Perímetro ordenado com sucesso. {segmentos_criados} segmentos gravados.")
+                else:
+                    conn.commit()
+                    logger.info("[TOPOLOGIA] Pontos avulsos do levantamento ordenados com sucesso no banco.")
                 
             return {
                 "sucesso": True,
@@ -587,7 +604,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                     lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
                     sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
                     status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
-                    ponto_base_id = ?
+                    ponto_base_id = ?, tipo_ponto = 'B', ordem_caminhamento = NULL
                 WHERE id = ?
                 """,
                 (base_corr["lat"], base_corr["lon"], base_corr["alt"],
@@ -877,4 +894,111 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     except Exception as e_db:
         logger.error(f"[OVERRIDE_MANUAL] Falha crítica de transação ao aplicar correção manual: {e_db}")
         raise e_db
+
+
+def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
+    """
+    Localiza todos os rovers órfãos vinculados à base (base_id) que foi excluída ou desassociada,
+    e os reverte com segurança para o estado 'BRUTO', recalculando suas coordenadas lat/lon geodésicas
+    cruas diretamente de suas coordenadas originais de campo (sem delta de translação).
+    """
+    import logging
+    from database.connection import execute_query, DatabaseManager
+    from pyproj import Transformer
+    from business.historico_campo import HistoricoCampoLogger
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"[REVERSAO_ORFÃOS] Iniciando reversão para bruto de rovers órfãos da base ID={base_id}")
+
+    # 1. Recupera todos os rovers vinculados a essa base
+    query_rovers = """
+        SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z, tipo_ponto
+        FROM pontos
+        WHERE levantamento_id = ? AND ponto_base_id = ?
+    """
+    rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
+    rovers = [dict(r) for r in rows_rovers]
+
+    if not rovers:
+        logger.info(f"[REVERSAO_ORFÃOS] Nenhum rover órfão localizado para a base ID={base_id}")
+        return 0
+
+    total_revertidos = 0
+    detalhamento_logs = []
+
+    try:
+        # Usa a projeção padrão UTM Zone 22S (EPSG:31982) como fallback padrão do motor para retroprojeção direta
+        transformer_to_latlon = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+
+            for r in rovers:
+                if not r["e_original"] or not r["n_original"]:
+                    continue
+
+                # Retroprojeta de volta sem aplicar nenhum delta
+                lon_bruta, lat_bruta = transformer_to_latlon.transform(r["e_original"], r["n_original"])
+                alt_bruta = r["alt_original"]
+
+                # Coordenadas originais, desvios originais
+                sig_lat = r["sigma_n"] or 0.0
+                sig_lon = r["sigma_e"] or 0.0
+                sig_alt = r["sigma_z"] or 0.0
+
+                # Reverte rover. Se o tipo_ponto atual for 'B' (base orfã), reverte para 'P'
+                novo_tipo = r["tipo_ponto"]
+                if novo_tipo == 'B':
+                    if r["nome_vertice"].upper().startswith("M"):
+                        novo_tipo = "M"
+                    elif r["nome_vertice"].upper().startswith("V"):
+                        novo_tipo = "V"
+                    else:
+                        novo_tipo = "P"
+
+                cursor.execute(
+                    """
+                    UPDATE pontos
+                    SET lat = ?, lon = ?, alt = ?,
+                        lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
+                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                        status_ponto = 'BRUTO', status_correcao = 'BRUTO',
+                        ponto_base_id = NULL, tipo_ponto = ?
+                    WHERE id = ?
+                    """,
+                    (lat_bruta, lon_bruta, alt_bruta,
+                     sig_lat, sig_lon, sig_alt,
+                     novo_tipo, r["id"])
+                )
+                total_revertidos += 1
+                detalhamento_logs.append({
+                    "id": r["id"],
+                    "nome": r["nome_vertice"],
+                    "tipo_anterior": r["tipo_ponto"],
+                    "tipo_atual": novo_tipo,
+                    "lat_bruta": lat_bruta,
+                    "lon_bruta": lon_bruta
+                })
+
+            conn.commit()
+
+        # Registrar no histórico de campo
+        desc_auditoria = f"Reversão para BRUTO executada com sucesso. {total_revertidos} rovers órfãos da base ID={base_id} perderam o vínculo de correção."
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=levantamento_id,
+            tipo_evento="REVERSAO_ROVERS_ORFÃOS",
+            descricao=desc_auditoria,
+            dados_detalhados={
+                "base_id": base_id,
+                "total_revertidos": total_revertidos,
+                "detalhes": detalhamento_logs
+            }
+        )
+
+        logger.info(f"[REVERSAO_ORFÃOS] Reversão de {total_revertidos} pontos órfãos para BRUTO concluída.")
+        return total_revertidos
+
+    except Exception as e:
+        logger.error(f"[REVERSAO_ORFÃOS] Erro ao reverter rovers para bruto: {e}")
+        raise e
 
