@@ -1,4 +1,4 @@
-import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home } from 'lucide';
+import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock } from 'lucide';
 
 // --- FUNÇÕES AUXILIARES GLOBAIS DE VALIDAÇÃO E MÁSCARAS ---
 export const formatarCAR = (v: string): string => {
@@ -34,7 +34,7 @@ export const formatarCCIR = (v: string): string => {
 // Initialize Icons
 export const initIcons = () => {
   createIcons({
-    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home }
+    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock }
   });
 };
 

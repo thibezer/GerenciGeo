@@ -129,8 +129,10 @@ export const dashboardRoute: RouteDef = {
         if (container) container.innerHTML = `<div class="text-center text-red-400 text-sm py-4">Erro ao carregar alertas.</div>`;
       });
 
-    // Initialize Leaflet Map centered on Umuarama, PR
-    const map = L.map('map').setView([-23.7661, -53.3204], 14);
+    // Initialize Leaflet Map centered on Umuarama, PR com maxZoom 24
+    const map = L.map('map', {
+      maxZoom: 24
+    }).setView([-23.7661, -53.3204], 14);
 
     // Create a pane for overlays to ensure they stay on top
     map.createPane('overlayPane');
@@ -142,9 +144,13 @@ export const dashboardRoute: RouteDef = {
 
     // Google Satellite Hybrid (HTTPS)
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
+      maxZoom: 24,
+      maxNativeZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-      attribution: 'Google Maps'
+      attribution: 'Google Maps',
+      keepBuffer: 16,
+      updateWhenZooming: false,
+      updateWhenIdle: true
     }).addTo(map);
 
     // SIGEF/INCRA WMS (Certificação de Imóveis Rurais - Atualizado)
@@ -155,7 +161,10 @@ export const dashboardRoute: RouteDef = {
       version: '1.1.1',
       pane: 'overlayPane',
       attribution: 'INCRA/SIGEF',
-      className: 'sigef-wms-layer' // Permite manipular a cor via filtro CSS
+      className: 'sigef-wms-layer', // Permite manipular a cor via filtro CSS
+      keepBuffer: 8,
+      updateWhenZooming: false,
+      updateWhenIdle: true
     }).addTo(map);
 
     const baseMaps = {

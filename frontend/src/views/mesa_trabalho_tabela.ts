@@ -22,6 +22,7 @@ interface Ponto {
   ordem_caminhamento?: number;
   status_correcao?: string;
   ignorar_poligono?: number;
+  arquivo_origem?: string;
 }
 
 // Interface auxiliar para os segmentos
@@ -35,12 +36,25 @@ interface Segmento {
 }
 
 /**
+ * Retorna uma cor HSL consistente para cada arquivo de origem.
+ */
+const obterCorArquivo = (nomeArquivo: string): string => {
+  if (!nomeArquivo) return '#ffffff';
+  let hash = 0;
+  for (let i = 0; i < nomeArquivo.length; i++) {
+    hash = nomeArquivo.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 75%, 55%)`;
+};
+
+/**
  * Renderiza uma linha de vértice na Etapa 2 (Organizador de Perímetro - Cartório)
  * Inclui os botões de reordenação arrastáveis e controle de participação no polígono.
  */
 export const renderLinhaPontoCartorioHtml = (
   p: Ponto,
-  idx: number,
+  ordemExibida: number | string,
   modoCoordenadas: string,
   isSelected: boolean,
   latLonToUTM: (lat: number, lon: number) => { e: number; n: number }
@@ -101,11 +115,11 @@ export const renderLinhaPontoCartorioHtml = (
 
   // Coluna de ações / ordem
   let colAcoesHtml = '';
-  if (isBaseFisica) {
-     colAcoesHtml = `<span class="text-[10px] font-bold text-rose-300 font-mono">-</span>`;
+  if (isBaseFisica || p.ignorar_poligono === 1) {
+     colAcoesHtml = `<span class="text-[10px] font-bold text-white/30 font-mono">-</span>`;
   } else {
      colAcoesHtml = `
-        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${p.ordem_caminhamento || (idx + 1)}</span>
+        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${ordemExibida}</span>
         <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
           <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
         </button>
@@ -120,19 +134,32 @@ export const renderLinhaPontoCartorioHtml = (
      ? `<span class="text-white/20 text-[10px] font-mono">-</span>`
      : `<input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 text-mint-vibrant focus:ring-mint-vibrant bg-white/5 w-3.5 h-3.5" data-ponto-id="${p.id}" ${chkChecked} />`;
 
+  const cor = p.arquivo_origem ? obterCorArquivo(p.arquivo_origem) : '';
+  const badgeArquivoHtml = p.arquivo_origem
+     ? `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit" style="background-color: ${cor}15; color: ${cor}; border-color: ${cor}30;" title="${p.arquivo_origem}">${p.arquivo_origem}</span>`
+     : `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit bg-white/5 text-white/30 border-white/10" title="Sem arquivo de origem (Criado manualmente)">Inserido Manual</span>`;
+
   return `
-    <tr class="linha-ponto-tbl cursor-pointer transition-colors border-b ${selectionClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-      <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1.5 h-full">
+    <tr class="linha-ponto-tbl group cursor-pointer transition-colors border-b ${selectionClass} hover:bg-white/[0.02]" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
+      <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">
         ${colAcoesHtml}
       </td>
-      <td class="px-4 py-1.5 font-bold font-mono text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</td>
-      <td class="px-2 py-1.5 text-center">
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-1.5">
+          <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
+          <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        ${badgeArquivoHtml}
+      </td>
+      <td class="px-2 py-2.5 text-center">
          ${badgeHtml}
       </td>
-      <td class="px-4 py-1.5 text-right font-mono">${col1}</td>
-      <td class="px-4 py-1.5 text-right font-mono">${col2}</td>
-      <td class="px-4 py-1.5 text-right font-mono">${col3}</td>
-      <td class="px-2 py-1.5 text-center" onclick="event.stopPropagation()">
+      <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/90 tabular-nums">${col1}</td>
+      <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/90 tabular-nums">${col2}</td>
+      <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/90 tabular-nums">${col3}</td>
+      <td class="px-2 py-2.5 text-center" onclick="event.stopPropagation()">
          ${colIgnorarHtml}
       </td>
     </tr>
@@ -145,7 +172,7 @@ export const renderLinhaPontoCartorioHtml = (
  */
 export const renderLinhaPontoGeoprocessamentoHtml = (
   p: Ponto,
-  idx: number,
+  ordemExibida: number | string,
   modoCoordenadas: string,
   selectedPontoIds: number[],
   latLonToUTM: (lat: number, lon: number) => { e: number; n: number }
@@ -231,8 +258,6 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
      ? `<span class="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/30 text-[9px] uppercase tracking-wider">BRUTO</span>`
      : `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 text-[9px] uppercase tracking-wider">CORRIGIDO</span>`;
 
-  const ordemExibida = isBaseFisica ? '-' : (idx + 1);
-
   // Badge do tipo
   let badgeHtml = '';
   if (isBasePPP) {
@@ -244,49 +269,74 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
   }
 
   let colAcoesHtml = '';
-  if (isBaseFisica) {
-     colAcoesHtml = `<span class="text-[10px] font-bold text-rose-300 font-mono">-</span>`;
+  if (isBaseFisica || p.ignorar_poligono === 1) {
+     colAcoesHtml = `<span class="text-[10px] font-bold text-white/30 font-mono">-</span>`;
   } else {
      colAcoesHtml = `
         <span class="text-[10px] font-bold text-mint-vibrant font-mono">${ordemExibida}</span>
      `;
   }
 
+  const cor = p.arquivo_origem ? obterCorArquivo(p.arquivo_origem) : '';
+  const badgeArquivoHtml = p.arquivo_origem
+     ? `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit" style="background-color: ${cor}15; color: ${cor}; border-color: ${cor}30;" title="${p.arquivo_origem}">${p.arquivo_origem}</span>`
+     : `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit bg-white/5 text-white/30 border-white/10" title="Sem arquivo de origem (Criado manualmente)">Inserido Manual</span>`;
+
   if (modoCoordenadas === 'geodesico') {
-     return `
-       <tr class="linha-ponto-tbl cursor-pointer transition-colors border-b ${rowClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-         <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1.5 h-full">${colAcoesHtml}</td>
-         <td class="px-4 py-1.5 font-bold font-mono text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</td>
-         <td class="px-2 py-1.5 text-center">
-            ${badgeHtml}
-         </td>
-         <td class="px-4 py-1.5 text-right font-mono">${col1}</td>
-         <td class="px-4 py-1.5 text-right font-mono">${col2}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-mint-vibrant">${col3}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-mint-vibrant">${col4}</td>
-         <td class="px-4 py-1.5 text-right font-mono">${col5}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-mint-vibrant">${col6}</td>
-         <td class="px-2 py-1.5 text-center">${p.ignorar_poligono === 1 ? 'Não' : 'Sim'}</td>
-         <td class="px-4 py-1.5 text-center">${statusText}</td>
-       </tr>
-     `;
+      return `
+        <tr class="linha-ponto-tbl group cursor-pointer transition-colors border-b ${rowClass} hover:bg-white/[0.02]" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
+          <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">${colAcoesHtml}</td>
+          <td class="px-4 py-2.5">
+             <div class="flex items-center gap-1.5">
+                <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
+                <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+                   <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                </button>
+             </div>
+             ${badgeArquivoHtml}
+          </td>
+          <td class="px-2 py-2.5 text-center">
+             ${badgeHtml}
+          </td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col1}</td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col2}</td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col3}</td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col4}</td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col5}</td>
+          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col6}</td>
+          <td class="px-2 py-2.5 text-center">
+            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
+          </td>
+          <td class="px-4 py-2.5 text-center">${statusText}</td>
+        </tr>
+      `;
   } else {
      return `
-       <tr class="linha-ponto-tbl cursor-pointer transition-colors border-b ${rowClass}" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-         <td class="px-2 py-1.5 text-center flex items-center justify-center gap-1.5 h-full">${colAcoesHtml}</td>
-         <td class="px-4 py-1.5 font-bold font-mono text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</td>
-         <td class="px-2 py-1.5 text-center">
+       <tr class="linha-ponto-tbl group cursor-pointer transition-colors border-b ${rowClass} hover:bg-white/[0.02]" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
+         <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">${colAcoesHtml}</td>
+         <td class="px-4 py-2.5">
+            <div class="flex items-center gap-1.5">
+               <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
+               <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+                  <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+               </button>
+            </div>
+            ${badgeArquivoHtml}
+         </td>
+         <td class="px-2 py-2.5 text-center">
             ${badgeHtml}
          </td>
-         <td class="px-4 py-1.5 text-right font-mono text-white/30">${col1}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-white/30">${col2}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-mint-vibrant">${col3}</td>
-         <td class="px-4 py-1.5 text-right font-mono text-mint-vibrant">${col4}</td>
-         <td class="px-4 py-1.5 text-right font-mono ${parseFloat(deltaN) === 0 ? 'text-white/20' : 'text-blue-400'}">${deltaN}</td>
-         <td class="px-4 py-1.5 text-right font-mono ${parseFloat(deltaE) === 0 ? 'text-white/20' : 'text-blue-400'}">${deltaE}</td>
-         <td class="px-4 py-1.5 text-right font-mono ${parseFloat(deltaH) === 0 ? 'text-white/20' : 'text-blue-400'}">${deltaH}</td>
-         <td class="px-2 py-1.5 text-center">${p.ignorar_poligono === 1 ? 'Não' : 'Sim'}</td>
-         <td class="px-4 py-1.5 text-center">${statusText}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/40 tabular-nums">${col1}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/40 tabular-nums">${col2}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col3}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col4}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaN) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaN}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaE}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaH}</td>
+         <td class="px-2 py-2.5 text-center">
+           <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
+         </td>
+         <td class="px-4 py-2.5 text-center">${statusText}</td>
        </tr>
      `;
   }
@@ -344,13 +394,13 @@ export const renderAuditoriaTranslacaoHtml = (
   }
 
   return `
-    <tr class="hover:bg-white/[0.01] border-b border-white/5 font-mono text-[11px]">
-      <td class="px-4 py-2 font-bold text-white">${p.nome_vertice}</td>
-      <td class="px-2 py-2 text-right text-white/40">${originalE}<br/><span class="text-[9px]">${originalN}</span></td>
-      <td class="px-2 py-2 text-right text-mint-vibrant/90">${corrE}<br/><span class="text-[9px] text-mint-vibrant/70">${corrN}</span></td>
-      <td class="px-2 py-2 text-right font-bold ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'}">${devE}mm</td>
-      <td class="px-2 py-2 text-right font-bold ${parseFloat(devN) === 0 ? 'text-white/30' : 'text-blue-400'}">${devN}mm</td>
-      <td class="px-2 py-2 text-right font-bold ${parseFloat(devH) === 0 ? 'text-white/30' : 'text-blue-400'}">${devH}mm</td>
+    <tr class="hover:bg-white/[0.02] border-b border-white/5 font-sans text-xs">
+      <td class="px-4 py-2.5 font-bold text-white text-[13px]">${p.nome_vertice}</td>
+      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/40 tabular-nums">${originalE}<br/><span class="text-[10px]">${originalN}</span></td>
+      <td class="px-2 py-2.5 text-right font-mono text-xs text-mint-vibrant/90 tabular-nums">${corrE}<br/><span class="text-[10px] text-mint-vibrant/70">${corrN}</span></td>
+      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devE}mm</td>
+      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devN) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devN}mm</td>
+      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devH}mm</td>
     </tr>
   `;
 };
@@ -386,9 +436,9 @@ export const renderLinhaSegmentoHtml = (
   ].map(o => `<option value="${o.val}" ${o.val === s.metodo_posicionamento_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
 
   return `
-    <tr class="linha-segmento-tbl hover:bg-white/[0.01] border-b border-white/5" data-seg-id="${s.id}">
-      <td class="px-4 py-2.5 font-bold font-mono text-white">${pIni ? pIni.nome_vertice : '??'}</td>
-      <td class="px-4 py-2.5 font-bold font-mono text-white">${pFim ? pFim.nome_vertice : '??'}</td>
+    <tr class="linha-segmento-tbl hover:bg-white/[0.02] border-b border-white/5" data-seg-id="${s.id}">
+      <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pIni ? pIni.nome_vertice : '??'}</td>
+      <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pFim ? pFim.nome_vertice : '??'}</td>
       <td class="px-4 py-2.5">
         <select class="glass-input text-[10px] py-0.5 px-1 select-seg-conf w-full" data-seg-id="${s.id}">
           ${confOptions.join('')}

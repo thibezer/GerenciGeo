@@ -5,55 +5,63 @@
  * barras de ferramentas, tabelas inferiores e modais de override e controle.
  */
 export const renderMesaTrabalho = (): string => {
-  return `
+   return `
     <div class="space-y-6 animate-in fade-in duration-300">
       <!-- DETALHES DO PROJETO E TRIAGEM -->
       <div id="painel-detalhe-projeto" class="space-y-4">
         <!-- Cabeçalho de Ação Sticky e Condensado -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/[0.01] border border-white/5 p-4 rounded-xl" id="mesa-trabalho-header">
-          <div class="flex items-center gap-3">
-            <button class="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1" id="btn-voltar-lista">
-              <i data-lucide="chevron-right" class="w-4 h-4 rotate-180"></i>
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-forest-deep/80 backdrop-blur-md border border-white/5 py-2.5 px-4 rounded-xl shadow-lg" id="mesa-trabalho-header">
+          <div class="flex items-center gap-3.5">
+            <button class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1 hover:bg-white/10 active:scale-95 transition-all duration-200" id="btn-voltar-lista">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
               Voltar
             </button>
+            <div class="w-[1px] h-7 bg-white/10 self-center hidden sm:block"></div>
             <div>
-              <h3 class="text-xl font-bold flex items-center gap-2">
-                <span id="txt-nome-propriedade">Carregando...</span>
-                <span class="text-xs bg-mint-vibrant/20 text-mint-vibrant px-2.5 py-0.5 rounded-full font-mono uppercase" id="badge-status-lev">-</span>
+              <h3 class="text-sm md:text-base font-bold flex items-center gap-2 leading-snug">
+                <span id="txt-nome-propriedade" class="text-white hover:text-mint-vibrant transition-colors">Carregando...</span>
+                <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold" id="badge-status-lev">-</span>
               </h3>
-              <p class="text-xs text-white/40 mt-1 dados-secundarios-cliente">
-                Cliente: <span class="text-white/60 font-medium mr-3" id="txt-nome-cliente">-</span>
-                CAR: <span class="text-white/60 font-mono" id="txt-codigo-car">-</span>
+              <p class="text-xs text-white/40 mt-1 dados-secundarios-cliente leading-snug flex items-center flex-wrap gap-x-3 gap-y-1">
+                <span class="flex items-center gap-1">
+                  <span class="text-white/30 uppercase tracking-widest text-[9px]">Cliente:</span>
+                  <span class="text-white/75 font-medium" id="txt-nome-cliente">-</span>
+                </span>
+                <span class="text-white/10 hidden sm:inline">•</span>
+                <span class="flex items-center gap-1">
+                  <span class="text-white/30 uppercase tracking-widest text-[9px]">CAR:</span>
+                  <span class="text-white/75 font-mono" id="txt-codigo-car">-</span>
+                </span>
               </p>
             </div>
           </div>
           
           <!-- Seletor de Matrículas (Abas de Triagem) -->
-          <div class="flex bg-white/5 border border-white/10 p-1 rounded-lg overflow-x-auto self-start md:self-auto" id="container-abas-matriculas">
+          <div class="flex bg-white/5 border border-white/10 p-0.5 rounded-md overflow-x-auto self-start md:self-auto" id="container-abas-matriculas">
             <!-- Abas carregadas dinamicamente -->
           </div>
 
           <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
-          <div class="flex bg-white/5 border border-white/10 p-1 rounded-xl" id="container-abas-etapas">
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/20 text-mint-vibrant flex items-center justify-center gap-2" id="btn-etapa-geoprocessamento" type="button">
+          <div class="flex bg-white/[0.02] border border-white/10 p-1 rounded-xl gap-1.5 shrink-0 overflow-x-auto" id="container-abas-etapas">
+            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-geoprocessamento" type="button">
               <i data-lucide="cpu" class="w-4 h-4"></i>
-              Etapa 1: Mesa Geodésica (Geoprocessamento)
+              Mesa Geodésica
             </button>
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-cartorio" type="button">
+            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-cartorio" type="button">
               <i data-lucide="database" class="w-4 h-4"></i>
-              Etapa 2: Organizador de Perímetro (Cartório)
+              Organizador de Perímetro
             </button>
-            <button class="flex-grow py-2 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white flex items-center justify-center gap-2" id="btn-etapa-auditoria" type="button">
+            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-auditoria" type="button">
               <i data-lucide="history" class="w-4 h-4"></i>
-              Etapa 3: Histórico e Auditoria de Campo
+              Histórico de Auditoria
             </button>
           </div>
         </div>
 
         <!-- Grid Superior (Mapa + Ingestão Drag-and-Drop) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="grid-superior-detalhe">
+        <div class="flex flex-col lg:flex-row gap-0 relative w-full h-[480px]" id="grid-superior-detalhe">
           <!-- Coluna 1: Mapa Leaflet -->
-          <div class="glass-card h-[480px] relative overflow-hidden flex flex-col" id="container-mapa-leaflet-parent">
+          <div class="glass-card h-full relative overflow-hidden flex flex-col flex-1 min-w-[300px]" id="container-mapa-leaflet-parent">
             <div class="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-white/[0.02] z-[1000]">
               <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
               <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
@@ -61,8 +69,13 @@ export const renderMesaTrabalho = (): string => {
             <div id="mapa-triagem" class="flex-1 w-full h-full"></div>
           </div>
 
+          <!-- Splitter Superior Arrastável -->
+          <div id="splitter-superior" class="w-2 hover:w-3 bg-transparent hover:bg-mint-vibrant/10 cursor-col-resize transition-all self-stretch flex items-center justify-center rounded shrink-0 hidden lg:flex group" title="Arraste para ajustar largura">
+            <div class="w-[2px] h-10 bg-white/10 group-hover:bg-mint-vibrant/40 rounded transition-colors"></div>
+          </div>
+
           <!-- Coluna 2: Ingestão Drag-and-Drop (Inicia Colapsada) -->
-          <div class="glass-card p-6 flex flex-col h-[480px] ingestao-collapsed" id="container-ingestao-arquivos">
+          <div class="glass-card p-6 flex flex-col h-full ingestao-collapsed shrink-0" id="container-ingestao-arquivos">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm">Mesa de Ingestão de Arquivos</h4>
               <div class="flex items-center gap-1.5">
@@ -81,7 +94,7 @@ export const renderMesaTrabalho = (): string => {
                 <i data-lucide="upload" class="w-5 h-5 text-mint-vibrant"></i>
               </div>
               <p class="text-xs font-bold">Arraste múltiplos arquivos para triagem</p>
-              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta binários .GNS ou relatórios .TXT</p>
+              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta binários .GNS or relatórios .TXT</p>
             </div>
 
             <!-- Fila de arquivos selecionados -->
@@ -105,16 +118,34 @@ export const renderMesaTrabalho = (): string => {
           </div>
 
           <!-- Coluna 2.1: Ordenador Perimetral Manual Premium (Alternativo para Ingestão) -->
-          <div class="glass-card p-6 flex flex-col h-[480px] hidden" id="container-reordenar-manual">
+          <div class="glass-card p-6 flex flex-col h-full hidden shrink-0" id="container-reordenar-manual">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm flex items-center gap-2">
                 <i data-lucide="arrow-up-down" class="w-4 h-4 text-mint-vibrant"></i>
-                Ordenador Perimetral Manual
+                Ordenador Manual
               </h4>
               <button class="flex items-center gap-1 text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 hover:border-red-500/40 px-2 py-1 rounded transition-all" id="btn-fechar-reordenar" title="Fechar Ordenador" type="button">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 Fechar
               </button>
+            </div>
+            
+            <!-- Barra de Busca no Ordenador Manual -->
+            <div class="relative w-full mb-2 shrink-0" id="container-search-ordenador">
+              <input type="text" id="input-search-ordenador" placeholder="Pesquisar ponto no ordenador..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1.5 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+              <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search-ordenador" title="Limpar pesquisa">×</span>
+            </div>
+
+            <!-- Controles Avançados do Ordenador -->
+            <div class="flex items-center justify-between gap-2 mb-3 shrink-0 bg-white/[0.02] border border-white/5 rounded-technical p-2 text-[10px]">
+              <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-2.5 py-1 rounded transition-all font-bold border border-white/10" id="btn-toggle-clique-sequencial" type="button" title="Ativar clique sequencial no mapa para enfileirar pontos">
+                <i data-lucide="play" class="w-3.5 h-3.5 text-mint-vibrant" id="icon-clique-sequencial"></i>
+                <span id="txt-clique-sequencial" class="font-mono">Caminhar por Clique</span>
+              </button>
+              <div class="flex items-center gap-1.5 text-white/50 font-mono text-[9px]">
+                <span>Travados:</span>
+                <span id="txt-faixa-travada" class="text-mint-vibrant font-bold">Nenhum</span>
+              </div>
             </div>
             
             <!-- Listagem Simplificada -->
@@ -134,14 +165,18 @@ export const renderMesaTrabalho = (): string => {
         </div>
 
         <!-- Painel Técnico e Arquivos Físicos do Workspace -->
-        <div class="glass-card p-6 space-y-6" id="painel-workspace-gnss">
-          <div class="flex justify-between items-center border-b border-white/5 pb-4 cursor-pointer select-none" id="btn-toggle-workspace-collapse">
+        <div class="glass-card p-0 space-y-1" id="painel-workspace-gnss">
+          <div class="flex justify-between items-center border-b border-white/5 pb-2.5 cursor-pointer select-none" id="btn-toggle-workspace-collapse">
             <h4 class="font-bold text-sm flex items-center gap-2">
               <i data-lucide="chevron-right" class="w-5 h-5 text-mint-vibrant transition-transform duration-200 rotate-90" id="seta-workspace-collapse"></i>
               <i data-lucide="folder-open" class="w-5 h-5 text-mint-vibrant"></i>
               Workspace GNSS (Repositório Físico do Windows)
             </h4>
             <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+               <button class="btn-secondary text-xs py-1 px-3 flex items-center gap-1 hover:border-yellow-500/40 bg-yellow-500/10 border-yellow-500/20 text-yellow-400 hover:text-yellow-300 font-bold" id="btn-testar-busca-rinex" type="button">
+                 <i data-lucide="play" class="w-3.5 h-3.5 mr-1"></i>
+                 Testar Busca HGO
+               </button>
                <button class="btn-secondary text-xs py-1 px-3 flex items-center gap-1 hover:border-mint-vibrant/40" id="btn-atualizar-arquivos-list">
                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i>
                  Atualizar Lista
@@ -149,53 +184,55 @@ export const renderMesaTrabalho = (): string => {
             </div>
           </div>
           
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 transition-all duration-300" id="container-workspace-arquivos">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-1 transition-all duration-300" id="container-workspace-arquivos">
              <div class="text-white/20 p-8 text-center col-span-full">Carregando arquivos do Workspace...</div>
           </div>
         </div>
 
         <!-- Barra de Ferramentas Técnicas -->
-        <div class="flex justify-between items-center bg-white/[0.01] border border-white/5 p-4 rounded-xl">
-          <div class="flex items-center gap-2 overflow-x-auto pr-2">
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-exportar-kml">
-              <i data-lucide="map-icon" class="w-4 h-4 text-mint-vibrant"></i>
-              Gerar KML Temporário
+        <div class="flex justify-between items-center py-0.1 px-0.1">
+          <div class="flex items-center gap-1 overflow-x-auto pr-2">
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-exportar-kml">
+              <i data-lucide="map-icon" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+              KML
             </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-consolidar-pontos-utm">
-              <i data-lucide="download" class="w-4 h-4 text-mint-vibrant"></i>
-              Consolidar Pontos UTM
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-consolidar-pontos-utm">
+              <i data-lucide="download" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+              Exportar
             </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-reordenar-caminhamento">
-               <i data-lucide="refresh-cw" class="w-4 h-4 text-mint-vibrant"></i>
-               Reordenar Caminhamento
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-reordenar-caminhamento">
+               <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+               Reordenar pontos
             </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20" id="btn-override-base-manual" type="button">
-                <i data-lucide="shield-alert" class="w-4 h-4"></i>
-                Override Base Manual
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20" id="btn-override-base-manual" type="button">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+                Base manual
              </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0" id="btn-gerar-requerimento-cri">
-               <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
-               Gerar Requerimento CRI
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-gerar-requerimento-cri">
+               <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+               Requerimento
             </button>
-            <button class="btn-secondary text-xs px-3 py-1.5 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0" id="btn-arquivar-projeto-seguro">
-               <i data-lucide="trash-2" class="w-4 h-4"></i>
-               Arquivar Projeto Seguro
+            <button class="btn-secondary text-[11px] px-2 py-1 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0" id="btn-arquivar-projeto-seguro">
+               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+               Arquivar
             </button>
           </div>
           <div class="text-right shrink-0" id="container-info-matricula-ativa">
             <span class="text-[10px] text-white/40 font-mono">MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span></span>
           </div>
         </div>
-
         <!-- Tabelas Inferiores (Pontos vs Divisas) -->
-        <div class="flex flex-col lg:flex-row gap-4 relative w-full" id="container-tabelas-inferiores">
+        <div class="flex flex-col lg:flex-row gap-0 relative w-full" id="container-tabelas-inferiores">
           <!-- Tabela 1: Vértices -->
-          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-full shrink-0" id="container-tabela-vertices">
-            <div class="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center bg-white/[0.01]">
+          <div class="glass-card flex flex-col h-[400px] overflow-hidden flex-1 min-w-[300px] shrink" id="container-tabela-vertices">
+            <div class="px-6 py-1 border-b border-white/5 bg-white/[0.01] flex justify-between items-center">
               <div class="flex items-center gap-3">
                 <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-vertices">Vértices Geodésicos</h4>
                 <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-toggle-coordenadas" type="button">
                   Ver em Geodésico
+                </button>
+                <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-toggle-ocultar-ignorados" type="button">
+                  Ocultar Fora da Poligonal
                 </button>
                 <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-ativar-reordenacao" type="button">
                   Reordenar Manual
@@ -205,10 +242,25 @@ export const renderMesaTrabalho = (): string => {
                   Salvar Perímetro & Recomputar
                 </button>
               </div>
-              <div class="relative w-[180px] shrink-0" id="container-search-ponto">
-                <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
-                <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
+              <div class="flex items-center gap-2">
+                <div class="relative w-[150px] shrink-0" id="container-search-ponto">
+                  <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                  <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
+                </div>
+                <button class="p-1.5 bg-white/5 border border-white/10 hover:bg-mint-vibrant/10 hover:text-mint-vibrant hover:border-mint-vibrant/30 rounded text-white/75 transition-all flex items-center justify-center shrink-0" id="btn-exportar-tabela-csv" title="Exportar tabela para CSV" type="button">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                </button>
               </div>
+            </div>
+            
+            <!-- Barra de Filtros Rápidos -->
+            <div class="flex items-center gap-1.5 px-6 py-1.5 border-b border-white/5 bg-white/[0.005]" id="container-filtros-rapidos-tabela">
+              <span class="text-[9px] text-white/30 uppercase tracking-wider font-semibold mr-1.5">Filtros rápidos:</span>
+              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all" data-filtro="todos">Todos</button>
+              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="bases">Bases (M/B)</button>
+              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="rovers">Rovers (P/V)</button>
+              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="brutos">Brutos</button>
+              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="corrigidos">Corrigidos</button>
             </div>
             <div class="flex-1 overflow-auto">
               <table class="w-full text-left border-collapse">
@@ -222,7 +274,7 @@ export const renderMesaTrabalho = (): string => {
                     <th class="px-4 py-3 text-center">Sigmas (m)</th>
                   </tr>
                 </thead>
-                <tbody id="tbl-pontos-triagem" class="text-xs divide-y divide-white/5 font-mono text-white/60">
+                <tbody id="tbl-pontos-triagem" class="text-xs divide-y divide-white/5 text-white/80 font-sans font-normal">
                   <tr>
                     <td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td>
                   </tr>
@@ -231,8 +283,13 @@ export const renderMesaTrabalho = (): string => {
             </div>
           </div>
 
+          <!-- Splitter Inferior Arrastável -->
+          <div id="splitter-inferior" class="w-2 hover:w-3 bg-transparent hover:bg-mint-vibrant/10 cursor-col-resize transition-all self-stretch flex items-center justify-center rounded shrink-0 hidden lg:flex group" title="Arraste para ajustar largura">
+            <div class="w-[2px] h-10 bg-white/10 group-hover:bg-mint-vibrant/40 rounded transition-colors"></div>
+          </div>
+
           <!-- Tabela 2: Lateral Dinâmica (Divisas ou Auditoria de Translação) -->
-          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-full shrink-0" id="container-tabela-divisas">
+          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-[48%] shrink-0 min-w-[300px]" id="container-tabela-divisas">
             <div class="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center bg-white/[0.01]">
               <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
               <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDICAO REAL-TIME</span>

@@ -63,6 +63,23 @@
     font-family: 'Manrope', sans-serif !important;
 }
 
+/* Transição suave de tiles — Elimina o piscar ao dar zoom/pan (estilo Ether Pro).
+   Os tiles novos fazem fade-in gradual sobre os antigos que permanecem visíveis. */
+.leaflet-tile {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out !important;
+}
+.leaflet-tile-loaded {
+    opacity: 1;
+}
+/* Mantém os tiles antigos visíveis por baixo enquanto os novos carregam */
+.leaflet-tile-container {
+    will-change: transform;
+}
+.leaflet-fade-anim .leaflet-tile-container {
+    transition: none !important;
+}
+
 .leaflet-control-layers {
     background: rgba(12, 21, 16, 0.8) !important;
     backdrop-filter: blur(8px);
@@ -311,16 +328,16 @@ thead th,
   position: sticky;
   top: 0;
   z-index: 45;
-  background-color: rgba(12, 21, 16, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: rgba(12, 21, 16, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-wrap: wrap;
 }
 
 #mesa-trabalho-header.header-condensed {
   top: -19px !important;
-  padding: 4px 12px !important;
+  padding: 6px 16px !important;
   gap: 6px !important;
   border-radius: 8px !important;
   margin-bottom: 8px !important;
@@ -352,13 +369,62 @@ thead th,
   display: none !important;
 }
 
-/* Estado Normal: Abas de etapas ocupam a linha de baixo integralmente */
+/* Badge de Status com Pulsação Suave */
+#badge-status-lev.status-em-andamento {
+  animation: status-pulse 2s infinite ease-in-out;
+}
+
+@keyframes status-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(0, 245, 160, 0.1), inset 0 0 4px rgba(0, 245, 160, 0.05);
+    border-color: rgba(0, 245, 160, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(0, 245, 160, 0.3), inset 0 0 8px rgba(0, 245, 160, 0.1);
+    border-color: rgba(0, 245, 160, 0.5);
+  }
+}
+
+/* Estado Normal: Abas de etapas ocupam a linha de baixo integralmente em telas menores,
+   mas em telas maiores (desktop) podem se alinhar horizontalmente na mesma linha */
 #container-abas-etapas {
+  display: flex;
   width: 100%;
   order: 3;
-  margin-top: 10px;
-  background-color: rgba(255, 255, 255, 0.02);
+  margin-top: 6px;
+  background-color: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 4px;
+  border-radius: 10px;
+  gap: 6px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#container-abas-etapas::-webkit-scrollbar {
+  display: none;
+}
+
+.btn-etapa-tab {
+  white-space: nowrap;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Efeito de hover suave e sutil para abas inativas */
+.btn-etapa-tab:not(.bg-mint-vibrant\/10):hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+@media (min-width: 1024px) {
+  #container-abas-etapas {
+    width: auto;
+    order: unset;
+    margin-top: 0;
+  }
 }
 
 /* Estado Condensado: Abas de etapas sobem e comprimem para a direita */
@@ -443,4 +509,42 @@ thead th,
   gap: 10px;
 }
 
+/* ==========================================================================
+   Estilização dos Popups Compactos do Leaflet (Branco Compacto e Legível)
+   ========================================================================== */
+
+.compact-popup .leaflet-popup-content-wrapper,
+.compact-sigef-popup .leaflet-popup-content-wrapper,
+.glass-popup .leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18) !important;
+  padding: 0 !important;
+  font-family: 'Manrope', system-ui, sans-serif !important;
+}
+.compact-popup .leaflet-popup-content,
+.compact-sigef-popup .leaflet-popup-content,
+.glass-popup .leaflet-popup-content {
+  margin: 10px 12px !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+.compact-popup .leaflet-popup-tip,
+.compact-sigef-popup .leaflet-popup-tip,
+.glass-popup .leaflet-popup-tip {
+  background: #ffffff !important;
+}
+.compact-popup .leaflet-popup-close-button,
+.compact-sigef-popup .leaflet-popup-close-button,
+.glass-popup .leaflet-popup-close-button {
+  color: #999 !important;
+  font-size: 18px !important;
+  padding: 4px 7px 0 0 !important;
+}
+.compact-popup .leaflet-popup-close-button:hover,
+.compact-sigef-popup .leaflet-popup-close-button:hover,
+.glass-popup .leaflet-popup-close-button:hover {
+  color: #333 !important;
+}
 
