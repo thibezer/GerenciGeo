@@ -306,15 +306,39 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             e_base_corr, n_base_corr = transformer_to_utm.transform(base["lon"], base["lat"])
             alt_base_corr = base["alt"]
             
+            # Ajuste preventivo contra valores nulos nas coordenadas originais da base
+            e_base_orig = base["e_original"]
+            n_base_orig = base["n_original"]
+            alt_base_orig = base["alt_original"]
+            if e_base_orig is None or n_base_orig is None:
+                if base["lon"] is not None and base["lat"] is not None:
+                    e_base_orig, n_base_orig = transformer_to_utm.transform(base["lon"], base["lat"])
+                else:
+                    e_base_orig, n_base_orig = 0.0, 0.0
+            if alt_base_orig is None:
+                alt_base_orig = base["alt"] or 0.0
+                
             # 2. Calcula o Vetor de Translação Plana constante
-            delta_e = e_base_corr - base["e_original"]
-            delta_n = n_base_corr - base["n_original"]
-            delta_h = alt_base_corr - base["alt_original"]
+            delta_e = e_base_corr - e_base_orig
+            delta_n = n_base_corr - n_base_orig
+            delta_h = alt_base_corr - alt_base_orig
             
+            # Ajuste preventivo contra valores nulos nas coordenadas originais do rover
+            e_rover_orig = pt_antigo["e_original"]
+            n_rover_orig = pt_antigo["n_original"]
+            alt_rover_orig = pt_antigo["alt_original"]
+            if e_rover_orig is None or n_rover_orig is None:
+                if pt_antigo["lon"] is not None and pt_antigo["lat"] is not None:
+                    e_rover_orig, n_rover_orig = transformer_to_utm.transform(pt_antigo["lon"], pt_antigo["lat"])
+                else:
+                    e_rover_orig, n_rover_orig = 0.0, 0.0
+            if alt_rover_orig is None:
+                alt_rover_orig = pt_antigo["alt"] or 0.0
+                
             # 3. Aplica a translação no plano e Altitude do Rover
-            e_rover_corr = pt_antigo["e_original"] + delta_e
-            n_rover_corr = pt_antigo["n_original"] + delta_n
-            alt_rover_corr = pt_antigo["alt_original"] + delta_h
+            e_rover_corr = e_rover_orig + delta_e
+            n_rover_corr = n_rover_orig + delta_n
+            alt_rover_corr = alt_rover_orig + delta_h
             
             # 4. Retroprojeta a coordenada UTM corrigida para Geodésica no SIRGAS 2000
             lon_c, lat_c = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
@@ -339,7 +363,15 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
         else:
             zona_utm = 22 # Fallback
             transformer_to_latlon = Transformer.from_crs(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
-            lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
+            e_orig = pt_antigo["e_original"]
+            n_orig = pt_antigo["n_original"]
+            if e_orig is None or n_orig is None:
+                if pt_antigo["lat"] is not None and pt_antigo["lon"] is not None:
+                    lon_bruto, lat_bruto = pt_antigo["lon"], pt_antigo["lat"]
+                else:
+                    lon_bruto, lat_bruto = 0.0, 0.0
+            else:
+                lon_bruto, lat_bruto = transformer_to_latlon.transform(e_orig, n_orig)
             
             execute_query(
                 """
@@ -349,13 +381,21 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
                     status_ponto = 'BRUTO' 
                 WHERE id = ?
                 """,
-                (lat_bruto, lon_bruto, pt_antigo["alt_original"], ponto_id),
+                (lat_bruto, lon_bruto, pt_antigo["alt_original"] if pt_antigo["alt_original"] is not None else pt_antigo["alt"], ponto_id),
                 commit=True
             )
     else:
         zona_utm = 22 # Fallback
         transformer_to_latlon = Transformer.from_crs(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
-        lon_bruto, lat_bruto = transformer_to_latlon.transform(pt_antigo["e_original"], pt_antigo["n_original"])
+        e_orig = pt_antigo["e_original"]
+        n_orig = pt_antigo["n_original"]
+        if e_orig is None or n_orig is None:
+            if pt_antigo["lat"] is not None and pt_antigo["lon"] is not None:
+                lon_bruto, lat_bruto = pt_antigo["lon"], pt_antigo["lat"]
+            else:
+                lon_bruto, lat_bruto = 0.0, 0.0
+        else:
+            lon_bruto, lat_bruto = transformer_to_latlon.transform(e_orig, n_orig)
         
         execute_query(
             """
@@ -365,7 +405,7 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
                 status_ponto = 'BRUTO' 
             WHERE id = ?
             """,
-            (lat_bruto, lon_bruto, pt_antigo["alt_original"], ponto_id),
+            (lat_bruto, lon_bruto, pt_antigo["alt_original"] if pt_antigo["alt_original"] is not None else pt_antigo["alt"], ponto_id),
             commit=True
         )
 
@@ -387,24 +427,34 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         pt_antigo = dict(row)
         levantamento_id = pt_antigo["levantamento_id"]
 
-        # A.0. Atualiza Nome do Vértice (Mapeado no início para garantir consistência geodésica)
+        # Variáveis de controle para disparo posterior de lógicas de domínio
+        reordenar_poligono_reativo = False
+        recalcular_rover = False
+        propagar_base_bloco = False
+        corrigir_lote_rtk = False
+        
+        # Estruturas para acumular updates dinâmicos em um único UPDATE SQL
+        campos_update = []
+        valores_update = []
+
+        # A.0. Valida e Prepara Nome do Vértice (Garante consistência geodésica)
         nome_vertice = data.get("nome_vertice")
         if nome_vertice is not None and nome_vertice.strip() != pt_antigo["nome_vertice"]:
             nome_novo = nome_vertice.strip()
             if not nome_novo:
                 return {"error": "O nome do vértice não pode ser vazio.", "status_code": 400}
-                
-            # Verifica restrição de unicidade
-            tipo_para_checar = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
+            
             exists = execute_query(
                 "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
-                params=(levantamento_id, pt_antigo["matricula_id"], nome_novo, tipo_para_checar, pid),
+                params=(levantamento_id, pt_antigo["matricula_id"], nome_novo, data.get("tipo_ponto") or pt_antigo["tipo_ponto"], pid),
                 fetch_one=True
             )
             if exists:
                 return {"error": f"Já existe um vértice com o nome '{nome_novo}' para este mesmo tipo e matrícula.", "status_code": 400}
                 
-            execute_query("UPDATE pontos SET nome_vertice = ? WHERE id = ?", params=(nome_novo, pid), commit=True)
+            campos_update.append("nome_vertice = ?")
+            valores_update.append(nome_novo)
+            
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
                 tipo_evento="EDICAO_PONTO",
@@ -424,35 +474,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         if (tipo_atual == 'M' or tipo_atual == 'B') and n_corr is not None and e_corr is not None and alt_corr is not None:
             # 1. Caso o ponto base possua arquivo_origem (Lote de RTK / Caderneta importada)
             if pt_antigo.get("arquivo_origem"):
-                from business.geoprocessamento import aplicar_correcao_manual_lote
-                dados_brutos = {
-                    "nome_base": pt_antigo["nome_vertice"],
-                    "e_bruto": pt_antigo["e_original"] or e_corr,
-                    "n_bruto": pt_antigo["n_original"] or n_corr,
-                    "alt_bruta": pt_antigo["alt_original"] or alt_corr
-                }
-                
-                dados_corrigidos = {
-                    "tipo_entrada": "utm",
-                    "e_corrigido": e_corr,
-                    "n_corrigido": n_corr,
-                    "alt_corrigida": alt_corr,
-                    "fuso": fuso_corr or "22S"
-                }
-                
-                # Executa a translação reativa em lote baseada no arquivo
-                aplicar_correcao_manual_lote(
-                    levantamento_id=levantamento_id,
-                    matricula_id=pt_antigo["matricula_id"],
-                    arquivo_origem=pt_antigo["arquivo_origem"],
-                    dados_brutos=dados_brutos,
-                    dados_corrigidos=dados_corrigidos,
-                    base_id=pid
-                )
-                return {"success": True, "message": "Coordenadas oficiais salvas e translação reativa aplicada com sucesso em todos os rovers do arquivo."}
+                corrigir_lote_rtk = True
             else:
                 # 2. Caso seja uma base isolada sem arquivo_origem (Ingestão Manual)
-                # Converte plana UTM corrigida para geodésica
                 zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
                 epsg_utm = f"319{60 + zona}"
                 
@@ -465,13 +489,38 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 data["status_ponto"] = "CORRIGIDO"
                 data["status_correcao"] = "CORRIGIDO"
 
-        # A.1. Atualiza Tipo de Ponto ('M', 'P', 'V', 'B')
+        if corrigir_lote_rtk:
+            from business.geoprocessamento import aplicar_correcao_manual_lote
+            dados_brutos = {
+                "nome_base": pt_antigo["nome_vertice"],
+                "e_bruto": pt_antigo["e_original"] or e_corr,
+                "n_bruto": pt_antigo["n_original"] or n_corr,
+                "alt_bruta": pt_antigo["alt_original"] or alt_corr
+            }
+            dados_corrigidos = {
+                "tipo_entrada": "utm",
+                "e_corrigido": e_corr,
+                "n_corrigido": n_corr,
+                "alt_corrigida": alt_corr,
+                "fuso": fuso_corr or "22S"
+            }
+            
+            aplicar_correcao_manual_lote(
+                levantamento_id=levantamento_id,
+                matricula_id=pt_antigo["matricula_id"],
+                arquivo_origem=pt_antigo["arquivo_origem"],
+                dados_brutos=dados_brutos,
+                dados_corrigidos=dados_corrigidos,
+                base_id=pid
+            )
+            return {"success": True, "message": "Coordenadas oficiais salvas e translação reativa aplicada com sucesso em todos os rovers do arquivo."}
+
+        # A.1. Valida e Prepara Tipo de Ponto ('M', 'P', 'V', 'B')
         tipo_ponto = data.get("tipo_ponto")
         if tipo_ponto is not None and tipo_ponto != pt_antigo["tipo_ponto"]:
             if tipo_ponto not in ['M', 'P', 'V', 'B']:
                 return {"error": "Tipo de ponto inválido. Deve ser 'M', 'P', 'V' ou 'B'.", "status_code": 400}
                 
-            # Verifica restrição de unicidade
             exists = execute_query(
                 "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
                 params=(levantamento_id, pt_antigo["matricula_id"], pt_antigo["nome_vertice"], tipo_ponto, pid),
@@ -480,11 +529,11 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             if exists:
                 return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_antigo['nome_vertice']}' do tipo '{tipo_ponto}' nesta matrícula.", "status_code": 400}
                 
-            execute_query("UPDATE pontos SET tipo_ponto = ? WHERE id = ?", params=(tipo_ponto, pid), commit=True)
+            campos_update.append("tipo_ponto = ?")
+            valores_update.append(tipo_ponto)
             
-            # Se mudou para M ou B (Base), limpa ponto_base_id pois bases não se amarram a outras bases
             if tipo_ponto in ['M', 'B']:
-                execute_query("UPDATE pontos SET ponto_base_id = NULL WHERE id = ?", params=(pid,), commit=True)
+                campos_update.append("ponto_base_id = NULL")
                 pt_antigo["ponto_base_id"] = None
                 
             HistoricoCampoLogger.registrar_evento(
@@ -495,10 +544,12 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             )
             pt_antigo["tipo_ponto"] = tipo_ponto
 
-        # A.2. Atualiza Método de Posicionamento
+        # A.2. Valida e Prepara Método de Posicionamento
         metodo_posicionamento = data.get("metodo_posicionamento")
         if metodo_posicionamento is not None and metodo_posicionamento != pt_antigo["metodo_posicionamento"]:
-            execute_query("UPDATE pontos SET metodo_posicionamento = ? WHERE id = ?", params=(metodo_posicionamento, pid), commit=True)
+            campos_update.append("metodo_posicionamento = ?")
+            valores_update.append(metodo_posicionamento)
+            
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
                 tipo_evento="EDICAO_METODO",
@@ -507,13 +558,13 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             )
             pt_antigo["metodo_posicionamento"] = metodo_posicionamento
             
-        # B. Atualiza Matrícula
+        # B. Valida e Prepara Matrícula
         matricula_id = data.get("matricula_id")
         if matricula_id is not None and matricula_id != pt_antigo["matricula_id"]:
             m_id = matricula_id if matricula_id > 0 else None
-            execute_query("UPDATE pontos SET matricula_id = ? WHERE id = ?", params=(m_id, pid), commit=True)
+            campos_update.append("matricula_id = ?")
+            valores_update.append(m_id)
             
-            # Registrar alteração de matrícula
             desc_mat = f"Vértice {pt_antigo['nome_vertice']} atrelado à matrícula ID {m_id} (anteriormente ID {pt_antigo['matricula_id']})."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
@@ -523,14 +574,13 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             )
             pt_antigo["matricula_id"] = m_id
 
-        # C. Atualiza Vínculo de Base de Campo (ponto_base_id) - EXCLUSIVO ROVERS
-        recalcular_rover = False
+        # C. Valida e Prepara Vínculo de Base de Campo (ponto_base_id) - EXCLUSIVO ROVERS
         ponto_base_id = data.get("ponto_base_id")
         if ponto_base_id is not None and ponto_base_id != pt_antigo["ponto_base_id"]:
             new_base_id = ponto_base_id if ponto_base_id > 0 else None
-            execute_query("UPDATE pontos SET ponto_base_id = ? WHERE id = ?", params=(new_base_id, pid), commit=True)
+            campos_update.append("ponto_base_id = ?")
+            valores_update.append(new_base_id)
             
-            # Log de alteração de amarração
             desc_base = f"Amarração de campo do vértice {pt_antigo['nome_vertice']} alterada de Base ID {pt_antigo['ponto_base_id']} para Base ID {new_base_id}."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
@@ -538,21 +588,17 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 descricao=desc_base,
                 dados_detalhados={"ponto_id": pid, "nome_vertice": pt_antigo["nome_vertice"], "anterior_base_id": pt_antigo["ponto_base_id"], "nova_base_id": new_base_id}
             )
-            
-            # Força o recálculo do rover individual
             recalcular_rover = True
             pt_antigo["ponto_base_id"] = new_base_id
             
         # D. Coordenadas Espaciais e Status
         atualizar_coordenadas = False
-        updates = []
-        params = []
         
         for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono"]:
             val = data.get(campo)
             if val is not None and val != pt_antigo[campo]:
-                updates.append(f"{campo} = ?")
-                params.append(val)
+                campos_update.append(f"{campo} = ?")
+                valores_update.append(val)
                 atualizar_coordenadas = True
                 
         if atualizar_coordenadas:
@@ -563,28 +609,18 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             ignorar_val = data.get("ignorar_poligono")
 
             if lat_val is not None:
-                updates.append("lat_corrigido = ?")
-                params.append(lat_val)
+                campos_update.append("lat_corrigido = ?")
+                valores_update.append(lat_val)
             if lon_val is not None:
-                updates.append("lon_corrigido = ?")
-                params.append(lon_val)
+                campos_update.append("lon_corrigido = ?")
+                valores_update.append(lon_val)
             if alt_val is not None:
-                updates.append("alt_corrigido = ?")
-                params.append(alt_val)
+                campos_update.append("alt_corrigido = ?")
+                valores_update.append(alt_val)
                 
-            params.append(pid)
-            query_update = f"UPDATE pontos SET {', '.join(updates)} WHERE id = ?"
-            execute_query(query_update, params=tuple(params), commit=True)
-            
-            # Se ignorar_poligono mudou e o ponto tem matrícula, dispara a autorregeneração das divisas
             if ignorar_val is not None and ignorar_val != pt_antigo["ignorar_poligono"] and pt_antigo["matricula_id"]:
-                try:
-                    reordenar_perimetro_matricula(levantamento_id, pt_antigo["matricula_id"])
-                    logger.info(f"Divisas da matrícula ID {pt_antigo['matricula_id']} autorregeneradas devido à alteração de ignorar_poligono do ponto ID {pid}.")
-                except Exception as ex_reorder:
-                    logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
+                reordenar_poligono_reativo = True
             
-            # Registra auditoria de mudança espacial
             desc_spatial = f"Coordenadas espaciais do vértice {pt_antigo['nome_vertice']} atualizadas com sucesso."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
@@ -598,13 +634,31 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 }
             )
             
-            # Se for base (tipo 'M') e seu status agora for 'CORRIGIDO', propaga em bloco
             novo_status = status_val or pt_antigo["status_ponto"]
             if pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
-                rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
-                logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+                propagar_base_bloco = True
 
-        # E. Se apenas o vínculo de base do rover mudou, fazemos a re-translação instantânea dele
+        # E. Executa o UPDATE acumulado sob uma única transação no SQLite
+        if campos_update:
+            query_update = f"UPDATE pontos SET {', '.join(campos_update)} WHERE id = ?"
+            valores_update.append(pid)
+            
+            with DatabaseManager() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query_update, tuple(valores_update))
+
+        # F. Lógicas pós-atualização reativas de geoprocessamento
+        if reordenar_poligono_reativo:
+            try:
+                reordenar_perimetro_matricula(levantamento_id, pt_antigo["matricula_id"])
+                logger.info(f"Divisas da matrícula ID {pt_antigo['matricula_id']} autorregeneradas devido à alteração de ignorar_poligono do ponto ID {pid}.")
+            except Exception as ex_reorder:
+                logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
+
+        if propagar_base_bloco:
+            rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
+            logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+
         if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
             new_base_id = pt_antigo["ponto_base_id"]
             recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
@@ -756,7 +810,7 @@ def gerar_termo_anuencia_html(levantamento_id: int, confrontante_id: int) -> str
     lon0 = segmentos[0]["lon_ini"]
     zona_utm = int((lon0 + 180) / 6) + 1
     
-    transformer = Transformer.from_crs("epsg:4674", f"epsg:319{zona_utm}", always_xy=True)
+    transformer = Transformer.from_crs("epsg:4674", f"epsg:319{60 + zona_utm}", always_xy=True)
     
     for s in segmentos:
         e_ini, n_ini = transformer.transform(s["lon_ini"], s["lat_ini"])

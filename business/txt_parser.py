@@ -15,8 +15,8 @@ class TxtGeodesicParser:
     def identificar_layout(self, linhas: list) -> str:
         """
         Analisa as primeiras linhas válidas para determinar se o layout é RTK ou Topcon (Estático).
-        RTK: 8 colunas (a 5ª coluna é uma descrição em texto como 'set_base' ou 'rover')
-        Topcon: Geralmente 7 ou mais colunas, onde as colunas 1 a 6 são numéricas puros (Nome, N, E, H, Sigmas)
+        Topcon: Sempre possui 7 colunas (Nome, N, E, H, SigN, SigE, SigZ) e todas de 2 a 7 são numéricas.
+        RTK: Possui 8 colunas, onde a 5ª coluna é uma descrição textual (ex: 'set_base' ou 'rover').
         """
         for linha in linhas:
             linha_limpa = linha.strip()
@@ -24,15 +24,17 @@ class TxtGeodesicParser:
                 continue
             
             partes = [p.strip() for p in linha_limpa.split(",")]
-            if len(partes) >= 5:
-                # Se a quinta coluna possui caracteres não numéricos e descreve o ponto, é RTK
+            if len(partes) == 7:
+                # Topcon clássico tem 7 colunas
+                return "topcon"
+            elif len(partes) >= 8:
                 quinta_coluna = partes[4]
+                if quinta_coluna.lower() in ["set_base", "rover", "base_rtk", "rtk_base", "base", "set-base"]:
+                    return "rtk"
                 try:
                     float(quinta_coluna)
-                    # Conseguiu converter, provável estático Topcon
                     return "topcon"
                 except ValueError:
-                    # Falhou em converter para float, indica descrição em texto (ex: 'set_base', 'rover')
                     return "rtk"
         
         # Fallback seguro
@@ -141,7 +143,18 @@ class TxtGeodesicParser:
             logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com base na longitude {longitude_base:.6f}")
         else:
             epsg_dinamico = "31982"
-            logger.warning(f"[PARSER] Nenhuma base PPP ativa encontrada no banco para este levantamento. Usando Fuso de Fallback: 22S (EPSG:{epsg_dinamico})")
+            try:
+                query_any_pt = "SELECT lon FROM pontos WHERE levantamento_id = ? AND lon IS NOT NULL AND lon != 0.0 LIMIT 1"
+                row_any_pt = execute_query(query_any_pt, params=(self.levantamento_id,), fetch_one=True)
+                if row_any_pt:
+                    longitude_pt = row_any_pt["lon"]
+                    zona_utm = int((longitude_pt + 180) / 6) + 1
+                    epsg_dinamico = f"319{60 + zona_utm}"
+                    logger.info(f"[PARSER] Fuso UTM inferido a partir de ponto existente no banco: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com longitude {longitude_pt:.6f}")
+            except Exception as e_fuso:
+                logger.warning(f"[PARSER] Falha ao tentar inferir fuso a partir de pontos do levantamento: {e_fuso}")
+            
+            logger.warning(f"[PARSER] Usando Fuso de Fallback: (EPSG:{epsg_dinamico})")
 
         crs_geodesica = "epsg:4674"
         crs_plana = f"epsg:{epsg_dinamico}"
@@ -188,7 +201,42 @@ class TxtGeodesicParser:
                 else:
                     logger.warning("[PARSER] AVISO: Ponto de Base Bruta encontrado, mas nenhuma Base PPP processada existe no banco de dados para este levantamento.")
             else:
-                logger.warning("[PARSER] AVISO: Arquivo no layout RTK mas sem ponto de amarração correspondente à base escolhida. A translação não será aplicada.")
+                if base_ppp:
+                    raise ValueError(
+                        f"Não foi possível localizar o ponto de amarração correspondente à base '{base_ppp['nome_vertice']}' "
+                        f"dentro do arquivo RTK. Verifique se o nome do ponto no arquivo .txt coincide com o nome da base "
+                        f"ou se o ponto está rotulado com 'set_base'."
+                    )
+                else:
+                    logger.warning("[PARSER] AVISO: Arquivo no layout RTK mas sem ponto de amarração correspondente à base escolhida. A translação não será aplicada.")
+
+        # 3.2. Validação Cruzada Topcon Tools x PPP (Item 11)
+        if layout == "topcon" and base_ppp:
+            nome_base_db = base_ppp.get("nome_vertice", "").upper()
+            base_no_arquivo = next((p for p in pontos_brutos if p["nome"].upper() == nome_base_db), None)
+            if base_no_arquivo:
+                # Converte base PPP oficial para UTM
+                e_base_corr, n_base_corr = transformer_to_utm.transform(base_ppp["lon"], base_ppp["lat"])
+                alt_base_corr = base_ppp["alt"]
+                
+                # Compara com as coordenadas da base exportadas pelo Topcon Tools
+                e_base_topcon = base_no_arquivo["e_original"]
+                n_base_topcon = base_no_arquivo["n_original"]
+                alt_base_topcon = base_no_arquivo["alt_original"]
+                
+                dist_3d = math.sqrt(
+                    (e_base_corr - e_base_topcon)**2 + 
+                    (n_base_corr - n_base_topcon)**2 + 
+                    (alt_base_corr - alt_base_topcon)**2
+                )
+                
+                logger.info(f"[VALIDACAO_CRUZADA] Comparando Base '{nome_base_db}' (Topcon vs PPP): Delta 3D = {dist_3d:.4f}m")
+                if dist_3d > 0.05:
+                    logger.warning(
+                        f"[VALIDACAO_CRUZADA] ALERTA CRÍTICO: Divergência detectada entre o processamento do Topcon Tools "
+                        f"e a base PPP oficial corrigida do IBGE. Delta 3D = {dist_3d:.4f}m (limite tolerável: 0.05m / 5cm). "
+                        f"Verifique se processou a baseline no Topcon com a coordenada correta da base."
+                    )
 
         # 4. Translação e Conversão Reversa em Lote
         # Determina a ordem inicial dinâmica incremental (evitando duplicidades de ordem perimetral)

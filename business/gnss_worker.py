@@ -2,13 +2,10 @@ import threading
 import logging
 import sys
 import os
-import ctypes
 import time
-import subprocess
-from pywinauto.application import Application
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from converterrinex import converter_rinex_ativo # Importamos a função nova do arquivo na raiz
+from converterrinex import converter_rinex # Importamos a nova função de conversão em lote
 from database.repository import HistoricoRinexRepo
 from business.triagem_inteligente import ler_metadados_rinex
 from business.workspace_manager import WorkspaceManager
@@ -21,7 +18,7 @@ class GNSSPipelineWorker(threading.Thread):
         self.lista_arquivos = lista_arquivos
         self.pasta_destino = pasta_destino
         self.result_queue = result_queue
-        self.caminho_exe = caminho_exe or r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\ConvertRinex.exe"
+        self.caminho_exe = caminho_exe or r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"
         self.repo = HistoricoRinexRepo()
         self.daemon = True
         self._stop_event = threading.Event()
@@ -59,63 +56,49 @@ class GNSSPipelineWorker(threading.Thread):
             self.result_queue.put({"tipo": "log", "mensagem": "Nenhum arquivo válido para processar."})
             return
 
-        self.result_queue.put({"tipo": "log", "mensagem": f"Iniciando conversão de {total} arquivos GNSS..."})
+        self.result_queue.put({"tipo": "log", "mensagem": f"Iniciando conversão de {total} arquivos GNSS com HGO..."})
 
-        # 2. INICIA O PROGRAMA COMO ADMINISTRADOR (UAC)
-        try:
-            if not os.path.exists(self.caminho_exe):
-                self.result_queue.put({"tipo": "erro_fatal", "mensagem": f"Executável não encontrado: {self.caminho_exe}"})
-                return
-
-            self.result_queue.put({"tipo": "log", "mensagem": "[LIMPEZA] Encerrando instâncias antigas..."})
-            subprocess.run(["taskkill", "/f", "/im", "ConvertRinex.exe", "/t"], capture_output=True, shell=True)
-            time.sleep(1.5)
-
-            self.result_queue.put({"tipo": "log", "mensagem": "[UAC] Solicitando permissão de Administrador para o ConvertRinex..."})
-            
-            # Pede a elevação pelo shell do Windows diretamente
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", self.caminho_exe, None, None, 1)
-            
-            # Aguarda o usuário clicar em "Sim" e o programa carregar (Aumentado para 8s para segurança)
-            time.sleep(8) 
-            
-            # Conecta à instância que acabou de abrir
-            app = Application(backend="uia").connect(path=self.caminho_exe, timeout=30)
-            janela = app.window(title_re=".*ConvertRinex.*")
-            janela.wait('ready', timeout=25)
-            
-        except Exception as e:
-            self.result_queue.put({"tipo": "erro_fatal", "mensagem": f"Falha ao abrir o ConvertRinex com privilégios: {e}"})
+        # 2. SE EXECUÇÃO CANCELADA
+        if self._stop_event.is_set():
+            self.result_queue.put({"tipo": "log", "mensagem": "[CANCELADO] Interrupção pelo usuário antes do início."})
             return
 
-        # 3. RODA A ESTEIRA
-        for i, arquivo in enumerate(validos):
+        # 3. CHAMAR O CONVERSOR RINEX DO HGO
+        try:
+            self.result_queue.put({"tipo": "log", "mensagem": "[HGO] Iniciando automação do HGO no backend..."})
+            
+            # Chama a função principal de conversão
+            sucesso_geral = converter_rinex(validos, self.pasta_destino, caminho_exe=self.caminho_exe)
+            
+            # Se cancelou durante a conversão
             if self._stop_event.is_set():
                 self.result_queue.put({"tipo": "log", "mensagem": "[CANCELADO] Interrupção pelo usuário."})
-                break
-                
-            nome_arq = os.path.basename(arquivo)
-            tamanho = os.path.getsize(arquivo)
-            try:
-                self.result_queue.put({"tipo": "log", "mensagem": f"[{i+1}/{total}] Convertendo: {nome_arq}"})
-                
-                sucesso = converter_rinex_ativo(janela, arquivo, self.pasta_destino)
+                return
 
-                if sucesso:
-                    # Tenta ler metadados do arquivo gerado
-                    # O ConvertRinex gera arquivos com o mesmo nome na pasta destino, mas extensão .obs ou .??o
-                    # Vamos procurar o .obs ou similar na pasta de destino que corresponda ao arquivo original
-                    obs_path = os.path.join(self.pasta_destino, os.path.splitext(nome_arq)[0] + ".obs")
-                    if not os.path.exists(obs_path):
-                        # Caso não ache .obs, procura qualquer um que termine em 'o' ou 'O'
-                        prefixo = os.path.splitext(nome_arq)[0].lower()
-                        for f_dest in os.listdir(self.pasta_destino):
-                            if f_dest.lower().startswith(prefixo) and f_dest.lower().endswith(('o', '.obs')):
+            self.result_queue.put({"tipo": "log", "mensagem": f"[HGO] Conversão concluída. Processando resultados..."})
+            
+            # 4. PROCESSAR E REGISTRAR OS RESULTADOS INDIVIDUAIS
+            for i, arquivo in enumerate(validos):
+                nome_arq = os.path.basename(arquivo)
+                tamanho = os.path.getsize(arquivo)
+                prefixo = os.path.splitext(nome_arq)[0].lower()
+                
+                # Busca dinâmica na pasta de destino por arquivos que correspondam ao prefixo e à extensão de observação RINEX (.obs, .o, ou .yyo onde yy é o ano)
+                import re
+                obs_path = None
+                if os.path.exists(self.pasta_destino):
+                    for f_dest in os.listdir(self.pasta_destino):
+                        f_dest_lower = f_dest.lower()
+                        if f_dest_lower.startswith(prefixo):
+                            ext = os.path.splitext(f_dest_lower)[1]
+                            if ext in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext):
                                 obs_path = os.path.join(self.pasta_destino, f_dest)
                                 break
-                    
-                    meta = ler_metadados_rinex(obs_path) if os.path.exists(obs_path) else None
-                    
+                
+                
+                # Verifica se o arquivo foi realmente gerado e tem dados
+                if obs_path and os.path.exists(obs_path) and os.path.getsize(obs_path) > 0:
+                    meta = ler_metadados_rinex(obs_path)
                     if meta:
                         self.repo.insert(
                             arquivo_nome=nome_arq,
@@ -128,33 +111,26 @@ class GNSSPipelineWorker(threading.Thread):
                             longitude=meta['lon'],
                             sucesso=True
                         )
+                        self.result_queue.put({"tipo": "log", "mensagem": f"   [SUCESSO] {nome_arq} convertido para {os.path.basename(obs_path)} (Marcador: {meta['marcador']})"})
                     else:
                         self.repo.insert(nome_arq, tamanho, arquivo, sucesso=True)
-
-                    if self.workspace_mgr and self.levantamento_id and os.path.exists(obs_path):
-                        try:
-                            # Move arquivo gerado (.obs) para a pasta Rinex
-                            self.workspace_mgr.move_file_to_workspace(self.levantamento_id, obs_path, "Rinex")
-                            self.result_queue.put({"tipo": "log", "mensagem": f"   [ARQUIVO MOVIDO] {os.path.basename(obs_path)} para o Workspace."})
-                        except Exception as e:
-                            self.result_queue.put({"tipo": "log", "mensagem": f"   [AVISO] Erro ao mover {obs_path} para o Workspace: {e}"})
+                        self.result_queue.put({"tipo": "log", "mensagem": f"   [SUCESSO] {nome_arq} convertido para {os.path.basename(obs_path)} (Metadados ilegíveis)"})
+                        
+                    if self.workspace_mgr and self.levantamento_id:
+                        pasta_workspace_rinex = self.workspace_mgr.get_levantamento_folder(self.levantamento_id) / "Rinex"
+                        if os.path.normpath(os.path.dirname(obs_path)) != os.path.normpath(pasta_workspace_rinex):
+                            try:
+                                self.workspace_mgr.move_file_to_workspace(self.levantamento_id, obs_path, "Rinex")
+                                self.result_queue.put({"tipo": "log", "mensagem": f"   [ARQUIVO MOVIDO] {os.path.basename(obs_path)} para o Workspace."})
+                            except Exception as e:
+                                self.result_queue.put({"tipo": "log", "mensagem": f"   [AVISO] Erro ao mover {obs_path} para o Workspace: {e}"})
                 else:
                     self.repo.insert(nome_arq, tamanho, arquivo, sucesso=False)
-                    self.result_queue.put({"tipo": "log", "mensagem": f"   [AVISO] Falha ao converter {nome_arq}"})
-
-            except Exception as e:
-                self.repo.insert(nome_arq, tamanho, arquivo, sucesso=False)
-                self.result_queue.put({"tipo": "log", "mensagem": f"   [ERRO] Crash em {nome_arq}: {repr(e)}"})
-
-        # 4. DESLIGA O PROGRAMA
-        try:
-            if 'janela' in locals() and janela.exists():
-                janela.close()
-            if 'app' in locals():
-                app.kill()
-        except:
-            # Força encerramento via taskkill se a automação falhar no fechamento
-            subprocess.run(["taskkill", "/f", "/im", "ConvertRinex.exe", "/t"], capture_output=True, shell=True)
+                    self.result_queue.put({"tipo": "log", "mensagem": f"   [FALHA] {nome_arq} não pôde ser convertido."})
+            
+        except Exception as e:
+            self.result_queue.put({"tipo": "erro_fatal", "mensagem": f"Erro crítico durante a automação do HGO: {e}"})
+            return
 
         self.result_queue.put({"tipo": "concluido", "mensagem": "Todos os processamentos finalizados."})
-        self.result_queue.put({"tipo": "log", "mensagem": ">>> Lote de conversão RPA 100% finalizado!"})
+        self.result_queue.put({"tipo": "log", "mensagem": ">>> Lote de conversão HGO 100% finalizado!"})

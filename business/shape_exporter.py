@@ -136,6 +136,15 @@ class ShapefileExporter:
         if len(pontos_processados) < 3:
             raise ValueError("Pontos processados insuficientes após projeção de coordenadas.")
 
+        # 5.1. Auditoria Topológica Rigorosa de Autointerssecção (Item 10)
+        pontos_plano_val = [{"e": p["x_utm"], "n": p["y_utm"]} for p in pontos_processados]
+        from business.sigef_validator import SigefValidator
+        if SigefValidator.validar_autointerssecao(pontos_plano_val):
+            raise ValueError(
+                "A poligonal do perímetro possui autointerssecções (cruzamentos de segmentos). "
+                "Corrija a ordem de caminhamento no ordenador perimetral antes de exportar o Shapefile para evitar a rejeição imediata no SIGEF."
+            )
+
         # 6. GERAÇÃO DE ARQUIVOS EM MEMÓRIA
         zip_buffer = io.BytesIO()
 

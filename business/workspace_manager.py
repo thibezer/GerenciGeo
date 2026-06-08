@@ -312,8 +312,8 @@ class WorkspaceManager:
         caminho_exportacao = folder / "Exportacoes" / "PONTOS_CONSOLIDADOS_UTM.txt"
 
         linhas_arquivo = []
-        # Cabeçalho padronizado
-        linhas_arquivo.append("VERTICE;ESTE_UTM;NORTE_UTM;ALTITUDE;SIGMA_E;SIGMA_N;SIGMA_Z;TIPO;CONFRONTANTE;TIPO_LIMITE;METODO")
+        # Cabeçalho padronizado do TOPOCAD
+        linhas_arquivo.append("PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE")
 
         for p in pontos:
             # Conversão de latitude/longitude corrigidas para coordenadas planas UTM
@@ -321,27 +321,24 @@ class WorkspaceManager:
             
             # Mapeia informações do segmento correspondente (onde o ponto é vértice de partida)
             seg = segmentos.get(p["id"])
-            confrontante = "SEM CONFRONTANTE"
-            tipo_limite = "N/A"
-            metodo = "N/A"
+            confrontante = ""
 
             if seg:
                 if seg["nome_confrontante"]:
-                    confrontante = f"CONFR: {seg['nome_confrontante']}"
+                    confrontante = seg["nome_confrontante"].upper()
                 else:
                     confrontante = "LIMITE NATURAL"
-                tipo_limite = seg["tipo_limite_sigef"] or "LN1"
-                metodo = seg["metodo_posicionamento_sigef"] or "PG1"
             elif p["tipo_ponto"] == "M":
                 confrontante = "APOIO BASE PPP"
-                tipo_limite = "N/A"
-                metodo = "MC1"
 
-            # Linha formatada com 3 casas decimais para coordenadas e sigmas
+            # Sanitização simples para evitar vírgulas internas no CSV do TOPOCAD
+            confrontante_limpo = confrontante.replace(",", " ")
+
+            # Linha formatada no padrão do TOPOCAD: PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE
             linhas_arquivo.append(
-                f"{p['nome_vertice']};{e_utm:.3f};{n_utm:.3f};{p['alt']:.3f};"
-                f"{p['sigma_lon']:.3f};{p['sigma_lat']:.3f};{p['sigma_alt']:.3f};"
-                f"{p['tipo_ponto']};{confrontante.upper()};{tipo_limite};{metodo}"
+                f"{p['nome_vertice']},{e_utm:.3f},{n_utm:.3f},{p['alt']:.3f},"
+                f"{p['sigma_lon']:.3f},{p['sigma_lat']:.3f},{p['sigma_alt']:.3f},"
+                f"{confrontante_limpo}"
             )
 
         # Gravação física do arquivo unificado

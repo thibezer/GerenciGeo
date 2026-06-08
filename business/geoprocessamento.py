@@ -14,18 +14,20 @@ def latlon_to_utm22s(lat, lon):
 
 def exportar_txt_utm(pontos, filepath):
     """
-    Gera um arquivo TXT com as coordenadas UTM 22S.
+    Gera um arquivo TXT com as coordenadas UTM 22S no padrão do TOPOCAD.
+    PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE
     pontos: lista de tuplas (nome, lat, lon)
     """
     with open(filepath, 'w', encoding='utf-8') as f:
-        f.write("Ponto,Eixo X (E),Eixo Y (N)\n")
+        f.write("PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE\n")
         for nome, lat, lon in pontos:
             if lat and lon:
                 try:
                     lat_f = float(lat)
                     lon_f = float(lon)
                     x, y = latlon_to_utm22s(lat_f, lon_f)
-                    f.write(f"{nome},{x:.3f},{y:.3f}\n")
+                    # Preenche Z e sigmas com 0.000 e confrontante vazio para compatibilidade com o layout do TOPOCAD
+                    f.write(f"{nome},{x:.3f},{y:.3f},0.000,0.000,0.000,0.000,\n")
                 except (ValueError, TypeError):
                     continue
 
@@ -927,8 +929,29 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
     detalhamento_logs = []
 
     try:
-        # Usa a projeção padrão UTM Zone 22S (EPSG:31982) como fallback padrão do motor para retroprojeção direta
-        transformer_to_latlon = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+        # Tenta calcular a zona UTM correta com base na longitude da base original que está sendo desvinculada (Item 1)
+        epsg_dinamico = "31982"
+        try:
+            query_base_coords = "SELECT lon FROM pontos WHERE id = ? AND lon IS NOT NULL AND lon != 0.0"
+            row_base = execute_query(query_base_coords, params=(base_id,), fetch_one=True)
+            if row_base:
+                longitude_base = row_base["lon"]
+                zona_utm = int((longitude_base + 180) / 6) + 1
+                epsg_dinamico = f"319{60 + zona_utm}"
+                logger.info(f"[REVERSAO_ORFÃOS] Fuso UTM recuperado da base original: Zona {zona_utm}S (EPSG:{epsg_dinamico})")
+            else:
+                # Tenta pegar de qualquer outro ponto do levantamento
+                query_any_p = "SELECT lon FROM pontos WHERE levantamento_id = ? AND lon IS NOT NULL AND lon != 0.0 LIMIT 1"
+                row_any = execute_query(query_any_p, params=(levantamento_id,), fetch_one=True)
+                if row_any:
+                    longitude_p = row_any["lon"]
+                    zona_utm = int((longitude_p + 180) / 6) + 1
+                    epsg_dinamico = f"319{60 + zona_utm}"
+                    logger.info(f"[REVERSAO_ORFÃOS] Fuso UTM inferido de outro ponto: Zona {zona_utm}S (EPSG:{epsg_dinamico})")
+        except Exception as e_fuso_orf:
+            logger.warning(f"[REVERSAO_ORFÃOS] Falha ao recuperar fuso dinâmico para órfãos: {e_fuso_orf}")
+
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_dinamico}", "epsg:4674", always_xy=True)
 
         with DatabaseManager() as conn:
             cursor = conn.cursor()

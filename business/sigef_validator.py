@@ -3,12 +3,76 @@ import math
 class SigefValidator:
     """Implementa cálculo de erro Sigma, validação a 95% de confiança da norma do INCRA e auditoria topológica de polígonos"""
     
-    # 3a Edicao limites
+    # 3a Edicao limites planimetricos
     LIMITES = {
         'artificial': 0.50,    # metros
         'natural': 3.00,       # metros
         'inacessivel': 7.50,   # metros
     }
+
+    # 3a Edicao limites altimetricos (tipicamente o dobro da planimetria pela Norma INCRA/SIGEF)
+    LIMITES_ALTIMETRICOS = {
+        'artificial': 1.00,    # metros
+        'natural': 6.00,       # metros
+        'inacessivel': 15.00,  # metros
+    }
+
+    @classmethod
+    def validar_conformidade_vertical(cls, sigma_z: float, tipo_limite: str) -> tuple[bool, str]:
+        """Retorna (conforme: bool, mensagem_alerta: str) para a componente altimetrica vertical"""
+        if sigma_z is None:
+            return False, "Faltam dados σZ"
+            
+        tipo = str(tipo_limite).lower().strip()
+        if tipo not in cls.LIMITES_ALTIMETRICOS:
+            return False, f"Tipo de limite ({tipo_limite}) desconhecido."
+
+        limite_max = cls.LIMITES_ALTIMETRICOS[tipo]
+        is_conforme = sigma_z <= limite_max
+
+        status = "CONFORME VERTICAL" if is_conforme else "REPROVADO VERTICAL"
+        msg = f"{status}: σZ ({sigma_z:.4f}m) contra limite de {limite_max:.2f}m (1-Sigma)."
+        return is_conforme, msg
+
+    @classmethod
+    def validar_autointerssecao(cls, pontos_plano: list) -> bool:
+        """
+        Algoritmo deterministico e robusto sem dependencias baseado em orientacao CCW (Counter Clockwise)
+        para detectar autointerssecao (self-intersection) em poligonos fechados 2D no espaco UTM.
+        Retorna True se houver cruzamento irregular de divisas (poligonal autocortante).
+        """
+        n = len(pontos_plano)
+        if n < 4:
+            return False # Triangulos nao se autointersectam
+
+        segmentos = []
+        for i in range(n):
+            p1 = (pontos_plano[i]["e"], pontos_plano[i]["n"])
+            p2 = (pontos_plano[(i + 1) % n]["e"], pontos_plano[(i + 1) % n]["n"])
+            segmentos.append((p1, p2))
+
+        def ccw(A, B, C):
+            # Retorna True se a curva ABC estiver no sentido anti-horario
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        def intersect(A, B, C, D):
+            # Ignora intersecoes validas em vertices comuns das extremidades dos segmentos
+            if A == C or A == D or B == C or B == D:
+                return False
+            # Dois segmentos se cruzam se as orientacoes das extremidades forem opostas
+            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+        # Compara todos os pares de segmentos nao consecutivos
+        for i in range(n):
+            for j in range(i + 2, n):
+                # Evita comparar o primeiro segmento com o ultimo (compartilham a base comum de fechamento)
+                if i == 0 and j == n - 1:
+                    continue
+                A, B = segmentos[i]
+                C, D = segmentos[j]
+                if intersect(A, B, C, D):
+                    return True
+        return False
 
     @staticmethod
     def calcular_sigma_p(sigma_phi: float, sigma_lambda: float) -> float:
@@ -130,6 +194,9 @@ class SigefValidator:
             
         area_m2 = abs(soma_shoelace) / 2.0
         area_ha = area_m2 / 10000.0
+
+        # 3.1. Validação de Autointerssecção
+        autointerssecta = cls.validar_autointerssecao(pontos_plano)
         
         # 4. Análise de Discrepância e Fechamento Lógico
         discrepancia_ha = 0.0
@@ -139,7 +206,8 @@ class SigefValidator:
             discrepancia_perc = (discrepancia_ha / area_declarada_ha) * 100.0
 
         return {
-            "sucesso": True,
+            "sucesso": not autointerssecta,
+            "erro": "Polígono autocortante (self-intersecting) detectado! A poligonal se cruza e será rejeitada pelo SIGEF." if autointerssecta else None,
             "zona_utm": zona_utm,
             "epsg_plano": int(epsg_utm),
             "total_vertices": n,
@@ -151,7 +219,7 @@ class SigefValidator:
             "discrepancia_area_perc": round(discrepancia_perc, 2),
             "fechamento_linear_residuo_m": 0.0, # Fechamento exato pelas coordenadas corrigidas
             "precisao_relativa_fecho": "1:Infinita (Coordenada Ajustada)",
-            "conforme_topologia_perimetral": True,
+            "conforme_topologia_perimetral": not autointerssecta,
             "segmentos": segmentos_analise
         }
 

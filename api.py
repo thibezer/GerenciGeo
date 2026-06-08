@@ -725,7 +725,7 @@ async def upload_documento_levantamento(lev_id: int, file: UploadFile = File(...
         return {"error": str(e)}
 
 @app.post("/levantamentos/{lev_id}/upload-arquivo")
-async def upload_arquivo_categoria(lev_id: int, categoria: str = Form(...), file: UploadFile = File(...)):
+async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTasks, categoria: str = Form(...), file: UploadFile = File(...)):
     verificar_levantamento_arquivado(lev_id)
     try:
         wm = WorkspaceManager()
@@ -756,14 +756,165 @@ async def upload_arquivo_categoria(lev_id: int, categoria: str = Form(...), file
                 os.chmod(file_path, os.stat(file_path).st_mode & ~stat.S_IWRITE)
             except Exception:
                 pass
+        
+        # GATILHO AUTOMÁTICO: Se o arquivo é .GNS na pasta Brutos, dispara conversão RINEX em background
+        conversao_agendada = False
+        if categoria == "Brutos" and file.filename.upper().endswith(".GNS"):
+            pasta_rinex = folder / "Rinex"
+            pasta_rinex.mkdir(parents=True, exist_ok=True)
+            background_tasks.add_task(_converter_gns_background, str(file_path), str(pasta_rinex), lev_id)
+            conversao_agendada = True
                 
         # Sincroniza
         wm.gerar_documento_cliente_workspace(lev_id)
         
-        return {"success": True, "message": f"Arquivo '{file.filename}' carregado com sucesso na pasta '{categoria}'."}
+        msg = f"Arquivo '{file.filename}' carregado com sucesso na pasta '{categoria}'."
+        if conversao_agendada:
+            msg += " Conversão RINEX iniciada automaticamente em segundo plano."
+        
+        return {"success": True, "message": msg, "conversao_rinex_agendada": conversao_agendada}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/levantamentos/{lev_id}/testar-busca-rinex")
+async def testar_busca_rinex(lev_id: int):
+    verificar_levantamento_arquivado(lev_id)
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        
+        pasta_brutos = folder / "Brutos"
+        pasta_rinex = folder / "Rinex"
+        
+        if not pasta_brutos.exists():
+            return {"success": False, "message": "Pasta 'Brutos' não existe no workspace deste levantamento."}
+            
+        # Pega todos os arquivos brutos (.GNS ou .ZHD)
+        arquivos_brutos = [f for f in os.listdir(pasta_brutos) if f.upper().endswith((".GNS", ".ZHD"))]
+        if not arquivos_brutos:
+            return {"success": False, "message": "Nenhum arquivo bruto (.GNS ou .ZHD) localizado na pasta 'Brutos'."}
+            
+        area_trabalho = r"D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho"
+        diretorios_busca = [
+            area_trabalho,
+            str(pasta_rinex),
+            str(folder)
+        ]
+        
+        # Adiciona subpastas do HGO na Área de Trabalho
+        if os.path.exists(area_trabalho):
+            for item in os.listdir(area_trabalho):
+                caminho_item = os.path.join(area_trabalho, item)
+                if os.path.isdir(caminho_item):
+                    diretorios_busca.append(caminho_item)
+                    diretorios_busca.append(os.path.join(caminho_item, "Rinex"))
+                    
+        # Filtra pastas que existem
+        diretorios_busca = list(set([os.path.normpath(d) for d in diretorios_busca if os.path.exists(d)]))
+        
+        import re
+        import shutil
+        import stat
+        
+        encontrados = []
+        copiados = []
+        erros = []
+        registrados = []
+        
+        repo = HistoricoRinexRepo()
+        
+        for arq_bruto in arquivos_brutos:
+            prefixo = os.path.splitext(arq_bruto)[0].lower()
+            tamanho_bruto = os.path.getsize(pasta_brutos / arq_bruto)
+            
+            for dir_busca in diretorios_busca:
+                try:
+                    for f in os.listdir(dir_busca):
+                        caminho_completo = os.path.join(dir_busca, f)
+                        if not os.path.isfile(caminho_completo):
+                            continue
+                            
+                        nome_f, ext_f = os.path.splitext(f)
+                        nome_f_lower = nome_f.lower()
+                        ext_f_lower = ext_f.lower()
+                        
+                        # Verifica se pertence ao arquivo bruto
+                        if nome_f_lower == prefixo or nome_f_lower.startswith(prefixo):
+                            eh_rinex = False
+                            if ext_f_lower in ['.obs', '.nav', '.o', '.n', '.g']:
+                                eh_rinex = True
+                            elif re.match(r'^\.\d{2}[ong]$', ext_f_lower):
+                                eh_rinex = True
+                                
+                            if eh_rinex:
+                                encontrados.append({
+                                    "bruto": arq_bruto,
+                                    "rinex": f,
+                                    "origem": dir_busca,
+                                    "caminho": caminho_completo
+                                })
+                                
+                                # Move para a pasta Rinex
+                                dest_caminho = pasta_rinex / f
+                                if os.path.normpath(caminho_completo) != os.path.normpath(dest_caminho):
+                                    try:
+                                        if dest_caminho.exists():
+                                            os.chmod(dest_caminho, stat.S_IWRITE)
+                                        shutil.copy2(caminho_completo, dest_caminho)
+                                        copiados.append(f)
+                                    except Exception as e_copy:
+                                        erros.append(f"Erro ao copiar {f}: {e_copy}")
+                                        continue
+                                else:
+                                    dest_caminho = dest_caminho
+                                
+                                # Se for arquivo de observação, faz o parse dos metadados e registra no BD
+                                if ext_f_lower in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext_f_lower):
+                                    try:
+                                        # Registra no histórico de rinex para a triagem inteligente reconhecer
+                                        meta = ler_metadados_rinex(str(dest_caminho))
+                                        if meta:
+                                            # Insere no BD
+                                            repo.insert(
+                                                arquivo_nome=arq_bruto,
+                                                arquivo_tamanho=tamanho_bruto,
+                                                arquivo_path=str(pasta_brutos / arq_bruto),
+                                                ponto_nome=meta['marcador'],
+                                                data_inicio=meta['inicio'],
+                                                data_fim=meta['fim'],
+                                                latitude=meta['lat'],
+                                                longitude=meta['lon'],
+                                                sucesso=True
+                                            )
+                                            registrados.append(f"{f} -> Marcador: {meta['marcador']}")
+                                        else:
+                                            repo.insert(
+                                                arquivo_nome=arq_bruto,
+                                                arquivo_tamanho=tamanho_bruto,
+                                                arquivo_path=str(pasta_brutos / arq_bruto),
+                                                sucesso=True
+                                            )
+                                            registrados.append(f"{f} (sem metadados)")
+                                    except Exception as e_db:
+                                        erros.append(f"Erro ao registrar BD para {f}: {e_db}")
+                                        
+                except Exception as e_dir:
+                    erros.append(f"Erro ao ler pasta {dir_busca}: {e_dir}")
+                    
+        # Regenera documentos
+        wm.gerar_documento_cliente_workspace(lev_id)
+        
+        return {
+            "success": True,
+            "message": f"Busca finalizada. Encontrados {len(encontrados)} arquivos Rinex, copiados {len(copiados)}, registrados {len(registrados)}.",
+            "arquivos_rinex_encontrados": encontrados,
+            "arquivos_copiados": copiados,
+            "arquivos_registrados": registrados,
+            "erros": erros
+        }
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
 
 @app.get("/levantamentos/{lev_id}/arquivos")
 def get_arquivos_levantamento(lev_id: int):
@@ -1828,6 +1979,82 @@ class LogQueue:
         if isinstance(msg, dict) and "mensagem" in msg:
             add_log(msg["mensagem"])
 
+import threading
+
+# Controle global de conversão com debounce para evitar múltiplas instâncias do HGO
+hgo_global_execution_lock = threading.Lock()
+
+class DebouncedHGOConverter:
+    def __init__(self):
+        self.arquivos_pendentes = {}  # lev_id -> set of file paths
+        self.timers = {}              # lev_id -> threading.Timer
+        self.lock = threading.Lock()  # Trava para concorrência de controle
+
+    def agendar_conversao(self, lev_id: int, caminho_arquivo: str, pasta_rinex: str):
+        with self.lock:
+            # Inicializa a lista de arquivos pendentes para o levantamento se não existir
+            if lev_id not in self.arquivos_pendentes:
+                self.arquivos_pendentes[lev_id] = set()
+            
+            self.arquivos_pendentes[lev_id].add(caminho_arquivo)
+            
+            # Se já existir um timer agendado para este levantamento, cancela ele
+            if lev_id in self.timers:
+                self.timers[lev_id].cancel()
+                
+            # Cria um novo timer de 4.0 segundos para disparar a conversão
+            timer = threading.Timer(
+                4.0, 
+                self._disparar_conversao, 
+                args=[lev_id, pasta_rinex]
+            )
+            self.timers[lev_id] = timer
+            timer.start()
+            add_log(f"[AUTO-RINEX] Arquivo {os.path.basename(caminho_arquivo)} enfileirado para conversao (Lev {lev_id})")
+
+    def _disparar_conversao(self, lev_id: int, pasta_rinex: str):
+        with self.lock:
+            arquivos = list(self.arquivos_pendentes.get(lev_id, set()))
+            # Limpa a fila para este levantamento
+            if lev_id in self.arquivos_pendentes:
+                del self.arquivos_pendentes[lev_id]
+            if lev_id in self.timers:
+                del self.timers[lev_id]
+                
+        if not arquivos:
+            return
+            
+        # Executa a conversão sob uma trava global de exclusão mútua do HGO
+        with hgo_global_execution_lock:
+            try:
+                add_log(f"[AUTO-RINEX] Iniciando conversao em lote de {len(arquivos)} arquivos GNSS...")
+                
+                # Desbloqueia permissões de leitura
+                import stat
+                for arq in arquivos:
+                    try:
+                        os.chmod(arq, os.stat(arq).st_mode | stat.S_IREAD)
+                    except: pass
+                
+                from business.gnss_worker import GNSSPipelineWorker
+                # Executa o pipeline para a lista completa de arquivos agrupados
+                worker = GNSSPipelineWorker(
+                    arquivos, 
+                    pasta_rinex, 
+                    LogQueue(), 
+                    levantamento_id=lev_id
+                )
+                worker.run()
+                add_log(f"[AUTO-RINEX] Lote de {len(arquivos)} arquivos finalizado com sucesso!")
+            except Exception as e:
+                add_log(f"[AUTO-RINEX] ERRO na conversao em lote para Lev {lev_id}: {e}")
+
+hgo_converter_debounced = DebouncedHGOConverter()
+
+def _converter_gns_background(caminho_bruto: str, pasta_rinex: str, lev_id: int):
+    """Encaminha o arquivo para a esteira de conversão em lote com debounce e enfileiramento seguro."""
+    hgo_converter_debounced.agendar_conversao(lev_id, caminho_bruto, pasta_rinex)
+
 # Example background task for PPP
 def run_ppp_task(files: List[str]):
     import os
@@ -1842,15 +2069,17 @@ def run_ppp_task(files: List[str]):
     worker.run()
     
     add_log("Conversão RPA Terminada. Iniciando Envio PPP...")
-    arquivos_rinex = [os.path.join(pasta_destino, f) for f in os.listdir(pasta_destino) if f.lower().endswith((".o", ".21o", ".22o", ".23o", ".24o"))]
-    if arquivos_rinex:
-        log_q = LogQueue()
-        manager = LotePPPManager(use_api=True, log_callback=lambda m: log_q.put({"mensagem": m}))
-        out_pasta_ppp = os.path.join(EXPORT_BASE_FOLDER, "Processados_PPP")
-        os.makedirs(out_pasta_ppp, exist_ok=True)
-        manager.processar_lote(arquivos_rinex, out_pasta_ppp)
+    import re
+    # ENVIO AO IBGE-PPP DESATIVADO TEMPORARIAMENTE A PEDIDO DO USUÁRIO
+    # arquivos_rinex = [os.path.join(pasta_destino, f) for f in os.listdir(pasta_destino) if f.lower().endswith((".o", ".obs")) or re.match(r'^\.\d{2}o$', os.path.splitext(f.lower())[1])]
+    # if arquivos_rinex:
+    #     log_q = LogQueue()
+    #     manager = LotePPPManager(use_api=True, log_callback=lambda m: log_q.put({"mensagem": m}))
+    #     out_pasta_ppp = os.path.join(EXPORT_BASE_FOLDER, "Processados_PPP")
+    #     os.makedirs(out_pasta_ppp, exist_ok=True)
+    #     manager.processar_lote(arquivos_rinex, out_pasta_ppp)
     
-    add_log("Processo PPP Finalizado!")
+    add_log("Processo PPP Finalizado (Envio IBGE ignorado)!")
 
 @app.post("/process/ppp")
 async def start_ppp(files: List[str], background_tasks: BackgroundTasks):
@@ -1893,6 +2122,16 @@ def run_hgo_task(pasta: str):
     os.makedirs(pasta_destino_hgo, exist_ok=True)
     
     organizar_rastreios(pasta_dest_rinex, pasta_destino_hgo)
+
+    # 4. Limpeza Automática de Temporários do Workspace (Item 14)
+    try:
+        import shutil
+        if os.path.exists(pasta_dest_rinex):
+            shutil.rmtree(pasta_dest_rinex)
+            add_log("[LIMPEZA] Pasta de arquivos temporários 'Rinex_Temporario' purgada do Workspace com sucesso para liberar espaço físico.")
+    except Exception as e_clean:
+        add_log(f"[LIMPEZA] AVISO: Falha ao remover pasta de temporários 'Rinex_Temporario': {e_clean}")
+
     add_log("Triagem de Rastreios Finalizada! Verifique a pasta raiz.")
 
 @app.post("/process/hgo")
@@ -1928,10 +2167,11 @@ async def proxy_sigef(url: str):
             current_feature = {}
             
             for line in lines:
-                match = re.search(r"(\w+)\s*=\s*'(.*)'", line)
+                # Suporta chaves e valores acentuados, cedilhas, com aspas simples, aspas duplas ou sem aspas (Item 9)
+                match = re.search(r"([\w_]+)\s*=\s*['\"]?([^'\"]*)['\"]?", line.strip())
                 if match:
                     key, value = match.groups()
-                    current_feature[key] = value
+                    current_feature[key] = value.strip()
                 elif "Feature" in line and current_feature:
                     features.append({"properties": current_feature, "id": current_feature.get("parcela_codigo")})
                     current_feature = {}
@@ -1953,6 +2193,141 @@ async def proxy_sigef(url: str):
         print(f"Erro na requisição proxy: {e}")
         return {"error": str(e)}
             
+@app.post("/levantamentos/{lev_id}/importar-confrontante-sigef")
+def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):
+    """
+    Baixa os arquivos CSV de limites e vértices do SIGEF/INCRA de uma parcela confrontante
+    e os salva na pasta de Documentos do levantamento atual.
+    """
+    verificar_levantamento_arquivado(lev_id)
+    
+    import re
+    if not codigo_parcela or not re.match(r"^[a-zA-Z0-9\-]+$", codigo_parcela):
+        raise HTTPException(status_code=400, detail="Código de parcela inválido.")
+        
+    url_vertices = f"https://sigef.incra.gov.br/geo/exportar/vertice/csv/{codigo_parcela}"
+    url_limites = f"https://sigef.incra.gov.br/geo/exportar/limite/csv/{codigo_parcela}"
+    
+    try:
+        import requests
+        import time
+        
+        # Cria uma sessão para manter os cookies de navegação e simular navegador humano
+        session = requests.Session()
+        
+        headers_home = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1"
+        }
+        
+        # 1. Faz uma requisição inicial para a home do SIGEF para coletar cookies de sessão padrão
+        try:
+            session.get("https://sigef.incra.gov.br/", headers=headers_home, timeout=10)
+        except Exception:
+            pass
+            
+        # Delay de 2.5 segundos: tempo simulado do usuário ver a tela e clicar em buscar/detalhes
+        time.sleep(2.5)
+            
+        # 2. Visita a página de detalhes do lote/parcela na mesma sessão para autenticar a consulta da parcela
+        headers_detalhe = headers_home.copy()
+        headers_detalhe["Referer"] = "https://sigef.incra.gov.br/"
+        headers_detalhe["Sec-Fetch-Site"] = "same-origin"
+        
+        try:
+            url_detalhe = f"https://sigef.incra.gov.br/geo/parcela/detalhe/{codigo_parcela}/"
+            session.get(url_detalhe, headers=headers_detalhe, timeout=12)
+        except Exception:
+            pass
+            
+        # Delay de 3.5 segundos: tempo simulado do usuário ler os dados e decidir clicar para exportar CSV
+        time.sleep(3.5)
+            
+        # 3. Configura cabeçalhos para os downloads a partir da página de detalhes
+        headers_download = headers_home.copy()
+        headers_download["Referer"] = f"https://sigef.incra.gov.br/geo/parcela/detalhe/{codigo_parcela}/"
+        headers_download["Sec-Fetch-Site"] = "same-origin"
+        headers_download["Sec-Fetch-Mode"] = "navigate"
+        headers_download["Sec-Fetch-Dest"] = "document"
+        
+        # Faz download de vértices
+        res_vertices = session.get(url_vertices, headers=headers_download, timeout=15)
+        if res_vertices.status_code != 200:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Falha ao baixar vértices do SIGEF (HTTP {res_vertices.status_code})"
+            )
+            
+        # Verifica se o retorno é HTML de erro do tipo [Go Back] ou similar
+        if b"[Go Back]" in res_vertices.content or b"<html" in res_vertices.content[:150].lower():
+            raise HTTPException(
+                status_code=400,
+                detail="O SIGEF bloqueou a requisição automatizada de vértices (HTML Go Back recebido). Tente novamente em alguns instantes."
+            )
+            
+        # Delay de 1.8 segundos entre os downloads para parecer cliques individuais
+        time.sleep(1.8)
+            
+        # Faz download de limites
+        res_limites = session.get(url_limites, headers=headers_download, timeout=15)
+        if res_limites.status_code != 200:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Falha ao baixar limites do SIGEF (HTTP {res_limites.status_code})"
+            )
+            
+        # Verifica se o retorno de limites é HTML de erro
+        if b"[Go Back]" in res_limites.content or b"<html" in res_limites.content[:150].lower():
+            raise HTTPException(
+                status_code=400,
+                detail="O SIGEF bloqueou a requisição automatizada de limites (HTML Go Back recebido). Tente novamente em alguns instantes."
+            )
+            
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502, 
+            detail=f"Erro de comunicação com o SIGEF: {str(e)}"
+        )
+        
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        wm.create_workspace(lev_id)
+        
+        pasta_docs = folder / "Documentos"
+        pasta_docs.mkdir(parents=True, exist_ok=True)
+        
+        file_vertices = pasta_docs / f"vizinho_{codigo_parcela}_vertices.csv"
+        file_limites = pasta_docs / f"vizinho_{codigo_parcela}_limites.csv"
+        
+        with open(file_vertices, "wb") as f:
+            f.write(res_vertices.content)
+            
+        with open(file_limites, "wb") as f:
+            f.write(res_limites.content)
+            
+        return {
+            "success": True,
+            "message": "Dados de limites e vértices do vizinho importados com sucesso!",
+            "arquivos": [file_vertices.name, file_limites.name]
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao salvar arquivos no Workspace: {str(e)}"
+        )
+
 # --- NOVAS ROTAS DO MÓDULO 6: REGISTRO EM CARTÓRIO ---
 from fastapi.responses import HTMLResponse
 import math

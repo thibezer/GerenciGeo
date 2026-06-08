@@ -205,7 +205,8 @@ class ProcessamentoView(ttk.Frame):
         self.atualizar_visualizacao_historico()
 
     def _fase_2_ppp(self, pasta_rinex):
-        arquivos_rinex = [os.path.join(pasta_rinex, f) for f in os.listdir(pasta_rinex) if f.lower().endswith((".o", ".21o", ".22o", ".23o", ".24o"))]
+        import re
+        arquivos_rinex = [os.path.join(pasta_rinex, f) for f in os.listdir(pasta_rinex) if f.lower().endswith((".o", ".obs")) or re.match(r'^\.\d{2}o$', os.path.splitext(f.lower())[1])]
         
         if not arquivos_rinex:
             self.safe_log("Nenhum arquivo RINEX foi gerado para proceguir com o PPP.")

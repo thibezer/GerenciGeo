@@ -34,13 +34,21 @@ O primeiro estágio do georreferenciamento reside no recebimento dos arquivos br
            - >= 50KB? (ACEITA)
                  |
                  v
+     [DEBOUNCE DE INGESTÃO (4s)]
+    - DebouncedHGOConverter (Lote)
+    - hgo_global_execution_lock
+                 |
+                 v
       [RPA CONVERTRINEX]
     - converterrinex.py (Auto)
+    - set_clipboard_text (ctypes)
     - Hi-Target ConvertRinex.exe
                  |
                  v
    [ARQUIVOS RINEX GERADOS]
-     - (.obs/.nav) temporários
+     - Cópia ativa (HGO Aberto)
+     - Estabilização (5.0s)
+     - Fechamento & Limpeza
 ```
 
 ### A. Filtro e Controle de Qualidade de Campo (QC)
@@ -49,9 +57,14 @@ No arquivo `business/gnss_worker.py` e `business/triagem_inteligente.py`, o sist
 
 ### B. O RPA do Conversor Hi-Target (ConvertRinex.exe)
 Gerenciado por `converterrinex.py`, o sistema orquestra a automação do utilitário `ConvertRinex.exe` (instalado por padrão sob `C:\Program Files (x86)\Hi-Target Geomatics Office\bin\ConvertRinex.exe`):
-1. O robô varre recursivamente a pasta `/Brutos` localizando arquivos de rampa `.GNS` ou `.ZHD` e dispara o processo de linha de comando em background de forma silenciosa e paralela.
-2. Os binários brutos são convertidos para o formato aberto de intercâmbio de dados de navegação **RINEX** (gerando arquivos `.obs` e `.nav` ou arquivos correspondentes terminados em `o` e `n` indexados pelo ano de rastreio).
-3. Os resultados RINEX são direcionados provisoriamente para o diretório `/Rinex` pronto para o módulo de triagem lógica.
+1. **Debounce e Agrupamento em Lote (`DebouncedHGOConverter`):** Para evitar que múltiplos arquivos GNS enviados em rajada pelo frontend abram várias instâncias concorrentes do HGO conflitando focos de tela no Windows, a API implementa uma fila com debounce de **4.0 segundos**. Os arquivos são acumulados em um set temporário por levantamento. Quando a ingestão cessa por 4.0 segundos, a fila dispara uma única automação do HGO contendo todos os arquivos acumulados, processando-os em lote.
+2. **Fila de Exclusão Mútua Thread-Safe (`hgo_global_execution_lock`):** Uma trava do tipo `threading.Lock()` global envolve o processo de automação, enfileirando de forma segura requisições sequenciais do HGO e blindando o sistema contra quebras do pywinauto.
+3. **Injeção de Área de Transferência via WinAPI Baixo Nível (`set_clipboard_text`):** Em vez de executar comandos do PowerShell (que sofrem com truncamento de texto, quebras de aspas simples e limitação de comprimento do CMD ao lidar com dezenas de arquivos), o robô usa a API nativa do Windows (`user32.dll` e `kernel32.dll` via `ctypes`) abrindo e inserindo os caminhos no clipboard em formato unicode de forma atômica e instantânea.
+4. **Varredura Expandida em Subdiretórios (Anos Dinâmicos):** O localizador de arquivos convertidos varre a Área de Trabalho e todas as pastas de primeiro nível à procura de projetos temporários do HGO (suportando a pasta `Rinex` interna dos mesmos). A identificação de extensões Rinex utiliza expressões regulares (`re.match(r'^\.\d{2}[ong]$', ext)`) para suportar anos dinâmicos e variáveis sem ponto entre o ano e a letra (ex: `.25o`, `.26o`, `.25n`, `.26g`), superando a lista fixa legada que cobria apenas até o ano de 2024 (`.24o`).
+5. **Inversão da Ordem de Encerramento (Cópia Precoce):** Para evitar que o HGO apague arquivos temporários de conversão ao se fechar, o robô realiza a cópia dos arquivos convertidos encontrados para a pasta `/Rinex` do workspace **enquanto o HGO permanece aberto e estável**.
+6. **Espera de Gravação de Disco (Buffers de E/S):** O robô aguarda um delay técnico fixo de **5.0 segundos** (`time.sleep(5.0)`) mantendo a janela do HGO aberta para estabilização de buffers físicos no HD.
+7. **Fechamento e Limpeza**: Somente após o delay o HGO é finalizado via `janela.close()` / `taskkill`, e as pastas de projeto e arquivos residuais da Área de Trabalho são eliminados de forma limpa.
+8. **Desativação do Fluxo IBGE-PPP Automático**: A submissão automática da Base recém-convertida para o IBGE-PPP foi desativada temporariamente no backend (`run_ppp_task`) e no frontend (`mesa_trabalho.ts`), mantendo o código comentado para fins de auditoria histórica e permitindo que o operador decida quando disparar o PPP manualmente via aba dedicada.
 
 ---
 
@@ -272,7 +285,9 @@ Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/me
   - Por padrão, a ingestão inicia no estado **colapsado (`.ingestao-collapsed`)**, medindo apenas `130px` de largura e exibindo uma mini view limpa de upload de arquivos.
   - Isso permite que o contêiner do mapa Leaflet (`#container-mapa-leaflet-parent`) se expanda horizontalmente e ocupe todo o restante da tela útil disponível no grid.
   - O operador pode expandir a Ingestão clicando sobre ela ou simplesmente **arrastando um arquivo sobre sua área (dragover/dragenter)**. O card de ingestão se expande suavemente com transição de 300ms, disparando reativamente `triagemMap.invalidateSize()` após 310ms para reajustar a viewport geométrica do mapa perfeitamente.
-  - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado em vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
+  - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado in vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
+  - **Botão Temporário de Teste de Ingestão ("Testar Busca HGO"):** Para fins de auditoria e teste de I/O em tempo de execução, foi incorporado ao cabeçalho do painel de Workspace GNSS o botão `#btn-testar-busca-rinex`. O clique aciona o endpoint `POST /levantamentos/{lev_id}/testar-busca-rinex` que varre de forma síncrona a Área de Trabalho do Windows (`D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho`) e subdiretórios de projeto à procura de arquivos Rinex convertidos correspondentes aos `.GNS` importados (suportando anos dinâmicos e extensões como `.25o`, `.26o` de observação, navegação e glonass). Ao localizá-los, o sistema realiza a cópia direta para o workspace do levantamento e registra seus metadados espaciais no histórico do banco, exibindo um relatório minucioso com a listagem dos arquivos movidos e erros encontrados.
+  - **Condensação de Arquivos Rinex no Workspace (Filtro de Observação):** Para evitar a poluição visual na coluna "2. Rinex" do painel de arquivos (uma vez que cada conversão gera múltiplos arquivos redundantes como `.nav`, `.g`, `.25n`, `.26g`), o renderizador do frontend em `loadWorkspaceArquivos` filtra dinamicamente os itens listados. A interface exibe estritamente o arquivo de observação principal do receptor (extensões `.obs`, `.o` ou correspondente `.XXo` via regex), ocultando os arquivos de navegação sem excluí-los do disco, otimizando o aproveitamento vertical da tela.
 - **Modularização Arquitetural em Submódulos (V2.5):** Para evitar o crescimento insustentável do arquivo `mesa_trabalho.ts` (originalmente com mais de 3000 linhas), a Mesa de Trabalho foi decomposta em 4 partes acopladas de forma limpa na mesma pasta `src/views`:
   * `mesa_trabalho.ts` (Orquestrador Central e Gestor de Estado): Mantém a declaração de estados (`pontosList`, `confrontantesList`, etc.) no closure de `setup()` para preservar a reatividade, gerencia a escuta de eventos delegados e chamadas à API, e atua como a rota de integração no frontend.
   * `mesa_trabalho_template.ts` (HTML Estático): Centraliza a estrutura fixa de visualização, modais e dropzones.
@@ -283,6 +298,8 @@ Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/me
     - Renderiza dinamicamente o mapa interativo centrado nas coordenadas do levantamento.
     - Consome as coordenadas geodésicas (`lat_corrigido`, `lon_corrigido`) desenhando os vértices com ícones customizados segundo o padrão INCRA (Marcos 'M' em azul escuro, Pontos 'P' em verde, Vértices Virtuais 'V' em cinza).
     - Desenha as polilinhas conectando os segmentos em tempo real. Se o segmento possuir confrontante associado, a linha adquire cor sólida verde-menta; caso não possua confrontante, a linha é plotada tracejada em amarelo/vermelho indicando inconformidade.
+    - **Suporte a Super-Zoom (Zoom 21-24) e Grade Dinâmica**: Permite estender o nível de zoom até o fator 24. A partir do zoom `> 20`, a camada de satélite do Google é temporariamente ocultada (opacidade 0) para evitar exibição de erros de imagem em alta aproximação, e uma grade métrica local desenhada a cada 1 metro com espessura fina (0.6px) em verde-menta com pointer events desativados é projetada no viewport.
+    - **Prioridade de Clique (Empilhamento Z-Index)**: Polilinhas e polígonos são desenhados abaixo dos marcadores através do método `.bringToBack()`, enquanto os marcadores de vértice recebem `.setZIndexOffset(1000)` para empilhamento frontal completo, eliminando a interceptação de cliques pelas linhas.
 *   **Dropzone de Ingestão de Lote GNSS:**
     - Localizada na lateral do mapa. Permite o arrasto de múltiplos arquivos binários brutos (`.GNS`) ou cadernetas RTK (`.TXT`) simultaneamente.
     - **Feedback Visual:** Durante o processamento em background da esteira no servidor, a dropzone ganha a classe CSS `.animate-pulse` pulsando com brilho verde-menta e o cursor do mouse exibe o estado de ocupado (`wait`), notificando o usuário do andamento.
@@ -290,12 +307,16 @@ Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/me
     - Exibe uma tabela técnica rica listando os pontos com suas colunas planificadas:
       `[Vértice, Tipo, Norte Bruto (m), Este Bruto (m), Norte Corrigido (m), Este Corrigido (m), Lat Corrigida, Lon Corrigida, Altura (m), Sigma N (m), Sigma E (m), Sigma Z (m), Status]`
     - **Destaque Visual de Precisão (M-Sigma):** As células correspondentes a desvios padrão (Sigmas) que apresentem precisão pior que a exigida na 3ª edição da norma técnica do INCRA (superior a **`0.10` metros** para limites artificiais) são pintadas automaticamente com texto em vermelho escuro e fundo vermelho suave. Pontos ainda no estado bruto (`status_correcao = 'BRUTO'`) pintam a linha inteira da treeview de amarelo claro, sinalizando que a translação em bloco ainda não foi aplicada.
+    - **Botão "Ocultar Fora da Poligonal"**: Alternador de visualização que, quando ativo, limpa a listagem de geoprocessamento e cartório de todos os pontos auxiliares e de base que possuem a flag `ignorar_poligono = 1`, isolando visualmente apenas o encadeamento poligonal do imóvel.
 *   **Botão "Aplicar Ajuste Geocêntrico (Translação)":**
     - Localizado no cabeçalho da grid de pontos. Abre o modal de seleção da Base. O usuário seleciona qual ponto pós-processado do PPP será a Base, e o sistema dispara o cálculo do Vetor Delta UTM no servidor, recalculando instantaneamente todos os rovers associados e atualizando a grid e o mapa com fundo verde-menta de sucesso.
 *   **Botão "Exportar Shapefile (.ZIP)":**
     - Localizado na barra de controle de exportações da matrícula. Dispara a compilação in-memory gerando em tempo de execução um único arquivo comprimido contendo as camadas `pontos.shp` e `perimetro.shp` devidamente projetadas em UTM SIRGAS 2000 Zona 22S (EPSG:31982) com arquivo de projeção `.prj` com WKT injetado estrito (conforme gemini.md).
-*   **Botão "Gerar KML" e "Exportar SIGEF (Planilha ODS)":**
-    - Botões rápidos de exportação que baixam os dados prontos para o AutoCAD / TopoCAD 2000.
+*   **Botão "Gerar KML" e "Consolidar Pontos UTM" (Exportação TOPOCAD):**
+    - Botões rápidos de exportação que baixam os dados estruturados e prontos para o AutoCAD / TopoCAD.
+    - **Padrão de Exportação TXT (TOPOCAD)**: A exportação de pontos em formato TXT (gerada pela consolidação de pontos no workspace do levantamento ou exportação de geometria no desktop) segue rigidamente o padrão de colunas do TOPOCAD separado por vírgula `,`:
+      `PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE`
+      onde `SX`, `SY` e `SZ` são os desvios padrão correspondentes em metros (com 3 casas decimais) e `CONFRONTANTE` é o nome do confrontante em caixa alta, sanitizado sem vírgulas para evitar a quebra do layout de colunas na importação do software CAD.
 
 ### D. Módulo e Painel HGO / Triagem (`hgo.ts`)
 Acessado pela aba **"Organizador HGO / Triagem"** no menu de processamento:
@@ -330,3 +351,10 @@ Como evolução do ecossistema de georreferenciamento e para atender à especifi
 Para garantir que o caminhamento perimetral de cada matrícula seja único e linear:
 1.  **Sanitizador em Lote no Backend (`sanitizar_ordens_duplicadas`):** Uma rotina atômica sanitiza reativamente no banco de dados todas as ordens de caminhamento duplicadas, re-sequenciando os pontos de 1 a N por matrícula (para pontos com matrícula associada) e reordenando os pontos avulsos de forma contínua para evitar colisões.
 2.  **Eliminação de Duplicidades Visuais na Mesa Geodésica (Etapa 1):** Como a Mesa Geodésica (Geoprocessamento) exibe a listagem global de todos os pontos de todas as matrículas misturados, a exibição de suas ordens perimetrais individuais causava a repetição de números. Para solucionar isso de forma definitiva e elegante, o renderizador da Etapa 1 (`renderLinhaPontoGeoprocessamentoHtml`) foi modificado para exibir a coluna `ORD.` de forma estritamente consecutiva e única com base em seu índice na tabela (`idx + 1`), enquanto exibe `-` para bases do tipo `'B'`, preservando a integridade das ordens perimetrais de cada matrícula individual e eliminando as colisões visuais.
+
+### C. Identificação Visual de Origem de Arquivo GNSS
+Com a finalidade de auditar o levantamento e identificar rapidamente pontos intrusos ou que não pertençam àquela sessão, implementou-se:
+1. **Badges Coloridos por Hash de Arquivo:** O renderizador das tabelas de pontos (`renderLinhaPontoGeoprocessamentoHtml` e `renderLinhaPontoCartorioHtml`) gera um badge colorido determinístico a partir do hash do nome do arquivo em `arquivo_origem`.
+2. **Identificador de Criação Manual:** Pontos que não possuem `arquivo_origem` no banco (inseridos de forma avulsa pela interface) exibem o badge cinza `Inserido Manual`.
+3. **Filtro de Pesquisa Ampliado:** O input de busca rápida na tabela de pontos (`input-search-ponto`) estende o filtro textual para incluir a coluna `arquivo_origem`, permitindo isolar instantaneamente os vértices de um arquivo específico na visualização.
+

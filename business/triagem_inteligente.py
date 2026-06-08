@@ -177,7 +177,13 @@ def organizar_rastreios(pasta_origem, pasta_destino_hgo, msg_queue=None):
                 break
         
         if not foi_agrupado:
-            if r['duracao'] >= 3600 or len(bases) == 0:
+            # Eleição inteligente de base (Item 7)
+            marcador_upper = str(r.get('marcador', '')).upper()
+            contem_termo_base = "BASE" in marcador_upper or "PPP" in marcador_upper or marcador_upper.startswith("M-") or marcador_upper.startswith("M_") or marcador_upper == 'DESCONHECIDO'
+            
+            if len(bases) == 0:
+                bases.append(r)
+            elif r['duracao'] >= 7200 or (r['duracao'] >= 3600 and contem_termo_base):
                 bases.append(r)
             else:
                 rovers_orfaos.append(r)
@@ -238,6 +244,32 @@ def gerar_alertas_integridade():
             "icone": "alert-circle",
             "mensagem": f"Ponto {inc['nome_vertice']} tem RINEX mas sem resultado PPP."
         })
+
+    # 2.1. Validação de Tempo Mínimo de Rastreio da Base (Item 12 - INCRA exige min 2h / 7200s)
+    try:
+        query_bases_duracao = """
+            SELECT nome_vertice, arquivo_rinex, levantamento_id 
+            FROM pontos 
+            WHERE (tipo_ponto = 'M' OR tipo_ponto = 'B') AND arquivo_rinex IS NOT NULL AND levantamento_id IN (SELECT id FROM levantamentos WHERE status = 'EM_ANDAMENTO')
+        """
+        bases_ativas = [dict(r) for r in execute_query(query_bases_duracao, fetch_all=True)]
+        for b in bases_ativas:
+            query_proj = "SELECT pasta_projeto FROM levantamentos WHERE id = ?"
+            row_proj = execute_query(query_proj, params=(b['levantamento_id'],), fetch_one=True)
+            if row_proj and row_proj['pasta_projeto']:
+                caminho_rinex = os.path.join(row_proj['pasta_projeto'], "Rinex", b['arquivo_rinex'])
+                if os.path.exists(caminho_rinex):
+                    meta = ler_metadados_rinex(caminho_rinex)
+                    if meta and meta['inicio'] and meta['fim']:
+                        duracao = (meta['fim'] - meta['inicio']).total_seconds()
+                        if duracao < 7200:
+                            alertas.append({
+                                "tipo": "ALERTA",
+                                "icone": "clock",
+                                "mensagem": f"Base '{b['nome_vertice']}': Tempo de rastreio de {duracao/3600:.2f}h é menor que o mínimo de 2 horas exigido pelo INCRA."
+                            })
+    except Exception as e_rastreio:
+        pass
         
     # 3. Segmentos sem confrontantes vinculados
     segmentos_sem_confrontante_query = """
