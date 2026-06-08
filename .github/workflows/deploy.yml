@@ -24,13 +24,12 @@ jobs:
         npm install
         npm run build
 
-    - name: Sync files to FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+    - name: Sync files to SFTP
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.6
       with:
-        server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: frontend/dist/
-        server-dir: public_html/
-        protocol: sftp
+        server: ${{ secrets.FTP_SERVER }}
         port: ${{ secrets.FTP_PORT }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local_path: 'frontend/dist/*'
+        remote_path: 'public_html'
