@@ -196,6 +196,10 @@ export const renderMesaTrabalho = (): string => {
               <i data-lucide="map-icon" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               KML
             </button>
+            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-unificar-sigef">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+              Unificar SIGEF (1A)
+            </button>
             <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-consolidar-pontos-utm">
               <i data-lucide="download" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               Exportar
@@ -671,6 +675,42 @@ export const renderMesaTrabalho = (): string => {
                 </div>
              </form>
           </div>
+       </div>
+    </div>
+
+    <!-- MODAL UNIFICAR SIGEF (1A) -->
+    <div id="modal-unificar-sigef" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
+       <div class="glass-card w-full max-w-md overflow-hidden flex flex-col">
+          <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+             <h3 class="text-base font-bold flex items-center gap-2">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 text-mint-vibrant"></i>
+                Unificar Arquivos SIGEF (1A)
+             </h3>
+             <button class="text-white/40 hover:text-white" id="btn-fechar-modal-sigef" type="button">
+                <i data-lucide="x" class="w-5 h-5"></i>
+             </button>
+          </div>
+          
+          <form id="form-unificar-sigef" class="p-6 space-y-4">
+             <div>
+                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1.5">1. Arquivo de Vértices (.csv) *</label>
+                <input type="file" id="input-sigef-vertices" accept=".csv" required class="glass-input w-full text-xs" />
+             </div>
+             <div>
+                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1.5">2. Arquivo de Limites (.csv) *</label>
+                <input type="file" id="input-sigef-limites" accept=".csv" required class="glass-input w-full text-xs" />
+             </div>
+             <div class="bg-mint-vibrant/5 border border-mint-vibrant/10 p-3 rounded-lg text-[10px] text-white/60 space-y-1">
+                <p class="font-bold text-mint-vibrant">Instruções:</p>
+                <p>• O arquivo de Vértices deve conter as colunas CODIGO, SIGMA_X, SIGMA_Y, SIGMA_Z, Z e GEOMETRIA_WKT.</p>
+                <p>• O arquivo de Limites deve conter as colunas DO_VERTICE e CONFRONTANTE_DESC.</p>
+                <p>• O sistema fará a conversão para coordenadas UTM Zone 22S (EPSG:31982) automaticamente.</p>
+             </div>
+             <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="btn-secondary text-xs" id="btn-cancelar-sigef">Cancelar</button>
+                <button type="submit" class="btn-primary text-xs" id="btn-submit-sigef">Unificar e Salvar</button>
+             </div>
+          </form>
        </div>
     </div>
   `;

@@ -409,6 +409,8 @@ def create_tables(conn):
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário
         migrar_restricao_unicidade_pontos(conn)
+        # Executa migração de suporte ao status ARQUIVADO na tabela levantamentos se necessário
+        migrar_status_arquivado_levantamentos(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -516,4 +518,57 @@ def migrar_restricao_unicidade_pontos(conn):
             except Exception:
                 pass
             logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela pontos: {e}")
+            raise e
+
+def migrar_status_arquivado_levantamentos(conn):
+    """Garante que a constraint CHECK da tabela levantamentos inclua 'ARQUIVADO'"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='levantamentos'")
+    row = cursor.fetchone()
+    if not row:
+        return
+    
+    sql = row[0]
+    # Se não contiver 'ARQUIVADO' na constraint CHECK, precisamos migrar
+    if "ARQUIVADO" not in sql:
+        logger.info("[MIGRAÇÃO] Iniciando migração da tabela 'levantamentos' para suportar status 'ARQUIVADO'...")
+        try:
+            cursor.execute("BEGIN TRANSACTION;")
+            
+            # 1. Cria tabela temporária
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS levantamentos_backup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                propriedade_id INTEGER NOT NULL,
+                profissional_id INTEGER NOT NULL,
+                data_inicio DATE NOT NULL,
+                pasta_projeto TEXT,
+                status TEXT DEFAULT 'EM_ANDAMENTO' CHECK(status IN ('EM_ANDAMENTO', 'CONCLUIDO', 'ARQUIVADO')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
+                FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE
+            );
+            """)
+            
+            # 2. Copia os dados
+            cursor.execute("""
+            INSERT INTO levantamentos_backup (id, propriedade_id, profissional_id, data_inicio, pasta_projeto, status, created_at)
+            SELECT id, propriedade_id, profissional_id, data_inicio, pasta_projeto, status, created_at
+            FROM levantamentos;
+            """)
+            
+            # 3. Elimina a tabela antiga
+            cursor.execute("DROP TABLE levantamentos;")
+            
+            # 4. Renomeia a tabela nova
+            cursor.execute("ALTER TABLE levantamentos_backup RENAME TO levantamentos;")
+            
+            cursor.execute("COMMIT;")
+            logger.info("[MIGRAÇÃO] Tabela 'levantamentos' migrada com sucesso (suporte a status 'ARQUIVADO' ativado).")
+        except Exception as e:
+            try:
+                cursor.execute("ROLLBACK;")
+            except Exception:
+                pass
+            logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela levantamentos: {e}")
             raise e

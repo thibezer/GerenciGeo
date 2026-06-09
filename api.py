@@ -47,6 +47,9 @@ async def verificar_tranca_read_only(request: Request):
     if request.method not in ["POST", "PUT", "DELETE"]:
         return
 
+    if "/desarquivar" in request.url.path:
+        return
+
     levantamento_id = None
     
     # 1. Tenta extrair levantamento_id ou lev_id do Path Params
@@ -2326,6 +2329,164 @@ def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao salvar arquivos no Workspace: {str(e)}"
+        )
+
+def processar_arquivos_sigef(vertices_content: str, limites_content: str) -> str:
+    import csv
+    import io
+    import re
+    from pyproj import Transformer
+
+    wkt_point_re = re.compile(r"POINT\s*\(\s*([\-\d\.]+)\s+([\-\d\.]+)\s*\)", re.IGNORECASE)
+    transformer_utm = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
+
+    # 1. Parse do arquivo de limites para mapear confrontantes
+    limites_reader = csv.reader(io.StringIO(limites_content), delimiter=';')
+    headers_limites = next(limites_reader, None)
+    
+    idx_do_vertice = -1
+    idx_confrontante = -1
+    
+    if headers_limites:
+        headers_limites = [h.upper().strip() for h in headers_limites]
+        if "DO_VERTICE" in headers_limites:
+            idx_do_vertice = headers_limites.index("DO_VERTICE")
+        if "CONFRONTANTE_DESC" in headers_limites:
+            idx_confrontante = headers_limites.index("CONFRONTANTE_DESC")
+            
+    confrontantes_map = {}
+    if idx_do_vertice != -1 and idx_confrontante != -1:
+        for row in limites_reader:
+            if len(row) > max(idx_do_vertice, idx_confrontante):
+                do_v = row[idx_do_vertice].strip().upper()
+                conf = row[idx_confrontante].strip()
+                if do_v and conf:
+                    confrontantes_map[do_v] = conf
+
+    # 2. Parse do arquivo de vértices e montagem do consolidado
+    vertices_reader = csv.reader(io.StringIO(vertices_content), delimiter=';')
+    headers_vertices = next(vertices_reader, None)
+    
+    idx_codigo = -1
+    idx_sz = -1
+    idx_sx = -1
+    idx_sy = -1
+    idx_z = -1
+    idx_wkt = -1
+    
+    if headers_vertices:
+        headers_vertices = [h.upper().strip() for h in headers_vertices]
+        if "CODIGO" in headers_vertices:
+            idx_codigo = headers_vertices.index("CODIGO")
+        if "SIGMA_X" in headers_vertices:
+            idx_sx = headers_vertices.index("SIGMA_X")
+        if "SIGMA_Y" in headers_vertices:
+            idx_sy = headers_vertices.index("SIGMA_Y")
+        if "SIGMA_Z" in headers_vertices:
+            idx_sz = headers_vertices.index("SIGMA_Z")
+        if "Z" in headers_vertices:
+            idx_z = headers_vertices.index("Z")
+        if "GEOMETRIA_WKT" in headers_vertices:
+            idx_wkt = headers_vertices.index("GEOMETRIA_WKT")
+            
+    output = io.StringIO()
+    output.write("PT;X(Este);Y(Norte);Z(Cota);SX;SY;SZ;Confrontante\n")
+    
+    if idx_codigo != -1:
+        for row in vertices_reader:
+            if len(row) > idx_codigo:
+                pt = row[idx_codigo].strip()
+                if not pt:
+                    continue
+                
+                # Z Cota
+                z = row[idx_z].strip() if idx_z != -1 and len(row) > idx_z else "0.0"
+                z = z.replace('"', '').replace("'", "").strip()
+                
+                # Sigmas
+                sx_str = row[idx_sx].strip() if idx_sx != -1 and len(row) > idx_sx else "0,0"
+                sy_str = row[idx_sy].strip() if idx_sy != -1 and len(row) > idx_sy else "0,0"
+                sz_str = row[idx_sz].strip() if idx_sz != -1 and len(row) > idx_sz else "0,0"
+                
+                sx = sx_str.replace('"', '').replace("'", "").replace(",", ".").strip()
+                sy = sy_str.replace('"', '').replace("'", "").replace(",", ".").strip()
+                sz = sz_str.replace('"', '').replace("'", "").replace(",", ".").strip()
+                
+                # UTM X e Y a partir de WKT
+                wkt = row[idx_wkt].strip() if idx_wkt != -1 and len(row) > idx_wkt else ""
+                x_utm = "0.000"
+                y_utm = "0.000"
+                
+                if wkt:
+                    m = wkt_point_re.search(wkt)
+                    if m:
+                        lon = float(m.group(1))
+                        lat = float(m.group(2))
+                        e_val, n_val = transformer_utm.transform(lon, lat)
+                        x_utm = f"{e_val:.3f}"
+                        y_utm = f"{n_val:.3f}"
+                
+                # Confrontante
+                conf = confrontantes_map.get(pt.upper(), "[Sem Confrontante]")
+                conf = conf.replace('"', '').replace("'", "").strip()
+                
+                output.write(f"{pt};{x_utm};{y_utm};{z};{sx};{sy};{sz};{conf}\n")
+                
+    return output.getvalue()
+
+@app.post("/levantamentos/{lev_id}/unificar-sigef-confrontantes")
+def unificar_sigef_confrontantes(
+    lev_id: int, 
+    file_vertices: UploadFile = File(...), 
+    file_limites: UploadFile = File(...)
+):
+    """
+    Recebe dois arquivos do SIGEF (um de vértices e outro de limites), cruza os dados
+    pela chave do ponto, converte as coordenadas para UTM (EPSG:31982) e gera um arquivo
+    consolidado no formato 1A.
+    """
+    verificar_levantamento_arquivado(lev_id)
+    
+    try:
+        vertices_bytes = file_vertices.file.read()
+        limites_bytes = file_limites.file.read()
+        
+        try:
+            vertices_content = vertices_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            vertices_content = vertices_bytes.decode("latin-1")
+            
+        try:
+            limites_content = limites_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            limites_content = limites_bytes.decode("latin-1")
+            
+        resultado_txt = processar_arquivos_sigef(vertices_content, limites_content)
+        
+        # Salva no workspace do levantamento
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        wm.create_workspace(lev_id)
+        
+        pasta_proc = folder / "Processados"
+        pasta_proc.mkdir(parents=True, exist_ok=True)
+        
+        nome_arquivo = "confrontante_consolidado_1A.txt"
+        caminho_arquivo = pasta_proc / nome_arquivo
+        
+        with open(caminho_arquivo, "w", encoding="utf-8") as f:
+            f.write(resultado_txt)
+            
+        return {
+            "success": True,
+            "message": "Arquivos unificados com sucesso no formato 1A!",
+            "arquivo": nome_arquivo
+        }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao unificar arquivos SIGEF: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao unificar arquivos: {str(e)}"
         )
 
 # --- NOVAS ROTAS DO MÓDULO 6: REGISTRO EM CARTÓRIO ---

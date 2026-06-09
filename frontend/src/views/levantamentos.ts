@@ -220,17 +220,22 @@ export const levantamentosRoute: RouteDef = {
                  </div>
                  
                  <div class="flex gap-2 mt-3.5 border-t border-white/5 pt-2.5">
-                   <button class="btn-primary text-xs py-1.5 px-3 flex-1 btn-auditar" data-id="${l.id}">
-                     <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                     Auditar & Triar
-                   </button>
-                   <button class="btn-secondary text-white/40 hover:text-mint-vibrant px-2 py-1.5 btn-editar-lev" data-id="${l.id}" title="Editar Levantamento">
-                     <i data-lucide="edit" class="w-4 h-4"></i>
-                   </button>
-                   <button class="btn-secondary text-red-400 hover:bg-red-500/10 px-2 py-1.5 btn-excluir-lev" data-id="${l.id}">
-                     <i data-lucide="trash-2" class="w-4 h-4"></i>
-                   </button>
-                 </div>
+                    <button class="btn-primary text-xs py-1.5 px-3 flex-1 btn-auditar" data-id="${l.id}">
+                      <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                      Auditar & Triar
+                    </button>
+                    ${l.status === 'ARQUIVADO' ? `
+                    <button class="btn-secondary text-mint-vibrant hover:bg-mint-vibrant/10 px-2 py-1.5 btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar Levantamento">
+                      <i data-lucide="lock-open" class="w-4 h-4"></i>
+                    </button>
+                    ` : ''}
+                    <button class="btn-secondary text-white/40 hover:text-mint-vibrant px-2 py-1.5 btn-editar-lev" data-id="${l.id}" title="Editar Levantamento">
+                      <i data-lucide="edit" class="w-4 h-4"></i>
+                    </button>
+                    <button class="btn-secondary text-red-400 hover:bg-red-500/10 px-2 py-1.5 btn-excluir-lev" data-id="${l.id}">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </div>
                </div>
              `;
           }).join('');
@@ -276,6 +281,11 @@ export const levantamentosRoute: RouteDef = {
                                     <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-1 rounded btn-auditar-icon" data-id="${l.id}" title="Auditar & Triar">
                                        <i data-lucide="play" class="w-3.5 h-3.5"></i>
                                     </button>
+                                    ${l.status === 'ARQUIVADO' ? `
+                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-1 rounded btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar Levantamento">
+                                       <i data-lucide="lock-open" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    ` : ''}
                                     <button class="text-white/40 hover:text-mint-vibrant p-1 rounded btn-editar-lev" data-id="${l.id}" title="Editar">
                                        <i data-lucide="edit" class="w-3.5 h-3.5"></i>
                                     </button>
@@ -295,18 +305,45 @@ export const levantamentosRoute: RouteDef = {
  
        initIcons();
 
-       // Delegação de eventos no grid-projetos
-       grid.onclick = (e) => {
-         const target = e.target as HTMLElement;
-         const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev') as HTMLElement;
-         if (!btn) return;
+        // Delegação de eventos no grid-projetos
+        grid.onclick = (e) => {
+          const target = e.target as HTMLElement;
+          const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev') as HTMLElement;
+          if (!btn) return;
 
-         const id = parseInt(btn.getAttribute('data-id') || '0');
-         
-         if (btn.classList.contains('btn-auditar') || btn.classList.contains('btn-auditar-icon') || btn.classList.contains('btn-auditar-link')) {
-            localStorage.setItem('active_levantamento_id', id.toString());
-            window.location.hash = '#mesa_trabalho';
-         } else if (btn.classList.contains('btn-editar-lev')) {
+          const id = parseInt(btn.getAttribute('data-id') || '0');
+          
+          if (btn.classList.contains('btn-auditar') || btn.classList.contains('btn-auditar-icon') || btn.classList.contains('btn-auditar-link')) {
+             localStorage.setItem('active_levantamento_id', id.toString());
+             window.location.hash = '#mesa_trabalho';
+          } else if (btn.classList.contains('btn-desarquivar-lev')) {
+             (async () => {
+                const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");
+                if (justificativa === null) return; // Cancelou
+                if (!justificativa.trim()) {
+                   alert("A justificativa é obrigatória para desarquivamento.");
+                   return;
+                }
+                
+                try {
+                   const res = await fetch(`${API_BASE}/levantamentos/${id}/desarquivar`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ justificativa })
+                   });
+                   const data = await res.json();
+                   if (res.ok) {
+                      alert(data.message || "Levantamento desarquivado com sucesso.");
+                      loadLevantamentos();
+                   } else {
+                      alert(data.detail || "Erro ao desarquivar levantamento.");
+                   }
+                } catch (err) {
+                   console.error(err);
+                   alert("Erro na requisição de desarquivamento.");
+                }
+             })();
+          } else if (btn.classList.contains('btn-editar-lev')) {
             (async () => {
               const l = levantamentosList.find(x => x.id === id);
               if (!l) return;
@@ -460,8 +497,30 @@ export const levantamentosRoute: RouteDef = {
            alert("Erro ao salvar levantamento.");
         }
      });
- 
-     loadLevantamentos();
-     configurarComboboxPropriedades();
-  }
+
+      const loadProfissionais = () => {
+         const selectProf = document.getElementById('select-lev-profissional') as HTMLSelectElement;
+         if (!selectProf) return;
+         
+         fetch(`${API_BASE}/profissionais`)
+           .then(res => res.json())
+           .then(data => {
+             if (!data || data.length === 0) {
+               selectProf.innerHTML = '<option value="">Nenhum profissional cadastrado</option>';
+               return;
+             }
+             selectProf.innerHTML = data.map((p: any) => `
+               <option value="${p.id}">${p.nome} (${p.registro || 'Sem Registro'})</option>
+             `).join('');
+           })
+           .catch(err => {
+             console.error("Erro ao carregar profissionais:", err);
+             selectProf.innerHTML = '<option value="">Erro ao carregar profissionais</option>';
+           });
+      };
+
+      loadLevantamentos();
+      configurarComboboxPropriedades();
+      loadProfissionais();
+   }
 };
