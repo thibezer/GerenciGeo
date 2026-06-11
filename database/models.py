@@ -272,6 +272,19 @@ def create_tables(conn):
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS banco_pontos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profissional_id INTEGER NOT NULL,
+            levantamento_id INTEGER,
+            tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M', 'P', 'V')),
+            numero INTEGER NOT NULL,
+            codigo_completo TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL
+        );
         """
     ]
 
@@ -445,6 +458,7 @@ def migrar_restricao_unicidade_pontos(conn):
     if matricula_is_not_null or not indice_composto_presente:
         logger.info("[MIGRAÇÃO] Iniciando migração da tabela 'pontos' (removendo restrição NOT NULL de matricula_id e garantindo índice composto UNIQUE)...")
         try:
+            cursor.execute("PRAGMA foreign_keys = OFF;")
             cursor.execute("BEGIN TRANSACTION;")
             
             # 1. Cria tabela temporária com a estrutura correta permitindo matricula_id nula
@@ -519,6 +533,11 @@ def migrar_restricao_unicidade_pontos(conn):
                 pass
             logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela pontos: {e}")
             raise e
+        finally:
+            try:
+                cursor.execute("PRAGMA foreign_keys = ON;")
+            except Exception:
+                pass
 
 def migrar_status_arquivado_levantamentos(conn):
     """Garante que a constraint CHECK da tabela levantamentos inclua 'ARQUIVADO'"""
@@ -533,6 +552,7 @@ def migrar_status_arquivado_levantamentos(conn):
     if "ARQUIVADO" not in sql:
         logger.info("[MIGRAÇÃO] Iniciando migração da tabela 'levantamentos' para suportar status 'ARQUIVADO'...")
         try:
+            cursor.execute("PRAGMA foreign_keys = OFF;")
             cursor.execute("BEGIN TRANSACTION;")
             
             # 1. Cria tabela temporária
@@ -572,3 +592,8 @@ def migrar_status_arquivado_levantamentos(conn):
                 pass
             logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela levantamentos: {e}")
             raise e
+        finally:
+            try:
+                cursor.execute("PRAGMA foreign_keys = ON;")
+            except Exception:
+                pass

@@ -58,6 +58,15 @@ export const renderMesaTrabalho = (): string => {
           </div>
         </div>
 
+        <!-- Banner de Numeração Sugerida INCRA -->
+        <div id="banner-sugestao-numeracao" class="bg-forest-deep/40 border border-mint-vibrant/20 px-4 py-2 rounded-xl flex items-center justify-between text-xs hidden animate-in slide-in-from-top duration-300">
+          <div class="flex items-center gap-2 text-white/80">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-mint-vibrant animate-pulse"></i>
+            <span><strong>Próximos Vértices Sugeridos (INCRA):</strong> Marcos: <span id="sugestao-m" class="font-mono text-mint-vibrant font-bold">-</span> | Pontos: <span id="sugestao-p" class="font-mono text-mint-vibrant font-bold">-</span> | Virtuais: <span id="sugestao-v" class="font-mono text-mint-vibrant font-bold">-</span></span>
+          </div>
+          <span class="text-[9px] font-mono text-white/30 uppercase tracking-widest">Baseado no Banco de Pontos</span>
+        </div>
+
         <!-- Grid Superior (Mapa + Ingestão Drag-and-Drop) -->
         <div class="flex flex-col lg:flex-row gap-0 relative w-full h-[480px]" id="grid-superior-detalhe">
           <!-- Coluna 1: Mapa Leaflet -->
@@ -315,6 +324,51 @@ export const renderMesaTrabalho = (): string => {
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEÇÃO FINAL: HOMOLOGAÇÃO INCRA / BANCO DE PONTOS -->
+        <div class="glass-card p-6 space-y-6" id="panel-homologacao-incra">
+          <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
+            <div>
+              <h4 class="font-bold text-sm flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-mint-vibrant"></i>
+                Homologação de Pontos Aprovados no INCRA / SIGEF
+              </h4>
+              <p class="text-xs text-white/40 mt-1">Envie o arquivo final de vértices homologados pelo SIGEF para registrá-los no seu Banco de Pontos.</p>
+            </div>
+            <span class="text-[9px] font-mono bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Módulo Regulatório</span>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Esquerda: Dropzone de Upload -->
+            <div class="lg:col-span-1 flex flex-col justify-between space-y-4">
+              <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-5 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="homologacao-dropzone">
+                <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv" />
+                <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                  <i data-lucide="file-check" class="w-5 h-5 text-mint-vibrant"></i>
+                </div>
+                <p class="text-xs font-bold text-white">Lançar TXT/CSV Homologado</p>
+                <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Arraste o arquivo ou clique para selecionar</p>
+              </div>
+              <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                Importar Pontos no Banco
+              </button>
+            </div>
+
+            <!-- Centro/Direita: Pontos Homologados neste Projeto -->
+            <div class="lg:col-span-2 space-y-4 bg-forest-deep/20 border border-white/5 rounded-xl p-5 flex flex-col min-h-[150px]">
+              <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Vértices Homologados Registrados neste Projeto</span>
+                <span id="txt-qtd-homologados" class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">0 Pontos</span>
+              </div>
+              
+              <!-- Container de Vértices Homologados -->
+              <div id="container-vertices-homologados" class="flex-grow overflow-y-auto max-h-[140px] space-y-1.5 text-xs font-mono">
+                <div class="text-white/20 italic py-4 text-center">Nenhum arquivo de homologação importado para este levantamento.</div>
+              </div>
             </div>
           </div>
         </div>

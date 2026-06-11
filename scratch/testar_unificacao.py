@@ -1,4 +1,4 @@
-import sys
+    import sys
 from pathlib import Path
 
 # Adiciona o diretório raiz ao path do python

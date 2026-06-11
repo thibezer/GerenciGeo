@@ -124,6 +124,98 @@ export const configuracoesRoute: RouteDef = {
           </div>
         </div>
       </div>
+
+      <!-- MODAL BANCO DE PONTOS DO PROFISSIONAL -->
+      <div id="modal-banco-pontos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+         <div class="glass-card w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02] shrink-0">
+               <h3 class="text-lg font-bold flex items-center gap-2">
+                  <i data-lucide="shield" class="text-mint-vibrant"></i>
+                  Banco de Vértices & Numeração INCRA: <span id="txt-banco-prof-nome" class="text-mint-vibrant">-</span>
+               </h3>
+               <button class="text-white/40 hover:text-white" id="btn-fechar-modal-banco" type="button">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+               </button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-6 flex-1 text-xs select-text">
+               <!-- Bloco 1: Estatísticas Rápidas de Sequencial e Lacunas -->
+               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <!-- Marcos (M) -->
+                  <div class="bg-[#0c1510]/40 border border-white/5 p-4 rounded-xl space-y-3">
+                     <div class="flex justify-between items-center border-b border-white/5 pb-1">
+                        <span class="font-bold text-white uppercase tracking-wider font-mono">1. Marcos (M)</span>
+                        <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant px-1.5 py-0.5 rounded-full font-mono font-bold" id="est-m-total">0 Usados</span>
+                     </div>
+                     <div class="space-y-1 font-mono text-[11px]">
+                        <p><strong>Último Usado:</strong> <span class="text-white font-bold" id="est-m-ultimo">-</span></p>
+                        <p><strong>Próximo Sugerido:</strong> <span class="text-mint-vibrant font-bold" id="est-m-proximo">-</span></p>
+                        <p class="pt-1.5 border-t border-white/5 text-[9px] text-white/40">
+                           <strong>Lacunas/Pulados:</strong> <span class="text-yellow-400 break-words" id="est-m-lacunas">Nenhuma</span>
+                        </p>
+                     </div>
+                  </div>
+                  
+                  <!-- Pontos (P) -->
+                  <div class="bg-[#0c1510]/40 border border-white/5 p-4 rounded-xl space-y-3">
+                     <div class="flex justify-between items-center border-b border-white/5 pb-1">
+                        <span class="font-bold text-white uppercase tracking-wider font-mono">2. Pontos (P)</span>
+                        <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant px-1.5 py-0.5 rounded-full font-mono font-bold" id="est-p-total">0 Usados</span>
+                     </div>
+                     <div class="space-y-1 font-mono text-[11px]">
+                        <p><strong>Último Usado:</strong> <span class="text-white font-bold" id="est-p-ultimo">-</span></p>
+                        <p><strong>Próximo Sugerido:</strong> <span class="text-mint-vibrant font-bold" id="est-p-proximo">-</span></p>
+                        <p class="pt-1.5 border-t border-white/5 text-[9px] text-white/40">
+                           <strong>Lacunas/Pulados:</strong> <span class="text-yellow-400 break-words" id="est-p-lacunas">Nenhuma</span>
+                        </p>
+                     </div>
+                  </div>
+                  
+                  <!-- Virtuais (V) -->
+                  <div class="bg-[#0c1510]/40 border border-white/5 p-4 rounded-xl space-y-3">
+                     <div class="flex justify-between items-center border-b border-white/5 pb-1">
+                        <span class="font-bold text-white uppercase tracking-wider font-mono">3. Virtuais (V)</span>
+                        <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant px-1.5 py-0.5 rounded-full font-mono font-bold" id="est-v-total">0 Usados</span>
+                     </div>
+                     <div class="space-y-1 font-mono text-[11px]">
+                        <p><strong>Último Usado:</strong> <span class="text-white font-bold" id="est-v-ultimo">-</span></p>
+                        <p><strong>Próximo Sugerido:</strong> <span class="text-mint-vibrant font-bold" id="est-v-proximo">-</span></p>
+                        <p class="pt-1.5 border-t border-white/5 text-[9px] text-white/40">
+                           <strong>Lacunas/Pulados:</strong> <span class="text-yellow-400 break-words" id="est-v-lacunas">Nenhuma</span>
+                        </p>
+                     </div>
+                  </div>
+               </div>
+               
+               <!-- Bloco 2: Tabela de Histórico de Uso -->
+               <div class="space-y-3">
+                  <span class="block text-[10px] font-bold text-white/40 uppercase tracking-wider border-b border-white/5 pb-1">Registro Detalhado de Vértices Homologados</span>
+                  <div class="overflow-x-auto border border-white/5 rounded-technical max-h-[300px] overflow-y-auto">
+                     <table class="w-full text-left border-collapse">
+                        <thead>
+                           <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
+                              <th class="px-4 py-2.5">Código Completo</th>
+                              <th class="px-4 py-2.5">Tipo</th>
+                              <th class="px-4 py-2.5 text-right">Número</th>
+                              <th class="px-4 py-2.5">Projeto Vinculado</th>
+                              <th class="px-4 py-2.5">Data Homologação</th>
+                           </tr>
+                        </thead>
+                        <tbody id="tbl-banco-pontos-corpo" class="text-xs divide-y divide-white/5 text-white/80 font-sans font-normal">
+                           <tr>
+                              <td colspan="5" class="px-4 py-8 text-center text-white/30">Nenhum ponto registrado no banco de dados.</td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+            
+            <div class="p-6 border-t border-white/5 flex justify-end shrink-0 bg-white/[0.01]">
+               <button type="button" class="btn-secondary text-xs" id="btn-fechar-modal-banco-rod">Fechar Banco de Pontos</button>
+            </div>
+         </div>
+      </div>
     </div>
   `,
   setup: () => {
@@ -265,6 +357,13 @@ export const configuracoesRoute: RouteDef = {
           </div>
           
           <div class="flex items-center gap-2 shrink-0">
+            <button 
+              onclick="window.verBancoPontos(${p.id})"
+              class="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant border-mint-vibrant/20 cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Banco de Pontos
+            </button>
             <button 
               onclick="window.editarProfissional(${p.id})"
               class="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/70 cursor-pointer"
@@ -427,6 +526,95 @@ export const configuracoesRoute: RouteDef = {
       } catch (err) {
         console.error(err);
         alert("Erro de comunicação com a API.");
+      }
+    };
+
+    // --- LÓGICA DO BANCO DE PONTOS ---
+    const modalBanco = document.getElementById('modal-banco-pontos');
+    const btnFecharBanco = document.getElementById('btn-fechar-modal-banco');
+    const btnFecharBancoRod = document.getElementById('btn-fechar-modal-banco-rod');
+
+    const fecharModalBanco = () => {
+      modalBanco?.classList.add('hidden');
+    };
+
+    btnFecharBanco?.addEventListener('click', fecharModalBanco);
+    btnFecharBancoRod?.addEventListener('click', fecharModalBanco);
+
+    (window as any).verBancoPontos = async (id: number) => {
+      const p = profissionais.find(x => x.id === id);
+      if (!p) return;
+
+      const txtNome = document.getElementById('txt-banco-prof-nome');
+      if (txtNome) txtNome.innerText = p.nome;
+
+      // Limpa dados antigos
+      ['m', 'p', 'v'].forEach(t => {
+        document.getElementById(`est-${t}-total`)!.innerText = 'Carregando...';
+        document.getElementById(`est-${t}-ultimo`)!.innerText = '...';
+        document.getElementById(`est-${t}-proximo`)!.innerText = '...';
+        document.getElementById(`est-${t}-lacunas`)!.innerText = '...';
+      });
+      document.getElementById('tbl-banco-pontos-corpo')!.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30 animate-pulse">Consultando base de dados...</td></tr>`;
+
+      modalBanco?.classList.remove('hidden');
+      initIcons();
+
+      try {
+        const res = await fetch(`${API_BASE}/profissionais/${id}/banco-pontos`);
+        const data = await res.json();
+
+        if (data && data.estatisticas) {
+          // Atualiza estatísticas na tela
+          ['M', 'P', 'V'].forEach(t => {
+            const tl = t.toLowerCase();
+            const est = data.estatisticas[t];
+            
+            document.getElementById(`est-${tl}-total`)!.innerText = `${est.total_usados} Usados`;
+            document.getElementById(`est-${tl}-ultimo`)!.innerText = est.ultimo_usado > 0 ? `${data.profissional.codigo_credenciado}-${t}-${String(est.ultimo_usado).padStart(4, '0')}` : 'Nenhum';
+            document.getElementById(`est-${tl}-proximo`)!.innerText = `${data.profissional.codigo_credenciado}-${t}-${String(est.proximo_recomendado).padStart(4, '0')}`;
+            
+            const lacunasSpan = document.getElementById(`est-${tl}-lacunas`);
+            if (lacunasSpan) {
+              if (est.lacunas && est.lacunas.length > 0) {
+                lacunasSpan.innerText = est.lacunas.map((l: number) => `${t}-${String(l).padStart(4, '0')}`).join(', ');
+              } else {
+                lacunasSpan.innerText = 'Nenhuma';
+              }
+            }
+          });
+
+          // Atualiza tabela
+          const tbody = document.getElementById('tbl-banco-pontos-corpo');
+          if (tbody) {
+            if (!data.pontos || data.pontos.length === 0) {
+              tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30">Nenhum ponto registrado no banco de dados para este profissional.</td></tr>`;
+            } else {
+              tbody.innerHTML = data.pontos.map((pt: any) => {
+                const dataFmt = new Date(pt.created_at).toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                return `
+                  <tr class="hover:bg-white/[0.01] transition-all font-mono text-[11px]">
+                     <td class="px-4 py-2 text-mint-vibrant font-bold">${pt.codigo_completo}</td>
+                     <td class="px-4 py-2">${pt.tipo_ponto}</td>
+                     <td class="px-4 py-2 text-right">${pt.numero}</td>
+                     <td class="px-4 py-2 font-sans font-medium text-white">${pt.nome_propriedade || '[Arquivo Desvinculado]'}</td>
+                     <td class="px-4 py-2 text-white/40">${dataFmt}</td>
+                  </tr>
+                `;
+              }).join('');
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar banco de pontos:", err);
+        alert("Erro ao consultar banco de pontos.");
+        fecharModalBanco();
       }
     };
 

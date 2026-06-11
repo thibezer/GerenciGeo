@@ -970,6 +970,220 @@ def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
         if isinstance(e, HTTPException): raise e
         return {"error": str(e)}
 
+# --- BANCO DE PONTOS E HOMOLOGAÇÃO INCRA ---
+
+@app.post("/levantamentos/{id}/importar-pontos-aprovados")
+async def importar_pontos_aprovados(id: int, file: UploadFile = File(...)):
+    verificar_levantamento_arquivado(id)
+    try:
+        # 1. Obter o profissional_id associado ao levantamento
+        lev = execute_query(
+            "SELECT profissional_id, propriedade_id FROM levantamentos WHERE id = ?",
+            params=(id,),
+            fetch_one=True
+        )
+        if not lev:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        
+        profissional_id = lev["profissional_id"]
+        
+        # 2. Obter o codigo_credenciado do profissional
+        prof = execute_query(
+            "SELECT codigo_credenciado FROM profissionais WHERE id = ?",
+            params=(profissional_id,),
+            fetch_one=True
+        )
+        if not prof:
+            raise HTTPException(status_code=404, detail="Responsável Técnico não encontrado para este levantamento.")
+        
+        codigo_credenciado = prof["codigo_credenciado"]
+        if not codigo_credenciado:
+            raise HTTPException(
+                status_code=400,
+                detail="O Responsável Técnico deste levantamento não possui um Código Credenciado cadastrado no INCRA."
+            )
+        
+        # 3. Ler o conteúdo do arquivo
+        content = await file.read()
+        text = content.decode("utf-8", errors="ignore")
+        
+        # 4. Encontrar pontos usando expressão regular
+        # O INCRA exige hifens no formato: CRED-TIPO-NUMERO, ex: ABC-M-0120 ou ABC-M-12
+        import re
+        pattern = re.compile(rf"\b({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+        matches = pattern.findall(text)
+        
+        if not matches:
+            return {
+                "sucesso": False,
+                "pontos_importados": 0,
+                "mensagem": f"Nenhum ponto válido com o padrão '{codigo_credenciado}-M/P/V-XXXX' foi localizado no arquivo."
+            }
+        
+        # 5. Organizar e desduplicar os pontos
+        pontos_unicos = {}
+        for match in matches:
+            # match = (codigo_cred, tipo, numero)
+            tipo = match[1].upper()
+            num = int(match[2])
+            pontos_unicos[(tipo, num)] = f"{codigo_credenciado}-{tipo}-{num:04d}"
+        
+        # 6. Salvar no banco (transacional)
+        pontos_adicionados = 0
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Limpa os pontos homologados anteriores para o levantamento
+            cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ?", (id,))
+            
+            for (tipo, num), cod_completo in pontos_unicos.items():
+                try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO banco_pontos 
+                        (profissional_id, levantamento_id, tipo_ponto, numero, codigo_completo) 
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (profissional_id, id, tipo, num, cod_completo)
+                    )
+                    if cursor.rowcount > 0:
+                        pontos_adicionados += 1
+                except Exception as e_db:
+                    logging.getLogger(__name__).warning(f"Erro ao inserir ponto {cod_completo}: {e_db}")
+            
+            conn.commit()
+            
+        # 7. Recalcular os contadores de profissionais
+        for t in ['M', 'P', 'V']:
+            row_max = execute_query(
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
+                params=(profissional_id, t),
+                fetch_one=True
+            )
+            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+            col_name = f"contador_{t.lower()}"
+            execute_query(
+                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                params=(max_num, profissional_id),
+                commit=True
+            )
+            
+        return {
+            "sucesso": True,
+            "pontos_importados": len(pontos_unicos),
+            "pontos_adicionados": pontos_adicionados,
+            "mensagem": f"Processamento concluído. {len(pontos_unicos)} vértices homologados do credenciamento '{codigo_credenciado}' foram vinculados ao banco de pontos."
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Erro interno ao importar pontos homologados: {str(e)}")
+
+@app.get("/profissionais/{prof_id}/banco-pontos")
+def get_banco_pontos_profissional(prof_id: int):
+    try:
+        # Verificar se profissional existe
+        prof = execute_query(
+            "SELECT id, nome, codigo_credenciado FROM profissionais WHERE id = ?",
+            params=(prof_id,),
+            fetch_one=True
+        )
+        if not prof:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+            
+        # Obter todos os pontos usados por esse profissional
+        rows = execute_query(
+            """
+            SELECT bp.id, bp.tipo_ponto, bp.numero, bp.codigo_completo, bp.created_at, bp.levantamento_id,
+                   p.nome_propriedade
+            FROM banco_pontos bp
+            LEFT JOIN levantamentos l ON bp.levantamento_id = l.id
+            LEFT JOIN propriedades p ON l.propriedade_id = p.id
+            WHERE bp.profissional_id = ?
+            ORDER BY bp.tipo_ponto ASC, bp.numero ASC
+            """,
+            params=(prof_id,),
+            fetch_all=True
+        )
+        
+        pontos_usados = [dict(r) for r in rows]
+        
+        # Agrupar por tipo de ponto e calcular estatísticas e lacunas
+        estatisticas = {}
+        for t in ['M', 'P', 'V']:
+            nums_tipo = [p['numero'] for p in pontos_usados if p['tipo_ponto'] == t]
+            if nums_tipo:
+                max_num = max(nums_tipo)
+                proximo = max_num + 1
+                # Encontrar lacunas (números pulados entre 1 e max_num)
+                set_usados = set(nums_tipo)
+                lacunas = [n for n in range(1, max_num) if n not in set_usados]
+            else:
+                max_num = 0
+                proximo = 1
+                lacunas = []
+                
+            estatisticas[t] = {
+                "ultimo_usado": max_num,
+                "proximo_recomendado": proximo,
+                "total_usados": len(nums_tipo),
+                "lacunas": lacunas[:100]  # Limita a exibição de lacunas para não estourar a resposta
+            }
+            
+        return {
+            "profissional": dict(prof),
+            "estatisticas": estatisticas,
+            "pontos": pontos_usados
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/levantamentos/{id}/pontos-sugeridos")
+def get_pontos_sugeridos_levantamento(id: int):
+    try:
+        # Obter o profissional do levantamento
+        row = execute_query(
+            "SELECT profissional_id FROM levantamentos WHERE id = ?",
+            params=(id,),
+            fetch_one=True
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+            
+        prof_id = row["profissional_id"]
+        
+        # Obter código credenciado
+        prof = execute_query(
+            "SELECT codigo_credenciado FROM profissionais WHERE id = ?",
+            params=(prof_id,),
+            fetch_one=True
+        )
+        codigo_cred = prof["codigo_credenciado"] if prof else ""
+        
+        # Para cada tipo (M, P, V), calcular o próximo número livre
+        sugestoes = {}
+        for t in ['M', 'P', 'V']:
+            row_max = execute_query(
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
+                params=(prof_id, t),
+                fetch_one=True
+            )
+            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+            proximo = max_num + 1
+            sugestoes[t] = {
+                "proximo_numero": proximo,
+                "codigo_sugerido": f"{codigo_cred}-{t}-{proximo:04d}" if codigo_cred else f"{t}-{proximo}"
+            }
+            
+        return {
+            "profissional_id": prof_id,
+            "codigo_credenciado": codigo_cred,
+            "sugestoes": sugestoes
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- ROTAS DE MATRÍCULAS ---
 @app.get("/levantamentos/{id}/matriculas")
 def get_matriculas_do_levantamento(id: int):

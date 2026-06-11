@@ -882,6 +882,12 @@ export const mesaTrabalhoRoute: RouteDef = {
         renderFilaArquivos();
         loadWorkspaceArquivos();
         alternarEtapa(etapaAtiva);
+        
+        // Carrega sugestões de numeração e pontos homologados do Banco de Pontos
+        carregarSugestoesNumeracao();
+        if (levObj && levObj.profissional_id) {
+          carregarHomologacaoDados(levObj.profissional_id);
+        }
 
       } catch (e) {
         console.error("Erro ao carregar detalhes do levantamento:", e);
@@ -1016,6 +1022,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       const containerDivisas = document.getElementById('container-tabela-divisas');
       const btnSalvarPerimetro = document.getElementById('btn-salvar-perimetro-custom');
       const containerAuditoriaCampo = document.getElementById('container-etapa-auditoria-campo');
+      const bannerSugestao = document.getElementById('banner-sugestao-numeracao');
+      const panelHomologacao = document.getElementById('panel-homologacao-incra');
 
       const lblTituloLateral = document.getElementById('lbl-titulo-tabela-lateral');
       const badgeLateral = document.getElementById('badge-tabela-lateral');
@@ -1068,6 +1076,8 @@ export const mesaTrabalhoRoute: RouteDef = {
           badgeLateral.className = "text-[9px] text-blue-400 font-mono bg-blue-500/10 px-2 py-0.5 rounded-full font-bold";
         }
         if (btnSalvarPerimetro) btnSalvarPerimetro.classList.add('hidden');
+        if (bannerSugestao) bannerSugestao.classList.add('hidden');
+        if (panelHomologacao) panelHomologacao.classList.add('hidden');
       } else if (etapa === 'cartorio') {
         if (btnGeo) btnGeo.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
         if (btnCart) btnCart.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap';
@@ -1094,7 +1104,11 @@ export const mesaTrabalhoRoute: RouteDef = {
           badgeLateral.className = "text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold";
         }
         if (btnSalvarPerimetro) btnSalvarPerimetro.classList.remove('hidden');
+        if (panelHomologacao) panelHomologacao.classList.remove('hidden');
+        carregarSugestoesNumeracao();
       } else if (etapa === 'auditoria') {
+        if (bannerSugestao) bannerSugestao.classList.add('hidden');
+        if (panelHomologacao) panelHomologacao.classList.add('hidden');
         if (btnGeo) btnGeo.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
         if (btnCart) btnCart.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
         if (btnAud) btnAud.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap';
@@ -3142,6 +3156,173 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
+    const carregarSugestoesNumeracao = async () => {
+      if (!currentLevId) return;
+      try {
+        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/pontos-sugeridos`);
+        const data = await res.json();
+        
+        const banner = document.getElementById('banner-sugestao-numeracao');
+        const sugM = document.getElementById('sugestao-m');
+        const sugP = document.getElementById('sugestao-p');
+        const sugV = document.getElementById('sugestao-v');
+        
+        if (data && data.sugestoes) {
+          if (sugM) sugM.innerText = data.sugestoes.M.codigo_sugerido || '-';
+          if (sugP) sugP.innerText = data.sugestoes.P.codigo_sugerido || '-';
+          if (sugV) sugV.innerText = data.sugestoes.V.codigo_sugerido || '-';
+          
+          if (banner) {
+            if (etapaAtiva === 'cartorio') {
+              banner.classList.remove('hidden');
+            } else {
+              banner.classList.add('hidden');
+            }
+          }
+        } else {
+          if (banner) banner.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error("Erro ao carregar sugestões de numeração:", err);
+      }
+    };
+
+    const carregarHomologacaoDados = async (profissionalId: number) => {
+      try {
+        const res = await fetch(`${API_BASE}/profissionais/${profissionalId}/banco-pontos`);
+        const data = await res.json();
+        
+        const container = document.getElementById('container-vertices-homologados');
+        const countTxt = document.getElementById('txt-qtd-homologados');
+        
+        if (data && data.pontos) {
+          const pontosDoProjeto = data.pontos.filter((p: any) => p.levantamento_id === currentLevId);
+          if (countTxt) {
+            countTxt.innerText = `${pontosDoProjeto.length} Pontos`;
+          }
+          
+          if (container) {
+            if (pontosDoProjeto.length === 0) {
+              container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Nenhum arquivo de homologação importado para este levantamento.</div>`;
+            } else {
+              container.innerHTML = `
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  ${pontosDoProjeto.map((p: any) => `
+                    <div class="p-1.5 bg-white/5 border border-white/5 rounded-technical flex items-center justify-between">
+                      <span class="text-[10px] text-mint-vibrant font-bold">${p.codigo_completo}</span>
+                      <span class="text-[8px] text-white/40 uppercase font-mono">${p.tipo_ponto}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dados de homologação:", err);
+      }
+    };
+
+    const inicializarHomologacaoIncra = () => {
+      const dropzone = document.getElementById('homologacao-dropzone');
+      const fileInput = document.getElementById('homologacao-file-input') as HTMLInputElement;
+      const btnProcessar = document.getElementById('btn-processar-homologacao') as HTMLButtonElement;
+      let selectedFile: File | null = null;
+      
+      if (!dropzone || !fileInput || !btnProcessar) return;
+      
+      const updateButtonState = () => {
+        if (selectedFile) {
+          btnProcessar.disabled = false;
+          btnProcessar.classList.remove('opacity-55', 'cursor-not-allowed');
+          btnProcessar.classList.add('btn-primary');
+        } else {
+          btnProcessar.disabled = true;
+          btnProcessar.classList.add('opacity-55', 'cursor-not-allowed');
+          btnProcessar.classList.remove('btn-primary');
+        }
+      };
+      
+      dropzone.addEventListener('click', () => fileInput.click());
+      
+      fileInput.addEventListener('change', (e: any) => {
+        if (e.target.files && e.target.files.length > 0) {
+          selectedFile = e.target.files[0];
+          const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
+          if (textElement && selectedFile) {
+            textElement.innerText = `Arquivo: ${selectedFile.name}`;
+          }
+          updateButtonState();
+        }
+      });
+      
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
+      });
+      
+      dropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
+      });
+      
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          selectedFile = e.dataTransfer.files[0];
+          const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
+          if (textElement && selectedFile) {
+            textElement.innerText = `Arquivo: ${selectedFile.name}`;
+          }
+          updateButtonState();
+        }
+      });
+      
+      btnProcessar.addEventListener('click', async () => {
+        if (!selectedFile || !currentLevId) return;
+        
+        btnProcessar.disabled = true;
+        btnProcessar.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Processando...`;
+        initIcons();
+        
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        try {
+          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/importar-pontos-aprovados`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          const data = await res.json();
+          if (res.ok && data.sucesso) {
+            alert(data.mensagem || "Pontos homologados importados com sucesso!");
+            
+            // Limpa o estado local de seleção de arquivo
+            selectedFile = null;
+            fileInput.value = '';
+            const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
+            if (textElement) {
+              textElement.innerText = `Lançar TXT/CSV Homologado`;
+            }
+            
+            // Recarrega todos os detalhes pertinentes
+            loadLevantamentoDetails();
+          } else {
+            alert(data.detail || data.error || "Erro ao processar arquivo de homologação.");
+          }
+        } catch (err) {
+          console.error("Erro no upload de homologação:", err);
+          alert("Erro de conexão com o servidor API.");
+        } finally {
+          btnProcessar.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Importar Pontos no Banco`;
+          updateButtonState();
+          initIcons();
+        }
+      });
+    };
+
     setupEventDelegation();
     loadLevantamentoDetails();
     inicializarMenuContextoEPontoModal();
@@ -3150,7 +3331,8 @@ export const mesaTrabalhoRoute: RouteDef = {
     inicializarBuscaPonto();
     inicializarScrollCollapseHeader();
     inicializarIngestaoCollapse();
-     inicializarSplitters();
+    inicializarSplitters();
+    inicializarHomologacaoIncra();
 
     (window as any).importarVizinhoSIGEF = async (codigoParcela: string, nomeImovel: string) => {
       if (!currentLevId) return;
