@@ -119,11 +119,11 @@ export const renderLinhaPontoCartorioHtml = (
      colAcoesHtml = `<span class="text-[10px] font-bold text-white/30 font-mono">-</span>`;
   } else {
      colAcoesHtml = `
-        <span class="text-[10px] font-bold text-mint-vibrant font-mono">${ordemExibida}</span>
-        <button class="btn-subir-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
+        <span class="text-[10px] font-bold text-mint-vibrant font-mono mr-1">${ordemExibida}</span>
+        <button class="btn-subir-ponto p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors active:scale-95 inline-flex items-center justify-center" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
           <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
         </button>
-        <button class="btn-descer-ponto p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
+        <button class="btn-descer-ponto p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors active:scale-95 inline-flex items-center justify-center" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
           <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
         </button>
      `;
@@ -132,7 +132,7 @@ export const renderLinhaPontoCartorioHtml = (
   // Checkbox de ignorar
   const colIgnorarHtml = isBaseFisica 
      ? `<span class="text-white/20 text-[10px] font-mono">-</span>`
-     : `<input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 text-mint-vibrant focus:ring-mint-vibrant bg-white/5 w-3.5 h-3.5" data-ponto-id="${p.id}" ${chkChecked} />`;
+     : `<input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 text-mint-vibrant focus:ring-mint-vibrant bg-white/5 w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${chkChecked} />`;
 
   const cor = p.arquivo_origem ? obterCorArquivo(p.arquivo_origem) : '';
   const badgeArquivoHtml = p.arquivo_origem
@@ -147,7 +147,7 @@ export const renderLinhaPontoCartorioHtml = (
       <td class="px-4 py-2.5">
         <div class="flex items-center gap-1.5">
           <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
-          <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+          <button class="btn-focar-ponto-mapa p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-95" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
             <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
           </button>
         </div>
@@ -289,7 +289,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
           <td class="px-4 py-2.5">
              <div class="flex items-center gap-1.5">
                 <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
-                <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+                <button class="btn-focar-ponto-mapa p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-95" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                 </button>
              </div>
@@ -305,7 +305,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
           <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col5}</td>
           <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col6}</td>
           <td class="px-2 py-2.5 text-center">
-            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
+            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
           </td>
           <td class="px-4 py-2.5 text-center">${statusText}</td>
         </tr>
@@ -317,7 +317,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
          <td class="px-4 py-2.5">
             <div class="flex items-center gap-1.5">
                <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
-               <button class="btn-focar-ponto-mapa p-0.5 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
+               <button class="btn-focar-ponto-mapa p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-95" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
                   <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                </button>
             </div>
@@ -334,7 +334,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaE}</td>
          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaH}</td>
          <td class="px-2 py-2.5 text-center">
-           <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
+           <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
          </td>
          <td class="px-4 py-2.5 text-center">${statusText}</td>
        </tr>
@@ -440,17 +440,17 @@ export const renderLinhaSegmentoHtml = (
       <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pIni ? pIni.nome_vertice : '??'}</td>
       <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pFim ? pFim.nome_vertice : '??'}</td>
       <td class="px-4 py-2.5">
-        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-conf w-full" data-seg-id="${s.id}">
+        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-conf w-full" data-seg-id="${s.id}">
           ${confOptions.join('')}
         </select>
       </td>
       <td class="px-4 py-2.5">
-        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-limite w-full" data-seg-id="${s.id}">
+        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-limite w-full" data-seg-id="${s.id}">
           ${limiteOptions}
         </select>
       </td>
       <td class="px-4 py-2.5">
-        <select class="glass-input text-[10px] py-0.5 px-1 select-seg-metodo w-full" data-seg-id="${s.id}">
+        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-metodo w-full" data-seg-id="${s.id}">
           ${metodoOptions}
         </select>
       </td>

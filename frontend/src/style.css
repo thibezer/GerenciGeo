@@ -43,18 +43,23 @@
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 245, 160, 0.1);
+  background: rgba(255, 255, 255, 0.02);
   border-radius: 10px;
 }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 245, 160, 0.35);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 245, 160, 0.3);
+  background: rgba(0, 245, 160, 0.6);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 /* Leaflet Adjustments */
@@ -546,5 +551,35 @@ thead th,
 .compact-sigef-popup .leaflet-popup-close-button:hover,
 .glass-popup .leaflet-popup-close-button:hover {
   color: #333 !important;
+}
+
+/* ==========================================================================
+   Mesa de Ingestão de Arquivos Colapsada Responsiva (Mobile-First)
+   ========================================================================== */
+@media (max-width: 1023px) {
+  #container-ingestao-arquivos.ingestao-collapsed {
+    width: 100% !important;
+    height: 70px !important;
+    padding: 8px 16px !important;
+  }
+  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    height: 100% !important;
+    gap: 12px !important;
+  }
+  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view .w-12 {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view .w-12 i {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view span {
+    display: inline !important;
+    font-size: 11px !important;
+  }
 }
 

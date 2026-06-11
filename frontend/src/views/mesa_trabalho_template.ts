@@ -10,7 +10,7 @@ export const renderMesaTrabalho = (): string => {
       <!-- DETALHES DO PROJETO E TRIAGEM -->
       <div id="painel-detalhe-projeto" class="space-y-4">
         <!-- Cabeçalho de Ação Sticky e Condensado -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-forest-deep/80 backdrop-blur-md border border-white/5 py-2.5 px-4 rounded-xl shadow-lg" id="mesa-trabalho-header">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-forest-deep/80 backdrop-blur-md border border-white/5 py-2.5 px-4 rounded-xl shadow-lg flex-wrap" id="mesa-trabalho-header">
           <div class="flex items-center gap-3.5">
             <button class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1 hover:bg-white/10 active:scale-95 transition-all duration-200" id="btn-voltar-lista">
               <i data-lucide="chevron-left" class="w-4 h-4"></i>
@@ -43,15 +43,15 @@ export const renderMesaTrabalho = (): string => {
 
           <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
           <div class="flex bg-white/[0.02] border border-white/10 p-1 rounded-xl gap-1.5 shrink-0 overflow-x-auto" id="container-abas-etapas">
-            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-geoprocessamento" type="button">
+            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-geoprocessamento" type="button">
               <i data-lucide="cpu" class="w-4 h-4"></i>
               Mesa Geodésica
             </button>
-            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-cartorio" type="button">
+            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-cartorio" type="button">
               <i data-lucide="database" class="w-4 h-4"></i>
               Organizador de Perímetro
             </button>
-            <button class="flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap" id="btn-etapa-auditoria" type="button">
+            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-auditoria" type="button">
               <i data-lucide="history" class="w-4 h-4"></i>
               Histórico de Auditoria
             </button>
@@ -68,9 +68,9 @@ export const renderMesaTrabalho = (): string => {
         </div>
 
         <!-- Grid Superior (Mapa + Ingestão Drag-and-Drop) -->
-        <div class="flex flex-col lg:flex-row gap-0 relative w-full h-[480px]" id="grid-superior-detalhe">
+        <div class="flex flex-col lg:flex-row gap-4 lg:gap-0 relative w-full h-auto lg:h-[480px]" id="grid-superior-detalhe">
           <!-- Coluna 1: Mapa Leaflet -->
-          <div class="glass-card h-full relative overflow-hidden flex flex-col flex-1 min-w-[300px]" id="container-mapa-leaflet-parent">
+          <div class="glass-card h-[350px] lg:h-full relative overflow-hidden flex flex-col flex-1 min-w-[300px]" id="container-mapa-leaflet-parent">
             <div class="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-white/[0.02] z-[1000]">
               <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
               <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
@@ -84,7 +84,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
 
           <!-- Coluna 2: Ingestão Drag-and-Drop (Inicia Colapsada) -->
-          <div class="glass-card p-6 flex flex-col h-full ingestao-collapsed shrink-0" id="container-ingestao-arquivos">
+          <div class="glass-card p-6 flex flex-col h-auto lg:h-full ingestao-collapsed shrink-0" id="container-ingestao-arquivos">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm">Mesa de Ingestão de Arquivos</h4>
               <div class="flex items-center gap-1.5">
@@ -127,7 +127,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
 
           <!-- Coluna 2.1: Ordenador Perimetral Manual Premium (Alternativo para Ingestão) -->
-          <div class="glass-card p-6 flex flex-col h-full hidden shrink-0" id="container-reordenar-manual">
+          <div class="glass-card p-6 flex flex-col h-auto lg:h-full hidden shrink-0" id="container-reordenar-manual">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm flex items-center gap-2">
                 <i data-lucide="arrow-up-down" class="w-4 h-4 text-mint-vibrant"></i>
@@ -199,38 +199,38 @@ export const renderMesaTrabalho = (): string => {
         </div>
 
         <!-- Barra de Ferramentas Técnicas -->
-        <div class="flex justify-between items-center py-0.1 px-0.1">
-          <div class="flex items-center gap-1 overflow-x-auto pr-2">
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-exportar-kml">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 py-1">
+          <div class="flex items-center gap-2 overflow-x-auto pr-2 pb-1 scrollbar-thin">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-exportar-kml">
               <i data-lucide="map-icon" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               KML
             </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-unificar-sigef">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-unificar-sigef">
               <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               Unificar SIGEF (1A)
             </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-consolidar-pontos-utm">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-consolidar-pontos-utm">
               <i data-lucide="download" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               Exportar
             </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-reordenar-caminhamento">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-reordenar-caminhamento">
                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                Reordenar pontos
             </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20" id="btn-override-base-manual" type="button">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20 active:scale-95 transition-all" id="btn-override-base-manual" type="button">
                 <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
                 Base manual
              </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 flex items-center gap-1 shrink-0" id="btn-gerar-requerimento-cri">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-gerar-requerimento-cri">
                <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                Requerimento
             </button>
-            <button class="btn-secondary text-[11px] px-2 py-1 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0" id="btn-arquivar-projeto-seguro">
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0 active:scale-95 transition-all" id="btn-arquivar-projeto-seguro">
                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                Arquivar
             </button>
           </div>
-          <div class="text-right shrink-0" id="container-info-matricula-ativa">
+          <div class="text-left sm:text-right shrink-0" id="container-info-matricula-ativa">
             <span class="text-[10px] text-white/40 font-mono">MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span></span>
           </div>
         </div>
@@ -238,42 +238,42 @@ export const renderMesaTrabalho = (): string => {
         <div class="flex flex-col lg:flex-row gap-0 relative w-full" id="container-tabelas-inferiores">
           <!-- Tabela 1: Vértices -->
           <div class="glass-card flex flex-col h-[400px] overflow-hidden flex-1 min-w-[300px] shrink" id="container-tabela-vertices">
-            <div class="px-6 py-1 border-b border-white/5 bg-white/[0.01] flex justify-between items-center">
-              <div class="flex items-center gap-3">
-                <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-vertices">Vértices Geodésicos</h4>
-                <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-toggle-coordenadas" type="button">
-                  Ver em Geodésico
-                </button>
-                <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-toggle-ocultar-ignorados" type="button">
-                  Ocultar Fora da Poligonal
-                </button>
-                <button class="text-[9px] font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 px-2 py-0.5 rounded transition-all text-mint-vibrant" id="btn-ativar-reordenacao" type="button">
-                  Reordenar Manual
-                </button>
-                <button class="btn-primary text-[10px] font-bold py-1 px-3 hidden flex items-center gap-1 hover:scale-105 transition-all bg-emerald-600 border-emerald-500 hover:bg-emerald-500" id="btn-salvar-perimetro-custom" type="button">
-                  <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                  Salvar Perímetro & Recomputar
-                </button>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="relative w-[150px] shrink-0" id="container-search-ponto">
-                  <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
-                  <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
-                </div>
-                <button class="p-1.5 bg-white/5 border border-white/10 hover:bg-mint-vibrant/10 hover:text-mint-vibrant hover:border-mint-vibrant/30 rounded text-white/75 transition-all flex items-center justify-center shrink-0" id="btn-exportar-tabela-csv" title="Exportar tabela para CSV" type="button">
-                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-            </div>
+             <div class="px-4 sm:px-6 py-2.5 sm:py-2 border-b border-white/5 bg-white/[0.01] flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+               <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                 <h4 class="text-xs font-bold uppercase tracking-widest text-white/40 w-full sm:w-auto mb-1 sm:mb-0" id="lbl-titulo-vertices">Vértices Geodésicos</h4>
+                 <button class="text-xs px-3 py-2 sm:text-[9px] sm:px-2 sm:py-1 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant active:scale-95" id="btn-toggle-coordenadas" type="button">
+                   Ver em Geodésico
+                 </button>
+                 <button class="text-xs px-3 py-2 sm:text-[9px] sm:px-2 sm:py-1 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant active:scale-95" id="btn-toggle-ocultar-ignorados" type="button">
+                   Ocultar Fora da Poligonal
+                 </button>
+                 <button class="text-xs px-3 py-2 sm:text-[9px] sm:px-2 sm:py-1 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant active:scale-95" id="btn-ativar-reordenacao" type="button">
+                   Reordenar Manual
+                 </button>
+                 <button class="btn-primary text-xs py-2 px-3 sm:text-[10px] sm:py-1 sm:px-3 font-bold hidden flex items-center gap-1 hover:scale-105 transition-all bg-emerald-600 border-emerald-500 hover:bg-emerald-500 active:scale-95" id="btn-salvar-perimetro-custom" type="button">
+                   <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                   Salvar Perímetro & Recomputar
+                 </button>
+               </div>
+               <div class="flex items-center gap-2 w-full sm:w-auto">
+                 <div class="relative w-full sm:w-[150px] shrink-0" id="container-search-ponto">
+                   <input type="text" id="input-search-ponto" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-2 sm:py-1 text-xs sm:text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                   <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search" title="Limpar pesquisa">×</span>
+                 </div>
+                 <button class="p-2.5 sm:p-1.5 bg-white/5 border border-white/10 hover:bg-mint-vibrant/10 hover:text-mint-vibrant hover:border-mint-vibrant/30 rounded text-white/75 transition-all flex items-center justify-center shrink-0 active:scale-95" id="btn-exportar-tabela-csv" title="Exportar tabela para CSV" type="button">
+                   <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                 </button>
+               </div>
+             </div>
             
             <!-- Barra de Filtros Rápidos -->
-            <div class="flex items-center gap-1.5 px-6 py-1.5 border-b border-white/5 bg-white/[0.005]" id="container-filtros-rapidos-tabela">
-              <span class="text-[9px] text-white/30 uppercase tracking-wider font-semibold mr-1.5">Filtros rápidos:</span>
-              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all" data-filtro="todos">Todos</button>
-              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="bases">Bases (M/B)</button>
-              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="rovers">Rovers (P/V)</button>
-              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="brutos">Brutos</button>
-              <button class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all" data-filtro="corrigidos">Corrigidos</button>
+            <div class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 border-b border-white/5 bg-white/[0.005]" id="container-filtros-rapidos-tabela">
+              <span class="text-[9px] text-white/30 uppercase tracking-wider font-semibold mr-1.5 w-full sm:w-auto">Filtros rápidos:</span>
+              <button class="px-3.5 py-2 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all active:scale-95" data-filtro="todos">Todos</button>
+              <button class="px-3.5 py-2 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all active:scale-95" data-filtro="bases">Bases (M/B)</button>
+              <button class="px-3.5 py-2 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all active:scale-95" data-filtro="rovers">Rovers (P/V)</button>
+              <button class="px-3.5 py-2 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all active:scale-95" data-filtro="brutos">Brutos</button>
+              <button class="px-3.5 py-2 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all active:scale-95" data-filtro="corrigidos">Corrigidos</button>
             </div>
             <div class="flex-1 overflow-auto">
               <table class="w-full text-left border-collapse">
@@ -302,7 +302,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
 
           <!-- Tabela 2: Lateral Dinâmica (Divisas ou Auditoria de Translação) -->
-          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-[48%] shrink-0 min-w-[300px]" id="container-tabela-divisas">
+          <div class="glass-card flex flex-col h-[400px] overflow-hidden w-full lg:w-[48%] lg:shrink-0 lg:min-w-[300px]" id="container-tabela-divisas">
             <div class="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center bg-white/[0.01]">
               <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
               <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDICAO REAL-TIME</span>

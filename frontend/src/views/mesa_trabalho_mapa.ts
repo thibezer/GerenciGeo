@@ -33,8 +33,10 @@ export class MesaTrabalhoMapa {
     if (!mapContainer) return null;
 
     // Configura o mapa com maxZoom 24 para permitir aproximar muito perto dos pontos
+    // Desativa scrollWheelZoom para que o scroll do mouse sobre o mapa role a página normalmente
     this.map = L.map(containerId, {
-      maxZoom: 24
+      maxZoom: 24,
+      scrollWheelZoom: false
     }).setView([-23.7661, -53.3204], 14);
 
     // Google Satélite Pane

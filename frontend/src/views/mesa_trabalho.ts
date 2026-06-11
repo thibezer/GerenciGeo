@@ -856,7 +856,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             `;
           } else {
             let abasHtml = matriculasList.map((m) => `
-              <button class="px-4 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-all btn-mat-tab whitespace-nowrap" data-mat-id="${m.id}" type="button">
+              <button class="px-4 py-3 md:py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-all btn-mat-tab whitespace-nowrap active:scale-95" data-mat-id="${m.id}" type="button">
                 Matrícula ${m.numero_matricula}
               </button>
             `).join('');
@@ -929,19 +929,19 @@ export const mesaTrabalhoRoute: RouteDef = {
           const arquivosHtml = arquivos.length === 0
             ? `<div class="text-[9px] text-white/20 italic py-3 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-technical">Pasta vazia</div>`
             : arquivos.map((f: any) => `
-              <div class="flex items-center justify-between p-1.5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 rounded-technical text-[10px] gap-1.5 transition-all group/item">
+              <div class="flex items-center justify-between p-2.5 md:p-1.5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 rounded-technical text-xs md:text-[10px] gap-2 md:gap-1.5 transition-all group/item">
                 <div class="min-w-0 flex-1">
                   <p class="font-mono text-white truncate font-medium" title="${f.nome}">${f.nome}</p>
                   <p class="text-[8px] text-white/30 font-mono mt-0.5">${f.tamanho} • ${f.modificado}</p>
                 </div>
-                <div class="flex items-center gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-                  <button class="btn-visualizar-workspace text-blue-400 hover:text-white p-0.5 hover:bg-blue-500/20 rounded transition-all" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar Arquivo">
+                <div class="flex items-center gap-3 md:gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                  <button class="btn-visualizar-workspace text-blue-400 hover:text-white p-3 md:p-0.5 hover:bg-blue-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar Arquivo">
                     <i data-lucide="eye" class="w-3 h-3"></i>
                   </button>
-                  <button class="btn-download-workspace text-mint-vibrant hover:text-white p-0.5 hover:bg-mint-vibrant/20 rounded transition-all" data-cat="${cat}" data-nome="${f.nome}" title="Download do Arquivo">
+                  <button class="btn-download-workspace text-mint-vibrant hover:text-white p-3 md:p-0.5 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Download do Arquivo">
                     <i data-lucide="download" class="w-3 h-3"></i>
                   </button>
-                  <button class="btn-deletar-workspace text-red-400 hover:text-white p-0.5 hover:bg-red-500/20 rounded transition-all" data-cat="${cat}" data-nome="${f.nome}" title="Excluir Arquivo do Workspace">
+                  <button class="btn-deletar-workspace text-red-400 hover:text-white p-3 md:p-0.5 hover:bg-red-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Excluir Arquivo do Workspace">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                   </button>
                 </div>
@@ -1046,9 +1046,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       if (etapa === 'geoprocessamento') {
-        if (btnGeo) btnGeo.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnCart) btnCart.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnAud) btnAud.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
+        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.remove('hidden');
         if (gridSuperior) {
@@ -1079,9 +1079,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (bannerSugestao) bannerSugestao.classList.add('hidden');
         if (panelHomologacao) panelHomologacao.classList.add('hidden');
       } else if (etapa === 'cartorio') {
-        if (btnGeo) btnGeo.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnCart) btnCart.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnAud) btnAud.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
+        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
         if (gridSuperior) {
@@ -1109,9 +1109,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       } else if (etapa === 'auditoria') {
         if (bannerSugestao) bannerSugestao.classList.add('hidden');
         if (panelHomologacao) panelHomologacao.classList.add('hidden');
-        if (btnGeo) btnGeo.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnCart) btnCart.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap';
-        if (btnAud) btnAud.className = 'flex-grow py-1.5 px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap';
+        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
         if (gridSuperior) gridSuperior.classList.add('hidden');

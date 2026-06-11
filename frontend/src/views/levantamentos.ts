@@ -12,9 +12,9 @@ export const levantamentosRoute: RouteDef = {
             <h2 class="text-3xl font-bold">Mesa de Levantamentos</h2>
             <p class="text-white/40 mt-1">Selecione um projeto de georreferenciamento ativo para iniciar a triagem espacial.</p>
           </div>
-          <div class="flex flex-wrap gap-3 items-center">
+          <div class="flex flex-col sm:flex-row gap-3 sm:items-center w-full sm:w-auto">
              <!-- Alternador de Modos de Visualização -->
-             <div class="flex gap-0.5 bg-white/5 p-1 rounded-lg border border-white/5 shrink-0" id="lev-view-toggle">
+             <div class="flex gap-0.5 bg-white/5 p-1 rounded-lg border border-white/5 shrink-0 justify-center" id="lev-view-toggle">
                 <button class="p-1.5 rounded transition-all" id="btn-mode-grid" title="Visualização em Cards">
                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
                 </button>
@@ -22,8 +22,8 @@ export const levantamentosRoute: RouteDef = {
                    <i data-lucide="list" class="w-4 h-4"></i>
                 </button>
              </div>
-             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-56 md:w-64" id="busca-levantamento" />
-             <button class="btn-primary text-xs flex items-center gap-1.5 shrink-0" id="btn-novo-lev">
+             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-full sm:w-56 md:w-64" id="busca-levantamento" />
+             <button class="btn-primary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-novo-lev">
                <i data-lucide="plus" class="w-4 h-4"></i>
                Novo Levantamento
              </button>
@@ -49,7 +49,7 @@ export const levantamentosRoute: RouteDef = {
             <form id="form-levantamento" class="p-6 space-y-4">
                <div class="relative">
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Selecionar Propriedade *</label>
-                  <input type="text" id="input-lev-prop-busca" placeholder="Digite para buscar propriedade..." class="glass-input w-full text-xs py-2 pr-8" autocomplete="off" required />
+                  <input type="text" id="input-lev-prop-busca" placeholder="Digite para buscar propriedade..." class="glass-input w-full text-xs py-3 md:py-2 pr-8" autocomplete="off" required />
                   <input type="hidden" id="select-lev-propriedade" required />
                   <div id="lista-flutuante-propriedades" class="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[#0a100d] border border-white/10 rounded-technical shadow-2xl z-50 hidden divide-y divide-white/5">
                      <!-- Opções renderizadas dinamicamente -->
@@ -57,17 +57,17 @@ export const levantamentosRoute: RouteDef = {
                </div>
                <div>
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Responsável Técnico *</label>
-                  <select id="select-lev-profissional" required class="glass-input w-full text-xs py-2">
+                  <select id="select-lev-profissional" required class="glass-input w-full text-xs py-3 md:py-2">
                      <option value="1">Dr. Thiago A. Silva (INCRA Credenciado)</option>
                   </select>
                </div>
                <div>
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Data de Início *</label>
-                  <input type="date" id="input-lev-data" required class="glass-input w-full text-sm py-2" />
+                  <input type="date" id="input-lev-data" required class="glass-input w-full text-sm py-3 md:py-2" />
                </div>
                <div id="container-lev-status" class="hidden">
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Status *</label>
-                  <select id="select-lev-status" class="glass-input w-full text-xs py-2">
+                  <select id="select-lev-status" class="glass-input w-full text-xs py-3 md:py-2">
                      <option value="EM_ANDAMENTO">Em Andamento</option>
                      <option value="CONCLUIDO">Concluido</option>
                      <option value="ARQUIVADO">Arquivado</option>
@@ -219,20 +219,20 @@ export const levantamentosRoute: RouteDef = {
                    </div>
                  </div>
                  
-                 <div class="flex gap-2 mt-3.5 border-t border-white/5 pt-2.5">
-                    <button class="btn-primary text-xs py-1.5 px-3 flex-1 btn-auditar" data-id="${l.id}">
+                 <div class="flex gap-2 md:gap-2 items-center mt-3.5 border-t border-white/5 pt-2.5">
+                    <button class="btn-primary text-xs py-2.5 px-3 md:py-1.5 md:px-3 flex-1 btn-auditar active:scale-95 transition-all" data-id="${l.id}">
                       <i data-lucide="play" class="w-3.5 h-3.5"></i>
                       Auditar & Triar
                     </button>
                     ${l.status === 'ARQUIVADO' ? `
-                    <button class="btn-secondary text-mint-vibrant hover:bg-mint-vibrant/10 px-2 py-1.5 btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar Levantamento">
+                    <button class="btn-secondary text-mint-vibrant hover:bg-mint-vibrant/10 p-3.5 md:px-2 md:py-1.5 btn-desarquivar-lev active:scale-95 transition-all" data-id="${l.id}" title="Desarquivar Levantamento">
                       <i data-lucide="lock-open" class="w-4 h-4"></i>
                     </button>
                     ` : ''}
-                    <button class="btn-secondary text-white/40 hover:text-mint-vibrant px-2 py-1.5 btn-editar-lev" data-id="${l.id}" title="Editar Levantamento">
+                    <button class="btn-secondary text-white/40 hover:text-mint-vibrant p-3.5 md:px-2 md:py-1.5 btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar Levantamento">
                       <i data-lucide="edit" class="w-4 h-4"></i>
                     </button>
-                    <button class="btn-secondary text-red-400 hover:bg-red-500/10 px-2 py-1.5 btn-excluir-lev" data-id="${l.id}">
+                    <button class="btn-secondary text-red-400 hover:bg-red-500/10 p-3.5 md:px-2 md:py-1.5 btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                   </div>
@@ -277,19 +277,19 @@ export const levantamentosRoute: RouteDef = {
                               <td class="px-4 py-3 text-white/40 truncate max-w-xs" title="${proprietarios}">${proprietarios}</td>
                               <td class="px-4 py-3 text-white/40 font-mono uppercase">${l.total_pontos || 0} pts • ${l.total_segmentos || 0} div</td>
                               <td class="px-4 py-3">
-                                 <div class="flex items-center justify-center gap-1.5">
-                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-1 rounded btn-auditar-icon" data-id="${l.id}" title="Auditar & Triar">
+                                 <div class="flex items-center justify-center gap-3.5 md:gap-1.5">
+                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-3 md:p-1.5 rounded btn-auditar-icon active:scale-95 transition-all" data-id="${l.id}" title="Auditar & Triar">
                                        <i data-lucide="play" class="w-3.5 h-3.5"></i>
                                     </button>
                                     ${l.status === 'ARQUIVADO' ? `
-                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-1 rounded btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar Levantamento">
+                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-3 md:p-1.5 rounded btn-desarquivar-lev active:scale-95 transition-all" data-id="${l.id}" title="Desarquivar Levantamento">
                                        <i data-lucide="lock-open" class="w-3.5 h-3.5"></i>
                                     </button>
                                     ` : ''}
-                                    <button class="text-white/40 hover:text-mint-vibrant p-1 rounded btn-editar-lev" data-id="${l.id}" title="Editar">
+                                    <button class="text-white/40 hover:text-mint-vibrant p-3 md:p-1.5 rounded btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar">
                                        <i data-lucide="edit" class="w-3.5 h-3.5"></i>
                                     </button>
-                                    <button class="text-red-400 hover:bg-red-500/10 p-1 rounded btn-excluir-lev" data-id="${l.id}" title="Excluir">
+                                    <button class="text-red-400 hover:bg-red-500/10 p-3 md:p-1.5 rounded btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}" title="Excluir">
                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                     </button>
                                  </div>
