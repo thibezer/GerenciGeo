@@ -262,6 +262,34 @@ Para garantir a validade jurídica das peças técnicas destinadas ao Cartório 
 > **Qualificação Gerada no Requerimento/Laudo:**
 > "ANA BEATRIZ SOUZA, brasileira, engenheira agrónoma, solteira, portadora do RG nº 4.567.890-1 e inscrita no CPF sob o nº 456.789.012-34, residente e domiciliada na Avenida Brasil, 1500, Foz do Iguaçu-PR..."
 
+### C. Diretrizes de Design, Usabilidade e Integrações da Tela de Clientes (UI/UX V2.0)
+Para otimizar o fluxo de trabalho cadastral e garantir um design premium e responsivo, a interface de Clientes (`clientes.ts`) deve seguir as seguintes diretrizes:
+1. **Listagem Tabular Compacta**:
+   - A listagem principal de clientes deve ser apresentada em formato de tabela minimalista de alta fidelidade responsiva.
+   - Para maximizar a densidade de informações e limpar o layout, as colunas **RG/IE**, **Estado Civil** e **Contato/Cidade** são removidas da visualização da tabela principal.
+   - A tabela deve expor de forma direta: **Nome Completo** (com avatar gerado a partir das iniciais), **CPF/CNPJ** formatado, a nova coluna de contagem de **Propriedades** vinculadas, a contagem de **Projetos** (Levantamentos) vinculados e a coluna de **Ações** rápidas (Visualizar, Editar, Excluir).
+2. **Ações em Lote Reativas**:
+   - A listagem deve incluir checkboxes individuais e um checkbox master no cabeçalho.
+   - Ao selecionar um ou mais registros, uma barra flutuante de ações em lote (`#batch-action-bar`) deve surgir de forma suave na parte inferior da tela, permitindo a exclusão em lote de múltiplos registros e exibindo a contagem atualizada de itens selecionados.
+3. **Formulário de Cadastro Ultra Compacto**:
+   - O formulário de cadastro no modal deve ser altamente condensado, agrupando os campos de forma lógica em poucas linhas para eliminar a rolagem vertical desnecessária. Todos os inputs principais devem utilizar fontes reduzidas e altura compacta (`text-xs h-8`).
+   - O campo de **Regime de Bens** deve ser apresentado como um menu de seleção (`select`) contendo as opções válidas brasileiras (Comunhão Parcial, Comunhão Universal, Separação Total, Participação Final nos Aquestos, Separação Obrigatória).
+4. **Máscaras de Digitação Dinâmicas**:
+   - Devem ser aplicadas máscaras em tempo real nos inputs de **CPF/CNPJ** (detectando o comprimento para formatar `000.000.000-00` ou `00.000.000/0000-00`), de **Telefone** (formatando fixo `(00) 0000-0000` ou celular `(00) 00000-0000`) e de **CEP** (`00000-000`).
+5. **Autocompletar Inteligente de Endereço (ViaCEP)**:
+   - Ao digitar um CEP válido de 8 dígitos no input correspondente, o frontend deve realizar uma busca assíncrona na API pública do ViaCEP.
+   - Em caso de sucesso, deve preencher automaticamente os campos de **Endereço (Rua, Av, Bairro)**, **Cidade** e **Estado (UF)**, transferindo o foco do teclado (`.focus()`) automaticamente para o campo de **Número** para agilizar a entrada de dados.
+   - *Nota de Compatibilidade de Banco:* Como o banco de dados armazena o endereço unificado na coluna `endereco_completo` (sem coluna física para número), na UI o endereço e o número são divididos em dois campos distintos. Ao salvar/editar, os valores são concatenados no formato `"Endereço, Número"`. Na edição, a string é desmembrada com `.split(', ')` para restaurar os respectivos inputs.
+6. **Lista de Cidades Dinâmica (IBGE Localidades)**:
+   - O campo de Cidade deve utilizar um elemento `datalist` associativo para sugestão e autocompletar.
+   - A listagem de cidades deve ser carregada dinamicamente via requisição HTTP à API de Localidades do IBGE baseada no Estado (UF) selecionado no combobox.
+   - Por padrão, ao abrir o modal para criação de novo cliente, o estado do **Paraná (PR)** deve vir pré-selecionado e as cidades do PR carregadas de forma prioritária.
+7. **Modal de Detalhes Multitabs**:
+   - A visualização detalhada de um cliente deve utilizar uma interface limpa com navegação por abas dividida em:
+     - **Dados Cadastrais**: Exibe as informações civis estruturadas e o bloco do cônjuge reativo.
+     - **Metadados**: Permite a visualização, exclusão direta e inserção ágil de pares de chave/valor adicionais na tabela `cliente_metadados`.
+     - **Histórico de Alterações**: Tabela dinâmica que consome o endpoint `/clientes/{id}/historico` e exibe cronologicamente cada modificação de campo auditada pelo banco SQLite.
+
 ---
 
 ### 2.4 Especificações Técnicas de Propriedades e Matrículas
@@ -279,7 +307,35 @@ Para garantir o rigor técnico exigido na regularização fundiária nacional, o
    - Uma propriedade física pode conter uma ou mais matrículas vinculadas (relação 1:N). Cada matrícula atua como uma parcela independente que receberá uma aba individual no motor de exportação de dados geodésicos para o SIGEF.
    - Além do número e denominação (Lote/Gleba), ela persiste dados cartoriais precisos (`cri_comarca`, `cri_circunscricao`, `livro_registro`, `folha_registro`), metadados tributários e fiscais (`ccir`, `itr`, `valor_itr`, `area_ha`) e a certificação digital do georreferenciamento homologada (`georreferenciamento` - UUID do SIGEF).
 
+### 2.4.1 Refinamento de Matrículas, Anexos e Histórico de Auditoria (V2.1)
 
+Para garantir a transparência das operações e otimizar o fluxo de trabalho de regularização jurídica, o GerenciGeo implementa as seguintes regras operacionais:
+
+1. **Gestão e Exclusão de CAR/CCIR (Dados Gerais):**
+   - Os arquivos de CAR e CCIR atrelados à propriedade são exibidos na aba Dados Gerais. Clicar no nome do arquivo original dispara o download ou visualização direta (`GET /propriedades/{prop_id}/arquivo-car` ou `/arquivo-ccir`).
+   - A exclusão física e lógica do anexo é acionada pelo ícone de lixeira, removendo o arquivo do disco do servidor (`DELETE /propriedades/{prop_id}/arquivo-car` ou `/arquivo-ccir`) e definindo a respectiva coluna de caminho como `NULL` no banco SQLite, reabilitando a dropzone de upload de forma instantânea na interface.
+
+2. **Máscaras de Digitação em Tempo Real para Matrículas:**
+   - O formulário de matrícula possui máscaras reativas aplicadas no evento `input` do navegador:
+     - **CCIR**: `000.000.000.000-0` (13 dígitos numéricos).
+     - **ITR/NIRF**: `0.000.000-0` (8 dígitos numéricos).
+     - **SIGEF (UUID)**: `00000000-0000-0000-0000-000000000000` (32 caracteres hexadecimais formatados com hifens).
+   - O campo **Área Registrada (ha)** aceita vírgula ou ponto como separadores decimais. O frontend normaliza vírgula para ponto antes do envio para a API (`parseFloat(area_raw.replace(',', '.'))`).
+
+3. **Edição Integrada de Matrículas no Formulário:**
+   - Ao clicar no ícone de lápis de uma matrícula, o formulário lateral da aba de Matrículas é preenchido com os dados existentes. O título é alterado para *"Editar Gleba / Matrícula"*, o botão de submit muda para *"Salvar Alterações"* e um botão *"Cancelar"* é exibido para limpar o formulário e restaurar o estado de cadastro inicial.
+
+4. **Armazenamento e Gestão de PDFs de Matrícula (Certidões):**
+   - Cada matrícula aceita a anexação de um arquivo PDF de certidão correspondente. O arquivo físico é salvo sob `[EXPORT_BASE_FOLDER]/Propriedades/Prop_[prop_id]/Matricula_[mid]_Certidao.pdf`.
+   - O endpoint `POST /matriculas/{mid}/upload-pdf` executa o upload físico, salvando a referência na coluna `caminho_arquivo_pdf`. Clicar no link de download abre o PDF diretamente (`GET /matriculas/{mid}/download-pdf`), e o ícone de lixeira remove fisicamente o arquivo do disco (`DELETE /matriculas/{mid}/pdf`).
+
+5. **Histórico de Auditoria de Matrículas (`matricula_historico_logs`):**
+   - Alterações de matrículas via endpoint `PUT /matriculas/{mid}` são auditadas. O backend compara os dados novos com os antigos registrando os deltas na tabela `matricula_historico_logs`.
+   - **Normalização de Comparação**: Valores numéricos (Área e Valor do ITR) são convertidos para `float` antes da comparação para evitar logs redundantes decorrentes de conversão de tipos de dados (`float` vs `str`).
+   - O histórico de logs é consultado pelo endpoint `GET /matriculas/{mid}/historico` e renderizado em tempo real no modal flutuante `#modal-historico-matricula` (composto de cabeçalho dinâmico e tabela detalhada) acionado pelo botão de relógio na linha de cada matrícula.
+
+6. **Formatação de Valores na Tabela:**
+   - A coluna de Área Registrada da tabela de matrículas formata o valor utilizando o padrão brasileiro (separador de milhar por ponto e decimais por vírgula) com precisão fixa de 4 casas decimais (ex: `1.234,5678 ha`).
 
 ### 2.5 Módulo de Levantamentos e Controle de Campanhas de Campo
 
@@ -458,36 +514,42 @@ Caso o operador opte por inserir o Bloco B via coordenadas Planas UTM, o motor l
 
 ---
 
-### 4.5 Acesso e Controle de Propriedades e Matrículas na Interface do Usuário (UI)
+### 4.5 Acesso e Controle de Propriedades e Matrículas na Interface do Usuário (UI V2.0)
 
-O controle e a gestão física/relacional desses módulos fundiários ocorrem de forma fluida através de painéis desacoplados estilizados com design moderno (Glassmorphism e acentuações verde-menta):
+O controle e a gestão física/relacional desses módulos fundiários ocorrem de forma integrada e consistente com a tela de Clientes, utilizando tabelas de tela cheia e modais de detalhes multitabs:
 
-#### A. Painel Lateral de Navegação e Busca
-- Acessado clicando na aba **"Propriedades"** da barra lateral da aplicação.
-- Apresenta o número consolidado de propriedades cadastradas em tempo real.
-- Inclui uma barra de pesquisa que aplica filtros de digitação instantânea, ocultando propriedades que não contenham o termo digitado no nome ou no município/UF.
-- Possui o botão **"Nova Propriedade"**, que renderiza um modal flutuante com suporte a **máscaras ativas de digitação** (formatando automaticamente caracteres de CAR e CCIR) e validação de campo de UF (maiusculização automática limitada a duas letras).
+#### A. Listagem Tabular Geral de Propriedades
+- **Acesso**: Clicando na aba **"Propriedades"** na barra lateral.
+- **Tabela de Alta Fidelidade**: Exibe todas as propriedades cadastradas em uma tabela de largura total, removendo o antigo painel de lista lateral de 1/4.
+- **Filtros e Ordenação Multi-Critério**:
+  - Caixa de busca para filtragem instantânea por nome da propriedade, município ou UF.
+  - Seletor de ordenação permitindo reordenar os dados por: *Nome da Propriedade (A-Z)*, *Nome da Propriedade (Z-A)*, *Mais Recentes (Cadastro)* ou *Mais Antigas (Cadastro)*.
+- **Coluna de Proprietário Principal (Eleição e Abreviação)**:
+  - Exibe o nome do proprietário que possui a **maior quota de participação** da propriedade.
+  - Em caso de empate exato nas quotas, o desempate ocorre por **ordem alfabética**.
+  - O nome do proprietário é abreviado para exibir **apenas os dois primeiros nomes** (ex: "Thiago Bezerra").
+  - Caso a propriedade possua múltiplos proprietários vinculados, é concatenado o sufixo indicativo de volume: `"e mais X"` (ex: "Thiago Bezerra e mais 2").
+- **Ações em Lote**: Checkboxes integrados na tabela que acionam a barra de ações flutuante inferior (`#batch-action-bar`) para exclusão múltipla de propriedades, obedecendo às restrições em cascata.
 
-#### B. Painel de Detalhes e Controle Multitabs
-Após a seleção de uma propriedade na lista lateral, o painel de detalhes é revelado, dividindo as ações administrativas e documentais em três abas dinâmicas:
+#### B. Modal de Detalhes Multitabs (`#modal-detalhes-propriedade`)
+Ao clicar no ícone de visualização (olho) de uma propriedade, abre-se um modal unificado de detalhes com três abas:
 
-1. **Aba "Dados Gerais" e Mesa de Anexos Físicos:**
-   - Exibe em blocos de alta legibilidade as informações cadastrais da propriedade.
-   - **Mesa de Ingestão de Documentos:** Apresenta dropzones dedicadas para o CAR e CCIR, oferecendo drag-and-drop ativo de arquivos ou clique para seleção tradicional.
-   - **Efeito Visual Reativo:** Durante o processo de upload físico, a dropzone adquire uma animação de pulsação suave em CSS (`animate-pulse`) e altera o cursor do mouse para sinalizar a comunicação active com o servidor.
-   - Se o arquivo físico já foi associado, a dropzone dá lugar a um card de anexo com ícone indicativo do tipo de documento, o nome do arquivo sanitizado e um botão rápido que abre o link de download direto para o navegador do cliente.
+1. **Aba "Dados Gerais & Anexos"**:
+   - Exibe os códigos do CAR e CCIR formatados.
+   - **Mesa de Ingestão de Documentos (CAR & CCIR)**: Dropzones dedicadas com suporte a drag-and-drop ativo de arquivos ou clique. Durante o upload, adquire uma animação de pulsação e cursor de espera. Uma vez anexado, exibe o nome do arquivo físico correspondente e um botão para download direto via REST.
 
-2. **Aba "Proprietários" (Vínculos e Quotas):**
-   - **Autocomplete de Busca Dinâmica:** Permite buscar proprietários na base global em tempo real digitando parte do nome ou CPF/CNPJ. Um menu suspenso flutuante é renderizado exibindo as opções correspondentes.
-   - **Controle Dinâmico de Quota Fundiária:** Exibe o percentual restante disponível para alocação (calculado de forma reativa subtraindo o total das quotas vinculadas de 100%).
-   - Exibe a grid de proprietários vinculados e suas quotas com botões de desassociação rápidos ("x"), que removem a relação física de copropriedade com confirmação em tela.
+2. **Aba "Proprietários" (Vínculos e Quotas)**:
+   - **Autocomplete de Busca Dinâmica**: Caixa de texto com busca reativa de clientes do banco global por nome ou CPF/CNPJ com menu flutuante.
+   - **Quota Fundiária**: Mostra o percentual restante disponível para alocação (bloqueando de forma reativa e no backend a inserção caso a soma das quotas de copropriedade ultrapasse `100.00%`).
+   - Tabela de proprietários atuais com a quota respectiva e botão de desassociação imediata.
 
-3. **Aba "Matrículas" (Gestão Jurídica de Lotes):**
-   - **Formulário de Cadastro Técnico:** Permite adicionar matrículas ao imóvel definindo campos estruturados com formatação específica:
-     - Área (Hectares): Campo decimal com precisão estrita de 4 casas decimais para perfeita sincronia com o SIGEF.
-     - Valor do ITR (R$): Exposto na grid formatado com o padrão de moeda do Brasil (`toLocaleString('pt-BR')`).
-     - Georreferenciamento: Campo alfanumérico para guardar a assinatura digital do georreferenciamento homologado pelo INCRA.
-   - **Tabela de Matrículas Atreladas:** Lista as glebas e frações do imóvel. Cada registro apresenta um botão para exclusão física. Devido ao relacionamento estrito no banco de dados, ao excluir uma matrícula, o sistema emite um alerta de segurança severo ao operador, indicando que a ação resultará na remoção em cascata (`ON DELETE CASCADE`) de todos os vértices (tabela `pontos`) e divisas (tabela `segmentos`) vinculados àquela matrícula.
+3. **Aba "Matrículas" (Gestão Jurídica de Lotes)**:
+   - Formulário de cadastro de matrículas configurando Área em Hectares (4 casas decimais), códigos fiscais, valor de ITR (formatado como moeda na grid) e o código SIGEF (UUID).
+   - Tabela de matrículas vinculadas com botão de exclusão que dispara um alerta de exclusão em cascata (`ON DELETE CASCADE`) para destruir pontos (vértices) e divisas (segmentos) associados à gleba.
+
+#### C. Integração e Foco Inteligente (Redirecionamento)
+- A tela de propriedades escuta a chave `gerencigeo_foco_propriedade_id` no `localStorage`.
+- Se o operador clicar em *"Ver Propriedade"* nos detalhes de um cliente na tela de clientes, o sistema fecha o modal, armazena o ID no `localStorage`, navega para `#propriedades` e, ao carregar a listagem, abre automaticamente o modal de detalhes da propriedade focada, limpando o storage.
 
 ### 4.6 Manual e Motor de Georreferenciamento Avançado
 
@@ -543,3 +605,13 @@ Devido à alta complexidade matemática, física e instrumental do motor geodés
 ### Módulo 7: Arquivamento Seguro (Cold Storage)
 *   **Tranca de Segurança (Read-Only Lock):** Ao mudar o status do levantamento para ARQUIVADO, as rotas PUT e DELETE da API para aquele ID são bloqueadas.
 *   **Movimentação de Backup:** O WorkspaceManager move a pasta física do projeto para um diretório de histórico definitivo (HD Externo ou Nuvem Fria), limpando o espaço de trabalho ativo do dia a dia.
+
+---
+
+### 4.8 Diretrizes de Design e Responsividade do Dashboard (Panorama Operacional)
+Para garantir a otimização de espaço e a visualização correta do painel principal (Panorama Operacional) em qualquer tamanho de tela, as seguintes especificações devem ser seguidas:
+1. **Cabeçalho Ultra Compacto (Altura Max ~60px)**: Em telas desktop e mobile, o título principal da tela e o status de conexão da API devem compartilhar a mesma linha horizontal através do flexbox. Detalhes secundários de texto devem ser ocultados no mobile (`hidden sm:block`) para poupar altura útil.
+2. **Cards de KPI Horizontais (Altura Max ~70px)**: Para evitar o empilhamento vertical e extensas áreas vazias na interface, os cards de KPI (Total de Clientes, Propriedades, Profissionais) devem adotar um layout horizontal em todas as resoluções de tela (`flex items-center gap-3`).
+3. **Mapa e Painéis de Altura Dinâmica (Viewport Spacing)**: No desktop, o contêiner de grid pai que agrupa o Mapa e o Action Center deve se estender dinamicamente até a base inferior do viewport utilizando a classe de cálculo de altura `lg:h-[calc(100vh-220px)] lg:min-h-[450px]`, mantendo o mapa com `lg:h-full`.
+4. **Simplificação e Omissão de Elementos Estáticos**: Elementos de indicação puramente estáticos sobre o mapa (como letreiros de WMS conectado) devem ser omitidos. O controle de camadas do Leaflet deve omitir o radio button do satélite Google, mantendo apenas os controles ativáveis funcionais (`overlayMaps`), evitando redundância visual.
+5. **SIGEF Link Direto por UUID**: O link de detalhamento da parcela no modal retornado pelo GetFeatureInfo deve encaminhar o operador diretamente para o endereço de visualização individual da parcela (`/geo/parcela/detalhe/{uuid}/`) sempre que o UUID da feição estiver presente.

@@ -5,77 +5,77 @@ import { initIcons } from '../utils';
 
 export const dashboardRoute: RouteDef = {
   render: () => `
-    <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div class="flex justify-between items-end">
+    <div class="space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <!-- Topo Ultra Compacto (Altura Max ~60px) -->
+      <div class="flex justify-between items-center h-10 sm:h-12 border-b border-white/5 pb-2 sm:pb-3">
         <div>
-          <h2 class="text-3xl font-bold">Panorama Operacional</h2>
-          <p class="text-white/40 mt-1">Bem-vindo de volta ao centro de comando GerenciGeo.</p>
+          <h2 class="text-lg sm:text-xl font-bold tracking-tight text-white leading-none">Panorama Operacional</h2>
+          <p class="text-white/40 text-[10px] mt-1.5 hidden sm:block">Painel de comando GerenciGeo.</p>
         </div>
-        <div class="text-right">
-          <p class="text-xs font-mono text-white/20 uppercase tracking-widest">Status da API</p>
-          <p class="text-sm font-mono text-mint-vibrant" id="api-status">Conectando...</p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="glass-card p-6 group hover:border-mint-vibrant/30 transition-all">
-          <div class="flex justify-between items-start mb-4">
-            <div class="p-2 bg-mint-vibrant/10 rounded-technical">
-              <i data-lucide="database" class="w-5 h-5 text-mint-vibrant"></i>
-            </div>
-          </div>
-          <p class="text-white/40 text-sm mb-1 font-medium">Total de Clientes</p>
-          <h3 class="text-2xl font-bold tracking-tight" id="stat-clientes">--</h3>
-        </div>
-
-        <div class="glass-card p-6 group hover:border-mint-vibrant/30 transition-all">
-          <div class="flex justify-between items-start mb-4">
-            <div class="p-2 bg-blue-500/10 rounded-technical">
-              <i data-lucide="map-pin" class="w-5 h-5 text-blue-500"></i>
-            </div>
-          </div>
-          <p class="text-white/40 text-sm mb-1 font-medium">Propriedades</p>
-          <h3 class="text-2xl font-bold tracking-tight" id="stat-prop">--</h3>
-        </div>
-
-        <div class="glass-card p-6 group hover:border-mint-vibrant/30 transition-all">
-          <div class="flex justify-between items-start mb-4">
-            <div class="p-2 bg-purple-500/10 rounded-technical">
-              <i data-lucide="activity" class="w-5 h-5 text-purple-500"></i>
-            </div>
-          </div>
-          <p class="text-white/40 text-sm mb-1 font-medium">Profissionais</p>
-          <h3 class="text-2xl font-bold tracking-tight" id="stat-prof">--</h3>
+        <div class="flex items-center gap-2 text-right">
+          <span class="text-[9px] font-mono text-white/20 uppercase tracking-widest hidden sm:inline">Status da API</span>
+          <span class="text-[11px] font-mono text-mint-vibrant bg-mint-vibrant/5 border border-mint-vibrant/10 px-2 py-0.5 rounded-sm" id="api-status">Conectando...</span>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Cards de KPIs Super Compactos (Altura Max ~70px) -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <!-- Clientes -->
+        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3 group hover:border-mint-vibrant/30 transition-all">
+          <div class="p-1.5 bg-mint-vibrant/10 rounded-technical shrink-0">
+            <i data-lucide="database" class="w-4 h-4 text-mint-vibrant"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Clientes</p>
+            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-clientes">--</h3>
+          </div>
+        </div>
+
+        <!-- Propriedades -->
+        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3 group hover:border-mint-vibrant/30 transition-all">
+          <div class="p-1.5 bg-blue-500/10 rounded-technical shrink-0">
+            <i data-lucide="map-pin" class="w-4 h-4 text-blue-500"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Propriedades</p>
+            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-prop">--</h3>
+          </div>
+        </div>
+
+        <!-- Profissionais -->
+        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3 group hover:border-mint-vibrant/30 transition-all">
+          <div class="p-1.5 bg-purple-500/10 rounded-technical shrink-0">
+            <i data-lucide="activity" class="w-4 h-4 text-purple-500"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Profissionais</p>
+            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-prof">--</h3>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-220px)] lg:min-h-[450px]">
         <!-- Leaflet Map Container -->
-        <div class="lg:col-span-2 glass-card h-[500px] relative overflow-hidden border-white/5" id="map-container">
+        <div class="lg:col-span-2 glass-card h-[320px] sm:h-[420px] lg:h-full relative overflow-hidden border-white/5" id="map-container">
            <div id="map" class="w-full h-full"></div>
-           <div class="absolute bottom-6 left-6 z-[1000] flex flex-col gap-2">
-              <div class="bg-forest-deep/80 backdrop-blur-md p-3 rounded-technical border border-white/10 text-[10px] font-mono shadow-xl">
-                 <p class="text-mint-vibrant font-bold">SIGEF WMS: CONECTADO</p>
-                 <p class="text-white/40 text-[8px] mt-1">SINCRO: INCRA GEOSERVER</p>
-              </div>
-           </div>
         </div>
 
         <!-- Action Center -->
-        <div class="glass-card flex flex-col h-full">
-          <div class="p-6 border-b border-white/5 flex justify-between items-center">
-             <h4 class="text-lg font-bold flex items-center gap-2">
+        <div class="glass-card flex flex-col h-auto lg:h-full">
+          <div class="p-4 sm:p-6 border-b border-white/5 flex justify-between items-center">
+             <h4 class="text-base sm:text-lg font-bold flex items-center gap-2">
                <i data-lucide="bell" class="w-5 h-5 text-mint-vibrant"></i>
                Action Center
              </h4>
              <a href="#pendencias" class="text-xs text-mint-vibrant hover:underline cursor-pointer">Ver Tudo</a>
           </div>
-          <div class="p-4 flex-1 overflow-y-auto space-y-3 max-h-[400px]" id="alerts-container">
+          <div class="p-3 sm:p-4 flex-1 overflow-y-auto space-y-3 max-h-[280px] lg:max-h-[400px]" id="alerts-container">
              <div class="text-center text-white/40 text-sm py-4">Carregando alertas...</div>
           </div>
         </div>
       </div>
     </div>
+
   `,
   setup: () => {
     // API Status
@@ -115,11 +115,11 @@ export const dashboardRoute: RouteDef = {
            return;
         }
         container.innerHTML = data.alerts.map((alert: any) => `
-           <div class="p-3 bg-white/[0.02] border border-white/5 rounded-lg flex items-start gap-3 hover:bg-white/[0.05] transition-colors">
-              <i data-lucide="${alert.icone || 'alert-circle'}" class="w-4 h-4 mt-0.5 ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-mint-vibrant'}"></i>
-              <div>
-                 <p class="text-xs font-bold ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-white/80'}">${alert.tipo}</p>
-                 <p class="text-sm text-white/60">${alert.mensagem}</p>
+           <div class="p-2.5 sm:p-3 bg-white/[0.02] border border-white/5 rounded-lg flex items-start gap-2.5 sm:gap-3 hover:bg-white/[0.05] transition-colors">
+              <i data-lucide="${alert.icone || 'alert-circle'}" class="w-4 h-4 mt-0.5 shrink-0 ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-mint-vibrant'}"></i>
+              <div class="min-w-0">
+                 <p class="text-[10px] sm:text-xs font-bold ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-white/80'}">${alert.tipo}</p>
+                 <p class="text-xs sm:text-sm text-white/60 leading-relaxed break-words">${alert.mensagem}</p>
               </div>
            </div>
         `).join('');
@@ -143,7 +143,7 @@ export const dashboardRoute: RouteDef = {
     }
 
     // Google Satellite Hybrid (HTTPS)
-    const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+    L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
       maxZoom: 24,
       maxNativeZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -167,15 +167,11 @@ export const dashboardRoute: RouteDef = {
       updateWhenIdle: true
     }).addTo(map);
 
-    const baseMaps = {
-      "Satélite Google": googleSat
-    };
-
     const overlayMaps: { [key: string]: L.Layer } = {
       "Imóveis SIGEF (PR)": sigef
     };
 
-    let layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+    let layersControl = L.control.layers(undefined, overlayMaps, { collapsed: false }).addTo(map);
 
 
     // Fullscreen Control
@@ -261,7 +257,8 @@ export const dashboardRoute: RouteDef = {
         if (data.features && data.features.length > 0) {
           const feature = data.features[0];
           const props = feature.properties;
-          const link = `https://sigef.incra.gov.br/consultar/parcelas`;
+          const uuid = feature.id || props.parcela_codigo || props.co_parcela || props.id_parcela;
+          const link = uuid ? `https://sigef.incra.gov.br/geo/parcela/detalhe/${uuid}/` : `https://sigef.incra.gov.br/consultar/parcelas`;
 
           if (modalContent) {
             modalContent.innerHTML = `
@@ -404,7 +401,7 @@ export const dashboardRoute: RouteDef = {
           if (layersControl) {
             map.removeControl(layersControl);
           }
-          layersControl = L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+          layersControl = L.control.layers(undefined, overlayMaps, { collapsed: false }).addTo(map);
 
           
           // Adiciona o Painel Flutuante Premium de Download / Exportador Rápido

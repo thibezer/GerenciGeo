@@ -107,8 +107,20 @@ def create_tables(conn):
             valor_itr REAL,
             denominacao TEXT,
             georreferenciamento TEXT,
+            caminho_arquivo_pdf TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS matricula_historico_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_matricula INTEGER NOT NULL,
+            campo_alterado TEXT NOT NULL,
+            valor_antigo TEXT,
+            valor_novo TEXT,
+            data_alteracao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_matricula) REFERENCES matriculas(id) ON DELETE CASCADE
         );
         """,
         """
@@ -393,7 +405,8 @@ def create_tables(conn):
             ("folha_registro", "TEXT"),
             ("valor_itr", "REAL"),
             ("denominacao", "TEXT"),
-            ("georreferenciamento", "TEXT")
+            ("georreferenciamento", "TEXT"),
+            ("caminho_arquivo_pdf", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(matriculas)")
         colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}

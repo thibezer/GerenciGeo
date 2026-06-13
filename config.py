@@ -5,7 +5,11 @@ APP_VERSION = "1.0.0"
 
 # Diretório base estrutural do próprio código (onde fica BD, assets, etc)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "gerencigeo.db")
+
+if os.environ.get("GERENCIGEO_TEST"):
+    DB_PATH = os.path.join(BASE_DIR, "gerencigeo_test.db")
+else:
+    DB_PATH = os.path.join(BASE_DIR, "gerencigeo.db")
 
 # Configurações Externas (Usuario/PC)
 CONVERT_RINEX_PATH = r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\ConvertRinex.exe"

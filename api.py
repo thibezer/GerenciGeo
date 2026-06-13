@@ -316,6 +316,15 @@ def update_cliente(cliente_id: int, cli: ClienteCreate):
         return {"error": res["error"]}
     return res
 
+@app.get("/clientes/{cliente_id}/historico")
+def get_cliente_historico(cliente_id: int):
+    try:
+        query = "SELECT campo_alterado, valor_antigo, valor_novo, data_alteracao FROM cliente_historico_logs WHERE id_cliente = ? ORDER BY data_alteracao DESC"
+        logs = [dict(r) for r in execute_query(query, params=(cliente_id,), fetch_all=True)]
+        return logs
+    except Exception as e:
+        return {"error": str(e)}
+
 # --- PROPRIEDADES ---
 
 class PropriedadeCreate(BaseModel):
@@ -418,6 +427,14 @@ def get_propriedades():
                 WHERE pc.propriedade_id = ?
             """
             p['clientes'] = [dict(r) for r in execute_query(clients_query, params=(p['id'],), fetch_all=True)]
+            
+            # Conta as matrículas associadas
+            mats = execute_query("SELECT count(*) as qtd FROM matriculas WHERE propriedade_id = ?", params=(p['id'],), fetch_one=True)
+            p['total_matriculas'] = mats['qtd'] if mats else 0
+            
+            # Conta os levantamentos associados
+            levs = execute_query("SELECT count(*) as qtd FROM levantamentos WHERE propriedade_id = ?", params=(p['id'],), fetch_one=True)
+            p['total_levantamentos'] = levs['qtd'] if levs else 0
         return propriedades
     except Exception as e:
         return {"error": str(e)}
@@ -561,6 +578,32 @@ def download_propriedade_ccir(prop_id: int):
     if not path.exists():
         raise HTTPException(status_code=404, detail="Arquivo do CCIR físico não foi localizado no disco.")
     return FileResponse(path, filename=path.name)
+
+@app.delete("/propriedades/{prop_id}/arquivo-car")
+def delete_propriedade_car(prop_id: int):
+    try:
+        row = execute_query("SELECT caminho_arquivo_car FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+        if row and row["caminho_arquivo_car"]:
+            path = Path(row["caminho_arquivo_car"])
+            if path.exists():
+                path.unlink()
+        execute_query("UPDATE propriedades SET caminho_arquivo_car = NULL WHERE id = ?", params=(prop_id,), commit=True)
+        return {"message": "Arquivo do CAR excluído com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.delete("/propriedades/{prop_id}/arquivo-ccir")
+def delete_propriedade_ccir(prop_id: int):
+    try:
+        row = execute_query("SELECT caminho_arquivo_ccir FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+        if row and row["caminho_arquivo_ccir"]:
+            path = Path(row["caminho_arquivo_ccir"])
+            if path.exists():
+                path.unlink()
+        execute_query("UPDATE propriedades SET caminho_arquivo_ccir = NULL WHERE id = ?", params=(prop_id,), commit=True)
+        return {"message": "Arquivo do CCIR excluído com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/propriedades/{prop_id}/clientes")
 def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
@@ -1227,10 +1270,11 @@ def create_matricula(id: int, m: MatriculaCreate):
 @app.put("/matriculas/{mid}")
 def update_matricula(mid: int, m: MatriculaCreate):
     try:
-        row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if not row:
+        # Busca dados antigos da matrícula para histórico
+        antigo = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        if not antigo:
             return {"error": "Matrícula não encontrada"}
-        propriedade_id = row["propriedade_id"]
+        propriedade_id = antigo["propriedade_id"]
         
         # Tranca de segurança
         rows_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(propriedade_id,), fetch_all=True)
@@ -1244,6 +1288,43 @@ def update_matricula(mid: int, m: MatriculaCreate):
         """
         execute_query(query, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento, mid), commit=True)
         
+        # Gravação de histórico em matricula_historico_logs
+        campos_monitorados = [
+            ("numero_matricula", m.numero_matricula, str),
+            ("ccir", m.ccir, str),
+            ("itr", m.itr, str),
+            ("area_ha", m.area_ha, float),
+            ("valor_itr", m.valor_itr, float),
+            ("denominacao", m.denominacao, str),
+            ("georreferenciamento", m.georreferenciamento, str)
+        ]
+        
+        for campo, novo_valor, tipo in campos_monitorados:
+            val_antigo = antigo[campo]
+            # Normalização de tipos para comparação coerente
+            if val_antigo is not None:
+                if tipo == float:
+                    val_antigo_cmp = float(val_antigo)
+                else:
+                    val_antigo_cmp = str(val_antigo).strip()
+            else:
+                val_antigo_cmp = None
+                
+            if novo_valor is not None:
+                if tipo == float:
+                    novo_valor_cmp = float(novo_valor)
+                else:
+                    novo_valor_cmp = str(novo_valor).strip()
+            else:
+                novo_valor_cmp = None
+                
+            if val_antigo_cmp != novo_valor_cmp:
+                execute_query(
+                    "INSERT INTO matricula_historico_logs (id_matricula, campo_alterado, valor_antigo, valor_novo) VALUES (?, ?, ?, ?)",
+                    params=(mid, campo, str(val_antigo) if val_antigo is not None else None, str(novo_valor) if novo_valor is not None else None),
+                    commit=True
+                )
+
         # Sincroniza metadados para levantamentos ativos
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
@@ -1280,6 +1361,70 @@ def delete_matricula(mid: int):
         return {"message": "Matrícula removida"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
+        return {"error": str(e)}
+
+@app.post("/matriculas/{mid}/upload-pdf")
+async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
+    try:
+        row = execute_query("SELECT propriedade_id, numero_matricula FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
+        
+        prop_id = row["propriedade_id"]
+        prop_folder = os.path.join(EXPORT_BASE_FOLDER, "Propriedades", f"Prop_{prop_id}")
+        os.makedirs(prop_folder, exist_ok=True)
+        
+        ext = os.path.splitext(file.filename)[1]
+        if not ext:
+            ext = ".pdf"
+        
+        filename = f"Matricula_{mid}_Certidao{ext}"
+        filepath = os.path.join(prop_folder, filename)
+        
+        with open(filepath, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+            
+        execute_query("UPDATE matriculas SET caminho_arquivo_pdf = ? WHERE id = ?", params=(filepath, mid), commit=True)
+        return {"message": "PDF da matrícula anexado com sucesso", "caminho": filepath}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/matriculas/{mid}/download-pdf")
+def download_matricula_pdf(mid: int):
+    try:
+        row = execute_query("SELECT caminho_arquivo_pdf FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        if not row or not row["caminho_arquivo_pdf"]:
+            raise HTTPException(status_code=404, detail="PDF da matrícula não encontrado")
+        
+        path = row["caminho_arquivo_pdf"]
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
+            
+        return FileResponse(path, filename=os.path.basename(path))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/matriculas/{mid}/pdf")
+def delete_matricula_pdf(mid: int):
+    try:
+        row = execute_query("SELECT caminho_arquivo_pdf FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        if row and row["caminho_arquivo_pdf"]:
+            path = row["caminho_arquivo_pdf"]
+            if os.path.exists(path):
+                os.remove(path)
+        execute_query("UPDATE matriculas SET caminho_arquivo_pdf = NULL WHERE id = ?", params=(mid,), commit=True)
+        return {"message": "PDF da matrícula excluído com sucesso"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/matriculas/{mid}/historico")
+def get_matricula_historico(mid: int):
+    try:
+        query = "SELECT campo_alterado, valor_antigo, valor_novo, data_alteracao FROM matricula_historico_logs WHERE id_matricula = ? ORDER BY data_alteracao DESC"
+        logs = [dict(r) for r in execute_query(query, params=(mid,), fetch_all=True)]
+        return logs
+    except Exception as e:
         return {"error": str(e)}
 
 def sanitizar_ordens_duplicadas(levantamento_id: int):

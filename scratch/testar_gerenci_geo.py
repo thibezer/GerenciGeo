@@ -3,6 +3,9 @@ import shutil
 import sys
 from pathlib import Path
 
+# Ativa o modo de teste para usar o banco de dados temporário gerencigeo_test.db
+os.environ["GERENCIGEO_TEST"] = "1"
+
 # Ajusta path para importar módulos do projeto
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -13,14 +16,15 @@ from business.workspace_manager import WorkspaceManager
 def testar_tudo():
     print(">>> Iniciando Validação Física do Novo Escopo do GerenciGeo...")
 
-    # 1. Limpa banco de testes temporário
-    db_path = Path("gerencigeo.db")
-    db_backup = Path("gerencigeo.db.backup")
+    # Inicialização do banco de testes isolado
+    from config import DB_PATH
+    db_test_path = Path(DB_PATH)
     
-    if db_path.exists():
-        print(f"[BD] Fazendo backup do banco antigo para {db_backup.name}")
-        shutil.copy2(db_path, db_backup)
-        os.remove(db_path)
+    if db_test_path.exists():
+        try:
+            os.remove(db_test_path)
+        except Exception as e:
+            print(f"[!] Erro ao remover banco de testes antigo: {e}")
 
     # 2. Inicializa Tabelas
     print("[BD] Criando novas tabelas DDL...")
@@ -144,6 +148,15 @@ def testar_tudo():
         print(">>> VALIDAÇÃO FÍSICA E RELACIONAL COMPLETA E BEM-SUCEDIDA! <<<")
     else:
         print(">>> AVISO: Alguma falha de integridade foi identificada! <<<")
+
+    # Remove o banco de testes temporário no final
+    if db_test_path.exists():
+        print(f"\n[*] Removendo banco de testes temporário ({db_test_path.name})...")
+        try:
+            os.remove(db_test_path)
+            print("[*] Banco de testes removido.")
+        except Exception as e:
+            print(f"[!] Não foi possível remover o banco de testes temporário: {e}")
 
 if __name__ == "__main__":
     testar_tudo()
