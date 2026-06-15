@@ -6,11 +6,9 @@ import { clientesRoute } from './views/clientes';
 import { levantamentosRoute } from './views/levantamentos';
 import { mesaTrabalhoRoute } from './views/mesa_trabalho';
 import { propriedadesRoute } from './views/propriedades';
-import { pppRoute } from './views/ppp';
 import { hgoRoute } from './views/hgo';
 import { historicoRoute } from './views/historico';
 import { pendenciasRoute } from './views/pendencias';
-import { pendenciasAntigaRoute } from './views/pendenciasAntiga';
 import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
 
@@ -20,11 +18,9 @@ const routes: Record<string, RouteDef> = {
   levantamentos: levantamentosRoute,
   mesa_trabalho: mesaTrabalhoRoute,
   propriedades: propriedadesRoute,
-  ppp: pppRoute,
   hgo: hgoRoute,
   historico: historicoRoute,
   pendencias: pendenciasRoute,
-  pendenciasAntiga: pendenciasAntigaRoute,
   configuracoes: configuracoesRoute,
   fronteira: fronteiraRoute
 };

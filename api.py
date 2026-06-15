@@ -2417,37 +2417,6 @@ def _converter_gns_background(caminho_bruto: str, pasta_rinex: str, lev_id: int)
     """Encaminha o arquivo para a esteira de conversão em lote com debounce e enfileiramento seguro."""
     hgo_converter_debounced.agendar_conversao(lev_id, caminho_bruto, pasta_rinex)
 
-# Example background task for PPP
-def run_ppp_task(files: List[str]):
-    import os
-    from business.gnss_worker import GNSSPipelineWorker
-    from business.ppp_processor import LotePPPManager
-    
-    add_log(f"Iniciando processamento de {len(files)} arquivos...")
-    pasta_destino = os.path.join(EXPORT_BASE_FOLDER, "Bases_RINEX")
-    os.makedirs(pasta_destino, exist_ok=True)
-    
-    worker = GNSSPipelineWorker(files, pasta_destino, LogQueue())
-    worker.run()
-    
-    add_log("Conversão RPA Terminada. Iniciando Envio PPP...")
-    import re
-    # ENVIO AO IBGE-PPP DESATIVADO TEMPORARIAMENTE A PEDIDO DO USUÁRIO
-    # arquivos_rinex = [os.path.join(pasta_destino, f) for f in os.listdir(pasta_destino) if f.lower().endswith((".o", ".obs")) or re.match(r'^\.\d{2}o$', os.path.splitext(f.lower())[1])]
-    # if arquivos_rinex:
-    #     log_q = LogQueue()
-    #     manager = LotePPPManager(use_api=True, log_callback=lambda m: log_q.put({"mensagem": m}))
-    #     out_pasta_ppp = os.path.join(EXPORT_BASE_FOLDER, "Processados_PPP")
-    #     os.makedirs(out_pasta_ppp, exist_ok=True)
-    #     manager.processar_lote(arquivos_rinex, out_pasta_ppp)
-    
-    add_log("Processo PPP Finalizado (Envio IBGE ignorado)!")
-
-@app.post("/process/ppp")
-async def start_ppp(files: List[str], background_tasks: BackgroundTasks):
-    background_tasks.add_task(run_ppp_task, files)
-    return {"message": "Processamento iniciado em segundo plano"}
-
 @app.get("/pick-folder")
 def pick_folder():
     import tkinter as tk
