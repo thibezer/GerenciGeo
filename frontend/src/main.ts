@@ -7,7 +7,6 @@ import { levantamentosRoute } from './views/levantamentos';
 import { mesaTrabalhoRoute } from './views/mesa_trabalho';
 import { propriedadesRoute } from './views/propriedades';
 import { hgoRoute } from './views/hgo';
-import { historicoRoute } from './views/historico';
 import { pendenciasRoute } from './views/pendencias';
 import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
@@ -19,7 +18,6 @@ const routes: Record<string, RouteDef> = {
   mesa_trabalho: mesaTrabalhoRoute,
   propriedades: propriedadesRoute,
   hgo: hgoRoute,
-  historico: historicoRoute,
   pendencias: pendenciasRoute,
   configuracoes: configuracoesRoute,
   fronteira: fronteiraRoute
