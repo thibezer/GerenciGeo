@@ -57,7 +57,8 @@ class GerenciGeoApp:
             "Propriedades", 
             "Levantamentos",
             "Módulos PPP", 
-            "Editor .MEM"
+            "Editor .MEM",
+            "Banco CCIR"
         ]
 
         for btn in buttons:
@@ -74,6 +75,7 @@ class GerenciGeoApp:
         from ui.profissional_view import ProfissionalView
         from ui.propriedade_view import PropriedadeView
         from ui.levantamento_view import LevantamentoView
+        from ui.ccir_view import CcirView
         
         self.frames["Dashboard"] = DashboardView(self.main_area)
         self.frames["Clientes"] = ClienteView(self.main_area)
@@ -82,6 +84,7 @@ class GerenciGeoApp:
         self.frames["Levantamentos"] = LevantamentoView(self.main_area)
         self.frames["Editor .MEM"] = MemEditorView(self.main_area)
         self.frames["Módulos PPP"] = ProcessamentoView(self.main_area)
+        self.frames["Banco CCIR"] = CcirView(self.main_area)
 
     def show_frame(self, frame_name):
         for f in self.frames.values():

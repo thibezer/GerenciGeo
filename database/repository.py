@@ -1,5 +1,5 @@
 import logging
-from database.connection import execute_query
+from database.connection import execute_query, DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +173,85 @@ class PendenciaRepo(GenericRepo):
     def get_pendentes_alta(self, limit=3):
         query = "SELECT * FROM pendencias WHERE status = 'PENDENTE' AND prioridade = 'ALTA' ORDER BY data_criacao DESC LIMIT ?"
         return [dict(r) for r in execute_query(query, params=(limit,), fetch_all=True)]
+
+
+class CcirCadastroRepo(GenericRepo):
+    def __init__(self):
+        super().__init__("ccir_cadastros")
+
+    def insert_bulk(self, rows):
+        """Insere múltiplos registros de CCIR em lote"""
+        query = """
+            INSERT INTO ccir_cadastros (
+                codigo_imovel, denominacao, codigo_municipio, municipio, uf,
+                area_total, titular, natureza_juridica, condicao_pessoa,
+                percentual_detencao, pais, arquivo_origem
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(query, rows)
+
+    def delete_by_arquivo(self, arquivo_origem):
+        """Remove todos os registros vindos de um arquivo de origem específico"""
+        query = "DELETE FROM ccir_cadastros WHERE arquivo_origem = ?"
+        execute_query(query, params=(arquivo_origem,), fetch_all=False, commit=True)
+
+    def search_ccir_avancado(self, filters, limit=100):
+        """
+        Busca registros de CCIR usando múltiplos filtros dinâmicos de forma simultânea (AND).
+        """
+        sql = "SELECT * FROM ccir_cadastros WHERE 1=1"
+        params = []
+
+        if filters.get("codigo_imovel"):
+            sql += " AND codigo_imovel LIKE ?"
+            params.append(f"%{filters['codigo_imovel']}%")
+
+        if filters.get("denominacao"):
+            sql += " AND denominacao LIKE ?"
+            params.append(f"%{filters['denominacao']}%")
+
+        if filters.get("titular"):
+            sql += " AND titular LIKE ?"
+            params.append(f"%{filters['titular']}%")
+
+        if filters.get("municipio"):
+            sql += " AND municipio LIKE ?"
+            params.append(f"%{filters['municipio']}%")
+
+        if filters.get("area_min") is not None:
+            sql += " AND area_total >= ?"
+            params.append(filters["area_min"])
+
+        if filters.get("area_max") is not None:
+            sql += " AND area_total <= ?"
+            params.append(filters["area_max"])
+
+        if filters.get("pct_min") is not None:
+            sql += " AND percentual_detencao >= ?"
+            params.append(filters["pct_min"])
+
+        if filters.get("pct_max") is not None:
+            sql += " AND percentual_detencao <= ?"
+            params.append(filters["pct_max"])
+
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        return [dict(r) for r in execute_query(sql, params=tuple(params), fetch_all=True)]
+
+    def get_by_codigo_imovel(self, codigo_imovel):
+        """Retorna todos os registros cadastrados para o mesmo código de imóvel (coproprietários)"""
+        query = "SELECT * FROM ccir_cadastros WHERE codigo_imovel = ?"
+        return [dict(r) for r in execute_query(query, params=(codigo_imovel,), fetch_all=True)]
+
+    def get_imported_files(self):
+        """Retorna os arquivos importados e a quantidade de registros cadastrados por eles"""
+        query = """
+            SELECT arquivo_origem, COUNT(*) as total_registros, MIN(created_at) as data_importacao 
+            FROM ccir_cadastros 
+            GROUP BY arquivo_origem
+        """
+        return [dict(r) for r in execute_query(query, fetch_all=True)]
+

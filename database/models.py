@@ -297,6 +297,33 @@ def create_tables(conn):
             FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL
         );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS ccir_cadastros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_imovel TEXT NOT NULL,
+            denominacao TEXT,
+            codigo_municipio TEXT,
+            municipio TEXT,
+            uf TEXT,
+            area_total REAL,
+            titular TEXT,
+            natureza_juridica TEXT,
+            condicao_pessoa TEXT,
+            percentual_detencao REAL,
+            pais TEXT,
+            arquivo_origem TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_ccir_codigo ON ccir_cadastros(codigo_imovel);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_ccir_titular ON ccir_cadastros(titular);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_ccir_municipio ON ccir_cadastros(municipio);
         """
     ]
 

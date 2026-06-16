@@ -43,8 +43,8 @@ def set_clipboard_text(text):
 
 def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"):
     """
-    Realiza a conversão de um ou mais arquivos .GNS para RINEX usando o HGO.
-    Suporta arquivo único (string) ou lote de arquivos (lista).
+    Realiza a conversão de um ou mais arquivos .GNS para RINEX usando o HGO sem interrupções (modo contínuo).
+    Os timeouts de janelas GUI foram reduzidos para 5 segundos para otimizar a velocidade.
     """
     if isinstance(arquivos_origem, str):
         arquivos_origem = [arquivos_origem]
@@ -68,20 +68,23 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
     
     try:
         # Garante que nenhum HGO anterior esteja rodando para evitar conflitos de foco
+        print("Finalizando qualquer processo anterior do HGO...")
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
-        time.sleep(0.2)
+        time.sleep(0.5)
         
         # Inicia HGO com RunAsInvoker para evitar necessidade de elevação UAC
+        print("Iniciando HGO.exe...")
         os.environ["__COMPAT_LAYER"] = "RunAsInvoker"
         subprocess.Popen([caminho_exe])
         
-        # Conecta ao HGO.exe recém-iniciado
+        # Conecta ao HGO.exe recém-iniciado (timeout de 5 segundos)
         app = Application(backend="uia").connect(path=caminho_exe, timeout=5)
         janela = app.window(title_re=".*Hi-Target Geomatics Office.*")
         janela.wait('ready', timeout=5)
         janela.set_focus()
         
         # 1. Cria o projeto
+        print("Clicando no botão 'Novo'...")
         btn_novo = janela.child_window(title="Novo", control_type="Button")
         btn_novo.click_input()
         
@@ -106,6 +109,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
         dlg_prop.wait('ready', timeout=5)
         
+        print("Clicando na aba 'Avancado'...")
         tab_avancado = dlg_prop.child_window(title="Avancado", control_type="TabItem")
         tab_avancado.click_input()
         
@@ -120,15 +124,20 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
         dlg_coord.wait('ready', timeout=5)
         
+        print("Abrindo ComboBox e selecionando 'SIRGAS_UTM22S'...")
         cb_coord = dlg_coord.child_window(auto_id="comboBox1", control_type="ComboBox")
         btn_abrir = cb_coord.child_window(title="Abrir", control_type="Button")
+        
+        # Garante foco antes do clique
+        dlg_coord.set_focus()
         btn_abrir.click_input()
-        time.sleep(0.05)
+        time.sleep(0.1)
         
         item_sirgas = cb_coord.child_window(title="SIRGAS_UTM22S", control_type="ListItem")
         item_sirgas.click_input()
-        time.sleep(0.05)
+        time.sleep(0.1)
         
+        print("Confirmando Sistema de Coordenadas...")
         btn_coord_ok = dlg_coord.child_window(auto_id="btOk", control_type="Button")
         btn_coord_ok.click_input()
         
@@ -136,6 +145,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         janela.wait('ready', timeout=5)
         time.sleep(0.05)
         
+        print("Abrindo diálogo de importação...")
         btn_importar = janela.child_window(title="Importar", control_type="Button")
         btn_importar.click_input()
         
@@ -143,6 +153,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         dlg_importar = janela.child_window(auto_id="frmFileFilter", control_type="Window")
         dlg_importar.wait('ready', timeout=5)
         
+        print("Clicando em 'Selecionar Arqs(S)'...")
         btn_select = dlg_importar.child_window(title="Selecionar Arqs(S)", control_type="Button")
         btn_select.click_input()
         
@@ -155,6 +166,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         set_clipboard_text(caminhos_formatados)
         
         # Foca a janela "Abrir" e cola o caminho direto
+        print("Preenchendo caminho do arquivo no diálogo do Windows...")
         dlg_abrir.set_focus()
         time.sleep(0.2)
         # Envia Alt+N (atalho universal para focar a caixa de texto "Nome do arquivo" nos diálogos do Windows)
@@ -167,10 +179,11 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         
         # 5. Espera dinâmica pela importação dos arquivos (.zsd)
         obs_dir = os.path.join(proj_dir, "ObsBinData")
-        print(f" -> Aguardando importacao dinamica na pasta: {obs_dir}")
+        print(f" -> Pasta do projeto criada no disco: {proj_dir}")
+        print(f" -> Aguardando importacao automatica do .zsd na pasta: {obs_dir}")
         
         arquivos_esperados = [os.path.splitext(os.path.basename(a))[0] + ".zsd" for a in arquivos_origem]
-        timeout_importacao = 20
+        timeout_importacao = 25  # Timeout estendido para importação física de I/O
         inicio_espera = time.time()
         
         while True:
@@ -201,6 +214,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         time.sleep(1.0)
         
         # 6. Ativar aba Arq-Observacoes e iniciar conversão
+        print("Mudando para a aba 'Arq-Observacoes'...")
         janela.set_focus()
         tab_control = janela.child_window(auto_id="tabControl1", control_type="Tab")
         tab_item = tab_control.child_window(title="Arq-Observacoes", control_type="TabItem")
@@ -210,21 +224,24 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         table = janela.child_window(title="DataGridView", auto_id="dataGridView1", control_type="Table")
         table.wait('ready', timeout=15)
         
-        # Envia a tecla ALT antes de clicar com o botão direito para ativar os atalhos de teclado no menu
-        send_keys("{VK_MENU}", pause=0.1)
-        time.sleep(0.3)
-        
+        print("Focando linha da tabela...")
+        janela.set_focus()
         celula = table.child_window(title="Arquivo Linha 0", control_type="DataItem")
         celula.click_input()
         time.sleep(0.5)
         
-        # Seleciona tudo e abre o menu
+        print("Selecionando todos e abrindo menu de contexto...")
         send_keys("^a", pause=0.05)
         time.sleep(0.5)
-        celula.click_input(button="right")
-        time.sleep(1.5)
         
-        # Executa "Converter para Rinex(R)"
+        # Envia a tecla ALT antes de clicar com o botão direito para ativar os atalhos de teclado no menu
+        send_keys("{VK_MENU}", pause=0.1)
+        time.sleep(0.3)
+        
+        celula.click_input(button="right")
+        time.sleep(1.0)
+        
+        print("Disparando conversão (R + ENTER)...")
         send_keys("r{ENTER}", pause=0.05)
         
         # 7. Espera dinâmica pela conversão Rinex
@@ -358,7 +375,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
                 
         # 9. Espera 4 segundos (delay técnico para garantir estabilidade e encerramento de I/O)
         print(" -> Aguardando 4 segundos com o HGO aberto...")
-        time.sleep(5.0)
+        time.sleep(4.0)
         
         # 10. Fecha o HGO de forma segura
         print(" -> Fechando o HGO...")
@@ -395,3 +412,15 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
             os.system("taskkill /f /im HGO.exe >nul 2>&1")
         except: pass
         return False
+
+if __name__ == "__main__":
+    arq_origem = r"D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho\2sarad8.GNS"
+    pasta_dest = r"D:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo\scratch\debug_out"
+    print(f"=== SCRIPT DE EXECUÇÃO CONTÍNUA HGO ===")
+    print(f"Arquivo de origem: {arq_origem}")
+    print(f"Diretorio destino: {pasta_dest}")
+    print("Certifique-se de que a tela do computador nao esteja bloqueada e que o HGO possa assumir o foco.")
+    
+    # Execução contínua sem pausas
+    sucesso = converter_rinex(arq_origem, pasta_dest)
+    print(f"\n[FIM] Processo concluído de ponta a ponta. Retorno do HGO: {sucesso}")
