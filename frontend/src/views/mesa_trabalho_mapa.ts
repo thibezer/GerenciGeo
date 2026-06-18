@@ -14,9 +14,11 @@ export class MesaTrabalhoMapa {
   private polylines: L.Polyline[] = [];
   private satelliteLayer: L.TileLayer | null = null;
   private gridGroup: L.LayerGroup | null = null;
+  private bancoPontosGroup: L.LayerGroup | null = null;
   public modoCliqueSequencialAtivo: boolean = false;
   private sigefLayer: L.TileLayer.WMS | null = null;
   public levantamentoId: number | null = null;
+  private bancoPontosAtivo: boolean = false;
 
   constructor() {}
 
@@ -54,6 +56,9 @@ export class MesaTrabalhoMapa {
 
     // Inicializa a camada de grade a cada 1 metro
     this.gridGroup = L.layerGroup().addTo(this.map);
+
+    // Inicializa a camada de Poligonal Homologada (INCRA)
+    this.bancoPontosGroup = L.layerGroup().addTo(this.map);
 
     // Registra listeners para desenhar a grade dinamicamente sob zooms altos
     this.map.on('zoomend moveend', () => this.atualizarGrade());
@@ -97,7 +102,11 @@ export class MesaTrabalhoMapa {
 
     this.sigefLayer = sigef;
 
-    L.control.layers({ "Satélite Google": googleSat }, { "Imóveis SIGEF (PR)": sigef }, { collapsed: true }).addTo(this.map);
+    L.control.layers(
+      { "Satélite Google": googleSat },
+      { "Imóveis SIGEF (PR)": sigef, "Poligonal Homologada (INCRA)": this.bancoPontosGroup },
+      { collapsed: true }
+    ).addTo(this.map);
 
     // Registra clique no mapa para consultar metadados das parcelas vizinhas do SIGEF WMS
     this.map.on('click', async (e: L.LeafletMouseEvent) => {
@@ -134,10 +143,14 @@ export class MesaTrabalhoMapa {
   /**
    * Limpa todos os marcadores e polilinhas ativos no mapa
    */
-  public clearOverlays(): void {
+  public clearOverlays(bancoPontosAtivo: boolean = false): void {
+    this.bancoPontosAtivo = bancoPontosAtivo;
     if (this.map) {
       this.markers.forEach(m => this.map!.removeLayer(m));
       this.polylines.forEach(pl => this.map!.removeLayer(pl));
+    }
+    if (this.bancoPontosGroup) {
+      this.bancoPontosGroup.clearLayers();
     }
     this.markers = [];
     this.polylines = [];
@@ -195,8 +208,9 @@ export class MesaTrabalhoMapa {
           markerBg = 'bg-rose-600 text-white';
         }
 
+        const opacityClass = this.bancoPontosAtivo ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
         const markerHtml = `
-          <div class="w-5 h-5 ${markerBg} border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold font-mono shadow-lg transition-transform hover:scale-125" id="map-marker-${p.id}">
+          <div class="w-5 h-5 ${markerBg} border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold font-mono shadow-lg transition-transform hover:scale-125 ${opacityClass}" id="map-marker-${p.id}">
             ${p.nome_vertice.substring(0, 3)}
           </div>
         `;
@@ -252,10 +266,13 @@ export class MesaTrabalhoMapa {
       const pFim = pontos.find(p => p.id === s.ponto_fim_id);
 
       if (pIni && pFim && pIni.lat && pIni.lon && pFim.lat && pFim.lon) {
-        const color = s.tipo_limite_sigef === 'LA1' ? '#10b981' : '#3b82f6';
+        const color = this.bancoPontosAtivo ? '#94a3b8' : (s.tipo_limite_sigef === 'LA1' ? '#10b981' : '#3b82f6');
+        const weight = this.bancoPontosAtivo ? 2 : 4;
+        const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
         const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
           color: color,
-          weight: 4,
+          weight: weight,
+          opacity: opacity,
           dashArray: s.tipo_limite_sigef === 'LN1' ? '6, 6' : undefined,
           pane: 'perimetroPane'
         }).bindPopup(`
@@ -286,13 +303,18 @@ export class MesaTrabalhoMapa {
 
     if (validPoints.length < 2) return;
 
+    const color = this.bancoPontosAtivo ? '#94a3b8' : '#10b981';
+    const weight = this.bancoPontosAtivo ? 2 : 4;
+    const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
+
     // Conecta sequencialmente 1 -> 2 -> ... -> N-1
     for (let i = 0; i < validPoints.length - 1; i++) {
       const pIni = validPoints[i];
       const pFim = validPoints[i + 1];
       const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
-        color: '#10b981',
-        weight: 4,
+        color: color,
+        weight: weight,
+        opacity: opacity,
         pane: 'perimetroPane'
       }).addTo(this.map!);
       polyline.bringToBack(); // Garante que a linha fique abaixo dos vértices
@@ -303,13 +325,77 @@ export class MesaTrabalhoMapa {
     const pLast = validPoints[validPoints.length - 1];
     const pFirst = validPoints[0];
     const polylineClose = L.polyline([[pLast.lat, pLast.lon], [pFirst.lat, pFirst.lon]], {
-      color: '#10b981',
-      weight: 4,
+      color: color,
+      weight: weight,
+      opacity: opacity,
       dashArray: '4, 4',
       pane: 'perimetroPane'
     }).addTo(this.map!);
     polylineClose.bringToBack(); // Garante que a linha de fechamento fique abaixo dos vértices
     this.polylines.push(polylineClose);
+  }
+
+  /**
+   * Plota a poligonal oficial homologada pelo INCRA (vinda do banco_pontos)
+   */
+  public plotPoligonalHomologada(bancoPontos: any[]): void {
+    if (!this.map || !this.bancoPontosGroup) return;
+    this.bancoPontosGroup.clearLayers();
+
+    // Filtra pontos que possuam coordenadas de Lat/Lon válidas
+    const validPoints = bancoPontos.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0);
+    if (validPoints.length === 0) return;
+
+    this.bancoPontosAtivo = true;
+
+    // 1. Plotar marcadores discretos para os pontos
+    validPoints.forEach(p => {
+      const markerHtml = `
+        <div class="w-4.5 h-4.5 bg-amber-500 text-slate-950 border-2 border-slate-900 rounded-full flex items-center justify-center text-[7px] font-black font-mono shadow-md hover:scale-125 transition-transform" id="banco-marker-${p.id}">
+          H
+        </div>
+      `;
+      const customIcon = L.divIcon({
+        html: markerHtml,
+        className: 'banco-leaflet-marker',
+        iconSize: [18, 18]
+      });
+
+      const popupContent = `
+        <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.35; min-width:180px;">
+          <div style="font-weight:800; font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; border-b:1px solid #eee; padding-bottom:3px; margin-bottom:5px;">Vértice Homologado SIGEF</div>
+          <div style="font-weight:700; font-size:13px; margin-bottom:3px;">${p.codigo_completo}</div>
+          <div style="font-size:11px; color:#555; font-family:'JetBrains Mono',monospace;">Este (E): ${p.este ? p.este.toFixed(2) : 'N/A'} m</div>
+          <div style="font-size:11px; color:#555; font-family:'JetBrains Mono',monospace; margin-bottom:3px;">Norte (N): ${p.norte ? p.norte.toFixed(2) : 'N/A'} m</div>
+          <div style="font-size:11px; color:#555; margin-bottom:2px;">Alt (h): <strong>${p.altitude ? p.altitude.toFixed(2) : 'N/A'} m</strong></div>
+          <div style="font-size:10px; color:#666;">Método: ${p.metodo_posicionamento || 'N/A'} · Limite: ${p.tipo_limite || 'N/A'}</div>
+          ${p.confrontante_descritivo ? `<div style="font-size:10px; color:#444; border-top:1px solid #eee; padding-top:4px; margin-top:4px; word-break:break-word;"><strong>Conf:</strong> ${p.confrontante_descritivo}</div>` : ''}
+        </div>
+      `;
+
+      const marker = L.marker([p.lat, p.lon], { 
+        icon: customIcon,
+        pane: 'verticesPane'
+      }).bindPopup(popupContent, { className: 'compact-popup', maxWidth: 220 });
+
+      marker.addTo(this.bancoPontosGroup!);
+    });
+
+    // 2. Traçar a polilinha perimetral fechada
+    if (validPoints.length >= 2) {
+      const coords = validPoints.map(p => L.latLng(p.lat, p.lon));
+      // Adiciona o fechamento conectando o último ponto de volta ao primeiro
+      coords.push(L.latLng(validPoints[0].lat, validPoints[0].lon));
+
+      const polyline = L.polyline(coords, {
+        color: '#f59e0b', // Cor âmbar contrastante premium
+        weight: 3.5,
+        dashArray: '6, 8',
+        pane: 'perimetroPane'
+      }).addTo(this.bancoPontosGroup!);
+
+      polyline.bringToBack();
+    }
   }
 
   public selectPonto(pId: number, zoomLevel?: number): void {

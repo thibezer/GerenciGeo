@@ -50,7 +50,8 @@ export const pendenciasRoute: RouteDef = {
           .then(data => {
              const container = document.getElementById('lista-pendencias');
              if(!container) return;
-             document.getElementById('pendencias-count')!.innerText = data.length.toString();
+             const countEl = document.getElementById('pendencias-count');
+             if (countEl) countEl.innerText = data.length.toString();
              
              if(data.length === 0) {
                 container.innerHTML = `<div class="p-12 text-center text-white/20">Nenhuma pendência encontrada.</div>`;

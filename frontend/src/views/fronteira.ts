@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, formatarCCIR } from '../utils';
 
 // Coordenada do Paraguai/Fronteira estabelecida
 const BORDER_LAT = -24.0671222;
@@ -784,7 +784,7 @@ export const fronteiraRoute: RouteDef = {
       (document.getElementById('modal-prop-municipio') as HTMLInputElement).value = prop.municipio || '';
       (document.getElementById('modal-prop-uf') as HTMLInputElement).value = prop.uf || '';
       (document.getElementById('modal-prop-car') as HTMLInputElement).value = prop.codigo_car || '';
-      (document.getElementById('modal-prop-ccir') as HTMLInputElement).value = prop.codigo_ccir || '';
+      (document.getElementById('modal-prop-ccir') as HTMLInputElement).value = prop.codigo_ccir ? formatarCCIR(prop.codigo_ccir) : '';
 
       // Preenche dados do Proprietário
       (document.getElementById('modal-owner-id') as HTMLInputElement).value = owner.id || '0';
@@ -822,7 +822,7 @@ export const fronteiraRoute: RouteDef = {
               </div>
               <div>
                 <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código CCIR (Matrícula) *</label>
-                <input type="text" value="${m.ccir || ''}" class="glass-input w-full text-[11px] modal-mat-ccir font-mono" placeholder="CCIR INCRA" required />
+                <input type="text" value="${m.ccir ? formatarCCIR(m.ccir) : ''}" class="glass-input w-full text-[11px] modal-mat-ccir font-mono" placeholder="CCIR INCRA" required />
               </div>
               <div>
                 <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
@@ -910,9 +910,11 @@ export const fronteiraRoute: RouteDef = {
       
       if (!val) {
         currentPropId = null;
-        document.getElementById('matriculas-checkbox-list')!.innerHTML = '<p class="text-xs text-white/30 italic py-2 text-center">Selecione uma propriedade para listar as matrículas correspondentes.</p>';
+        const matListEl = document.getElementById('matriculas-checkbox-list');
+        if (matListEl) matListEl.innerHTML = '<p class="text-xs text-white/30 italic py-2 text-center">Selecione uma propriedade para listar as matrículas correspondentes.</p>';
         atualizarMonitorGeodesicoLote();
-        document.getElementById('documentos-lista-container')!.innerHTML = '<div class="text-center text-white/30 text-xs py-8">Selecione uma propriedade para listar os atalhos de documentos.</div>';
+        const docListEl = document.getElementById('documentos-lista-container');
+        if (docListEl) docListEl.innerHTML = '<div class="text-center text-white/30 text-xs py-8">Selecione uma propriedade para listar os atalhos de documentos.</div>';
         verificarHabilitacaoBotao();
         return;
       }
@@ -1108,6 +1110,20 @@ export const fronteiraRoute: RouteDef = {
         btnSaveAndGenerate.innerHTML = originalText;
         initIcons();
       }
+    });
+
+    // Máscara reativa do CCIR da Propriedade no Modal
+    document.getElementById('modal-prop-ccir')?.addEventListener('input', (e) => {
+       const t = e.target as HTMLInputElement;
+       t.value = formatarCCIR(t.value);
+    });
+
+    // Máscara reativa delegada para CCIR de Matrícula no Modal
+    document.getElementById('modal-matriculas-container')?.addEventListener('input', (e) => {
+       const t = e.target as HTMLInputElement;
+       if (t.classList.contains('modal-mat-ccir')) {
+          t.value = formatarCCIR(t.value);
+       }
     });
 
     loadPropriedades();

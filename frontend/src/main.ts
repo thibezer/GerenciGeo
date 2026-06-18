@@ -10,6 +10,7 @@ import { hgoRoute } from './views/hgo';
 import { pendenciasRoute } from './views/pendencias';
 import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
+import { ccirRoute } from './views/ccir';
 
 const routes: Record<string, RouteDef> = {
   dashboard: dashboardRoute,
@@ -20,14 +21,25 @@ const routes: Record<string, RouteDef> = {
   hgo: hgoRoute,
   pendencias: pendenciasRoute,
   configuracoes: configuracoesRoute,
-  fronteira: fronteiraRoute
+  fronteira: fronteiraRoute,
+  ccir: ccirRoute
 };
 
+
+let activeRoute: RouteDef | null = null;
 
 const navigate = (route: string) => {
   const container = document.getElementById('view-container');
   const breadcrumbCurrent = document.getElementById('breadcrumb-current');
   if (!container) return;
+  
+  if (activeRoute && activeRoute.cleanup) {
+    try {
+      activeRoute.cleanup();
+    } catch (e) {
+      console.warn("Erro ao executar cleanup da rota anterior:", e);
+    }
+  }
   
   clearTimeoutsAndIntervals();
   if (breadcrumbCurrent) {
@@ -35,6 +47,7 @@ const navigate = (route: string) => {
   }
   
   const currentRoute = routes[route];
+  activeRoute = currentRoute || null;
   if (currentRoute) {
     container.innerHTML = currentRoute.render();
     initIcons();

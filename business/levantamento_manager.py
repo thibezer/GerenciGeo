@@ -4,7 +4,7 @@ import logging
 from database.connection import DatabaseManager, execute_query
 from business.cliente_manager import ClienteManager, validar_cpf_cnpj
 from business.workspace_manager import WorkspaceManager
-from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
+from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
 from pyproj import Transformer
 
 logger = logging.getLogger(__name__)
@@ -297,7 +297,7 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             base = dict(row_new_base)
             
             # 1. Determina a projeção UTM com base na longitude corrigida da base
-            zona_utm = int((base["lon"] + 180) / 6) + 1
+            zona_utm = calcular_zona_utm_segura(base["lon"])
             epsg_utm = f"319{60 + zona_utm}"
             
             transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)

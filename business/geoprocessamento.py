@@ -12,6 +12,22 @@ def latlon_to_utm22s(lat, lon):
     easting, northing = transformer.transform(lon, lat)
     return easting, northing
 
+def calcular_zona_utm_segura(lon) -> int:
+    """
+    Calcula dinamicamente a zona UTM a partir da longitude com tratamentos robustos
+    para valores nulos, vazios ou inválidos, fazendo fallback para a zona 22 (padrão).
+    """
+    if lon is None:
+        return 22
+    try:
+        lon_f = float(lon)
+        if -180.0 <= lon_f <= 180.0:
+            return int((lon_f + 180) / 6) + 1
+        return 22
+    except (ValueError, TypeError):
+        return 22
+
+
 def exportar_txt_utm(pontos, filepath):
     """
     Gera um arquivo TXT com as coordenadas UTM 22S no padrão do TOPOCAD.
@@ -176,15 +192,25 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
             msg_erro = "A matrícula precisa de pelo menos 3 pontos com coordenadas para ordenar a poligonal."
 
         rows = execute_query(query_pontos, params=params_query, fetch_all=True)
-        if not rows or len(rows) < 3:
+        pontos_filtrados = []
+        for r in (rows or []):
+            d = dict(r)
+            if d.get("lat") is not None and d.get("lon") is not None:
+                try:
+                    float(d["lat"])
+                    float(d["lon"])
+                    pontos_filtrados.append(d)
+                except (ValueError, TypeError):
+                    continue
+                    
+        pontos = pontos_filtrados
+        n = len(pontos)
+        if n < 3:
             return {
                 "sucesso": False,
                 "erro": msg_erro
             }
             
-        pontos = [dict(r) for r in rows]
-        n = len(pontos)
-        
         # 2. Identifica o ponto mais ao norte (Maior Latitude)
         # Critério de desempate: maior longitude (mais a Leste)
         ponto_norte_idx = 0
@@ -208,7 +234,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
 
         # 3. Conversão UTM Dinâmica para Cálculo do Shoelace
         lon_referencia = pontos[0]["lon"]
-        zona_utm = int((lon_referencia + 180) / 6) + 1
+        zona_utm = calcular_zona_utm_segura(lon_referencia)
         epsg_utm = f"319{60 + zona_utm}"  # EPSG para Hemisfério Sul
         
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
@@ -388,7 +414,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         # A. Converte as coordenadas geodésicas corrigidas da Base para UTM (SIRGAS 2000)
         # Determina o fuso com base na longitude da base corrigida
         longitude_base = base["lon"]
-        zona_utm = int((longitude_base + 180) / 6) + 1
+        zona_utm = calcular_zona_utm_segura(longitude_base)
         epsg_utm = f"319{60 + zona_utm}"
         
         transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
@@ -435,43 +461,54 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 if not r["e_original"] or not r["n_original"]:
                     continue
                     
-                # A. Translação plana UTM rigorosa
-                e_corr = r["e_original"] + delta_e
-                n_corr = r["n_original"] + delta_n
-                alt_corr = r["alt_original"] + delta_h
-                
-                # B. UTM Corrigida -> Geodésica Corrigida
-                lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
-                
-                # E. Propagação de Incertezas
-                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
-                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
-                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
-                
-                # F. Atualiza no banco
-                # F. Atualiza no banco com consistência de status para o ecossistema
-                cursor.execute(
-                    """
-                    UPDATE pontos 
-                    SET lat = ?, lon = ?, alt = ?, 
-                        lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
-                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                        status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO' 
-                    WHERE id = ? AND levantamento_id = ?
-                    """,
-                    (lat_corr, lon_corr, alt_corr, 
-                     lat_corr, lon_corr, alt_corr,
-                     sig_lat_prop, sig_lon_prop, sig_alt_prop,
-                     r["id"], levantamento_id)
-                )
-                total_corrigidos += 1
-                detalhamento_logs.append({
-                    "id": r["id"],
-                    "nome": r["nome_vertice"],
-                    "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
-                    "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
-                })
-                
+                try:
+                    e_orig = float(r["e_original"])
+                    n_orig = float(r["n_original"])
+                    alt_orig = float(r["alt_original"]) if r.get("alt_original") is not None else 0.0
+                    
+                    # A. Translação plana UTM rigorosa
+                    e_corr = e_orig + delta_e
+                    n_corr = n_orig + delta_n
+                    alt_corr = alt_orig + delta_h
+                    
+                    # B. UTM Corrigida -> Geodésica Corrigida
+                    lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
+                    
+                    # E. Propagação de Incertezas
+                    sig_n_val = float(r["sigma_n"]) if r.get("sigma_n") is not None else 0.0
+                    sig_e_val = float(r["sigma_e"]) if r.get("sigma_e") is not None else 0.0
+                    sig_z_val = float(r["sigma_z"]) if r.get("sigma_z") is not None else 0.0
+                    
+                    sig_lat_prop = math.sqrt(sig_n_val**2 + sig_base_lat**2)
+                    sig_lon_prop = math.sqrt(sig_e_val**2 + sig_base_lon**2)
+                    sig_alt_prop = math.sqrt(sig_z_val**2 + sig_base_alt**2)
+                    
+                    # F. Atualiza no banco
+                    cursor.execute(
+                        """
+                        UPDATE pontos 
+                        SET lat = ?, lon = ?, alt = ?, 
+                            lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                            sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                            status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO' 
+                        WHERE id = ? AND levantamento_id = ?
+                        """,
+                        (lat_corr, lon_corr, alt_corr, 
+                         lat_corr, lon_corr, alt_corr,
+                         sig_lat_prop, sig_lon_prop, sig_alt_prop,
+                         r["id"], levantamento_id)
+                    )
+                    total_corrigidos += 1
+                    detalhamento_logs.append({
+                        "id": r["id"],
+                        "nome": r["nome_vertice"],
+                        "original": {"E": e_orig, "N": n_orig, "H": alt_orig},
+                        "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
+                    })
+                except (ValueError, TypeError) as e_pt:
+                    logger.warning(f"[GEOPROCESSAMENTO] Ponto rover #{r.get('id')} ({r.get('nome_vertice')}) ignorado na translação em bloco devido a dados numéricos inválidos: {e_pt}")
+                    continue
+                    
             conn.commit()
             
         if total_corrigidos > 0:
@@ -716,34 +753,41 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
             raise e_layout
     
     # 1. Determina a Coordenada Corrigida Oficinal da Base (em Lat/Lon/Alt Geodésica)
-    lat_corr_oficial = 0.0
-    lon_corr_oficial = 0.0
-    alt_corr_oficial = float(dados_corrigidos.get("alt_corrigida") or dados_corrigidos.get("alt") or 0.0)
-    
-    fuso_selecionado = dados_corrigidos.get("fuso")
-    zona = int(''.join(filter(str.isdigit, fuso_selecionado or "22S")))
-    epsg_utm = f"319{60 + zona}"
-    
-    transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-    
-    if dados_corrigidos.get("tipo_entrada") == "utm":
-        e_corr = float(dados_corrigidos["e_corrigido"])
-        n_corr = float(dados_corrigidos["n_corrigido"])
-        lon_corr_oficial, lat_corr_oficial = transformer_to_latlon.transform(e_corr, n_corr)
-        logger.info(f"[OVERRIDE_MANUAL] Projeção reversa da Base Corrigida concluída: Lat={lat_corr_oficial:.8f}, Lon={lon_corr_oficial:.8f}")
-    else:
-        lat_corr_oficial = float(dados_corrigidos["lat_corrigida"])
-        lon_corr_oficial = float(dados_corrigidos["lon_corrigida"])
+    try:
+        alt_corr_oficial = float(dados_corrigidos.get("alt_corrigida") or dados_corrigidos.get("alt") or 0.0)
         
-        transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
-        e_corr, n_corr = transformer_to_utm.transform(lon_corr_oficial, lat_corr_oficial)
-    
-    # 2. Dados brutos
-    e_bruto = float(dados_brutos["e_bruto"])
-    n_bruto = float(dados_brutos["n_bruto"])
-    alt_bruta = float(dados_brutos["alt_bruta"])
-    nome_base = dados_brutos.get("nome_base", "BASE-MANUAL")
-    
+        fuso_selecionado = dados_corrigidos.get("fuso")
+        fuso_limpo = ''.join(filter(str.isdigit, fuso_selecionado or "22S"))
+        zona = int(fuso_limpo) if fuso_limpo else 22
+        epsg_utm = f"319{60 + zona}"
+        
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        
+        lat_corr_oficial = 0.0
+        lon_corr_oficial = 0.0
+        
+        if dados_corrigidos.get("tipo_entrada") == "utm":
+            e_corr = float(dados_corrigidos["e_corrigido"])
+            n_corr = float(dados_corrigidos["n_corrigido"])
+            lon_corr_oficial, lat_corr_oficial = transformer_to_latlon.transform(e_corr, n_corr)
+            logger.info(f"[OVERRIDE_MANUAL] Projeção reversa da Base Corrigida concluída: Lat={lat_corr_oficial:.8f}, Lon={lon_corr_oficial:.8f}")
+        else:
+            lat_corr_oficial = float(dados_corrigidos["lat_corrigida"])
+            lon_corr_oficial = float(dados_corrigidos["lon_corrigida"])
+            
+            transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+            e_corr, n_corr = transformer_to_utm.transform(lon_corr_oficial, lat_corr_oficial)
+        
+        # 2. Dados brutos
+        e_bruto = float(dados_brutos["e_bruto"])
+        n_bruto = float(dados_brutos["n_bruto"])
+        alt_bruta = float(dados_brutos["alt_bruta"])
+        nome_base = dados_brutos.get("nome_base", "BASE-MANUAL")
+        
+    except (KeyError, ValueError, TypeError) as e_conv:
+        logger.error(f"[OVERRIDE_MANUAL] Dados de entrada da correção manual mal-formatados ou incompletos: {e_conv}")
+        raise ValueError(f"Dados numéricos da base inválidos ou ausentes para a correção manual: {e_conv}")
+        
     # 3. Determina o Vetor Delta UTM plano e altitude
     delta_e = e_corr - e_bruto
     delta_n = n_corr - n_bruto
@@ -839,39 +883,51 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 if not r["e_original"] or not r["n_original"]:
                     continue
                     
-                e_rover_corr = r["e_original"] + delta_e
-                n_rover_corr = r["n_original"] + delta_n
-                alt_rover_corr = r["alt_original"] + delta_h
-                
-                lon_corr, lat_corr = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
-                alt_corr = alt_rover_corr
-                
-                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
-                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
-                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
-                
-                cursor.execute(
-                    """
-                    UPDATE pontos 
-                    SET lat = ?, lon = ?, alt = ?, 
-                        lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
-                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                        status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
-                        ponto_base_id = ?
-                    WHERE id = ? AND levantamento_id = ?
-                    """,
-                    (lat_corr, lon_corr, alt_corr, 
-                     lat_corr, lon_corr, alt_corr,
-                     sig_lat_prop, sig_lon_prop, sig_alt_prop,
-                     base_id, r["id"], levantamento_id)
-                )
-                total_corrigidos += 1
-                detalhamento_logs.append({
-                    "id": r["id"],
-                    "nome": r["nome_vertice"],
-                    "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
-                    "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
-                })
+                try:
+                    e_orig = float(r["e_original"])
+                    n_orig = float(r["n_original"])
+                    alt_orig = float(r["alt_original"]) if r.get("alt_original") is not None else 0.0
+                    
+                    e_rover_corr = e_orig + delta_e
+                    n_rover_corr = n_orig + delta_n
+                    alt_rover_corr = alt_orig + delta_h
+                    
+                    lon_corr, lat_corr = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
+                    alt_corr = alt_rover_corr
+                    
+                    sig_n_val = float(r["sigma_n"]) if r.get("sigma_n") is not None else 0.0
+                    sig_e_val = float(r["sigma_e"]) if r.get("sigma_e") is not None else 0.0
+                    sig_z_val = float(r["sigma_z"]) if r.get("sigma_z") is not None else 0.0
+                    
+                    sig_lat_prop = math.sqrt(sig_n_val**2 + sig_base_lat**2)
+                    sig_lon_prop = math.sqrt(sig_e_val**2 + sig_base_lon**2)
+                    sig_alt_prop = math.sqrt(sig_z_val**2 + sig_base_alt**2)
+                    
+                    cursor.execute(
+                        """
+                        UPDATE pontos 
+                        SET lat = ?, lon = ?, alt = ?, 
+                            lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                            sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                            status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                            ponto_base_id = ?
+                        WHERE id = ? AND levantamento_id = ?
+                        """,
+                        (lat_corr, lon_corr, alt_corr, 
+                         lat_corr, lon_corr, alt_corr,
+                         sig_lat_prop, sig_lon_prop, sig_alt_prop,
+                         base_id, r["id"], levantamento_id)
+                    )
+                    total_corrigidos += 1
+                    detalhamento_logs.append({
+                        "id": r["id"],
+                        "nome": r["nome_vertice"],
+                        "original": {"E": e_orig, "N": n_orig, "H": alt_orig},
+                        "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
+                    })
+                except (ValueError, TypeError) as e_pt:
+                    logger.warning(f"[OVERRIDE_MANUAL] Ponto rover #{r.get('id')} ({r.get('nome_vertice')}) ignorado na translação manual devido a dados numéricos inválidos: {e_pt}")
+                    continue
                 
             conn.commit()
             

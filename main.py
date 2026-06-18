@@ -28,6 +28,15 @@ def setup_directories():
             logging.info(f"Pasta de exportacao base criada em: {EXPORT_BASE_FOLDER}")
         except Exception as e:
             logging.error(f"Erro ao criar pasta base: {e}")
+            
+    # Cria pasta de sincronização do CCIR
+    ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
+    if not os.path.exists(ccir_dir):
+        try:
+            os.makedirs(ccir_dir)
+            logging.info(f"Pasta de banco CCIR criada em: {ccir_dir}")
+        except Exception as e:
+            logging.error(f"Erro ao criar pasta Banco_CCIR: {e}")
 
 def main():
     setup_logging()

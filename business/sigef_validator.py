@@ -129,24 +129,36 @@ class SigefValidator:
         perímetro total e área definitiva milimétrica pela Fórmula de Gauss (Shoelace).
         pontos_ordenados: lista de dicts contendo {'nome_vertice', 'lat', 'lon', 'alt'}
         """
-        if not pontos_ordenados or len(pontos_ordenados) < 3:
+        # Filtrar pontos que possuem coordenadas de Lat/Lon válidas
+        pontos_validos = []
+        for p in (pontos_ordenados or []):
+            if p.get("lat") is not None and p.get("lon") is not None:
+                try:
+                    float(p["lat"])
+                    float(p["lon"])
+                    pontos_validos.append(p)
+                except (ValueError, TypeError):
+                    continue
+
+        if len(pontos_validos) < 3:
             return {
                 "sucesso": False,
-                "erro": "Número insuficiente de vértices para fechar polígono. São necessários pelo menos 3 pontos."
+                "erro": "Número insuficiente de vértices com coordenadas válidas para fechar polígono. São necessários pelo menos 3 pontos com latitude/longitude."
             }
 
         from pyproj import Transformer
+        from business.geoprocessamento import calcular_zona_utm_segura
         
         # 1. Determinação dinâmica da Zona UTM e EPSG SIRGAS 2000 correspondente no Hemisfério Sul
-        lon0 = pontos_ordenados[0]["lon"]
-        zona_utm = int((lon0 + 180) / 6) + 1
+        lon0 = pontos_validos[0]["lon"]
+        zona_utm = calcular_zona_utm_segura(lon0)
         epsg_utm = f"319{60 + zona_utm}"
         
         transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         
         # Projetar coordenadas geodésicas para o plano plano-altimétrico UTM
         pontos_plano = []
-        for p in pontos_ordenados:
+        for p in pontos_validos:
             e, n = transformer.transform(p["lon"], p["lat"])
             pontos_plano.append({
                 "nome": p["nome_vertice"],

@@ -290,12 +290,28 @@ def create_tables(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             profissional_id INTEGER NOT NULL,
             levantamento_id INTEGER,
+            matricula_id INTEGER,
             tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M', 'P', 'V')),
             numero INTEGER NOT NULL,
             codigo_completo TEXT UNIQUE NOT NULL,
+            norte REAL,
+            este REAL,
+            altitude REAL,
+            lat REAL,
+            lon REAL,
+            sigma_n REAL,
+            sigma_e REAL,
+            sigma_z REAL,
+            metodo_posicionamento TEXT,
+            tipo_limite TEXT,
+            cns_confrontante TEXT,
+            matricula_confrontante TEXT,
+            confrontante_descritivo TEXT,
+            planilha_origem TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE,
-            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL,
+            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE
         );
         """,
         """
@@ -459,6 +475,34 @@ def create_tables(conn):
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em clientes: {ex_mig}")
         
+        # Migração dinâmica para a tabela banco_pontos
+        colunas_banco_pontos = [
+            ("norte", "REAL"),
+            ("este", "REAL"),
+            ("altitude", "REAL"),
+            ("lat", "REAL"),
+            ("lon", "REAL"),
+            ("sigma_n", "REAL"),
+            ("sigma_e", "REAL"),
+            ("sigma_z", "REAL"),
+            ("metodo_posicionamento", "TEXT"),
+            ("tipo_limite", "TEXT"),
+            ("cns_confrontante", "TEXT"),
+            ("matricula_confrontante", "TEXT"),
+            ("confrontante_descritivo", "TEXT"),
+            ("matricula_id", "INTEGER"),
+            ("planilha_origem", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(banco_pontos)")
+        colunas_banco_pontos_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_banco_pontos:
+            if col not in colunas_banco_pontos_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE banco_pontos ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em banco_pontos: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em banco_pontos: {ex_mig}")
+
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário
         migrar_restricao_unicidade_pontos(conn)

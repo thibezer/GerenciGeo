@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Request, Form, HTTPException, Query
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -126,8 +127,14 @@ def verificar_levantamento_arquivado(levantamento_id: int):
 try:
     with DatabaseManager() as conn:
         create_tables(conn)
+        
+    # Garante a criação da pasta Banco_CCIR
+    ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
+    if not os.path.exists(ccir_dir):
+        os.makedirs(ccir_dir, exist_ok=True)
+        logging.getLogger(__name__).info(f"Pasta Banco_CCIR criada em: {ccir_dir}")
 except Exception as e:
-    logging.getLogger(__name__).critical(f"Erro crítico na inicialização do banco: {e}")
+    logging.getLogger(__name__).critical(f"Erro crítico na inicialização do banco/pastas: {e}")
 
 
 # Enable CORS for the frontend
@@ -1015,9 +1022,41 @@ def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
 
 # --- BANCO DE PONTOS E HOMOLOGAÇÃO INCRA ---
 
+def extrair_nome_confrontante_limpo(descritivo: str) -> Optional[str]:
+    if not descritivo:
+        return None
+    import re
+    # Busca por padrões comuns de confrontante no SIGEF/INCRA
+    match_prop = re.search(r'propriedade\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
+    if match_prop:
+        nome = match_prop.group(1).strip()
+    else:
+        match_posse = re.search(r'posse\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
+        if match_posse:
+            nome = match_posse.group(1).strip()
+        else:
+            # Fallback: se não achar palavras chaves, pega o texto antes de pontuação
+            parts = re.split(r'[,;\n\(\)]', descritivo)
+            first_part = parts[0].strip() if parts else ""
+            if first_part and len(first_part) < 60:
+                nome = first_part
+            else:
+                nome = None
+                
+    if nome:
+        nome = re.sub(r'\s+', ' ', nome).strip()
+        if len(nome) >= 3:
+            return nome
+    return None
+
+class AssociarPlanilhaPayload(BaseModel):
+    planilha_origem: str
+    matricula_id: Optional[int] = None
+
 @app.post("/levantamentos/{id}/importar-pontos-aprovados")
-async def importar_pontos_aprovados(id: int, file: UploadFile = File(...)):
+async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matricula_id: Optional[int] = Query(None)):
     verificar_levantamento_arquivado(id)
+    import re
     try:
         # 1. Obter o profissional_id associado ao levantamento
         lev = execute_query(
@@ -1048,51 +1087,201 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...)):
         
         # 3. Ler o conteúdo do arquivo
         content = await file.read()
-        text = content.decode("utf-8", errors="ignore")
         
-        # 4. Encontrar pontos usando expressão regular
-        # O INCRA exige hifens no formato: CRED-TIPO-NUMERO, ex: ABC-M-0120 ou ABC-M-12
-        import re
-        pattern = re.compile(rf"\b({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)\b", re.IGNORECASE)
-        matches = pattern.findall(text)
+        filename = file.filename.lower() if file.filename else ""
+        is_ods = filename.endswith(".ods") or content.startswith(b"PK\x03\x04")
         
-        if not matches:
+        pontos_detetados = []
+        text = ""
+        
+        if is_ods:
+            import io
+            import zipfile
+            import xml.etree.ElementTree as ET
+            from pyproj import Transformer
+            
+            # Instancia o transformador UTM Zone 22S (EPSG:31982) -> SIRGAS 2000 (EPSG:4674)
+            transformer = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+            
+            try:
+                with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
+                    if 'content.xml' in zip_ref.namelist():
+                        xml_data = zip_ref.read('content.xml')
+                        ns = {
+                            'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+                            'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+                            'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
+                        }
+                        root = ET.fromstring(xml_data)
+                        
+                        # Encontra tabelas que contenham perimetro no nome
+                        tables = root.findall('.//table:table', ns)
+                        for table in tables:
+                            table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
+                            if "perimetro" in table_name.lower():
+                                rows = table.findall('.//table:table-row', ns)
+                                for row in rows:
+                                    cells = row.findall('.//table:table-cell', ns)
+                                    cell_texts = []
+                                    for cell in cells:
+                                        repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
+                                        p_elements = cell.findall('.//text:p', ns)
+                                        cell_text = "".join([p.text for p in p_elements if p.text])
+                                        
+                                        count = int(repeated) if repeated else 1
+                                        if count > 30: # Limita colunas vazias
+                                            count = 1
+                                        for _ in range(count):
+                                            cell_texts.append(cell_text)
+                                            
+                                    if len(cell_texts) >= 7:
+                                        vertice = cell_texts[0].strip()
+                                        match = re.match(rf"^({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                        if match:
+                                            tipo = match.group(2).upper()
+                                            num = int(match.group(3))
+                                            
+                                            def parse_num(val):
+                                                if not val: return None
+                                                try:
+                                                    return float(val.replace(",", ".").strip())
+                                                except:
+                                                    return None
+                                                    
+                                            este = parse_num(cell_texts[1])
+                                            sigma_e = parse_num(cell_texts[2])
+                                            norte = parse_num(cell_texts[3])
+                                            sigma_n = parse_num(cell_texts[4])
+                                            altitude = parse_num(cell_texts[5])
+                                            sigma_z = parse_num(cell_texts[6])
+                                            
+                                            metodo = cell_texts[7].strip() if len(cell_texts) > 7 else ""
+                                            tipo_limite = cell_texts[8].strip() if len(cell_texts) > 8 else ""
+                                            cns = cell_texts[9].strip() if len(cell_texts) > 9 else ""
+                                            matricula_conf = cell_texts[10].strip() if len(cell_texts) > 10 else ""
+                                            descritivo = cell_texts[11].strip() if len(cell_texts) > 11 else ""
+                                            
+                                            # Conversão de UTM para Lat/Lon
+                                            lat, lon = None, None
+                                            if este and norte:
+                                                try:
+                                                    lon, lat = transformer.transform(este, norte)
+                                                except Exception as e_trans:
+                                                    logging.getLogger(__name__).warning(f"Erro na conversão UTM de {vertice}: {e_trans}")
+                                                    
+                                            pontos_detetados.append({
+                                                "tipo_ponto": tipo,
+                                                "numero": num,
+                                                "codigo_completo": vertice,
+                                                "norte": norte,
+                                                "este": este,
+                                                "altitude": altitude,
+                                                "lat": lat,
+                                                "lon": lon,
+                                                "sigma_n": sigma_n,
+                                                "sigma_e": sigma_e,
+                                                "sigma_z": sigma_z,
+                                                "metodo_posicionamento": metodo,
+                                                "tipo_limite": tipo_limite,
+                                                "cns_confrontante": cns,
+                                                "matricula_confrontante": matricula_conf,
+                                                "confrontante_descritivo": descritivo
+                                            })
+                        
+                        # Fallback se a estrutura de tabela perimetro não retornou nada (mas content.xml existe)
+                        if not pontos_detetados:
+                            text = xml_data.decode('utf-8', errors='ignore')
+            except Exception as e_zip:
+                logging.getLogger(__name__).error(f"Erro ao processar ODS: {e_zip}")
+                
+        if not is_ods or (is_ods and not pontos_detetados and text):
+            if not is_ods:
+                text = content.decode("utf-8", errors="ignore")
+                
+            # Fallback regex tradicional
+            pattern = re.compile(rf"\b({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+            matches = pattern.findall(text)
+            for m in matches:
+                tipo = m[1].upper()
+                num = int(m[2])
+                pontos_detetados.append({
+                    "tipo_ponto": tipo,
+                    "numero": num,
+                    "codigo_completo": f"{codigo_credenciado}-{tipo}-{num:04d}",
+                    "norte": None, "este": None, "altitude": None,
+                    "lat": None, "lon": None,
+                    "sigma_n": None, "sigma_e": None, "sigma_z": None,
+                    "metodo_posicionamento": None, "tipo_limite": None,
+                    "cns_confrontante": None, "matricula_confrontante": None,
+                    "confrontante_descritivo": None
+                })
+
+        if not pontos_detetados:
             return {
                 "sucesso": False,
                 "pontos_importados": 0,
                 "mensagem": f"Nenhum ponto válido com o padrão '{codigo_credenciado}-M/P/V-XXXX' foi localizado no arquivo."
             }
-        
-        # 5. Organizar e desduplicar os pontos
+
+        # Desduplicar pontos pela chave (tipo_ponto, numero)
         pontos_unicos = {}
-        for match in matches:
-            # match = (codigo_cred, tipo, numero)
-            tipo = match[1].upper()
-            num = int(match[2])
-            pontos_unicos[(tipo, num)] = f"{codigo_credenciado}-{tipo}-{num:04d}"
-        
+        for p in pontos_detetados:
+            key = (p["tipo_ponto"], p["numero"])
+            # Se for ODS com coordenadas completas, preferimos ele no dicionário
+            if key not in pontos_unicos or (p["lat"] is not None and pontos_unicos[key]["lat"] is None):
+                pontos_unicos[key] = p
+
         # 6. Salvar no banco (transacional)
+        nome_planilha = file.filename if file.filename else "Planilha Importada"
         pontos_adicionados = 0
+        confrontantes_a_inserir = set()
+        
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # Limpa os pontos homologados anteriores para o levantamento
-            cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ?", (id,))
-            
-            for (tipo, num), cod_completo in pontos_unicos.items():
+            # Deletar pontos anteriores da mesma planilha de origem no levantamento
+            cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
+                
+            for (tipo, num), p in pontos_unicos.items():
                 try:
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO banco_pontos 
-                        (profissional_id, levantamento_id, tipo_ponto, numero, codigo_completo) 
-                        VALUES (?, ?, ?, ?, ?)
+                        (profissional_id, levantamento_id, matricula_id, tipo_ponto, numero, codigo_completo,
+                         norte, este, altitude, lat, lon, sigma_n, sigma_e, sigma_z,
+                         metodo_posicionamento, tipo_limite, cns_confrontante, matricula_confrontante, confrontante_descritivo,
+                         planilha_origem) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (profissional_id, id, tipo, num, cod_completo)
+                        (
+                            profissional_id, id, matricula_id, tipo, num, p["codigo_completo"],
+                            p["norte"], p["este"], p["altitude"], p["lat"], p["lon"],
+                            p["sigma_n"], p["sigma_e"], p["sigma_z"],
+                            p["metodo_posicionamento"], p["tipo_limite"],
+                            p["cns_confrontante"], p["matricula_confrontante"], p["confrontante_descritivo"],
+                            nome_planilha
+                        )
                     )
                     if cursor.rowcount > 0:
                         pontos_adicionados += 1
+                    
+                    desc = p["confrontante_descritivo"]
+                    if desc:
+                        nome_conf = extrair_nome_confrontante_limpo(desc)
+                        if nome_conf:
+                            confrontantes_a_inserir.add(nome_conf)
                 except Exception as e_db:
-                    logging.getLogger(__name__).warning(f"Erro ao inserir ponto {cod_completo}: {e_db}")
+                    logging.getLogger(__name__).warning(f"Erro ao inserir ponto {p['codigo_completo']}: {e_db}")
+            
+            # Cadastrar confrontantes únicos novos
+            for nome_conf in confrontantes_a_inserir:
+                cursor.execute("SELECT id FROM confrontantes WHERE levantamento_id = ? AND UPPER(nome) = ?", (id, nome_conf.upper()))
+                row_conf = cursor.fetchone()
+                if not row_conf:
+                    cursor.execute(
+                        "INSERT INTO confrontantes (levantamento_id, nome) VALUES (?, ?)",
+                        (id, nome_conf)
+                    )
             
             conn.commit()
             
@@ -1121,6 +1310,75 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...)):
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=f"Erro interno ao importar pontos homologados: {str(e)}")
 
+@app.get("/levantamentos/{id}/planilhas-homologadas")
+def get_planilhas_homologadas(id: int):
+    try:
+        rows = execute_query(
+            """
+            SELECT planilha_origem, COUNT(*) as qtd_pontos, matricula_id
+            FROM banco_pontos
+            WHERE levantamento_id = ? AND planilha_origem IS NOT NULL
+            GROUP BY planilha_origem
+            """,
+            params=(id,),
+            fetch_all=True
+        )
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar planilhas homologadas: {str(e)}")
+
+@app.post("/levantamentos/{id}/planilhas-homologadas/associar-matricula")
+def associar_planilha_matricula(id: int, payload: AssociarPlanilhaPayload):
+    verificar_levantamento_arquivado(id)
+    try:
+        execute_query(
+            "UPDATE banco_pontos SET matricula_id = ? WHERE levantamento_id = ? AND planilha_origem = ?",
+            params=(payload.matricula_id, id, payload.planilha_origem),
+            commit=True
+        )
+        return {"sucesso": True, "mensagem": f"Planilha '{payload.planilha_origem}' associada com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao associar planilha: {str(e)}")
+
+@app.delete("/levantamentos/{id}/planilhas-homologadas")
+def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
+    verificar_levantamento_arquivado(id)
+    try:
+        lev = execute_query(
+            "SELECT profissional_id FROM levantamentos WHERE id = ?",
+            params=(id,),
+            fetch_one=True
+        )
+        if not lev:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        profissional_id = lev["profissional_id"]
+        
+        execute_query(
+            "DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?",
+            params=(id, planilha_origem),
+            commit=True
+        )
+        
+        # Recalcular contadores do profissional
+        for t in ['M', 'P', 'V']:
+            row_max = execute_query(
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
+                params=(profissional_id, t),
+                fetch_one=True
+            )
+            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+            col_name = f"contador_{t.lower()}"
+            execute_query(
+                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                params=(max_num, profissional_id),
+                commit=True
+            )
+            
+        return {"sucesso": True, "mensagem": f"Planilha '{planilha_origem}' e seus pontos foram excluídos com sucesso."}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir planilha homologada: {str(e)}")
+
 @app.get("/profissionais/{prof_id}/banco-pontos")
 def get_banco_pontos_profissional(prof_id: int):
     try:
@@ -1136,7 +1394,7 @@ def get_banco_pontos_profissional(prof_id: int):
         # Obter todos os pontos usados por esse profissional
         rows = execute_query(
             """
-            SELECT bp.id, bp.tipo_ponto, bp.numero, bp.codigo_completo, bp.created_at, bp.levantamento_id,
+            SELECT bp.id, bp.tipo_ponto, bp.numero, bp.codigo_completo, bp.created_at, bp.levantamento_id, bp.matricula_id,
                    p.nome_propriedade
             FROM banco_pontos bp
             LEFT JOIN levantamentos l ON bp.levantamento_id = l.id
@@ -1925,6 +2183,106 @@ def get_requerimento_ratificacao_html(id: int, matricula_id: int):
         html = BorderAreaReportGenerator.gerar_requerimento_ratificacao_html(
             lev_id=id,
             matricula_id=matricula_id
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/banco-pontos")
+def get_banco_pontos_levantamento(id: int):
+    try:
+        rows = execute_query(
+            """
+            SELECT id, tipo_ponto, numero, codigo_completo, norte, este, altitude, lat, lon,
+                   sigma_n, sigma_e, sigma_z, metodo_posicionamento, tipo_limite,
+                   cns_confrontante, matricula_confrontante, confrontante_descritivo, matricula_id
+            FROM banco_pontos
+            WHERE levantamento_id = ?
+            ORDER BY id ASC
+            """,
+            params=(id,),
+            fetch_all=True
+        )
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes-ativos")
+def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
+    try:
+        rows = execute_query(
+            """
+            SELECT MIN(c.id) as id, c.nome, c.cpf_cnpj
+            FROM segmentos s
+            JOIN confrontantes c ON s.confrontante_id = c.id
+            WHERE s.levantamento_id = ? AND s.matricula_id = ?
+            GROUP BY UPPER(TRIM(c.nome))
+            ORDER BY c.nome ASC
+            """,
+            params=(id, matricula_id),
+            fetch_all=True
+        )
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/requerimento-cartorio-html", response_class=HTMLResponse)
+def get_requerimento_cartorio_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = ""):
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_requerimento_cartorio_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            numero_trt=numero_trt,
+            data_trt=data_trt
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-responsabilidade-html", response_class=HTMLResponse)
+def get_declaracao_responsabilidade_html(id: int, matricula_id: int):
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_declaracao_responsabilidade_html(
+            lev_id=id,
+            matricula_id=matricula_id
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/laudo-tecnico-html", response_class=HTMLResponse)
+def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = "", equipamento: Optional[str] = ""):
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_laudo_tecnico_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            numero_trt=numero_trt,
+            data_trt=data_trt,
+            equipamento=equipamento
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-html", response_class=HTMLResponse)
+def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: int):
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_declaracao_anuencia_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            confrontante_id=confrontante_id
         )
         return HTMLResponse(content=html)
     except ValueError as ve:
@@ -3149,6 +3507,87 @@ def get_dashboard_matriculas_geometrias():
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao buscar geometrias para o dashboard: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- ENDPOINTS BANCO CCIR ---
+
+@app.get("/ccir/sync")
+def sync_ccir_folder():
+    try:
+        from business.ccir_parser import sincronizar_pasta_ccir
+        logs = sincronizar_pasta_ccir()
+        return {"sucesso": True, "logs": logs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ccir/search")
+def search_ccir(
+    codigo_imovel: Optional[str] = Query(None),
+    denominacao: Optional[str] = Query(None),
+    titular: Optional[str] = Query(None),
+    municipio: Optional[str] = Query(None),
+    area_min: Optional[float] = Query(None),
+    area_max: Optional[float] = Query(None),
+    pct_min: Optional[float] = Query(None),
+    pct_max: Optional[float] = Query(None)
+):
+    try:
+        from database.repository import CcirCadastroRepo
+        repo = CcirCadastroRepo()
+        filters = {
+            "codigo_imovel": codigo_imovel,
+            "denominacao": denominacao,
+            "titular": titular,
+            "municipio": municipio,
+            "area_min": area_min,
+            "area_max": area_max,
+            "pct_min": pct_min,
+            "pct_max": pct_max
+        }
+        resultados = repo.search_ccir_avancado(filters, limit=200)
+        return resultados
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ccir/imovel/{codigo_imovel}")
+def get_ccir_imovel_details(codigo_imovel: str):
+    try:
+        from database.repository import CcirCadastroRepo
+        repo = CcirCadastroRepo()
+        return repo.get_by_codigo_imovel(codigo_imovel)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ccir/files")
+def get_ccir_files():
+    try:
+        from database.repository import CcirCadastroRepo
+        repo = CcirCadastroRepo()
+        return repo.get_imported_files()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/ccir/files/{filename}")
+def delete_ccir_file(filename: str):
+    try:
+        from database.repository import CcirCadastroRepo
+        repo = CcirCadastroRepo()
+        repo.delete_by_arquivo(filename)
+        return {"sucesso": True, "message": f"Registros do arquivo {filename} deletados."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ccir/abrir-pasta")
+def abrir_pasta_ccir_local():
+    try:
+        from config import EXPORT_BASE_FOLDER
+        ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
+        os.makedirs(ccir_dir, exist_ok=True)
+        os.startfile(ccir_dir)
+        return {"sucesso": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao abrir pasta: {str(e)}")
+
 
 def sou_administrador():
 

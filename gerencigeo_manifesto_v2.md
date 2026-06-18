@@ -615,6 +615,26 @@ Devido à alta complexidade matemática, física e instrumental do motor geodés
   - **Grid de Auditoria Cadastral:** Tabela detalhada consumindo `cliente_historico_logs`, expondo a ID do cliente, o campo que foi alterado, o valor antigo, o valor novo inserido e o carimbo de data/hora preciso.
   - **Grid de Histórico de Arquivos RINEX:** Tabela técnica rica listando os arquivos que entraram na esteira de ingestão, seu tamanho em bytes, status de sucesso e os detalhes de logs gerados no processamento.
 
+#### E. Módulo Banco de Dados CCIR e Emissor INCRA (`ccir.ts`)
+- **Acesso:** Pelo menu lateral clicando em **"Banco CCIR"**.
+- **Painel de Controle e Ferramentas (Topo):** Grid de três colunas cobrindo a largura total da página:
+  - **Sincronização de Pasta:** Executa a varredura e ingestão assíncrona de arquivos CSV presentes na pasta `Banco_CCIR`. Permite abrir o diretório local no gerenciador de arquivos do SO.
+  - **Planilhas Importadas:** Lista os arquivos processados, quantidades de registros importados e data da carga, com opção para purgar os dados de um arquivo individualmente.
+  - **Preenchimento INCRA (Bookmarklet):** Fornece um link arrastável do tipo `javascript:` que atua como Bookmarklet na barra de favoritos do navegador do usuário.
+- **Busca Avançada de Imóveis:** Formulário unificado em grid para busca de cadastros importados por Código CCIR, Denominação do Imóvel, Titular, Município/UF, faixas numéricas de Área total (ha) e de % de Detenção.
+- **Tabela de Resultados e Máscara Condicional:**
+  - Exibe a lista paginada dos cadastros de imóveis do banco de dados CCIR.
+  - **Máscara Condicional**: Aplica a máscara `999.997.970.476-3` apenas se o código CCIR contiver exatamente 13 dígitos; códigos menores são exibidos em formato bruto.
+  - Corrige distorções numéricas de floats causadas por formatação de vírgula regional do Excel e Mojibake de acentuação (ex: `JOÃƒO` -> `JOÃO`) direto na ingestão via backend.
+- **Modal de Emissão CCIR (`modal-ccir-emissao`):**
+  - Abre ao clicar em emitir na listagem de resultados ou no rodapé do modal de coproprietários.
+  - Solicita o CPF/CNPJ do declarante do imóvel e aplica a formatação adequada conforme o tamanho do dado.
+  - **Sugestão Reativa**: Efetua varredura silenciosa na tabela `/clientes` buscando correspondências de nome para sugerir o CPF de forma automatizada com 1 clique.
+  - **Persistência**: Grava o último CPF utilizado para o imóvel no `localStorage` para agilizar emissões futuras.
+  - **Fluxo de Cópia e Navegação**: Copia o JSON formatado `{codigo, uf, municipio, cpf}` para a área de transferência do sistema e abre o portal oficial do INCRA (`https://sncr.serpro.gov.br/ccir/emissao`) em uma nova aba do navegador.
+- **Funcionamento do Bookmarklet JavaScript:**
+  - O script injetado lê os dados copiados na área de transferência através da Clipboard API do navegador, realiza o parsing e preenche de forma reativa os campos do formulário do Serpro/INCRA (Código do Imóvel, UF Sede, Município Sede, seleção do Tipo de Pessoa e CPF/CNPJ do Declarante), rolando e focando a janela no campo de validação do hCaptcha.
+
 ---
 
 ## 5. Próximas Fases do Ciclo de Vida do Software

@@ -12,7 +12,7 @@ class DatabaseManager:
 
     def __enter__(self):
         try:
-            self.connection = sqlite3.connect(self.db_path)
+            self.connection = sqlite3.connect(self.db_path, timeout=30.0)
             self.connection.row_factory = sqlite3.Row
             
             # Melhoras de performance e concorrência no SQLite

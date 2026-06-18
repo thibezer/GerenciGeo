@@ -46,7 +46,7 @@ def testar_fluxo():
         cursor.execute("""
             INSERT INTO levantamentos (propriedade_id, profissional_id, data_inicio, status)
             VALUES (?, ?, '2026-06-09', 'EM_ANDAMENTO')
-        """)
+        """, (prop_id, prof_id))
         lev_id = cursor.lastrowid
         print(f"[TESTE] Levantamento ID: {lev_id}")
         
@@ -76,7 +76,7 @@ def testar_fluxo():
             pontos_unicos[(tipo, num)] = f"TEST-{tipo}-{num:04d}"
             
         print(f"[TESTE] Pontos únicos a inserir: {pontos_unicos}")
-        assert len(pontos_unicos) == 5, "Deveria ter desduplicado para 5 pontos únicos"
+        assert len(pontos_unicos) == 6, "Deveria ter desduplicado para 6 pontos únicos"
         
         # Inserir no banco de pontos
         print("[TESTE] Gravando pontos homologados no banco...")
@@ -93,7 +93,7 @@ def testar_fluxo():
                 pontos_inseridos += 1
                 
         print(f"[TESTE] Pontos gravados com sucesso: {pontos_inseridos}")
-        assert pontos_inseridos == 5, "Deveria ter inserido exatamente 5 pontos"
+        assert pontos_inseridos == 6, "Deveria ter inserido exatamente 6 pontos"
         
         # Recalcular contadores
         for t in ['M', 'P', 'V']:

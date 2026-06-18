@@ -550,12 +550,17 @@ export const configuracoesRoute: RouteDef = {
 
       // Limpa dados antigos
       ['m', 'p', 'v'].forEach(t => {
-        document.getElementById(`est-${t}-total`)!.innerText = 'Carregando...';
-        document.getElementById(`est-${t}-ultimo`)!.innerText = '...';
-        document.getElementById(`est-${t}-proximo`)!.innerText = '...';
-        document.getElementById(`est-${t}-lacunas`)!.innerText = '...';
+        const estTotal = document.getElementById(`est-${t}-total`);
+        if (estTotal) estTotal.innerText = 'Carregando...';
+        const estUltimo = document.getElementById(`est-${t}-ultimo`);
+        if (estUltimo) estUltimo.innerText = '...';
+        const estProximo = document.getElementById(`est-${t}-proximo`);
+        if (estProximo) estProximo.innerText = '...';
+        const estLacunas = document.getElementById(`est-${t}-lacunas`);
+        if (estLacunas) estLacunas.innerText = '...';
       });
-      document.getElementById('tbl-banco-pontos-corpo')!.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30 animate-pulse">Consultando base de dados...</td></tr>`;
+      const tblCorpo = document.getElementById('tbl-banco-pontos-corpo');
+      if (tblCorpo) tblCorpo.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30 animate-pulse">Consultando base de dados...</td></tr>`;
 
       modalBanco?.classList.remove('hidden');
       initIcons();
@@ -570,9 +575,14 @@ export const configuracoesRoute: RouteDef = {
             const tl = t.toLowerCase();
             const est = data.estatisticas[t];
             
-            document.getElementById(`est-${tl}-total`)!.innerText = `${est.total_usados} Usados`;
-            document.getElementById(`est-${tl}-ultimo`)!.innerText = est.ultimo_usado > 0 ? `${data.profissional.codigo_credenciado}-${t}-${String(est.ultimo_usado).padStart(4, '0')}` : 'Nenhum';
-            document.getElementById(`est-${tl}-proximo`)!.innerText = `${data.profissional.codigo_credenciado}-${t}-${String(est.proximo_recomendado).padStart(4, '0')}`;
+            const estTotal = document.getElementById(`est-${tl}-total`);
+            if (estTotal) estTotal.innerText = `${est.total_usados} Usados`;
+            
+            const estUltimo = document.getElementById(`est-${tl}-ultimo`);
+            if (estUltimo) estUltimo.innerText = est.ultimo_usado > 0 ? `${data.profissional.codigo_credenciado}-${t}-${String(est.ultimo_usado).padStart(4, '0')}` : 'Nenhum';
+            
+            const estProximo = document.getElementById(`est-${tl}-proximo`);
+            if (estProximo) estProximo.innerText = `${data.profissional.codigo_credenciado}-${t}-${String(est.proximo_recomendado).padStart(4, '0')}`;
             
             const lacunasSpan = document.getElementById(`est-${tl}-lacunas`);
             if (lacunasSpan) {

@@ -2,6 +2,8 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, formatarCAR, formatarCCIR } from '../utils';
 
+let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
+
 export const propriedadesRoute: RouteDef = {
   render: () => `
     <div class="space-y-5 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -469,11 +471,11 @@ export const propriedadesRoute: RouteDef = {
     const inputMatArea = document.getElementById('input-new-mat-area') as HTMLInputElement;
 
     const aplicarMascaraCCIRMat = (val: string): string => {
-       return val.replace(/\D/g, '')
-          .replace(/(\d{3})(\d)/, '$1.$2')
-          .replace(/(\d{3})(\d)/, '$1.$2')
-          .replace(/(\d{3})(\d)/, '$1.$2')
-          .replace(/(\d{3})(\d{1})$/, '$1-$2');
+       const d = val.replace(/\D/g, '').slice(0, 13);
+       if (d.length === 13) {
+          return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{3})(\d{1})$/, "$1.$2.$3.$4-$5");
+       }
+       return d;
     };
 
     const aplicarMascaraITRMat = (val: string): string => {
@@ -946,11 +948,12 @@ export const propriedadesRoute: RouteDef = {
           renderOpcoes(inputBusca.value);
        });
 
-       document.addEventListener('click', (e) => {
+       clickOutsideHandlerClientes = (e: MouseEvent) => {
           if (!inputBusca.contains(e.target as Node) && !listaFlutuante.contains(e.target as Node)) {
              listaFlutuante.classList.add('hidden');
           }
-       });
+       };
+       document.addEventListener('click', clickOutsideHandlerClientes);
     };
 
     // --- DETALHES DE PROPRIEDADE ---
@@ -971,7 +974,7 @@ export const propriedadesRoute: RouteDef = {
        };
 
        setDetVal('det-prop-car', p.codigo_car);
-       setDetVal('det-prop-ccir', p.codigo_ccir);
+       setDetVal('det-prop-ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '-');
 
        // Configura anexos
        configurarExibicaoArquivo('car', p.caminho_arquivo_car);
@@ -1175,7 +1178,7 @@ export const propriedadesRoute: RouteDef = {
                    </td>
                    <td class="px-3 py-2 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
                    <td class="px-3 py-2 text-white/60 leading-tight">
-                      <span class="block">CCIR: ${m.ccir || 'N/A'}</span>
+                      <span class="block">CCIR: ${m.ccir ? formatarCCIR(m.ccir) : 'N/A'}</span>
                       <span class="block">ITR/NIRF: ${m.itr || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
                       <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${m.georreferenciamento || ''}">SIGEF: ${m.georreferenciamento || 'N/A'}</span>
                    </td>
@@ -1604,5 +1607,11 @@ export const propriedadesRoute: RouteDef = {
     // --- INICIALIZADORES ---
     loadPropriedades();
     loadClientesList();
+  },
+  cleanup: () => {
+    if (clickOutsideHandlerClientes) {
+      document.removeEventListener('click', clickOutsideHandlerClientes);
+      clickOutsideHandlerClientes = null;
+    }
   }
 };

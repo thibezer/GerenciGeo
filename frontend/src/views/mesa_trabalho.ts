@@ -11,11 +11,17 @@ import {
   renderHistoricoTimelineHtml
 } from './mesa_trabalho_tabela';
 import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
+
+let activeMapaController: MesaTrabalhoMapa | null = null;
+let ctxClickOutsideHandler: ((e: MouseEvent) => void) | null = null;
+let ctxScrollHandler: (() => void) | null = null;
+
 export const mesaTrabalhoRoute: RouteDef = {
   render: () => renderMesaTrabalho(),
   setup: () => {
     let currentLevId: number | null = null;
     let currentMatriculaId: number | null = null;
+    let currentProfissionalId: number | null = null;
 
     let matriculasList: any[] = [];
     let pontosList: any[] = [];
@@ -23,6 +29,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     let confrontantesList: any[] = [];
     let triagemMap: L.Map | null = null;
     const mapaController = new MesaTrabalhoMapa();
+    activeMapaController = mapaController;
     let filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[] = [];
     let modoCoordenadas = 'utm'; // Padrão AutoCAD UTM Default (Diretriz V2.3)
     let etapaAtiva = 'geoprocessamento'; // 'geoprocessamento' ou 'cartorio' (Isolação de Telas)
@@ -37,6 +44,8 @@ export const mesaTrabalhoRoute: RouteDef = {
     let filtroRapidoAtivo = 'todos';
     let ocultarForaPoligono = false;
     let modoCliqueSequencialAtivo = false;
+    let bancoPontosExibido = false;
+    let bancoPontosList: any[] = [];
     let travamentoInicio = 0;
     let travamentoFim = 0;
     let travamentoInicioPontoId: number | null = null;
@@ -804,32 +813,44 @@ export const mesaTrabalhoRoute: RouteDef = {
         const levObj = allLevs.find((l: any) => l.id === currentLevId);
 
         if (levObj) {
-          const badgeStatus = document.getElementById('badge-status-lev')!;
-          badgeStatus.innerText = levObj.status;
-          
-          // Reseta classes de status antigas
-          badgeStatus.className = "text-[9px] px-2 py-0.5 rounded-full font-mono uppercase font-semibold tracking-wider border transition-all";
-          
-          // Aplica estilo dinâmico com base no status do levantamento
-          if (levObj.status === 'EM_ANDAMENTO' || levObj.status === 'ATIVO') {
-            badgeStatus.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/25');
-            badgeStatus.classList.add('status-em-andamento'); // Ativa animação CSS
-          } else if (levObj.status === 'ARQUIVADO') {
-            badgeStatus.classList.add('bg-white/5', 'text-white/40', 'border-white/10');
-            badgeStatus.classList.remove('status-em-andamento');
-          } else { // Ex: FINALIZADO
-            badgeStatus.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/25');
-            badgeStatus.classList.remove('status-em-andamento');
+          const badgeStatus = document.getElementById('badge-status-lev');
+          if (badgeStatus) {
+            badgeStatus.innerText = levObj.status;
+            
+            // Reseta classes de status antigas
+            badgeStatus.className = "text-[9px] px-2 py-0.5 rounded-full font-mono uppercase font-semibold tracking-wider border transition-all";
+            
+            // Aplica estilo dinâmico com base no status do levantamento
+            if (levObj.status === 'EM_ANDAMENTO' || levObj.status === 'ATIVO') {
+              badgeStatus.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/25');
+              badgeStatus.classList.add('status-em-andamento'); // Ativa animação CSS
+            } else if (levObj.status === 'ARQUIVADO') {
+              badgeStatus.classList.add('bg-white/5', 'text-white/40', 'border-white/10');
+              badgeStatus.classList.remove('status-em-andamento');
+            } else { // Ex: FINALIZADO
+              badgeStatus.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/25');
+              badgeStatus.classList.remove('status-em-andamento');
+            }
           }
 
-          document.getElementById('txt-nome-propriedade')!.innerText = levObj.nome_propriedade || `Levantamento #${levObj.id}`;
+          const txtNomeProp = document.getElementById('txt-nome-propriedade');
+          if (txtNomeProp) {
+            txtNomeProp.innerText = levObj.nome_propriedade || `Levantamento #${levObj.id}`;
+          }
 
           const proprietarios = levObj.clientes && levObj.clientes.length
             ? levObj.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
             : 'Nenhum proprietário';
 
-          document.getElementById('txt-nome-cliente')!.innerText = proprietarios;
-          document.getElementById('txt-codigo-car')!.innerText = levObj.codigo_car || 'Não Informado';
+          const txtNomeCli = document.getElementById('txt-nome-cliente');
+          if (txtNomeCli) {
+            txtNomeCli.innerText = proprietarios;
+          }
+          
+          const txtCodCar = document.getElementById('txt-codigo-car');
+          if (txtCodCar) {
+            txtCodCar.innerText = levObj.codigo_car || 'Não Informado';
+          }
         }
 
         // Fetch paralelo de dependências
@@ -844,6 +865,8 @@ export const mesaTrabalhoRoute: RouteDef = {
         pontosList = await resPt.json();
         segmentosList = await resSeg.json();
         confrontantesList = await resConf.json();
+
+        carregarConfrontantesAtivosSelect();
 
         // Abas de Matrículas
         const abasContainer = document.getElementById('container-abas-matriculas');
@@ -886,6 +909,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         // Carrega sugestões de numeração e pontos homologados do Banco de Pontos
         carregarSugestoesNumeracao();
         if (levObj && levObj.profissional_id) {
+          currentProfissionalId = levObj.profissional_id;
           carregarHomologacaoDados(levObj.profissional_id);
         }
 
@@ -994,6 +1018,10 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       renderMatriculaDados();
+      carregarConfrontantesAtivosSelect();
+      if (currentProfissionalId !== null) {
+        carregarHomologacaoDados(currentProfissionalId);
+      }
 
       if (triagemMap) {
         setTimeout(() => {
@@ -1255,7 +1283,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       if (triagemMap) {
-        mapaController.clearOverlays();
+        const bpAtivo = bancoPontosExibido && bancoPontosList.length > 0;
+        mapaController.clearOverlays(bpAtivo);
         mapaController.plotPontos(pontosMat, (pId) => {
           selectPontoFromTabela(pId);
         });
@@ -1264,6 +1293,10 @@ export const mesaTrabalhoRoute: RouteDef = {
           mapaController.plotSegmentos(segmentosMat, pontosList);
         } else {
           mapaController.plotPolilinhaTemporaria(pontosMat);
+        }
+
+        if (bpAtivo) {
+          mapaController.plotPoligonalHomologada(bancoPontosList);
         }
 
         mapaController.fitBounds(pontosMat);
@@ -1779,10 +1812,36 @@ export const mesaTrabalhoRoute: RouteDef = {
     const btnProcessar = document.getElementById('btn-processar-lote');
 
     const renderFilaArquivos = () => {
+      const dropzoneEl = document.getElementById('triagem-dropzone');
+      const dropzoneIcon = document.getElementById('triagem-dropzone-icon');
+      const dropzoneTitle = document.getElementById('triagem-dropzone-title');
+      const dropzoneDesc = document.getElementById('triagem-dropzone-desc');
+
       if (filesQueue.length === 0) {
+        if (dropzoneEl) {
+          dropzoneEl.className = "border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-all flex-1 flex flex-col justify-center items-center group relative overflow-hidden min-h-[120px]";
+        }
+        if (dropzoneIcon) dropzoneIcon.classList.remove('hidden');
+        if (dropzoneDesc) dropzoneDesc.classList.remove('hidden');
+        if (dropzoneTitle) {
+          dropzoneTitle.innerText = "Arraste múltiplos arquivos para triagem";
+          dropzoneTitle.className = "text-xs font-bold";
+        }
+
         filaContainer?.classList.add('hidden');
         btnProcessar?.classList.add('hidden');
         return;
+      }
+
+      if (dropzoneEl) {
+        // Encolhe a dropzone transformando em horizontal super compacta h-11 flex-row
+        dropzoneEl.className = "border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-2 text-center cursor-pointer transition-all flex flex-row justify-center items-center gap-2 group relative overflow-hidden h-11 min-h-[44px] max-h-11 shrink-0";
+      }
+      if (dropzoneIcon) dropzoneIcon.classList.add('hidden');
+      if (dropzoneDesc) dropzoneDesc.classList.add('hidden');
+      if (dropzoneTitle) {
+        dropzoneTitle.innerText = "Arraste mais arquivos para triagem";
+        dropzoneTitle.className = "text-[11px] font-bold text-white/80 select-none";
       }
 
       filaContainer?.classList.remove('hidden');
@@ -1815,7 +1874,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         if (item.destination === 'rover_rtk') {
           extraSelectorsHtml += `
-            <select class="glass-input text-[10px] py-1 px-2 select-file-base shrink-0 w-[160px]" data-idx="${idx}" title="Vincular à Base de Campo">
+            <select class="glass-input text-[9px] py-0.5 px-1.5 select-file-base shrink-0 w-[140px]" data-idx="${idx}" title="Vincular à Base de Campo">
               <option value="">[Nenhuma Base (Autodetectar)]</option>
               ${basesParaRenderizar.map(p => `<option value="${p.id}" ${item.base_escolhida_id === p.id ? 'selected' : ''}>Base: ${p.nome_vertice}</option>`).join('')}
             </select>
@@ -1823,18 +1882,18 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
 
         return `
-          <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-3 bg-white/[0.02] border border-white/5 rounded-technical text-xs gap-3">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded-technical text-[11px] gap-2">
             <div class="min-w-0 flex-1">
-              <p class="font-mono text-white truncate" title="${item.file.name}">${item.file.name}</p>
-              <p class="text-[9px] text-white/30 font-mono mt-0.5">${kbSize} KB</p>
+              <p class="font-mono text-white truncate font-medium" title="${item.file.name}">${item.file.name}</p>
+              <p class="text-[8px] text-white/30 font-mono mt-0.5">${kbSize} KB</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <select class="glass-input text-[10px] py-1 px-2 select-file-dest shrink-0 w-[220px]" data-idx="${idx}">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <select class="glass-input text-[9px] py-0.5 px-1.5 select-file-dest shrink-0 w-[190px]" data-idx="${idx}">
                 ${options.join('')}
               </select>
               ${extraSelectorsHtml}
               <button class="text-white/30 hover:text-red-400 p-1 btn-remover-arquivo shrink-0" data-idx="${idx}">
-                <i data-lucide="x" class="w-4 h-4"></i>
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
               </button>
             </div>
           </div>
@@ -1873,7 +1932,8 @@ export const mesaTrabalhoRoute: RouteDef = {
     fileInput?.addEventListener('change', (e: any) => {
       if (e.target.files) {
         Array.from(e.target.files as FileList).forEach(f => {
-          filesQueue.push({ file: f, destination: 'base' });
+          const isTxt = f.name.toLowerCase().endsWith('.txt');
+          filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
         });
         renderFilaArquivos();
       }
@@ -1895,7 +1955,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
       if (e.dataTransfer && e.dataTransfer.files) {
         Array.from(e.dataTransfer.files).forEach(f => {
-          filesQueue.push({ file: f, destination: 'base' });
+          const isTxt = f.name.toLowerCase().endsWith('.txt');
+          filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
         });
         renderFilaArquivos();
       }
@@ -2424,26 +2485,53 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       pontoSelecionadoContextoId = pId;
 
-      document.getElementById('modal-pt-titulo-nome')!.innerText = pt.nome_vertice;
+      const elTitulo = document.getElementById('modal-pt-titulo-nome');
+      if (elTitulo) elTitulo.innerText = pt.nome_vertice;
 
-      (document.getElementById('input-pt-id') as HTMLInputElement).value = pt.id.toString();
-      (document.getElementById('input-pt-nome') as HTMLInputElement).value = pt.nome_vertice;
-      (document.getElementById('select-pt-tipo') as HTMLSelectElement).value = pt.tipo_ponto || 'P';
-      (document.getElementById('select-pt-status') as HTMLSelectElement).value = pt.status_ponto || 'BRUTO';
-      (document.getElementById('select-pt-metodo') as HTMLSelectElement).value = pt.metodo_posicionamento || 'PG1';
+      const inputId = document.getElementById('input-pt-id') as HTMLInputElement;
+      if (inputId) inputId.value = pt.id.toString();
 
-      (document.getElementById('input-pt-lat') as HTMLInputElement).value = pt.lat ? pt.lat.toFixed(9) : '';
-      (document.getElementById('input-pt-lon') as HTMLInputElement).value = pt.lon ? pt.lon.toFixed(9) : '';
-      (document.getElementById('input-pt-alt') as HTMLInputElement).value = pt.alt ? pt.alt.toFixed(4) : '';
+      const inputNome = document.getElementById('input-pt-nome') as HTMLInputElement;
+      if (inputNome) inputNome.value = pt.nome_vertice;
 
-      (document.getElementById('input-pt-sigma-lat') as HTMLInputElement).value = pt.sigma_lat ? pt.sigma_lat.toFixed(4) : '0.0000';
-      (document.getElementById('input-pt-sigma-lon') as HTMLInputElement).value = pt.sigma_lon ? pt.sigma_lon.toFixed(4) : '0.0000';
-      (document.getElementById('input-pt-sigma-alt') as HTMLInputElement).value = pt.sigma_alt ? pt.sigma_alt.toFixed(4) : '0.0000';
+      const selectTipo = document.getElementById('select-pt-tipo') as HTMLSelectElement;
+      if (selectTipo) selectTipo.value = pt.tipo_ponto || 'P';
 
-      document.getElementById('txt-pt-e-orig')!.innerText = pt.e_original ? pt.e_original.toFixed(4) + ' m' : 'N/A';
-      document.getElementById('txt-pt-n-orig')!.innerText = pt.n_original ? pt.n_original.toFixed(4) + ' m' : 'N/A';
-      document.getElementById('txt-pt-alt-orig')!.innerText = pt.alt_original ? pt.alt_original.toFixed(4) + ' m' : 'N/A';
-      document.getElementById('txt-pt-arquivo-origem')!.innerText = pt.arquivo_rinex ? `Origem: ${pt.arquivo_rinex}` : 'Origem: Ingestão Manual';
+      const selectStatus = document.getElementById('select-pt-status') as HTMLSelectElement;
+      if (selectStatus) selectStatus.value = pt.status_ponto || 'BRUTO';
+
+      const selectMetodo = document.getElementById('select-pt-metodo') as HTMLSelectElement;
+      if (selectMetodo) selectMetodo.value = pt.metodo_posicionamento || 'PG1';
+
+      const inputLat = document.getElementById('input-pt-lat') as HTMLInputElement;
+      if (inputLat) inputLat.value = pt.lat ? pt.lat.toFixed(9) : '';
+
+      const inputLon = document.getElementById('input-pt-lon') as HTMLInputElement;
+      if (inputLon) inputLon.value = pt.lon ? pt.lon.toFixed(9) : '';
+
+      const inputAlt = document.getElementById('input-pt-alt') as HTMLInputElement;
+      if (inputAlt) inputAlt.value = pt.alt ? pt.alt.toFixed(4) : '';
+
+      const inputSigLat = document.getElementById('input-pt-sigma-lat') as HTMLInputElement;
+      if (inputSigLat) inputSigLat.value = pt.sigma_lat ? pt.sigma_lat.toFixed(4) : '0.0000';
+
+      const inputSigLon = document.getElementById('input-pt-sigma-lon') as HTMLInputElement;
+      if (inputSigLon) inputSigLon.value = pt.sigma_lon ? pt.sigma_lon.toFixed(4) : '0.0000';
+
+      const inputSigAlt = document.getElementById('input-pt-sigma-alt') as HTMLInputElement;
+      if (inputSigAlt) inputSigAlt.value = pt.sigma_alt ? pt.sigma_alt.toFixed(4) : '0.0000';
+
+      const txtPtE = document.getElementById('txt-pt-e-orig');
+      if (txtPtE) txtPtE.innerText = pt.e_original ? pt.e_original.toFixed(4) + ' m' : 'N/A';
+
+      const txtPtN = document.getElementById('txt-pt-n-orig');
+      if (txtPtN) txtPtN.innerText = pt.n_original ? pt.n_original.toFixed(4) + ' m' : 'N/A';
+
+      const txtPtAlt = document.getElementById('txt-pt-alt-orig');
+      if (txtPtAlt) txtPtAlt.innerText = pt.alt_original ? pt.alt_original.toFixed(4) + ' m' : 'N/A';
+
+      const txtPtArq = document.getElementById('txt-pt-arquivo-origem');
+      if (txtPtArq) txtPtArq.innerText = pt.arquivo_rinex ? `Origem: ${pt.arquivo_rinex}` : 'Origem: Ingestão Manual';
 
       const selectBase = document.getElementById('select-pt-base') as HTMLSelectElement;
       if (selectBase) {
@@ -2720,15 +2808,18 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
       }
 
-      document.addEventListener('click', (e) => {
+      ctxClickOutsideHandler = (e: MouseEvent) => {
         if (!menuCtx.contains(e.target as Node)) {
           menuCtx.classList.add('hidden');
         }
-      });
+      };
 
-      document.addEventListener('scroll', () => {
+      ctxScrollHandler = () => {
         menuCtx.classList.add('hidden');
-      }, true);
+      };
+
+      document.addEventListener('click', ctxClickOutsideHandler);
+      document.addEventListener('scroll', ctxScrollHandler, true);
 
       document.getElementById('menu-ctx-editar')?.addEventListener('click', () => {
         menuCtx.classList.add('hidden');
@@ -3187,7 +3278,124 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
+    const renderPlanilhasHomologadas = async () => {
+      const container = document.getElementById('container-planilhas-homologadas');
+      if (!container || !currentLevId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas`);
+        const planilhas = await res.json();
+
+        if (!Array.isArray(planilhas) || planilhas.length === 0) {
+          container.innerHTML = `<div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>`;
+          return;
+        }
+
+        let html = `
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5">
+                <th class="py-1.5 px-2">Arquivo / Planilha</th>
+                <th class="py-1.5 px-2 text-center">Vértices</th>
+                <th class="py-1.5 px-2">Matrícula Associada</th>
+                <th class="py-1.5 px-2 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+        `;
+
+        planilhas.forEach((p: any) => {
+          const selectId = `select-assoc-mat-${btoa(p.planilha_origem).replace(/=/g, '')}`;
+          html += `
+            <tr class="hover:bg-white/[0.02] transition-colors">
+              <td class="py-2 px-2 font-mono text-white/80 max-w-[150px] truncate" title="${p.planilha_origem}">${p.planilha_origem}</td>
+              <td class="py-2 px-2 text-center font-mono text-mint-vibrant font-bold">${p.qtd_pontos}</td>
+              <td class="py-2 px-2">
+                <select class="select-assoc-matricula bg-white/5 border border-white/10 hover:border-mint-vibrant/30 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none transition-all w-full max-w-[140px]" data-planilha="${p.planilha_origem}" id="${selectId}">
+                  <option value="" class="bg-[#0c1510]">Nenhuma (Pendente)</option>
+                  ${matriculasList.map(m => `
+                    <option value="${m.id}" class="bg-[#0c1510]" ${p.matricula_id === m.id ? 'selected' : ''}>Matrícula ${m.numero_matricula}</option>
+                  `).join('')}
+                </select>
+              </td>
+              <td class="py-2 px-2 text-center">
+                <button class="btn-deletar-planilha text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1 rounded transition-colors" data-planilha="${p.planilha_origem}" title="Excluir planilha e todos os seus pontos">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+
+        container.innerHTML = html;
+        initIcons();
+
+        // Bindar evento change nos dropdowns de matrícula
+        container.querySelectorAll('.select-assoc-matricula').forEach((select: any) => {
+          select.addEventListener('change', async () => {
+            const planilha = select.getAttribute('data-planilha');
+            const matIdVal = select.value;
+            const matId = matIdVal ? parseInt(matIdVal) : null;
+
+            try {
+              const resAssoc = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas/associar-matricula`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  planilha_origem: planilha,
+                  matricula_id: matId
+                })
+              });
+              if (resAssoc.ok) {
+                await loadLevantamentoDetails();
+              } else {
+                const errData = await resAssoc.json();
+                alert(errData.detail || "Erro ao associar matrícula.");
+              }
+            } catch (err) {
+              console.error("Erro ao associar matrícula:", err);
+            }
+          });
+        });
+
+        // Bindar evento click no botão de excluir planilha
+        container.querySelectorAll('.btn-deletar-planilha').forEach((btn: any) => {
+          btn.addEventListener('click', async () => {
+            const planilha = btn.getAttribute('data-planilha');
+            if (!confirm(`Deseja realmente excluir a planilha "${planilha}" e todos os seus vértices homologados deste levantamento? Esta ação é irreversível.`)) {
+              return;
+            }
+
+            try {
+              const resDel = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas?planilha_origem=${encodeURIComponent(planilha)}`, {
+                method: 'DELETE'
+              });
+              if (resDel.ok) {
+                alert("Planilha e pontos excluídos com sucesso!");
+                await loadLevantamentoDetails();
+              } else {
+                const errData = await resDel.json();
+                alert(errData.detail || "Erro ao excluir planilha.");
+              }
+            } catch (err) {
+              console.error("Erro ao excluir planilha:", err);
+            }
+          });
+        });
+
+      } catch (err) {
+        console.error("Erro ao renderizar planilhas homologadas:", err);
+        container.innerHTML = `<div class="text-red-400 italic py-2 text-center">Erro ao carregar lista de planilhas.</div>`;
+      }
+    };
+
     const carregarHomologacaoDados = async (profissionalId: number) => {
+      renderPlanilhasHomologadas();
       try {
         const res = await fetch(`${API_BASE}/profissionais/${profissionalId}/banco-pontos`);
         const data = await res.json();
@@ -3196,14 +3404,70 @@ export const mesaTrabalhoRoute: RouteDef = {
         const countTxt = document.getElementById('txt-qtd-homologados');
         
         if (data && data.pontos) {
-          const pontosDoProjeto = data.pontos.filter((p: any) => p.levantamento_id === currentLevId);
+          const pontosDoProjeto = data.pontos.filter((p: any) => p.levantamento_id === currentLevId && p.matricula_id === currentMatriculaId);
+          bancoPontosList = pontosDoProjeto;
+          
           if (countTxt) {
             countTxt.innerText = `${pontosDoProjeto.length} Pontos`;
           }
           
+          // Por padrão, se houver pontos de homologação, exibe no mapa destacadamente
+          if (pontosDoProjeto.length > 0) {
+            bancoPontosExibido = true;
+            
+            // Plota imediatamente no mapa!
+            mapaController.plotPoligonalHomologada(pontosDoProjeto);
+            
+            const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
+            const icon = document.getElementById('icon-toggle-mapa-banco');
+            const txt = document.getElementById('txt-toggle-mapa-banco');
+            if (btnToggleMapa) {
+              btnToggleMapa.classList.remove('bg-amber-500/10');
+              btnToggleMapa.classList.add('bg-amber-500/20');
+            }
+            if (txt) txt.innerText = "Ocultar Poligonal";
+            if (icon) icon.setAttribute('data-lucide', 'eye-off');
+          } else {
+            bancoPontosExibido = false;
+            
+            // Limpa a poligonal do mapa
+            mapaController.plotPoligonalHomologada([]);
+            
+            const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
+            const icon = document.getElementById('icon-toggle-mapa-banco');
+            const txt = document.getElementById('txt-toggle-mapa-banco');
+            if (btnToggleMapa) {
+              btnToggleMapa.classList.remove('bg-amber-500/20');
+              btnToggleMapa.classList.add('bg-amber-500/10');
+            }
+            if (txt) txt.innerText = "Exibir Poligonal";
+            if (icon) icon.setAttribute('data-lucide', 'eye');
+          }
+          initIcons();
+          
+          const containerPecas = document.getElementById('container-pecas-cartorio');
+          if (containerPecas) {
+            if (pontosDoProjeto.length > 0) {
+              containerPecas.classList.remove('hidden');
+            } else {
+              containerPecas.classList.add('hidden');
+            }
+          }
+
+          // Se os pontos de campo estiverem vazios e houver pontos homologados, foca o mapa Leaflet neles
+          const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
+          const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0);
+          if (validCoords.length === 0 && triagemMap) {
+            const validHomologadosCoords = pontosDoProjeto.filter((p: any) => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map((p: any) => L.latLng(p.lat, p.lon));
+            if (validHomologadosCoords.length > 0) {
+              const bounds = L.latLngBounds(validHomologadosCoords);
+              triagemMap.fitBounds(bounds, { padding: [40, 40] });
+            }
+          }
+          
           if (container) {
             if (pontosDoProjeto.length === 0) {
-              container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Nenhum arquivo de homologação importado para este levantamento.</div>`;
+              container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Selecione uma matrícula com pontos homologados para listar seus vértices.</div>`;
             } else {
               container.innerHTML = `
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -3220,6 +3484,118 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
       } catch (err) {
         console.error("Erro ao carregar dados de homologação:", err);
+      }
+    };
+
+    const carregarConfrontantesAtivosSelect = async () => {
+      if (!currentLevId || !currentMatriculaId) return;
+      try {
+        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/confrontantes-ativos`);
+        const confs = await res.json();
+        
+        const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
+        if (select) {
+          select.innerHTML = '<option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>';
+          if (Array.isArray(confs)) {
+            confs.forEach((c: any) => {
+              const opt = document.createElement('option');
+              opt.value = String(c.id);
+              opt.className = 'bg-[#0c1510]';
+              opt.textContent = c.nome;
+              select.appendChild(opt);
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar confrontantes ativos da matricula:", err);
+      }
+    };
+
+    const inicializarEventosCartorio = () => {
+      const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
+      if (btnToggleMapa) {
+        btnToggleMapa.onclick = () => {
+          if (!bancoPontosList || bancoPontosList.length === 0) {
+            alert("Nenhum ponto homologado importado para exibir no mapa.");
+            return;
+          }
+          
+          bancoPontosExibido = !bancoPontosExibido;
+          const icon = document.getElementById('icon-toggle-mapa-banco');
+          const txt = document.getElementById('txt-toggle-mapa-banco');
+          
+          if (bancoPontosExibido) {
+            mapaController.plotPoligonalHomologada(bancoPontosList);
+            if (txt) txt.innerText = "Ocultar Poligonal";
+            if (icon) {
+              icon.setAttribute('data-lucide', 'eye-off');
+            }
+            btnToggleMapa.classList.replace('bg-amber-500/10', 'bg-amber-500/20');
+          } else {
+            mapaController.plotPoligonalHomologada([]);
+            if (txt) txt.innerText = "Exibir Poligonal";
+            if (icon) {
+              icon.setAttribute('data-lucide', 'eye');
+            }
+            btnToggleMapa.classList.replace('bg-amber-500/20', 'bg-amber-500/10');
+          }
+          initIcons();
+        };
+      }
+      
+      const btnReq = document.getElementById('btn-emitir-req-cartorio');
+      if (btnReq) {
+        btnReq.onclick = () => {
+          if (!currentMatriculaId) return;
+          const trt = prompt("Informe o número do TRT/ART:");
+          if (trt === null) return;
+          const data = prompt("Informe a data de quitação do TRT/ART (AAAA-MM-DD):", new Date().toISOString().substring(0, 10));
+          if (data === null) return;
+          
+          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/requerimento-cartorio-html?numero_trt=${encodeURIComponent(trt)}&data_trt=${encodeURIComponent(data)}`;
+          window.open(url, '_blank');
+        };
+      }
+      
+      const btnResp = document.getElementById('btn-emitir-decl-resp');
+      if (btnResp) {
+        btnResp.onclick = () => {
+          if (!currentMatriculaId) return;
+          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/declaracao-responsabilidade-html`;
+          window.open(url, '_blank');
+        };
+      }
+      
+      const btnLaudo = document.getElementById('btn-emitir-laudo-tec');
+      if (btnLaudo) {
+        btnLaudo.onclick = () => {
+          if (!currentMatriculaId) return;
+          const trt = prompt("Informe o número do TRT/ART:");
+          if (trt === null) return;
+          const data = prompt("Informe a data de quitação do TRT/ART (AAAA-MM-DD):", new Date().toISOString().substring(0, 10));
+          if (data === null) return;
+          const equip = prompt("Informe o Equipamento GNSS Utilizado:", "Receptor GNSS Hi-Target V30 / RTK de Dupla Frequência (L1/L2)");
+          if (equip === null) return;
+          
+          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/laudo-tecnico-html?numero_trt=${encodeURIComponent(trt)}&data_trt=${encodeURIComponent(data)}&equipamento=${encodeURIComponent(equip)}`;
+          window.open(url, '_blank');
+        };
+      }
+      
+      const btnAnuencia = document.getElementById('btn-emitir-anuencia');
+      if (btnAnuencia) {
+        btnAnuencia.onclick = () => {
+          if (!currentMatriculaId) return;
+          const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
+          const confId = select ? select.value : '';
+          if (!confId) {
+            alert("Selecione um confrontante da lista para emitir a anuência.");
+            return;
+          }
+          
+          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/confrontantes/${confId}/anuencia-html`;
+          window.open(url, '_blank');
+        };
       }
     };
 
@@ -3290,7 +3666,8 @@ export const mesaTrabalhoRoute: RouteDef = {
         formData.append('file', selectedFile);
         
         try {
-          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/importar-pontos-aprovados`, {
+          const url = `${API_BASE}/levantamentos/${currentLevId}/importar-pontos-aprovados${currentMatriculaId ? `?matricula_id=${currentMatriculaId}` : ''}`;
+          const res = await fetch(url, {
             method: 'POST',
             body: formData
           });
@@ -3304,7 +3681,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             fileInput.value = '';
             const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
             if (textElement) {
-              textElement.innerText = `Lançar TXT/CSV Homologado`;
+              textElement.innerText = `Lançar TXT/CSV/ODS Homologado`;
             }
             
             // Recarrega todos os detalhes pertinentes
@@ -3333,6 +3710,63 @@ export const mesaTrabalhoRoute: RouteDef = {
     inicializarIngestaoCollapse();
     inicializarSplitters();
     inicializarHomologacaoIncra();
+    inicializarEventosCartorio();
+
+    const inicializarConfrontanteRapido = () => {
+      const input = document.getElementById('input-confrontante-nome-rapido') as HTMLInputElement;
+      const btn = document.getElementById('btn-confrontante-adicionar-rapido') as HTMLButtonElement;
+
+      if (!input || !btn) return;
+
+      const adicionarConfrontante = async () => {
+        const nome = input.value.trim();
+        if (!nome) {
+          alert("Por favor, digite o nome do confrontante.");
+          return;
+        }
+
+        if (!currentLevId) return;
+
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Cadastrando...`;
+        initIcons();
+
+        try {
+          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/confrontantes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nome: nome
+            })
+          });
+
+          if (res.ok) {
+            input.value = '';
+            // Recarrega todos os confrontantes e atualiza as tabelas/selects
+            await loadLevantamentoDetails();
+          } else {
+            const data = await res.json();
+            alert(data.error || "Erro ao adicionar confrontante.");
+          }
+        } catch (err) {
+          console.error("Erro ao cadastrar confrontante:", err);
+          alert("Erro de conexão com o servidor API.");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i> + Confrontante`;
+          initIcons();
+        }
+      };
+
+      btn.addEventListener('click', adicionarConfrontante);
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          adicionarConfrontante();
+        }
+      });
+    };
+
+    inicializarConfrontanteRapido();
 
     (window as any).importarVizinhoSIGEF = async (codigoParcela: string, nomeImovel: string) => {
       if (!currentLevId) return;
@@ -3362,5 +3796,23 @@ export const mesaTrabalhoRoute: RouteDef = {
         document.body.style.cursor = '';
       }
     };
+  },
+  cleanup: () => {
+    if (activeMapaController) {
+      try {
+        activeMapaController.destroy();
+      } catch (e) {
+        console.warn("[MesaTrabalho] Erro ao destruir mapa no cleanup:", e);
+      }
+      activeMapaController = null;
+    }
+    if (ctxClickOutsideHandler) {
+      document.removeEventListener('click', ctxClickOutsideHandler);
+      ctxClickOutsideHandler = null;
+    }
+    if (ctxScrollHandler) {
+      document.removeEventListener('scroll', ctxScrollHandler, true);
+      ctxScrollHandler = null;
+    }
   }
 };

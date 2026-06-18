@@ -1,6 +1,8 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, formatarCCIR } from '../utils';
+
+let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 
 export const levantamentosRoute: RouteDef = {
   render: () => `
@@ -151,11 +153,12 @@ export const levantamentosRoute: RouteDef = {
         renderOpcoes(inputBusca.value);
       });
 
-      document.addEventListener('click', (e) => {
+      clickOutsideHandler = (e: MouseEvent) => {
         if (!inputBusca.contains(e.target as Node) && !listaFlutuante.contains(e.target as Node)) {
           listaFlutuante.classList.add('hidden');
         }
-      });
+      };
+      document.addEventListener('click', clickOutsideHandler);
     };
 
     const loadLevantamentos = () => {
@@ -214,7 +217,7 @@ export const levantamentosRoute: RouteDef = {
                    
                    <div class="space-y-0.5 mt-2 pt-1.5 border-t border-white/5 text-[10px] font-mono text-white/40 prop-extra-text">
                       <div class="flex items-center gap-1.5"><span class="text-mint-vibrant font-bold shrink-0">CAR:</span> <span class="truncate" title="${l.codigo_car || 'Não Informado'}">${l.codigo_car || 'Não Informado'}</span></div>
-                      <div class="flex items-center gap-1.5"><span class="text-blue-400 font-bold shrink-0">CCIR:</span> <span class="truncate" title="${l.codigo_ccir || 'Não Informado'}">${l.codigo_ccir || 'Não Informado'}</span></div>
+                      <div class="flex items-center gap-1.5"><span class="text-blue-400 font-bold shrink-0">CCIR:</span> <span class="truncate" title="${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado'}">${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado'}</span></div>
                       <div class="flex items-center gap-1.5"><span class="text-white/60 font-bold shrink-0">MUNICÍPIO:</span> <span>${l.municipio || 'Não Informado'}/${l.uf}</span></div>
                    </div>
                  </div>
@@ -268,7 +271,7 @@ export const levantamentosRoute: RouteDef = {
                               </td>
                               <td class="px-4 py-3 font-bold text-white max-w-xs truncate">
                                  <span class="hover:text-mint-vibrant cursor-pointer btn-auditar-link" data-id="${l.id}">${l.nome_propriedade}</span>
-                                 <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${l.codigo_car || 'N/I'} • CCIR: ${l.codigo_ccir || 'N/I'}</span>
+                                 <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${l.codigo_car || 'N/I'} • CCIR: ${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'N/I'}</span>
                               </td>
                               <td class="px-4 py-3">
                                  <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase ${l.status === 'CONCLUIDO' ? 'bg-mint-vibrant/15 text-mint-vibrant' : l.status === 'ARQUIVADO' ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400'}">${l.status.replace('_', ' ')}</span>
@@ -522,5 +525,11 @@ export const levantamentosRoute: RouteDef = {
       loadLevantamentos();
       configurarComboboxPropriedades();
       loadProfissionais();
+   },
+   cleanup: () => {
+      if (clickOutsideHandler) {
+         document.removeEventListener('click', clickOutsideHandler);
+         clickOutsideHandler = null;
+      }
    }
 };

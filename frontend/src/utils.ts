@@ -1,4 +1,4 @@
-import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock } from 'lucide';
+import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe } from 'lucide';
 
 // --- FUNÇÕES AUXILIARES GLOBAIS DE VALIDAÇÃO E MÁSCARAS ---
 export const formatarCAR = (v: string): string => {
@@ -18,23 +18,17 @@ export const formatarCAR = (v: string): string => {
 };
 
 export const formatarCCIR = (v: string): string => {
-   v = v.replace(/\D/g, '').slice(0, 13);
-   if (v.length > 12) {
-      v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{3})(\d{1})$/, "$1.$2.$3.$4-$5");
-   } else if (v.length > 9) {
-      v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,3})$/, "$1.$2.$3.$4");
-   } else if (v.length > 6) {
-      v = v.replace(/^(\d{3})(\d{3})(\d{1,3})$/, "$1.$2.$3");
-   } else if (v.length > 3) {
-      v = v.replace(/^(\d{3})(\d{1,3})$/, "$1.$2");
+   const d = v.replace(/\D/g, '').slice(0, 13);
+   if (d.length === 13) {
+      return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{3})(\d{1})$/, "$1.$2.$3.$4-$5");
    }
-   return v;
+   return d;
 };
 
 // Initialize Icons
 export const initIcons = () => {
   createIcons({
-    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock }
+    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe }
   });
 };
 

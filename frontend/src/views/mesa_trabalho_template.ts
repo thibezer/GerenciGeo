@@ -84,7 +84,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
 
           <!-- Coluna 2: Ingestão Drag-and-Drop (Inicia Colapsada) -->
-          <div class="glass-card p-6 flex flex-col h-auto lg:h-full ingestao-collapsed shrink-0" id="container-ingestao-arquivos">
+          <div class="glass-card p-4 flex flex-col h-auto lg:h-full ingestao-collapsed shrink-0" id="container-ingestao-arquivos">
             <div class="flex justify-between items-center mb-4">
               <h4 class="font-bold text-sm">Mesa de Ingestão de Arquivos</h4>
               <div class="flex items-center gap-1.5">
@@ -99,11 +99,11 @@ export const renderMesaTrabalho = (): string => {
             <!-- Zona Drop -->
             <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="triagem-dropzone">
               <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT" />
-              <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform" id="triagem-dropzone-icon">
                 <i data-lucide="upload" class="w-5 h-5 text-mint-vibrant"></i>
               </div>
-              <p class="text-xs font-bold">Arraste múltiplos arquivos para triagem</p>
-              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta binários .GNS or relatórios .TXT</p>
+              <p class="text-xs font-bold" id="triagem-dropzone-title">Arraste múltiplos arquivos para triagem</p>
+              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest" id="triagem-dropzone-desc">Suporta binários .GNS or relatórios .TXT</p>
             </div>
 
             <!-- Fila de arquivos selecionados -->
@@ -307,6 +307,14 @@ export const renderMesaTrabalho = (): string => {
               <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
               <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDICAO REAL-TIME</span>
             </div>
+            <!-- Formulário Rápido de Inclusão de Confrontante -->
+            <div class="px-6 py-2 border-b border-white/5 bg-white/[0.005] flex gap-2 items-center" id="container-confrontante-rapido">
+              <input type="text" id="input-confrontante-nome-rapido" placeholder="Nome do novo confrontante..." class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1.5 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all" />
+              <button class="px-2.5 py-1.5 text-[10px] font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 hover:bg-mint-vibrant/20 rounded transition-all flex items-center gap-1 shrink-0 active:scale-95 animate-pulse" id="btn-confrontante-adicionar-rapido" type="button">
+                <i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i>
+                + Confrontante
+              </button>
+            </div>
             <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
               <table class="w-full text-left border-collapse">
                 <thead>
@@ -345,12 +353,12 @@ export const renderMesaTrabalho = (): string => {
             <!-- Esquerda: Dropzone de Upload -->
             <div class="lg:col-span-1 flex flex-col justify-between space-y-4">
               <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-5 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="homologacao-dropzone">
-                <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv" />
+                <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv,.ods" />
                 <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                   <i data-lucide="file-check" class="w-5 h-5 text-mint-vibrant"></i>
                 </div>
-                <p class="text-xs font-bold text-white">Lançar TXT/CSV Homologado</p>
-                <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Arraste o arquivo ou clique para selecionar</p>
+                <p class="text-xs font-bold text-white">Lançar TXT/CSV/ODS Homologado</p>
+                <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta relatórios .TXT, .CSV ou planilhas .ODS</p>
               </div>
               <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
                 <i data-lucide="upload" class="w-4 h-4"></i>
@@ -358,16 +366,69 @@ export const renderMesaTrabalho = (): string => {
               </button>
             </div>
 
-            <!-- Centro/Direita: Pontos Homologados neste Projeto -->
+            <!-- Centro/Direita: Painel de Rastreabilidade e Pontos -->
             <div class="lg:col-span-2 space-y-4 bg-forest-deep/20 border border-white/5 rounded-xl p-5 flex flex-col min-h-[150px]">
-              <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Vértices Homologados Registrados neste Projeto</span>
-                <span id="txt-qtd-homologados" class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">0 Pontos</span>
+              <!-- Seção 1: Planilhas Importadas (Rastreabilidade) -->
+              <div class="space-y-2">
+                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Arquivos / Planilhas Importadas</span>
+                </div>
+                <div id="container-planilhas-homologadas" class="overflow-x-auto text-xs">
+                  <div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>
+                </div>
               </div>
               
-              <!-- Container de Vértices Homologados -->
-              <div id="container-vertices-homologados" class="flex-grow overflow-y-auto max-h-[140px] space-y-1.5 text-xs font-mono">
-                <div class="text-white/20 italic py-4 text-center">Nenhum arquivo de homologação importado para este levantamento.</div>
+              <!-- Seção 2: Vértices Homologados da Matrícula Ativa -->
+              <div class="space-y-2 flex-grow flex flex-col">
+                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Vértices da Matrícula Ativa</span>
+                  <span id="txt-qtd-homologados" class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">0 Pontos</span>
+                </div>
+                <div id="container-vertices-homologados" class="flex-grow overflow-y-auto max-h-[120px] space-y-1.5 text-xs font-mono">
+                  <div class="text-white/20 italic py-4 text-center">Selecione uma matrícula com pontos homologados para listar seus vértices.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Linha de Peças Técnicas de Cartório (SIGEF) -->
+          <div class="border-t border-white/5 pt-4 space-y-4 hidden" id="container-pecas-cartorio">
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+              <h5 class="text-xs font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
+                Peças Técnicas e Documentos para Cartório (Registro de Imóveis)
+              </h5>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-white/40 font-mono">Exibir Poligonal no Mapa:</span>
+                <button class="px-2.5 py-1 text-[9px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 rounded transition-all active:scale-95 flex items-center gap-1.5" id="btn-toggle-mapa-banco" type="button">
+                  <i data-lucide="eye" class="w-3.5 h-3.5" id="icon-toggle-mapa-banco"></i>
+                  <span id="txt-toggle-mapa-banco">Exibir Poligonal</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Grid de Botões de Emissão -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-req-cartorio" type="button">
+                <i data-lucide="file-edit" class="w-4 h-4 text-mint-vibrant"></i>
+                Requerimento de Retificação
+              </button>
+              <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-decl-resp" type="button">
+                <i data-lucide="user-check" class="w-4 h-4 text-mint-vibrant"></i>
+                Declaração de Responsabilidade
+              </button>
+              <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-laudo-tec" type="button">
+                <i data-lucide="file-signature" class="w-4 h-4 text-mint-vibrant"></i>
+                Laudo Técnico Descritivo
+              </button>
+              <div class="flex gap-2">
+                <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 text-xs text-white focus:outline-none transition-all">
+                  <option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>
+                </select>
+                <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95 shrink-0" id="btn-emitir-anuencia" type="button">
+                  <i data-lucide="check" class="w-4 h-4 text-mint-vibrant"></i>
+                  Gerar
+                </button>
               </div>
             </div>
           </div>

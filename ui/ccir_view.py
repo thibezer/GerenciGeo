@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox, filedialog
 import os
 from ui.widgets.treeview_table import PaginatedTreeview
 from database.repository import CcirCadastroRepo
-from business.ccir_parser import parse_ccir_csv
+from business.ccir_parser import parse_ccir_csv, sincronizar_pasta_ccir
 
 class CcirView(ttk.Frame):
     def __init__(self, parent):
@@ -14,7 +14,7 @@ class CcirView(ttk.Frame):
         self.bg_color = "#1a1a2e"
         
         self.setup_ui()
-        self.load_arquivos()
+        self.sincronizar_pasta(silencioso=True)
         self.buscar() # Carga inicial de registros
 
     def setup_ui(self):
@@ -90,25 +90,31 @@ class CcirView(ttk.Frame):
         self.lbl_status = ttk.Label(self, text="Resultados encontrados: 0", font=("Segoe UI", 9, "italic"))
         self.lbl_status.pack(anchor="w", padx=15, pady=2)
 
-        # 3. Painel de Gestão e Importação de Arquivos CSV
-        f_arquivos = ttk.LabelFrame(self, text="Gerenciamento de Arquivos e Importação", padding=10)
+        # 3. Painel de Gestão e Sincronização da Pasta de Planilhas CSV
+        from config import EXPORT_BASE_FOLDER
+        self.ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
+
+        f_arquivos = ttk.LabelFrame(self, text="Sincronização da Pasta de Planilhas CCIR", padding=10)
         f_arquivos.pack(fill="x", padx=10, pady=10)
         
-        # Coluna da esquerda: botões de importação/exclusão
+        # Coluna da esquerda: botões de sincronização
         f_arq_acoes = ttk.Frame(f_arquivos)
         f_arq_acoes.pack(side="left", fill="y", padx=5, pady=5)
         
-        btn_importar = ttk.Button(f_arq_acoes, text="Importar CSV CCIR", style="Accent.TButton", command=self.importar_csv)
-        btn_importar.pack(fill="x", pady=5)
+        btn_sincronizar = ttk.Button(f_arq_acoes, text="Sincronizar Pasta", style="Accent.TButton", command=self.sincronizar_pasta)
+        btn_sincronizar.pack(fill="x", pady=5)
         
-        btn_excluir = ttk.Button(f_arq_acoes, text="Excluir Planilha Selecionada", command=self.excluir_arquivo_selecionado)
-        btn_excluir.pack(fill="x", pady=5)
+        btn_abrir_pasta = ttk.Button(f_arq_acoes, text="Abrir Pasta local", command=self.abrir_pasta_local)
+        btn_abrir_pasta.pack(fill="x", pady=5)
         
         # Coluna da direita: Lista de arquivos importados
         f_arq_lista = ttk.Frame(f_arquivos)
         f_arq_lista.pack(side="right", fill="both", expand=True, padx=15)
         
-        ttk.Label(f_arq_lista, text="Planilhas CCIR no Sistema:").pack(anchor="w")
+        lbl_info_pasta = ttk.Label(f_arq_lista, text=f"Pasta de sincronização: {self.ccir_dir}", font=("Segoe UI", 9, "bold"))
+        lbl_info_pasta.pack(anchor="w", pady=(0, 5))
+        
+        ttk.Label(f_arq_lista, text="Planilhas CCIR Importadas:").pack(anchor="w")
         
         # Scrollbar e Listbox de arquivos
         scroll_arq = ttk.Scrollbar(f_arq_lista)
@@ -195,73 +201,34 @@ class CcirView(ttk.Frame):
         self.ent_pct_max.delete(0, tk.END)
         self.buscar()
 
-    def importar_csv(self):
-        """Abre caixa de diálogo para importar planilha CCIR"""
-        filepath = filedialog.askopenfilename(
-            title="Selecionar Planilha CCIR (CSV)",
-            filetypes=[("Arquivos CSV", "*.csv")]
-        )
-        if not filepath:
-            return
-
-        filename = os.path.basename(filepath)
+    def sincronizar_pasta(self, silencioso=False):
+        """Roda a sincronização com a pasta Banco_CCIR"""
+        if not silencioso:
+            self.config(cursor="watch")
+            self.update()
         
-        # Verifica se o arquivo já foi importado
-        for arq in self.arquivos_importados:
-            if arq['arquivo_origem'] == filename:
-                resposta = messagebox.askyesno(
-                    "Arquivo Já Importado", 
-                    f"A planilha '{filename}' já foi cadastrada anteriormente no sistema.\nDeseja substituí-la (isso apagará os registros anteriores deste arquivo e inserirá os novos)?"
-                )
-                if not resposta:
-                    return
-                # Deleta registros anteriores antes da importação
-                self.repo.delete_by_arquivo(filename)
-                break
-
-        # Inicia indicador de espera
-        self.config(cursor="watch")
-        self.update()
-
         try:
-            dados = parse_ccir_csv(filepath)
-            if not dados:
-                messagebox.showwarning("Importação Vazia", "Nenhum registro válido foi encontrado para importação no arquivo selecionado.")
-                return
-
-            # Insere no banco
-            self.repo.insert_bulk(dados)
-            
-            messagebox.showinfo("Sucesso", f"Importação de '{filename}' concluída!\nTotal de {len(dados)} registros cadastrados.")
+            logs = sincronizar_pasta_ccir()
             self.load_arquivos()
-            self.buscar()
+            
+            if not silencioso:
+                msg = "\n".join(logs)
+                messagebox.showinfo("Sincronização Concluída", f"Relatório de Sincronização:\n\n{msg}")
         except Exception as e:
-            messagebox.showerror("Erro na Importação", f"Falha ao ler ou importar a planilha:\n{e}")
+            if not silencioso:
+                messagebox.showerror("Erro de Sincronização", f"Ocorreu um erro ao sincronizar a pasta:\n{e}")
         finally:
-            self.config(cursor="")
+            if not silencioso:
+                self.config(cursor="")
 
-    def excluir_arquivo_selecionado(self):
-        """Remove a planilha e seus cadastros do banco de dados"""
-        selected_idx = self.listbox_arquivos.curselection()
-        if not selected_idx:
-            messagebox.showwarning("Aviso", "Selecione uma planilha na lista para exclusão.")
-            return
-
-        arq_info = self.arquivos_importados[selected_idx[0]]
-        filename = arq_info['arquivo_origem']
-        
-        confirma = messagebox.askyesno(
-            "Confirmar Exclusão", 
-            f"Tem certeza de que deseja remover TODOS os {arq_info['total_registros']} registros importados da planilha '{filename}'?"
-        )
-        if confirma:
-            try:
-                self.repo.delete_by_arquivo(filename)
-                messagebox.showinfo("Sucesso", f"Planilha '{filename}' e seus registros foram removidos com sucesso.")
-                self.load_arquivos()
-                self.buscar()
-            except Exception as e:
-                messagebox.showerror("Erro na Exclusão", f"Não foi possível excluir os registros: {e}")
+    def abrir_pasta_local(self):
+        """Abre a pasta Banco_CCIR no Windows Explorer"""
+        if not os.path.exists(self.ccir_dir):
+            os.makedirs(self.ccir_dir, exist_ok=True)
+        try:
+            os.startfile(self.ccir_dir)
+        except Exception as e:
+            messagebox.showerror("Erro ao abrir pasta", f"Não foi possível abrir a pasta:\n{e}")
 
     def mostrar_detalhes_imovel(self, event):
         """Abre janela de detalhamento com todos os co-proprietários cadastrados para o CCIR clicado"""

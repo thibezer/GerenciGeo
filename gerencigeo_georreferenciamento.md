@@ -285,6 +285,9 @@ Acessada pelo menu lateral principal clicando em **"Mesa de Trabalho"** (ou `/me
   - Por padrão, a ingestão inicia no estado **colapsado (`.ingestao-collapsed`)**, medindo apenas `130px` de largura e exibindo uma mini view limpa de upload de arquivos.
   - Isso permite que o contêiner do mapa Leaflet (`#container-mapa-leaflet-parent`) se expanda horizontalmente e ocupe todo o restante da tela útil disponível no grid.
   - O operador pode expandir a Ingestão clicando sobre ela ou simplesmente **arrastando um arquivo sobre sua área (dragover/dragenter)**. O card de ingestão se expande suavemente com transição de 300ms, disparando reativamente `triagemMap.invalidateSize()` após 310ms para reajustar a viewport geométrica do mapa perfeitamente.
+  - **Dropzone Compacta Dinâmica**: Quando arquivos são adicionados à fila (`filesQueue.length > 0`), a dropzone (`#triagem-dropzone`) é reduzida dinamicamente para um formato horizontal super compacto com altura de `h-11` e flex horizontal. O ícone de upload e o subtítulo descritivo são ocultados, e o texto principal é condensado para *"Arraste mais arquivos para triagem"* com fonte `text-[11px]`, liberando mais espaço de visualização no painel. Caso a fila de triagem seja esvaziada, a dropzone retorna ao seu formato original vertical grande.
+  - **Fila de Ingestão Compactada**: Os itens adicionados à fila e os menus seletores de destino de arquivos adotam uma estilização ultra-compacta (cards com padding `p-2`, fontes `text-[11px]` e seletores `select` com fonte `text-[9px]` e paddings internos reduzidos) para evitar estouro da barra de rolagem vertical.
+  - **Mapeamento de Destino Padrão para Cadernetas**: Arquivos carregados com extensão `.txt` (ou `.TXT`) são reconhecidos automaticamente e têm a opção de destino pré-selecionada por padrão como `"rover_rtk"` (RTK Rover), enquanto binários GNSS e outros formatos mantêm a preseleção inicial como `"base"` (Base - Enviar ao PPP).
   - **Botão Recolher Premium:** Disponibiliza um botão de colapso manual altamente contrastante no cabeçalho expandido (`#btn-colapsar-ingestao`) estilizado in vermelho técnico suave (`bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/25` e ícone `minimize-2` de colapso) para fácil visualização e retorno ágil ao estado colapsado, com interrupção de propagação de clique (`stopPropagation`).
   - **Botão Temporário de Teste de Ingestão ("Testar Busca HGO"):** Para fins de auditoria e teste de I/O em tempo de execução, foi incorporado ao cabeçalho do painel de Workspace GNSS o botão `#btn-testar-busca-rinex`. O clique aciona o endpoint `POST /levantamentos/{lev_id}/testar-busca-rinex` que varre de forma síncrona a Área de Trabalho do Windows (`D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho`) e subdiretórios de projeto à procura de arquivos Rinex convertidos correspondentes aos `.GNS` importados (suportando anos dinâmicos e extensões como `.25o`, `.26o` de observação, navegação e glonass). Ao localizá-los, o sistema realiza a cópia direta para o workspace do levantamento e registra seus metadados espaciais no histórico do banco, exibindo um relatório minucioso com a listagem dos arquivos movidos e erros encontrados.
   - **Condensação de Arquivos Rinex no Workspace (Filtro de Observação):** Para evitar a poluição visual na coluna "2. Rinex" do painel de arquivos (uma vez que cada conversão gera múltiplos arquivos redundantes como `.nav`, `.g`, `.25n`, `.26g`), o renderizador do frontend em `loadWorkspaceArquivos` filtra dinamicamente os itens listados. A interface exibe estritamente o arquivo de observação principal do receptor (extensões `.obs`, `.o` ou correspondente `.XXo` via regex), ocultando os arquivos de navegação sem excluí-los do disco, otimizando o aproveitamento vertical da tela.
@@ -354,7 +357,39 @@ Para garantir que o caminhamento perimetral de cada matrícula seja único e lin
 
 ### C. Identificação Visual de Origem de Arquivo GNSS
 Com a finalidade de auditar o levantamento e identificar rapidamente pontos intrusos ou que não pertençam àquela sessão, implementou-se:
-1. **Badges Coloridos por Hash de Arquivo:** O renderizador das tabelas de pontos (`renderLinhaPontoGeoprocessamentoHtml` e `renderLinhaPontoCartorioHtml`) gera um badge colorido determinístico a partir do hash do nome do arquivo em `arquivo_origem`.
+1. **Badges Coloridos por Hash de Arquivo:** O renderizador das tabelas de pontos (`renderLinhaPontoGeoprocessamentoHtml` e `renderLinhaPontoCartorioHtml`) generates um badge colorido determinístico a partir do hash do nome do arquivo em `arquivo_origem`.
 2. **Identificador de Criação Manual:** Pontos que não possuem `arquivo_origem` no banco (inseridos de forma avulsa pela interface) exibem o badge cinza `Inserido Manual`.
 3. **Filtro de Pesquisa Ampliado:** O input de busca rápida na tabela de pontos (`input-search-ponto`) estende o filtro textual para incluir a coluna `arquivo_origem`, permitindo isolar instantaneamente os vértices de um arquivo específico na visualização.
+
+---
+
+## 10. Homologação de Pontos Aprovados no INCRA / SIGEF (Suporte ODS)
+
+O sistema oferece suporte à importação de relatórios de homologação de pontos oficiais aprovados no INCRA / SIGEF. Isso permite validar os vértices certificados e sincronizá-los com o banco de dados do profissional.
+
+### A. Fluxo de Importação Multipart e Formatos Suportados
+*   **Endpoint:** `POST /levantamentos/{id}/importar-pontos-aprovados`
+*   **Formatos Aceitos:**
+    *   Arquivos de texto brutos ou relatórios formatados em `.TXT` ou `.CSV` (decodificação em UTF-8).
+    *   Planilhas oficiais do SIGEF em formato OpenDocument Spreadsheet (`.ODS`).
+*   **Interface de Upload (Dropzone):** A Mesa de Trabalho implementa uma dropzone interativa na aba de homologação que aceita arrastar ou selecionar arquivos `.txt`, `.csv` ou `.ods`.
+
+### B. Parsing Nativo e In-Memory de Arquivos ODS
+Para evitar dependências pesadas externas na leitura do formato OpenDocument Spreadsheet (como `ezodf`, `pandas` ou `odfpy`), a extração é feita nativamente usando a biblioteca padrão do Python:
+1.  **Detecção de Formato:** O arquivo recebido é identificado pelo sufixo do nome `.ods` ou pela verificação de assinatura mágica de arquivo ZIP (`PK\x03\x04`).
+2.  **Extração de Conteúdo:** O contêiner ZIP é aberto via `zipfile.ZipFile` em memória por meio de `io.BytesIO`.
+3.  **Leitura do XML de Conteúdo:** É lido e decodificado em UTF-8 o arquivo estruturado interno `content.xml`, que concentra todos os dados de texto e planilhas estruturadas do documento.
+4.  **Varredura Geodésica com Regex:** Aplica-se uma expressão regular para capturar os códigos credenciados que correspondam ao padrão oficial do INCRA (`CRED-TIPO-NUMERO`), filtrados especificamente pelo código credenciado do profissional associado ao levantamento:
+    $$\text{Regex: } \text{re.compile(rf"\b(\{re.escape(codigo\_credenciado)\})-(M|P|V)-(\backslash d+)\backslash b", re.IGNORECASE)}$$
+5.  **Desduplicação e Persistência:** Os códigos encontrados são desduplicados por tipo de ponto e número (ex: `XRXR-M-0001`), e salvos atômica e transacionalmente no banco de dados do SQLite na tabela `banco_pontos`. Os contadores de profissional correspondentes (`contador_m`, `contador_p`, `contador_v`) são recalculados automaticamente com base no valor máximo de número importado.
+
+### C. Isolamento de Planilhas por Matrícula e Exibição em Dupla Camada
+Para suportar múltiplas matrículas e planilhas homologadas distintas em um mesmo levantamento, o sistema implementa:
+1.  **Vínculo com Matrícula (`matricula_id`):** A tabela `banco_pontos` inclui a coluna física `matricula_id` com constraint `FOREIGN KEY` referenciando `matriculas(id) ON DELETE CASCADE`.
+2.  **Importação Segmentada:** A rota de upload `POST /levantamentos/{id}/importar-pontos-aprovados` recebe o parâmetro opcional `matricula_id`. A deleção física anterior e inserção dos novos pontos homologados ocorrem restritas à matrícula ativa informada, impedindo a sobrescrita ou o apagamento de pontos de outras planilhas/matrículas da mesma propriedade.
+3.  **Visualização Inteligente em Dupla Camada:**
+    - Se a matrícula ativa possuir pontos homologados no banco de pontos, o mapa Leaflet exibe a poligonal homologada (linha tracejada âmbar e marcadores âmbar nítidos) como camada principal em destaque.
+    - A poligonal e os pontos originais de campo (camada original) são esmaecidos de forma discreta para segundo plano (opacidade reduzida para 40% e linhas cinzas `#94a3b8`), mas mantêm total interatividade e popups no hover.
+    - A poligonal homologada permanece fixada de forma persistente e reativa no mapa mesmo durante reordenações, paginações e alternâncias de abas de matrícula.
+
 

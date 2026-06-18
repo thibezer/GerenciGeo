@@ -3,6 +3,8 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons } from '../utils';
 
+let mapInstance: L.Map | null = null;
+
 export const dashboardRoute: RouteDef = {
   render: () => `
     <div class="space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -133,6 +135,7 @@ export const dashboardRoute: RouteDef = {
     const map = L.map('map', {
       maxZoom: 24
     }).setView([-23.7661, -53.3204], 14);
+    mapInstance = map;
 
     // Create a pane for overlays to ensure they stay on top
     map.createPane('overlayPane');
@@ -483,6 +486,16 @@ export const dashboardRoute: RouteDef = {
         }
       })
       .catch(err => console.error("Erro ao carregar geometrias locais no Dashboard:", err));
+  },
+  cleanup: () => {
+    if (mapInstance) {
+      try {
+        mapInstance.remove();
+      } catch (e) {
+        console.warn("[Dashboard] Erro ao remover mapa no cleanup:", e);
+      }
+      mapInstance = null;
+    }
   }
 };
 
