@@ -27,6 +27,7 @@ class ConfrontanteCreate(BaseModel):
     cpf_conjuge: Optional[str] = None
     rg_conjuge: Optional[str] = None
     matricula_imovel: Optional[str] = None
+    cns_confrontante: Optional[str] = None # ADICIONADO PARA AMARRAÇÃO MANUAL
 
 class SegmentoCreate(BaseModel):
     matricula_id: int
@@ -52,14 +53,14 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
         query = """
             INSERT INTO confrontantes 
             (levantamento_id, nome, cpf_cnpj, tipo_relacao, rg, nacionalidade, profissao, 
-             estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, matricula_imovel)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, matricula_imovel, cns_confrontante)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         execute_query(
             query, 
             params=(
                 id, c.nome, c.cpf_cnpj, c.tipo_relacao, c.rg, c.nacionalidade, c.profissao,
-                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel
+                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel, c.cns_confrontante
             ), 
             commit=True
         )
@@ -78,14 +79,14 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
         query = """
             UPDATE confrontantes 
             SET nome = ?, cpf_cnpj = ?, tipo_relacao = ?, rg = ?, nacionalidade = ?, profissao = ?, 
-                estado_civil = ?, regime_bens = ?, endereco_completo = ?, nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, matricula_imovel = ?
+                estado_civil = ?, regime_bens = ?, endereco_completo = ?, nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, matricula_imovel = ?, cns_confrontante = ?
             WHERE id = ?
         """
         execute_query(
             query, 
             params=(
                 c.nome, c.cpf_cnpj, c.tipo_relacao, c.rg, c.nacionalidade, c.profissao,
-                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel, cid
+                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel, c.cns_confrontante, cid
             ), 
             commit=True
         )

@@ -232,71 +232,94 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                     "DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1",
                     (id, matricula_id)
                 )
-                # Tambem remove os segmentos antigos para recriar limpos
                 cursor.execute(
                     "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
                     (id, matricula_id)
                 )
                 
-            # Primeiro, vamos garantir o cadastro de todos os confrontantes de forma qualificada
-            confrontantes_map = {}
+            # ───────────────────────────────────────────────────────────────────
+            # MOTOR DE RESOLUÇÃO DE CONFRONTANTES (SINGLE-PASS CACHE)
+            # ───────────────────────────────────────────────────────────────────
+            import unicodedata
+
+            def normalizar_texto_busca(texto: str) -> str:
+                """Remove acentos, espaços múltiplos e padroniza caixa para busca segura"""
+                if not texto: return ""
+                texto = "".join(ch for ch in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(ch))
+                return re.sub(r'\s+', ' ', texto.strip().upper())
+
+            # Carrega todos os confrontantes históricos do levantamento em cache de memória
+            cursor.execute("SELECT id, nome, matricula_imovel, cns_confrontante FROM confrontantes WHERE levantamento_id = ?", (id,))
+            confrontantes_existentes = cursor.fetchall()
+            
+            cache_por_matricula = {}
+            cache_por_nome = {}
+            
+            for c_row in confrontantes_existentes:
+                c_id = c_row["id"]
+                c_nome_norm = normalizar_texto_busca(c_row["nome"])
+                c_mat = (c_row["matricula_imovel"] or "").strip().upper()
+                
+                if c_mat:
+                    cache_por_matricula[c_mat] = c_id
+                if c_nome_norm:
+                    cache_por_nome[c_nome_norm] = c_id
+
+            mapa_vertices_confrontante_id = {}
+            
+            # Varre e resolve a qualificação cadastral dos confrontantes de uma só vez
             for p in pontos_ordenados:
-                matricula_conf = (p.get("matricula_confrontante") or "").strip()
+                matricula_conf = (p.get("matricula_confrontante") or "").strip().upper()
+                cns_conf = (p.get("cns_confrontante") or "").strip()
                 desc = (p.get("confrontante_descritivo") or "").strip()
                 nome_conf = extrair_nome_confrontante_limpo(desc)
+                nome_conf_norm = normalizar_texto_busca(nome_conf)
                 
-                if matricula_conf:
-                    if matricula_conf not in confrontantes_map:
-                        confrontantes_map[matricula_conf] = {
-                            "nome": nome_conf or f"Confrontante da Matrícula {matricula_conf}",
-                            "matricula_imovel": matricula_conf
-                        }
-                    elif nome_conf and (not confrontantes_map[matricula_conf]["nome"] or confrontantes_map[matricula_conf]["nome"].startswith("Confrontante da Matrícula")):
-                        confrontantes_map[matricula_conf]["nome"] = nome_conf
-                elif nome_conf:
-                    if nome_conf not in confrontantes_map:
-                        confrontantes_map[nome_conf] = {
-                            "nome": nome_conf,
-                            "matricula_imovel": None
-                        }
-            
-            for item in confrontantes_map.values():
-                nome_conf = item["nome"]
-                mat_conf = item["matricula_imovel"]
-                
-                if mat_conf:
-                    cursor.execute(
-                        "SELECT id, nome FROM confrontantes WHERE levantamento_id = ? AND (UPPER(matricula_imovel) = ? OR UPPER(nome) = ?)",
-                        (id, mat_conf.upper(), nome_conf.upper())
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT id, nome FROM confrontantes WHERE levantamento_id = ? AND UPPER(nome) = ?",
-                        (id, nome_conf.upper())
-                    )
-                row_conf = cursor.fetchone()
-                if row_conf:
-                    db_id = row_conf["id"]
-                    db_nome = row_conf["nome"]
+                if not matricula_conf and not nome_conf:
+                    continue
                     
-                    # Se o nome gravado anteriormente for apenas dígitos (como a matrícula "5196") ou estiver em branco,
-                    # atualizamos para o nome qualificado estruturado
-                    if db_nome.isdigit() or not db_nome or db_nome.upper() == (mat_conf or "").upper():
-                        cursor.execute(
-                            "UPDATE confrontantes SET nome = ?, matricula_imovel = ? WHERE id = ?",
-                            (nome_conf, mat_conf, db_id)
-                        )
-                else:
+                confrontante_id_resolvido = None
+
+                # 1ª Opção de Busca: Pela Matrícula do Imóvel Confrontante
+                if matricula_conf and matricula_conf in cache_por_matricula:
+                    confrontante_id_resolvido = cache_por_matricula[matricula_conf]
+                    if nome_conf and nome_conf_norm != matricula_conf:
+                        cursor.execute("UPDATE confrontantes SET nome = ?, cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?", (nome_conf, cns_conf, confrontante_id_resolvido))
+                    elif cns_conf:
+                        cursor.execute("UPDATE confrontantes SET cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?", (cns_conf, confrontante_id_resolvido))
+                
+                # 2ª Opção de Busca: Pelo Nome Normalizado (Casamento Fonético Antiduplicidade)
+                elif nome_conf_norm and nome_conf_norm in cache_por_nome:
+                    confrontante_id_resolvido = cache_por_nome[nome_conf_norm]
                     cursor.execute(
-                        "INSERT INTO confrontantes (levantamento_id, nome, matricula_imovel) VALUES (?, ?, ?)",
-                        (id, nome_conf, mat_conf)
+                        "UPDATE confrontantes SET matricula_imovel = COALESCE(matricula_imovel, ?), cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
+                        (matricula_conf if matricula_conf else None, cns_conf if cns_conf else None, confrontante_id_resolvido)
                     )
-            
-            # Agora inserimos os pontos e criamos o percurso
+                    if matricula_conf:
+                        cache_por_matricula[matricula_conf] = confrontante_id_resolvido
+                
+                # 3ª Opção: Inserção Atômica de Novo Registro e Alimentação dos Caches Temporários
+                else:
+                    final_nome = nome_conf if nome_conf else f"Confrontante da Matrícula {matricula_conf}"
+                    cursor.execute(
+                        "INSERT INTO confrontantes (levantamento_id, nome, matricula_imovel, cns_confrontante) VALUES (?, ?, ?, ?)",
+                        (id, final_nome, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
+                    )
+                    confrontante_id_resolvido = cursor.lastrowid
+                    
+                    if matricula_conf:
+                        cache_por_matricula[matricula_conf] = confrontante_id_resolvido
+                    if nome_conf_norm:
+                        cache_por_nome[nome_conf_norm] = confrontante_id_resolvido
+                
+                mapa_vertices_confrontante_id[p["codigo_completo"]] = confrontante_id_resolvido
+
+            # ───────────────────────────────────────────────────────────────────
+            # PERSISTÊNCIA DOS PONTOS E RECONSTRUÇÃO DA CADEIA DE SEGMENTOS
+            # ───────────────────────────────────────────────────────────────────
             for idx, p in enumerate(pontos_ordenados):
                 idx_ordem = idx + 1
                 try:
-                    # Inserir no banco_pontos
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO banco_pontos 
@@ -318,7 +341,6 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                     if cursor.rowcount > 0:
                         pontos_adicionados += 1
                     
-                    # Se matricula_id for informado, inserir também na tabela pontos do levantamento
                     if matricula_id:
                         cursor.execute(
                             """
@@ -336,7 +358,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                 except Exception as e_db:
                     logging.getLogger(__name__).warning(f"Erro ao inserir ponto {p['codigo_completo']}: {e_db}")
             
-            # Se matricula_id foi informado, traçamos e inserimos os segmentos correspondentes
+            # Geração de polilinhas perimetrais ultra-veloz via Cache O(1) em memória
             if matricula_id and len(pontos_ordenados) >= 2:
                 N = len(pontos_ordenados)
                 for i in range(N):
@@ -346,47 +368,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                     if "db_ponto_id" not in p_ini or "db_ponto_id" not in p_fim:
                         continue
                         
-                    confrontante_id = None
-                    matricula_conf = p_ini.get("matricula_confrontante", "").strip()
-                    desc = p_ini.get("confrontante_descritivo", "").strip()
-                    
-                    if matricula_conf:
-                        cursor.execute(
-                            "SELECT id FROM confrontantes WHERE levantamento_id = ? AND UPPER(matricula_imovel) = ?",
-                            (id, matricula_conf.upper())
-                        )
-                        row_c = cursor.fetchone()
-                        if not row_c:
-                            cursor.execute(
-                                "SELECT id FROM confrontantes WHERE levantamento_id = ? AND UPPER(nome) = ?",
-                                (id, matricula_conf.upper())
-                            )
-                            row_c = cursor.fetchone()
-                        if not row_c:
-                            nome_conf = extrair_nome_confrontante_limpo(desc) or f"Confrontante da Matrícula {matricula_conf}"
-                            cursor.execute(
-                                "INSERT INTO confrontantes (levantamento_id, nome, matricula_imovel) VALUES (?, ?, ?)",
-                                (id, nome_conf, matricula_conf)
-                            )
-                            confrontante_id = cursor.lastrowid
-                        else:
-                            confrontante_id = row_c["id"]
-                    elif desc:
-                        nome_conf = extrair_nome_confrontante_limpo(desc)
-                        if nome_conf:
-                            cursor.execute(
-                                "SELECT id FROM confrontantes WHERE levantamento_id = ? AND UPPER(nome) = ?",
-                                (id, nome_conf.upper())
-                            )
-                            row_c = cursor.fetchone()
-                            if not row_c:
-                                cursor.execute(
-                                    "INSERT INTO confrontantes (levantamento_id, nome) VALUES (?, ?)",
-                                    (id, nome_conf)
-                                )
-                                confrontante_id = cursor.lastrowid
-                            else:
-                                confrontante_id = row_c["id"]
+                    confrontante_id = mapa_vertices_confrontante_id.get(p_ini["codigo_completo"])
                                 
                     cursor.execute(
                         """

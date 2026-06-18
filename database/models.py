@@ -197,6 +197,7 @@ def create_tables(conn):
             cpf_conjuge TEXT,
             rg_conjuge TEXT,
             matricula_imovel TEXT,
+            cns_confrontante TEXT, -- ADICIONADO CONFORME PLANO v2.3
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
@@ -433,7 +434,8 @@ def create_tables(conn):
             ("nome_conjuge", "TEXT"),
             ("cpf_conjuge", "TEXT"),
             ("rg_conjuge", "TEXT"),
-            ("matricula_imovel", "TEXT")
+            ("matricula_imovel", "TEXT"),
+            ("cns_confrontante", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}

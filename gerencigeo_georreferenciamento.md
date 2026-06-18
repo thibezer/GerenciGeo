@@ -270,3 +270,20 @@ A exportação de Shapefiles pelo dashboard do sistema compila os dados geométr
 * **Empacotamento In-Memory e Dupla Camada:** O processo de empacotamento ocorre estritamente na memória do servidor via `zipfile` e biblioteca `pyshp`. É gerado um único arquivo `.ZIP` contendo duas camadas vetoriais independentes: uma de pontos (`pontos.shp` para os vértices do perímetro) e uma de polígono (`perimetro.shp` para o contorno fechado da matrícula) projetadas na Zona UTM 22S.
 * **Invariante de Projeção (.PRJ):** O arquivo de projeção (`.prj`) injetado obrigatoriamente dentro do pacote Shapefile deve conter estritamente a string WKT oficial da nossa EPSG padrão do motor matemático: SIRGAS 2000 / UTM Zone 22S (EPSG:31982), definida por:
     `PROJCS["SIRGAS 2000 / UTM zone 22S",GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",SPHEROID["GRS 1980",6378137,298.257222101],TOWGS84[0,0,0,0,0,0,0]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4674"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-51],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","31982"]]`
+
+---
+
+## 12. Motor de Resolução de Confrontantes O(1) Cached Single-Pass e coluna `cns_confrontante`
+
+Como evolução do ecossistema de gestão de limites fundiários no GerenciGeo, foi adicionado suporte estrito e otimizado ao fluxo de confrontação de parcelas.
+
+### A. Novo Campo Físico e Integração Pydantic
+A tabela `confrontantes` do banco de dados e as estruturas de entrada/saída passaram a persistir o metadado **`cns_confrontante`** (Código Nacional de Serventias do Cartório de Registro de Imóveis), extraído de forma nativa dos relatórios ODS do SIGEF.
+* **Modelo Físico:** Coluna `cns_confrontante TEXT` incluída no DDL e no vetor de migração dinâmica ativa em tempo de execução de [models.py](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/database/models.py).
+* **Entrada/Edição Manual:** Campo incorporado ao payload `ConfrontanteCreate` e às rotas POST e PUT em [segmentos.py](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/routes/levantamento/segmentos.py).
+
+### B. Algoritmo Anti-duplicidade e Otimização I/O em Memória
+Para evitar a redundância crônica de inserções e contornar a limitação da função `UPPER` do SQLite com caracteres acentuados (como "João" vs "JOAO"), a esteira de importação no arquivo [homologacao.py](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/routes/levantamento/homologacao.py) foi refatorada:
+1. **Normalização Fonética:** Uma função auxiliar de normalização de strings em Python (`normalizar_texto_busca`) baseada em `unicodedata.normalize('NFKD', ...)` remove acentos e caracteres especiais das strings de confrontação antes de testar equivalências de nomes.
+2. **Resolução em Passo Único com Cache:** Carrega em memória todos os confrontantes históricos do levantamento técnico em dicionários com busca rápida $O(1)$.
+3. **Amarração de Segmentos Sem Consultas:** A associação e amarração final de divisas físicas e a geração de segmentos na tabela `segmentos` utilizam o dicionário resolvido em memória, eliminando blocos redundantes de consultas SQL.
