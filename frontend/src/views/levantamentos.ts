@@ -67,6 +67,14 @@ export const levantamentosRoute: RouteDef = {
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Data de Início *</label>
                   <input type="date" id="input-lev-data" required class="glass-input w-full text-sm py-3 md:py-2" />
                </div>
+               <div>
+                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Número TRT (Opcional)</label>
+                  <input type="text" id="input-lev-trt-numero" class="glass-input w-full text-xs py-3 md:py-2" placeholder="Ex: 2026123456" />
+               </div>
+               <div>
+                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Data Quitação TRT (Opcional)</label>
+                  <input type="date" id="input-lev-trt-data" class="glass-input w-full text-sm py-3 md:py-2" />
+               </div>
                <div id="container-lev-status" class="hidden">
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Status *</label>
                   <select id="select-lev-status" class="glass-input w-full text-xs py-3 md:py-2">
@@ -365,6 +373,8 @@ export const levantamentosRoute: RouteDef = {
               const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
               const selectProf = document.getElementById('select-lev-profissional') as HTMLSelectElement;
               const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
+              const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
+              const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
               const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
               const containerStatus = document.getElementById('container-lev-status');
               
@@ -373,6 +383,8 @@ export const levantamentosRoute: RouteDef = {
               if (inputHidden) inputHidden.value = l.propriedade_id.toString();
               if (selectProf) selectProf.value = l.profissional_id.toString();
               if (inputData) inputData.value = l.data_inicio;
+              if (inputTrtNumero) inputTrtNumero.value = l.numero_trt || '';
+              if (inputTrtData) inputTrtData.value = l.data_trt || '';
               if (selectStatus) selectStatus.value = l.status;
               if (containerStatus) containerStatus.classList.remove('hidden');
               document.getElementById('modal-levantamento')?.classList.remove('hidden');
@@ -440,12 +452,16 @@ export const levantamentosRoute: RouteDef = {
        const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
        const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
        const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
+       const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
+       const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
        
        if (inputData) {
           inputData.value = new Date().toISOString().split('T')[0];
        }
        if (inputBusca) inputBusca.value = '';
        if (inputHidden) inputHidden.value = '';
+       if (inputTrtNumero) inputTrtNumero.value = '';
+       if (inputTrtData) inputTrtData.value = '';
        
        try {
           const res = await fetch(`${API_BASE}/propriedades`);
@@ -472,8 +488,10 @@ export const levantamentosRoute: RouteDef = {
         const propriedade_id = parseInt((document.getElementById('select-lev-propriedade') as HTMLSelectElement).value);
         const profesional_id = parseInt((document.getElementById('select-lev-profissional') as HTMLSelectElement).value);
         const data_inicio = (document.getElementById('input-lev-data') as HTMLInputElement).value;
+        const numero_trt = (document.getElementById('input-lev-trt-numero') as HTMLInputElement).value.trim() || null;
+        const data_trt = (document.getElementById('input-lev-trt-data') as HTMLInputElement).value || null;
         
-        const payload: any = { propriedade_id, profissional_id: profesional_id, data_inicio };
+        const payload: any = { propriedade_id, profissional_id: profesional_id, data_inicio, numero_trt, data_trt };
         
         if (editandoLevId) {
            const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;

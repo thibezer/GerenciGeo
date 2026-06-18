@@ -131,6 +131,8 @@ def create_tables(conn):
             data_inicio DATE NOT NULL,
             pasta_projeto TEXT,
             status TEXT DEFAULT 'EM_ANDAMENTO' CHECK(status IN ('EM_ANDAMENTO', 'CONCLUIDO', 'ARQUIVADO')),
+            numero_trt TEXT,
+            data_trt TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
             FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE
@@ -421,6 +423,21 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em profissionais: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em profissionais: {ex_mig}")
+
+        # Migração dinâmica para a tabela levantamentos
+        colunas_levantamentos = [
+            ("numero_trt", "TEXT"),
+            ("data_trt", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(levantamentos)")
+        colunas_levantamentos_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_levantamentos:
+            if col not in colunas_levantamentos_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE levantamentos ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em levantamentos: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em levantamentos: {ex_mig}")
 
         # Migração dinâmica para a tabela confrontantes
 

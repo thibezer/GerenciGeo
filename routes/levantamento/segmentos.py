@@ -182,7 +182,7 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
     try:
         rows = execute_query(
             """
-            SELECT MIN(c.id) as id, c.nome, c.cpf_cnpj
+            SELECT MIN(c.id) as id, c.nome, c.cpf_cnpj, MIN(c.matricula_imovel) as matricula_imovel
             FROM segmentos s
             JOIN confrontantes c ON s.confrontante_id = c.id
             WHERE s.levantamento_id = ? AND s.matricula_id = ?

@@ -607,3 +607,23 @@ def get_auditoria_banco_pontos(id: int):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/pontos-homologados")
+def get_pontos_homologados_matricula(id: int, matricula_id: int):
+    try:
+        query = """
+            SELECT p.id, p.levantamento_id, p.matricula_id, p.nome_vertice as codigo_completo,
+                   p.tipo_ponto, p.lat, p.lon, p.alt as altitude, p.sigma_lat, p.sigma_lon, p.sigma_alt,
+                   p.ordem_caminhamento, p.status_ponto, p.metodo_posicionamento, p.arquivo_origem
+            FROM pontos p
+            WHERE p.levantamento_id = ? 
+              AND p.matricula_id = ? 
+              AND p.origem_homologada = 1
+            ORDER BY p.ordem_caminhamento ASC
+        """
+        rows = [dict(r) for r in execute_query(query, params=(id, matricula_id), fetch_all=True)]
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

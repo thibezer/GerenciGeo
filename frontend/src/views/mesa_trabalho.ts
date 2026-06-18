@@ -3,65 +3,97 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
-import {
-  renderLinhaPontoCartorioHtml,
-  renderLinhaPontoGeoprocessamentoHtml,
-  renderAuditoriaTranslacaoHtml,
-  renderLinhaSegmentoHtml,
-  renderHistoricoTimelineHtml
-} from './mesa_trabalho_tabela';
 import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
+import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
+import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
+import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
+import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 
-let activeMapaController: MesaTrabalhoMapa | null = null;
+export let activeMapaController: MesaTrabalhoMapa | null = null;
 let ctxClickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 let ctxScrollHandler: (() => void) | null = null;
 
 export const mesaTrabalhoRoute: RouteDef = {
   render: () => renderMesaTrabalho(),
   setup: () => {
-    let currentLevId: number | null = null;
-    let currentMatriculaId: number | null = null;
-    let currentProfissionalId: number | null = null;
-
-    let matriculasList: any[] = [];
-    let pontosList: any[] = [];
-    let segmentosList: any[] = [];
-    let confrontantesList: any[] = [];
-    let triagemMap: L.Map | null = null;
-    const mapaController = new MesaTrabalhoMapa();
-    activeMapaController = mapaController;
-    let filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[] = [];
-    let modoCoordenadas = 'utm'; // Padrão AutoCAD UTM Default (Diretriz V2.3)
-    let etapaAtiva = 'geoprocessamento'; // 'geoprocessamento' ou 'cartorio' (Isolação de Telas)
-    let modoReordenarAtivo = false;
-
-    let selectedPontoIds: number[] = [];
-    let lastSelectedPontoId: number | null = null;
-    let currentSortColumn = 'ordem';
-    let currentSortDirection: 'asc' | 'desc' = 'asc';
-    let searchFilterValue = '';
-    let searchFilterOrdenadorValue = '';
-    let filtroRapidoAtivo = 'todos';
-    let ocultarForaPoligono = false;
-    let modoCliqueSequencialAtivo = false;
-    let bancoPontosExibido = false;
-    let bancoPontosList: any[] = [];
-    let travamentoInicio = 0;
-    let travamentoFim = 0;
-    let travamentoInicioPontoId: number | null = null;
-    let travamentoFimPontoId: number | null = null;
-    let sequenciaCliqueProximoIndice: number | null = null;
-
-    // Recupera levantamento ativo
+    // 1. Inicializa o estado compartilhado
     const activeId = localStorage.getItem('active_levantamento_id');
     if (!activeId) {
       window.location.hash = '#levantamentos';
       return;
     }
-    currentLevId = parseInt(activeId);
-    mapaController.levantamentoId = currentLevId;
 
-    // Injeta estilos CSS para os resizers de colunas individuais (Padrão Excel)
+    const mapaController = new MesaTrabalhoMapa();
+    activeMapaController = mapaController;
+    mapaController.levantamentoId = parseInt(activeId);
+
+    const ctx: MesaTrabalhoContext = {
+      currentLevId: parseInt(activeId),
+      currentMatriculaId: null,
+      currentProfissionalId: null,
+      currentLevantamento: null,
+
+      matriculasList: [],
+      pontosList: [],
+      segmentosList: [],
+      confrontantesList: [],
+      triagemMap: null,
+      mapaController: mapaController,
+      filesQueue: [],
+      modoCoordenadas: 'utm', // AutoCAD UTM Default (Diretriz V2.3)
+      etapaAtiva: 'geoprocessamento', // 'geoprocessamento' | 'cartorio' | 'auditoria'
+      modoReordenarAtivo: false,
+
+      selectedPontoIds: [],
+      lastSelectedPontoId: null,
+      currentSortColumn: 'ordem',
+      currentSortDirection: 'asc',
+      searchFilterValue: '',
+      searchFilterOrdenadorValue: '',
+      filtroRapidoAtivo: 'todos',
+      ocultarForaPoligono: false,
+      modoCliqueSequencialAtivo: false,
+      bancoPontosExibido: false,
+      bancoPontosList: [],
+      travamentoInicio: 0,
+      travamentoFim: 0,
+      travamentoInicioPontoId: null,
+      travamentoFimPontoId: null,
+      sequenciaCliqueProximoIndice: null,
+
+      // Callbacks que serão preenchidos
+      loadLevantamentoDetails: async () => {},
+      loadWorkspaceArquivos: async () => {},
+      carregarHomologacaoDados: async () => {},
+      renderMatriculaDados: () => {},
+      atualizarPolilinhaMapaTemp: () => {},
+      atualizarDestaqueLinhasTabela: () => {},
+      renderListaReordenarSimplificada: () => {},
+      alternarEtapa: () => {},
+      switchMatriculaTab: () => {},
+      renderFilaArquivos: () => {},
+      inicializarEventosCartorio: () => {},
+      carregarSugestoesNumeracao: () => {},
+      carregarConfrontantesAtivosSelect: async () => {},
+      selectPontoFromTabela: () => {},
+
+      latLonToUTM: (_lat: number, _lon: number) => ({ e: 0, n: 0, zone: 22 }),
+      subirPonto: () => {},
+      descerPonto: () => {},
+      moverPontoPosicao: () => {},
+      salvarRascunhoLocal: () => {},
+      verificarRascunhoLocal: () => {},
+      subirPontoSimplificado: () => {},
+      descerPontoSimplificado: () => {},
+      alternarModoReordenarManual: () => {}
+    };
+
+    // 2. Registra os submódulos no contexto comum
+    setupMesaGeodesica(ctx);
+    setupOrganizadorPerimetro(ctx);
+    setupAuditoriaHistorico(ctx);
+
+    // 3. Estilos de Resizers individuais
     setTimeout(() => {
       const styleId = 'gerencigeo-column-resizer-styles';
       if (!document.getElementById(styleId)) {
@@ -92,744 +124,29 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     }, 50);
 
-    const setupEventDelegation = () => {
-      const tblTriagem = document.getElementById('tbl-pontos-triagem');
-      const containerReordenar = document.getElementById('lista-reordenar-simplificada');
-      const containerWorkspace = document.getElementById('container-workspace-arquivos');
-      const painelInferior = document.getElementById('container-tabelas-inferiores'); // Para garantir eventos da tabela de forma robusta
-
-      const containerTabela = painelInferior || tblTriagem;
-
-      if (containerTabela) {
-        containerTabela.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          const linha = target.closest('.linha-ponto-tbl');
-          const btnSubir = target.closest('.btn-subir-ponto');
-          const btnDescer = target.closest('.btn-descer-ponto');
-
-          if (btnSubir) {
-            e.stopPropagation();
-            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
-            if (pId) subirPonto(pId);
-            return;
-          }
-          if (btnDescer) {
-            e.stopPropagation();
-            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
-            if (pId) descerPonto(pId);
-            return;
-          }
-          const btnFocar = target.closest('.btn-focar-ponto-mapa');
-          if (btnFocar) {
-            e.stopPropagation();
-            const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
-            if (pId) {
-              selectPontoFromTabela(pId);
-              mapaController.selectPonto(pId, 21); // Foca com zoom aproximado 21
-            }
-            return;
-          }
-          if (linha && !target.closest('.chk-ignorar-poligono')) {
-            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
-            if (!pId) return;
-
-            const mouseEvent = e as MouseEvent;
-            if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
-              if (selectedPontoIds.includes(pId)) {
-                selectedPontoIds = selectedPontoIds.filter(id => id !== pId);
-              } else {
-                selectedPontoIds.push(pId);
-                lastSelectedPontoId = pId;
-              }
-            } else if (mouseEvent.shiftKey && lastSelectedPontoId !== null) {
-              const pontosMat = etapaAtiva === 'geoprocessamento'
-                ? [...pontosList]
-                : pontosList.filter(p => p.matricula_id === currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-              const index1 = pontosMat.findIndex(pt => pt.id === lastSelectedPontoId);
-              const index2 = pontosMat.findIndex(pt => pt.id === pId);
-
-              if (index1 !== -1 && index2 !== -1) {
-                const start = Math.min(index1, index2);
-                const end = Math.max(index1, index2);
-                const idsInRange = pontosMat.slice(start, end + 1).map(pt => pt.id);
-                idsInRange.forEach(id => {
-                  if (!selectedPontoIds.includes(id)) {
-                    selectedPontoIds.push(id);
-                  }
-                });
-              }
-            } else {
-              selectedPontoIds = [pId];
-              lastSelectedPontoId = pId;
-            }
-
-            atualizarDestaqueLinhasTabela();
-            selectPontoFromTabela(pId);
-          }
-        });
-
-        containerTabela.addEventListener('dblclick', (e) => {
-          const target = e.target as HTMLElement;
-          const linha = target.closest('.linha-ponto-tbl');
-          if (linha && !target.closest('.chk-ignorar-poligono')) {
-            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
-            if (pId) {
-              e.stopPropagation();
-              abrirModalEditarPonto(pId);
-            }
-          }
-        });
-
-        containerTabela.addEventListener('change', async (e) => {
-          const target = e.target as HTMLElement;
-          const chk = target.closest('.chk-ignorar-poligono') as HTMLInputElement;
-          if (chk) {
-            const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
-            if (!pId) return;
-            const ignorarVal = chk.checked ? 0 : 1;
-            try {
-              await fetch(`${API_BASE}/pontos/${pId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ignorar_poligono: ignorarVal })
-              });
-              loadLevantamentoDetails();
-            } catch (err) {
-              console.error("Erro ao alterar participação no polígono:", err);
-              alert("Erro ao alterar participação do ponto no polígono.");
-            }
-          }
-        });
-      }
-
-      if (containerReordenar) {
-        containerReordenar.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-
-          const btnTravar = target.closest('.btn-travar-ponto');
-          const btnSubir = target.closest('.btn-subir-simplificado');
-          const btnDescer = target.closest('.btn-descer-simplificado');
-
-          if (btnTravar) {
-            e.stopPropagation();
-            const ordem = parseInt(btnTravar.getAttribute('data-ordem') || '0');
-            const isTravado = travamentoInicio > 0 && travamentoFim >= travamentoInicio &&
-              ordem >= travamentoInicio && ordem <= travamentoFim;
-
-            if (isTravado) {
-              travamentoInicio = 0;
-              travamentoFim = 0;
-              travamentoInicioPontoId = null;
-              travamentoFimPontoId = null;
-            } else {
-              travamentoInicio = 1;
-              travamentoFim = ordem;
-              const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-              pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-              const pInicio = pontosMatCompleto[0];
-              const pFim = pontosMatCompleto[ordem - 1];
-              travamentoInicioPontoId = pInicio ? pInicio.id : null;
-              travamentoFimPontoId = pFim ? pFim.id : null;
-            }
-            renderListaReordenarSimplificada();
-            return;
-          }
-
-          if (btnSubir) {
-            e.stopPropagation();
-            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
-            if (pId) subirPontoSimplificado(pId);
-            return;
-          }
-
-          if (btnDescer) {
-            e.stopPropagation();
-            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
-            if (pId) descerPontoSimplificado(pId);
-            return;
-          }
-        });
-
-        const aplicarMudancaOrdem = (inp: HTMLInputElement) => {
-          const pId = parseInt(inp.getAttribute('data-ponto-id') || '0');
-          const oldVal = parseInt(inp.getAttribute('data-old-ordem') || '1');
-          const newVal = parseInt(inp.value || '0');
-          const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-          const totalPontos = pontosMatCompleto.length;
-
-          if (isNaN(newVal) || newVal < 1 || newVal > totalPontos) {
-            inp.value = oldVal.toString();
-            return;
-          }
-          if (newVal !== oldVal) {
-            moverPontoPosicao(pId, newVal);
-          }
-        };
-
-        containerReordenar.addEventListener('change', (e) => {
-          const target = e.target as HTMLElement;
-          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
-          if (inp) aplicarMudancaOrdem(inp);
-        });
-
-        containerReordenar.addEventListener('keydown', (e) => {
-          const target = e.target as HTMLElement;
-          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
-          if (inp && e.key === 'Enter') {
-            e.preventDefault();
-            inp.blur();
-          }
-        });
-      }
-
-      if (containerWorkspace) {
-        containerWorkspace.addEventListener('click', async (e) => {
-          const target = e.target as HTMLElement;
-
-          const btnVis = target.closest('.btn-visualizar-workspace');
-          const btnDownload = target.closest('.btn-download-workspace');
-          const btnDeletar = target.closest('.btn-deletar-workspace');
-
-          if (btnVis || btnDownload) {
-            const btn = (btnVis || btnDownload)!;
-            const cat = btn.getAttribute('data-cat') || '';
-            const nome = btn.getAttribute('data-nome') || '';
-            window.open(`${API_BASE}/levantamentos/${currentLevId}/arquivos/download?categoria=${cat}&nome=${encodeURIComponent(nome)}`, '_blank');
-            return;
-          }
-
-          if (btnDeletar) {
-            const cat = btnDeletar.getAttribute('data-cat') || '';
-            const nome = btnDeletar.getAttribute('data-nome') || '';
-
-            let confirmMsg = `Tem certeza que deseja excluir o arquivo '${nome}' do repositório físico?`;
-            if (cat === 'Processados' && nome.toLowerCase().endsWith('.txt')) {
-              confirmMsg += `\n\nATENÇÃO: A exclusão desta caderneta purgará automaticamente todos os pontos importados dela no banco de dados.`;
-            }
-
-            if (!confirm(confirmMsg)) return;
-
-            try {
-              const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/arquivos/deletar?categoria=${cat}&nome=${encodeURIComponent(nome)}`, {
-                method: 'DELETE'
-              });
-              const resData = await res.json();
-              if (resData.success) {
-                alert(resData.message);
-                loadWorkspaceArquivos();
-                if (resData.pontos_removidos > 0) {
-                  loadLevantamentoDetails();
-                }
-              } else {
-                alert(`Erro ao excluir: ${resData.error || resData.detail || 'Falha desconhecida'}`);
-              }
-            } catch (err) {
-              console.error("Erro ao deletar arquivo:", err);
-              alert("Erro de comunicação com o servidor API.");
-            }
-          }
-        });
-      }
-    };
-
-    const atualizarDestaqueLinhasTabela = () => {
-      document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
-        const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
-        const isSelected = selectedPontoIds.includes(pId);
-
-        if (isSelected) {
-          tr.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
-          tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
-        } else {
-          tr.classList.remove('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
-          tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
-        }
-      });
-    };
-
-    // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
-    const latLonToUTM = (lat: number, lon: number) => {
-      const sa = 6378137.0;
-      const sb = 6356752.314245;
-      const e2cuadrado = (sa * sa - sb * sb) / (sb * sb);
-      const c = sa * sa / sb;
-
-      const latRad = lat * Math.PI / 180;
-      const lonRad = lon * Math.PI / 180;
-
-      const zone = Math.floor((lon + 180) / 6) + 1;
-      const lonSMRad = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
-
-      const deltaLon = lonRad - lonSMRad;
-
-      const A = Math.cos(latRad) * Math.sin(deltaLon);
-      const xi = 0.5 * Math.log((1 + A) / (1 - A));
-      const eta = Math.atan(Math.tan(latRad) / Math.cos(deltaLon)) - latRad;
-
-      const nu = c / Math.sqrt(1 + e2cuadrado * Math.cos(latRad) * Math.cos(latRad));
-      const zeta = (e2cuadrado / 2) * xi * xi * Math.cos(latRad) * Math.cos(latRad);
-      const A1 = Math.sin(2 * latRad);
-      const A2 = A1 * Math.cos(latRad) * Math.cos(latRad);
-      const J2 = latRad + A1 / 2;
-      const J4 = (3 * J2 + A2) / 4;
-      const J6 = (5 * J4 + A2 * Math.cos(latRad) * Math.cos(latRad)) / 3;
-
-      const alpha = (3 / 4) * e2cuadrado;
-      const beta = (5 / 3) * alpha * alpha;
-      const gama = (35 / 27) * alpha * alpha * alpha;
-
-      const Bm = 0.9996 * c * (latRad - alpha * J2 + beta * J4 - gama * J6);
-
-      const e = xi * nu * 0.9996 * (1 + zeta / 3) + 500000;
-      let n = eta * nu * 0.9996 * (1 + zeta) + Bm;
-
-      if (n < 0) {
-        n = n + 10000000;
-      }
-
-      return { e, n, zone };
-    };
-
-    const atualizarPolilinhaMapaTemp = () => {
-      if (!triagemMap) return;
-      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
-
-      const pontosMat = etapaAtiva === 'geoprocessamento'
-        ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B')
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId);
-
-      mapaController.clearOverlays();
-
-      // Plota os marcadores (bolinhas) novamente para mantê-los visíveis e interativos!
-      mapaController.plotPontos(pontosMat, (pId) => {
-        selectPontoFromTabela(pId);
-      });
-
-      // Plota a polilinha conectando os pontos na nova sequência
-      mapaController.plotPolilinhaTemporaria(pontosMat);
-    };
-
-    const subirPonto = (pontoId: number) => {
-      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
-
-      const pontosMat = etapaAtiva === 'geoprocessamento'
-        ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId);
-
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const idx = pontosMat.findIndex(p => p.id === pontoId);
-      if (idx > 0) {
-        const p1 = pontosMat[idx];
-        const p2 = pontosMat[idx - 1];
-
-        const tempOrdem = p1.ordem_caminhamento || idx + 1;
-        p1.ordem_caminhamento = p2.ordem_caminhamento || idx;
-        p2.ordem_caminhamento = tempOrdem;
-
-        const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
-        if (btnSalvar) {
-          btnSalvar.classList.remove('hidden');
-          btnSalvar.classList.add('animate-pulse');
-        }
-
-        renderMatriculaDados();
-        atualizarPolilinhaMapaTemp();
-      }
-    };
-
-    const descerPonto = (pontoId: number) => {
-      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) return;
-
-      const pontosMat = etapaAtiva === 'geoprocessamento'
-        ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId);
-
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const idx = pontosMat.findIndex(p => p.id === pontoId);
-      if (idx !== -1 && idx < pontosMat.length - 1) {
-        const p1 = pontosMat[idx];
-        const p2 = pontosMat[idx + 1];
-
-        const tempOrdem = p1.ordem_caminhamento || idx + 1;
-        p1.ordem_caminhamento = p2.ordem_caminhamento || idx + 2;
-        p2.ordem_caminhamento = tempOrdem;
-
-        const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
-        if (btnSalvar) {
-          btnSalvar.classList.remove('hidden');
-          btnSalvar.classList.add('animate-pulse');
-        }
-
-        renderMatriculaDados();
-        atualizarPolilinhaMapaTemp();
-      }
-    };
-
-    const salvarRascunhoLocal = () => {
-      if (!currentLevId) return;
-      const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const draft = pontosMatCompleto.map(p => ({
-        id: p.id,
-        ordem: p.ordem_caminhamento
-      }));
-
-      localStorage.setItem(`rascunho_ordem_lev_${currentLevId}`, JSON.stringify(draft));
-    };
-
-    const verificarRascunhoLocal = () => {
-      if (!currentLevId) return;
-      const key = `rascunho_ordem_lev_${currentLevId}`;
-      const draftStr = localStorage.getItem(key);
-      if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        if (draft && draft.length > 0) {
-          const confirmar = confirm("Detectamos um rascunho de ordenação manual não salvo anteriormente. Deseja restaurar esse progresso?");
-          if (confirmar) {
-            draft.forEach((d: any) => {
-              const pt = pontosList.find(p => p.id === d.id);
-              if (pt) {
-                pt.ordem_caminhamento = d.ordem;
-              }
-            });
-            travamentoInicio = 0;
-            travamentoFim = 0;
-            travamentoInicioPontoId = null;
-            travamentoFimPontoId = null;
-            renderListaReordenarSimplificada();
-            atualizarPolilinhaMapaTemp();
-          } else {
-            localStorage.removeItem(key);
-          }
-        }
-      }
-    };
-
-    const moverPontoPosicao = (pontoId: number, novaPosicao: number) => {
-      const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const oldIdx = pontosMatCompleto.findIndex(p => p.id === pontoId);
-      if (oldIdx === -1) return;
-
-      const ordemOriginal = oldIdx + 1;
-
-      // Verifica se o ponto faz parte da sequência/faixa travada
-      const pertenceAoBlocoTravado = travamentoInicio > 0 && travamentoFim >= travamentoInicio &&
-        ordemOriginal >= travamentoInicio && ordemOriginal <= travamentoFim;
-
-      if (pertenceAoBlocoTravado) {
-        // --- MOVIMENTO EM BLOCO TRAVADO ---
-        const tamanhoBloco = (travamentoFim - travamentoInicio) + 1;
-
-        let novaPos = novaPosicao;
-        if (novaPos < 1) novaPos = 1;
-        if (novaPos > pontosMatCompleto.length - tamanhoBloco + 1) {
-          novaPos = pontosMatCompleto.length - tamanhoBloco + 1;
-        }
-
-        if (novaPos === travamentoInicio) {
-          renderListaReordenarSimplificada();
-          return;
-        }
-
-        // Remove o bloco completo do array
-        const idxInicioBloco = travamentoInicio - 1;
-        const blocoMovido = pontosMatCompleto.splice(idxInicioBloco, tamanhoBloco);
-
-        // Insere o bloco completo na nova posição
-        const novoIdxInsercao = novaPos - 1;
-        pontosMatCompleto.splice(novoIdxInsercao, 0, ...blocoMovido);
-
-        // Reatribui ordens sequencialmente
-        pontosMatCompleto.forEach((p, index) => {
-          p.ordem_caminhamento = index + 1;
-        });
-
-        // Atualiza a nova faixa travada
-        travamentoInicio = novaPos;
-        travamentoFim = novaPos + tamanhoBloco - 1;
-
-        renderListaReordenarSimplificada();
-        atualizarPolilinhaMapaTemp();
-        salvarRascunhoLocal();
-        return;
-      }
-
-      // --- MOVIMENTO DE PONTO LIVRE INDIVIDUAL ---
-      let newIdx = novaPosicao - 1;
-      if (travamentoInicio > 0 && travamentoFim >= travamentoInicio) {
-        const blocoInicioIdx = travamentoInicio - 1;
-        const blocoFimIdx = travamentoFim - 1;
-
-        // Se tentar inserir dentro da faixa travada, empurra para as bordas para manter o bloco intacto!
-        if (newIdx >= blocoInicioIdx && newIdx <= blocoFimIdx) {
-          if (oldIdx < blocoInicioIdx) {
-            newIdx = blocoInicioIdx;
-          } else {
-            newIdx = blocoFimIdx + 1;
-          }
-        }
-      }
-
-      if (newIdx < 0) newIdx = 0;
-      if (newIdx >= pontosMatCompleto.length) newIdx = pontosMatCompleto.length - 1;
-
-      if (oldIdx === newIdx) {
-        renderListaReordenarSimplificada();
-        return;
-      }
-
-      const [pontoMovido] = pontosMatCompleto.splice(oldIdx, 1);
-      pontosMatCompleto.splice(newIdx, 0, pontoMovido);
-
-      // Reatribui ordem de caminhamento sequencial (1 a N) sem repetição nem lacuna
-      pontosMatCompleto.forEach((p, index) => {
-        p.ordem_caminhamento = index + 1;
-      });
-
-      renderListaReordenarSimplificada();
-      atualizarPolilinhaMapaTemp();
-      salvarRascunhoLocal();
-    };
-
-    const renderListaReordenarSimplificada = () => {
-      const container = document.getElementById('lista-reordenar-simplificada');
-      if (!container) return;
-
-      const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-      const totalPontos = pontosMatCompleto.length;
-
-      // Recalcula a faixa de travamento atual com base nos IDs dos pontos
-      if (travamentoInicioPontoId !== null && travamentoFimPontoId !== null) {
-        const idxInicio = pontosMatCompleto.findIndex(p => p.id === travamentoInicioPontoId);
-        const idxFim = pontosMatCompleto.findIndex(p => p.id === travamentoFimPontoId);
-        if (idxInicio !== -1 && idxFim !== -1) {
-          travamentoInicio = Math.min(idxInicio, idxFim) + 1;
-          travamentoFim = Math.max(idxInicio, idxFim) + 1;
-        } else {
-          travamentoInicio = 0;
-          travamentoFim = 0;
-          travamentoInicioPontoId = null;
-          travamentoFimPontoId = null;
-        }
-      } else {
-        travamentoInicio = 0;
-        travamentoFim = 0;
-      }
-
-      // Atualiza o indicador textual no cabeçalho
-      const txtFaixa = document.getElementById('txt-faixa-travada');
-      if (txtFaixa) {
-        if (travamentoInicio > 0 && travamentoFim >= travamentoInicio) {
-          txtFaixa.innerText = `${travamentoInicio} a ${travamentoFim}`;
-        } else {
-          txtFaixa.innerText = "Nenhum";
-        }
-      }
-
-      if (totalPontos === 0) {
-        container.innerHTML = `<div class="text-white/20 p-8 text-center">Nenhum ponto para ordenar.</div>`;
-        return;
-      }
-
-      // Aplica o filtro de busca se houver
-      let pontosMatFiltrados = [...pontosMatCompleto];
-      if (searchFilterOrdenadorValue.trim()) {
-        const query = searchFilterOrdenadorValue.toLowerCase().trim();
-        pontosMatFiltrados = pontosMatFiltrados.filter(p =>
-          (p.nome_vertice && p.nome_vertice.toLowerCase().includes(query)) ||
-          (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(query)) ||
-          (p.tipo && p.tipo.toLowerCase().includes(query))
-        );
-      }
-
-      if (pontosMatFiltrados.length === 0) {
-        container.innerHTML = `<div class="text-white/20 p-8 text-center">Nenhum ponto encontrado com "${searchFilterOrdenadorValue}".</div>`;
-        return;
-      }
-
-      container.innerHTML = pontosMatFiltrados.map((p) => {
-        const ordemOriginal = pontosMatCompleto.findIndex(orig => orig.id === p.id) + 1;
-        const isTravado = travamentoInicio > 0 && travamentoFim >= travamentoInicio &&
-          ordemOriginal >= travamentoInicio && ordemOriginal <= travamentoFim;
-
-        return `
-        <div class="flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded-technical text-xs font-mono transition-all duration-300 linha-ponto-ordenador hover:border-mint-vibrant/25 hover:bg-white/[0.04] ${isTravado ? 'border-mint-vibrant/30 bg-mint-vibrant/[0.03] font-semibold' : ''}" id="ordenador-item-${p.id}">
-          <div class="flex items-center gap-2">
-            <!-- Cadeado de travamento -->
-            <button class="btn-travar-ponto p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" 
-                    data-ponto-id="${p.id}" 
-                    data-ordem="${ordemOriginal}" 
-                    title="${isTravado ? 'Destravar esta sequência' : 'Travar até este ponto'}" 
-                    type="button">
-              <i data-lucide="${isTravado ? 'lock' : 'unlock'}" class="w-3.5 h-3.5 ${isTravado ? 'text-mint-vibrant' : 'text-white/40'}"></i>
-            </button>
-            <input type="number" 
-                   class="input-ordem-direta text-center text-[10px] bg-mint-vibrant/10 text-mint-vibrant font-bold border border-mint-vibrant/25 rounded w-10 focus:outline-none focus:border-mint-vibrant focus:ring-1 focus:ring-mint-vibrant/30 py-0.5 px-1 font-mono transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                   min="1" 
-                   max="${totalPontos}" 
-                   value="${ordemOriginal}" 
-                   data-ponto-id="${p.id}"
-                   data-old-ordem="${ordemOriginal}" />
-            <span class="font-bold text-white">${p.nome_vertice}</span>
-            <span class="text-[9px] text-white/30">(${p.tipo_ponto || p.tipo})</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button class="btn-subir-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-              <i data-lucide="chevron-up" class="w-4 h-4"></i>
-            </button>
-            <button class="btn-descer-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-              <i data-lucide="chevron-down" class="w-4 h-4"></i>
-            </button>
-          </div>
-        </div>
-      `;
-      }).join('');
-
-      // Atrela listeners nos cadeados de travamento
-      // Event listeners delegados por setupEventDelegation()
-
-      initIcons();
-    };
-
-    const subirPontoSimplificado = (pontoId: number) => {
-      const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const idx = pontosMat.findIndex(p => p.id === pontoId);
-      if (idx > 0) {
-        moverPontoPosicao(pontoId, idx);
-      }
-    };
-
-    const descerPontoSimplificado = (pontoId: number) => {
-      const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-      const idx = pontosMat.findIndex(p => p.id === pontoId);
-      if (idx !== -1 && idx < pontosMat.length - 1) {
-        moverPontoPosicao(pontoId, idx + 2);
-      }
-    };
-
-    const alternarModoReordenarManual = (ativo: boolean) => {
-      modoReordenarAtivo = ativo;
-      const btnAtivar = document.getElementById('btn-ativar-reordenacao');
-      const containerIngestao = document.getElementById('container-ingestao-arquivos');
-      const containerReordenar = document.getElementById('container-reordenar-manual');
-      const header = document.getElementById('mesa-trabalho-header');
-      const gridSuperior = document.getElementById('grid-superior-detalhe');
-
-      if (ativo) {
-        if (btnAtivar) {
-          btnAtivar.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
-          btnAtivar.classList.add('border-mint-vibrant/40');
-        }
-        if (containerIngestao) containerIngestao.classList.add('hidden');
-        if (containerReordenar) {
-          containerReordenar.classList.remove('hidden');
-        }
-        if (gridSuperior) {
-          gridSuperior.style.height = '680px';
-        }
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) splitterSup.classList.remove('hidden');
-        if (header) {
-          header.classList.add('hidden');
-        }
-
-        // Verifica se existe rascunho salvo antes de carregar
-        verificarRascunhoLocal();
-        renderListaReordenarSimplificada();
-      } else {
-        if (btnAtivar) {
-          btnAtivar.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-          btnAtivar.classList.remove('border-mint-vibrant/40');
-        }
-        if (containerIngestao) containerIngestao.classList.remove('hidden');
-        if (containerReordenar) {
-          containerReordenar.classList.add('hidden');
-        }
-        if (gridSuperior) {
-          gridSuperior.style.height = '480px';
-        }
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) {
-          if (containerIngestao && !containerIngestao.classList.contains('ingestao-collapsed')) {
-            splitterSup.classList.remove('hidden');
-          } else {
-            splitterSup.classList.add('hidden');
-          }
-        }
-        if (header) {
-          header.classList.remove('hidden');
-        }
-
-        // Reseta estados locais temporários
-        modoCliqueSequencialAtivo = false;
-        travamentoInicio = 0;
-        travamentoFim = 0;
-        sequenciaCliqueProximoIndice = null;
-        mapaController.modoCliqueSequencialAtivo = false;
-
-        // Reset visual do botão se aplicável
-        const btnCliqueSequencial = document.getElementById('btn-toggle-clique-sequencial');
-        if (btnCliqueSequencial) {
-          btnCliqueSequencial.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-          btnCliqueSequencial.classList.remove('border-mint-vibrant/40');
-          const iconClique = document.getElementById('icon-clique-sequencial');
-          if (iconClique) {
-            iconClique.setAttribute('data-lucide', 'play');
-            iconClique.classList.remove('animate-pulse');
-          }
-          const txtClique = document.getElementById('txt-clique-sequencial');
-          if (txtClique) txtClique.innerText = "Caminhar por Clique";
-        }
-
-        loadLevantamentoDetails();
-      }
-
-      if (triagemMap) {
-        setTimeout(() => triagemMap!.invalidateSize(), 150);
-      }
-    };
-
-    const initTriagemMap = () => {
-      triagemMap = mapaController.init('mapa-triagem');
-    };
-
-    const loadLevantamentoDetails = async () => {
-      if (!currentLevId) return;
+    // 4. Implementação de Funções Centrais / Globais
+    ctx.loadLevantamentoDetails = async () => {
+      if (!ctx.currentLevId) return;
 
       try {
-        // Busca o levantamento ativo
         const resLev = await fetch(`${API_BASE}/levantamentos`);
         const allLevs = await resLev.json();
-        const levObj = allLevs.find((l: any) => l.id === currentLevId);
+        const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
+        ctx.currentLevantamento = levObj;
 
         if (levObj) {
           const badgeStatus = document.getElementById('badge-status-lev');
           if (badgeStatus) {
             badgeStatus.innerText = levObj.status;
-            
-            // Reseta classes de status antigas
             badgeStatus.className = "text-[9px] px-2 py-0.5 rounded-full font-mono uppercase font-semibold tracking-wider border transition-all";
             
-            // Aplica estilo dinâmico com base no status do levantamento
             if (levObj.status === 'EM_ANDAMENTO' || levObj.status === 'ATIVO') {
               badgeStatus.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/25');
-              badgeStatus.classList.add('status-em-andamento'); // Ativa animação CSS
+              badgeStatus.classList.add('status-em-andamento');
             } else if (levObj.status === 'ARQUIVADO') {
               badgeStatus.classList.add('bg-white/5', 'text-white/40', 'border-white/10');
-              badgeStatus.classList.remove('status-em-andamento');
-            } else { // Ex: FINALIZADO
+            } else {
               badgeStatus.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/25');
-              badgeStatus.classList.remove('status-em-andamento');
             }
           }
 
@@ -853,32 +170,30 @@ export const mesaTrabalhoRoute: RouteDef = {
           }
         }
 
-        // Fetch paralelo de dependências
         const [resMat, resPt, resSeg, resConf] = await Promise.all([
-          fetch(`${API_BASE}/levantamentos/${currentLevId}/matriculas`),
-          fetch(`${API_BASE}/levantamentos/${currentLevId}/pontos`),
-          fetch(`${API_BASE}/levantamentos/${currentLevId}/segmentos`),
-          fetch(`${API_BASE}/levantamentos/${currentLevId}/confrontantes`)
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/segmentos`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`)
         ]);
 
-        matriculasList = await resMat.json();
-        pontosList = await resPt.json();
-        segmentosList = await resSeg.json();
-        confrontantesList = await resConf.json();
+        ctx.matriculasList = await resMat.json();
+        ctx.pontosList = await resPt.json();
+        ctx.segmentosList = await resSeg.json();
+        ctx.confrontantesList = await resConf.json();
 
-        carregarConfrontantesAtivosSelect();
+        ctx.carregarConfrontantesAtivosSelect();
 
-        // Abas de Matrículas
         const abasContainer = document.getElementById('container-abas-matriculas');
         if (abasContainer) {
-          if (matriculasList.length === 0) {
+          if (ctx.matriculasList.length === 0) {
             abasContainer.innerHTML = `
               <div class="flex items-center gap-2 p-1 shrink-0">
-                <span class="text-xs text-white/30 font-mono">[Nenhuma Matrícula Cadastrada - Cadastre-a em "Propriedades"]</span>
+                <span class="text-xs text-white/30 font-mono">[Nenhuma Matrícula Cadastrada]</span>
               </div>
             `;
           } else {
-            let abasHtml = matriculasList.map((m) => `
+            let abasHtml = ctx.matriculasList.map((m) => `
               <button class="px-4 py-3 md:py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-all btn-mat-tab whitespace-nowrap active:scale-95" data-mat-id="${m.id}" type="button">
                 Matrícula ${m.numero_matricula}
               </button>
@@ -889,28 +204,27 @@ export const mesaTrabalhoRoute: RouteDef = {
             document.querySelectorAll('.btn-mat-tab').forEach(b => {
               b.addEventListener('click', () => {
                 const mId = parseInt(b.getAttribute('data-mat-id') || '0');
-                switchMatriculaTab(mId);
+                ctx.switchMatriculaTab(mId);
               });
             });
 
-            if (currentMatriculaId === null && matriculasList.length > 0) {
-              switchMatriculaTab(matriculasList[0].id);
-            } else if (currentMatriculaId !== null) {
-              switchMatriculaTab(currentMatriculaId);
+            if (ctx.currentMatriculaId === null && ctx.matriculasList.length > 0) {
+              ctx.switchMatriculaTab(ctx.matriculasList[0].id);
+            } else if (ctx.currentMatriculaId !== null) {
+              ctx.switchMatriculaTab(ctx.currentMatriculaId);
             }
           }
         }
 
-        initTriagemMap();
-        renderFilaArquivos();
-        loadWorkspaceArquivos();
-        alternarEtapa(etapaAtiva);
+        inicializarMapOnce();
+        ctx.renderFilaArquivos();
+        ctx.loadWorkspaceArquivos();
+        ctx.alternarEtapa(ctx.etapaAtiva);
         
-        // Carrega sugestões de numeração e pontos homologados do Banco de Pontos
-        carregarSugestoesNumeracao();
+        ctx.carregarSugestoesNumeracao();
         if (levObj && levObj.profissional_id) {
-          currentProfissionalId = levObj.profissional_id;
-          carregarHomologacaoDados(levObj.profissional_id);
+          ctx.currentProfissionalId = levObj.profissional_id;
+          ctx.carregarHomologacaoDados(levObj.profissional_id);
         }
 
       } catch (e) {
@@ -918,91 +232,53 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
-    const loadWorkspaceArquivos = async () => {
-      if (!currentLevId) return;
-      const container = document.getElementById('container-workspace-arquivos');
-      if (!container) return;
+    const inicializarMapOnce = () => {
+      if (!ctx.triagemMap) {
+        ctx.triagemMap = ctx.mapaController.init('mapa-triagem');
+        
+        // Listener de cliques sequenciais no mapa Leaflet
+        ctx.triagemMap?.on('popupopen', (e: any) => {
+          if (!ctx.modoCliqueSequencialAtivo) return;
+          
+          const popup = e.popup;
+          const content = popup.getContent();
+          
+          if (typeof content === 'string' && content.includes('btn-selecionar-clique-seq')) {
+            setTimeout(() => {
+              const btnEl = document.querySelector('.btn-selecionar-clique-seq') as HTMLButtonElement;
+              if (btnEl) {
+                btnEl.onclick = () => {
+                  const pId = parseInt(btnEl.getAttribute('data-ponto-id') || '0');
+                  if (pId) {
+                    // Executa a injeção sequencial do ponto na lista
+                    const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+                    pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
 
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/arquivos`);
-        const data = await res.json();
-        if (data.error) {
-          container.innerHTML = `<div class="text-red-400 p-8 text-center col-span-full">${data.error}</div>`;
-          return;
-        }
+                    const ptParaMover = ctx.pontosList.find(p => p.id === pId);
+                    if (ptParaMover) {
+                      if (ctx.sequenciaCliqueProximoIndice === null) {
+                        ctx.sequenciaCliqueProximoIndice = 1;
+                      }
 
-        const categoriasMap: { [key: string]: { label: string; icone: string; color: string; desc: string } } = {
-          "Brutos": { label: "1. Brutos", icone: "file-box", color: "text-orange-400 bg-orange-500/10 border-orange-500/20", desc: "Binários .GNS / Cadernetas brutos" },
-          "Rinex": { label: "2. Rinex", icone: "file-digit", color: "text-blue-400 bg-blue-500/10 border-blue-500/20", desc: "Arquivos de Observação/Navegação" },
-          "Processados": { label: "3. Pós-Processados", icone: "cpu", color: "text-mint-vibrant bg-mint-vibrant/10 border-mint-vibrant/20", desc: "Corrigidos / PPP / Processados HGO" },
-          "Exportacoes": { label: "4. Exportações", icone: "file-symlink", color: "text-purple-400 bg-purple-500/10 border-purple-500/20", desc: "KML gerados / DXF / Shapes" },
-          "Documentos": { label: "5. Documentos", icone: "file-text", color: "text-pink-400 bg-pink-500/10 border-pink-500/20", desc: "DADOS_GERAIS.json / Snapshots" }
-        };
-
-        container.innerHTML = Object.keys(categoriasMap).map(cat => {
-          const info = categoriasMap[cat];
-          let arquivos = data[cat] || [];
-
-          if (cat === "Rinex") {
-            arquivos = arquivos.filter((f: any) => {
-              const nameLower = f.nome.toLowerCase();
-              return nameLower.endsWith('.obs') || nameLower.endsWith('.o') || /\.\d{2}o$/.test(nameLower);
-            });
+                      ctx.moverPontoPosicao(pId, ctx.sequenciaCliqueProximoIndice);
+                      ctx.sequenciaCliqueProximoIndice++;
+                    }
+                    ctx.triagemMap?.closePopup();
+                  }
+                };
+              }
+            }, 10);
           }
-
-          const arquivosHtml = arquivos.length === 0
-            ? `<div class="text-[9px] text-white/20 italic py-3 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-technical">Pasta vazia</div>`
-            : arquivos.map((f: any) => `
-              <div class="flex items-center justify-between p-2.5 md:p-1.5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 rounded-technical text-xs md:text-[10px] gap-2 md:gap-1.5 transition-all group/item">
-                <div class="min-w-0 flex-1">
-                  <p class="font-mono text-white truncate font-medium" title="${f.nome}">${f.nome}</p>
-                  <p class="text-[8px] text-white/30 font-mono mt-0.5">${f.tamanho} • ${f.modificado}</p>
-                </div>
-                <div class="flex items-center gap-3 md:gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-                  <button class="btn-visualizar-workspace text-blue-400 hover:text-white p-3 md:p-0.5 hover:bg-blue-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar Arquivo">
-                    <i data-lucide="eye" class="w-3 h-3"></i>
-                  </button>
-                  <button class="btn-download-workspace text-mint-vibrant hover:text-white p-3 md:p-0.5 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Download do Arquivo">
-                    <i data-lucide="download" class="w-3 h-3"></i>
-                  </button>
-                  <button class="btn-deletar-workspace text-red-400 hover:text-white p-3 md:p-0.5 hover:bg-red-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Excluir Arquivo do Workspace">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                  </button>
-                </div>
-              </div>
-            `).join('');
-
-          return `
-            <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-xl p-2.5 space-y-2">
-              <div class="border-b border-white/5 pb-1.5">
-                <div class="flex items-center gap-1 font-bold text-xs text-white">
-                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border ${info.color}">${info.label}</span>
-                </div>
-                <p class="text-[8px] text-white/30 mt-0.5">${info.desc}</p>
-              </div>
-              <div class="flex-1 overflow-y-auto space-y-1.5 max-h-[115px] pr-1">
-                ${arquivosHtml}
-              </div>
-            </div>
-          `;
-        }).join('');
-
-        initIcons();
-
-        // Event listeners delegados por setupEventDelegation()
-
-      } catch (e) {
-        console.error("Erro ao carregar arquivos do Workspace:", e);
-        container.innerHTML = `<div class="text-red-400 p-8 text-center col-span-full">Falha de conexão com o servidor API.</div>`;
+        });
       }
     };
 
-    const switchMatriculaTab = (matriculaId: number) => {
-      currentMatriculaId = matriculaId;
+    ctx.switchMatriculaTab = (matriculaId: number) => {
+      ctx.currentMatriculaId = matriculaId;
 
       document.querySelectorAll('.btn-mat-tab').forEach(b => {
         const id = parseInt(b.getAttribute('data-mat-id') || '0');
-        if (id === currentMatriculaId) {
+        if (id === ctx.currentMatriculaId) {
           b.classList.replace('border-transparent', 'border-mint-vibrant');
           b.classList.replace('text-white/40', 'text-mint-vibrant');
         } else {
@@ -1011,35 +287,33 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
       });
 
-      const matObj = matriculasList.find(m => m.id === currentMatriculaId);
+      const matObj = ctx.matriculasList.find(m => m.id === ctx.currentMatriculaId);
       const txtMat = document.getElementById('txt-nome-matricula-ativa');
       if (txtMat && matObj) {
         txtMat.textContent = `Nº ${matObj.numero_matricula} (${matObj.area_ha || matObj.area || '0'}ha)`;
       }
 
-      renderMatriculaDados();
-      carregarConfrontantesAtivosSelect();
-      if (currentProfissionalId !== null) {
-        carregarHomologacaoDados(currentProfissionalId);
+      ctx.renderMatriculaDados();
+      ctx.carregarConfrontantesAtivosSelect();
+      if (ctx.currentProfissionalId !== null) {
+        ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
       }
 
-      if (triagemMap) {
+      if (ctx.triagemMap) {
         setTimeout(() => {
-          triagemMap!.invalidateSize();
-          const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
+          ctx.triagemMap!.invalidateSize();
+          const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
           const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map(p => L.latLng(p.lat, p.lon));
           if (validCoords.length > 0) {
             const bounds = L.latLngBounds(validCoords);
-            triagemMap!.fitBounds(bounds, { padding: [40, 40] });
+            ctx.triagemMap!.fitBounds(bounds, { padding: [40, 40] });
           }
         }, 100);
       }
     };
 
-
-
-    const alternarEtapa = (etapa: string) => {
-      etapaAtiva = etapa;
+    ctx.alternarEtapa = (etapa: string) => {
+      ctx.etapaAtiva = etapa;
 
       const btnGeo = document.getElementById('btn-etapa-geoprocessamento');
       const btnCart = document.getElementById('btn-etapa-cartorio');
@@ -1079,9 +353,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.remove('hidden');
-        if (gridSuperior) {
-          gridSuperior.classList.remove('hidden');
-        }
+        if (gridSuperior) gridSuperior.classList.remove('hidden');
         const splitterSup = document.getElementById('splitter-superior');
         if (splitterSup) {
           if (containerIngestao && !containerIngestao.classList.contains('ingestao-collapsed')) {
@@ -1094,9 +366,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (splitterInf) splitterInf.classList.add('hidden');
 
         if (containerDivisas) containerDivisas.classList.add('hidden');
-        if (containerTabelas) {
-          containerTabelas.classList.remove('hidden');
-        }
+        if (containerTabelas) containerTabelas.classList.remove('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
         if (lblTituloLateral) lblTituloLateral.innerText = "Auditoria de Translação Geodésica";
         if (badgeLateral) {
@@ -1112,9 +382,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
-        if (gridSuperior) {
-          gridSuperior.classList.remove('hidden');
-        }
+        if (gridSuperior) gridSuperior.classList.remove('hidden');
         const splitterSup = document.getElementById('splitter-superior');
         if (splitterSup) splitterSup.classList.add('hidden');
         
@@ -1122,9 +390,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (splitterInf) splitterInf.classList.remove('hidden');
 
         if (containerDivisas) containerDivisas.classList.remove('hidden');
-        if (containerTabelas) {
-          containerTabelas.classList.remove('hidden');
-        }
+        if (containerTabelas) containerTabelas.classList.remove('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
         if (lblTituloLateral) lblTituloLateral.innerText = "Segmentos de Divisa (Confrontantes)";
         if (badgeLateral) {
@@ -1133,7 +399,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
         if (btnSalvarPerimetro) btnSalvarPerimetro.classList.remove('hidden');
         if (panelHomologacao) panelHomologacao.classList.remove('hidden');
-        carregarSugestoesNumeracao();
+        ctx.carregarSugestoesNumeracao();
       } else if (etapa === 'auditoria') {
         if (bannerSugestao) bannerSugestao.classList.add('hidden');
         if (panelHomologacao) panelHomologacao.classList.add('hidden');
@@ -1150,1334 +416,317 @@ export const mesaTrabalhoRoute: RouteDef = {
         const splitterInf = document.getElementById('splitter-inferior');
         if (splitterInf) splitterInf.classList.add('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.remove('hidden');
-        renderHistoricoCampo();
+        renderHistoricoCampo(ctx);
       }
 
       initIcons();
-      if (triagemMap && etapa !== 'auditoria') {
+      if (ctx.triagemMap && etapa !== 'auditoria') {
         setTimeout(() => {
-          triagemMap!.invalidateSize();
+          ctx.triagemMap!.invalidateSize();
         }, 50);
       }
 
       if (etapa !== 'auditoria') {
-        renderMatriculaDados();
+        ctx.renderMatriculaDados();
       }
     };
 
-    const renderHistoricoCampo = async () => {
-      const timeline = document.getElementById('timeline-historico-campo');
-      if (!timeline || !currentLevId) return;
-
-      try {
-        timeline.innerHTML = `<div class="text-center py-8 text-white/30 flex flex-col items-center justify-center gap-2"><i data-lucide="refresh-cw" class="w-6 h-6 animate-spin text-mint-vibrant"></i> Carregando linha do tempo...</div>`;
-        initIcons();
-
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/historico-campo`);
-        const logs = await res.json();
-
-        if (logs.length === 0) {
-          timeline.innerHTML = `<div class="text-center py-8 text-white/30 border border-white/5 bg-white/[0.01] rounded-technical">Nenhum evento registrado nesta auditoria de campo.</div>`;
-          return;
-        }
-
-        timeline.innerHTML = logs.map((log: any) => renderHistoricoTimelineHtml(log)).join('');
-
-        initIcons();
-      } catch (err) {
-        console.error("Erro ao carregar histórico de campo:", err);
-        timeline.innerHTML = `<div class="text-center py-8 text-red-400 border border-red-500/10 bg-red-500/[0.01] rounded-technical">Erro ao carregar auditoria de campo.</div>`;
+    ctx.renderMatriculaDados = () => {
+      if (ctx.etapaAtiva === 'geoprocessamento') {
+        renderTabelaMesaGeodesica(ctx);
+      } else if (ctx.etapaAtiva === 'cartorio') {
+        renderTabelaOrganizadorPerimetro(ctx);
       }
     };
 
-    const renderMatriculaDados = () => {
-      if (!currentMatriculaId && etapaAtiva !== 'geoprocessamento') return;
+    ctx.atualizarPolilinhaMapaTemp = () => {
+      if (!ctx.triagemMap) return;
+      if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
-      const isIgnoradoOuBase = (p: any) => p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
+      const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
+        ? ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B')
+        : ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
 
-      let pontosMat = etapaAtiva === 'geoprocessamento'
-        ? [...pontosList]
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-
-      // Calcula o mapa de ordem real estável de caminhamento antes de qualquer filtro
-      const pontosOrdenadosOriginal = [...pontosMat].sort((a, b) => {
-        const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
-        const isIgnB = isIgnoradoOuBase(b) ? 1 : 0;
-        if (isIgnA !== isIgnB) return isIgnB - isIgnA;
-        if (isIgnA === 1) return a.nome_vertice.localeCompare(b.nome_vertice);
-        const valA = a.ordem_caminhamento;
-        const valB = b.ordem_caminhamento;
-        const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);
-        const numB = typeof valB === 'number' ? valB : (parseInt(valB) || 999999);
-        return numA - numB;
+      ctx.mapaController.clearOverlays();
+      ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
+        ctx.selectPontoFromTabela(pId);
       });
-
-      let seqReal = 1;
-      const mapaOrdemReal = new Map<number, string | number>();
-      pontosOrdenadosOriginal.forEach((p) => {
-        const isIgn = isIgnoradoOuBase(p);
-        mapaOrdemReal.set(p.id, isIgn ? '-' : seqReal++);
-      });
-
-      // Calcula as contagens dinâmicas de filtros rápidos antes de aplicar o filtro ativo
-      const totalTodos = pontosMat.length;
-      const totalBases = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B').length;
-      const totalRovers = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B').length;
-      const totalBrutos = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO').length;
-      const totalCorrigidos = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO').length;
-
-      // Injeta os textos de contagem nos botões correspondentes
-      const btnTodos = document.querySelector('.btn-filtro-rapido[data-filtro="todos"]');
-      if (btnTodos) btnTodos.textContent = `Todos (${totalTodos})`;
-      
-      const btnBases = document.querySelector('.btn-filtro-rapido[data-filtro="bases"]');
-      if (btnBases) btnBases.textContent = `Bases (M/B) (${totalBases})`;
-      
-      const btnRovers = document.querySelector('.btn-filtro-rapido[data-filtro="rovers"]');
-      if (btnRovers) btnRovers.textContent = `Rovers (P/V) (${totalRovers})`;
-      
-      const btnBrutos = document.querySelector('.btn-filtro-rapido[data-filtro="brutos"]');
-      if (btnBrutos) btnBrutos.textContent = `Brutos (${totalBrutos})`;
-      
-      const btnCorrigidos = document.querySelector('.btn-filtro-rapido[data-filtro="corrigidos"]');
-      if (btnCorrigidos) btnCorrigidos.textContent = `Corrigidos (${totalCorrigidos})`;
-
-      if (ocultarForaPoligono) {
-        pontosMat = pontosMat.filter(p => p.ignorar_poligono !== 1);
-      }
-
-      if (filtroRapidoAtivo !== 'todos') {
-        if (filtroRapidoAtivo === 'bases') {
-          pontosMat = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
-        } else if (filtroRapidoAtivo === 'rovers') {
-          pontosMat = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-        } else if (filtroRapidoAtivo === 'brutos') {
-          pontosMat = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
-        } else if (filtroRapidoAtivo === 'corrigidos') {
-          pontosMat = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO');
-        }
-      }
-
-      if (searchFilterValue) {
-        pontosMat = pontosMat.filter(p =>
-          (p.nome_vertice && p.nome_vertice.toLowerCase().includes(searchFilterValue)) ||
-          (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(searchFilterValue)) ||
-          (p.tipo && p.tipo.toLowerCase().includes(searchFilterValue)) ||
-          (p.arquivo_origem && p.arquivo_origem.toLowerCase().includes(searchFilterValue)) ||
-          (p.ordem_caminhamento && String(p.ordem_caminhamento).includes(searchFilterValue))
-        );
-      }
-      const segmentosMat = etapaAtiva === 'geoprocessamento'
-        ? []
-        : segmentosList.filter(s => s.matricula_id === currentMatriculaId);
-
-      const containerTabelaDivisas = document.getElementById('container-tabela-divisas');
-      const splitterInf = document.getElementById('splitter-inferior');
-
-      if (etapaAtiva === 'geoprocessamento') {
-        if (containerTabelaDivisas) containerTabelaDivisas.classList.add('hidden');
-        if (splitterInf) splitterInf.classList.add('hidden');
-      } else {
-        if (containerTabelaDivisas) containerTabelaDivisas.classList.remove('hidden');
-        if (splitterInf) splitterInf.classList.remove('hidden');
-      }
-
-      if (triagemMap) {
-        const bpAtivo = bancoPontosExibido && bancoPontosList.length > 0;
-        mapaController.clearOverlays(bpAtivo);
-        mapaController.plotPontos(pontosMat, (pId) => {
-          selectPontoFromTabela(pId);
-        });
-
-        if (etapaAtiva !== 'geoprocessamento') {
-          mapaController.plotSegmentos(segmentosMat, pontosList);
-        } else {
-          mapaController.plotPolilinhaTemporaria(pontosMat);
-        }
-
-        if (bpAtivo) {
-          mapaController.plotPoligonalHomologada(bancoPontosList);
-        }
-
-        mapaController.fitBounds(pontosMat);
-      }
-
-      const tblHeader = document.getElementById('tbl-pontos-header');
-      if (tblHeader) {
-        if (etapaAtiva === 'cartorio') {
-          tblHeader.innerHTML = `
-              <th class="px-4 py-3 text-center w-[110px] resizable-col cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ordem ${currentSortColumn === 'ordem' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-              <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${currentSortColumn === 'nome' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-              <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${currentSortColumn === 'tipo' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-              <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_este_lat">${modoCoordenadas === 'geodesico' ? 'Latitude' : 'Este (E)'} ${currentSortColumn === 'este' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-              <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_norte_lon">${modoCoordenadas === 'geodesico' ? 'Longitude' : 'Norte (N)'} ${currentSortColumn === 'norte' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-              <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_altitude">Altitude (m) ${currentSortColumn === 'altitude' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-            `;
-        } else {
-          if (modoCoordenadas === 'geodesico') {
-            tblHeader.innerHTML = `
-                 <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${currentSortColumn === 'ordem' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${currentSortColumn === 'nome' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${currentSortColumn === 'tipo' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_lat_bruta">Lat Bruta ${currentSortColumn === 'norte_bruto' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_lon_bruta">Lon Bruta ${currentSortColumn === 'este_bruto' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_lat_corr">Lat Corr ${currentSortColumn === 'norte' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_lon_corr">Lon Corr ${currentSortColumn === 'este' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-alt-bruta" data-col-id="col_vertice_alt_bruta">Alt Bruta ${currentSortColumn === 'alt_bruta' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_alt_corr">Alt Corr ${currentSortColumn === 'altitude' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_poligono">Políg</th>
-                 <th class="px-4 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status">Status ${currentSortColumn === 'status' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-               `;
-          } else {
-            tblHeader.innerHTML = `
-                 <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${currentSortColumn === 'ordem' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${currentSortColumn === 'nome' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${currentSortColumn === 'tipo' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_n_bruto">Norte Bruto ${currentSortColumn === 'norte_bruto' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_e_bruto">Este Bruto ${currentSortColumn === 'este_bruto' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_n_corr">Norte Corr ${currentSortColumn === 'norte' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_e_corr">Este Corr ${currentSortColumn === 'este' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-n" data-col-id="col_vertice_dn">Δ N (mm) ${currentSortColumn === 'delta_n' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-e" data-col-id="col_vertice_de">Δ E (mm) ${currentSortColumn === 'delta_e' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-h" data-col-id="col_vertice_dh">Δ H (mm) ${currentSortColumn === 'delta_h' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-                 <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_poligono">Políg</th>
-                 <th class="px-4 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status">Status ${currentSortColumn === 'status' ? (currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-               `;
-          }
-        }
-
-        const setupSortHeader = (id: string, column: string) => {
-          const btn = document.getElementById(id);
-          if (btn) {
-            btn.onclick = () => {
-              if (currentSortColumn === column) {
-                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
-              } else {
-                currentSortColumn = column;
-                currentSortDirection = 'asc';
-              }
-              renderMatriculaDados();
-            };
-          }
-        };
-
-        setupSortHeader('header-sort-ordem', 'ordem');
-        setupSortHeader('header-sort-nome', 'nome');
-        setupSortHeader('header-sort-tipo', 'tipo');
-        setupSortHeader('header-sort-este', 'este');
-        setupSortHeader('header-sort-norte', 'norte');
-        setupSortHeader('header-sort-altitude', 'altitude');
-        setupSortHeader('header-sort-norte-bruto', 'norte_bruto');
-        setupSortHeader('header-sort-este-bruto', 'este_bruto');
-        setupSortHeader('header-sort-alt-bruta', 'alt_bruta');
-        setupSortHeader('header-sort-delta-n', 'delta_n');
-        setupSortHeader('header-sort-delta-e', 'delta_e');
-        setupSortHeader('header-sort-delta-h', 'delta_h');
-        setupSortHeader('header-sort-status', 'status');
-      }
-
-      const listPt = document.getElementById('tbl-pontos-triagem');
-      if (listPt) {
-        if (pontosMat.length === 0) {
-          listPt.innerHTML = `<tr><td colspan="${etapaAtiva === 'cartorio' ? 6 : 12}" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
-        } else {
-          pontosMat.sort((a, b) => {
-            let valA: any;
-            let valB: any;
-            let isNumeric = false;
-
-            if (currentSortColumn === 'ordem') {
-              const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
-              const isIgnB = isIgnoradoOuBase(b) ? 1 : 0;
-              if (isIgnA !== isIgnB) {
-                return isIgnB - isIgnA; // Ignorados/bases sempre no topo
-              }
-              if (isIgnA === 1) {
-                return a.nome_vertice.localeCompare(b.nome_vertice);
-              }
-              const valAOrdem = a.ordem_caminhamento;
-              const valBOrdem = b.ordem_caminhamento;
-              const numA = typeof valAOrdem === 'number' ? valAOrdem : (parseInt(valAOrdem) || 999999);
-              const numB = typeof valBOrdem === 'number' ? valBOrdem : (parseInt(valBOrdem) || 999999);
-              return currentSortDirection === 'asc' ? numA - numB : numB - numA;
-            } else if (currentSortColumn === 'nome') {
-              valA = a.nome_vertice;
-              valB = b.nome_vertice;
-            } else if (currentSortColumn === 'tipo') {
-              valA = a.tipo_ponto || a.tipo || '';
-              valB = b.tipo_ponto || b.tipo || '';
-            } else if (currentSortColumn === 'este') {
-              isNumeric = true;
-              valA = a.e_corrigido !== undefined && a.e_corrigido !== null ? a.e_corrigido : (a.e_original || a.lon || 0);
-              valB = b.e_corrigido !== undefined && b.e_corrigido !== null ? b.e_corrigido : (b.e_original || b.lon || 0);
-            } else if (currentSortColumn === 'norte') {
-              isNumeric = true;
-              valA = a.n_corrigido !== undefined && a.n_corrigido !== null ? a.n_corrigido : (a.n_original || a.lat || 0);
-              valB = b.n_corrigido !== undefined && b.n_corrigido !== null ? b.n_corrigido : (b.n_original || b.lat || 0);
-            } else if (currentSortColumn === 'altitude') {
-              isNumeric = true;
-              valA = a.alt !== undefined && a.alt !== null ? a.alt : (a.alt_original || 0);
-              valB = b.alt !== undefined && b.alt !== null ? b.alt : (b.alt_original || 0);
-            } else if (currentSortColumn === 'norte_bruto') {
-              isNumeric = true;
-              valA = a.n_original || a.lat || 0;
-              valB = b.n_original || b.lat || 0;
-            } else if (currentSortColumn === 'este_bruto') {
-              isNumeric = true;
-              valA = a.e_original || a.lon || 0;
-              valB = b.e_original || b.lon || 0;
-            } else if (currentSortColumn === 'alt_bruta') {
-              isNumeric = true;
-              valA = a.alt_original || 0;
-              valB = b.alt_original || 0;
-            } else if (currentSortColumn === 'delta_n') {
-              isNumeric = true;
-              const da = a.n_corrigido !== undefined && a.n_corrigido !== null && a.n_original ? (a.n_corrigido - a.n_original) : 0;
-              const db = b.n_corrigido !== undefined && b.n_corrigido !== null && b.n_original ? (b.n_corrigido - b.n_original) : 0;
-              valA = da;
-              valB = db;
-            } else if (currentSortColumn === 'delta_e') {
-              isNumeric = true;
-              const da = a.e_corrigido !== undefined && a.e_corrigido !== null && a.e_original ? (a.e_corrigido - a.e_original) : 0;
-              const db = b.e_corrigido !== undefined && b.e_corrigido !== null && b.e_original ? (b.e_corrigido - b.e_original) : 0;
-              valA = da;
-              valB = db;
-            } else if (currentSortColumn === 'delta_h') {
-              isNumeric = true;
-              const da = a.alt !== undefined && a.alt !== null && a.alt_original ? (a.alt - a.alt_original) : 0;
-              const db = b.alt !== undefined && b.alt !== null && b.alt_original ? (b.alt - b.alt_original) : 0;
-              valA = da;
-              valB = db;
-            } else if (currentSortColumn === 'status') {
-              valA = a.status_correcao || a.status_ponto || '';
-              valB = b.status_correcao || b.status_ponto || '';
-            }
-
-            if (isNumeric) {
-              const numA = Number(valA) || 0;
-              const numB = Number(valB) || 0;
-              return currentSortDirection === 'asc' ? numA - numB : numB - numA;
-            } else {
-              if (valA === null || valA === undefined) valA = '';
-              if (valB === null || valB === undefined) valB = '';
-              const strA = String(valA).toLowerCase();
-              const strB = String(valB).toLowerCase();
-              return currentSortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
-            }
-          });
-
-          listPt.innerHTML = pontosMat.map((p) => {
-            const isSelected = selectedPontoIds.includes(p.id);
-            const ordemExibida = mapaOrdemReal.get(p.id) || '-';
-            if (etapaAtiva === 'cartorio') {
-              return renderLinhaPontoCartorioHtml(p, ordemExibida, modoCoordenadas, isSelected, latLonToUTM);
-            } else {
-              return renderLinhaPontoGeoprocessamentoHtml(p, ordemExibida, modoCoordenadas, selectedPontoIds, latLonToUTM);
-            }
-          }).join('');
-
-          // Event listeners delegados por setupEventDelegation()
-
-          initIcons();
-        }
-      }
-
-      const containerLateral = document.getElementById('container-tabela-lateral-content');
-      if (containerLateral) {
-        if (etapaAtiva === 'geoprocessamento') {
-          if (pontosMat.length === 0) {
-            containerLateral.innerHTML = `
-                 <table class="w-full text-left border-collapse">
-                   <tbody class="text-xs text-white/30">
-                     <tr><td class="px-4 py-8 text-center">Nenhum ponto para auditar translação.</td></tr>
-                   </tbody>
-                 </table>
-               `;
-          } else {
-            const auditoriaHtml = pontosMat.map(p => renderAuditoriaTranslacaoHtml(p, latLonToUTM)).join('');
-            containerLateral.innerHTML = `
-                 <table class="w-full text-left border-collapse">
-                   <thead>
-                     <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_auditoria_vertice">Vértice</th>
-                       <th class="px-2 py-3 text-right resizable-col" data-col-id="col_auditoria_original">Original (E/N)</th>
-                       <th class="px-2 py-3 text-right resizable-col" data-col-id="col_auditoria_corrigido">Corrigido (E/N)</th>
-                       <th class="px-2 py-3 text-right resizable-col" data-col-id="col_auditoria_de">dE</th>
-                       <th class="px-2 py-3 text-right resizable-col" data-col-id="col_auditoria_dn">dN</th>
-                       <th class="px-2 py-3 text-right resizable-col" data-col-id="col_auditoria_dh">dH</th>
-                     </tr>
-                   </thead>
-                   <tbody class="text-xs divide-y divide-white/5 text-white/60">
-                     ${auditoriaHtml}
-                   </tbody>
-                 </table>
-               `;
-          }
-        } else {
-          if (segmentosMat.length === 0) {
-            containerLateral.innerHTML = `
-                 <table class="w-full text-left border-collapse">
-                   <tbody class="text-xs text-white/30">
-                     <tr><td class="px-4 py-8 text-center">Nenhum segmento atrelado a esta matrícula.</td></tr>
-                   </tbody>
-                 </table>
-               `;
-          } else {
-            const segmentosHtml = segmentosMat.map(s => renderLinhaSegmentoHtml(s, confrontantesList, pontosList)).join('');
-            containerLateral.innerHTML = `
-                 <table class="w-full text-left border-collapse">
-                   <thead>
-                     <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_divisa_ponto_a">Ponto A</th>
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_divisa_ponto_b">Ponto B</th>
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_divisa_confrontante">Confrontante</th>
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_divisa_tipo_limite">Tipo Limite</th>
-                       <th class="px-4 py-3 resizable-col" data-col-id="col_divisa_metodo_sigef">Método SIGEF</th>
-                     </tr>
-                   </thead>
-                   <tbody id="tbl-segmentos-triagem" class="text-xs divide-y divide-white/5 text-white/60">
-                     ${segmentosHtml}
-                   </tbody>
-                 </table>
-               `;
-
-            document.querySelectorAll('.select-seg-conf').forEach(sel => {
-              sel.addEventListener('change', (e) => {
-                const sId = parseInt((e.target as HTMLSelectElement).getAttribute('data-seg-id') || '0');
-                const val = (e.target as HTMLSelectElement).value;
-                updateSegmentoInline(sId, { confrontante_id: val ? parseInt(val) : null });
-              });
-            });
-
-            document.querySelectorAll('.select-seg-limite').forEach(sel => {
-              sel.addEventListener('change', (e) => {
-                const sId = parseInt((e.target as HTMLSelectElement).getAttribute('data-seg-id') || '0');
-                const val = (e.target as HTMLSelectElement).value;
-                updateSegmentoInline(sId, { tipo_limite_sigef: val });
-              });
-            });
-
-            document.querySelectorAll('.select-seg-metodo').forEach(sel => {
-              sel.addEventListener('change', (e) => {
-                const sId = parseInt((e.target as HTMLSelectElement).getAttribute('data-seg-id') || '0');
-                const val = (e.target as HTMLSelectElement).value;
-                updateSegmentoInline(sId, { metodo_posicionamento_sigef: val });
-              });
-            });
-          }
-        }
-      }
-      setTimeout(configurarResizersColunas, 50);
+      ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
     };
 
-    const exportarTabelaParaCSV = () => {
-      let pontosExport = etapaAtiva === 'geoprocessamento'
-        ? [...pontosList]
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-
-      if (ocultarForaPoligono) {
-        pontosExport = pontosExport.filter(p => p.ignorar_poligono !== 1);
-      }
-
-      if (filtroRapidoAtivo !== 'todos') {
-        if (filtroRapidoAtivo === 'bases') {
-          pontosExport = pontosExport.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
-        } else if (filtroRapidoAtivo === 'rovers') {
-          pontosExport = pontosExport.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-        } else if (filtroRapidoAtivo === 'brutos') {
-          pontosExport = pontosExport.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
-        } else if (filtroRapidoAtivo === 'corrigidos') {
-          pontosExport = pontosExport.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO');
-        }
-      }
-
-      if (searchFilterValue) {
-        pontosExport = pontosExport.filter(p =>
-          (p.nome_vertice && p.nome_vertice.toLowerCase().includes(searchFilterValue)) ||
-          (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(searchFilterValue)) ||
-          (p.tipo && p.tipo.toLowerCase().includes(searchFilterValue)) ||
-          (p.arquivo_origem && p.arquivo_origem.toLowerCase().includes(searchFilterValue)) ||
-          (p.ordem_caminhamento && String(p.ordem_caminhamento).includes(searchFilterValue))
-        );
-      }
-
-      if (pontosExport.length === 0) {
-        alert("Nenhum dado para exportar!");
-        return;
-      }
-
-      const headers = ["Ordem", "Vertice", "Tipo", "Status", "Latitude", "Longitude", "Altitude", "Este_Corr", "Norte_Corr", "Este_Orig", "Norte_Orig", "Arquivo_Origem"];
-      let seqValida = 1;
-      const rows = pontosExport.map((p) => {
-        const isIgn = p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
-        const ordem = isIgn ? '-' : seqValida++;
-        return [
-          ordem,
-          p.nome_vertice,
-          p.tipo_ponto || p.tipo || '-',
-          p.status_ponto || p.status_correcao || 'BRUTO',
-          p.lat || '',
-          p.lon || '',
-          p.alt || p.alt_original || '',
-          p.e_corrigido || '',
-          p.n_corrigido || '',
-          p.e_original || '',
-          p.n_original || '',
-          p.arquivo_origem || ''
-        ];
-      });
-
-      const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `vertices_levantamento_${currentLevId}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
-
-    const configurarResizersColunas = () => {
-      const thElements = document.querySelectorAll('th[data-col-id]');
-      thElements.forEach(th => {
-        const colId = th.getAttribute('data-col-id');
-        if (!colId) return;
-
-        // 1. Aplica a largura salva se existir no localStorage
-        const savedWidth = localStorage.getItem(`gerencigeo_col_width_${colId}`);
-        if (savedWidth) {
-          (th as HTMLElement).style.width = `${savedWidth}px`;
-          (th as HTMLElement).style.minWidth = `${savedWidth}px`;
-        }
-
-        // Se já tiver o resizer injetado, pula
-        if (th.querySelector('.col-resizer')) return;
-
-        // 2. Injeta o resizer
-        th.classList.add('relative', 'resizable-col');
-        const resizer = document.createElement('div');
-        resizer.className = 'col-resizer';
-        th.appendChild(resizer);
-
-        // 3. Adiciona lógica de arraste
-        let startX = 0;
-        let startWidth = 0;
-
-        const onMouseMove = (e: MouseEvent) => {
-          const dX = e.clientX - startX;
-          const newWidth = Math.max(50, startWidth + dX);
-          (th as HTMLElement).style.width = `${newWidth}px`;
-          (th as HTMLElement).style.minWidth = `${newWidth}px`;
-        };
-
-        const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          resizer.classList.remove('resizing');
-
-          // Salva a largura no localStorage
-          const finalWidth = (th as HTMLElement).getBoundingClientRect().width;
-          localStorage.setItem(`gerencigeo_col_width_${colId}`, finalWidth.toFixed(0));
-        };
-
-        resizer.addEventListener('mousedown', (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopPropagation();
-          startX = e.clientX;
-          startWidth = (th as HTMLElement).getBoundingClientRect().width;
-          resizer.classList.add('resizing');
-
-          document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
-        });
-      });
-    };
-
-    const destacarPontoNoOrdenadorManual = (pontoId: number) => {
-      document.querySelectorAll('.linha-ponto-ordenador').forEach(card => {
-        card.classList.remove('bg-mint-vibrant/25', 'border-mint-vibrant/40', 'scale-[1.02]');
-        card.classList.add('bg-white/[0.02]', 'border-white/5');
-      });
-
-      const target = document.getElementById(`ordenador-item-${pontoId}`);
-      if (target) {
-        target.classList.remove('bg-white/[0.02]', 'border-white/5');
-        target.classList.add('bg-mint-vibrant/25', 'border-mint-vibrant/40', 'scale-[1.02]');
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    };
-
-    const highlightTabelaLinha = (pontoId: number) => {
+    ctx.atualizarDestaqueLinhasTabela = () => {
       document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
-        tr.classList.remove('bg-mint-vibrant/20', 'border-mint-vibrant/40');
-      });
+        const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
+        const isSelected = ctx.selectedPontoIds.includes(pId);
 
-      const target = document.getElementById(`tr-ponto-${pontoId}`);
-      if (target) {
-        target.classList.add('bg-mint-vibrant/20', 'border-mint-vibrant/40');
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+        if (isSelected) {
+          tr.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
+          tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
+        } else {
+          tr.classList.remove('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
+          tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
+        }
+      });
     };
 
-    const selectPontoFromTabela = (pId: number) => {
-      if (modoReordenarAtivo) {
-        if (modoCliqueSequencialAtivo) {
-          const pontosMatCompleto = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-          pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    ctx.selectPontoFromTabela = (pontoId: number) => {
+      document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
+        const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
+        if (pId === pontoId) {
+          tr.classList.add('bg-white/10', 'border-white/20');
+          tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          tr.classList.remove('bg-white/10', 'border-white/20');
+        }
+      });
+    };
 
-          const curIdx = pontosMatCompleto.findIndex(p => p.id === pId);
-          if (curIdx !== -1) {
-            const ordemOriginal = curIdx + 1;
+    // 5. Configuração de Event Delegation (Tabelas de Campo/Matrícula)
+    const setupEventDelegation = () => {
+      const tblTriagem = document.getElementById('tbl-pontos-triagem');
+      const containerReordenar = document.getElementById('lista-reordenar-simplificada');
+      const containerWorkspace = document.getElementById('container-workspace-arquivos');
+      const painelInferior = document.getElementById('container-tabelas-inferiores');
 
-            if (sequenciaCliqueProximoIndice === null) {
-              // --- PRIMEIRO CLIQUE NO PRIMEIRO PONTO ---
-              // Define a posição inicial da sequência (o próximo será inserido na posição seguinte)
-              sequenciaCliqueProximoIndice = ordemOriginal + 1;
+      const containerTabela = painelInferior || tblTriagem;
 
-              // Trava a sequência de 1 até este ponto inicial
-              travamentoInicio = 1;
-              travamentoFim = ordemOriginal;
+      if (containerTabela) {
+        containerTabela.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          const linha = target.closest('.linha-ponto-tbl');
+          const btnSubir = target.closest('.btn-subir-ponto');
+          const btnDescer = target.closest('.btn-descer-ponto');
 
-              destacarPontoNoOrdenadorManual(pId);
-              renderListaReordenarSimplificada();
-            } else {
-              // --- CLIQUES SUBSEQUENTES ---
-              // Se o ponto clicado já estiver dentro da região travada, apenas foca
-              const isTravado = travamentoInicio > 0 && travamentoFim >= travamentoInicio &&
-                ordemOriginal >= travamentoInicio && ordemOriginal <= travamentoFim;
+          if (btnSubir) {
+            e.stopPropagation();
+            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
+            if (pId) ctx.subirPonto(pId);
+            return;
+          }
+          if (btnDescer) {
+            e.stopPropagation();
+            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
+            if (pId) ctx.descerPonto(pId);
+            return;
+          }
+          const btnFocar = target.closest('.btn-focar-ponto-mapa');
+          if (btnFocar) {
+            e.stopPropagation();
+            const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
+            if (pId) {
+              ctx.selectPontoFromTabela(pId);
+              ctx.mapaController.selectPonto(pId, 21);
+            }
+            return;
+          }
+          if (linha && !target.closest('.chk-ignorar-poligono')) {
+            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
+            if (!pId) return;
 
-              if (isTravado) {
-                destacarPontoNoOrdenadorManual(pId);
+            const mouseEvent = e as MouseEvent;
+            if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
+              if (ctx.selectedPontoIds.includes(pId)) {
+                ctx.selectedPontoIds = ctx.selectedPontoIds.filter(id => id !== pId);
               } else {
-                // Move o ponto clicado para a próxima posição disponível na sequência
-                moverPontoPosicao(pId, sequenciaCliqueProximoIndice);
-
-                // Atualiza a faixa de travamento até esta nova posição
-                travamentoInicio = 1;
-                travamentoFim = sequenciaCliqueProximoIndice;
-
-                // Avança o cursor da sequência
-                sequenciaCliqueProximoIndice++;
-
-                renderListaReordenarSimplificada();
+                ctx.selectedPontoIds.push(pId);
+                ctx.lastSelectedPontoId = pId;
               }
+            } else if (mouseEvent.shiftKey && ctx.lastSelectedPontoId !== null) {
+              const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
+                ? [...ctx.pontosList]
+                : ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+              const index1 = pontosMat.findIndex(pt => pt.id === ctx.lastSelectedPontoId);
+              const index2 = pontosMat.findIndex(pt => pt.id === pId);
+
+              if (index1 !== -1 && index2 !== -1) {
+                const start = Math.min(index1, index2);
+                const end = Math.max(index1, index2);
+                const idsInRange = pontosMat.slice(start, end + 1).map(pt => pt.id);
+                idsInRange.forEach(id => {
+                  if (!ctx.selectedPontoIds.includes(id)) {
+                    ctx.selectedPontoIds.push(id);
+                  }
+                });
+              }
+            } else {
+              ctx.selectedPontoIds = [pId];
+              ctx.lastSelectedPontoId = pId;
+            }
+
+            ctx.atualizarDestaqueLinhasTabela();
+            ctx.selectPontoFromTabela(pId);
+          }
+        });
+
+        containerTabela.addEventListener('dblclick', (e) => {
+          const target = e.target as HTMLElement;
+          const linha = target.closest('.linha-ponto-tbl');
+          if (linha && !target.closest('.chk-ignorar-poligono')) {
+            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
+            if (pId) {
+              e.stopPropagation();
+              abrirModalEditarPonto(pId);
             }
           }
-        } else {
-          destacarPontoNoOrdenadorManual(pId);
-        }
-      } else {
-        highlightTabelaLinha(pId);
+        });
+
+        containerTabela.addEventListener('change', async (e) => {
+          const target = e.target as HTMLElement;
+          const chk = target.closest('.chk-ignorar-poligono') as HTMLInputElement;
+          if (chk) {
+            const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
+            if (!pId) return;
+            const ignorarVal = chk.checked ? 0 : 1;
+            try {
+              await fetch(`${API_BASE}/pontos/${pId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ignorar_poligono: ignorarVal })
+              });
+              ctx.loadLevantamentoDetails();
+            } catch (err) {
+              console.error("Erro ao alterar participação no polígono:", err);
+              alert("Erro ao alterar participação do ponto no polígono.");
+            }
+          }
+        });
       }
-      mapaController.selectPonto(pId);
+
+      if (containerReordenar) {
+        containerReordenar.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+
+          const btnTravar = target.closest('.btn-travar-ponto');
+          const btnSubir = target.closest('.btn-subir-simplificado');
+          const btnDescer = target.closest('.btn-descer-simplificado');
+
+          if (btnTravar) {
+            e.stopPropagation();
+            const ordem = parseInt(btnTravar.getAttribute('data-ordem') || '0');
+            const isTravado = ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio &&
+              ordem >= ctx.travamentoInicio && ordem <= ctx.travamentoFim;
+
+            if (isTravado) {
+              ctx.travamentoInicio = 0;
+              ctx.travamentoFim = 0;
+              ctx.travamentoInicioPontoId = null;
+              ctx.travamentoFimPontoId = null;
+            } else {
+              ctx.travamentoInicio = 1;
+              ctx.travamentoFim = ordem;
+              const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+              pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+              const pInicio = pontosMatCompleto[0];
+              const pFim = pontosMatCompleto[ordem - 1];
+              ctx.travamentoInicioPontoId = pInicio ? pInicio.id : null;
+              ctx.travamentoFimPontoId = pFim ? pFim.id : null;
+            }
+            ctx.renderListaReordenarSimplificada();
+            return;
+          }
+
+          if (btnSubir) {
+            e.stopPropagation();
+            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
+            if (pId) ctx.subirPontoSimplificado(pId);
+            return;
+          }
+
+          if (btnDescer) {
+            e.stopPropagation();
+            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
+            if (pId) ctx.descerPontoSimplificado(pId);
+            return;
+          }
+        });
+
+        const aplicarMudancaOrdem = (inp: HTMLInputElement) => {
+          const pId = parseInt(inp.getAttribute('data-ponto-id') || '0');
+          const oldVal = parseInt(inp.getAttribute('data-old-ordem') || '1');
+          const newVal = parseInt(inp.value || '0');
+          const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+          const totalPontos = pontosMatCompleto.length;
+
+          if (isNaN(newVal) || newVal < 1 || newVal > totalPontos) {
+            inp.value = oldVal.toString();
+            return;
+          }
+          if (newVal !== oldVal) {
+            ctx.moverPontoPosicao(pId, newVal);
+          }
+        };
+
+        containerReordenar.addEventListener('change', (e) => {
+          const target = e.target as HTMLElement;
+          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
+          if (inp) aplicarMudancaOrdem(inp);
+        });
+
+        containerReordenar.addEventListener('keydown', (e) => {
+          const target = e.target as HTMLElement;
+          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
+          if (inp && e.key === 'Enter') {
+            e.preventDefault();
+            inp.blur();
+          }
+        });
+      }
+
+      if (containerWorkspace) {
+        containerWorkspace.addEventListener('click', async (e) => {
+          const target = e.target as HTMLElement;
+
+          const btnVis = target.closest('.btn-visualizar-workspace');
+          const btnDownload = target.closest('.btn-download-workspace');
+          const btnDeletar = target.closest('.btn-deletar-workspace');
+
+          if (btnVis || btnDownload) {
+            const btn = (btnVis || btnDownload)!;
+            const cat = btn.getAttribute('data-cat') || '';
+            const nome = btn.getAttribute('data-nome') || '';
+            window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=${cat}&nome=${encodeURIComponent(nome)}`, '_blank');
+            return;
+          }
+
+          if (btnDeletar) {
+            const cat = btnDeletar.getAttribute('data-cat') || '';
+            const nome = btnDeletar.getAttribute('data-nome') || '';
+
+            let confirmMsg = `Tem certeza que deseja excluir o arquivo '${nome}' do repositório físico?`;
+            if (cat === 'Processados' && nome.toLowerCase().endsWith('.txt')) {
+              confirmMsg += `\n\nATENÇÃO: A exclusão desta caderneta purgará automaticamente todos os pontos importados dela no banco de dados.`;
+            }
+
+            if (!confirm(confirmMsg)) return;
+
+            try {
+              const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/deletar?categoria=${cat}&nome=${encodeURIComponent(nome)}`, {
+                method: 'DELETE'
+              });
+              const resData = await res.json();
+              if (resData.success) {
+                alert(resData.message);
+                ctx.loadWorkspaceArquivos();
+                if (resData.pontos_removidos > 0) {
+                  ctx.loadLevantamentoDetails();
+                }
+              } else {
+                alert(`Erro ao excluir: ${resData.error || resData.detail || 'Falha desconhecida'}`);
+              }
+            } catch (err) {
+              console.error("Erro ao deletar arquivo:", err);
+              alert("Erro de comunicação com o servidor API.");
+            }
+          }
+        });
+      }
     };
 
-    const updateSegmentoInline = async (segId: number, partialData: any) => {
-      const segObj = segmentosList.find(s => s.id === segId);
-      if (!segObj) return;
-
-      const payload = {
-        matricula_id: segObj.matricula_id,
-        ponto_inicio_id: segObj.ponto_inicio_id,
-        ponto_fim_id: segObj.ponto_fim_id,
-        confrontante_id: segObj.confrontante_id,
-        tipo_limite_sigef: segObj.tipo_limite_sigef,
-        metodo_posicionamento_sigef: segObj.metodo_posicionamento_sigef,
-        ...partialData
-      };
-
-      try {
-        await fetch(`${API_BASE}/segmentos/${segId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        Object.assign(segObj, partialData);
-
-        if (partialData.tipo_limite_sigef) {
-          renderMatriculaDados();
-        }
-      } catch (e) {
-        console.error("Erro ao salvar segmento inline:", e);
-      }
-    };
-
-    // --- MESA DRAG AND DROP ---
-    const dropzone = document.getElementById('triagem-dropzone');
-    const fileInput = document.getElementById('triagem-file-input') as HTMLInputElement;
-    const filaContainer = document.getElementById('triagem-fila-container');
-    const btnProcessar = document.getElementById('btn-processar-lote');
-
-    const renderFilaArquivos = () => {
-      const dropzoneEl = document.getElementById('triagem-dropzone');
-      const dropzoneIcon = document.getElementById('triagem-dropzone-icon');
-      const dropzoneTitle = document.getElementById('triagem-dropzone-title');
-      const dropzoneDesc = document.getElementById('triagem-dropzone-desc');
-
-      if (filesQueue.length === 0) {
-        if (dropzoneEl) {
-          dropzoneEl.className = "border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-all flex-1 flex flex-col justify-center items-center group relative overflow-hidden min-h-[120px]";
-        }
-        if (dropzoneIcon) dropzoneIcon.classList.remove('hidden');
-        if (dropzoneDesc) dropzoneDesc.classList.remove('hidden');
-        if (dropzoneTitle) {
-          dropzoneTitle.innerText = "Arraste múltiplos arquivos para triagem";
-          dropzoneTitle.className = "text-xs font-bold";
-        }
-
-        filaContainer?.classList.add('hidden');
-        btnProcessar?.classList.add('hidden');
-        return;
-      }
-
-      if (dropzoneEl) {
-        // Encolhe a dropzone transformando em horizontal super compacta h-11 flex-row
-        dropzoneEl.className = "border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-2 text-center cursor-pointer transition-all flex flex-row justify-center items-center gap-2 group relative overflow-hidden h-11 min-h-[44px] max-h-11 shrink-0";
-      }
-      if (dropzoneIcon) dropzoneIcon.classList.add('hidden');
-      if (dropzoneDesc) dropzoneDesc.classList.add('hidden');
-      if (dropzoneTitle) {
-        dropzoneTitle.innerText = "Arraste mais arquivos para triagem";
-        dropzoneTitle.className = "text-[11px] font-bold text-white/80 select-none";
-      }
-
-      filaContainer?.classList.remove('hidden');
-      btnProcessar?.classList.remove('hidden');
-
-      if (btnProcessar) {
-        (btnProcessar as HTMLButtonElement).disabled = false;
-        btnProcessar.classList.remove('opacity-50', 'cursor-not-allowed');
-        btnProcessar.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Processar Lote em Segundo Plano`;
-      }
-
-      const basesPossiveis = pontosList.filter(p => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'BASE');
-      const basesParaRenderizar = basesPossiveis.length > 0 ? basesPossiveis : pontosList;
-
-      filaContainer!.innerHTML = filesQueue.map((item, idx) => {
-        const kbSize = (item.file.size / 1024).toFixed(1);
-
-        if (item.matricula_id === undefined || item.matricula_id === null) {
-          item.matricula_id = currentMatriculaId;
-        }
-
-        const options = [
-          `<option value="base" ${item.destination === 'base' ? 'selected' : ''}>[Base - Enviar ao PPP]</option>`,
-          `<option value="rover_estatico_corrigido" ${item.destination === 'rover_estatico_corrigido' ? 'selected' : ''}>[Rover Estático - Relatório de Coordenadas Corrigidas]</option>`,
-          `<option value="rover_estatico_bruto" ${item.destination === 'rover_estatico_bruto' ? 'selected' : ''}>[Rover Estático - Arquivo Bruto (Aguardando Baseline)]</option>`,
-          `<option value="rover_rtk" ${item.destination === 'rover_rtk' ? 'selected' : ''}>[RTK - Ingestão de Pontos (Vincular à Base Selecionada)]</option>`
-        ];
-
-        let extraSelectorsHtml = '';
-
-        if (item.destination === 'rover_rtk') {
-          extraSelectorsHtml += `
-            <select class="glass-input text-[9px] py-0.5 px-1.5 select-file-base shrink-0 w-[140px]" data-idx="${idx}" title="Vincular à Base de Campo">
-              <option value="">[Nenhuma Base (Autodetectar)]</option>
-              ${basesParaRenderizar.map(p => `<option value="${p.id}" ${item.base_escolhida_id === p.id ? 'selected' : ''}>Base: ${p.nome_vertice}</option>`).join('')}
-            </select>
-          `;
-        }
-
-        return `
-          <div class="flex flex-col md:flex-row items-start md:items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded-technical text-[11px] gap-2">
-            <div class="min-w-0 flex-1">
-              <p class="font-mono text-white truncate font-medium" title="${item.file.name}">${item.file.name}</p>
-              <p class="text-[8px] text-white/30 font-mono mt-0.5">${kbSize} KB</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <select class="glass-input text-[9px] py-0.5 px-1.5 select-file-dest shrink-0 w-[190px]" data-idx="${idx}">
-                ${options.join('')}
-              </select>
-              ${extraSelectorsHtml}
-              <button class="text-white/30 hover:text-red-400 p-1 btn-remover-arquivo shrink-0" data-idx="${idx}">
-                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      initIcons();
-
-      document.querySelectorAll('.select-file-dest').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-          const idx = parseInt((e.target as HTMLSelectElement).getAttribute('data-idx') || '0');
-          filesQueue[idx].destination = (e.target as HTMLSelectElement).value;
-          renderFilaArquivos();
-        });
-      });
-
-      document.querySelectorAll('.select-file-base').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-          const idx = parseInt((e.target as HTMLSelectElement).getAttribute('data-idx') || '0');
-          const val = (e.target as HTMLSelectElement).value;
-          filesQueue[idx].base_escolhida_id = val ? parseInt(val) : null;
-        });
-      });
-
-      document.querySelectorAll('.btn-remover-arquivo').forEach(b => {
-        b.addEventListener('click', () => {
-          const idx = parseInt(b.getAttribute('data-idx') || '0');
-          filesQueue.splice(idx, 1);
-          renderFilaArquivos();
-        });
-      });
-    };
-
-    dropzone?.addEventListener('click', () => fileInput?.click());
-
-    fileInput?.addEventListener('change', (e: any) => {
-      if (e.target.files) {
-        Array.from(e.target.files as FileList).forEach(f => {
-          const isTxt = f.name.toLowerCase().endsWith('.txt');
-          filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
-        });
-        renderFilaArquivos();
-      }
-      fileInput.value = '';
-    });
-
-    dropzone?.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropzone.classList.add('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-    });
-
-    dropzone?.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-    });
-
-    dropzone?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-      if (e.dataTransfer && e.dataTransfer.files) {
-        Array.from(e.dataTransfer.files).forEach(f => {
-          const isTxt = f.name.toLowerCase().endsWith('.txt');
-          filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
-        });
-        renderFilaArquivos();
-      }
-    });
-
-    btnProcessar?.addEventListener('click', async () => {
-      if (filesQueue.length === 0) return;
-
-      let basesEnviadas = 0;
-      let brutosEnviados = 0;
-      let corrigidosProcessados = 0;
-      let rtkProcessados = 0;
-
-      for (const item of filesQueue) {
-        if (item.destination === 'base') {
-          // 1. Salva o arquivo na pasta Brutos do Levantamento
-          const formDataBruto = new FormData();
-          formDataBruto.append('categoria', 'Brutos');
-          formDataBruto.append('file', item.file);
-          try {
-            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/upload-arquivo`, {
-              method: 'POST',
-              body: formDataBruto
-            });
-            const data = await res.json();
-            if (res.ok) {
-              brutosEnviados++; // Incrementa para dar feedback de arquivo salvo nos brutos
-            } else {
-              const errMsg = data.error || data.detail || 'Falha no envio do arquivo bruto.';
-              alert(`Erro no envio da Base ${item.file.name}: ${errMsg}`);
-            }
-          } catch (errBruto) {
-            console.error("Erro ao salvar arquivo bruto da Base no workspace:", errBruto);
-            alert(`Erro ao salvar arquivo bruto da Base ${item.file.name}`);
-          }
-
-          // 2. Prossegue com o fluxo normal do PPP (DESATIVADO TEMPORARIAMENTE A PEDIDO DO USUÁRIO)
-          basesEnviadas++;
-        }
-        else if (item.destination === 'rover_estatico_bruto') {
-          const formData = new FormData();
-          formData.append('categoria', 'Brutos');
-          formData.append('file', item.file);
-          try {
-            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/upload-arquivo`, {
-              method: 'POST',
-              body: formData
-            });
-            const data = await res.json();
-            if (res.ok && data.success) {
-              brutosEnviados++;
-            } else {
-              const errMsg = data.error || data.detail || data.message || 'Erro no upload';
-              alert(`Erro no arquivo ${item.file.name}: ${errMsg}`);
-            }
-          } catch (err) {
-            console.error("Erro ao enviar arquivo bruto:", err);
-            alert(`Erro na comunicação ao subir ${item.file.name}`);
-          }
-        }
-        else if (item.destination === 'rover_estatico_corrigido') {
-          const mId = item.matricula_id || currentMatriculaId;
-          const formData = new FormData();
-          formData.append('file', item.file);
-          if (mId) {
-            formData.append('matricula_id', mId.toString());
-          }
-          try {
-            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/importar-txt`, {
-              method: 'POST',
-              body: formData
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              const errMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || "Erro desconhecido");
-              alert(`Erro na importação de ${item.file.name}: ${errMsg}`);
-            } else if (data.error) {
-              alert(`Erro na importação de ${item.file.name}: ${data.error}`);
-            } else {
-              corrigidosProcessados++;
-            }
-          } catch (err) {
-            console.error("Erro ao importar estático corrigido:", err);
-            alert(`Erro na comunicação ao processar ${item.file.name}`);
-          }
-        }
-        else if (item.destination === 'rover_rtk') {
-          const mId = item.matricula_id || currentMatriculaId;
-          const formData = new FormData();
-          formData.append('file', item.file);
-          if (mId) {
-            formData.append('matricula_id', mId.toString());
-          }
-          if (item.base_escolhida_id) {
-            formData.append('base_escolhida_id', item.base_escolhida_id.toString());
-          }
-          try {
-            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/importar-txt`, {
-              method: 'POST',
-              body: formData
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              const errMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || "Erro desconhecido");
-              alert(`Erro na importação RTK de ${item.file.name}: ${errMsg}`);
-            } else if (data.error) {
-              alert(`Erro na importação RTK de ${item.file.name}: ${data.error}`);
-            } else {
-              rtkProcessados++;
-            }
-          } catch (err) {
-            console.error("Erro ao importar RTK:", err);
-            alert(`Erro na comunicação ao processar ${item.file.name}`);
-          }
-        }
-      }
-
-      let msgAlerta = "Processamento do lote finalizado com sucesso!\n\n";
-      if (basesEnviadas > 0) msgAlerta += `• ${basesEnviadas} Base(s) enviada(s) ao PPP IBGE.\n`;
-      if (brutosEnviados > 0) msgAlerta += `• ${brutosEnviados} Rover(s) Estático(s) Bruto(s) salvos no Workspace.\n`;
-      if (corrigidosProcessados > 0) msgAlerta += `• ${corrigidosProcessados} Rover(s) Estático(s) Corrigido(s) importados.\n`;
-      if (rtkProcessados > 0) msgAlerta += `• ${rtkProcessados} RTK Rover(s) importado(s) e vinculado(s) à base.\n`;
-
-      alert(msgAlerta);
-
-      filesQueue = [];
-      renderFilaArquivos();
-      loadLevantamentoDetails();
-    });
-
-    // --- OUTROS EVENTOS ---
-    document.getElementById('btn-voltar-lista')?.addEventListener('click', () => {
-      localStorage.removeItem('active_levantamento_id');
-      if (triagemMap) {
-        triagemMap.remove();
-        triagemMap = null;
-      }
-      window.location.hash = '#levantamentos';
-    });
-
-    document.getElementById('btn-atualizar-arquivos-list')?.addEventListener('click', () => {
-      loadWorkspaceArquivos();
-    });
-
-    document.getElementById('btn-testar-busca-rinex')?.addEventListener('click', async () => {
-      if (!currentLevId) return;
-      
-      const btn = document.getElementById('btn-testar-busca-rinex') as HTMLButtonElement;
-      let originalHtml = "";
-      if (btn) {
-        btn.disabled = true;
-        originalHtml = btn.innerHTML;
-        btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 mr-1 animate-spin"></i> Buscando...`;
-      }
-      
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/testar-busca-rinex`, { method: 'POST' });
-        const data = await res.json();
-        
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = originalHtml;
-        }
-        
-        if (data.success) {
-          let detalhes = `Resultado da Busca de Rinex:\n\n${data.message}\n\n`;
-          if (data.arquivos_rinex_encontrados && data.arquivos_rinex_encontrados.length > 0) {
-            detalhes += `Encontrados no PC:\n` + data.arquivos_rinex_encontrados.map((item: any) => `• ${item.rinex} (em ${item.origem})`).join('\n') + `\n\n`;
-          }
-          if (data.arquivos_copiados && data.arquivos_copiados.length > 0) {
-            detalhes += `Copiados para o Workspace:\n` + data.arquivos_copiados.map((f: string) => `• ${f}`).join('\n') + `\n\n`;
-          }
-          if (data.arquivos_registrados && data.arquivos_registrados.length > 0) {
-            detalhes += `Registrados no Banco:\n` + data.arquivos_registrados.map((f: string) => `• ${f}`).join('\n') + `\n\n`;
-          }
-          if (data.erros && data.erros.length > 0) {
-            detalhes += `Erros:\n` + data.erros.join('\n');
-          }
-          alert(detalhes);
-          loadWorkspaceArquivos();
-        } else {
-          alert("Falha: " + data.message);
-        }
-      } catch (e: any) {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = originalHtml;
-        }
-        alert("Erro de comunicação com o servidor: " + e.message);
-      }
-    });
-
-    document.getElementById('btn-exportar-kml')?.addEventListener('click', () => {
-      if (!currentMatriculaId) return;
-      alert(`Arquivo KML Sirgas 2000 gerado e copiado com sucesso para a pasta: \n/Projetos/Propriedade_Thiago/Lev_${currentLevId}/Exportacoes/`);
-    });
-
-    document.getElementById('btn-consolidar-pontos-utm')?.addEventListener('click', async () => {
-      if (!currentLevId) return;
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/consolidar-pontos`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-          alert(`Erro na consolidação: ${data.detail || data.error || 'Falha desconhecida'}`);
-        } else if (data.error) {
-          alert(data.error);
-        } else {
-          alert(data.message);
-          window.open(`${API_BASE}/levantamentos/${currentLevId}/arquivos/download?categoria=Exportacoes&nome=PONTOS_CONSOLIDADOS_UTM.txt`, '_blank');
-          loadWorkspaceArquivos();
-        }
-      } catch (e) {
-        alert("Erro ao consolidar pontos.");
-      }
-    });
-
-    document.getElementById('btn-reordenar-caminhamento')?.addEventListener('click', async () => {
-      if (!currentLevId) return;
-      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) {
-        alert("Selecione uma matrícula ativa antes de ordenar!");
-        return;
-      }
-
-      const msgConfirm = etapaAtiva === 'geoprocessamento'
-        ? "Tem certeza que deseja reordenar os pontos avulsos deste levantamento de modo que o caminhamento comece no ponto mais ao norte (sentido horário)?"
-        : "Tem certeza que deseja reordenar as divisas desta matrícula de modo que o caminhamento comece no ponto mais ao norte (sentido horário)? As qualificações de confrontantes e limites serão preservadas.";
-
-      if (!confirm(msgConfirm)) return;
-
-      try {
-        const url = etapaAtiva === 'geoprocessamento'
-          ? `${API_BASE}/levantamentos/${currentLevId}/reordenar`
-          : `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/reordenar`;
-
-        const res = await fetch(url, { method: 'POST' });
-        const data = await res.json();
-        if (data.error || data.detail) {
-          alert(data.error || data.detail);
-        } else {
-          alert(data.mensagem || "Pontos reordenados com sucesso!");
-          loadLevantamentoDetails();
-        }
-      } catch (e) {
-        alert("Erro ao reordenar poligonal.");
-      }
-    });
-
-    document.getElementById('btn-gerar-requerimento-cri')?.addEventListener('click', () => {
-      if (!currentLevId || !currentMatriculaId) {
-        alert("Selecione uma matrícula ativa!");
-        return;
-      }
-      window.open(`${API_BASE}/levantamentos/${currentLevId}/documentos/gerar-requerimento?matricula_id=${currentMatriculaId}`, '_blank');
-    });
-
-    document.getElementById('btn-arquivar-projeto-seguro')?.addEventListener('click', async () => {
-      if (!currentLevId) return;
-      if (!confirm("ATENÇÃO: Você tem certeza que deseja arquivar definitivamente este levantamento? As pastas físicas no Windows serão travadas como Somente Leitura (Read-Only) e a edição de dados no banco será bloqueada.")) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/arquivar`, { method: 'POST' });
-        const data = await res.json();
-        alert(data.message);
-        window.location.hash = '#levantamentos';
-      } catch (e) {
-        alert("Erro ao arquivar levantamento.");
-      }
-    });
-
-    document.getElementById('btn-toggle-coordenadas')?.addEventListener('click', () => {
-      const btn = document.getElementById('btn-toggle-coordenadas');
-      const lbl = document.getElementById('lbl-titulo-vertices');
-
-      if (modoCoordenadas === 'geodesico') {
-        modoCoordenadas = 'utm';
-        if (btn) btn.innerText = 'Ver em Geodésico';
-        if (lbl) lbl.innerText = 'Vértices UTM (SIRGAS 22S)';
-      } else {
-        modoCoordenadas = 'geodesico';
-        if (btn) btn.innerText = 'Ver em UTM';
-        if (lbl) lbl.innerText = 'Vértices Geodésicos';
-      }
-
-      renderMatriculaDados();
-    });
-
-    document.getElementById('btn-toggle-ocultar-ignorados')?.addEventListener('click', () => {
-      const btn = document.getElementById('btn-toggle-ocultar-ignorados');
-      ocultarForaPoligono = !ocultarForaPoligono;
-
-      if (btn) {
-        if (ocultarForaPoligono) {
-          btn.innerText = 'Mostrar Fora da Poligonal';
-          btn.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
-          btn.classList.add('border-mint-vibrant/40');
-        } else {
-          btn.innerText = 'Ocultar Fora da Poligonal';
-          btn.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-          btn.classList.remove('border-mint-vibrant/40');
-        }
-      }
-      renderMatriculaDados();
-    });
-
-    // Evento de Exportação da Tabela para CSV
-    document.getElementById('btn-exportar-tabela-csv')?.addEventListener('click', () => {
-      exportarTabelaParaCSV();
-    });
-
-    // Eventos de Filtros Rápidos de Tabela
-    document.querySelectorAll('.btn-filtro-rapido').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const targetBtn = e.currentTarget as HTMLButtonElement;
-        
-        // Reseta todos os botões
-        document.querySelectorAll('.btn-filtro-rapido').forEach(b => {
-          b.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all";
-        });
-        
-        // Ativa o botão selecionado
-        targetBtn.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all";
-        
-        filtroRapidoAtivo = targetBtn.getAttribute('data-filtro') || 'todos';
-        renderMatriculaDados();
-      });
-    });
-
-    // Etapas 1, 2 e 3
-    document.getElementById('btn-etapa-geoprocessamento')?.addEventListener('click', () => {
-      alternarEtapa('geoprocessamento');
-    });
-
-    document.getElementById('btn-etapa-cartorio')?.addEventListener('click', () => {
-      alternarEtapa('cartorio');
-    });
-
-    document.getElementById('btn-etapa-auditoria')?.addEventListener('click', () => {
-      alternarEtapa('auditoria');
-    });
-
-    document.getElementById('btn-atualizar-historico-campo')?.addEventListener('click', () => {
-      renderHistoricoCampo();
-    });
-
-    document.getElementById('btn-salvar-perimetro-custom')?.addEventListener('click', async () => {
-      if (!currentLevId) return;
-      if (etapaAtiva !== 'geoprocessamento' && !currentMatriculaId) {
-        alert("Nenhuma matrícula selecionada para salvar!");
-        return;
-      }
-
-      const pontosMat = etapaAtiva === 'geoprocessamento'
-        ? pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B')
-        : pontosList.filter(p => p.matricula_id === currentMatriculaId);
-
-      if (pontosMat.length === 0) {
-        alert("Nenhum ponto para salvar!");
-        return;
-      }
-
-      pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-      const payload = {
-        pontos_ordem: pontosMat.map((p, idx) => ({
-          id: p.id,
-          ordem: idx + 1
-        }))
-      };
-
-      try {
-        const url = etapaAtiva === 'geoprocessamento'
-          ? `${API_BASE}/levantamentos/${currentLevId}/salvar-ordem`
-          : `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/salvar-ordem`;
-
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          alert(`Erro ao salvar ordem: ${data.detail || data.error || 'Falha de validação no backend'}`);
-        } else if (data.sucesso || data.success) {
-          alert(data.mensagem || "Ordem salva com sucesso!");
-          const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
-          if (btnSalvar) {
-            btnSalvar.classList.remove('animate-pulse');
-            btnSalvar.classList.add('hidden');
-          }
-          loadLevantamentoDetails();
-        } else {
-          alert(`Erro ao salvar ordem: ${data.mensagem || 'Falha de validação no backend'}`);
-        }
-      } catch (err) {
-        console.error("Erro ao salvar ordem perimetral:", err);
-        alert("Falha de conexão com o servidor.");
-      }
-    });
-
-
-
-    // Override manual base (V2.3)
-    document.getElementById('btn-override-base-manual')?.addEventListener('click', async () => {
-      const modal = document.getElementById('modal-override-base');
-      const selectArq = document.getElementById('select-override-arquivo') as HTMLSelectElement;
-      const form = document.getElementById('form-override-base') as HTMLFormElement;
-
-      if (!modal || !selectArq || !form) return;
-      form.reset();
-
-      try {
-        // Busca arquivos do levantamento para preencher o select
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/arquivos`);
-        const data = await res.json();
-        const processados = data["Processados"] || [];
-
-        const cadernetas = processados.filter((f: any) => f.nome.toLowerCase().endsWith('.txt'));
-        if (cadernetas.length === 0) {
-          alert("Não há arquivos caderneta .TXT na pasta 'Processados' do levantamento para realizar override de base!");
-          return;
-        }
-
-        selectArq.innerHTML = cadernetas.map((f: any) => `<option value="${f.nome}">${f.nome}</option>`).join('');
-        modal.classList.remove('hidden');
-        initIcons();
-      } catch (err) {
-        alert("Erro ao carregar cadernetas processadas para o override.");
-      }
-    });
-
-    document.getElementById('btn-fechar-modal-override')?.addEventListener('click', () => {
-      document.getElementById('modal-override-base')?.classList.add('hidden');
-    });
-    document.getElementById('btn-cancelar-override')?.addEventListener('click', () => {
-      document.getElementById('modal-override-base')?.classList.add('hidden');
-    });
-
-    // Abas do Override base
-    const btnTabGeo = document.getElementById('tab-override-geodesica');
-    const btnTabPlana = document.getElementById('tab-override-plana');
-    const panelGeo = document.getElementById('panel-override-geodesico');
-    const panelPlana = document.getElementById('panel-override-plana');
-
-    let tipoEntradaOverride = 'geodesica';
-
-    btnTabGeo?.addEventListener('click', () => {
-      tipoEntradaOverride = 'geodesica';
-      btnTabGeo.className = 'px-2 py-0.5 text-[9px] font-bold rounded bg-mint-vibrant text-forest-deep border border-mint-vibrant/20 transition-all';
-      btnTabPlana!.className = 'px-2 py-0.5 text-[9px] font-bold rounded bg-white/5 text-white/60 border border-white/10 hover:text-white transition-all';
-      panelGeo?.classList.remove('hidden');
-      panelPlana?.classList.add('hidden');
-    });
-
-    btnTabPlana?.addEventListener('click', () => {
-      tipoEntradaOverride = 'utm';
-      btnTabPlana.className = 'px-2 py-0.5 text-[9px] font-bold rounded bg-mint-vibrant text-forest-deep border border-mint-vibrant/20 transition-all';
-      btnTabGeo!.className = 'px-2 py-0.5 text-[9px] font-bold rounded bg-white/5 text-white/60 border border-white/10 hover:text-white transition-all';
-      panelPlana?.classList.remove('hidden');
-      panelGeo?.classList.add('hidden');
-    });
-
-    document.getElementById('form-override-base')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const arquivo_origem = (document.getElementById('select-override-arquivo') as HTMLSelectElement).value;
-      const nome_base = (document.getElementById('input-override-nome-base') as HTMLInputElement).value.trim();
-
-      const n_bruto = parseFloat((document.getElementById('input-override-n-bruto') as HTMLInputElement).value);
-      const e_bruto = parseFloat((document.getElementById('input-override-e-bruto') as HTMLInputElement).value);
-      const alt_bruta = parseFloat((document.getElementById('input-override-alt-bruta') as HTMLInputElement).value);
-
-      const payload: any = {
-        arquivo_origem,
-        dados_brutos: {
-          nome_base,
-          n_bruto,
-          e_bruto,
-          alt_bruta
-        },
-        dados_corrigidos: {
-          tipo_entrada: tipoEntradaOverride
-        }
-      };
-
-      if (tipoEntradaOverride === 'geodesica') {
-        payload.dados_corrigidos.lat_corrigida = parseFloat((document.getElementById('input-override-lat-corr') as HTMLInputElement).value);
-        payload.dados_corrigidos.lon_corrigida = parseFloat((document.getElementById('input-override-lon-corr') as HTMLInputElement).value);
-        payload.dados_corrigidos.alt_corrigida = parseFloat((document.getElementById('input-override-alt-corr-geo') as HTMLInputElement).value);
-        payload.dados_corrigidos.sigma_lat = parseFloat((document.getElementById('input-override-sig-lat') as HTMLInputElement).value);
-        payload.dados_corrigidos.sigma_lon = parseFloat((document.getElementById('input-override-sig-lon') as HTMLInputElement).value);
-        payload.dados_corrigidos.sigma_alt = parseFloat((document.getElementById('input-override-sig-alt-geo') as HTMLInputElement).value);
-      } else {
-        payload.dados_corrigidos.n_corrigido = parseFloat((document.getElementById('input-override-n-corr') as HTMLInputElement).value);
-        payload.dados_corrigidos.e_corrigido = parseFloat((document.getElementById('input-override-e-corr') as HTMLInputElement).value);
-        payload.dados_corrigidos.alt_corrigida = parseFloat((document.getElementById('input-override-alt-corr-plana') as HTMLInputElement).value);
-        payload.dados_corrigidos.fuso = (document.getElementById('select-override-fuso') as HTMLSelectElement).value;
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/pontos/corrigir-manual`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.error || (data.detail && typeof data.detail === 'string')) {
-          alert(`Erro ao aplicar translação de base: ${data.error || data.detail}`);
-        } else {
-          document.getElementById('modal-override-base')?.classList.add('hidden');
-          alert(data.mensagem);
-          await loadLevantamentoDetails();
-        }
-      } catch (err) {
-        console.error("Erro na translação de base contingencial:", err);
-        alert("Falha de conexão com o servidor.");
-      }
-    });
-
-    // --- MENU DE CONTEXTO E MODAL DE PONTO CUSTOMIZADO ---
+    // 6. Modal de Edição de Ponto e Menu de Contexto
     let pontoSelecionadoContextoId: number | null = null;
 
     const abrirModalEditarPonto = (pId: number) => {
-      const pt = pontosList.find(x => x.id === pId);
+      const pt = ctx.pontosList.find(x => x.id === pId);
       if (!pt) return;
 
       const modalPt = document.getElementById('modal-editar-ponto');
@@ -2535,7 +784,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const selectBase = document.getElementById('select-pt-base') as HTMLSelectElement;
       if (selectBase) {
-        const basesDoLev = pontosList.filter(x => {
+        const basesDoLev = ctx.pontosList.filter(x => {
           if (pt.tipo_ponto === 'B') {
             return x.tipo_ponto === 'M' && x.id !== pId;
           } else {
@@ -2550,7 +799,6 @@ export const mesaTrabalhoRoute: RouteDef = {
         selectBase.disabled = (pt.tipo_ponto === 'M');
       }
 
-      // --- GERENCIAMENTO DE CAMPOS DA BASE CORRIGIDA ---
       const sectionBaseControle = document.getElementById('section-pt-base-controle');
       const inputNBase = document.getElementById('input-pt-n-corr-base') as HTMLInputElement;
       const inputEBase = document.getElementById('input-pt-e-corr-base') as HTMLInputElement;
@@ -2606,7 +854,7 @@ export const mesaTrabalhoRoute: RouteDef = {
               selectFusoBase.value = '22S';
             }
           } else if (pt.lat && pt.lon) {
-            const utm = latLonToUTM(pt.lat, pt.lon);
+            const utm = ctx.latLonToUTM(pt.lat, pt.lon);
             inputNBase.value = utm.n.toFixed(3);
             inputEBase.value = utm.e.toFixed(3);
             inputAltBase.value = (pt.alt !== undefined && pt.alt !== null ? pt.alt : (pt.alt_original || 0)).toFixed(3);
@@ -2659,24 +907,23 @@ export const mesaTrabalhoRoute: RouteDef = {
     };
 
     const confirmarExclusaoPonto = async (pId: number) => {
-      const isLote = selectedPontoIds.length > 1 && selectedPontoIds.includes(pId);
+      const isLote = ctx.selectedPontoIds.length > 1 && ctx.selectedPontoIds.includes(pId);
 
       if (isLote) {
-        if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
+        if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${ctx.selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
 
         try {
-          // Executa a exclusão de todos em paralelo
-          const promessas = selectedPontoIds.map(id => fetch(`${API_BASE}/pontos/${id}`, { method: 'DELETE' }).then(r => r.json()));
+          const promessas = ctx.selectedPontoIds.map(id => fetch(`${API_BASE}/pontos/${id}`, { method: 'DELETE' }).then(r => r.json()));
           const resultados = await Promise.all(promessas);
 
           const erros = resultados.filter(r => r.error).map(r => r.error);
           if (erros.length > 0) {
             alert(`Ocorreram alguns erros ao tentar excluir em lote:\n${erros.slice(0, 5).join('\n')}`);
           } else {
-            alert(`${selectedPontoIds.length} vértices excluídos com sucesso!`);
+            alert(`${ctx.selectedPontoIds.length} vértices excluídos com sucesso!`);
           }
-          selectedPontoIds = [];
-          await loadLevantamentoDetails();
+          ctx.selectedPontoIds = [];
+          await ctx.loadLevantamentoDetails();
         } catch (err) {
           console.error("Erro ao excluir pontos em lote:", err);
           alert("Erro de comunicação com o servidor API ao tentar excluir os pontos selecionados.");
@@ -2684,8 +931,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         return;
       }
 
-      // Caso clássico de exclusão individual
-      const pt = pontosList.find(x => x.id === pId);
+      const pt = ctx.pontosList.find(x => x.id === pId);
       if (!pt) return;
 
       if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente o vértice '${pt.nome_vertice}'? Esta operação é irreversível.`)) return;
@@ -2697,8 +943,8 @@ export const mesaTrabalhoRoute: RouteDef = {
           alert(data.error);
         } else {
           alert(`Vértice ${pt.nome_vertice} excluído com sucesso!`);
-          selectedPontoIds = selectedPontoIds.filter(id => id !== pId);
-          await loadLevantamentoDetails();
+          ctx.selectedPontoIds = ctx.selectedPontoIds.filter(id => id !== pId);
+          await ctx.loadLevantamentoDetails();
         }
       } catch (err) {
         console.error("Erro ao excluir ponto:", err);
@@ -2775,7 +1021,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         } else {
           document.getElementById('modal-editar-ponto')?.classList.add('hidden');
           alert("Vértice geodésico atualizado com sucesso!");
-          await loadLevantamentoDetails();
+          await ctx.loadLevantamentoDetails();
         }
       } catch (err) {
         console.error("Erro ao salvar alterações no ponto:", err);
@@ -2800,7 +1046,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           if (!pId) return;
 
           pontoSelecionadoContextoId = pId;
-          selectPontoFromTabela(pId);
+          ctx.selectPontoFromTabela(pId);
 
           menuCtx.style.left = `${e.pageX}px`;
           menuCtx.style.top = `${e.pageY}px`;
@@ -2842,9 +1088,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         modalPt.classList.add('hidden');
       });
 
-      document.getElementById('form-editar-ponto')?.addEventListener('submit', async (e) => {
+      document.getElementById('form-editar-ponto')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        await salvarPontoModal();
+        salvarPontoModal();
       });
 
       document.getElementById('btn-excluir-ponto-modal')?.addEventListener('click', () => {
@@ -2867,6 +1113,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
+    // 7. Outros inicializadores de UI (Filtros, Buscas, Collapses, Splitters)
     const inicializarWorkspaceCollapse = () => {
       const panelCollapseBtn = document.getElementById('btn-toggle-workspace-collapse');
       const containerArquivos = document.getElementById('container-workspace-arquivos');
@@ -2916,22 +1163,19 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       if (searchInput) {
         searchInput.addEventListener('input', () => {
-          searchFilterValue = searchInput.value.trim().toLowerCase();
-          renderMatriculaDados();
+          ctx.searchFilterValue = searchInput.value.trim().toLowerCase();
+          ctx.renderMatriculaDados();
         });
       }
 
       if (btnClearSearch) {
         btnClearSearch.addEventListener('click', () => {
-          if (searchInput) {
-            searchInput.value = '';
-          }
-          searchFilterValue = '';
-          renderMatriculaDados();
+          if (searchInput) searchInput.value = '';
+          ctx.searchFilterValue = '';
+          ctx.renderMatriculaDados();
         });
       }
     };
-
 
     const inicializarScrollCollapseHeader = () => {
       const viewContainer = document.getElementById('view-container');
@@ -2942,15 +1186,15 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (viewContainer.scrollTop > 0) {
           if (!header.classList.contains('header-condensed')) {
             header.classList.add('header-condensed');
-            if (triagemMap) {
-              setTimeout(() => triagemMap!.invalidateSize(), 310);
+            if (ctx.triagemMap) {
+              setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
             }
           }
         } else {
           if (header.classList.contains('header-condensed')) {
             header.classList.remove('header-condensed');
-            if (triagemMap) {
-              setTimeout(() => triagemMap!.invalidateSize(), 310);
+            if (ctx.triagemMap) {
+              setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
             }
           }
         }
@@ -2976,8 +1220,8 @@ export const mesaTrabalhoRoute: RouteDef = {
             containerIngestao.style.width = '48%';
           }
           
-          if (triagemMap) {
-            setTimeout(() => triagemMap!.invalidateSize(), 310);
+          if (ctx.triagemMap) {
+            setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
           }
         }
       };
@@ -2987,13 +1231,12 @@ export const mesaTrabalhoRoute: RouteDef = {
           containerIngestao.classList.add('ingestao-collapsed');
           if (splitterSup) splitterSup.classList.add('hidden');
           containerIngestao.style.width = '';
-          if (triagemMap) {
-            setTimeout(() => triagemMap!.invalidateSize(), 310);
+          if (ctx.triagemMap) {
+            setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
           }
         }
       };
 
-      // Expande ao clicar no container quando colapsado
       containerIngestao.addEventListener('click', (e) => {
         if (containerIngestao.classList.contains('ingestao-collapsed')) {
           expandirIngestao();
@@ -3001,7 +1244,6 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
       });
 
-      // Colapso manual via botão de minimizar
       if (btnColapsar) {
         btnColapsar.addEventListener('click', (e) => {
           colapsarIngestao();
@@ -3009,7 +1251,6 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
       }
 
-      // Expande ao arrastar arquivos sobre a dropzone ou sobre o container inteiro
       containerIngestao.addEventListener('dragover', (e) => {
         e.preventDefault();
         expandirIngestao();
@@ -3021,113 +1262,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
-    const inicializarEventosReordenarManual = () => {
-      document.getElementById('btn-ativar-reordenacao')?.addEventListener('click', () => {
-        alternarModoReordenarManual(!modoReordenarAtivo);
-      });
-
-      document.getElementById('btn-fechar-reordenar')?.addEventListener('click', () => {
-        alternarModoReordenarManual(false);
-      });
-
-      // Eventos do Buscador Lateral do Ordenador
-      const searchInput = document.getElementById('input-search-ordenador') as HTMLInputElement | null;
-      const searchClear = document.getElementById('btn-clear-search-ordenador');
-
-      if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-          searchFilterOrdenadorValue = (e.target as HTMLInputElement).value;
-          renderListaReordenarSimplificada();
-        });
-      }
-
-      if (searchClear) {
-        searchClear.addEventListener('click', () => {
-          if (searchInput) {
-            searchInput.value = '';
-          }
-          searchFilterOrdenadorValue = '';
-          renderListaReordenarSimplificada();
-        });
-      }
-
-      // Caminhamento por Clique
-      const btnCliqueSequencial = document.getElementById('btn-toggle-clique-sequencial');
-      const iconClique = document.getElementById('icon-clique-sequencial');
-      const txtClique = document.getElementById('txt-clique-sequencial');
-
-      if (btnCliqueSequencial) {
-        btnCliqueSequencial.addEventListener('click', () => {
-          modoCliqueSequencialAtivo = !modoCliqueSequencialAtivo;
-          sequenciaCliqueProximoIndice = null; // Reinicia a sequência de início por clique!
-
-          if (modoCliqueSequencialAtivo) {
-            btnCliqueSequencial.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
-            btnCliqueSequencial.classList.add('border-mint-vibrant/40');
-            if (iconClique) {
-              iconClique.setAttribute('data-lucide', 'pause');
-              iconClique.classList.add('animate-pulse');
-            }
-            if (txtClique) txtClique.innerText = "Caminhando...";
-          } else {
-            btnCliqueSequencial.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-            btnCliqueSequencial.classList.remove('border-mint-vibrant/40');
-            if (iconClique) {
-              iconClique.setAttribute('data-lucide', 'play');
-              iconClique.classList.remove('animate-pulse');
-            }
-            if (txtClique) txtClique.innerText = "Caminhar por Clique";
-          }
-
-          // Repassa a flag para o controller do mapa e redesenha para ativar/desativar popups
-          mapaController.modoCliqueSequencialAtivo = modoCliqueSequencialAtivo;
-          atualizarPolilinhaMapaTemp();
-          initIcons();
-        });
-      }
-
-      // (Inputs de faixa manuais removidos)
-
-      document.getElementById('btn-salvar-ordem-simplificada')?.addEventListener('click', async () => {
-        if (!currentLevId) return;
-        const pontosMat = pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-
-        if (pontosMat.length === 0) {
-          alert("Nenhum ponto para salvar!");
-          return;
-        }
-
-        pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-        const payload = {
-          pontos_ordem: pontosMat.map((p, idx) => ({
-            id: p.id,
-            ordem: idx + 1
-          }))
-        };
-
-        try {
-          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/salvar-ordem`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            alert(`Erro ao salvar ordem: ${data.detail || data.error || 'Falha no backend'}`);
-          } else if (data.sucesso || data.success) {
-            alert(data.mensagem || "Ordem de caminhamento salva com sucesso!");
-            localStorage.removeItem(`rascunho_ordem_lev_${currentLevId}`);
-            alternarModoReordenarManual(false);
-          } else {
-            alert(`Erro ao salvar ordem: ${data.mensagem || 'Falha no backend'}`);
-          }
-        } catch (err) {
-          console.error("Erro ao salvar ordem perimetral:", err);
-          alert("Falha de conexão com o servidor.");
-        }
-      });
-    };
-
     const inicializarSplitters = () => {
       const splitterSup = document.getElementById('splitter-superior');
       const containerIngestao = document.getElementById('container-ingestao-arquivos');
@@ -3135,10 +1269,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       const gridSuperior = document.getElementById('grid-superior-detalhe');
 
       const splitterInf = document.getElementById('splitter-inferior');
-      const containerVertices = document.getElementById('container-tabela-vertices');
       const containerDivisas = document.getElementById('container-tabela-divisas');
 
-      // Lógica do Splitter Superior (Mapa vs Ingestão/Ordenador)
       if (splitterSup && gridSuperior) {
         let isDraggingSup = false;
         let startX = 0;
@@ -3159,9 +1291,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             localStorage.setItem('gerencigeo_split_sup_width', `${newWidthRight}`);
           }
 
-          if (triagemMap) {
-            triagemMap.invalidateSize();
-          }
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
         };
 
         const onMouseUpSup = () => {
@@ -3169,8 +1299,8 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.removeEventListener('mousemove', onMouseMoveSup);
           document.removeEventListener('mouseup', onMouseUpSup);
           document.body.classList.remove('cursor-col-resize', 'select-none');
-          if (triagemMap) {
-            setTimeout(() => triagemMap!.invalidateSize(), 50);
+          if (ctx.triagemMap) {
+            setTimeout(() => ctx.triagemMap!.invalidateSize(), 50);
           }
         };
 
@@ -3194,7 +1324,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.body.classList.add('cursor-col-resize', 'select-none');
         });
 
-        // Carrega largura salva
         const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
         if (savedSupWidth) {
           const widthPx = parseInt(savedSupWidth);
@@ -3203,8 +1332,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
       }
 
-      // Lógica do Splitter Inferior (Vértices vs Divisas)
-      if (splitterInf && containerDivisas && containerVertices) {
+      if (splitterInf && containerDivisas) {
         let isDraggingInf = false;
         let startX = 0;
         let startWidthRight = 0;
@@ -3239,7 +1367,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.body.classList.add('cursor-col-resize', 'select-none');
         });
 
-        // Carrega largura salva
         const savedInfWidth = localStorage.getItem('gerencigeo_split_inf_width');
         if (savedInfWidth) {
           containerDivisas.style.width = `${parseInt(savedInfWidth)}px`;
@@ -3247,823 +1374,61 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
-    const carregarSugestoesNumeracao = async () => {
-      if (!currentLevId) return;
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/pontos-sugeridos`);
-        const data = await res.json();
+    // 8. Eventos Globais de Filtros de Tabela
+    document.querySelectorAll('.btn-filtro-rapido').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const targetBtn = e.currentTarget as HTMLButtonElement;
         
-        const banner = document.getElementById('banner-sugestao-numeracao');
-        const sugM = document.getElementById('sugestao-m');
-        const sugP = document.getElementById('sugestao-p');
-        const sugV = document.getElementById('sugestao-v');
-        
-        if (data && data.sugestoes) {
-          if (sugM) sugM.innerText = data.sugestoes.M.codigo_sugerido || '-';
-          if (sugP) sugP.innerText = data.sugestoes.P.codigo_sugerido || '-';
-          if (sugV) sugV.innerText = data.sugestoes.V.codigo_sugerido || '-';
-          
-          if (banner) {
-            if (etapaAtiva === 'cartorio') {
-              banner.classList.remove('hidden');
-            } else {
-              banner.classList.add('hidden');
-            }
-          }
-        } else {
-          if (banner) banner.classList.add('hidden');
-        }
-      } catch (err) {
-        console.error("Erro ao carregar sugestões de numeração:", err);
-      }
-    };
-
-    const renderPlanilhasHomologadas = async () => {
-      const container = document.getElementById('container-planilhas-homologadas');
-      if (!container || !currentLevId) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas`);
-        const planilhas = await res.json();
-
-        if (!Array.isArray(planilhas) || planilhas.length === 0) {
-          container.innerHTML = `<div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>`;
-          return;
-        }
-
-        let html = `
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5">
-                <th class="py-1.5 px-2">Arquivo / Planilha</th>
-                <th class="py-1.5 px-2 text-center">Vértices</th>
-                <th class="py-1.5 px-2">Matrícula Associada</th>
-                <th class="py-1.5 px-2 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/5">
-        `;
-
-        planilhas.forEach((p: any) => {
-          const selectId = `select-assoc-mat-${btoa(p.planilha_origem).replace(/=/g, '')}`;
-          html += `
-            <tr class="hover:bg-white/[0.02] transition-colors">
-              <td class="py-2 px-2 font-mono text-white/80 max-w-[150px] truncate" title="${p.planilha_origem}">${p.planilha_origem}</td>
-              <td class="py-2 px-2 text-center font-mono text-mint-vibrant font-bold">${p.qtd_pontos}</td>
-              <td class="py-2 px-2">
-                <select class="select-assoc-matricula bg-white/5 border border-white/10 hover:border-mint-vibrant/30 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none transition-all w-full max-w-[140px]" data-planilha="${p.planilha_origem}" id="${selectId}">
-                  <option value="" class="bg-[#0c1510]">Nenhuma (Pendente)</option>
-                  ${matriculasList.map(m => `
-                    <option value="${m.id}" class="bg-[#0c1510]" ${p.matricula_id === m.id ? 'selected' : ''}>Matrícula ${m.numero_matricula}</option>
-                  `).join('')}
-                </select>
-              </td>
-              <td class="py-2 px-2 text-center">
-                <button class="btn-deletar-planilha text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1 rounded transition-colors" data-planilha="${p.planilha_origem}" title="Excluir planilha e todos os seus pontos">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                </button>
-              </td>
-            </tr>
-          `;
+        document.querySelectorAll('.btn-filtro-rapido').forEach(b => {
+          b.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all";
         });
-
-        html += `
-            </tbody>
-          </table>
-        `;
-
-        container.innerHTML = html;
-        initIcons();
-
-        // Bindar evento change nos dropdowns de matrícula
-        container.querySelectorAll('.select-assoc-matricula').forEach((select: any) => {
-          select.addEventListener('change', async () => {
-            const planilha = select.getAttribute('data-planilha');
-            const matIdVal = select.value;
-            const matId = matIdVal ? parseInt(matIdVal) : null;
-
-            try {
-              const resAssoc = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas/associar-matricula`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  planilha_origem: planilha,
-                  matricula_id: matId
-                })
-              });
-              if (resAssoc.ok) {
-                await loadLevantamentoDetails();
-              } else {
-                const errData = await resAssoc.json();
-                alert(errData.detail || "Erro ao associar matrícula.");
-              }
-            } catch (err) {
-              console.error("Erro ao associar matrícula:", err);
-            }
-          });
-        });
-
-        // Bindar evento click no botão de excluir planilha
-        container.querySelectorAll('.btn-deletar-planilha').forEach((btn: any) => {
-          btn.addEventListener('click', async () => {
-            const planilha = btn.getAttribute('data-planilha');
-            if (!confirm(`Deseja realmente excluir a planilha "${planilha}" e todos os seus vértices homologados deste levantamento? Esta ação é irreversível.`)) {
-              return;
-            }
-
-            try {
-              const resDel = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas?planilha_origem=${encodeURIComponent(planilha)}`, {
-                method: 'DELETE'
-              });
-              if (resDel.ok) {
-                alert("Planilha e pontos excluídos com sucesso!");
-                await loadLevantamentoDetails();
-              } else {
-                const errData = await resDel.json();
-                alert(errData.detail || "Erro ao excluir planilha.");
-              }
-            } catch (err) {
-              console.error("Erro ao excluir planilha:", err);
-            }
-          });
-        });
-
-      } catch (err) {
-        console.error("Erro ao renderizar planilhas homologadas:", err);
-        container.innerHTML = `<div class="text-red-400 italic py-2 text-center">Erro ao carregar lista de planilhas.</div>`;
-      }
-    };
-
-    const carregarHomologacaoDados = async (profissionalId: number) => {
-      renderPlanilhasHomologadas();
-      try {
-        const res = await fetch(`${API_BASE}/profissionais/${profissionalId}/banco-pontos`);
-        const data = await res.json();
         
-        const container = document.getElementById('container-vertices-homologados');
-        const countTxt = document.getElementById('txt-qtd-homologados');
+        targetBtn.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all";
         
-        if (data && data.pontos) {
-          const pontosDoProjeto = data.pontos.filter((p: any) => p.levantamento_id === currentLevId && p.matricula_id === currentMatriculaId);
-          bancoPontosList = pontosDoProjeto;
-          
-          if (countTxt) {
-            countTxt.innerText = `${pontosDoProjeto.length} Pontos`;
-          }
-          
-          // Por padrão, se houver pontos de homologação, exibe no mapa destacadamente
-          if (pontosDoProjeto.length > 0) {
-            bancoPontosExibido = true;
-            
-            // Plota imediatamente no mapa!
-            mapaController.plotPoligonalHomologada(pontosDoProjeto);
-            
-            const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
-            const icon = document.getElementById('icon-toggle-mapa-banco');
-            const txt = document.getElementById('txt-toggle-mapa-banco');
-            if (btnToggleMapa) {
-              btnToggleMapa.classList.remove('bg-amber-500/10');
-              btnToggleMapa.classList.add('bg-amber-500/20');
-            }
-            if (txt) txt.innerText = "Ocultar Poligonal";
-            if (icon) icon.setAttribute('data-lucide', 'eye-off');
-          } else {
-            bancoPontosExibido = false;
-            
-            // Limpa a poligonal do mapa
-            mapaController.plotPoligonalHomologada([]);
-            
-            const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
-            const icon = document.getElementById('icon-toggle-mapa-banco');
-            const txt = document.getElementById('txt-toggle-mapa-banco');
-            if (btnToggleMapa) {
-              btnToggleMapa.classList.remove('bg-amber-500/20');
-              btnToggleMapa.classList.add('bg-amber-500/10');
-            }
-            if (txt) txt.innerText = "Exibir Poligonal";
-            if (icon) icon.setAttribute('data-lucide', 'eye');
-          }
-          initIcons();
-          
-          const containerPecas = document.getElementById('container-pecas-cartorio');
-          if (containerPecas) {
-            if (pontosDoProjeto.length > 0) {
-              containerPecas.classList.remove('hidden');
-            } else {
-              containerPecas.classList.add('hidden');
-            }
-          }
-
-          // Se os pontos de campo estiverem vazios e houver pontos homologados, foca o mapa Leaflet neles
-          const pontosMat = pontosList.filter(p => p.matricula_id === currentMatriculaId);
-          const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0);
-          if (validCoords.length === 0 && triagemMap) {
-            const validHomologadosCoords = pontosDoProjeto.filter((p: any) => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map((p: any) => L.latLng(p.lat, p.lon));
-            if (validHomologadosCoords.length > 0) {
-              const bounds = L.latLngBounds(validHomologadosCoords);
-              triagemMap.fitBounds(bounds, { padding: [40, 40] });
-            }
-          }
-          
-          if (container) {
-            if (pontosDoProjeto.length === 0) {
-              container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Selecione uma matrícula com pontos homologados para listar seus vértices.</div>`;
-            } else {
-              container.innerHTML = `
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  ${pontosDoProjeto.map((p: any) => `
-                    <div class="p-1.5 bg-white/5 border border-white/5 rounded-technical flex items-center justify-between">
-                      <span class="text-[10px] text-mint-vibrant font-bold">${p.codigo_completo}</span>
-                      <span class="text-[8px] text-white/40 uppercase font-mono">${p.tipo_ponto}</span>
-                    </div>
-                  `).join('')}
-                </div>
-              `;
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Erro ao carregar dados de homologação:", err);
-      }
-
-      // Se o container de auditoria estiver visível, atualiza os dados dele também
-      const containerAuditoria = document.getElementById('container-auditoria-banco');
-      if (containerAuditoria && !containerAuditoria.classList.contains('hidden')) {
-        renderAuditoriaBancoPontos();
-      }
-    };
-
-    const carregarConfrontantesAtivosSelect = async () => {
-      if (!currentLevId || !currentMatriculaId) return;
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/confrontantes-ativos`);
-        const confs = await res.json();
-        
-        const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
-        if (select) {
-          select.innerHTML = '<option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>';
-          if (Array.isArray(confs)) {
-            confs.forEach((c: any) => {
-              const opt = document.createElement('option');
-              opt.value = String(c.id);
-              opt.className = 'bg-[#0c1510]';
-              opt.textContent = c.nome;
-              select.appendChild(opt);
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Erro ao carregar confrontantes ativos da matricula:", err);
-      }
-    };
-
-    const inicializarEventosCartorio = () => {
-      const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
-      if (btnToggleMapa) {
-        btnToggleMapa.onclick = () => {
-          if (!bancoPontosList || bancoPontosList.length === 0) {
-            alert("Nenhum ponto homologado importado para exibir no mapa.");
-            return;
-          }
-          
-          bancoPontosExibido = !bancoPontosExibido;
-          const icon = document.getElementById('icon-toggle-mapa-banco');
-          const txt = document.getElementById('txt-toggle-mapa-banco');
-          
-          if (bancoPontosExibido) {
-            mapaController.plotPoligonalHomologada(bancoPontosList);
-            if (txt) txt.innerText = "Ocultar Poligonal";
-            if (icon) {
-              icon.setAttribute('data-lucide', 'eye-off');
-            }
-            btnToggleMapa.classList.replace('bg-amber-500/10', 'bg-amber-500/20');
-          } else {
-            mapaController.plotPoligonalHomologada([]);
-            if (txt) txt.innerText = "Exibir Poligonal";
-            if (icon) {
-              icon.setAttribute('data-lucide', 'eye');
-            }
-            btnToggleMapa.classList.replace('bg-amber-500/20', 'bg-amber-500/10');
-          }
-          initIcons();
-        };
-      }
-      
-      const btnReq = document.getElementById('btn-emitir-req-cartorio');
-      if (btnReq) {
-        btnReq.onclick = () => {
-          if (!currentMatriculaId) return;
-          const trt = prompt("Informe o número do TRT/ART:");
-          if (trt === null) return;
-          const data = prompt("Informe a data de quitação do TRT/ART (AAAA-MM-DD):", new Date().toISOString().substring(0, 10));
-          if (data === null) return;
-          
-          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/requerimento-cartorio-html?numero_trt=${encodeURIComponent(trt)}&data_trt=${encodeURIComponent(data)}`;
-          window.open(url, '_blank');
-        };
-      }
-      
-      const btnResp = document.getElementById('btn-emitir-decl-resp');
-      if (btnResp) {
-        btnResp.onclick = () => {
-          if (!currentMatriculaId) return;
-          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/declaracao-responsabilidade-html`;
-          window.open(url, '_blank');
-        };
-      }
-      
-      const btnLaudo = document.getElementById('btn-emitir-laudo-tec');
-      if (btnLaudo) {
-        btnLaudo.onclick = () => {
-          if (!currentMatriculaId) return;
-          const trt = prompt("Informe o número do TRT/ART:");
-          if (trt === null) return;
-          const data = prompt("Informe a data de quitação do TRT/ART (AAAA-MM-DD):", new Date().toISOString().substring(0, 10));
-          if (data === null) return;
-          const equip = prompt("Informe o Equipamento GNSS Utilizado:", "Receptor GNSS Hi-Target V30 / RTK de Dupla Frequência (L1/L2)");
-          if (equip === null) return;
-          
-          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/laudo-tecnico-html?numero_trt=${encodeURIComponent(trt)}&data_trt=${encodeURIComponent(data)}&equipamento=${encodeURIComponent(equip)}`;
-          window.open(url, '_blank');
-        };
-      }
-      
-      const btnAnuencia = document.getElementById('btn-emitir-anuencia');
-      if (btnAnuencia) {
-        btnAnuencia.onclick = () => {
-          if (!currentMatriculaId) return;
-          const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
-          const confId = select ? select.value : '';
-          if (!confId) {
-            alert("Selecione um confrontante da lista para emitir a anuência.");
-            return;
-          }
-          
-          const url = `${API_BASE}/levantamentos/${currentLevId}/matriculas/${currentMatriculaId}/confrontantes/${confId}/anuencia-html`;
-          window.open(url, '_blank');
-        };
-      }
-
-      // Eventos do formulário de qualificação de confrontante (anuência)
-      const selectAnuencia = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
-      if (selectAnuencia) {
-        selectAnuencia.addEventListener('change', async () => {
-          const confIdVal = selectAnuencia.value;
-          const containerForm = document.getElementById('container-form-confrontante');
-          if (!confIdVal || !currentLevId) {
-            if (containerForm) containerForm.classList.add('hidden');
-            return;
-          }
-          
-          try {
-            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/confrontantes`);
-            const confs = await res.json();
-            const selectedConf = confs.find((c: any) => String(c.id) === confIdVal);
-            
-            if (selectedConf && containerForm) {
-              containerForm.classList.remove('hidden');
-              
-              // Preenche os campos do formulário
-              (document.getElementById('txt-conf-id-edicao') as HTMLElement).innerText = `ID: ${selectedConf.id}`;
-              (document.getElementById('input-conf-nome') as HTMLInputElement).value = selectedConf.nome || '';
-              (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj || '';
-              (document.getElementById('input-conf-rg') as HTMLInputElement).value = selectedConf.rg || '';
-              (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || '';
-              (document.getElementById('input-conf-profissao') as HTMLInputElement).value = selectedConf.profissao || '';
-              (document.getElementById('select-conf-estado-civil') as HTMLSelectElement).value = selectedConf.estado_civil || 'solteiro';
-              (document.getElementById('input-conf-regime-bens') as HTMLInputElement).value = selectedConf.regime_bens || '';
-              (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = selectedConf.nome_conjuge || '';
-              (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge || '';
-              (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = selectedConf.rg_conjuge || '';
-              (document.getElementById('input-conf-endereco') as HTMLInputElement).value = selectedConf.endereco_completo || '';
-              (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value = selectedConf.matricula_imovel || '';
-              
-              initIcons();
-            }
-          } catch (err) {
-            console.error("Erro ao carregar qualificacoes do confrontante:", err);
-          }
-        });
-      }
-
-      const btnSalvarConf = document.getElementById('btn-salvar-confrontante-qualificacao') as HTMLButtonElement;
-      if (btnSalvarConf) {
-        btnSalvarConf.onclick = async () => {
-          const confIdVal = selectAnuencia ? selectAnuencia.value : '';
-          if (!confIdVal || !currentLevId) return;
-
-          const nome = (document.getElementById('input-conf-nome') as HTMLInputElement).value.trim();
-          if (!nome) {
-            alert("O nome do confrontante é obrigatório.");
-            return;
-          }
-
-          const payload = {
-            nome: nome,
-            cpf_cnpj: (document.getElementById('input-conf-cpf') as HTMLInputElement).value.trim() || null,
-            rg: (document.getElementById('input-conf-rg') as HTMLInputElement).value.trim() || null,
-            nacionalidade: (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value.trim() || null,
-            profissao: (document.getElementById('input-conf-profissao') as HTMLInputElement).value.trim() || null,
-            estado_civil: (document.getElementById('select-conf-estado-civil') as HTMLSelectElement).value || null,
-            regime_bens: (document.getElementById('input-conf-regime-bens') as HTMLInputElement).value.trim() || null,
-            nome_conjuge: (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value.trim() || null,
-            cpf_conjuge: (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value.trim() || null,
-            rg_conjuge: (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value.trim() || null,
-            endereco_completo: (document.getElementById('input-conf-endereco') as HTMLInputElement).value.trim() || null,
-            matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value.trim() || null,
-            tipo_relacao: null
-          };
-
-          btnSalvarConf.disabled = true;
-          const originalHTML = btnSalvarConf.innerHTML;
-          btnSalvarConf.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Salvando...`;
-          initIcons();
-
-          try {
-            const res = await fetch(`${API_BASE}/confrontantes/${confIdVal}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-              alert("Qualificação do confrontante salva com sucesso!");
-              const containerForm = document.getElementById('container-form-confrontante');
-              if (containerForm) containerForm.classList.add('hidden');
-              if (selectAnuencia) selectAnuencia.value = '';
-              
-              // Recarregar os detalhes do levantamento para refletir as mudancas
-              await loadLevantamentoDetails();
-            } else {
-              const data = await res.json();
-              alert(data.error || "Erro ao salvar qualificações do confrontante.");
-            }
-          } catch (err) {
-            console.error("Erro ao salvar qualificações:", err);
-            alert("Erro de rede ao salvar qualificações.");
-          } finally {
-            btnSalvarConf.disabled = false;
-            btnSalvarConf.innerHTML = originalHTML;
-            initIcons();
-          }
-        };
-      }
-
-      const btnCancelarConf = document.getElementById('btn-cancelar-confrontante-qualificacao');
-      if (btnCancelarConf) {
-        btnCancelarConf.onclick = () => {
-          const containerForm = document.getElementById('container-form-confrontante');
-          if (containerForm) containerForm.classList.add('hidden');
-          if (selectAnuencia) selectAnuencia.value = '';
-        };
-      }
-    };
-
-    const inicializarHomologacaoIncra = () => {
-      const dropzone = document.getElementById('homologacao-dropzone');
-      const fileInput = document.getElementById('homologacao-file-input') as HTMLInputElement;
-      const btnProcessar = document.getElementById('btn-processar-homologacao') as HTMLButtonElement;
-      let selectedFile: File | null = null;
-      
-      if (!dropzone || !fileInput || !btnProcessar) return;
-      
-      const updateButtonState = () => {
-        if (selectedFile) {
-          btnProcessar.disabled = false;
-          btnProcessar.classList.remove('opacity-55', 'cursor-not-allowed');
-          btnProcessar.classList.add('btn-primary');
-        } else {
-          btnProcessar.disabled = true;
-          btnProcessar.classList.add('opacity-55', 'cursor-not-allowed');
-          btnProcessar.classList.remove('btn-primary');
-        }
-      };
-      
-      dropzone.addEventListener('click', () => fileInput.click());
-      
-      fileInput.addEventListener('change', (e: any) => {
-        if (e.target.files && e.target.files.length > 0) {
-          selectedFile = e.target.files[0];
-          const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
-          if (textElement && selectedFile) {
-            textElement.innerText = `Arquivo: ${selectedFile.name}`;
-          }
-          updateButtonState();
-        }
+        ctx.filtroRapidoAtivo = targetBtn.getAttribute('data-filtro') || 'todos';
+        ctx.renderMatriculaDados();
       });
-      
-      dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-      });
-      
-      dropzone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-      });
-      
-      dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          selectedFile = e.dataTransfer.files[0];
-          const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
-          if (textElement && selectedFile) {
-            textElement.innerText = `Arquivo: ${selectedFile.name}`;
-          }
-          updateButtonState();
-        }
-      });
-      
-      btnProcessar.addEventListener('click', async () => {
-        if (!selectedFile || !currentLevId) return;
-        
-        btnProcessar.disabled = true;
-        btnProcessar.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Processando...`;
-        initIcons();
-        
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        
-        try {
-          const url = `${API_BASE}/levantamentos/${currentLevId}/importar-pontos-aprovados${currentMatriculaId ? `?matricula_id=${currentMatriculaId}` : ''}`;
-          const res = await fetch(url, {
-            method: 'POST',
-            body: formData
-          });
-          
-          const data = await res.json();
-          if (res.ok && data.sucesso) {
-            alert(data.mensagem || "Pontos homologados importados com sucesso!");
-            
-            // Limpa o estado local de seleção de arquivo
-            selectedFile = null;
-            fileInput.value = '';
-            const textElement = dropzone.querySelector('p.text-xs') as HTMLElement;
-            if (textElement) {
-              textElement.innerText = `Lançar TXT/CSV/ODS Homologado`;
-            }
-            
-            // Recarrega todos os detalhes pertinentes
-            loadLevantamentoDetails();
-          } else {
-            alert(data.detail || data.error || "Erro ao processar arquivo de homologação.");
-          }
-        } catch (err) {
-          console.error("Erro no upload de homologação:", err);
-          alert("Erro de conexão com o servidor API.");
-        } finally {
-          btnProcessar.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> Importar Pontos no Banco`;
-          updateButtonState();
-          initIcons();
-        }
-      });
-    };
+    });
 
-    const renderAuditoriaBancoPontos = async () => {
-      const container = document.getElementById('lista-grupos-auditoria');
-      const totalPtsEl = document.getElementById('auditoria-total-pontos');
-      const totalGruposEl = document.getElementById('auditoria-total-grupos');
-      const totalDupEl = document.getElementById('auditoria-total-duplicados');
-      
-      if (!container || !currentLevId) return;
+    document.getElementById('btn-etapa-geoprocessamento')?.addEventListener('click', () => {
+      ctx.alternarEtapa('geoprocessamento');
+    });
 
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/banco-pontos/auditoria`);
-        const data = await res.json();
+    document.getElementById('btn-etapa-cartorio')?.addEventListener('click', () => {
+      ctx.alternarEtapa('cartorio');
+    });
 
-        if (totalPtsEl) totalPtsEl.innerText = String(data.total_pontos || 0);
-        if (totalGruposEl) totalGruposEl.innerText = String(data.total_grupos || 0);
-        if (totalDupEl) totalDupEl.innerText = String(data.total_duplicatas || 0);
+    document.getElementById('btn-etapa-auditoria')?.addEventListener('click', () => {
+      ctx.alternarEtapa('auditoria');
+    });
 
-        if (!data.grupos || data.grupos.length === 0) {
-          container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Nenhum ponto no banco para auditar.</div>`;
-          return;
-        }
+    document.getElementById('btn-atualizar-historico-campo')?.addEventListener('click', () => {
+      renderHistoricoCampo(ctx);
+    });
 
-        let html = '';
-        data.grupos.forEach((g: any) => {
-          const isDuplicadoGrupo = g.tem_duplicata;
-          
-          html += `
-            <div class="bg-white/[0.02] border border-white/5 rounded-lg p-3 space-y-2">
-              <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                <div class="flex items-center gap-2">
-                  <span class="font-bold text-xs text-white max-w-[200px] truncate" title="${g.planilha_origem}">${g.planilha_origem}</span>
-                  <span class="text-[9px] font-mono bg-white/5 px-1.5 py-0.5 rounded text-white/40">${g.total} Pontos</span>
-                  ${isDuplicadoGrupo ? `<span class="text-[8px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/25 px-1.5 py-0.5 rounded font-bold uppercase">Contém Duplicatas</span>` : ''}
-                </div>
-                <button class="btn-deletar-planilha-auditoria text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2 py-1 rounded text-[10px] flex items-center gap-1 transition-all active:scale-95" data-planilha="${g.planilha_origem}">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                  Excluir Planilha
-                </button>
-              </div>
-              
-              <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-[10px] font-mono">
-                  <thead>
-                    <tr class="text-[8px] font-bold uppercase tracking-wider text-white/20 border-b border-white/5">
-                      <th class="py-1 px-1">Código</th>
-                      <th class="py-1 px-1">Tipo</th>
-                      <th class="py-1 px-1">Coordenadas (N, E, H)</th>
-                      <th class="py-1 px-1">Método / Limite</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-white/5">
-                    ${g.pontos.map((p: any) => `
-                      <tr class="${p.is_duplicado ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-white/[0.01]'} transition-colors">
-                        <td class="py-1 px-1 font-bold ${p.is_duplicado ? 'text-amber-400' : 'text-mint-vibrant'}">
-                          ${p.codigo_completo}
-                          ${p.is_duplicado ? '<span class="text-[8px] text-amber-500 font-bold block">(Duplicado)</span>' : ''}
-                        </td>
-                        <td class="py-1 px-1 text-white/60">${p.tipo_ponto}</td>
-                        <td class="py-1 px-1 text-white/40">
-                          ${p.norte ? p.norte.toFixed(3) : '-'}, ${p.este ? p.este.toFixed(3) : '-'}, ${p.altitude ? p.altitude.toFixed(2) : '-'}
-                        </td>
-                        <td class="py-1 px-1 text-white/40">
-                          ${p.metodo_posicionamento || '-'} / ${p.tipo_limite || '-'}
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          `;
-        });
-
-        container.innerHTML = html;
-        initIcons();
-
-        // Bindar evento de exclusão de planilha na auditoria
-        container.querySelectorAll('.btn-deletar-planilha-auditoria').forEach((btn: any) => {
-          btn.addEventListener('click', async () => {
-            const planilha = btn.getAttribute('data-planilha');
-            if (planilha.startsWith("Sem arquivo")) {
-              alert("Não é possível excluir pontos criados manualmente por este atalho.");
-              return;
-            }
-            if (!confirm(`Deseja realmente excluir a planilha "${planilha}" e todos os seus vértices homologados deste levantamento? Esta ação é irreversível.`)) {
-              return;
-            }
-
-            try {
-              const resDel = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas?planilha_origem=${encodeURIComponent(planilha)}`, {
-                method: 'DELETE'
-              });
-              if (resDel.ok) {
-                alert("Planilha e pontos excluídos com sucesso!");
-                await loadLevantamentoDetails(); // Recarrega o levantamento geral
-              } else {
-                const errData = await resDel.json();
-                alert(errData.detail || "Erro ao excluir planilha.");
-              }
-            } catch (err) {
-              console.error("Erro ao excluir planilha da auditoria:", err);
-            }
-          });
-        });
-
-      } catch (err) {
-        console.error("Erro ao renderizar auditoria do banco de pontos:", err);
-        container.innerHTML = `<div class="text-red-400 italic py-2 text-center">Erro ao carregar auditoria.</div>`;
-      }
-    };
-
-    const inicializarAuditoriaBancoPontos = () => {
-      const btnToggle = document.getElementById('btn-toggle-auditoria-banco');
-      const container = document.getElementById('container-auditoria-banco');
-      const iconChevron = document.getElementById('icon-chevron-auditoria');
-
-      if (!btnToggle || !container) return;
-
-      btnToggle.onclick = () => {
-        const isHidden = container.classList.contains('hidden');
-        if (isHidden) {
-          container.classList.remove('hidden');
-          if (iconChevron) iconChevron.classList.add('rotate-180');
-          renderAuditoriaBancoPontos();
-        } else {
-          container.classList.add('hidden');
-          if (iconChevron) iconChevron.classList.remove('rotate-180');
-        }
-      };
-    };
-
+    // 9. Lança Inicializadores
     setupEventDelegation();
-    loadLevantamentoDetails();
+    ctx.loadLevantamentoDetails();
     inicializarMenuContextoEPontoModal();
-    inicializarEventosReordenarManual();
     inicializarWorkspaceCollapse();
     inicializarBuscaPonto();
     inicializarScrollCollapseHeader();
     inicializarIngestaoCollapse();
     inicializarSplitters();
-    inicializarHomologacaoIncra();
-    inicializarEventosCartorio();
-    inicializarAuditoriaBancoPontos();
+    ctx.inicializarEventosCartorio();
 
-    const inicializarConfrontanteRapido = () => {
-      const input = document.getElementById('input-confrontante-nome-rapido') as HTMLInputElement;
-      const btn = document.getElementById('btn-confrontante-adicionar-rapido') as HTMLButtonElement;
-
-      if (!input || !btn) return;
-
-      const adicionarConfrontante = async () => {
-        const nome = input.value.trim();
-        if (!nome) {
-          alert("Por favor, digite o nome do confrontante.");
-          return;
-        }
-
-        if (!currentLevId) return;
-
-        btn.disabled = true;
-        btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Cadastrando...`;
-        initIcons();
-
-        try {
-          const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/confrontantes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              nome: nome
-            })
-          });
-
-          if (res.ok) {
-            input.value = '';
-            // Recarrega todos os confrontantes e atualiza as tabelas/selects
-            await loadLevantamentoDetails();
-          } else {
-            const data = await res.json();
-            alert(data.error || "Erro ao adicionar confrontante.");
-          }
-        } catch (err) {
-          console.error("Erro ao cadastrar confrontante:", err);
-          alert("Erro de conexão com o servidor API.");
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = `<i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i> + Confrontante`;
-          initIcons();
-        }
-      };
-
-      btn.addEventListener('click', adicionarConfrontante);
-      input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          adicionarConfrontante();
-        }
-      });
-    };
-
-    inicializarConfrontanteRapido();
-
-    (window as any).importarVizinhoSIGEF = async (codigoParcela: string, nomeImovel: string) => {
-      if (!currentLevId) return;
-
-      const confirmacao = confirm(`Deseja importar e salvar os dados de limites e vértices do imóvel confrontante "${nomeImovel}" no levantamento atual?`);
-      if (!confirmacao) return;
-
-      document.body.style.cursor = 'wait';
-
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/importar-confrontante-sigef?codigo_parcela=${encodeURIComponent(codigoParcela)}`, {
-          method: 'POST'
-        });
-
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-          alert(`Sucesso: Vértices e limites de "${nomeImovel}" foram importados e salvos com sucesso na pasta de Documentos do levantamento.`);
-          loadWorkspaceArquivos();
-        } else {
-          alert(`Erro na importação: ${data.error || data.detail || 'Falha ao processar arquivos no SIGEF'}`);
-        }
-      } catch (err) {
-        console.error("Erro ao importar confrontante:", err);
-        alert("Erro de comunicação com a API do servidor.");
-      } finally {
-        document.body.style.cursor = '';
+    // Registra destruidor de eventos ao desmontar a página
+    return () => {
+      if (ctxClickOutsideHandler) {
+        document.removeEventListener('click', ctxClickOutsideHandler);
+      }
+      if (ctxScrollHandler) {
+        document.removeEventListener('scroll', ctxScrollHandler, true);
+      }
+      if (ctx.triagemMap) {
+        ctx.triagemMap.remove();
+        ctx.triagemMap = null;
       }
     };
-  },
-  cleanup: () => {
-    if (activeMapaController) {
-      try {
-        activeMapaController.destroy();
-      } catch (e) {
-        console.warn("[MesaTrabalho] Erro ao destruir mapa no cleanup:", e);
-      }
-      activeMapaController = null;
-    }
-    if (ctxClickOutsideHandler) {
-      document.removeEventListener('click', ctxClickOutsideHandler);
-      ctxClickOutsideHandler = null;
-    }
-    if (ctxScrollHandler) {
-      document.removeEventListener('scroll', ctxScrollHandler, true);
-      ctxScrollHandler = null;
-    }
   }
 };

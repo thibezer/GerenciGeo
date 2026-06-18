@@ -250,7 +250,8 @@ Para evitar dependências pesadas externas na leitura do formato OpenDocument Sp
 
 ### B. Isolamento por Matrícula e Exibição em Dupla Camada
 1.  **Vínculo com Matrícula (`matricula_id`):** A tabela `banco_pontos` inclui a coluna física `matricula_id` referenciando `matriculas(id) ON DELETE CASCADE`. A deleção física anterior e inserção dos novos pontos ocorrem restritas à matrícula ativa informada no parâmetro, impedindo o apagamento acidental de dados de parcelas vizinhas do mesmo levantamento.
-2.  **Visualização em Dupla Camada:** Se a matrícula ativa possuir pontos homologados no banco de pontos, o mapa Leaflet exibe a poligonal homologada (linha tracejada âmbar e marcadores âmbar nítidos) como camada principal em destaque. A poligonal e os pontos originais de campo (camada original) são esmaecidos de forma discreta para segundo plano (opacidade reduzida para 40% e linhas cinzas `#94a3b8`), mas mantêm total interatividade e popups no hover.
+2.  **Visualização e Traçado Consecutivo da Poligonal:** Para garantir a exatidão geométrica e evitar o cruzamento de linhas decorrentes de ordenações aleatórias, o frontend consome a rota dedicada `GET /levantamentos/{id}/matriculas/{matricula_id}/pontos-homologados`. Esse endpoint lê diretamente os registros da tabela `pontos` com `origem_homologada = 1` e os retorna ordenados rigidamente por `ordem_caminhamento ASC` (sequência original do arquivo ODS). Se a matrícula ativa possuir pontos homologados, o mapa Leaflet desenha a poligonal (linha tracejada âmbar e marcadores âmbar nítidos) respeitando essa ordem linear. A poligonal e os pontos originais de campo (camada original) são esmaecidos de forma discreta para segundo plano (opacidade reduzida para 40% e linhas cinzas `#94a3b8`), mas mantêm total interatividade e popups no hover.
+
 
 ---
 

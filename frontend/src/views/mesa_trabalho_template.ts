@@ -507,7 +507,14 @@ export const renderMesaTrabalho = (): string => {
                   </div>
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Regime de Bens</label>
-                     <input type="text" id="input-conf-regime-bens" class="glass-input w-full text-xs" placeholder="Se casado (Ex: Comunhão Parcial)" />
+                     <input type="text" id="input-conf-regime-bens" list="regimes-bens-list" class="glass-input w-full text-xs font-sans" placeholder="Se casado (Ex: Comunhão Parcial)" />
+                     <datalist id="regimes-bens-list">
+                        <option value="Comunhão Parcial de Bens">
+                        <option value="Comunhão Universal de Bens">
+                        <option value="Separação Total de Bens">
+                        <option value="Separação Obrigatória de Bens">
+                        <option value="Participação Final nos Aqüestos">
+                     </datalist>
                   </div>
                </div>
 

@@ -23,9 +23,10 @@ def formatar_rg(valor) -> str:
 
 def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
     """Carrega profissional, propriedade, matricula e proprietário principal com dados qualificados"""
-    # 1. Levantamento e Profissional
+    # 1. Levantamento e Profissional (Inclusão de suporte a TRT persistente no banco)
     query_lev = """
-        SELECT l.propriedade_id, l.profissional_id, p.nome as nome_profissional, p.registro as registro_profissional, 
+        SELECT l.propriedade_id, l.profissional_id, l.numero_trt as lev_numero_trt, l.data_trt as lev_data_trt,
+               p.nome as nome_profissional, p.registro as registro_profissional, 
                p.endereco as endereco_profissional, p.codigo_credenciado, p.formacao as formacao_profissional, p.conselho as conselho_profissional,
                p.nacionalidade as nacionalidade_profissional, p.cpf as cpf_profissional, p.rg as rg_profissional, p.endereco_residencial as endereco_residencial_profissional
         FROM levantamentos l
@@ -85,23 +86,17 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
         "owners": owners
     }
 
-def obter_trechos_confrontacao(matricula_id: int, confrontante_id: int) -> list[list[dict]]:
-    """Busca os segmentos da divisa do confrontante (unificando pelo nome) e agrupa em cadeias consecutivas/contíguas"""
-    # 1. Busca o nome do confrontante com base no ID fornecido
-    row_nome = execute_query(
-        "SELECT nome FROM confrontantes WHERE id = ?",
-        params=(confrontante_id,),
-        fetch_one=True
-    )
+def obter_segmentos_detalhados_confrontante(matricula_id: int, confrontante_id: int) -> list[dict]:
+    """Busca e retorna os segmentos de confrontação ordenados com dados topográficos e geométricos completos"""
+    row_nome = execute_query("SELECT nome FROM confrontantes WHERE id = ?", params=(confrontante_id,), fetch_one=True)
     if not row_nome:
         return []
     nome_alvo = row_nome["nome"]
 
-    # 2. Busca todos os segmentos da matrícula cuja confrontação tenha o mesmo nome (unificado)
     query = """
-        SELECT s.ponto_inicio_id, s.ponto_fim_id,
-               pi.nome_vertice as ini_nome, pi.ordem_caminhamento as ini_ordem, pi.lat as ini_lat, pi.lon as ini_lon,
-               pf.nome_vertice as fim_nome, pf.ordem_caminhamento as fim_ordem, pf.lat as fim_lat, pf.lon as fim_lon
+        SELECT s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
+               pi.nome_vertice as ini_nome, pi.lat as ini_lat, pi.lon as ini_lon, pi.ordem_caminhamento as ini_ordem,
+               pf.nome_vertice as fim_nome, pf.lat as fim_lat, pf.lon as fim_lon
         FROM segmentos s
         JOIN pontos pi ON s.ponto_inicio_id = pi.id
         JOIN pontos pf ON s.ponto_fim_id = pf.id
@@ -109,78 +104,51 @@ def obter_trechos_confrontacao(matricula_id: int, confrontante_id: int) -> list[
         WHERE s.matricula_id = ? AND UPPER(TRIM(c.nome)) = UPPER(TRIM(?))
     """
     rows = execute_query(query, params=(matricula_id, nome_alvo), fetch_all=True)
-    if not rows:
-        return []
-    
     segs = [dict(r) for r in rows]
-    # Ordena pelo ini_ordem. Se nulo, assume 0
-    segs.sort(key=lambda s: s["ini_ordem"] if s["ini_ordem"] is not None else 0)
-    
-    # Encadeamento de cadeias lineares
-    cadeias = []
-    for s in segs:
-        pt_ini = {"nome": s["ini_nome"], "ordem": s["ini_ordem"], "lat": s["ini_lat"], "lon": s["ini_lon"]}
-        pt_fim = {"nome": s["fim_nome"], "ordem": s["fim_ordem"], "lat": s["fim_lat"], "lon": s["fim_lon"]}
-        
-        # Tenta encaixar no final de alguma cadeia existente
-        encaixou = False
-        for c in cadeias:
-            if c[-1]["nome"] == pt_ini["nome"]:
-                c.append(pt_fim)
-                encaixou = True
-                break
-        
-        if not encaixou:
-            cadeias.append([pt_ini, pt_fim])
-            
-    # Tenta mesclar cadeias soltas que são consecutivas (ex: se a ordenação inicial não foi perfeita)
-    mesclou = True
-    while mesclou:
-        mesclou = False
-        for i in range(len(cadeias)):
-            for j in range(len(cadeias)):
-                if i != j:
-                    if cadeias[i][-1]["nome"] == cadeias[j][0]["nome"]:
-                        cadeias[i].extend(cadeias[j][1:])
-                        cadeias.pop(j)
-                        mesclou = True
-                        break
-            if mesclou:
-                break
-                
-    return cadeias
+    segs.sort(key=lambda x: x["ini_ordem"] if x["ini_ordem"] is not None else 0)
+    return segs
 
-def descrever_trechos_texto(cadeias: list[list[dict]]) -> str:
-    if not cadeias:
-        return "nenhum trecho de divisa confrontante identificado"
-    
-    trechos_desc = []
-    for c in cadeias:
-        p_first = c[0]["nome"]
-        p_last = c[-1]["nome"]
-        
-        # Formata sequência dos vértices
-        vertices_seq = [pt["nome"] for pt in c]
-        vertices_seq_str = " ➔ ".join(vertices_seq)
-        
-        # Pega coordenadas do primeiro e último do trecho
-        lat_first = f"{c[0]['lat']:.7f}°" if c[0]['lat'] else "Não Informada"
-        lon_first = f"{c[0]['lon']:.7f}°" if c[0]['lon'] else "Não Informada"
-        lat_last = f"{c[-1]['lat']:.7f}°" if c[-1]['lat'] else "Não Informada"
-        lon_last = f"{c[-1]['lon']:.7f}°" if c[-1]['lon'] else "Não Informada"
-        
-        trechos_desc.append(
-            f"limite delimitado pela sequência de vértices <strong>{vertices_seq_str}</strong>, "
-            f"iniciando no vértice <strong>{p_first}</strong> (Lat: {lat_first}, Lon: {lon_first}) "
-            f"e finalizando no vértice <strong>{p_last}</strong> (Lat: {lat_last}, Lon: {lon_last})"
-        )
-        
-    if len(trechos_desc) == 1:
-        return trechos_desc[0]
-    else:
-        desc_final = "; ".join(trechos_desc[:-1])
-        desc_final += f" e {trechos_desc[-1]}"
-        return desc_final
+def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int) -> str:
+    """Gera uma tabela HTML estruturada com os dados de caminhamento técnico da divisa lindeira"""
+    segmentos = obter_segmentos_detalhados_confrontante(matricula_id, confrontante_id)
+    if not segmentos:
+        return '<p class="text-xs text-red-500 italic">Nenhum segmento de divisa mapeado para este confrontante.</p>'
+
+    linhas_html = ""
+    for s in segmentos:
+        lat_f = f"{s['ini_lat']:.7f}°" if s['ini_lat'] else "-"
+        lon_f = f"{s['ini_lon']:.7f}°" if s['ini_lon'] else "-"
+        linhas_html += f"""
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-2 font-bold text-slate-900">{s['ini_nome']}</td>
+            <td class="px-3 py-2 font-bold text-slate-900">{s['fim_nome']}</td>
+            <td class="px-3 py-2 font-sans">{s['tipo_limite_sigef'] or 'Limite não definido'}</td>
+            <td class="px-3 py-2 text-center">{s['metodo_posicionamento_sigef'] or 'PG1'}</td>
+            <td class="px-3 py-2 text-right">{lat_f}</td>
+            <td class="px-3 py-2 text-right">{lon_f}</td>
+        </tr>
+        """
+
+    table_html = f"""
+    <div class="my-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+        <table class="w-full text-left border-collapse bg-slate-50/50">
+            <thead>
+                <tr class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">
+                    <th class="px-3 py-2">De</th>
+                    <th class="px-3 py-2">Para</th>
+                    <th class="px-3 py-2">Tipo de Limite (INCRA)</th>
+                    <th class="px-3 py-2 text-center">Método</th>
+                    <th class="px-3 py-2 text-right">Lat. Inicial</th>
+                    <th class="px-3 py-2 text-right">Lon. Inicial</th>
+                </tr>
+            </thead>
+            <tbody>
+                {linhas_html}
+            </tbody>
+        </table>
+    </div>
+    """
+    return table_html
 
 def obter_data_extenso() -> str:
     meses = {
@@ -194,10 +162,13 @@ def obter_data_extenso() -> str:
 class CartorioReportGenerator:
     
     @staticmethod
-    def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt: str, data_trt: str) -> str:
+    def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt: str = None, data_trt: str = "") -> str:
         dados = obter_dados_comuns(lev_id, matricula_id)
         
-        # Qualificação dos proprietários
+        # Fallback inteligente para dados persistidos no banco
+        final_trt = numero_trt if numero_trt else (dados["lev"].get("lev_numero_trt") or "____________________")
+        raw_data_trt = data_trt if data_trt else (dados["lev"].get("lev_data_trt") or "")
+        
         qualificacoes = []
         for owner in dados["owners"]:
             sexo = str(owner.get("sexo") or "M").strip().upper()
@@ -214,16 +185,16 @@ class CartorioReportGenerator:
                 domicilio += f", {owner['cidade']}-{owner['estado']}"
                 
             e_civil_lower = est_civil.lower()
+            regime = owner.get("regime_bens") or "Não Informado"
+            
             if "casad" in e_civil_lower or "estável" in e_civil_lower or "estavel" in e_civil_lower:
-                regime = owner.get("regime_bens") or "Não Informado"
                 conj_nome = owner.get("nome_conjuge") or "Não Informado"
-                conj_rg = formatar_rg(owner.get("rg_conjuge")) or "Não Informado"
-                conj_cpf = formatar_cpf(owner.get("cpf_conjuge")) or "Não Informado"
-                
-                conj_pron_portador = "portador" if sexo in ("F", "FEMININO") else "portadora"
-                conj_pron_inscrito = "inscrito" if sexo in ("F", "FEMININO") else "inscrita"
-                
-                casado_info = f", casado sob o regime de {regime} com {conj_nome}, {conj_pron_portador} do RG nº {conj_rg} e {conj_pron_inscrito} no CPF nº {conj_cpf}"
+                if "parcial" in regime.lower():
+                    casado_info = f", casado(a) sob o regime de {regime} com {conj_nome}"
+                else:
+                    conj_rg = formatar_rg(owner.get("rg_conjuge")) or "Não Informado"
+                    conj_cpf = formatar_cpf(owner.get("cpf_conjuge")) or "Não Informado"
+                    casado_info = f", casado(a) sob o regime de {regime} com {conj_nome}, portador(a) do RG nº {conj_rg} e inscrito(a) no CPF nº {conj_cpf}"
             else:
                 casado_info = f", {est_civil.lower()}"
                 
@@ -231,29 +202,23 @@ class CartorioReportGenerator:
             qualificacoes.append(qualif)
             
         qualificacao_completa = ";<br>".join(qualificacoes)
-        
         comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
         ccir = dados["mat"].get("ccir") or dados["prop"]["codigo_ccir"] or "Não Informado"
         itr = dados["mat"].get("itr") or "Não Informado"
         
         valor_venal = dados["mat"].get("valor_itr")
-        if valor_venal:
-            valor_venal_str = f"R$ {valor_venal:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        else:
-            valor_venal_str = "R$ ____________________"
-            
+        valor_venal_str = f"R$ {valor_venal:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if valor_venal else "R$ ____________________"
         georref_sigef = dados["mat"].get("georreferenciamento") or "____________________"
         
-        data_trt_f = ""
-        if data_trt:
+        data_trt_f = "____________________"
+        if raw_data_trt:
             try:
-                dt = datetime.strptime(data_trt, "%Y-%m-%d")
+                dt = datetime.strptime(raw_data_trt, "%Y-%m-%d") if "-" in raw_data_trt else datetime.strptime(raw_data_trt, "%d/%m/%Y")
                 data_trt_f = dt.strftime("%d/%m/%Y")
             except:
-                data_trt_f = data_trt
+                data_trt_f = raw_data_trt
                 
-        # Assinaturas
         bloco_assinaturas = '<div class="mt-16 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
         for owner in dados["owners"]:
             bloco_assinaturas += f"""
@@ -274,7 +239,6 @@ class CartorioReportGenerator:
                 </div>
                 """
         bloco_assinaturas += "</div>"
-
         data_extenso = obter_data_extenso()
 
         html_content = f"""<!DOCTYPE html>
@@ -296,7 +260,6 @@ class CartorioReportGenerator:
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <!-- Controle Superior -->
     <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
@@ -312,27 +275,23 @@ class CartorioReportGenerator:
         </button>
     </div>
 
-    <!-- Página A4 -->
     <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
         <div>
-            <!-- Cabeçalho Completa -->
             <div class="flex flex-col items-center pb-2 mb-8 text-center border-b border-slate-100">
                 <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
                 <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
             </div>
 
-            <!-- Endereçamento -->
             <p class="text-xs font-bold uppercase text-slate-900 mb-8 tracking-wide">
                 ILUSTRÍSSIMO SENHOR OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca} - ESTADO DO PARANÁ.
             </p>
 
-            <!-- Corpo -->
             <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
                 <p>{qualificacao_completa}, na qualidade de legítimos proprietários, vêm respeitosamente requerer a Vossa Senhoria, com fulcro no art. 213, inciso II da Lei nº 6.015/1973 e na Lei nº 10.267/2001, a <strong>AVERBAÇÃO DO GEORREFERENCIAMENTO E RETIFICAÇÃO CONSENSUAL DE ÁREA</strong> do imóvel rural de sua propriedade denominado <strong>{nome_lote}</strong>, com área de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, objeto da Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis, inscrito no CCIR/INCRA sob o nº <strong>{ccir}</strong> e cadastrado no ITR/Receita Federal sob o nº <strong>{itr}</strong>.</p>
                 
                 <p>O presente requerimento fundamenta-se nos trabalhos técnicos de georreferenciamento devidamente homologados pelo INCRA, sob o código de certificação SIGEF nº <strong class="font-mono text-slate-900">{georref_sigef}</strong>, cujo memorial descritivo, planta e anuências seguem anexados, atestando a exatidão das divisas, sem qualquer sobreposição a terras públicas ou privadas.</p>
                 
-                <p>Os serviços de agrimensura foram executados pelo Responsável Técnico <strong>{dados["lev"]["nome_profissional"]}</strong>, inscrito no {dados["lev"]["conselho_profissional"] or "conselho profissional"} sob o registro nº <strong>{dados["lev"]["registro_profissional"]}</strong>, sob TRT/ART nº <strong>{numero_trt}</strong>, recolhida/quitada na data de <strong>{data_trt_f}</strong>.</p>
+                <p>Os serviços de agrimensura foram executados pelo Responsável Técnico <strong>{dados["lev"]["nome_profissional"]}</strong>, inscrito no {dados["lev"]["conselho_profissional"] or "conselho profissional"} sob o registro nº <strong>{dados["lev"]["registro_profissional"]}</strong>, sob TRT/ART nº <strong>{final_trt}</strong>, recolhida/quitada na data de <strong>{data_trt_f}</strong>.</p>
                 
                 <p>Atribui-se a esta retificação, para efeitos fiscais e emolumentares, o valor venal de <strong>{valor_venal_str}</strong> com base na declaração de ITR.</p>
                 
@@ -341,8 +300,6 @@ class CartorioReportGenerator:
                 <p class="text-left pt-6 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
             </div>
         </div>
-
-        <!-- Assinaturas -->
         {bloco_assinaturas}
     </div>
 </body>
@@ -356,7 +313,6 @@ class CartorioReportGenerator:
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
         comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
         
-        # Qualificação dos proprietários
         qualificacoes = []
         for owner in dados["owners"]:
             sexo = str(owner.get("sexo") or "M").strip().upper()
@@ -368,7 +324,6 @@ class CartorioReportGenerator:
         qualificacao_completa = " e ".join(qualificacoes)
         data_extenso = obter_data_extenso()
 
-        # Assinaturas
         bloco_assinaturas = '<div class="mt-20 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
         for owner in dados["owners"]:
             bloco_assinaturas += f"""
@@ -399,7 +354,6 @@ class CartorioReportGenerator:
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <!-- Controle Superior -->
     <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
@@ -415,21 +369,17 @@ class CartorioReportGenerator:
         </button>
     </div>
 
-    <!-- Página A4 -->
     <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
         <div>
-            <!-- Cabeçalho Completa -->
             <div class="flex flex-col items-center pb-2 mb-12 text-center border-b border-slate-100">
                 <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
                 <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
             </div>
 
-            <!-- Título do Documento -->
             <div class="text-center mb-8">
                 <h2 class="text-sm font-bold text-[#0c1510] tracking-wide uppercase">DECLARAÇÃO DE RESPONSABILIDADE DE LIMITES E POSSE</h2>
             </div>
 
-            <!-- Corpo -->
             <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
                 <p>Os abaixo assinados, {qualificacao_completa}, na qualidade de legítimos proprietários do imóvel rural denominado <strong>{nome_lote}</strong>, com área de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, localizado no município de {dados["prop"]["municipio"]}/PR, objeto da Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> do Registro de Imóveis da Comarca de {comarca}, declaram sob as penas da lei, em especial as sanções previstas no art. 299 do Código Penal Brasileiro, que:</p>
                 
@@ -457,8 +407,6 @@ class CartorioReportGenerator:
                 <p class="text-left pt-8 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
             </div>
         </div>
-
-        <!-- Assinaturas -->
         {bloco_assinaturas}
     </div>
 </body>
@@ -467,37 +415,33 @@ class CartorioReportGenerator:
         return html_content
 
     @staticmethod
-    def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str, data_trt: str, equipamento: str) -> str:
+    def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = None, data_trt: str = "", equipamento: str = "") -> str:
         dados = obter_dados_comuns(lev_id, matricula_id)
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
-        comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
         
-        # Proprietários
+        final_trt = numero_trt if numero_trt else (dados["lev"].get("lev_numero_trt") or "____________________")
+        raw_data_trt = data_trt if data_trt else (dados["lev"].get("lev_data_trt") or "")
+
         proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
         proprietarios_str = " e ".join(proprietarios_list)
         
-        # Metadados do Profissional
-        prof = dados["lev"]
-        nome_prof = prof["nome_profissional"]
-        registro_prof = prof["registro_profissional"]
-        conselho_prof = prof["conselho_profissional"] or "CFTA"
+        nome_prof = dados["lev"]["nome_profissional"]
+        registro_prof = dados["lev"]["registro_profissional"]
+        conselho_prof = dados["lev"]["conselho_profissional"] or "CFTA"
         conselho_exibicao = f"{conselho_prof} nº {registro_prof}"
-        endereco_prof = prof["endereco_profissional"] or "Não Informado"
-        credencial_incra = prof["codigo_credenciado"] or "Não Informado"
+        endereco_prof = dados["lev"]["endereco_profissional"] or "Não Informado"
+        credencial_incra = dados["lev"]["codigo_credenciado"] or "Não Informado"
         
-        # TRT data
-        data_trt_f = ""
-        if data_trt:
+        data_trt_f = "____________________"
+        if raw_data_trt:
             try:
-                dt = datetime.strptime(data_trt, "%Y-%m-%d")
+                dt = datetime.strptime(raw_data_trt, "%Y-%m-%d") if "-" in raw_data_trt else datetime.strptime(raw_data_trt, "%d/%m/%Y")
                 data_trt_f = dt.strftime("%d/%m/%Y")
             except:
-                data_trt_f = data_trt
+                data_trt_f = raw_data_trt
 
-        # Equipamento padrão se não informado
         equipamento_f = equipamento if (equipamento and equipamento.strip()) else "Receptor GNSS Hi-Target V30 / RTK de Dupla Frequência (L1/L2)"
 
-        # Coletar pontos homologados associados ao levantamento e matrícula específica
         rows_pontos = execute_query(
             "SELECT codigo_completo, norte, este, altitude, tipo_ponto, numero FROM banco_pontos WHERE levantamento_id = ? AND matricula_id = ? ORDER BY tipo_ponto, numero",
             params=(lev_id, matricula_id),
@@ -549,7 +493,6 @@ class CartorioReportGenerator:
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <!-- Controle Superior -->
     <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
@@ -565,21 +508,17 @@ class CartorioReportGenerator:
         </button>
     </div>
 
-    <!-- Página A4 -->
     <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
         <div>
-            <!-- Cabeçalho Completa -->
             <div class="flex flex-col items-center pb-2 mb-8 text-center border-b border-slate-100">
                 <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
                 <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
             </div>
 
-            <!-- Título -->
             <div class="text-center mb-6">
                 <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">LAUDO TÉCNICO E MEMORIAL JUSTIFICATIVO</h2>
             </div>
 
-            <!-- Corpo -->
             <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
                 <p>O presente Laudo Técnico tem por objetivo descrever e justificar as operações de campo e escritório realizadas para o Georreferenciamento e Retificação Territorial do imóvel rural <strong>{nome_lote}</strong>, com área total medida de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, pertencente a <strong>{proprietarios_str}</strong>, localizado no município de {dados["prop"]["municipio"]}/PR, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong>.</p>
                 
@@ -615,20 +554,19 @@ class CartorioReportGenerator:
 
                 <div>
                     <h3 class="font-bold text-slate-900 mb-1">4. Parecer e Conclusão Técnico-Legal</h3>
-                    <p>ATESTO, na qualidade de responsável técnico credenciado no INCRA sob o código <strong>{credencial_incra}</strong>, sob o amparo da TRT/ART nº <strong>{numero_trt}</strong> quitada em <strong>{data_trt_f}</strong>, que os limites descritos representam com exatidão física a realidade de posse de fato consolidada em campo. Não há indícios ou detecção de sobreposição de coordenadas com áreas vizinhas certificadas no SIGEF.</p>
+                    <p>ATESTO, na qualidade de responsável técnico credenciado no INCRA sob o código <strong>{credencial_incra}</strong>, sob o amparo da TRT/ART nº <strong>{final_trt}</strong> quitada em <strong>{data_trt_f}</strong>, que os limites descritos representam com exatidão física a realidade de posse de fato consolidada em campo. Não há indícios ou detecção de sobreposição de coordenadas com áreas vizinhas certificadas no SIGEF.</p>
                 </div>
 
                 <p class="text-left pt-6 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
             </div>
         </div>
 
-        <!-- Assinatura Técnico -->
         <div class="mt-12 flex flex-col items-center self-center break-inside-avoid">
             <div class="w-[280px] border-t border-slate-400 mt-6 mb-2"></div>
             <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
             <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">{conselho_exibicao}</div>
             <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">Credencial INCRA: {credencial_incra}</div>
-            <div class="text-[9px] text-slate-400 text-center italic mt-0.5">{endereco_prof}</div>
+            <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">{endereco_prof}</div>
         </div>
     </div>
 </body>
@@ -641,12 +579,9 @@ class CartorioReportGenerator:
         dados = obter_dados_comuns(lev_id, matricula_id)
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
         comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
-        
-        # Proprietários do imóvel requerente
         proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
         proprietarios_str = " e ".join(proprietarios_list)
         
-        # Metadados do Confrontante
         row_conf = execute_query(
             """
             SELECT id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
@@ -666,7 +601,6 @@ class CartorioReportGenerator:
                 return "_" * tamanho_linha
             return str(valor).strip()
             
-        # Qualificação do Confrontante
         c_nome = obter_valor_ou_linha(conf["nome"], 35)
         c_cpf = obter_valor_ou_linha(formatar_cpf(conf["cpf_cnpj"]), 18)
         c_rg = obter_valor_ou_linha(formatar_rg(conf["rg"]), 15)
@@ -677,25 +611,26 @@ class CartorioReportGenerator:
         c_matricula = obter_valor_ou_linha(conf.get("matricula_imovel"), 24)
         
         e_civil = str(conf.get("estado_civil") or "").strip().lower()
+        regime = conf.get("regime_bens") or "Não Informado"
         is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil
         
+        # Implementação Estrita da Regra de Ouro para a Qualificação da Comunhão Parcial
         if is_casado:
-            reg = obter_valor_ou_linha(conf.get("regime_bens"), 20)
             conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
-            conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
-            conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
-            
-            casado_info = f", casado sob o regime de {reg} com {conj_n}, portador do RG nº {conj_rg} e CPF nº {conj_cpf}"
+            if "parcial" in regime.lower():
+                casado_info = f", casado(a) sob o regime de {regime} com {conj_n}"
+            else:
+                conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
+                conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
+                casado_info = f", casado(a) sob o regime de {regime} com {conj_n}, portador(a) do RG nº {conj_rg} e inscrito(a) no CPF nº {conj_cpf}"
         else:
             casado_info = f", {c_est_civil.lower() if '_' not in c_est_civil else c_est_civil}"
             
         qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, inscrito no CPF nº {c_cpf} e portador do RG nº {c_rg}'
 
-        # Obter os trechos de confrontação unificados
-        cadeias = obter_trechos_confrontacao(matricula_id, confrontante_id)
-        divisa_descricao_texto = descrever_trechos_texto(cadeias)
+        # Geração da Nova Tabela de Divisas Topográfica
+        tabela_divisas_html = gerar_tabela_divisas_html(matricula_id, confrontante_id)
 
-        # Assinaturas do Confrontante e Cônjuge (se casado)
         bloco_assinaturas = '<div class="mt-20 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
         bloco_assinaturas += f"""
         <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
@@ -716,7 +651,6 @@ class CartorioReportGenerator:
             </div>
             """
         bloco_assinaturas += "</div>"
-
         data_extenso = obter_data_extenso()
 
         html_content = f"""<!DOCTYPE html>
@@ -738,7 +672,6 @@ class CartorioReportGenerator:
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <!-- Controle Superior -->
     <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
@@ -754,35 +687,30 @@ class CartorioReportGenerator:
         </button>
     </div>
 
-    <!-- Página A4 -->
     <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
         <div>
-            <!-- Cabeçalho Completa -->
             <div class="flex flex-col items-center pb-2 mb-12 text-center border-b border-slate-100">
                 <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
                 <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
             </div>
 
-            <!-- Título do Documento -->
             <div class="text-center mb-8">
                 <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE ANUÊNCIA E RESPEITO DE LIMITES</h2>
             </div>
 
-            <!-- Corpo -->
             <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
+                <p>{dados["prop"]["municipio"]}/PR, {data_extenso}.</p>
                 <p>{qualificacao_confrontante}, na qualidade de proprietário e/ou possuidor legítimo da área confrontante registrada sob a Matrícula nº <strong>{c_matricula}</strong>, declara expressamente a quem possa interessar, sob as penas da lei, que concorda integralmente com as linhas de limites e demarcações territoriais executadas para o Georreferenciamento do imóvel rural vizinho denominado <strong>{nome_lote}</strong>, de propriedade de <strong>{proprietarios_str}</strong>, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis da Comarca de {comarca}.</p>
                 
-                <p>O declarante atesta que a linha de divisa comum entre as propriedades corresponde rigorosamente ao <strong>{divisa_descricao_texto}</strong>.</p>
+                <p>O declarante atesta que a linha de divisa comum entre as propriedades corresponde ao caminhamento topográfico detalhado na tabela técnica abaixo:</p>
+                
+                {tabela_divisas_html}
                 
                 <p>Declara, outrossim, que a referida linha divisória respeita os limites históricos consolidados de posse e que não houve nenhuma invasão, turbação ou alteração física de marcos e cercas comuns durante a execução técnica dos trabalhos geodésicos em campo.</p>
                 
                 <p>Por ser verdade, firma a presente declaração para que produza seus devidos efeitos legais junto ao Oficial do Registro de Imóveis competente.</p>
-                
-                <p class="text-left pt-6 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
             </div>
         </div>
-
-        <!-- Assinaturas -->
         {bloco_assinaturas}
     </div>
 </body>

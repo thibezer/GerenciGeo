@@ -26,12 +26,16 @@ class LevantamentoCreate(BaseModel):
     propriedade_id: int
     profissional_id: int
     data_inicio: str
+    numero_trt: Optional[str] = None
+    data_trt: Optional[str] = ""
 
 class LevantamentoUpdate(BaseModel):
     propriedade_id: int
     profissional_id: int
     data_inicio: str
     status: str = "EM_ANDAMENTO"
+    numero_trt: Optional[str] = None
+    data_trt: Optional[str] = ""
 
 # ── Rotas ──────────────────────────────────────────────────────────────────────
 
@@ -68,8 +72,8 @@ def create_levantamento(lev: LevantamentoCreate):
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO levantamentos (propriedade_id, profissional_id, data_inicio) VALUES (?, ?, ?)",
-                (lev.propriedade_id, lev.profissional_id, lev.data_inicio)
+                "INSERT INTO levantamentos (propriedade_id, profissional_id, data_inicio, numero_trt, data_trt) VALUES (?, ?, ?, ?, ?)",
+                (lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.numero_trt, lev.data_trt)
             )
             lev_id = cursor.lastrowid
             conn.commit()
@@ -94,9 +98,9 @@ def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
     try:
         execute_query("""
             UPDATE levantamentos
-            SET propriedade_id = ?, profissional_id = ?, data_inicio = ?, status = ?
+            SET propriedade_id = ?, profissional_id = ?, data_inicio = ?, status = ?, numero_trt = ?, data_trt = ?
             WHERE id = ?
-        """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.status, lev_id), commit=True)
+        """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.status, lev.numero_trt, lev.data_trt, lev_id), commit=True)
         
         # Regenera o Workspace DADOS_GERAIS.json
         wm = WorkspaceManager()

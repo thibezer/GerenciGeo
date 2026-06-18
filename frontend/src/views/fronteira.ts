@@ -928,12 +928,30 @@ export const fronteiraRoute: RouteDef = {
         .then(res => res.json())
         .then(levantamentos => {
           const levs = levantamentos.filter((l: any) => l.propriedade_id === currentPropId && l.status === 'EM_ANDAMENTO');
+          let levAtivo = null;
           if (levs.length > 0) {
             currentLevantamentoId = levs[0].id;
+            levAtivo = levs[0];
           } else {
             const levsQualquer = levantamentos.filter((l: any) => l.propriedade_id === currentPropId);
             if (levsQualquer.length > 0) {
               currentLevantamentoId = levsQualquer[0].id;
+              levAtivo = levsQualquer[0];
+            }
+          }
+
+          if (levAtivo) {
+            const trtInput = document.getElementById('input-fronteira-trt') as HTMLInputElement;
+            const dataInput = document.getElementById('input-fronteira-data-trt') as HTMLInputElement;
+            if (trtInput && levAtivo.numero_trt) {
+              trtInput.value = levAtivo.numero_trt;
+            } else if (trtInput) {
+              trtInput.value = '';
+            }
+            if (dataInput && levAtivo.data_trt) {
+              dataInput.value = levAtivo.data_trt;
+            } else if (dataInput) {
+              dataInput.value = '';
             }
           }
         });
@@ -1081,8 +1099,34 @@ export const fronteiraRoute: RouteDef = {
         // B. Com os dados salvos com sucesso, abre o Laudo HTML e o Requerimento HTML de cada matrícula
         const numero_trt = (document.getElementById('input-fronteira-trt') as HTMLInputElement).value.trim();
         const data_quitacao_trt = (document.getElementById('input-fronteira-data-trt') as HTMLInputElement).value;
-        const selectedMatIds = matriculasPayload.map(m => m.id);
+        
+        // Salva a TRT no levantamento correspondente no banco
+        if (currentLevantamentoId && (numero_trt || data_quitacao_trt)) {
+          try {
+            const resLev = await fetch(`${API_BASE}/levantamentos`);
+            const allLevs = await resLev.json();
+            const levObj = allLevs.find((l: any) => l.id === currentLevantamentoId);
+            if (levObj) {
+              const payloadPut = {
+                propriedade_id: levObj.propriedade_id,
+                profissional_id: levObj.profissional_id,
+                data_inicio: levObj.data_inicio,
+                status: levObj.status || "EM_ANDAMENTO",
+                numero_trt: numero_trt || null,
+                data_trt: data_quitacao_trt || null
+              };
+              await fetch(`${API_BASE}/levantamentos/${currentLevantamentoId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadPut)
+              });
+            }
+          } catch (e) {
+            console.error("Erro ao salvar TRT no levantamento de fronteira:", e);
+          }
+        }
 
+        const selectedMatIds = matriculasPayload.map(m => m.id);
         for (const mId of selectedMatIds) {
           // Abre o Laudo
           const urlLaudo = `${API_BASE}/levantamentos/${currentLevantamentoId}/matriculas/${mId}/laudo-fronteira-html?numero_trt=${encodeURIComponent(numero_trt)}&data_trt=${encodeURIComponent(data_quitacao_trt)}`;
@@ -1092,10 +1136,6 @@ export const fronteiraRoute: RouteDef = {
           const urlReq = `${API_BASE}/levantamentos/${currentLevantamentoId}/matriculas/${mId}/requerimento-ratificacao-html`;
           window.open(urlReq, '_blank');
         }
-
-        // Reseta formulário de TRT
-        (document.getElementById('input-fronteira-trt') as HTMLInputElement).value = '';
-        (document.getElementById('input-fronteira-data-trt') as HTMLInputElement).value = '';
         
         fecharModalFronteira();
         alert("Metadados atualizados com sucesso no banco de dados! As abas de visualização/impressão dos Laudos e Requerimentos foram abertas.");

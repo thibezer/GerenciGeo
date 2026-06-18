@@ -267,7 +267,7 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
 # ── Relatórios de Cartório e Anuências ─────────────────────────────────────────
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/requerimento-cartorio-html", response_class=HTMLResponse)
-def get_requerimento_cartorio_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = ""):
+def get_requerimento_cartorio_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = ""):
     try:
         from business.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_requerimento_cartorio_html(
@@ -297,7 +297,7 @@ def get_declaracao_responsabilidade_html(id: int, matricula_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/laudo-tecnico-html", response_class=HTMLResponse)
-def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = "", equipamento: Optional[str] = ""):
+def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = "", equipamento: Optional[str] = ""):
     try:
         from business.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_laudo_tecnico_html(
