@@ -650,7 +650,7 @@ class CartorioReportGenerator:
         row_conf = execute_query(
             """
             SELECT id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
-                   endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
+                   endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, matricula_imovel
             FROM confrontantes
             WHERE id = ? AND levantamento_id = ?
             """,
@@ -661,27 +661,33 @@ class CartorioReportGenerator:
             raise ValueError(f"Confrontante ID {confrontante_id} não encontrado para este levantamento.")
         conf = dict(row_conf)
         
+        def obter_valor_ou_linha(valor, tamanho_linha=24) -> str:
+            if not valor or str(valor).strip().upper() in ["", "NÃO INFORMADO", "NAO INFORMADO", "NONE", "NULL"]:
+                return "_" * tamanho_linha
+            return str(valor).strip()
+            
         # Qualificação do Confrontante
-        c_nome = conf["nome"]
-        c_cpf = formatar_cpf(conf["cpf_cnpj"])
-        c_rg = formatar_rg(conf["rg"]) or "Não Informado"
-        c_nac = conf.get("nacionalidade") or "brasileiro(a)"
-        c_prof = conf.get("profissao") or "produtor(a) rural"
-        c_est_civil = conf.get("estado_civil") or "solteiro"
-        c_domicilio = conf.get("endereco_completo") or "Não Informado"
+        c_nome = obter_valor_ou_linha(conf["nome"], 35)
+        c_cpf = obter_valor_ou_linha(formatar_cpf(conf["cpf_cnpj"]), 18)
+        c_rg = obter_valor_ou_linha(formatar_rg(conf["rg"]), 15)
+        c_nac = obter_valor_ou_linha(conf.get("nacionalidade"), 18)
+        c_prof = obter_valor_ou_linha(conf.get("profissao"), 20)
+        c_est_civil = obter_valor_ou_linha(conf.get("estado_civil"), 15)
+        c_domicilio = obter_valor_ou_linha(conf.get("endereco_completo"), 50)
+        c_matricula = obter_valor_ou_linha(conf.get("matricula_imovel"), 24)
         
-        e_civil = str(c_est_civil).strip().lower()
+        e_civil = str(conf.get("estado_civil") or "").strip().lower()
         is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil
         
         if is_casado:
-            reg = conf.get("regime_bens") or "Não Informado"
-            conj_n = conf.get("nome_conjuge") or "Não Informado"
-            conj_rg = formatar_rg(conf.get("rg_conjuge")) or "Não Informado"
-            conj_cpf = formatar_cpf(conf.get("cpf_conjuge")) or "Não Informado"
+            reg = obter_valor_ou_linha(conf.get("regime_bens"), 20)
+            conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
+            conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
+            conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
             
             casado_info = f", casado sob o regime de {reg} com {conj_n}, portador do RG nº {conj_rg} e CPF nº {conj_cpf}"
         else:
-            casado_info = f", {c_est_civil.lower()}"
+            casado_info = f", {c_est_civil.lower() if '_' not in c_est_civil else c_est_civil}"
             
         qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, inscrito no CPF nº {c_cpf} e portador do RG nº {c_rg}'
 
@@ -764,7 +770,7 @@ class CartorioReportGenerator:
 
             <!-- Corpo -->
             <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
-                <p>{qualificacao_confrontante}, na qualidade de proprietário e/ou possuidor legítimo de área confrontante vizinha, declara expressamente a quem possa interessar, sob as penas da lei, que concorda integralmente com as linhas de limites e demarcações territoriais executadas para o Georreferenciamento do imóvel rural vizinho denominado <strong>{nome_lote}</strong>, de propriedade de <strong>{proprietarios_str}</strong>, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis da Comarca de {comarca}.</p>
+                <p>{qualificacao_confrontante}, na qualidade de proprietário e/ou possuidor legítimo da área confrontante registrada sob a Matrícula nº <strong>{c_matricula}</strong>, declara expressamente a quem possa interessar, sob as penas da lei, que concorda integralmente com as linhas de limites e demarcações territoriais executadas para o Georreferenciamento do imóvel rural vizinho denominado <strong>{nome_lote}</strong>, de propriedade de <strong>{proprietarios_str}</strong>, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis da Comarca de {comarca}.</p>
                 
                 <p>O declarante atesta que a linha de divisa comum entre as propriedades corresponde rigorosamente ao <strong>{divisa_descricao_texto}</strong>.</p>
                 

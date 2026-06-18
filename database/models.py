@@ -172,6 +172,7 @@ def create_tables(conn):
             arquivo_origem TEXT,
             status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
             ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
+            origem_homologada INTEGER DEFAULT 0,
             
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
@@ -195,6 +196,7 @@ def create_tables(conn):
             nome_conjuge TEXT,
             cpf_conjuge TEXT,
             rg_conjuge TEXT,
+            matricula_imovel TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
@@ -209,6 +211,7 @@ def create_tables(conn):
             confrontante_id INTEGER,
             tipo_limite_sigef TEXT NOT NULL,
             metodo_posicionamento_sigef TEXT NOT NULL,
+            origem_homologada INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
@@ -368,7 +371,8 @@ def create_tables(conn):
             ("metodo_posicionamento", "TEXT DEFAULT 'PG1'"),
             ("arquivo_origem", "TEXT"),
             ("status_correcao", "TEXT DEFAULT 'BRUTO'"),
-            ("ignorar_poligono", "INTEGER DEFAULT 0")
+            ("ignorar_poligono", "INTEGER DEFAULT 0"),
+            ("origem_homologada", "INTEGER DEFAULT 0")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -428,7 +432,8 @@ def create_tables(conn):
             ("endereco_completo", "TEXT"),
             ("nome_conjuge", "TEXT"),
             ("cpf_conjuge", "TEXT"),
-            ("rg_conjuge", "TEXT")
+            ("rg_conjuge", "TEXT"),
+            ("matricula_imovel", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
@@ -502,6 +507,20 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em banco_pontos: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em banco_pontos: {ex_mig}")
+
+        # Migração dinâmica para a tabela segmentos
+        colunas_segmentos = [
+            ("origem_homologada", "INTEGER DEFAULT 0")
+        ]
+        cursor.execute("PRAGMA table_info(segmentos)")
+        colunas_segmentos_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_segmentos:
+            if col not in colunas_segmentos_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE segmentos ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em segmentos: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em segmentos: {ex_mig}")
 
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário

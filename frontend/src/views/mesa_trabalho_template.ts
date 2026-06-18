@@ -391,6 +391,38 @@ export const renderMesaTrabalho = (): string => {
             </div>
           </div>
 
+          <!-- Painel Colapsável de Auditoria de Pontos no Banco -->
+          <div class="border-t border-white/5 pt-4 space-y-4">
+            <button class="w-full flex justify-between items-center text-xs font-bold uppercase tracking-wider text-white/50 bg-white/5 hover:bg-white/10 px-4 py-2.5 rounded-lg border border-white/10 transition-all active:scale-[0.99]" id="btn-toggle-auditoria-banco" type="button">
+              <span class="flex items-center gap-2">
+                <i data-lucide="scan" class="w-4 h-4 text-amber-400"></i>
+                Auditoria de Pontos no Banco (Controle de Duplicatas e Arquivos)
+              </span>
+              <i data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-200" id="icon-chevron-auditoria"></i>
+            </button>
+            
+            <div class="hidden space-y-4 bg-forest-deep/10 border border-white/5 rounded-xl p-4" id="container-auditoria-banco">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div class="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col justify-between">
+                  <span class="text-white/40 font-bold uppercase tracking-wider text-[9px]">Total de Pontos no Banco</span>
+                  <span class="text-xl font-bold text-white mt-1" id="auditoria-total-pontos">0</span>
+                </div>
+                <div class="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col justify-between">
+                  <span class="text-white/40 font-bold uppercase tracking-wider text-[9px]">Grupos/Arquivos Distintos</span>
+                  <span class="text-xl font-bold text-white mt-1" id="auditoria-total-grupos">0</span>
+                </div>
+                <div class="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col justify-between">
+                  <span class="text-white/40 font-bold uppercase tracking-wider text-[9px]">Pontos Duplicados Detectados</span>
+                  <span class="text-xl font-bold text-amber-400 mt-1" id="auditoria-total-duplicados">0</span>
+                </div>
+              </div>
+
+              <div id="lista-grupos-auditoria" class="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                <div class="text-white/20 italic py-4 text-center">Nenhum ponto no banco para auditar.</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Linha de Peças Técnicas de Cartório (SIGEF) -->
           <div class="border-t border-white/5 pt-4 space-y-4 hidden" id="container-pecas-cartorio">
             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
@@ -430,6 +462,90 @@ export const renderMesaTrabalho = (): string => {
                   Gerar
                 </button>
               </div>
+            </div>
+
+            <!-- Formulário de Edição do Confrontante Selecionado -->
+            <div id="container-form-confrontante" class="bg-forest-deep/20 border border-white/5 rounded-xl p-4 space-y-4 hidden animate-in fade-in slide-in-from-top-4 duration-300">
+               <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span class="text-xs font-bold text-mint-vibrant uppercase tracking-wider">Qualificação do Confrontante Selecionado</span>
+                  <span class="text-[10px] text-white/40 font-mono" id="txt-conf-id-edicao">ID: -</span>
+               </div>
+               
+               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nome Completo / Descritivo *</label>
+                     <input type="text" id="input-conf-nome" class="glass-input w-full text-xs" placeholder="Nome do vizinho" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">CPF / CNPJ</label>
+                     <input type="text" id="input-conf-cpf" class="glass-input w-full text-xs" placeholder="Ex: 000.000.000-00" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">RG / IE</label>
+                     <input type="text" id="input-conf-rg" class="glass-input w-full text-xs" placeholder="Registro Geral" />
+                  </div>
+               </div>
+
+               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nacionalidade</label>
+                     <input type="text" id="input-conf-nacionalidade" class="glass-input w-full text-xs" placeholder="brasileiro(a)" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Profissão</label>
+                     <input type="text" id="input-conf-profissao" class="glass-input w-full text-xs" placeholder="Ex: produtor rural" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Estado Civil</label>
+                     <select id="select-conf-estado-civil" class="glass-input w-full text-xs">
+                        <option value="solteiro">Solteiro(a)</option>
+                        <option value="casado">Casado(a)</option>
+                        <option value="divorciado">Divorciado(a)</option>
+                        <option value="viuvo">Viúvo(a)</option>
+                        <option value="uniao_estavel">União Estável</option>
+                     </select>
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Regime de Bens</label>
+                     <input type="text" id="input-conf-regime-bens" class="glass-input w-full text-xs" placeholder="Se casado (Ex: Comunhão Parcial)" />
+                  </div>
+               </div>
+
+               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge (Nome)</label>
+                     <input type="text" id="input-conf-conjuge-nome" class="glass-input w-full text-xs" placeholder="Nome do cônjuge" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge CPF</label>
+                     <input type="text" id="input-conf-conjuge-cpf" class="glass-input w-full text-xs" placeholder="CPF do cônjuge" />
+                  </div>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge RG</label>
+                     <input type="text" id="input-conf-conjuge-rg" class="glass-input w-full text-xs" placeholder="RG do cônjuge" />
+                  </div>
+               </div>
+
+               <div>
+                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Endereço Completo</label>
+                  <input type="text" id="input-conf-endereco" class="glass-input w-full text-xs" placeholder="Rua, Número, Bairro, Cidade-UF" />
+               </div>
+
+               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Matrícula Confrontante (Opcional)</label>
+                     <input type="text" id="input-conf-matricula-imovel" class="glass-input w-full text-xs font-mono" placeholder="Ex: 5196" />
+                  </div>
+                  <div class="flex items-end gap-2">
+                     <button class="btn-primary py-2 px-6 text-xs font-bold flex-grow flex items-center justify-center gap-1.5" id="btn-salvar-confrontante-qualificacao" type="button">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        Salvar Confrontante
+                     </button>
+                     <button class="btn-secondary py-2 px-3 text-xs font-bold text-white border-white/10 hover:bg-white/5 active:scale-95" id="btn-cancelar-confrontante-qualificacao" type="button">
+                        Cancelar
+                     </button>
+                  </div>
+               </div>
             </div>
           </div>
         </div>

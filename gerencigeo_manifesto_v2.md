@@ -1,6 +1,6 @@
 # 🛰️ GerenciGeo — Manifesto de Especificação Técnica e Arquitetura
 **Padrão Arquitetural:** Field-to-Finish Integrado (FastAPI + SQLite + Tailwind/TS + Toolchain Topografia)
-**Versão do Documento:** 2.2.0
+**Versão do Documento:** 2.3.0
 **Status do Ecossistema:** Estrutura Estratégica Consolidada
 
 Este documento estabelece as diretrizes arquiteturais, a modelagem de dados e as regras de negócio do ecossistema **GerenciGeo**. Ele atua como a única fonte de verdade para o desenvolvimento do sistema, devendo ser interpretado por agentes de IA (como o Antigravity) e desenvolvedores para garantir a consistência absoluta de código entre as camadas de persistência, negócio e interface.
@@ -656,3 +656,35 @@ Para garantir a otimização de espaço e a visualização correta do painel pri
 3. **Mapa e Painéis de Altura Dinâmica (Viewport Spacing)**: No desktop, o contêiner de grid pai que agrupa o Mapa e o Action Center deve se estender dinamicamente até a base inferior do viewport utilizando a classe de cálculo de altura `lg:h-[calc(100vh-220px)] lg:min-h-[450px]`, mantendo o mapa com `lg:h-full`.
 4. **Simplificação e Omissão de Elementos Estáticos**: Elementos de indicação puramente estáticos sobre o mapa (como letreiros de WMS conectado) devem ser omitidos. O controle de camadas do Leaflet deve omitir o radio button do satélite Google, mantendo apenas os controles ativáveis funcionais (`overlayMaps`), evitando redundância visual.
 5. **SIGEF Link Direto por UUID**: O link de detalhamento da parcela no modal retornado pelo GetFeatureInfo deve encaminhar o operador diretamente para o endereço de visualização individual da parcela (`/geo/parcela/detalhe/{uuid}/`) sempre que o UUID da feição estiver presente.
+
+---
+
+### 4.9 Refatoração Modular de Rotas, Auditoria de Pontos e Prevenção de Reimportação (v2.3.0)
+
+O ecossistema evoluiu para suportar uma estrutura escalável de endpoints e uma camada rica de auditoria visual na mesa de trabalho, mitigando erros operacionais e garantindo o rastreamento dos dados brutos e homologados de forma precisa.
+
+#### A. Arquitetura Modular de Rotas do Backend (routes/)
+O arquivo centralizado `api.py` foi simplificado, atuando estritamente como inicializador do servidor FastAPI. Toda a lógica de rotas foi extraída e organizada em submódulos desacoplados:
+*   `routes/deps.py`: Componente de middlewares globais (verificação de tranca em levantamento arquivado) e rotinas auxiliares de padronização (como tratamento de strings de confrontantes).
+*   `routes/clientes.py`: Endpoints do CRUD de Clientes, Profissionais e logs associados.
+*   `routes/propriedades.py`: Gerenciamento de Propriedades, Matrículas, upload e download do CAR/CCIR e checagem de isolamento em faixa de fronteira.
+*   `routes/dashboard.py`: Roteamento de alertas (Action Center), logs globais de depuração e listagem de geometrias das matrículas.
+*   `routes/ccir.py`: Mecanismos de busca e sincronização assíncrona com o Banco CCIR local.
+*   `routes/processamento.py`: Ingestão GNSS, esteira HGO (triagem quadripolar), conversões Rinex e controle do motor geodésico do IBGE-PPP.
+*   `routes/levantamento/`: Diretório dedicado para controle e ciclo de vida de levantamentos:
+    *   `levantamento/crud.py`: Controle geral (criar, listar, arquivar e desarquivar levantamentos).
+    *   `levantamento/pontos.py`: Ingestão de pontos de campo RTK, edição manual e salvamento da ordem de caminhamento perimetral.
+    *   `levantamento/homologacao.py`: Importação de planilhas ODS/TXT do SIGEF, associação de abas a matrículas, auditoria do banco de pontos e exclusão de planilhas de origem.
+    *   `levantamento/segmentos.py`: Definição de divisas, confrontantes em nível de segmento e integração com feições SIGEF.
+    *   `levantamento/documentos.py`: Emissão sob demanda de relatórios de faixa de fronteira (HTML nativo), termos de anuência e shapefiles (.ZIP) dinâmicos.
+
+#### B. Prevenção de Conflitos e Duplicatas na Reimportação de Planilhas
+Durante o processamento do upload de arquivos ODS/TXT contendo vértices aprovados (SIGEF), o backend aplica as seguintes regras de segurança:
+1.  **Checagem de Nome de Arquivo Existente:** Antes de iniciar a transação de banco de dados, é realizada uma contagem em `banco_pontos` baseada no `planilha_origem` (ex: `Norte Corre.ods`). Caso haja pontos associados àquela mesma planilha no levantamento, a operação é bloqueada e é retornado um código `HTTP 400 Bad Request` com instruções de que a versão anterior deve ser explicitamente excluída na tela de auditoria.
+2.  **Expurgo Assistido e Cascade de Divisas:** Se o operador optar por excluir o arquivo importado na auditoria, a API purga atomicamente os registros correspondentes da tabela `banco_pontos`. Se o arquivo estivesse associado a uma matrícula (atualizando a tabela principal de `pontos` com `origem_homologada = 1` e `arquivo_origem = planilha_origem`), a remoção destes pontos exclui de forma síncrona todas as divisas correspondentes (`segmentos`) criadas para aquela matrícula, forçando o operador a rearquivar os novos dados de forma limpa.
+
+#### C. Painel de Auditoria de Banco de Pontos no Frontend
+A interface de Homologação expõe o painel **"🔍 Auditoria de Pontos no Banco"** (accordion colapsável controlado via CSS e transição suave) que realiza uma chamada ao endpoint `GET /levantamentos/{id}/banco-pontos/auditoria`:
+*   **Métricas de Integridade:** Exibe cards compactos com o total de pontos inseridos, quantidade de arquivos de origem lidos e volume de códigos de vértice duplicados.
+*   **Agrupamento e Destaques Visuais:** Os pontos são agrupados por arquivo (`planilha_origem`). Se um código de vértice for identificado em múltiplos arquivos de origem simultaneamente (duplicidade geodésica perigosa), a linha do ponto adquire a classe `bg-rose-500/10 text-rose-300` e a seção correspondente exibe uma badge de alerta.
+*   **Exclusão de Lote Dinâmica:** Cada grupo possui um botão de remoção rápida que faz a chamada `DELETE /levantamentos/{id}/planilhas-homologadas?planilha_origem=...`, permitindo que o operador limpe importações incorretas e reorganize a mesa de trabalho sem comprometer a integridade referencial dos dados corretos.

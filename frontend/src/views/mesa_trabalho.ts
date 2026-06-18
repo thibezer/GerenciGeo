@@ -3485,6 +3485,12 @@ export const mesaTrabalhoRoute: RouteDef = {
       } catch (err) {
         console.error("Erro ao carregar dados de homologação:", err);
       }
+
+      // Se o container de auditoria estiver visível, atualiza os dados dele também
+      const containerAuditoria = document.getElementById('container-auditoria-banco');
+      if (containerAuditoria && !containerAuditoria.classList.contains('hidden')) {
+        renderAuditoriaBancoPontos();
+      }
     };
 
     const carregarConfrontantesAtivosSelect = async () => {
@@ -3597,6 +3603,120 @@ export const mesaTrabalhoRoute: RouteDef = {
           window.open(url, '_blank');
         };
       }
+
+      // Eventos do formulário de qualificação de confrontante (anuência)
+      const selectAnuencia = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
+      if (selectAnuencia) {
+        selectAnuencia.addEventListener('change', async () => {
+          const confIdVal = selectAnuencia.value;
+          const containerForm = document.getElementById('container-form-confrontante');
+          if (!confIdVal || !currentLevId) {
+            if (containerForm) containerForm.classList.add('hidden');
+            return;
+          }
+          
+          try {
+            const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/confrontantes`);
+            const confs = await res.json();
+            const selectedConf = confs.find((c: any) => String(c.id) === confIdVal);
+            
+            if (selectedConf && containerForm) {
+              containerForm.classList.remove('hidden');
+              
+              // Preenche os campos do formulário
+              (document.getElementById('txt-conf-id-edicao') as HTMLElement).innerText = `ID: ${selectedConf.id}`;
+              (document.getElementById('input-conf-nome') as HTMLInputElement).value = selectedConf.nome || '';
+              (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj || '';
+              (document.getElementById('input-conf-rg') as HTMLInputElement).value = selectedConf.rg || '';
+              (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || '';
+              (document.getElementById('input-conf-profissao') as HTMLInputElement).value = selectedConf.profissao || '';
+              (document.getElementById('select-conf-estado-civil') as HTMLSelectElement).value = selectedConf.estado_civil || 'solteiro';
+              (document.getElementById('input-conf-regime-bens') as HTMLInputElement).value = selectedConf.regime_bens || '';
+              (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = selectedConf.nome_conjuge || '';
+              (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge || '';
+              (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = selectedConf.rg_conjuge || '';
+              (document.getElementById('input-conf-endereco') as HTMLInputElement).value = selectedConf.endereco_completo || '';
+              (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value = selectedConf.matricula_imovel || '';
+              
+              initIcons();
+            }
+          } catch (err) {
+            console.error("Erro ao carregar qualificacoes do confrontante:", err);
+          }
+        });
+      }
+
+      const btnSalvarConf = document.getElementById('btn-salvar-confrontante-qualificacao') as HTMLButtonElement;
+      if (btnSalvarConf) {
+        btnSalvarConf.onclick = async () => {
+          const confIdVal = selectAnuencia ? selectAnuencia.value : '';
+          if (!confIdVal || !currentLevId) return;
+
+          const nome = (document.getElementById('input-conf-nome') as HTMLInputElement).value.trim();
+          if (!nome) {
+            alert("O nome do confrontante é obrigatório.");
+            return;
+          }
+
+          const payload = {
+            nome: nome,
+            cpf_cnpj: (document.getElementById('input-conf-cpf') as HTMLInputElement).value.trim() || null,
+            rg: (document.getElementById('input-conf-rg') as HTMLInputElement).value.trim() || null,
+            nacionalidade: (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value.trim() || null,
+            profissao: (document.getElementById('input-conf-profissao') as HTMLInputElement).value.trim() || null,
+            estado_civil: (document.getElementById('select-conf-estado-civil') as HTMLSelectElement).value || null,
+            regime_bens: (document.getElementById('input-conf-regime-bens') as HTMLInputElement).value.trim() || null,
+            nome_conjuge: (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value.trim() || null,
+            cpf_conjuge: (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value.trim() || null,
+            rg_conjuge: (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value.trim() || null,
+            endereco_completo: (document.getElementById('input-conf-endereco') as HTMLInputElement).value.trim() || null,
+            matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value.trim() || null,
+            tipo_relacao: null
+          };
+
+          btnSalvarConf.disabled = true;
+          const originalHTML = btnSalvarConf.innerHTML;
+          btnSalvarConf.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Salvando...`;
+          initIcons();
+
+          try {
+            const res = await fetch(`${API_BASE}/confrontantes/${confIdVal}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+              alert("Qualificação do confrontante salva com sucesso!");
+              const containerForm = document.getElementById('container-form-confrontante');
+              if (containerForm) containerForm.classList.add('hidden');
+              if (selectAnuencia) selectAnuencia.value = '';
+              
+              // Recarregar os detalhes do levantamento para refletir as mudancas
+              await loadLevantamentoDetails();
+            } else {
+              const data = await res.json();
+              alert(data.error || "Erro ao salvar qualificações do confrontante.");
+            }
+          } catch (err) {
+            console.error("Erro ao salvar qualificações:", err);
+            alert("Erro de rede ao salvar qualificações.");
+          } finally {
+            btnSalvarConf.disabled = false;
+            btnSalvarConf.innerHTML = originalHTML;
+            initIcons();
+          }
+        };
+      }
+
+      const btnCancelarConf = document.getElementById('btn-cancelar-confrontante-qualificacao');
+      if (btnCancelarConf) {
+        btnCancelarConf.onclick = () => {
+          const containerForm = document.getElementById('container-form-confrontante');
+          if (containerForm) containerForm.classList.add('hidden');
+          if (selectAnuencia) selectAnuencia.value = '';
+        };
+      }
     };
 
     const inicializarHomologacaoIncra = () => {
@@ -3700,6 +3820,136 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
+    const renderAuditoriaBancoPontos = async () => {
+      const container = document.getElementById('lista-grupos-auditoria');
+      const totalPtsEl = document.getElementById('auditoria-total-pontos');
+      const totalGruposEl = document.getElementById('auditoria-total-grupos');
+      const totalDupEl = document.getElementById('auditoria-total-duplicados');
+      
+      if (!container || !currentLevId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/levantamentos/${currentLevId}/banco-pontos/auditoria`);
+        const data = await res.json();
+
+        if (totalPtsEl) totalPtsEl.innerText = String(data.total_pontos || 0);
+        if (totalGruposEl) totalGruposEl.innerText = String(data.total_grupos || 0);
+        if (totalDupEl) totalDupEl.innerText = String(data.total_duplicatas || 0);
+
+        if (!data.grupos || data.grupos.length === 0) {
+          container.innerHTML = `<div class="text-white/20 italic py-4 text-center">Nenhum ponto no banco para auditar.</div>`;
+          return;
+        }
+
+        let html = '';
+        data.grupos.forEach((g: any) => {
+          const isDuplicadoGrupo = g.tem_duplicata;
+          
+          html += `
+            <div class="bg-white/[0.02] border border-white/5 rounded-lg p-3 space-y-2">
+              <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-xs text-white max-w-[200px] truncate" title="${g.planilha_origem}">${g.planilha_origem}</span>
+                  <span class="text-[9px] font-mono bg-white/5 px-1.5 py-0.5 rounded text-white/40">${g.total} Pontos</span>
+                  ${isDuplicadoGrupo ? `<span class="text-[8px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/25 px-1.5 py-0.5 rounded font-bold uppercase">Contém Duplicatas</span>` : ''}
+                </div>
+                <button class="btn-deletar-planilha-auditoria text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2 py-1 rounded text-[10px] flex items-center gap-1 transition-all active:scale-95" data-planilha="${g.planilha_origem}">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  Excluir Planilha
+                </button>
+              </div>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-[10px] font-mono">
+                  <thead>
+                    <tr class="text-[8px] font-bold uppercase tracking-wider text-white/20 border-b border-white/5">
+                      <th class="py-1 px-1">Código</th>
+                      <th class="py-1 px-1">Tipo</th>
+                      <th class="py-1 px-1">Coordenadas (N, E, H)</th>
+                      <th class="py-1 px-1">Método / Limite</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/5">
+                    ${g.pontos.map((p: any) => `
+                      <tr class="${p.is_duplicado ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-white/[0.01]'} transition-colors">
+                        <td class="py-1 px-1 font-bold ${p.is_duplicado ? 'text-amber-400' : 'text-mint-vibrant'}">
+                          ${p.codigo_completo}
+                          ${p.is_duplicado ? '<span class="text-[8px] text-amber-500 font-bold block">(Duplicado)</span>' : ''}
+                        </td>
+                        <td class="py-1 px-1 text-white/60">${p.tipo_ponto}</td>
+                        <td class="py-1 px-1 text-white/40">
+                          ${p.norte ? p.norte.toFixed(3) : '-'}, ${p.este ? p.este.toFixed(3) : '-'}, ${p.altitude ? p.altitude.toFixed(2) : '-'}
+                        </td>
+                        <td class="py-1 px-1 text-white/40">
+                          ${p.metodo_posicionamento || '-'} / ${p.tipo_limite || '-'}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        });
+
+        container.innerHTML = html;
+        initIcons();
+
+        // Bindar evento de exclusão de planilha na auditoria
+        container.querySelectorAll('.btn-deletar-planilha-auditoria').forEach((btn: any) => {
+          btn.addEventListener('click', async () => {
+            const planilha = btn.getAttribute('data-planilha');
+            if (planilha.startsWith("Sem arquivo")) {
+              alert("Não é possível excluir pontos criados manualmente por este atalho.");
+              return;
+            }
+            if (!confirm(`Deseja realmente excluir a planilha "${planilha}" e todos os seus vértices homologados deste levantamento? Esta ação é irreversível.`)) {
+              return;
+            }
+
+            try {
+              const resDel = await fetch(`${API_BASE}/levantamentos/${currentLevId}/planilhas-homologadas?planilha_origem=${encodeURIComponent(planilha)}`, {
+                method: 'DELETE'
+              });
+              if (resDel.ok) {
+                alert("Planilha e pontos excluídos com sucesso!");
+                await loadLevantamentoDetails(); // Recarrega o levantamento geral
+              } else {
+                const errData = await resDel.json();
+                alert(errData.detail || "Erro ao excluir planilha.");
+              }
+            } catch (err) {
+              console.error("Erro ao excluir planilha da auditoria:", err);
+            }
+          });
+        });
+
+      } catch (err) {
+        console.error("Erro ao renderizar auditoria do banco de pontos:", err);
+        container.innerHTML = `<div class="text-red-400 italic py-2 text-center">Erro ao carregar auditoria.</div>`;
+      }
+    };
+
+    const inicializarAuditoriaBancoPontos = () => {
+      const btnToggle = document.getElementById('btn-toggle-auditoria-banco');
+      const container = document.getElementById('container-auditoria-banco');
+      const iconChevron = document.getElementById('icon-chevron-auditoria');
+
+      if (!btnToggle || !container) return;
+
+      btnToggle.onclick = () => {
+        const isHidden = container.classList.contains('hidden');
+        if (isHidden) {
+          container.classList.remove('hidden');
+          if (iconChevron) iconChevron.classList.add('rotate-180');
+          renderAuditoriaBancoPontos();
+        } else {
+          container.classList.add('hidden');
+          if (iconChevron) iconChevron.classList.remove('rotate-180');
+        }
+      };
+    };
+
     setupEventDelegation();
     loadLevantamentoDetails();
     inicializarMenuContextoEPontoModal();
@@ -3711,6 +3961,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     inicializarSplitters();
     inicializarHomologacaoIncra();
     inicializarEventosCartorio();
+    inicializarAuditoriaBancoPontos();
 
     const inicializarConfrontanteRapido = () => {
       const input = document.getElementById('input-confrontante-nome-rapido') as HTMLInputElement;
