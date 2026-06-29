@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
 import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
@@ -77,6 +77,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       carregarSugestoesNumeracao: () => {},
       carregarConfrontantesAtivosSelect: async () => {},
       selectPontoFromTabela: () => {},
+      aplicarLargurasSplitters: () => {},
 
       latLonToUTM: (_lat: number, _lon: number) => ({ e: 0, n: 0, zone: 22 }),
       subirPonto: () => {},
@@ -457,6 +458,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       initIcons();
+      ctx.aplicarLargurasSplitters();
       if (ctx.triagemMap && etapa !== 'auditoria') {
         setTimeout(() => {
           ctx.triagemMap!.invalidateSize();
@@ -504,6 +506,18 @@ export const mesaTrabalhoRoute: RouteDef = {
           tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
         }
       });
+      
+      const bar = document.getElementById('batch-action-bar-mesa');
+      const countEl = document.getElementById('batch-selection-count-mesa');
+      if (bar && countEl) {
+        const count = ctx.selectedPontoIds.length;
+        if (count > 0) {
+          countEl.innerText = count.toString();
+          bar.classList.remove('hidden');
+        } else {
+          bar.classList.add('hidden');
+        }
+      }
     };
 
     ctx.selectPontoFromTabela = (pontoId: number) => {
@@ -623,7 +637,7 @@ export const mesaTrabalhoRoute: RouteDef = {
               ctx.loadLevantamentoDetails();
             } catch (err) {
               console.error("Erro ao alterar participação no polígono:", err);
-              alert("Erro ao alterar participação do ponto no polígono.");
+              showToast("Erro ao alterar participação do ponto no polígono.", "error");
             }
           }
         });
@@ -734,7 +748,7 @@ export const mesaTrabalhoRoute: RouteDef = {
               confirmMsg += `\n\nATENÇÃO: A exclusão desta caderneta purgará automaticamente todos os pontos importados dela no banco de dados.`;
             }
 
-            if (!confirm(confirmMsg)) return;
+            if (!await customConfirm(confirmMsg)) return;
 
             try {
               const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/deletar?categoria=${cat}&nome=${encodeURIComponent(nome)}`, {
@@ -742,17 +756,17 @@ export const mesaTrabalhoRoute: RouteDef = {
               });
               const resData = await res.json();
               if (resData.success) {
-                alert(resData.message);
+                showToast(resData.message, 'success');
                 ctx.loadWorkspaceArquivos();
                 if (resData.pontos_removidos > 0) {
                   ctx.loadLevantamentoDetails();
                 }
               } else {
-                alert(`Erro ao excluir: ${resData.error || resData.detail || 'Falha desconhecida'}`);
+                showToast(`Erro ao excluir: ${resData.error || resData.detail || 'Falha desconhecida'}`, 'error');
               }
             } catch (err) {
               console.error("Erro ao deletar arquivo:", err);
-              alert("Erro de comunicação com o servidor API.");
+              showToast("Erro de comunicação com o servidor API.", 'error');
             }
           }
         });
@@ -947,7 +961,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       const isLote = ctx.selectedPontoIds.length > 1 && ctx.selectedPontoIds.includes(pId);
 
       if (isLote) {
-        if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${ctx.selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
+        if (!await customConfirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${ctx.selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
 
         try {
           const promessas = ctx.selectedPontoIds.map(id => fetch(`${API_BASE}/pontos/${id}`, { method: 'DELETE' }).then(r => r.json()));
@@ -955,15 +969,15 @@ export const mesaTrabalhoRoute: RouteDef = {
 
           const erros = resultados.filter(r => r.error).map(r => r.error);
           if (erros.length > 0) {
-            alert(`Ocorreram alguns erros ao tentar excluir em lote:\n${erros.slice(0, 5).join('\n')}`);
+            await customAlert(`Ocorreram alguns erros ao tentar excluir em lote:\n${erros.slice(0, 5).join('\n')}`);
           } else {
-            alert(`${ctx.selectedPontoIds.length} vértices excluídos com sucesso!`);
+            showToast(`${ctx.selectedPontoIds.length} vértices excluídos com sucesso!`, 'success');
           }
           ctx.selectedPontoIds = [];
           await ctx.loadLevantamentoDetails();
         } catch (err) {
           console.error("Erro ao excluir pontos em lote:", err);
-          alert("Erro de comunicação com o servidor API ao tentar excluir os pontos selecionados.");
+          showToast("Erro de comunicação com o servidor API ao tentar excluir os pontos selecionados.", 'error');
         }
         return;
       }
@@ -971,21 +985,21 @@ export const mesaTrabalhoRoute: RouteDef = {
       const pt = ctx.pontosList.find(x => x.id === pId);
       if (!pt) return;
 
-      if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente o vértice '${pt.nome_vertice}'? Esta operação é irreversível.`)) return;
+      if (!await customConfirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente o vértice '${pt.nome_vertice}'? Esta operação é irreversível.`)) return;
 
       try {
         const res = await fetch(`${API_BASE}/pontos/${pId}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.error) {
-          alert(data.error);
+          await customAlert(data.error);
         } else {
-          alert(`Vértice ${pt.nome_vertice} excluído com sucesso!`);
+          showToast(`Vértice ${pt.nome_vertice} excluído com sucesso!`, 'success');
           ctx.selectedPontoIds = ctx.selectedPontoIds.filter(id => id !== pId);
           await ctx.loadLevantamentoDetails();
         }
       } catch (err) {
         console.error("Erro ao excluir ponto:", err);
-        alert("Erro de comunicação com o servidor API.");
+        showToast("Erro de comunicação com o servidor API.", 'error');
       }
     };
 
@@ -1052,17 +1066,17 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
         const data = await res.json();
         if (data.error || (data.detail && typeof data.detail === 'string')) {
-          alert(`Erro ao salvar: ${data.error || data.detail}`);
+          await customAlert(`Erro ao salvar: ${data.error || data.detail}`);
         } else if (data.detail && typeof data.detail === 'object') {
-          alert(`Erro ao salvar: ${JSON.stringify(data.detail)}`);
+          await customAlert(`Erro ao salvar: ${JSON.stringify(data.detail)}`);
         } else {
           document.getElementById('modal-editar-ponto')?.classList.add('hidden');
-          alert("Vértice geodésico atualizado com sucesso!");
+          showToast("Vértice geodésico atualizado com sucesso!", 'success');
           await ctx.loadLevantamentoDetails();
         }
       } catch (err) {
         console.error("Erro ao salvar alterações no ponto:", err);
-        alert("Erro de comunicação com o servidor.");
+        showToast("Erro de comunicação com o servidor.", 'error');
       }
     };
 
@@ -1299,6 +1313,25 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
+    const aplicarLargurasSalvas = () => {
+      const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
+      if (savedSupWidth) {
+        const widthPx = parseInt(savedSupWidth);
+        const containerIngestao = document.getElementById('container-ingestao-arquivos');
+        const containerReordenar = document.getElementById('container-reordenar-manual');
+        if (containerIngestao) containerIngestao.style.width = `${widthPx}px`;
+        if (containerReordenar) containerReordenar.style.width = `${widthPx}px`;
+      }
+      const savedInfWidth = localStorage.getItem('gerencigeo_split_inf_width');
+      if (savedInfWidth) {
+        const widthPx = parseInt(savedInfWidth);
+        const containerDivisas = document.getElementById('container-tabela-divisas');
+        if (containerDivisas) containerDivisas.style.width = `${widthPx}px`;
+      }
+    };
+
+    ctx.aplicarLargurasSplitters = aplicarLargurasSalvas;
+
     const inicializarSplitters = () => {
       const splitterSup = document.getElementById('splitter-superior');
       const containerIngestao = document.getElementById('container-ingestao-arquivos');
@@ -1360,13 +1393,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.addEventListener('mouseup', onMouseUpSup);
           document.body.classList.add('cursor-col-resize', 'select-none');
         });
-
-        const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
-        if (savedSupWidth) {
-          const widthPx = parseInt(savedSupWidth);
-          if (containerIngestao) containerIngestao.style.width = `${widthPx}px`;
-          if (containerReordenar) containerReordenar.style.width = `${widthPx}px`;
-        }
       }
 
       if (splitterInf && containerDivisas) {
@@ -1403,12 +1429,9 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.addEventListener('mouseup', onMouseUpInf);
           document.body.classList.add('cursor-col-resize', 'select-none');
         });
-
-        const savedInfWidth = localStorage.getItem('gerencigeo_split_inf_width');
-        if (savedInfWidth) {
-          containerDivisas.style.width = `${parseInt(savedInfWidth)}px`;
-        }
       }
+      
+      aplicarLargurasSalvas();
     };
 
     // 8. Eventos Globais de Filtros de Tabela
@@ -1445,6 +1468,18 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     document.getElementById('btn-atualizar-historico-campo')?.addEventListener('click', () => {
       renderHistoricoCampo(ctx);
+    });
+
+    // Eventos da barra flutuante de ações em lote da mesa
+    document.getElementById('btn-batch-clear-mesa')?.addEventListener('click', () => {
+       ctx.selectedPontoIds = [];
+       ctx.atualizarDestaqueLinhasTabela();
+    });
+    
+    document.getElementById('btn-batch-delete-mesa')?.addEventListener('click', () => {
+       if (ctx.selectedPontoIds.length > 0) {
+          confirmarExclusaoPonto(ctx.selectedPontoIds[0]);
+       }
     });
 
     // 9. Lança Inicializadores

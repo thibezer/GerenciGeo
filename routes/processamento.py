@@ -123,16 +123,32 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
 @router.get("/pick-folder")
 def pick_folder():
-    import tkinter as tk
-    from tkinter import filedialog
-    # Start a hidden root window
-    root = tk.Tk()
-    root.withdraw()
-    # Make it appear on top
-    root.attributes('-topmost', True)
-    folder_path = filedialog.askdirectory(title="Selecione a pasta com arquivos .GNS")
-    root.destroy()
-    return {"path": folder_path or ""}
+    try:
+        import webview
+        if hasattr(webview, 'windows') and webview.windows:
+            window = webview.windows[0]
+            result = window.create_file_dialog(webview.FOLDER_DIALOG)
+            if result:
+                folder_path = result[0] if isinstance(result, (tuple, list)) else result
+                return {"path": folder_path}
+            return {"path": ""}
+    except Exception as e:
+        pass
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        # Start a hidden root window
+        root = tk.Tk()
+        root.withdraw()
+        # Make it appear on top
+        root.attributes('-topmost', True)
+        folder_path = filedialog.askdirectory(title="Selecione a pasta com arquivos .GNS")
+        root.destroy()
+        return {"path": folder_path or ""}
+    except Exception:
+        pass
+    return {"path": ""}
 
 def run_hgo_task(pasta: str):
     from business.gnss_worker import GNSSPipelineWorker

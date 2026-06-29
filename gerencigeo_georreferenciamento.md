@@ -29,7 +29,7 @@ Cadernetas RTK (.TXT)
 |
 v
 [ESTEIRA DE INGESTÃO]
-- gnss_worker.py (QC)
+- business/gnss_worker.py (QC)
 - < 50KB? (REJEITA)
 - >= 50KB? (ACEITA)
 |
@@ -321,7 +321,7 @@ Para evitar conflito de análise (*parsing*) entre chaves `{}` do Python e as ch
 O GerenciGeo v2.4 adota a arquitetura de Software Desktop Híbrido (**Edge-First**), descentralizando o processamento pesado de coordenadas e a manipulação de hardware local do servidor em nuvem (Hostinger) para rodar localmente no Windows.
 
 ### A. Divisão de Topologias
-1. **Ambiente Desktop Local (100% Autônomo):** Executa o backend FastAPI local (`api.py`), monitoramento GNSS (`gnss_worker.py`), integração RPA do HGO (`converterrinex.py`) e persistência física em SQLite de alta fidelidade (`database/gerencigeo.db`). A interface gráfica é envelopada no Windows usando a biblioteca `pywebview` apontando para a porta local `8000`.
+1. **Ambiente Desktop Local (100% Autônomo):** Executa o backend FastAPI local (`api.py`), monitoramento GNSS (`business/gnss_worker.py`), integração RPA do HGO (`converterrinex.py`) e persistência física em SQLite de alta fidelidade (`database/gerencigeo.db`). A interface gráfica é envelopada no Windows usando a biblioteca `pywebview` (iniciada por `main.py` -> `ui/app.py`) apontando para a porta local `8000`.
 2. **Ambiente Web Cloud (Hostinger Hub):** Servidor leve rodando o FastAPI em modo restrito (com a flag `RUNNING_LOCAL = False`). Todas as operações de ingestão RINEX, processamento do robô HGO e uploads são desativados (retornando HTTP 403 Forbidden). O banco de dados MySQL armazena apenas dados cadastrais simplificados e a geometria perimetral dissolvida em formato GeoJSON/WKT para visualização móvel rápida.
 
 ### B. Protocolo de Sincronização Unidirecional (Atômico)

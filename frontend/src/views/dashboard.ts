@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, showToast } from '../utils';
 
 let mapInstance: L.Map | null = null;
 
@@ -131,11 +131,68 @@ export const dashboardRoute: RouteDef = {
         if (container) container.innerHTML = `<div class="text-center text-red-400 text-sm py-4">Erro ao carregar alertas.</div>`;
       });
 
+    // Recupera última posição/zoom do mapa persistido no localStorage
+    let defaultCenter: [number, number] = [-23.7661, -53.3204];
+    let defaultZoom = 14;
+    const savedCenter = localStorage.getItem('gerencigeo_dashboard_center');
+    const savedZoom = localStorage.getItem('gerencigeo_dashboard_zoom');
+    if (savedCenter) {
+      try {
+        defaultCenter = JSON.parse(savedCenter);
+      } catch (e) {}
+    }
+    if (savedZoom) {
+      defaultZoom = parseInt(savedZoom);
+    }
+
     // Initialize Leaflet Map centered on Umuarama, PR com maxZoom 24
     const map = L.map('map', {
       maxZoom: 24
-    }).setView([-23.7661, -53.3204], 14);
+    }).setView(defaultCenter, defaultZoom);
     mapInstance = map;
+
+    // Salva a posição/zoom do mapa em tempo real
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      localStorage.setItem('gerencigeo_dashboard_center', JSON.stringify([center.lat, center.lng]));
+    });
+    map.on('zoomend', () => {
+      localStorage.setItem('gerencigeo_dashboard_zoom', map.getZoom().toString());
+    });
+
+    // Adiciona escala métrica Leaflet
+    L.control.scale({
+      metric: true,
+      imperial: false,
+      position: 'bottomleft'
+    }).addTo(map);
+
+    // Adiciona indicador de Norte Geográfico estilizado
+    const NorthArrowControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function() {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-north-arrow');
+        div.style.background = 'rgba(17, 17, 19, 0.82)';
+        div.style.backdropFilter = 'blur(12px)';
+        div.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+        div.style.color = '#00E08A';
+        div.style.borderRadius = '6px';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.width = '32px';
+        div.style.height = '32px';
+        div.title = 'Norte Geográfico';
+        div.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; font-family: var(--geo-font-sans), sans-serif; gap: 1px;">
+            <span>N</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="19 10 12 3 5 10"/></svg>
+          </div>
+        `;
+        return div;
+      }
+    });
+    new NorthArrowControl().addTo(map);
 
     // Create a pane for overlays to ensure they stay on top
     map.createPane('overlayPane');
@@ -300,7 +357,7 @@ export const dashboardRoute: RouteDef = {
           console.log("Clique fora de parcela: Nenhum dado retornado pelo INCRA.");
         }
       } catch (err) {
-        console.warn("Erro ao consultar o servidor do INCRA ou clique fora dos limites.", err);
+        showToast("Erro ao consultar o servidor do INCRA ou clique fora dos limites.", "error");
       } finally {
         // Restaura o cursor
         if (mapContainer) mapContainer.style.cursor = '';

@@ -167,8 +167,33 @@ export const renderLinhaPontoCartorioHtml = (
   `;
 };
 
+const formatarDeltaHtml = (valStr: string): string => {
+  const val = parseFloat(valStr);
+  if (isNaN(val) || valStr === '-' || valStr === '') {
+    return `<span class="text-white/30">-</span>`;
+  }
+  if (val === 0) {
+    return `<span class="text-white/30">0</span>`;
+  }
+  
+  const absVal = Math.abs(val);
+  const sinal = val > 0 ? '+' : '-';
+  const displayVal = `${sinal}${absVal.toLocaleString('pt-BR')}`;
+  
+  let corClass = 'text-white/50';
+  if (absVal <= 3) {
+    corClass = 'text-emerald-400 font-semibold'; // Verde para <= 3mm (dentro do limite rígido)
+  } else if (absVal <= 10) {
+    corClass = 'text-yellow-400 font-semibold'; // Amarelo para 3-10mm (aviso)
+  } else {
+    corClass = 'text-rose-400 font-bold'; // Vermelho para > 10mm (fora do limite)
+  }
+  
+  return `<span class="${corClass}">${displayVal}</span>`;
+};
+
 /**
- * Renderiza uma linha de vértice na Etapa 1 (Mesa Geodésica - Geoprocessamento)
+ * Renderiza uma linha de Vértice na Etapa 1 (Mesa Geodésica - Geoprocessamento)
  * Exibe os desvios e deltas contra a base estática/bruta.
  */
 export const renderLinhaPontoGeoprocessamentoHtml = (
@@ -188,10 +213,10 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
   let col4 = '-';
   let col5 = '-';
   let col6 = '-';
-
-  let deltaN = '0.000';
-  let deltaE = '0.000';
-  let deltaH = '0.000';
+  
+  let deltaN = '-';
+  let deltaE = '-';
+  let deltaH = '-';
 
   if (modoCoordenadas === 'geodesico') {
      col1 = p.lat ? p.lat.toFixed(8) : '-';
@@ -331,9 +356,9 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/40 tabular-nums">${col2}</td>
          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col3}</td>
          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col4}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaN) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaN}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaE}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs ${parseFloat(deltaH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${deltaH}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaN)}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaE)}</td>
+         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaH)}</td>
          <td class="px-2 py-2.5 text-center">
            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
          </td>
@@ -341,7 +366,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
        </tr>
      `;
   }
-};
+};;
 
 /**
  * Renderiza uma linha de auditoria (Deltas horizontais em mm)

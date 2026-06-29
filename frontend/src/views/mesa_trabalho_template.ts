@@ -996,5 +996,22 @@ export const renderMesaTrabalho = (): string => {
           </form>
        </div>
     </div>
+
+    <!-- BARRA DE AÇÕES EM LOTE DE VÉRTICES (MESA) -->
+    <div id="batch-action-bar-mesa" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 z-40 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
+       <div class="flex items-center gap-2 border-r border-white/10 pr-6 shrink-0">
+          <span class="w-5 h-5 rounded-full bg-mint-vibrant text-forest-deep flex items-center justify-center text-xs font-bold font-mono" id="batch-selection-count-mesa">0</span>
+          <span class="text-xs font-medium text-white/70">Vértices selecionados</span>
+       </div>
+       <div class="flex items-center gap-3 flex-wrap">
+          <button class="px-3 py-1.5 rounded bg-rose-500/20 hover:bg-rose-500 border border-rose-500/30 hover:border-transparent text-rose-300 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer" id="btn-batch-delete-mesa">
+             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+             Excluir Selecionados
+          </button>
+          <button class="px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 text-[11px] font-medium transition-all cursor-pointer" id="btn-batch-clear-mesa">
+             Limpar Seleção
+          </button>
+       </div>
+    </div>
   `;
 };

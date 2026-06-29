@@ -38,17 +38,17 @@ A comunicação entre a máquina local e o servidor cloud Hostinger ocorre de fo
 
 ---
 
-## 🖥️ 4. Regras do Frontend Online (Mesa de Trabalho Ocultada)
+## 🖥️ 4. Regras do Frontend Online (Páginas Exclusivas do Desktop Ocultadas)
 
-O frontend Vite compilado servido pela Hostinger detecta a origem de acesso e aplica restrições de controle visual:
+O frontend Vite compilado servido pela Hostinger detecta a origem de acesso e aplica restrições de controle visual e roteamento rígidas:
 
 ### A. Detecção de Host
 - O sistema analisa a origem da requisição (`window.location.origin`).
 - Se a origem apontar para o servidor web externo da Hostinger (não contendo `localhost`, `127.0.0.1` ou `::1`), o app assume o modo **Hub Cloud**.
 
-### B. Ocultação Reativa de Componentes
-Para evitar erros de conexão com serviços locais inexistentes na nuvem:
-1. **Mesa de Ingestão Ocultada:** As áreas de drag-and-drop de arquivos RINEX/GNS (`#triagem-dropzone` e `#homologacao-dropzone`) são ocultadas visualmente e desativadas no DOM.
-2. **Workspace GNSS Ocultado:** O painel contendo a visualização dos diretórios físicos do Windows (`#painel-workspace-gnss`) e os botões de controle de arquivos locais são completamente ocultados.
-3. **Restrição de Emissão de Peças:** Botões destinados a rodar automações ou gerar documentos pesados no computador do usuário são desativados.
-4. **Alerta de Contexto:** Injeção de mensagem informativa discreta no rodapé/barra de status superior: `"Modo de Consulta Hub Web Ativo. Operações de Ingestão Restritas ao App Desktop."`
+### B. Ocultação Reativa e Bloqueio de Páginas Locais
+Para evitar erros de conexão com serviços locais inexistentes na nuvem e preservar a segurança:
+1. **Ocultação na Sidebar:** As opções de menu correspondentes às páginas **"Organizador HGO"**, **"Área de Fronteira"**, **"Banco CCIR"** e **"Levantamentos"** recebem a classe `local-only-route` e são completamente ocultadas visualmente da sidebar em ambiente web.
+2. **Guarda de Rotas (Router Guard):** O sistema de roteamento (`navigate()` no [main.ts](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/frontend/src/main.ts)) monitora e impede o acesso direto via URL hash às rotas locais (`#levantamentos`, `#hgo`, `#fronteira`, `#ccir` e `#mesa_trabalho`). Caso haja tentativa de navegação, um toast de erro é disparado com a mensagem `"Operação restrita ao Software Desktop Local."` e o usuário é redirecionado de volta para o `#dashboard`.
+3. **Mesa de Ingestão e Workspace Ocultados:** As áreas de drag-and-drop de arquivos RINEX/GNS (`#triagem-dropzone` e `#homologacao-dropzone`), bem como o painel de diretórios físicos do Windows (`#painel-workspace-gnss`), são desativados.
+4. **Indicador de Contexto:** Injeção do badge `"Hub Web Cloud"` na parte superior da sidebar para identificação visual instantânea do ambiente pelo usuário.

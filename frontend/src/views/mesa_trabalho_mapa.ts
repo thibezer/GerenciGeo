@@ -41,6 +41,40 @@ export class MesaTrabalhoMapa {
       scrollWheelZoom: true
     }).setView([-23.7661, -53.3204], 14);
 
+    // Adiciona escala métrica Leaflet
+    L.control.scale({
+      metric: true,
+      imperial: false,
+      position: 'bottomleft'
+    }).addTo(this.map);
+
+    // Adiciona indicador de Norte Geográfico customizado
+    const NorthArrowControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function() {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-north-arrow');
+        div.style.background = 'rgba(17, 17, 19, 0.82)';
+        div.style.backdropFilter = 'blur(12px)';
+        div.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+        div.style.color = '#00E08A';
+        div.style.borderRadius = '6px';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.width = '32px';
+        div.style.height = '32px';
+        div.title = 'Norte Geográfico';
+        div.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; font-family: var(--geo-font-sans), sans-serif; gap: 1px;">
+            <span>N</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="19 10 12 3 5 10"/></svg>
+          </div>
+        `;
+        return div;
+      }
+    });
+    new NorthArrowControl().addTo(this.map);
+
     // Google Satélite Pane
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
       maxZoom: 24, // Permite acompanhar o zoom do mapa

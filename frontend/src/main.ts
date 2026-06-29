@@ -2,7 +2,7 @@ import './style.css';
 import './design-engine.css';
 
 import type { RouteDef } from './types';
-import { initIcons, clearTimeoutsAndIntervals } from './utils';
+import { initIcons, clearTimeoutsAndIntervals, showToast } from './utils';
 import { dashboardRoute } from './views/dashboard';
 import { clientesRoute } from './views/clientes';
 import { levantamentosRoute } from './views/levantamentos';
@@ -13,6 +13,13 @@ import { pendenciasRoute } from './views/pendencias';
 import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
 import { ccirRoute } from './views/ccir';
+
+// Detecção se o app está executando no desktop local ou na nuvem Hostinger
+const isLocal = window.location.origin.includes('localhost') || 
+                window.location.origin.includes('127.0.0.1') || 
+                window.location.origin.includes('[::1]');
+
+const localOnlyRoutes = ['levantamentos', 'hgo', 'fronteira', 'ccir', 'mesa_trabalho'];
 
 const routes: Record<string, RouteDef> = {
   dashboard: dashboardRoute,
@@ -31,6 +38,13 @@ const routes: Record<string, RouteDef> = {
 let activeRoute: RouteDef | null = null;
 
 const navigate = (route: string) => {
+  // Se for ambiente Web (nuvem) e for uma rota local-only, bloqueia o acesso
+  if (!isLocal && localOnlyRoutes.includes(route)) {
+    showToast("Operação restrita ao Software Desktop Local.", "error");
+    window.location.hash = '#dashboard';
+    return;
+  }
+
   const container = document.getElementById('view-container');
   const breadcrumbCurrent = document.getElementById('breadcrumb-current');
   if (!container) return;
@@ -72,6 +86,22 @@ window.addEventListener('hashchange', () => {
 });
 
 const initApp = () => {
+  // Se for ambiente Web (Hostinger), oculta itens locais da sidebar e adiciona indicador
+  if (!isLocal) {
+    document.querySelectorAll('.local-only-route').forEach(el => {
+      el.classList.add('hidden');
+    });
+
+    const headerTitle = document.getElementById('sidebar-header');
+    if (headerTitle) {
+      const modeIndicator = document.createElement('div');
+      modeIndicator.className = 'text-[9px] text-mint-vibrant/60 font-bold uppercase tracking-wider px-2 mt-1 sidebar-text';
+      modeIndicator.id = 'web-cloud-indicator';
+      modeIndicator.innerText = 'Hub Web Cloud';
+      headerTitle.parentNode?.insertBefore(modeIndicator, headerTitle.nextSibling);
+    }
+  }
+
   const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
   navigate(initialRoute);
   initIcons();
@@ -88,12 +118,34 @@ const initApp = () => {
   const sidebar = document.getElementById('sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
   if (sidebar && btnToggleSidebar) {
+    // Restaura preferência salva no localStorage
+    const isCollapsedSaved = localStorage.getItem('gerencigeo_sidebar_collapsed') === 'true';
+    if (isCollapsedSaved) {
+      sidebar.classList.add('sidebar-collapsed');
+    } else {
+      sidebar.classList.remove('sidebar-collapsed');
+    }
+
+    const icon = btnToggleSidebar.querySelector('i');
+    if (icon) {
+      if (sidebar.classList.contains('sidebar-collapsed')) {
+        icon.setAttribute('data-lucide', 'chevron-right');
+        btnToggleSidebar.setAttribute('title', 'Expandir menu');
+      } else {
+        icon.setAttribute('data-lucide', 'chevron-left');
+        btnToggleSidebar.setAttribute('title', 'Recolher menu');
+      }
+      initIcons();
+    }
+
     btnToggleSidebar.addEventListener('click', () => {
       sidebar.classList.toggle('sidebar-collapsed');
+      const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+      localStorage.setItem('gerencigeo_sidebar_collapsed', isCollapsed ? 'true' : 'false');
       
       const icon = btnToggleSidebar.querySelector('i');
       if (icon) {
-        if (sidebar.classList.contains('sidebar-collapsed')) {
+        if (isCollapsed) {
           icon.setAttribute('data-lucide', 'chevron-right');
           btnToggleSidebar.setAttribute('title', 'Expandir menu');
         } else {

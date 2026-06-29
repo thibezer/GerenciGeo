@@ -49,6 +49,7 @@ export interface MesaTrabalhoContext {
   carregarSugestoesNumeracao: () => void;
   carregarConfrontantesAtivosSelect: () => Promise<void>;
   selectPontoFromTabela: (pontoId: number) => void;
+  aplicarLargurasSplitters: () => void;
 
   // Funções utilitárias e de reordenação
   latLonToUTM: (lat: number, lon: number) => { e: number; n: number; zone: number };

@@ -1,13 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
 @layer base {
   body {
-    @apply bg-forest-deep text-white font-manrope selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
+    @apply bg-forest-deep text-white font-inter selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
     scrollbar-width: thin;
-    scrollbar-color: #00f5a022 transparent;
+    scrollbar-color: #00E08A22 transparent;
   }
 }
 
@@ -415,6 +415,7 @@ thead th,
   white-space: nowrap;
   outline: none;
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Efeito de hover suave e sutil para abas inativas */
@@ -429,6 +430,17 @@ thead th,
     width: auto;
     order: unset;
     margin-top: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1400px) {
+  .btn-etapa-tab {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 11px !important;
+  }
+  #container-abas-etapas {
+    gap: 4px !important;
   }
 }
 
@@ -521,12 +533,14 @@ thead th,
 .compact-popup .leaflet-popup-content-wrapper,
 .compact-sigef-popup .leaflet-popup-content-wrapper,
 .glass-popup .leaflet-popup-content-wrapper {
-  background: #ffffff !important;
-  color: #1a1a1a !important;
+  background: rgba(17, 17, 19, 0.92) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
   padding: 0 !important;
-  font-family: 'Manrope', system-ui, sans-serif !important;
+  backdrop-filter: blur(12px) !important;
+  font-family: var(--geo-font-sans), 'Inter', system-ui, sans-serif !important;
 }
 .compact-popup .leaflet-popup-content,
 .compact-sigef-popup .leaflet-popup-content,
@@ -538,19 +552,20 @@ thead th,
 .compact-popup .leaflet-popup-tip,
 .compact-sigef-popup .leaflet-popup-tip,
 .glass-popup .leaflet-popup-tip {
-  background: #ffffff !important;
+  background: rgba(17, 17, 19, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .compact-popup .leaflet-popup-close-button,
 .compact-sigef-popup .leaflet-popup-close-button,
 .glass-popup .leaflet-popup-close-button {
-  color: #999 !important;
+  color: rgba(255, 255, 255, 0.5) !important;
   font-size: 18px !important;
   padding: 4px 7px 0 0 !important;
 }
 .compact-popup .leaflet-popup-close-button:hover,
 .compact-sigef-popup .leaflet-popup-close-button:hover,
 .glass-popup .leaflet-popup-close-button:hover {
-  color: #333 !important;
+  color: #fff !important;
 }
 
 /* ==========================================================================

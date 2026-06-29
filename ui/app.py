@@ -26,7 +26,7 @@ def iniciar_servidor():
     except Exception as err:
         print(f"ERRO Crítico ao subir o Uvicorn: {err}")
 
-if __name__ == "__main__":
+def start_app():
     # GARANTIA UAC: Re-executa o processo solicitando permissões elevadas se necessário
     if not sou_administrador():
         print("Solicitando privilégios de Administrador para o ecossistema Edge-First...")
@@ -46,3 +46,6 @@ if __name__ == "__main__":
         min_size=(1024, 768)
     )
     webview.start(debug=True)
+
+if __name__ == "__main__":
+    start_app()

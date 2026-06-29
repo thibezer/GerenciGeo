@@ -31,7 +31,7 @@ export const levantamentosRoute: RouteDef = {
                 <i data-lucide="plus" class="w-4 h-4"></i>
                 Novo Levantamento
              </button>
-             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-triagem-txt" style="color: #00ff88; border-color: rgba(0, 255, 136, 0.2);">
+             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2 text-mint-vibrant border-mint-vibrant/20" id="btn-triagem-txt">
                 <i data-lucide="filter" class="w-4 h-4"></i>
                 Área de Triagem
              </button>
