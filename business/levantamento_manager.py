@@ -229,13 +229,31 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                 conn.commit()
                 return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem dos pontos avulsos salva com sucesso."}
 
-            # B. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
+            # B. Obter metadados dos limites dos segmentos anteriores para preservá-los
+            query_preservar_limites = """
+                SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                FROM segmentos
+                WHERE levantamento_id = ? AND matricula_id = ?
+            """
+            cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
+            segmentos_antigos = cursor.fetchall()
+            
+            mapa_segmento_info = {}
+            for seg in segmentos_antigos:
+                chave = (seg["ponto_inicio_id"], seg["ponto_fim_id"])
+                mapa_segmento_info[chave] = {
+                    "confrontante_id": seg["confrontante_id"],
+                    "tipo_limite_sigef": seg["tipo_limite_sigef"],
+                    "metodo_posicionamento_sigef": seg["metodo_posicionamento_sigef"]
+                }
+
+            # C. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
             cursor.execute(
                 "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
                 (levantamento_id, matricula_id)
             )
             
-            # C. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
+            # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
             cursor.execute(
                 "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY ordem_caminhamento ASC",
                 (levantamento_id, matricula_id)
@@ -249,23 +267,45 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
             primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
             metodo_padrao = "PG1" if primeiro_pt_sigma > 0.0 else "MC1"
             
-            # D. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
+            # E. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
             query_seg = """
                 INSERT INTO segmentos (
                     levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
                     confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                ) VALUES (?, ?, ?, ?, NULL, 'LN1', ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """
             
+            def obter_info_segmento(pt_ini_id, pt_fim_id):
+                chave_original = (pt_ini_id, pt_fim_id)
+                chave_inversa = (pt_fim_id, pt_ini_id)
+                if chave_original in mapa_segmento_info:
+                    return mapa_segmento_info[chave_original]
+                elif chave_inversa in mapa_segmento_info:
+                    return mapa_segmento_info[chave_inversa]
+                else:
+                    return {
+                        "confrontante_id": None,
+                        "tipo_limite_sigef": "LN1",
+                        "metodo_posicionamento_sigef": metodo_padrao
+                    }
+            
             for i in range(len(pts_ordenados_ids) - 1):
+                pt_ini_id = pts_ordenados_ids[i]
+                pt_fim_id = pts_ordenados_ids[i+1]
+                info = obter_info_segmento(pt_ini_id, pt_fim_id)
                 cursor.execute(query_seg, (
                     levantamento_id, matricula_id, 
-                    pts_ordenados_ids[i], pts_ordenados_ids[i+1], metodo_padrao
+                    pt_ini_id, pt_fim_id,
+                    info["confrontante_id"], info["tipo_limite_sigef"], info["metodo_posicionamento_sigef"]
                 ))
                 
+            pt_ini_id = pts_ordenados_ids[-1]
+            pt_fim_id = pts_ordenados_ids[0]
+            info = obter_info_segmento(pt_ini_id, pt_fim_id)
             cursor.execute(query_seg, (
                 levantamento_id, matricula_id, 
-                pts_ordenados_ids[-1], pts_ordenados_ids[0], metodo_padrao
+                pt_ini_id, pt_fim_id,
+                info["confrontante_id"], info["tipo_limite_sigef"], info["metodo_posicionamento_sigef"]
             ))
             
             conn.commit()

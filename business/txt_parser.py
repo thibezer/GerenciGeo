@@ -7,10 +7,11 @@ from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 logger = logging.getLogger(__name__)
 
 class TxtGeodesicParser:
-    def __init__(self, levantamento_id: int, matricula_id: int = None, base_escolhida_id: int = None):
+    def __init__(self, levantamento_id: int, matricula_id: int = None, base_escolhida_id: int = None, inverter_ne: bool = False):
         self.levantamento_id = levantamento_id
         self.matricula_id = matricula_id
         self.base_escolhida_id = base_escolhida_id
+        self.inverter_ne = inverter_ne
 
     def identificar_layout(self, linhas: list) -> str:
         """
@@ -96,9 +97,16 @@ class TxtGeodesicParser:
 
             try:
                 nome = partes[0]
-                norte = float(partes[1])
-                este = float(partes[2])
+                n1 = float(partes[1])
+                e1 = float(partes[2])
                 alt = float(partes[3])
+                
+                if self.inverter_ne:
+                    norte = e1
+                    este = n1
+                else:
+                    norte = n1
+                    este = e1
                 
                 desc = ""
                 sig_n = 0.0
@@ -302,11 +310,21 @@ class TxtGeodesicParser:
                 sigma_lon_prop = p["sigma_e"]
                 sigma_alt_prop = p["sigma_z"]
 
-            tipo = "P"
-            if p["nome"].upper().startswith("M"):
+            import re
+            nome_upper = p["nome"].strip().upper()
+            match_completo = re.search(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", nome_upper)
+            match_simples = re.search(r"\b(M|P|V)-(\d+)\b", nome_upper)
+            
+            if match_completo:
+                tipo = match_completo.group(2)
+            elif match_simples:
+                tipo = match_simples.group(1)
+            elif nome_upper.startswith("M"):
                 tipo = "M"
-            elif p["nome"].upper().startswith("V"):
+            elif nome_upper.startswith("V"):
                 tipo = "V"
+            else:
+                tipo = "P"
 
             # VALIDAR INTEGRIDADE INTERNA DO ARQUIVO IMPORTADO
             identificador_unico = (p["nome"].upper(), tipo)

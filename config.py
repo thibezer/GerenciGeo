@@ -26,3 +26,9 @@ IBGE_SIGEF_LIMITES = {
     'natural': 3.00,
     'inacessivel': 7.50
 }
+
+# ── Arquitetura Edge-First v2.4 ──────────────────────────────────────────────
+RUNNING_LOCAL = True  # Setado como False exclusivamente no servidor da Hostinger
+CLOUD_SYNC_URL = "https://gerencigeo-seu-site.com.br/api/v1/sync/imovel"
+CLOUD_API_KEY = "G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C"
+

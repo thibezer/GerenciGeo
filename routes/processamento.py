@@ -11,7 +11,7 @@ import logging
 import threading
 import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Depends
 from pyproj import Transformer
 import requests
 
@@ -20,7 +20,7 @@ from database.connection import execute_query
 from database.repository import HistoricoRinexRepo
 from business.workspace_manager import WorkspaceManager
 from business.triagem_inteligente import organizar_rastreios, ler_metadados_rinex
-from routes.deps import verificar_levantamento_arquivado
+from routes.deps import verificar_levantamento_arquivado, verificar_ambiente_local
 from routes.dashboard import add_log
 
 router = APIRouter(tags=["Processamento GNSS & SIGEF"])
@@ -106,7 +106,7 @@ def _converter_gns_background(caminho_bruto: str, pasta_rinex: str, lev_id: int)
 
 # ── Rotas ──────────────────────────────────────────────────────────────────────
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(verificar_ambiente_local)])
 async def upload_files(files: List[UploadFile] = File(...)):
     uploaded_paths = []
     upload_dir = os.path.join(EXPORT_BASE_FOLDER, "Uploads")
@@ -167,7 +167,7 @@ def run_hgo_task(pasta: str):
 
     add_log("Triagem de Rastreios Finalizada! Verifique a pasta raiz.")
 
-@router.post("/process/hgo")
+@router.post("/process/hgo", dependencies=[Depends(verificar_ambiente_local)])
 async def start_hgo(payload: dict, background_tasks: BackgroundTasks):
     pasta = payload.get("pasta")
     if pasta:
@@ -221,7 +221,7 @@ async def proxy_sigef(url: str):
         print(f"Erro na requisição proxy: {e}")
         return {"error": str(e)}
 
-@router.post("/levantamentos/{lev_id}/importar-confrontante-sigef")
+@router.post("/levantamentos/{lev_id}/importar-confrontante-sigef", dependencies=[Depends(verificar_ambiente_local)])
 def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):
     """
     Baixa os arquivos CSV de limites e vértices do SIGEF/INCRA de uma parcela confrontante
@@ -439,7 +439,7 @@ def processar_arquivos_sigef(vertices_content: str, limites_content: str) -> str
                 
     return output.getvalue()
 
-@router.post("/levantamentos/{lev_id}/unificar-sigef-confrontantes")
+@router.post("/levantamentos/{lev_id}/unificar-sigef-confrontantes", dependencies=[Depends(verificar_ambiente_local)])
 def unificar_sigef_confrontantes(
     lev_id: int, 
     file_vertices: UploadFile = File(...), 

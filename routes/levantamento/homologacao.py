@@ -24,6 +24,466 @@ class AssociarPlanilhaPayload(BaseModel):
 
 # ── Rotas ──────────────────────────────────────────────────────────────────────
 
+@router.post("/levantamentos/{id}/analisar-planilha-abas")
+async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
+    verificar_levantamento_arquivado(id)
+    try:
+        content = await file.read()
+        filename = file.filename.lower() if file.filename else ""
+        is_ods = filename.endswith(".ods") or content.startswith(b"PK\x03\x04")
+        
+        abas_detectadas = []
+        
+        if is_ods:
+            try:
+                with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
+                    if 'content.xml' in zip_ref.namelist():
+                        xml_data = zip_ref.read('content.xml')
+                        ns = {
+                            'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+                            'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+                            'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
+                        }
+                        root = ET.fromstring(xml_data)
+                        
+                        tables = root.findall('.//table:table', ns)
+                        for table in tables:
+                            table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
+                            # Contar pontos válidos na aba
+                            pontos_count = 0
+                            rows = table.findall('.//table:table-row', ns)
+                            for row in rows:
+                                cells = row.findall('.//table:table-cell', ns)
+                                if cells:
+                                    p_elements = cells[0].findall('.//text:p', ns)
+                                    cell_text = "".join([p.text for p in p_elements if p.text]).strip()
+                                    if cell_text:
+                                        # Regex clássica de marco do SIGEF
+                                        if re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", cell_text, re.IGNORECASE) or re.match(r"^(M|P|V)-(\d+)$", cell_text, re.IGNORECASE):
+                                            pontos_count += 1
+                                            
+                            if pontos_count > 0:
+                                abas_detectadas.append({
+                                    "nome": table_name,
+                                    "qtd_pontos": pontos_count
+                                })
+            except Exception as e_ods:
+                logging.getLogger(__name__).error(f"Erro ao analisar ODS: {e_ods}")
+                
+        # Se não for ODS, ou se for ODS mas não detectou abas formatadas, trata como arquivo de texto simples
+        if not is_ods or (is_ods and not abas_detectadas):
+            text = content.decode("utf-8", errors="ignore")
+            # Buscar marcos por regex no texto completo
+            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+            matches = pattern.findall(text)
+            
+            pattern_sem_prefixo = re.compile(r"\b(M|P|V)-(\d+)\b", re.IGNORECASE)
+            matches_sem = pattern_sem_prefixo.findall(text)
+            
+            total_pontos = len(matches) + len(matches_sem)
+            if total_pontos > 0:
+                abas_detectadas.append({
+                    "nome": "Arquivo Único",
+                    "qtd_pontos": total_pontos
+                })
+                
+        return {
+            "sucesso": True,
+            "is_ods": is_ods,
+            "filename": file.filename,
+            "abas": abas_detectadas
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao analisar planilha: {str(e)}")
+
+@router.post("/levantamentos/{id}/importar-pontos-aprovados-lote")
+async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File(...), mapeamento: str = Query(...)):
+    verificar_levantamento_arquivado(id)
+    try:
+        import json
+        map_dados = json.loads(mapeamento)  # Dicionário {"filename#nome_aba": matricula_id}
+        
+        # 1. Obter o profissional_id associado ao levantamento
+        lev = execute_query(
+            "SELECT profissional_id, propriedade_id FROM levantamentos WHERE id = ?",
+            params=(id,),
+            fetch_one=True
+        )
+        if not lev:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        
+        profissional_id = lev["profissional_id"]
+        
+        # 2. Obter o codigo_credenciado do profissional
+        prof = execute_query(
+            "SELECT codigo_credenciado FROM profissionais WHERE id = ?",
+            params=(profissional_id,),
+            fetch_one=True
+        )
+        if not prof:
+            raise HTTPException(status_code=404, detail="Responsável Técnico não encontrado para este levantamento.")
+        
+        codigo_credenciado = prof["codigo_credenciado"]
+        if not codigo_credenciado:
+            raise HTTPException(
+                status_code=400,
+                detail="O Responsável Técnico deste levantamento não possui um Código Credenciado cadastrado no INCRA."
+            )
+            
+        transformer = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+        
+        total_importados = 0
+        total_adicionados = 0
+        mensagens = []
+        
+        # Vamos rodar tudo em uma transação do SQLite
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Para cada matrícula que possui mapeamento, vamos purgar as tabelas antes
+            # de inserir os novos pontos correspondentes
+            matriculas_afetadas = set()
+            for key, mat_id in map_dados.items():
+                if mat_id:
+                    matriculas_afetadas.add(int(mat_id))
+                    
+            for mat_id in matriculas_afetadas:
+                # Deletar pontos anteriores da tabela pontos e segmentos correspondentes
+                cursor.execute(
+                    "DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1",
+                    (id, mat_id)
+                )
+                cursor.execute(
+                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
+                    (id, mat_id)
+                )
+                
+            # Processar cada arquivo
+            for file in files:
+                filename = file.filename
+                content = await file.read()
+                
+                is_ods = filename.lower().endswith(".ods") or content.startswith(b"PK\x03\x04")
+                
+                if is_ods:
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
+                            if 'content.xml' in zip_ref.namelist():
+                                xml_data = zip_ref.read('content.xml')
+                                ns = {
+                                    'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+                                    'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+                                    'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
+                                }
+                                root = ET.fromstring(xml_data)
+                                
+                                tables = root.findall('.//table:table', ns)
+                                for table in tables:
+                                    table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
+                                    
+                                    # Verificar se esta aba está mapeada para alguma matrícula
+                                    map_key = f"{filename}#{table_name}"
+                                    if map_key not in map_dados or not map_dados[map_key]:
+                                        continue
+                                        
+                                    mat_id = int(map_dados[map_key])
+                                    nome_planilha_salvar = map_key
+                                    
+                                    # Purgar pontos anteriores da tabela banco_pontos para essa planilha de origem e matrícula
+                                    cursor.execute(
+                                        "DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?",
+                                        (id, nome_planilha_salvar)
+                                    )
+                                    
+                                    # Extrair pontos
+                                    pontos_detetados = []
+                                    rows = table.findall('.//table:table-row', ns)
+                                    for row in rows:
+                                        cells = row.findall('.//table:table-cell', ns)
+                                        cell_texts = []
+                                        for cell in cells:
+                                            repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
+                                            p_elements = cell.findall('.//text:p', ns)
+                                            cell_text = "".join([p.text for p in p_elements if p.text])
+                                            
+                                            count = int(repeated) if repeated else 1
+                                            if count > 30: count = 1
+                                            for _ in range(count):
+                                                cell_texts.append(cell_text)
+                                                
+                                        if len(cell_texts) >= 7:
+                                            vertice = cell_texts[0].strip()
+                                            match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                            if match:
+                                                tipo = match.group(2).upper()
+                                                num = int(match.group(3))
+                                                
+                                                def parse_num(val):
+                                                    if not val: return None
+                                                    try:
+                                                        return float(val.replace(",", ".").strip())
+                                                    except:
+                                                        return None
+                                                        
+                                                este = parse_num(cell_texts[1])
+                                                sigma_e = parse_num(cell_texts[2])
+                                                norte = parse_num(cell_texts[3])
+                                                sigma_n = parse_num(cell_texts[4])
+                                                altitude = parse_num(cell_texts[5])
+                                                sigma_z = parse_num(cell_texts[6])
+                                                
+                                                metodo = cell_texts[7].strip() if len(cell_texts) > 7 else ""
+                                                tipo_limite = cell_texts[8].strip() if len(cell_texts) > 8 else ""
+                                                cns = cell_texts[9].strip() if len(cell_texts) > 9 else ""
+                                                matricula_conf = cell_texts[10].strip() if len(cell_texts) > 10 else ""
+                                                descritivo = cell_texts[11].strip() if len(cell_texts) > 11 else ""
+                                                
+                                                lat, lon = None, None
+                                                if este and norte:
+                                                    try:
+                                                        lon, lat = transformer.transform(este, norte)
+                                                    except Exception as e_trans:
+                                                        logging.getLogger(__name__).warning(f"Erro na conversão UTM de {vertice}: {e_trans}")
+                                                        
+                                                pontos_detetados.append({
+                                                    "tipo_ponto": tipo,
+                                                    "numero": num,
+                                                    "codigo_completo": vertice,
+                                                    "norte": norte,
+                                                    "este": este,
+                                                    "altitude": altitude,
+                                                    "lat": lat,
+                                                    "lon": lon,
+                                                    "sigma_n": sigma_n,
+                                                    "sigma_e": sigma_e,
+                                                    "sigma_z": sigma_z,
+                                                    "metodo_posicionamento": metodo,
+                                                    "tipo_limite": tipo_limite,
+                                                    "cns_confrontante": cns,
+                                                    "matricula_confrontante": matricula_conf,
+                                                    "confrontante_descritivo": descritivo
+                                                })
+                                    
+                                    if pontos_detetados:
+                                        # Processar desduplicação e gravação dos pontos para essa aba/matrícula
+                                        pontos_unicos = {}
+                                        for idx, p in enumerate(pontos_detetados):
+                                            key = (p["tipo_ponto"], p["numero"])
+                                            if key not in pontos_unicos:
+                                                p["index_original"] = idx
+                                                pontos_unicos[key] = p
+                                            elif p["lat"] is not None and pontos_unicos[key]["lat"] is None:
+                                                p["index_original"] = pontos_unicos[key]["index_original"]
+                                                pontos_unicos[key] = p
+                                                
+                                        pontos_ordenados = list(pontos_unicos.values())
+                                        pontos_ordenados.sort(key=lambda x: x["index_original"])
+                                        
+                                        # Chamar o confrontante manager
+                                        from business.confrontante_manager import resolver_confrontantes_planilha
+                                        mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
+                                        
+                                        # Inserir no banco
+                                        pontos_inseridos = []
+                                        for idx, p in enumerate(pontos_ordenados):
+                                            idx_ordem = idx + 1
+                                            cursor.execute(
+                                                """
+                                                INSERT OR IGNORE INTO banco_pontos 
+                                                (profissional_id, levantamento_id, matricula_id, tipo_ponto, numero, codigo_completo,
+                                                 norte, este, altitude, lat, lon, sigma_n, sigma_e, sigma_z,
+                                                 metodo_posicionamento, tipo_limite, cns_confrontante, matricula_confrontante, confrontante_descritivo,
+                                                 planilha_origem) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                """,
+                                                (
+                                                    profissional_id, id, mat_id, p["tipo_ponto"], p["numero"], p["codigo_completo"],
+                                                    p["norte"], p["este"], p["altitude"], p["lat"], p["lon"],
+                                                    p["sigma_n"], p["sigma_e"], p["sigma_z"],
+                                                    p["metodo_posicionamento"], p["tipo_limite"],
+                                                    p["cns_confrontante"], p["matricula_confrontante"], p["confrontante_descritivo"],
+                                                    nome_planilha_salvar
+                                                )
+                                            )
+                                            if cursor.rowcount > 0:
+                                                total_adicionados += 1
+                                                
+                                            cursor.execute(
+                                                """
+                                                INSERT INTO pontos 
+                                                (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                                                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, metodo_posicionamento, arquivo_origem, origem_homologada)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                                                """,
+                                                (
+                                                    id, mat_id, p["codigo_completo"], p["tipo_ponto"], p["lat"], p["lon"], p["altitude"],
+                                                    p["sigma_e"], p["sigma_n"], p["sigma_z"], idx_ordem, 'CORRIGIDO', p["metodo_posicionamento"], nome_planilha_salvar
+                                                )
+                                            )
+                                            p["db_ponto_id"] = cursor.lastrowid
+                                            pontos_inseridos.append(p)
+                                            
+                                        # Gerar segmentos se houver pelo menos 2 pontos
+                                        if len(pontos_inseridos) >= 2:
+                                            N_pts = len(pontos_inseridos)
+                                            for i in range(N_pts):
+                                                p_ini = pontos_inseridos[i]
+                                                p_fim = pontos_inseridos[(i + 1) % N_pts]
+                                                conf_id = mapa_vertices_confrontante_id.get(p_ini["codigo_completo"])
+                                                cursor.execute(
+                                                    """
+                                                    INSERT INTO segmentos
+                                                    (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id,
+                                                     tipo_limite_sigef, metodo_posicionamento_sigef, origem_homologada)
+                                                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                                                    """,
+                                                    (
+                                                        id, mat_id, p_ini["db_ponto_id"], p_fim["db_ponto_id"], conf_id,
+                                                        p_ini["tipo_limite"] or "Limite Não Definido", p_ini["metodo_posicionamento"] or "PG1"
+                                                    )
+                                                )
+                                        
+                                        total_importados += len(pontos_ordenados)
+                                        mensagens.append(f"Aba '{table_name}' de '{filename}': {len(pontos_ordenados)} pontos importados.")
+                    except Exception as e_ods:
+                        logging.getLogger(__name__).error(f"Erro ao processar ODS em lote: {e_ods}")
+                        raise HTTPException(status_code=400, detail=f"Erro ao processar ODS '{filename}': {str(e_ods)}")
+                        
+                else:
+                    # Texto simples (TXT/CSV)
+                    map_key = f"{filename}#Arquivo Único"
+                    if map_key in map_dados and map_dados[map_key]:
+                        mat_id = int(map_dados[map_key])
+                        nome_planilha_salvar = filename
+                        
+                        cursor.execute(
+                            "DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?",
+                            (id, nome_planilha_salvar)
+                        )
+                        
+                        text = content.decode("utf-8", errors="ignore")
+                        pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+                        matches = pattern.findall(text)
+                        
+                        pontos_detetados = []
+                        for m in matches:
+                            cod_det = m[0].upper()
+                            tipo = m[1].upper()
+                            num = int(m[2])
+                            pontos_detetados.append({
+                                "tipo_ponto": tipo,
+                                "numero": num,
+                                "codigo_completo": f"{cod_det}-{tipo}-{num:04d}",
+                                "norte": None, "este": None, "altitude": None,
+                                "lat": None, "lon": None,
+                                "sigma_n": None, "sigma_e": None, "sigma_z": None,
+                                "metodo_posicionamento": None, "tipo_limite": None,
+                                "cns_confrontante": None, "matricula_confrontante": None,
+                                "confrontante_descritivo": None
+                            })
+                            
+                        if pontos_detetados:
+                            # Desduplicar
+                            pontos_unicos = {}
+                            for idx, p in enumerate(pontos_detetados):
+                                key = (p["tipo_ponto"], p["numero"])
+                                if key not in pontos_unicos:
+                                    p["index_original"] = idx
+                                    pontos_unicos[key] = p
+                                    
+                            pontos_ordenados = list(pontos_unicos.values())
+                            pontos_ordenados.sort(key=lambda x: x["index_original"])
+                            
+                            from business.confrontante_manager import resolver_confrontantes_planilha
+                            mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
+                            
+                            pontos_inseridos = []
+                            for idx, p in enumerate(pontos_ordenados):
+                                idx_ordem = idx + 1
+                                cursor.execute(
+                                    """
+                                    INSERT OR IGNORE INTO banco_pontos 
+                                    (profissional_id, levantamento_id, matricula_id, tipo_ponto, numero, codigo_completo,
+                                     norte, este, altitude, lat, lon, sigma_n, sigma_e, sigma_z,
+                                     metodo_posicionamento, tipo_limite, cns_confrontante, matricula_confrontante, confrontante_descritivo,
+                                     planilha_origem) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    """,
+                                    (
+                                        profissional_id, id, mat_id, p["tipo_ponto"], p["numero"], p["codigo_completo"],
+                                        None, None, None, None, None,
+                                        None, None, None,
+                                        None, None,
+                                        None, None, None,
+                                        nome_planilha_salvar
+                                    )
+                                )
+                                if cursor.rowcount > 0:
+                                    total_adicionados += 1
+                                    
+                                cursor.execute(
+                                    """
+                                    INSERT INTO pontos 
+                                    (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                                     sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, metodo_posicionamento, arquivo_origem, origem_homologada)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                                    """,
+                                    (
+                                        id, mat_id, p["codigo_completo"], p["tipo_ponto"], None, None, None,
+                                        None, None, None, idx_ordem, 'BRUTO', None, nome_planilha_salvar
+                                    )
+                                )
+                                p["db_ponto_id"] = cursor.lastrowid
+                                pontos_inseridos.append(p)
+                                
+                            if len(pontos_inseridos) >= 2:
+                                N_pts = len(pontos_inseridos)
+                                for i in range(N_pts):
+                                    p_ini = pontos_inseridos[i]
+                                    p_fim = pontos_inseridos[(i + 1) % N_pts]
+                                    conf_id = mapa_vertices_confrontante_id.get(p_ini["codigo_completo"])
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO segmentos
+                                        (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id,
+                                         tipo_limite_sigef, metodo_posicionamento_sigef, origem_homologada)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                                        """,
+                                        (
+                                            id, mat_id, p_ini["db_ponto_id"], p_fim["db_ponto_id"], conf_id,
+                                            "Limite Não Definido", "PG1"
+                                        )
+                                    )
+                            total_importados += len(pontos_ordenados)
+                            mensagens.append(f"Arquivo '{filename}': {len(pontos_ordenados)} pontos importados.")
+                            
+            conn.commit()
+            
+        # 5. Recalcular os contadores de profissionais
+        for t in ['M', 'P', 'V']:
+            row_max = execute_query(
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                params=(profissional_id, t, f"{codigo_credenciado}-%"),
+                fetch_one=True
+            )
+            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+            col_name = f"contador_{t.lower()}"
+            execute_query(
+                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                params=(max_num, profissional_id),
+                commit=True
+            )
+            
+        return {
+            "sucesso": True,
+            "pontos_importados": total_importados,
+            "pontos_adicionados": total_adicionados,
+            "mensagem": f"Importação em lote concluída com sucesso! " + " | ".join(mensagens)
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Erro interno ao importar em lote: {str(e)}")
+
 @router.post("/levantamentos/{id}/importar-pontos-aprovados")
 async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matricula_id: Optional[int] = Query(None)):
     verificar_levantamento_arquivado(id)
@@ -115,7 +575,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                             
                                     if len(cell_texts) >= 7:
                                         vertice = cell_texts[0].strip()
-                                        match = re.match(rf"^({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                        match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
                                         if match:
                                             tipo = match.group(2).upper()
                                             num = int(match.group(3))
@@ -178,15 +638,16 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                 text = content.decode("utf-8", errors="ignore")
                 
             # Fallback regex tradicional
-            pattern = re.compile(rf"\b({re.escape(codigo_credenciado)})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
             matches = pattern.findall(text)
             for m in matches:
+                cod_det = m[0].upper()
                 tipo = m[1].upper()
                 num = int(m[2])
                 pontos_detetados.append({
                     "tipo_ponto": tipo,
                     "numero": num,
-                    "codigo_completo": f"{codigo_credenciado}-{tipo}-{num:04d}",
+                    "codigo_completo": f"{cod_det}-{tipo}-{num:04d}",
                     "norte": None, "este": None, "altitude": None,
                     "lat": None, "lon": None,
                     "sigma_n": None, "sigma_e": None, "sigma_z": None,
@@ -238,81 +699,10 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                 )
                 
             # ───────────────────────────────────────────────────────────────────
-            # MOTOR DE RESOLUÇÃO DE CONFRONTANTES (SINGLE-PASS CACHE)
+            # MOTOR DE RESOLUÇÃO DE CONFRONTANTES (DELEGADO AO CONFRONTANTE_MANAGER)
             # ───────────────────────────────────────────────────────────────────
-            import unicodedata
-
-            def normalizar_texto_busca(texto: str) -> str:
-                """Remove acentos, espaços múltiplos e padroniza caixa para busca segura"""
-                if not texto: return ""
-                texto = "".join(ch for ch in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(ch))
-                return re.sub(r'\s+', ' ', texto.strip().upper())
-
-            # Carrega todos os confrontantes históricos do levantamento em cache de memória
-            cursor.execute("SELECT id, nome, matricula_imovel, cns_confrontante FROM confrontantes WHERE levantamento_id = ?", (id,))
-            confrontantes_existentes = cursor.fetchall()
-            
-            cache_por_matricula = {}
-            cache_por_nome = {}
-            
-            for c_row in confrontantes_existentes:
-                c_id = c_row["id"]
-                c_nome_norm = normalizar_texto_busca(c_row["nome"])
-                c_mat = (c_row["matricula_imovel"] or "").strip().upper()
-                
-                if c_mat:
-                    cache_por_matricula[c_mat] = c_id
-                if c_nome_norm:
-                    cache_por_nome[c_nome_norm] = c_id
-
-            mapa_vertices_confrontante_id = {}
-            
-            # Varre e resolve a qualificação cadastral dos confrontantes de uma só vez
-            for p in pontos_ordenados:
-                matricula_conf = (p.get("matricula_confrontante") or "").strip().upper()
-                cns_conf = (p.get("cns_confrontante") or "").strip()
-                desc = (p.get("confrontante_descritivo") or "").strip()
-                nome_conf = extrair_nome_confrontante_limpo(desc)
-                nome_conf_norm = normalizar_texto_busca(nome_conf)
-                
-                if not matricula_conf and not nome_conf:
-                    continue
-                    
-                confrontante_id_resolvido = None
-
-                # 1ª Opção de Busca: Pela Matrícula do Imóvel Confrontante
-                if matricula_conf and matricula_conf in cache_por_matricula:
-                    confrontante_id_resolvido = cache_por_matricula[matricula_conf]
-                    if nome_conf and nome_conf_norm != matricula_conf:
-                        cursor.execute("UPDATE confrontantes SET nome = ?, cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?", (nome_conf, cns_conf, confrontante_id_resolvido))
-                    elif cns_conf:
-                        cursor.execute("UPDATE confrontantes SET cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?", (cns_conf, confrontante_id_resolvido))
-                
-                # 2ª Opção de Busca: Pelo Nome Normalizado (Casamento Fonético Antiduplicidade)
-                elif nome_conf_norm and nome_conf_norm in cache_por_nome:
-                    confrontante_id_resolvido = cache_por_nome[nome_conf_norm]
-                    cursor.execute(
-                        "UPDATE confrontantes SET matricula_imovel = COALESCE(matricula_imovel, ?), cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
-                        (matricula_conf if matricula_conf else None, cns_conf if cns_conf else None, confrontante_id_resolvido)
-                    )
-                    if matricula_conf:
-                        cache_por_matricula[matricula_conf] = confrontante_id_resolvido
-                
-                # 3ª Opção: Inserção Atômica de Novo Registro e Alimentação dos Caches Temporários
-                else:
-                    final_nome = nome_conf if nome_conf else f"Confrontante da Matrícula {matricula_conf}"
-                    cursor.execute(
-                        "INSERT INTO confrontantes (levantamento_id, nome, matricula_imovel, cns_confrontante) VALUES (?, ?, ?, ?)",
-                        (id, final_nome, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
-                    )
-                    confrontante_id_resolvido = cursor.lastrowid
-                    
-                    if matricula_conf:
-                        cache_por_matricula[matricula_conf] = confrontante_id_resolvido
-                    if nome_conf_norm:
-                        cache_por_nome[nome_conf_norm] = confrontante_id_resolvido
-                
-                mapa_vertices_confrontante_id[p["codigo_completo"]] = confrontante_id_resolvido
+            from business.confrontante_manager import resolver_confrontantes_planilha
+            mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
 
             # ───────────────────────────────────────────────────────────────────
             # PERSISTÊNCIA DOS PONTOS E RECONSTRUÇÃO DA CADEIA DE SEGMENTOS
@@ -388,8 +778,8 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
         # 5. Recalcular os contadores de profissionais
         for t in ['M', 'P', 'V']:
             row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
-                params=(profissional_id, t),
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                params=(profissional_id, t, f"{codigo_credenciado}-%"),
                 fetch_one=True
             )
             max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
@@ -431,11 +821,98 @@ def get_planilhas_homologadas(id: int):
 def associar_planilha_matricula(id: int, payload: AssociarPlanilhaPayload):
     verificar_levantamento_arquivado(id)
     try:
-        execute_query(
-            "UPDATE banco_pontos SET matricula_id = ? WHERE levantamento_id = ? AND planilha_origem = ?",
-            params=(payload.matricula_id, id, payload.planilha_origem),
-            commit=True
-        )
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # 1. Obter os IDs dos pontos homologados que serão deletados da tabela pontos para limpar segmentos
+            cursor.execute(
+                "SELECT id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1",
+                (id, payload.planilha_origem)
+            )
+            ponto_ids = [r["id"] for r in cursor.fetchall()]
+            
+            if ponto_ids:
+                # Deleta segmentos que usavam esses pontos (por precaução)
+                placeholders = ",".join("?" for _ in ponto_ids)
+                cursor.execute(
+                    f"DELETE FROM segmentos WHERE ponto_inicio_id IN ({placeholders}) OR ponto_fim_id IN ({placeholders})",
+                    ponto_ids + ponto_ids
+                )
+                # Deleta os pontos da tabela pontos
+                cursor.execute(
+                    "DELETE FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1",
+                    (id, payload.planilha_origem)
+                )
+
+            # 2. Atualizar a tabela banco_pontos com a nova matrícula
+            cursor.execute(
+                "UPDATE banco_pontos SET matricula_id = ? WHERE levantamento_id = ? AND planilha_origem = ?",
+                (payload.matricula_id, id, payload.planilha_origem)
+            )
+
+            # 3. Se a nova matrícula foi informada, reinsere os pontos e gera os novos segmentos
+            if payload.matricula_id:
+                # Busca os pontos salvos em banco_pontos para esta planilha
+                cursor.execute(
+                    """
+                    SELECT codigo_completo, tipo_ponto, lat, lon, altitude,
+                           sigma_n, sigma_e, sigma_z, metodo_posicionamento, tipo_limite,
+                           cns_confrontante, matricula_confrontante, confrontante_descritivo
+                    FROM banco_pontos
+                    WHERE levantamento_id = ? AND planilha_origem = ?
+                    ORDER BY id ASC
+                    """,
+                    (id, payload.planilha_origem)
+                )
+                pontos_banco = [dict(r) for r in cursor.fetchall()]
+                
+                # Inserir na tabela pontos
+                pontos_inseridos = []
+                for idx, p in enumerate(pontos_banco):
+                    idx_ordem = idx + 1
+                    cursor.execute(
+                        """
+                        INSERT INTO pontos 
+                        (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                         sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, metodo_posicionamento, arquivo_origem, origem_homologada)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        """,
+                        (
+                            id, payload.matricula_id, p["codigo_completo"], p["tipo_ponto"], p["lat"], p["lon"], p["altitude"],
+                            p["sigma_e"], p["sigma_n"], p["sigma_z"], idx_ordem, 'CORRIGIDO', p["metodo_posicionamento"], payload.planilha_origem
+                        )
+                    )
+                    p["db_ponto_id"] = cursor.lastrowid
+                    pontos_inseridos.append(p)
+                
+                # Gerar segmentos se houver pelo menos 2 pontos
+                if len(pontos_inseridos) >= 2:
+                    # Precisamos dos confrontantes associados para vincular nos segmentos (delegado ao confrontante_manager)
+                    from business.confrontante_manager import vincular_confrontantes_pontos
+                    mapa_vertices_conf = vincular_confrontantes_pontos(id, pontos_inseridos, cursor)
+                    
+                    N = len(pontos_inseridos)
+                    for i in range(N):
+                        p_ini = pontos_inseridos[i]
+                        p_fim = pontos_inseridos[(i + 1) % N]
+                        
+                        conf_id = mapa_vertices_conf.get(p_ini["codigo_completo"])
+                        
+                        cursor.execute(
+                            """
+                            INSERT INTO segmentos
+                            (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id,
+                             tipo_limite_sigef, metodo_posicionamento_sigef, origem_homologada)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                            """,
+                            (
+                                id, payload.matricula_id, p_ini["db_ponto_id"], p_fim["db_ponto_id"], conf_id,
+                                p_ini["tipo_limite"] or "Limite Não Definido", p_ini["metodo_posicionamento"] or "PG1"
+                            )
+                        )
+                        
+            conn.commit()
+            
         return {"sucesso": True, "mensagem": f"Planilha '{payload.planilha_origem}' associada com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao associar planilha: {str(e)}")
@@ -445,13 +922,19 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
     verificar_levantamento_arquivado(id)
     try:
         lev = execute_query(
-            "SELECT profissional_id FROM levantamentos WHERE id = ?",
+            """
+            SELECT l.profissional_id, p.codigo_credenciado 
+            FROM levantamentos l
+            JOIN profissionais p ON l.profissional_id = p.id
+            WHERE l.id = ?
+            """,
             params=(id,),
             fetch_one=True
         )
         if not lev:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
         profissional_id = lev["profissional_id"]
+        codigo_credenciado = lev["codigo_credenciado"] or ""
         
         execute_query(
             "DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?",
@@ -482,8 +965,8 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
         # Recalcular contadores do profissional
         for t in ['M', 'P', 'V']:
             row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
-                params=(profissional_id, t),
+                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                params=(profissional_id, t, f"{codigo_credenciado}-%"),
                 fetch_one=True
             )
             max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
@@ -623,6 +1106,24 @@ def get_pontos_homologados_matricula(id: int, matricula_id: int):
             ORDER BY p.ordem_caminhamento ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id, matricula_id), fetch_all=True)]
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/levantamentos/{id}/pontos-homologados")
+def get_todos_pontos_homologados_levantamento(id: int):
+    try:
+        query = """
+            SELECT p.id, p.levantamento_id, p.matricula_id, p.nome_vertice as codigo_completo,
+                   p.tipo_ponto, p.lat, p.lon, p.alt as altitude, p.sigma_lat, p.sigma_lon, p.sigma_alt,
+                   p.ordem_caminhamento, p.status_ponto, p.metodo_posicionamento, p.arquivo_origem as planilha_origem
+            FROM pontos p
+            WHERE p.levantamento_id = ? 
+              AND p.origem_homologada = 1
+            ORDER BY p.matricula_id ASC, p.ordem_caminhamento ASC
+        """
+        rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         return rows
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

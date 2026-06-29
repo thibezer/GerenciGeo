@@ -153,6 +153,11 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
         "Por favor, envie o Shapefile da área para calcular a distância."
     )
 
+def carregar_template(nome_arquivo: str) -> str:
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", nome_arquivo)
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
 class BorderAreaReportGenerator:
     @staticmethod
     def gerar_laudo_fronteira_html(lev_id: int, matricula_id: int, numero_trt: str, data_trt: str) -> str:
@@ -313,133 +318,33 @@ class BorderAreaReportGenerator:
         agora = datetime.now()
         data_hoje_extenso = f"{agora.day} de {meses[agora.month]} de {agora.year}"
 
-        # Template HTML do Laudo
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laudo Técnico de Faixa de Fronteira - {nome_lote}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {{
-            font-family: 'Inter', sans-serif;
-        }}
-        @media print {{
-            @page {{
-                size: A4;
-                margin: 1.5cm 2.5cm;
-            }}
-            .no-print {{
-                display: none !important;
-            }}
-            body {{
-                background-color: white !important;
-                padding: 0 !important;
-            }}
-            .page {{
-                box-shadow: none !important;
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                max-width: 100% !important;
-                width: 100% !important;
-            }}
-        }}
-    </style>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            const agora = new Date();
-            const dia = agora.getDate();
-            const mes = meses[agora.getMonth()];
-            const ano = agora.getFullYear();
-            const dataFormatada = dia + " de " + mes + " de " + ano;
-            const el = document.getElementById('data-impressao');
-            if (el) {{
-                el.textContent = dataFormatada;
-            }}
-        }});
-    </script>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    
-    <!-- Barra Superior de Controle (no-print) -->
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                    COMPLETA
-                    <span class="text-[9px] uppercase bg-[#00f5a0]/20 text-[#00f5a0] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">PRONTO PARA IMPRESSÃO</span>
-                </h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Laudo Técnico de Faixa de Fronteira • A4 Premium</p>
-            </div>
-        </div>
-        
-        <button onclick="window.print()" class="px-5 py-2.5 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-[0_0_15px_rgba(0,245,160,0.3)] transition-all flex items-center gap-2 text-xs uppercase tracking-wider transition cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Imprimir / Salvar PDF
-        </button>
-    </div>
- 
-    <!-- Página Principal (A4) -->
-    <div class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        
-        <div>
-            <!-- Cabeçalho Principal -->
-            <div class="flex flex-col items-center pb-2 mb-8 text-center">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">
-                    COMPLETA
-                </div>
-                <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
-                    Agrimensura e Projetos Agropecuários
-                </div>
-                <h2 class="text-lg font-bold text-slate-900 tracking-wide uppercase mt-2">Laudo Técnico de Localização em Faixa de Fronteira</h2>
-            </div>
- 
-            <!-- Conteúdo em Seções -->
-            <div class="space-y-6 text-sm text-justify leading-relaxed">
-                
-                <!-- Responsável Técnico -->
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">1. Responsável Técnico</h3>
-                    <p class="text-slate-700">Elaborado pelo profissional <strong class="text-slate-900">{nome_prof}</strong>, {nac_prof}, {formacao_prof}, inscrito no CPF nº <strong class="text-slate-900">{cpf_prof}</strong>, portador da Carteira de Identidade RG nº <strong class="text-slate-900">{rg_prof}</strong>, e no conselho <strong class="text-slate-900">{conselho_exibicao}</strong>, com endereço residencial na {end_residencial_prof}, e endereço comercial na {end_comercial_prof},</p>
-                </div>
- 
-                <!-- Identificação do Proprietário -->
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">2. Identificação do Proprietário</h3>
-                    <p class="text-slate-700">{texto_secao2}</p>
-                </div>
- 
-                <!-- Identificação do Imóvel Rural -->
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">3. Identificação do Imóvel Rural</h3>
-                    <p class="text-slate-700">{texto_secao3}</p>
-                </div>
- 
-                <!-- Análise Espacial Geodésica e Enquadramento Legal (Sessão 4) -->
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">4. Parecer e Atestado de Enquadramento Legal</h3>
-                    <p class="text-slate-700">ATESTO para os devidos fins de ratificação dos registros imobiliários na faixa de fronteira de que trata a Lei Federal 13.178/2015, na forma do art. 656-BV, VI, do Código de Normas da Corregedoria Geral da Justiça do Estado do Paraná o referido imóvel encontra-se a uma distância de <strong class="text-slate-900 font-mono">{dist_km:.3f} km</strong> do limite da fronteira do território brasileiro, posicionado <strong>INTEGRALMENTE dentro da área denominada FAIXA DE FRONTEIRA</strong>, considerada com uma extensão de 150 km (cento e cinquenta quilômetros) paralela à linha divisória terrestre do território nacional, conforme Lei Federal 6.634 de 02 de maio de 1979, demonstrado em requerimento anexado a este, fazendo-se obrigatório o processo de ratificação do registro imobiliário perante os órgãos de Defesa Nacional.</p>
-                    
-                    <p class="text-slate-700 mt-2">Sob TRT N° <strong class="text-slate-900">{numero_trt}</strong>, devidamente quitada, registrada em <strong class="text-slate-900">{data_trt_formatada or 'Não Informado'}</strong>.</p>
-                    
-                    <p class="text-slate-700 mt-2">O presente laudo tem como objetivo fornecer subsídios ao processo de Ratificação Legal do imóvel rural mencionado, conforme disposto na Lei Federal nº 13.178, de 22 de outubro de 2015, atualmente em tramitação junto ao Serviço de Registro de Imóveis da Comarca de <strong class="text-slate-900">{municipio_cartorio}</strong>.</p>
-                </div>
-                
-                <p class="text-xs text-slate-500 font-medium text-left pt-6">{prop_data['municipio']}-{prop_data['uf']}, <span id="data-impressao">{data_hoje_extenso}</span>.</p>
-            </div>
-        </div>
-    </body>
-</html>
-"""
+        # Carrega o template HTML
+        template = carregar_template("laudo_fronteira.html")
+        replacements = {
+            "{nome_lote}": nome_lote,
+            "{nome_prof}": nome_prof or "_____",
+            "{nac_prof}": nac_prof,
+            "{formacao_prof}": formacao_prof,
+            "{cpf_prof}": cpf_prof,
+            "{rg_prof}": rg_prof,
+            "{conselho_exibicao}": conselho_exibicao,
+            "{end_residencial_prof}": end_residencial_prof,
+            "{end_comercial_prof}": end_comercial_prof,
+            "{texto_secao2}": texto_secao2,
+            "{texto_secao3}": texto_secao3,
+            "{dist_km}": f"{dist_km:.3f}",
+            "{numero_trt}": numero_trt or "_____",
+            "{data_trt_formatada}": data_trt_formatada or "Não Informado",
+            "{municipio_cartorio}": municipio_cartorio,
+            "{municipio}": prop_data["municipio"] or "_____",
+            "{uf}": prop_data["uf"] or "PR",
+            "{data_hoje_extenso}": data_hoje_extenso
+        }
+        html_content = template
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value))
         return html_content
- 
+
     @staticmethod
     def gerar_requerimento_ratificacao_html(lev_id: int, matricula_id: int) -> str:
         """Gera a string HTML correspondente ao Requerimento de Ratificação de Fronteira com as tags injetadas"""
@@ -568,7 +473,7 @@ class BorderAreaReportGenerator:
             texto_requerimento = f"{qualificacao_completa}, na qualidade de legítimos proprietários, vêm requerer e autorizar, nos termos da Lei nº 13.178/2015, bem como nos arts. 656-BU e seguintes do Código de Normas da Corregedoria-Geral da Justiça do Estado do Paraná, a ratificação do imóvel situado em faixa de fronteira, denominado <strong class=\"text-slate-900\">{nome_lote}</strong>, com área de <strong class=\"text-slate-900\">{mat_data['area_ha']:.4f} ha</strong>, localizado no município de {prop_data['municipio']}/PR, objeto da matrícula nº <strong class=\"text-slate-900\">{mat_data['numero_matricula']}</strong> do Registro de Imóveis da Comarca de {comarca_exibicao}, inscrito no CCIR/INCRA sob o nº <strong class=\"text-slate-900\">{ccir_exibicao}</strong>."
 
         # Geração dinâmica das assinaturas no rodapé
-        bloco_assinaturas_html = '<div class="mt-12 pt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-8 break-inside-avoid w-full">'
+        bloco_assinaturas_html = '<div class="mt-6 pt-2 flex flex-row flex-wrap justify-around gap-x-8 gap-y-8 w-full">'
         for owner in rows_owners:
             owner_data = dict(owner)
             o_nome = owner_data["nome_completo"]
@@ -579,7 +484,6 @@ class BorderAreaReportGenerator:
                 <div class="w-full border-t border-slate-400 mt-8 mb-2"></div>
                 <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{o_nome}</div>
                 <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Requerente Proprietário</div>
-                <div class="text-[9px] text-slate-400 text-center italic mt-1">(Reconhecer firma)</div>
             </div>
             """
             
@@ -592,7 +496,6 @@ class BorderAreaReportGenerator:
                     <div class="w-full border-t border-slate-400 mt-8 mb-2"></div>
                     <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{conj_n}</div>
                     <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Requerente Cônjuge</div>
-                    <div class="text-[9px] text-slate-400 text-center italic mt-1">(Reconhecer firma)</div>
                 </div>
                 """
         bloco_assinaturas_html += "</div>"
@@ -607,7 +510,7 @@ class BorderAreaReportGenerator:
         else:
             valor_venal_itr_str = mat_data.get("itr") or "____________________"
 
-        # Injeção condicional do item X (SIGEF/INCRA) baseado em limite de 200 hectares (correspondente aproximado a 15 Módulos Fiscais no Paraná)
+        # Injeção condicional do item X (SIGEF/INCRA) baseado em limite de 200 hectares
         codigo_sigef_exibicao = mat_data.get("georreferenciamento") or "____________________"
         exibir_sigef = mat_data.get("area_ha", 0.0) >= 200.0
         bloco_sigef_html = ""
@@ -619,7 +522,7 @@ class BorderAreaReportGenerator:
                     </div>
             """
 
-        # Gera data de hoje por extenso de forma independente de locale
+        # Gera data de hoje por extenso
         meses = {
             1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
             5: "maio", 6: "junho", 7: "julho", 8: "agosto",
@@ -629,174 +532,20 @@ class BorderAreaReportGenerator:
         agora = datetime.now()
         data_hoje_extenso = f"{agora.day} de {meses[agora.month]} de {agora.year}"
 
-        css_content = """
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
+        # Carrega o template HTML
+        template = carregar_template("requerimento_ratificacao.html")
+        replacements = {
+            "{nome_lote}": nome_lote,
+            "{comarca_exibicao}": comarca_exibicao,
+            "{texto_requerimento}": texto_requerimento,
+            "{valor_venal_itr_str}": valor_venal_itr_str,
+            "{municipio}": prop_data["municipio"] or "_____",
+            "{uf}": prop_data["uf"] or "PR",
+            "{bloco_sigef_html}": bloco_sigef_html,
+            "{bloco_assinaturas_html}": bloco_assinaturas_html,
+            "{data_hoje_extenso}": data_hoje_extenso
         }
-        @media print {
-            @page {
-                size: A4;
-                margin: 1.5cm 2.5cm;
-            }
-            .no-print {
-                display: none !important;
-            }
-            body {
-                background-color: white !important;
-                padding: 0 !important;
-            }
-            .page {
-                box-shadow: none !important;
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                max-width: 100% !important;
-                width: 100% !important;
-            }
-        }
-        """
-
-        js_content = """
-        document.addEventListener('DOMContentLoaded', function() {
-            const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            const agora = new Date();
-            const dia = agora.getDate();
-            const mes = meses[agora.getMonth()];
-            const ano = agora.getFullYear();
-            const dataFormatada = dia + " de " + mes + " de " + ano;
-            const el = document.getElementById('data-impressao');
-            if (el) {
-                el.textContent = dataFormatada;
-            }
-        });
-        """
-
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Requerimento Unificado de Ratificação e Retificação Territorial - {nome_lote}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        {css_content}
-    </style>
-    <script>
-        {js_content}
-    </script>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    
-    <!-- Barra Superior de Controle (no-print) -->
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                    COMPLETA
-                    <span class="text-[9px] uppercase bg-[#00f5a0]/20 text-[#00f5a0] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">PRONTO PARA IMPRESSÃO</span>
-                </h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Requerimento de Ratificação • A4 Premium</p>
-            </div>
-        </div>
-        
-        <button onclick="window.print()" class="px-5 py-2.5 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-[0_0_15px_rgba(0,245,160,0.3)] transition-all flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Imprimir / Salvar PDF
-        </button>
-    </div>
- 
-    <!-- Página Principal (A4) -->
-    <div class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        
-        <div>
-            <!-- Cabeçalho Principal -->
-            <div class="flex flex-col items-center pb-2 mb-6 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">
-                    COMPLETA
-                </div>
-                <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
-                    Agrimensura e Projetos Agropecuários
-                </div>
-                <h2 class="text-sm font-bold text-[#0c1510] tracking-wide uppercase mt-1">REQUERIMENTO DE RATIFICAÇÃO E RETIFICAÇÃO TERRITORIAL</h2>
-            </div>
- 
-            <!-- Endereçamento do Documento -->
-            <p class="text-[11px] font-black uppercase tracking-wide text-slate-900 my-5 leading-normal select-all">
-                ILMO. SR. OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca_exibicao} - PARANÁ
-            </p>
- 
-            <!-- Conteúdo do Requerimento -->
-            <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
-                
-                <div>
-                    <h3 class="text-[10px] font-bold uppercase tracking-wider text-[#10b981] mb-1.5">REQUERENTES (QUALIFICAÇÃO):</h3>
-                    <p class="text-slate-700">{texto_requerimento}</p>
-                </div>
-                
-                <p>Atribui-se a esse imóvel o valor de R$ <strong class="text-slate-900">{valor_venal_itr_str}</strong>, conforme consta no ITR e/ou na declaração de valor venal expedida pela Prefeitura Municipal de {prop_data['municipio']} em <strong class="text-slate-900">____/____/________</strong>.</p>
-                
-                <p>Para tanto, apresenta os seguintes documentos que seguem em anexo:</p>
-                
-                <!-- Lista de Documentos Anexos -->
-                <div class="pl-4 space-y-2 my-3 text-slate-600 font-medium">
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">I -</span>
-                        <span>Cópia autenticada do RG e CPF, e certidão de casamento ou nascimento, expedidas no máximo de 90 dias;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">II -</span>
-                        <span>Certidões de inteiro teor das matrículas (e transcrições), com menos de 30 dias, que formam a cadeia dominial do imóvel;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">III -</span>
-                        <span>Certificado de cadastro do imóvel rural - CCIR atualizado;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">IV -</span>
-                        <span>Certidão negativa do Imposto Territorial Rural - ITR;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">V -</span>
-                        <span>Recibo de inscrição no Cadastro Ambiental Rural - CAR, na condição ativo;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">VI -</span>
-                        <span>Laudo técnico de localização do imóvel na faixa de fronteira;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">VII -</span>
-                        <span>Certidões negativas da Justiça Estadual (1º e 2º grau);</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">VIII -</span>
-                        <span>Certidão negativa da Justiça Federal da 4ª Região;</span>
-                    </div>
-                    <div class="flex items-start gap-2 col-span-2">
-                        <span class="font-bold text-slate-800 leading-none">IX -</span>
-                        <span>Escritura pública declaratória de inexistência de processo administrativo pelo qual o domínio do imóvel esteja sendo questionado nas esferas administrativa ou judicial por órgão ou entidade da administração federal direta e indireta.</span>
-                    </div>
-                    {bloco_sigef_html}
-                </div>
-                
-                <p class="text-[10px] text-slate-500 italic leading-snug">Declaram, por fim, que temos ciência e concordância, de forma livre, informada e inequívoca, com o fato de que o registrador e seus auxiliares, em decorrência da lavratura do ato, poderão acessar, utilizar, manter e processar, eletrônica e manualmente, dados pessoais e as informações e demais dados prestados, compartilhando-os com outros agentes de tratamento de dados, exclusivamente para fins de execução e conclusão do ato notarial ou registral solicitado pelas partes, tudo em conformidade com a Lei nº 13.709/2018 - Lei Geral de Proteção de Dados Pessoais (LGPD).</p>
-                
-                <p>Dessa forma, por estar em ordem a documentação necessária, requer seja efetuada averbação na matrícula indicada da ratificação da titulação realizada em faixa de fronteira na forma da Lei nº 13.178/2015.</p>
-                
-                <p>Requerer e autoriza, ainda, que sejam averbados todos demais dados de especialidade subjetiva e/ou objetiva necessários, como CCIR, ITR, CAR e dados pessoais.</p>
-                
-                <p class="font-semibold text-slate-800 mt-2">Termos que pede deferimento.</p>
-                
-                <p class="text-xs text-slate-500 font-semibold text-right pt-4">{prop_data['municipio']}-PR, <span id="data-impressao">{data_hoje_extenso}</span>.</p>
-            </div>
-        </div>
- 
-        <!-- Assinaturas Proprietários e Cônjuges (Evita quebra de página) -->
-        {bloco_assinaturas_html}
-    </div>
-</body>
-</html>"""
+        html_content = template
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value))
         return html_content

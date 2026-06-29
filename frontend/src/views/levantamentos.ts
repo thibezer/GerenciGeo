@@ -1,6 +1,8 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, formatarCCIR } from '../utils';
+import L from 'leaflet';
+
 
 let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 
@@ -26,8 +28,12 @@ export const levantamentosRoute: RouteDef = {
              </div>
              <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-full sm:w-56 md:w-64" id="busca-levantamento" />
              <button class="btn-primary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-novo-lev">
-               <i data-lucide="plus" class="w-4 h-4"></i>
-               Novo Levantamento
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                Novo Levantamento
+             </button>
+             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-triagem-txt" style="color: #00ff88; border-color: rgba(0, 255, 136, 0.2);">
+                <i data-lucide="filter" class="w-4 h-4"></i>
+                Área de Triagem
              </button>
           </div>
         </div>
@@ -90,7 +96,113 @@ export const levantamentosRoute: RouteDef = {
             </form>
          </div>
       </div>
-    </div>
+
+      <!-- MODAL ÁREA DE TRIAGEM -->
+      <div id="modal-triagem" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+         <div class="glass-card w-full max-w-5xl h-[85vh] flex flex-col">
+            <!-- Cabeçalho -->
+            <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02] shrink-0">
+               <h3 class="text-sm font-bold flex items-center gap-2">
+                  <i data-lucide="filter" class="w-4 h-4 text-mint-vibrant"></i>
+                  <span>Área de Triagem Espacial (Testador de Arquivos)</span>
+               </h3>
+               <button class="text-white/40 hover:text-white" id="btn-fechar-modal-triagem">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+               </button>
+            </div>
+            <!-- Conteúdo Principal -->
+            <div class="p-4 flex flex-col md:flex-row gap-4 overflow-hidden flex-1 min-h-0">
+               <!-- Painel de Controle (Esquerdo) -->
+               <div class="w-full md:w-2/5 flex flex-col gap-3 overflow-y-auto pr-1">
+                  <div>
+                     <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">1. Carregar Arquivo de Pontos (.TXT) *</label>
+                     <div id="drop-zone-triagem" class="border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-lg p-4 text-center cursor-pointer transition-colors bg-white/[0.01]">
+                        <i data-lucide="upload-cloud" class="w-6 h-6 text-white/20 mx-auto mb-1" id="icon-upload-triagem"></i>
+                        <span class="text-[10px] block text-white/60 font-medium" id="label-upload-triagem">Arraste ou clique para selecionar arquivo .txt</span>
+                        <input type="file" id="input-file-triagem" accept=".txt" class="hidden" />
+                     </div>
+                  </div>
+                  <div class="flex gap-2">
+                     <div class="flex-1">
+                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Fuso UTM *</label>
+                        <select id="select-fuso-triagem" class="glass-input w-full text-[11px] py-1 px-2">
+                           <option value="18">Fuso 18S</option>
+                           <option value="19">Fuso 19S</option>
+                           <option value="20">Fuso 20S</option>
+                           <option value="21">Fuso 21S</option>
+                           <option value="22" selected>Fuso 22S (PR/SP/etc.)</option>
+                           <option value="23">Fuso 23S (MG/RJ/BA/etc.)</option>
+                           <option value="24">Fuso 24S</option>
+                           <option value="25">Fuso 25S</option>
+                        </select>
+                     </div>
+                     <div class="flex flex-col justify-end min-w-[90px]">
+                        <label class="flex items-center gap-1 text-[9px] text-white/60 font-bold mb-1.5 cursor-pointer select-none">
+                           <input type="checkbox" id="chk-inverter-ne" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 w-3 h-3 cursor-pointer" />
+                           Inverter N/E
+                        </label>
+                        <button type="button" class="btn-primary text-[10px] py-1.5 px-3 flex items-center justify-center gap-1 w-full" id="btn-processar-triagem">
+                           <i data-lucide="play" class="w-3 h-3"></i> Processar
+                        </button>
+                     </div>
+                  </div>
+
+                  <!-- Lista de pontos carregados -->
+                  <div class="flex-1 flex flex-col min-h-[120px] border border-white/5 rounded-lg p-2.5 bg-white/[0.01] overflow-hidden">
+                     <div class="flex justify-between items-center mb-1 shrink-0">
+                        <span class="text-[9px] text-white/40 uppercase font-bold">Pontos Carregados (<span id="count-pontos-triagem">0</span>)</span>
+                        <span class="text-[8px] font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant px-1.5 py-0.5 rounded hidden" id="tag-layout-triagem">RTK</span>
+                     </div>
+                     <div class="flex-1 overflow-y-auto text-[10px] font-mono text-white/60 divide-y divide-white/5 font-mono max-h-[180px]" id="lista-pontos-triagem">
+                        <div class="text-white/20 italic text-center py-4">Nenhum arquivo carregado</div>
+                     </div>
+                  </div>
+
+                  <!-- Direcionar para Levantamento -->
+                  <div class="border-t border-white/5 pt-3 space-y-2 shrink-0">
+                     <h4 class="text-[11px] font-bold text-mint-vibrant flex items-center gap-1">
+                        <i data-lucide="corner-down-right" class="w-3.5 h-3.5"></i>
+                        <span>2. Direcionar para Levantamento</span>
+                     </h4>
+                     <div>
+                        <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Selecionar Levantamento *</label>
+                        <select id="select-destino-triagem" class="glass-input w-full text-[11px] py-1 px-2">
+                           <option value="">Selecione o levantamento...</option>
+                        </select>
+                     </div>
+                     <div class="grid grid-cols-2 gap-2">
+                        <div>
+                           <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Matrícula (Opcional)</label>
+                           <select id="select-matricula-triagem" class="glass-input w-full text-[11px] py-1 px-2" disabled>
+                              <option value="">Selecione o levantamento...</option>
+                           </select>
+                        </div>
+                        <div>
+                           <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">Base de Campo (Opcional)</label>
+                           <select id="select-base-triagem" class="glass-input w-full text-[11px] py-1 px-2" disabled>
+                              <option value="">Selecione o levantamento...</option>
+                           </select>
+                        </div>
+                     </div>
+                     <button type="button" class="btn-primary w-full text-[11px] py-2 flex items-center justify-center gap-1 active:scale-95 transition-all mb-2" id="btn-salvar-associacao-triagem" disabled>
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        Confirmar e Importar
+                     </button>
+                  </div>
+               </div>
+               <!-- Mapa (Direito) -->
+               <div class="w-full md:w-3/5 h-[300px] md:h-full rounded-lg overflow-hidden border border-white/5 relative bg-black/40 flex-1">
+                  <div id="mapa-triagem" class="w-full h-full z-10"></div>
+                  <!-- Indicador de sem dados no mapa -->
+                  <div id="placeholder-mapa-triagem" class="absolute inset-0 bg-[#0a100d]/90 flex flex-col items-center justify-center z-20 text-center p-4 pointer-events-none">
+                     <i data-lucide="map" class="w-10 h-10 text-white/10 mb-1"></i>
+                     <span class="text-[10px] text-white/30 font-medium">Os pontos serão plotados aqui após o processamento</span>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
+   </div>
   `,
   setup: () => {
     let levantamentosList: any[] = [];
@@ -539,6 +651,437 @@ export const levantamentosRoute: RouteDef = {
              selectProf.innerHTML = '<option value="">Erro ao carregar profissionais</option>';
            });
       };
+
+      // =========================================================================
+      // LÓGICA DA ÁREA DE TRIAGEM ESPACIAL
+      // =========================================================================
+      let mapaTriagem: L.Map | null = null;
+      let mapaTriagemMarkers: L.Marker[] = [];
+      let mapaTriagemPolyline: L.Polyline | null = null;
+      let arquivoSelecionadoTriagem: File | null = null;
+      let pontosProcessadosTriagem: any[] = [];
+      let layoutDetectadoTriagem: string = '';
+
+      const initMapaTriagem = () => {
+         if (mapaTriagem) {
+            mapaTriagem.remove();
+            mapaTriagem = null;
+         }
+
+         const mapContainer = document.getElementById('mapa-triagem');
+         if (!mapContainer) return;
+
+         mapaTriagem = L.map('mapa-triagem', {
+            maxZoom: 24,
+            scrollWheelZoom: true
+         }).setView([-23.7661, -53.3204], 14);
+
+         // Google Satélite
+         L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+            maxZoom: 24,
+            maxNativeZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: 'Google Maps'
+         }).addTo(mapaTriagem);
+      };
+
+      const limparMapaTriagem = () => {
+         if (!mapaTriagem) return;
+         mapaTriagemMarkers.forEach(m => mapaTriagem!.removeLayer(m));
+         mapaTriagemMarkers = [];
+         if (mapaTriagemPolyline) {
+            mapaTriagem.removeLayer(mapaTriagemPolyline);
+            mapaTriagemPolyline = null;
+         }
+      };
+
+      const plotarPontosNoMapaTriagem = (pontos: any[]) => {
+         limparMapaTriagem();
+         if (!mapaTriagem || pontos.length === 0) return;
+
+         const placeholder = document.getElementById('placeholder-mapa-triagem');
+         if (placeholder) placeholder.classList.add('hidden');
+
+         const coords: L.LatLng[] = [];
+
+         pontos.forEach(p => {
+            if (p.lat && p.lon) {
+               const latLng = L.latLng(p.lat, p.lon);
+               coords.push(latLng);
+
+               // Copiado o mesmo estilo do mapa oficial do GerenciGeo
+               const isBaseFisica = p.descricao && p.descricao.toLowerCase() === 'set_base';
+               const isBasePPP = p.nome && (p.nome.toUpperCase().startsWith('M') || p.nome.toUpperCase().includes('BASE'));
+               let markerBg = 'bg-mint-vibrant text-[#0c1510]';
+               
+               if (isBasePPP) {
+                 markerBg = 'bg-indigo-600 text-white';
+               } else if (isBaseFisica) {
+                 markerBg = 'bg-rose-600 text-white';
+               }
+
+               const markerHtml = `
+                 <div class="w-5 h-5 ${markerBg} border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold font-mono shadow-lg transition-transform hover:scale-125">
+                   ${p.nome.substring(0, 3)}
+                 </div>
+               `;
+               const customIcon = L.divIcon({
+                 html: markerHtml,
+                 className: 'custom-leaflet-marker',
+                 iconSize: [20, 20]
+               });
+
+               const popupRole = isBasePPP 
+                 ? 'Base Homologada PPP (Provável)' 
+                 : (isBaseFisica ? 'Base de Campo (RTK set_base)' : 'Vértice de Perímetro');
+
+               const marker = L.marker(latLng, { icon: customIcon })
+                  .bindPopup(`
+                     <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.3; font-size:11px;">
+                        <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#00b366;">${p.nome}</div>
+                        <div style="font-size:10px; color:#555; font-weight:bold;">${popupRole}</div>
+                        <div style="margin-top:4px;">N: ${p.norte.toFixed(3)}</div>
+                        <div>E: ${p.este.toFixed(3)}</div>
+                        <div>Alt: ${p.alt.toFixed(3)}</div>
+                        <div style="font-size:9px; color:#777; font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
+                     </div>
+                  `, { maxWidth: 220 })
+                  .addTo(mapaTriagem!);
+               
+               mapaTriagemMarkers.push(marker);
+            }
+         });
+
+         if (coords.length > 0) {
+            // Desenha a polilinha conectando os pontos e fechando no primeiro
+            const coordsPolilinha = [...coords, coords[0]];
+            mapaTriagemPolyline = L.polyline(coordsPolilinha, {
+               color: '#00ff88',
+               weight: 2,
+               opacity: 0.8,
+               dashArray: '5, 5'
+            }).addTo(mapaTriagem);
+
+            const bounds = L.latLngBounds(coords);
+            mapaTriagem.fitBounds(bounds, { padding: [40, 40] });
+         }
+      };
+
+      const btnTriagem = document.getElementById('btn-triagem-txt');
+      const modalTriagem = document.getElementById('modal-triagem');
+      const btnFecharTriagem = document.getElementById('btn-fechar-modal-triagem');
+      
+      const dropZone = document.getElementById('drop-zone-triagem');
+      const inputFile = document.getElementById('input-file-triagem') as HTMLInputElement;
+      const labelUpload = document.getElementById('label-upload-triagem');
+      const iconUpload = document.getElementById('icon-upload-triagem');
+      
+      const selectFuso = document.getElementById('select-fuso-triagem') as HTMLSelectElement;
+      const chkInverterNE = document.getElementById('chk-inverter-ne') as HTMLInputElement;
+      const btnProcessar = document.getElementById('btn-processar-triagem');
+      const countPontos = document.getElementById('count-pontos-triagem');
+      const tagLayout = document.getElementById('tag-layout-triagem');
+      const listaPontos = document.getElementById('lista-pontos-triagem');
+      
+      const selectDestino = document.getElementById('select-destino-triagem') as HTMLSelectElement;
+      const selectMatricula = document.getElementById('select-matricula-triagem') as HTMLSelectElement;
+      const selectBase = document.getElementById('select-base-triagem') as HTMLSelectElement;
+      const btnSalvarAssociacao = document.getElementById('btn-salvar-associacao-triagem') as HTMLButtonElement;
+
+      const atualizarBotaoImportar = () => {
+         if (btnSalvarAssociacao) {
+            const temPontos = pontosProcessadosTriagem.length > 0;
+            const temDestino = selectDestino && selectDestino.value !== '';
+            btnSalvarAssociacao.disabled = !(temPontos && temDestino);
+         }
+      };
+
+      // Abrir Modal de Triagem
+      btnTriagem?.addEventListener('click', () => {
+         modalTriagem?.classList.remove('hidden');
+         
+         // Inicializa o mapa do Leaflet
+         setTimeout(() => {
+            initMapaTriagem();
+            if (mapaTriagem) {
+               mapaTriagem.invalidateSize();
+            }
+         }, 100);
+
+         // Preencher o select de levantamento destino com levantamentos ativos
+         if (selectDestino) {
+            selectDestino.innerHTML = '<option value="">Selecione o levantamento de destino...</option>' + 
+               levantamentosList
+                  .filter(l => l.status === 'EM_ANDAMENTO')
+                  .map(l => `<option value="${l.id}">${l.nome_propriedade} (${l.municipio}/${l.uf})</option>`)
+                  .join('');
+         }
+         
+         // Resetar selects dependentes
+         if (selectMatricula) {
+            selectMatricula.innerHTML = '<option value="">Selecione o levantamento...</option>';
+            selectMatricula.disabled = true;
+         }
+         if (selectBase) {
+            selectBase.innerHTML = '<option value="">Selecione o levantamento...</option>';
+            selectBase.disabled = true;
+         }
+         if (btnSalvarAssociacao) {
+            btnSalvarAssociacao.disabled = true;
+         }
+      });
+
+      // Fechar modal
+      btnFecharTriagem?.addEventListener('click', () => {
+         modalTriagem?.classList.add('hidden');
+         limparMapaTriagem();
+         if (mapaTriagem) {
+            mapaTriagem.remove();
+            mapaTriagem = null;
+         }
+         // Resetar estado
+         arquivoSelecionadoTriagem = null;
+         pontosProcessadosTriagem = [];
+         if (labelUpload) labelUpload.innerText = 'Arraste ou clique para selecionar arquivo .txt';
+         if (iconUpload) iconUpload.className = 'w-6 h-6 text-white/20 mx-auto mb-1';
+         if (countPontos) countPontos.innerText = '0';
+         if (tagLayout) tagLayout.classList.add('hidden');
+         if (listaPontos) listaPontos.innerHTML = '<div class="text-white/20 italic text-center py-4">Nenhum arquivo carregado</div>';
+         const placeholder = document.getElementById('placeholder-mapa-triagem');
+         if (placeholder) placeholder.classList.remove('hidden');
+      });
+
+      // Drag and Drop
+      dropZone?.addEventListener('click', () => inputFile?.click());
+      dropZone?.addEventListener('dragover', (e) => {
+         e.preventDefault();
+         dropZone.classList.add('border-mint-vibrant/60', 'bg-mint-vibrant/5');
+      });
+      dropZone?.addEventListener('dragleave', () => {
+         dropZone.classList.remove('border-mint-vibrant/60', 'bg-mint-vibrant/5');
+      });
+      dropZone?.addEventListener('drop', (e) => {
+         e.preventDefault();
+         dropZone.classList.remove('border-mint-vibrant/60', 'bg-mint-vibrant/5');
+         
+         if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.endsWith('.txt')) {
+               arquivoSelecionadoTriagem = file;
+               if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
+               if (iconUpload) iconUpload.className = 'w-6 h-6 text-mint-vibrant mx-auto mb-1';
+            } else {
+               alert('Apenas arquivos de extensão .txt são permitidos na triagem.');
+            }
+         }
+      });
+      
+      inputFile?.addEventListener('change', () => {
+         if (inputFile.files && inputFile.files.length > 0) {
+            const file = inputFile.files[0];
+            arquivoSelecionadoTriagem = file;
+            if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
+            if (iconUpload) iconUpload.className = 'w-6 h-6 text-mint-vibrant mx-auto mb-1';
+         }
+      });
+
+      // Enviar arquivo para processamento temporário
+      btnProcessar?.addEventListener('click', async () => {
+         if (!arquivoSelecionadoTriagem) {
+            alert('Por favor, selecione ou arraste um arquivo de pontos (.txt) primeiro.');
+            return;
+         }
+
+         const fuso = selectFuso.value;
+         const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
+         const formData = new FormData();
+         formData.append('file', arquivoSelecionadoTriagem);
+         formData.append('fuso_utm', fuso);
+         formData.append('inverter_ne', inverterNE);
+
+         try {
+            btnProcessar.innerHTML = '<i class="animate-spin mr-1">🔄</i> Processando...';
+            (btnProcessar as HTMLButtonElement).disabled = true;
+
+            const res = await fetch(`${API_BASE}/pontos/analisar-txt`, {
+               method: 'POST',
+               body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+               throw new Error(data.detail || 'Erro ao processar arquivo.');
+            }
+
+            if (data.error) {
+               throw new Error(data.error);
+            }
+
+            pontosProcessadosTriagem = data.pontos || [];
+            layoutDetectadoTriagem = data.layout_detectado || 'DESCONHECIDO';
+
+            if (countPontos) countPontos.innerText = pontosProcessadosTriagem.length.toString();
+            if (tagLayout) {
+               tagLayout.innerText = layoutDetectadoTriagem;
+               tagLayout.classList.remove('hidden');
+            }
+
+            // Renderizar na lista do painel
+            if (listaPontos) {
+               if (pontosProcessadosTriagem.length === 0) {
+                  listaPontos.innerHTML = '<div class="text-white/20 italic text-center py-4">Nenhum ponto válido processado</div>';
+               } else {
+                  listaPontos.innerHTML = pontosProcessadosTriagem.map((p) => `
+                     <div class="py-1 px-1 flex justify-between items-center hover:bg-white/5 transition-colors">
+                        <span class="font-bold text-white">${p.nome}</span>
+                        <span class="text-white/40 text-[9px]">N: ${p.norte.toFixed(1)} E: ${p.este.toFixed(1)}</span>
+                     </div>
+                  `).join('');
+               }
+            }
+
+            // Plotar no Mapa
+            plotarPontosNoMapaTriagem(pontosProcessadosTriagem);
+            
+            // Ativa o botão de associação se já houver levantamento destino
+            atualizarBotaoImportar();
+
+         } catch (err: any) {
+            console.error(err);
+            alert(`Falha no processamento: ${err.message}`);
+         } finally {
+            if (btnProcessar) {
+               btnProcessar.innerHTML = 'Processar';
+               (btnProcessar as HTMLButtonElement).disabled = false;
+               initIcons();
+            }
+         }
+      });
+
+      // Monitorar troca do Levantamento Destino
+      selectDestino?.addEventListener('change', async () => {
+         const levId = selectDestino.value;
+         if (!levId) {
+            if (selectMatricula) {
+               selectMatricula.innerHTML = '<option value="">Selecione o levantamento...</option>';
+               selectMatricula.disabled = true;
+            }
+            if (selectBase) {
+               selectBase.innerHTML = '<option value="">Selecione o levantamento...</option>';
+               selectBase.disabled = true;
+            }
+            atualizarBotaoImportar();
+            return;
+         }
+
+         try {
+            // 1. Carregar Matrículas
+            if (selectMatricula) {
+               selectMatricula.innerHTML = '<option value="">Carregando...</option>';
+            }
+            const resMat = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas`);
+            const matriculas = await resMat.json();
+            if (selectMatricula) {
+               if (matriculas.length === 0) {
+                  selectMatricula.innerHTML = '<option value="">Sem matrículas vinculadas</option>';
+                  selectMatricula.disabled = true;
+               } else {
+                  selectMatricula.innerHTML = '<option value="">[Geral - Sem Matrícula]</option>' + 
+                     matriculas.map((m: any) => `<option value="${m.id}">Matrícula: ${m.numero_matricula} (${m.area_ha.toFixed(2)} Ha)</option>`).join('');
+                  selectMatricula.disabled = false;
+               }
+            }
+
+            // 2. Carregar Bases de Campo do Levantamento
+            if (selectBase) {
+               selectBase.innerHTML = '<option value="">Carregando...</option>';
+            }
+            const resPts = await fetch(`${API_BASE}/levantamentos/${levId}/pontos`);
+            const pontos = await resPts.json();
+            if (selectBase) {
+               const bases = pontos.filter((p: any) => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'B');
+               if (bases.length === 0) {
+                  selectBase.innerHTML = '<option value="">[Sem Bases]</option>';
+                  selectBase.disabled = true;
+               } else {
+                  selectBase.innerHTML = '<option value="">[Nenhuma Base / Autodetectar]</option>' + 
+                     bases.map((p: any) => `<option value="${p.id}">Base: ${p.nome_vertice}</option>`).join('');
+                  selectBase.disabled = false;
+               }
+            }
+
+            atualizarBotaoImportar();
+
+         } catch (e) {
+            console.error("Erro ao carregar dados do levantamento destino:", e);
+            if (selectMatricula) selectMatricula.innerHTML = '<option value="">Erro ao carregar</option>';
+            if (selectBase) selectBase.innerHTML = '<option value="">Erro ao carregar</option>';
+         }
+      });
+
+      // Confirmar Associação e Importar Oficialmente no Levantamento de Destino
+      btnSalvarAssociacao?.addEventListener('click', async () => {
+         const levId = selectDestino.value;
+         if (!levId || !arquivoSelecionadoTriagem) return;
+
+         if (!confirm('Confirmar importação oficial deste arquivo no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.')) {
+            return;
+         }
+
+         const formData = new FormData();
+         formData.append('file', arquivoSelecionadoTriagem);
+         
+         const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
+         formData.append('inverter_ne', inverterNE);
+         
+         const matriculaVal = selectMatricula.value;
+         if (matriculaVal) {
+            formData.append('matricula_id', matriculaVal);
+         }
+         
+         const baseVal = selectBase.value;
+         if (baseVal && !selectBase.disabled) {
+            formData.append('base_escolhida_id', baseVal);
+         }
+
+         try {
+            btnSalvarAssociacao.innerHTML = '<i class="animate-spin mr-1">🔄</i> Importando...';
+            btnSalvarAssociacao.disabled = true;
+
+            const res = await fetch(`${API_BASE}/levantamentos/${levId}/importar-txt`, {
+               method: 'POST',
+               body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+               const errorMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || 'Erro na importação.');
+               throw new Error(errorMsg);
+            }
+
+            if (data.error) {
+               throw new Error(data.error);
+            }
+
+            alert(data.message || 'Pontos e topologia importados com sucesso no levantamento de destino!');
+            
+            // Fechar modal de triagem
+            btnFecharTriagem?.click();
+            
+            // Recarregar lista de levantamentos na tela principal
+            loadLevantamentos();
+
+         } catch (e: any) {
+            console.error(e);
+            alert(`Falha ao importar no levantamento: ${e.message}`);
+         } finally {
+            if (btnSalvarAssociacao) {
+               btnSalvarAssociacao.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> Confirmar e Importar';
+               btnSalvarAssociacao.disabled = false;
+               initIcons();
+            }
+         }
+      });
 
       loadLevantamentos();
       configurarComboboxPropriedades();

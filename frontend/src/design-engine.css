@@ -1,0 +1,602 @@
+/**
+ * ============================================================
+ * GerenciGeo — Design Engine v1.0
+ * Motor de Correção Sistêmica de Interface
+ * ============================================================
+ *
+ * Importado via main.ts APÓS o style.css (Tailwind base).
+ * As regras aqui têm prioridade sobre as classes Tailwind
+ * graças ao uso de !important estratégico e seletores
+ * mais específicos.
+ *
+ * FILOSOFIA:
+ *   Este motor NÃO reescreve o template. Ele age como uma
+ *   camada de correção que intercepta os seletores existentes
+ *   e aplica o sistema de design de forma global e automática.
+ *   Qualquer componente novo que use as classes existentes
+ *   (.glass-card, .btn-primary, etc.) herda as correções.
+ *
+ * REFERÊNCIAS:
+ *   - Apple HIG (developer.apple.com/design/human-interface-guidelines)
+ *   - WWDC 2025 Session 356 — Shape System & Concentricity
+ *   - GerenciGeo_Design_UI.md (documento de design do projeto)
+ * ============================================================
+ */
+
+/* ===========================================================
+   1. TOKENS DO SISTEMA — Variáveis globais
+   =========================================================== */
+
+:root {
+  /* --- Superfícies --- */
+  --geo-bg-base:        #09090B;
+  --geo-bg-surface:     #111113;
+  --geo-bg-elevated:    #1A1A1D;
+  --geo-bg-overlay:     #252528;
+
+  /* --- Bordas --- */
+  --geo-border-faint:   rgba(255, 255, 255, 0.04);
+  --geo-border-subtle:  rgba(255, 255, 255, 0.07);
+  --geo-border-default: rgba(255, 255, 255, 0.11);
+  --geo-border-strong:  rgba(255, 255, 255, 0.20);
+
+  /* --- Texto --- */
+  --geo-text-primary:   rgba(255, 255, 255, 0.92);
+  --geo-text-secondary: rgba(255, 255, 255, 0.52);
+  --geo-text-tertiary:  rgba(255, 255, 255, 0.28);
+  --geo-text-disabled:  rgba(255, 255, 255, 0.18);
+
+  /* --- Acento único (verde) --- */
+  --geo-accent:         #00E08A;
+  --geo-accent-text:    #00C97C;
+  --geo-accent-bg:      rgba(0, 224, 138, 0.10);
+  --geo-accent-border:  rgba(0, 224, 138, 0.22);
+
+  /* --- Semântico de status --- */
+  --geo-status-raw:        #FF9F0A;
+  --geo-status-raw-bg:     rgba(255, 159, 10, 0.10);
+  --geo-status-raw-border: rgba(255, 159, 10, 0.22);
+
+  --geo-status-ok:         #30D158;
+  --geo-status-ok-bg:      rgba(48, 209, 88, 0.10);
+
+  --geo-status-error:      #FF453A;
+  --geo-status-error-bg:   rgba(255, 69, 58, 0.10);
+  --geo-status-error-border: rgba(255, 69, 58, 0.22);
+
+  --geo-status-warn:       #FFD60A;
+  --geo-status-warn-bg:    rgba(255, 214, 10, 0.10);
+  --geo-status-warn-border: rgba(255, 214, 10, 0.22);
+
+  /* --- Dados geodésicos (ciano) --- */
+  --geo-data-highlight:    #5AC8FA;
+
+  /* --- Sistema de formas (Shape System — WWDC 2025) --- */
+  /* Regra: radius_filho = radius_pai - padding_interno      */
+  --geo-radius-modal:   14px;
+  --geo-radius-panel:   12px;
+  --geo-radius-card:    9px;   /* cards dentro de painéis (12 - 3 ≈ 9) */
+  --geo-radius-input:   7px;
+  --geo-radius-btn-sm:  6px;
+  --geo-radius-chip:    9999px;
+
+  /* --- Grade de espaçamento (múltiplos de 4px) --- */
+  --geo-sp-1:  4px;
+  --geo-sp-2:  8px;
+  --geo-sp-3:  12px;
+  --geo-sp-4:  16px;
+  --geo-sp-5:  20px;
+  --geo-sp-6:  24px;
+
+  /* --- Tipografia --- */
+  --geo-font-sans: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --geo-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace;
+
+  /* --- Transições --- */
+  --geo-transition-fast: 120ms ease;
+  --geo-transition-base: 180ms ease;
+}
+
+
+/* ===========================================================
+   2. RESET DE FONTE GLOBAL
+   =========================================================== */
+
+body,
+.glass-card,
+table,
+input,
+select,
+button {
+  font-family: var(--geo-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+/* ===========================================================
+   3. GLASS-CARD — Container principal
+   Corrige: radius inconsistente, borda muito fraca
+   =========================================================== */
+
+.glass-card {
+  background: var(--geo-bg-elevated) !important;
+  border: 0.5px solid var(--geo-border-subtle) !important;
+  border-radius: var(--geo-radius-panel) !important;
+}
+
+
+/* ===========================================================
+   4. WORKSPACE GNSS — Painel e cards filhos
+   Corrige: gap-1 → 8px, padding lateral uniforme,
+   concentricidade de border-radius nos cards filhos
+   =========================================================== */
+
+#painel-workspace-gnss {
+  padding: 0 !important;
+  border-radius: var(--geo-radius-panel) !important;
+  overflow: hidden;
+}
+
+#btn-toggle-workspace-collapse {
+  padding: 10px var(--geo-sp-4) !important;
+  border-bottom: 0.5px solid var(--geo-border-faint) !important;
+}
+
+/* Grid dos 5 cards — gap 8px e padding interno de painel */
+#container-workspace-arquivos {
+  gap: var(--geo-sp-2) !important;
+  padding: var(--geo-sp-3) var(--geo-sp-4) !important;
+}
+
+/* Cards filhos renderizados via JS
+   Regra concêntrica: painel=12px, padding=12px → card usa 9px */
+#container-workspace-arquivos > div {
+  background: var(--geo-bg-surface) !important;
+  border: 0.5px solid var(--geo-border-subtle) !important;
+  border-radius: var(--geo-radius-card) !important;
+  padding: var(--geo-sp-3) !important;
+}
+
+/* Card COM arquivos: borda mais visível */
+#container-workspace-arquivos > div[class*="border-white\/10"] {
+  border-color: var(--geo-border-default) !important;
+}
+
+/* Itens de arquivo dentro do card
+   Regra concêntrica: card=9px, padding=4px → item=5px */
+#container-workspace-arquivos > div > div:last-child > div {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 5px !important;
+}
+
+#container-workspace-arquivos > div > div:last-child > div:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+
+/* ===========================================================
+   5. BARRA DE FERRAMENTAS TÉCNICAS — desktop compacto
+   =========================================================== */
+
+@media (min-width: 768px) {
+  #btn-exportar-kml,
+  #btn-unificar-sigef,
+  #btn-consolidar-pontos-utm,
+  #btn-reordenar-caminhamento,
+  #btn-override-base-manual,
+  #btn-gerar-requerimento-cri,
+  #btn-arquivar-projeto-seguro {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+    height: 28px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+}
+
+
+/* ===========================================================
+   6. BOTÕES — Sistema de 4 níveis hierárquicos
+   =========================================================== */
+
+/* Nível 1 — Primário (capsule verde preenchido) */
+.btn-primary {
+  background: var(--geo-accent) !important;
+  color: #0A0A0B !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  border-radius: var(--geo-radius-chip) !important;
+  border: none !important;
+  padding: 6px 14px !important;
+  transition: filter var(--geo-transition-fast),
+              transform var(--geo-transition-fast) !important;
+}
+.btn-primary:hover { filter: brightness(1.08) !important; }
+.btn-primary:active { transform: scale(0.97) !important; }
+
+/* Baixar RINEX .ZIP — primário do workspace */
+#btn-download-rinex-zip {
+  background: var(--geo-accent) !important;
+  color: #0A0A0B !important;
+  border-radius: var(--geo-radius-chip) !important;
+  font-size: 12px !important;
+  padding: 5px 14px !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+#btn-download-rinex-zip:hover { filter: brightness(1.08) !important; }
+
+/* Nível 2 — Secundário (outline neutro) */
+.btn-secondary {
+  background: var(--geo-bg-overlay) !important;
+  color: var(--geo-text-primary) !important;
+  font-weight: 500 !important;
+  font-size: 11px !important;
+  border-radius: var(--geo-radius-btn-sm) !important;
+  border: 0.5px solid var(--geo-border-default) !important;
+  transition: background var(--geo-transition-fast),
+              border-color var(--geo-transition-fast),
+              transform var(--geo-transition-fast) !important;
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: var(--geo-border-strong) !important;
+}
+.btn-secondary:active { transform: scale(0.97) !important; }
+
+/* Secundário warning — Base Manual e Testar HGO */
+#btn-override-base-manual,
+#btn-testar-busca-rinex {
+  background: var(--geo-status-warn-bg) !important;
+  color: var(--geo-status-warn) !important;
+  border-color: var(--geo-status-warn-border) !important;
+}
+#btn-override-base-manual:hover,
+#btn-testar-busca-rinex:hover {
+  background: rgba(255, 214, 10, 0.15) !important;
+}
+
+/* Nível 3 — Destrutivo (Arquivar) */
+#btn-arquivar-projeto-seguro {
+  background: var(--geo-status-error-bg) !important;
+  color: var(--geo-status-error) !important;
+  border-color: var(--geo-status-error-border) !important;
+}
+#btn-arquivar-projeto-seguro:hover {
+  background: rgba(255, 69, 58, 0.16) !important;
+}
+
+/* Nível 4 — Ghost (Atualizar — deve recuar visualmente) */
+#btn-atualizar-arquivos-list {
+  background: transparent !important;
+  color: var(--geo-text-tertiary) !important;
+  border: none !important;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  border-radius: var(--geo-radius-btn-sm) !important;
+}
+#btn-atualizar-arquivos-list:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--geo-text-secondary) !important;
+}
+
+
+/* ===========================================================
+   7. TABELA DE VÉRTICES GEODÉSICOS
+   Corrige: font-size 9px → 10px no header,
+   badge BRUTO filled → outline capsule,
+   altura de linha para leitura confortável
+   =========================================================== */
+
+#container-tabela-vertices {
+  border-radius: var(--geo-radius-panel) !important;
+  overflow: hidden !important;
+}
+
+#container-tabela-vertices thead th,
+#tbl-pontos-header th {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--geo-text-tertiary) !important;
+  padding: 8px var(--geo-sp-4) !important;
+  white-space: nowrap !important;
+  background-color: #0b130e !important;
+}
+
+#container-tabela-vertices tbody tr {
+  border-bottom: 0.5px solid var(--geo-border-faint) !important;
+  height: 44px !important;
+  transition: background var(--geo-transition-fast) !important;
+}
+
+#container-tabela-vertices tbody tr:hover {
+  background: var(--geo-bg-overlay) !important;
+}
+
+#container-tabela-vertices tbody td {
+  padding: 0 var(--geo-sp-4) !important;
+  font-size: 12px !important;
+  color: var(--geo-text-primary) !important;
+  vertical-align: middle !important;
+}
+
+/* Badge STATUS — de filled para outline capsule */
+#container-tabela-vertices td:last-child span,
+#container-tabela-vertices .badge-status {
+  background: var(--geo-status-raw-bg) !important;
+  color: var(--geo-status-raw) !important;
+  border: 0.5px solid var(--geo-status-raw-border) !important;
+  border-radius: var(--geo-radius-chip) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 2px 8px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  box-shadow: none !important;
+}
+
+
+/* ===========================================================
+   8. FILTROS RÁPIDOS
+   Corrige: py-0.5 (2px) → mínimo 3px, radius quadrado → capsule
+   =========================================================== */
+
+#container-filtros-rapidos-tabela {
+  padding: var(--geo-sp-1) var(--geo-sp-4) !important;
+  gap: var(--geo-sp-1) !important;
+  border-bottom: 0.5px solid var(--geo-border-faint) !important;
+}
+
+.btn-filtro-rapido {
+  padding: 3px 10px !important;
+  border-radius: var(--geo-radius-chip) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--geo-text-secondary) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 0.5px solid transparent !important;
+  transition: all var(--geo-transition-fast) !important;
+  white-space: nowrap !important;
+  min-height: 24px !important;
+  line-height: 1.4 !important;
+}
+
+.btn-filtro-rapido:hover {
+  color: var(--geo-text-primary) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+.btn-filtro-rapido[class*="bg-mint"],
+.btn-filtro-rapido[class*="text-mint"] {
+  background: var(--geo-accent-bg) !important;
+  color: var(--geo-accent-text) !important;
+  border-color: var(--geo-accent-border) !important;
+  font-weight: 600 !important;
+}
+
+#container-filtros-rapidos-tabela [class*="py-0\.5"] {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+
+/* ===========================================================
+   9. HEADER STICKY DA MESA DE TRABALHO
+   =========================================================== */
+
+#mesa-trabalho-header {
+  padding: 8px var(--geo-sp-4) !important;
+  gap: var(--geo-sp-3) !important;
+  background: rgba(10, 10, 11, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 0.5px solid var(--geo-border-subtle) !important;
+  border-radius: var(--geo-radius-panel) !important;
+}
+
+#txt-nome-propriedade {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--geo-text-primary) !important;
+}
+
+#badge-status-lev {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  padding: 2px 7px !important;
+  border-radius: var(--geo-radius-chip) !important;
+}
+
+.dados-secundarios-cliente {
+  font-size: 11px !important;
+  color: var(--geo-text-tertiary) !important;
+  margin-top: 2px !important;
+  gap: 8px !important;
+}
+
+
+/* ===========================================================
+   10. TABS DE NAVEGAÇÃO (etapas de trabalho)
+   Corrige: py-3 px-4 mobile excessivo, glow excessivo na tab ativa
+   =========================================================== */
+
+#container-abas-etapas {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 0.5px solid var(--geo-border-subtle) !important;
+  border-radius: var(--geo-radius-panel) !important;
+  padding: 3px !important;
+  gap: 2px !important;
+}
+
+.btn-etapa-tab {
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-radius: 9px !important;
+  color: var(--geo-text-tertiary) !important;
+  background: transparent !important;
+  border: none !important;
+  transition: all var(--geo-transition-fast) !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+}
+
+.btn-etapa-tab:hover {
+  color: var(--geo-text-secondary) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.btn-etapa-tab[class*="bg-mint"],
+.btn-etapa-tab.active {
+  background: var(--geo-accent-bg) !important;
+  color: var(--geo-accent-text) !important;
+  border: 0.5px solid var(--geo-accent-border) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.btn-etapa-tab [data-lucide],
+.btn-etapa-tab svg {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+
+/* ===========================================================
+   11. INPUTS E SELECTS
+   Corrige: radius quadrado, borda muito forte
+   =========================================================== */
+
+.glass-input,
+#input-search-ponto,
+#input-search-ordenador,
+#input-confrontante-nome-rapido {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 0.5px solid var(--geo-border-default) !important;
+  border-radius: var(--geo-radius-input) !important;
+  color: var(--geo-text-primary) !important;
+  font-size: 12px !important;
+  padding: 6px 10px !important;
+  transition: border-color var(--geo-transition-fast) !important;
+  font-family: var(--geo-font-sans) !important;
+}
+
+.glass-input:focus,
+#input-search-ponto:focus,
+#input-search-ordenador:focus {
+  border-color: var(--geo-accent-border) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(0, 224, 138, 0.08) !important;
+}
+
+.glass-input::placeholder {
+  color: var(--geo-text-disabled) !important;
+  font-size: 11px !important;
+}
+
+
+/* ===========================================================
+   12. ROUNDED-TECHNICAL — define o token customizado
+   =========================================================== */
+
+.rounded-technical {
+  border-radius: var(--geo-radius-btn-sm) !important;
+}
+
+
+/* ===========================================================
+   13. SCROLLBAR — fina e discreta em painéis de dados
+   =========================================================== */
+
+.overflow-y-auto {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.10) transparent !important;
+}
+
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10) !important;
+  border-radius: 2px !important;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+
+
+/* ===========================================================
+   14. ÍCONES LUCIDE — tamanho uniforme em botões
+   =========================================================== */
+
+button [data-lucide],
+button svg {
+  width: 13px !important;
+  height: 13px !important;
+  flex-shrink: 0 !important;
+}
+
+.glass-card > [data-lucide],
+h4 [data-lucide],
+h3 [data-lucide] {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+
+/* ===========================================================
+   15. BADGE GERAL — spans com cor semântica de acento
+   =========================================================== */
+
+span[class*="bg-mint"][class*="rounded-full"],
+span[class*="text-mint"][class*="rounded-full"] {
+  background: var(--geo-accent-bg) !important;
+  color: var(--geo-accent-text) !important;
+  border: 0.5px solid var(--geo-accent-border) !important;
+  border-radius: var(--geo-radius-chip) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 2px 7px !important;
+  letter-spacing: 0.05em !important;
+}
+
+
+/* ===========================================================
+   16. MAPA LEAFLET — header e overflow do container
+   =========================================================== */
+
+#container-mapa-leaflet-parent {
+  border-radius: var(--geo-radius-panel) !important;
+  overflow: hidden !important;
+}
+
+
+/* ===========================================================
+   17. ESTADO VAZIO — células colspan centralizadas
+   =========================================================== */
+
+td[colspan][class*="text-center"] {
+  color: var(--geo-text-disabled) !important;
+  font-size: 12px !important;
+}
+
+
+/* ===========================================================
+   18. DIVISORES — unifica borda-faint em todo o sistema
+   =========================================================== */
+
+[class*="divide-white\/5"] > * + * {
+  border-color: var(--geo-border-faint) !important;
+}

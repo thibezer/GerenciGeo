@@ -5,10 +5,10 @@ import math
 from datetime import datetime
 
 def xyz_to_llh(x, y, z):
-    """Converte coordenadas XYZ (ECEF) para Latitude e Longitude (WGS84)"""
+    """Converte coordenadas XYZ (ECEF) para Latitude e Longitude (GRS80/SIRGAS 2000)"""
     if abs(x) < 1 or abs(y) < 1: return 0, 0
     a = 6378137.0
-    f = 1 / 298.257223563
+    f = 1 / 298.257222101
     b = a * (1 - f)
     e2 = (a**2 - b**2) / a**2
     ep2 = (a**2 - b**2) / b**2

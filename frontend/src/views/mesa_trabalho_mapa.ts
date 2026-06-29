@@ -35,10 +35,10 @@ export class MesaTrabalhoMapa {
     if (!mapContainer) return null;
 
     // Configura o mapa com maxZoom 24 para permitir aproximar muito perto dos pontos
-    // Desativa scrollWheelZoom para que o scroll do mouse sobre o mapa role a página normalmente
+    // Ativa scrollWheelZoom para permitir zoom aproximado com o scroll do mouse
     this.map = L.map(containerId, {
       maxZoom: 24,
-      scrollWheelZoom: false
+      scrollWheelZoom: true
     }).setView([-23.7661, -53.3204], 14);
 
     // Google Satélite Pane
@@ -381,20 +381,38 @@ export class MesaTrabalhoMapa {
       marker.addTo(this.bancoPontosGroup!);
     });
 
-    // 2. Traçar a polilinha perimetral fechada
-    if (validPoints.length >= 2) {
-      const coords = validPoints.map(p => L.latLng(p.lat, p.lon));
-      // Adiciona o fechamento conectando o último ponto de volta ao primeiro
-      coords.push(L.latLng(validPoints[0].lat, validPoints[0].lon));
+    // 2. Agrupar pontos por matricula_id (ou planilha_origem) e traçar a polilinha fechada para cada grupo de forma independente
+    const grupos: { [key: string]: any[] } = {};
+    validPoints.forEach(p => {
+      const key = p.matricula_id ? `mat_${p.matricula_id}` : (p.planilha_origem || 'default');
+      if (!grupos[key]) {
+        grupos[key] = [];
+      }
+      grupos[key].push(p);
+    });
 
-      const polyline = L.polyline(coords, {
-        color: '#f59e0b', // Cor âmbar contrastante premium
-        weight: 3.5,
-        dashArray: '6, 8',
-        pane: 'perimetroPane'
-      }).addTo(this.bancoPontosGroup!);
+    for (const key in grupos) {
+      const pontosGrupo = grupos[key];
+      // Ordena por ordem_caminhamento se disponível, ou por ID/posição
+      pontosGrupo.sort((a, b) => {
+        const ordA = a.ordem_caminhamento !== undefined && a.ordem_caminhamento !== null ? a.ordem_caminhamento : a.id;
+        const ordB = b.ordem_caminhamento !== undefined && b.ordem_caminhamento !== null ? b.ordem_caminhamento : b.id;
+        return ordA - ordB;
+      });
 
-      polyline.bringToBack();
+      if (pontosGrupo.length >= 2) {
+        const coords = pontosGrupo.map(p => L.latLng(p.lat, p.lon));
+        coords.push(L.latLng(pontosGrupo[0].lat, pontosGrupo[0].lon));
+
+        const polyline = L.polyline(coords, {
+          color: '#f59e0b', // Cor âmbar contrastante premium
+          weight: 3.5,
+          dashArray: '6, 8',
+          pane: 'perimetroPane'
+        }).addTo(this.bancoPontosGroup!);
+
+        polyline.bringToBack();
+      }
     }
   }
 

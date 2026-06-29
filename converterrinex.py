@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import re
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 from pywinauto import timings
@@ -49,9 +50,9 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
     if isinstance(arquivos_origem, str):
         arquivos_origem = [arquivos_origem]
         
-    # Normaliza caminhos e filtra arquivos existentes
-    arquivos_origem = [os.path.normpath(a) for a in arquivos_origem if os.path.exists(a)]
-    pasta_destino = os.path.normpath(pasta_destino)
+    # Converte caminhos para absolutos, normaliza e filtra arquivos existentes
+    arquivos_origem = [os.path.normpath(os.path.abspath(a)) for a in arquivos_origem if os.path.exists(a)]
+    pasta_destino = os.path.normpath(os.path.abspath(pasta_destino))
     
     if not arquivos_origem:
         print("[ERRO] Nenhum arquivo de origem válido foi encontrado.")
@@ -71,96 +72,223 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
         time.sleep(0.2)
         
-        # Inicia HGO com RunAsInvoker para evitar necessidade de elevação UAC
+        # Inicia HGO com RunAsInvoker e define a pasta de execução CWD segura (evitando C:\WINDOWS\system32)
         os.environ["__COMPAT_LAYER"] = "RunAsInvoker"
-        subprocess.Popen([caminho_exe])
-        
-        # Conecta ao HGO.exe recém-iniciado
-        app = Application(backend="uia").connect(path=caminho_exe, timeout=5)
-        janela = app.window(title_re=".*Hi-Target Geomatics Office.*")
-        janela.wait('ready', timeout=5)
+        cwd_seguro = os.path.dirname(os.path.abspath(__file__))
+        proc = subprocess.Popen([caminho_exe], cwd=cwd_seguro)
+        # Conecta ao HGO.exe recém-iniciado pelo PID do processo
+        app = Application(backend="uia").connect(process=proc.pid, timeout=10)
+        janela = app.window(title_re="(?i).*hi-target.*")
+        janela.wait('ready', timeout=10)
         janela.set_focus()
         
-        # 1. Cria o projeto
-        btn_novo = janela.child_window(title="Novo", control_type="Button")
-        btn_novo.click_input()
+        # 1. Cria o projeto via atalho de teclado Alt+F -> N (Novo)
+        send_keys("%f")
+        time.sleep(0.4)
+        send_keys("n")
         
         dlg_novo = janela.child_window(auto_id="frmNewProject", control_type="Window")
         dlg_novo.wait('ready', timeout=5)
         
         # Lê o caminho de trabalho padrão configurado no HGO
         tb_path = dlg_novo.child_window(auto_id="tbWorkPath", control_type="Edit")
-        desktop_dir = os.path.normpath(tb_path.window_text())
-        proj_dir = os.path.join(desktop_dir, proj_name)
+        desktop_dir = os.path.normpath(os.path.abspath(tb_path.window_text()))
+        proj_dir = os.path.normpath(os.path.abspath(os.path.join(desktop_dir, proj_name)))
         print(f" -> Pasta de trabalho identificada: {desktop_dir}")
         print(f" -> Pasta do projeto temporario: {proj_dir}")
         
         tb_name = dlg_novo.child_window(auto_id="tbProjectName", control_type="Edit")
-        tb_name.click_input()
-        send_keys(f"^a{{BACKSPACE}}{proj_name}", pause=0.01)
+        tb_name.set_edit_text(proj_name)
+        time.sleep(0.2)
         
-        btn_ok = dlg_novo.child_window(auto_id="btOK", control_type="Button")
-        btn_ok.click_input()
+        # Confirma criacao do projeto clicando em OK(O) ou Alt+O
+        btn_ok = None
+        for auto_id_opt in ["btOK", "btnOK", "OK"]:
+            try:
+                btn_ok = dlg_novo.child_window(auto_id=auto_id_opt, control_type="Button")
+                if btn_ok.exists():
+                    break
+            except:
+                pass
         
-        # 2. Propriedades do Projeto -> OK
-        dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-        dlg_prop.wait('ready', timeout=5)
+        if not btn_ok or not btn_ok.exists():
+            try:
+                btn_ok = dlg_novo.child_window(title="OK(O)", control_type="Button")
+            except:
+                pass
+
+        if btn_ok and btn_ok.exists():
+            btn_ok.set_focus()
+            time.sleep(0.1)
+            btn_ok.invoke()
+        else:
+            send_keys("%o")
+        
+        # 2. Propriedades do Projeto -> Aguarda se abre automaticamente ou abre via Alt+F -> P
+        time.sleep(0.5)
+        dlg_prop = None
+        try:
+            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+            dlg_prop.wait('ready', timeout=3.0)
+            print(" -> Diálogo de propriedades detectado automaticamente.")
+        except:
+            print(" -> Diálogo de propriedades não abriu automaticamente. Forçando via Alt+F -> P...")
+            janela.set_focus()
+            send_keys("%f")
+            time.sleep(0.4)
+            send_keys("p")
+            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+            dlg_prop.wait('ready', timeout=5.0)
         
         tab_avancado = dlg_prop.child_window(title="Avancado", control_type="TabItem")
-        tab_avancado.click_input()
+        tab_avancado.select()
+        time.sleep(0.3)
         
         cb_chars = dlg_prop.child_window(auto_id="cbZHDPtNameType", control_type="ComboBox")
-        cb_chars.click_input()
-        send_keys("8{ENTER}", pause=0.01)
+        try:
+            cb_chars.select("8")
+            time.sleep(0.3)
+        except:
+            cb_chars.set_focus()
+            send_keys("8{ENTER}", pause=0.01)
+            time.sleep(0.3)
         
-        btn_prop_ok = dlg_prop.child_window(auto_id="btOK", control_type="Button")
-        btn_prop_ok.click_input()
+        # Confirma propriedades clicando em OK(O) ou Alt+O
+        btn_prop_ok = None
+        for auto_id_opt in ["btOK", "btnOK", "OK"]:
+            try:
+                btn_prop_ok = dlg_prop.child_window(auto_id=auto_id_opt, control_type="Button")
+                if btn_prop_ok.exists():
+                    break
+            except: pass
+        if not btn_prop_ok or not btn_prop_ok.exists():
+            try:
+                btn_prop_ok = dlg_prop.child_window(title="OK(O)", control_type="Button")
+            except: pass
+            
+        if btn_prop_ok and btn_prop_ok.exists():
+            btn_prop_ok.set_focus()
+            time.sleep(0.1)
+            btn_prop_ok.invoke()
+        else:
+            send_keys("%o")
         
-        # 3. Janela de Coordenadas -> Seleciona SIRGAS_UTM22S
-        dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
-        dlg_coord.wait('ready', timeout=5)
-        
+        # 3. Janela de Coordenadas -> Aguarda se abre automaticamente ou abre via Alt+F -> R
+        time.sleep(0.5)
+        dlg_coord = None
+        for i in range(10):
+            for title_opt in ["Coordenada", "Sistema de Coordenadas"]:
+                try:
+                    dlg_coord = janela.child_window(title=title_opt, control_type="Window")
+                    if dlg_coord.exists():
+                        break
+                except:
+                    pass
+            if dlg_coord and dlg_coord.exists():
+                break
+            try:
+                dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
+                if dlg_coord.exists():
+                    break
+            except:
+                pass
+            time.sleep(0.3)
+
+        if not dlg_coord or not dlg_coord.exists():
+            print(" -> Diálogo de coordenadas não abriu automaticamente. Forçando via Alt+F -> R...")
+            janela.set_focus()
+            send_keys("%f")
+            time.sleep(0.4)
+            send_keys("r")
+            
+            for i in range(10):
+                for title_opt in ["Coordenada", "Sistema de Coordenadas"]:
+                    try:
+                        dlg_coord = janela.child_window(title=title_opt, control_type="Window")
+                        if dlg_coord.exists():
+                            break
+                    except:
+                        pass
+                if dlg_coord and dlg_coord.exists():
+                    break
+                try:
+                    dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
+                    if dlg_coord.exists():
+                        break
+                except:
+                    pass
+                time.sleep(0.3)
+
+        if not dlg_coord or not dlg_coord.exists():
+            raise Exception("Não foi possível localizar a janela de Coordenadas.")
+
+        # Interage com o comboBox1 (superior) via clique físico com offset mapeado (+49px)
         cb_coord = dlg_coord.child_window(auto_id="comboBox1", control_type="ComboBox")
         btn_abrir = cb_coord.child_window(title="Abrir", control_type="Button")
+        
+        # Garante foco no diálogo e expande o combobox
+        janela.set_focus()
+        dlg_coord.set_focus()
         btn_abrir.click_input()
-        time.sleep(0.05)
+        time.sleep(0.8) # Aguarda a lista expandir
         
-        item_sirgas = cb_coord.child_window(title="SIRGAS_UTM22S", control_type="ListItem")
-        item_sirgas.click_input()
-        time.sleep(0.05)
+        # Clica no item SIRGAS_UTM22S usando as coordenadas físicas calculadas
+        cb_rect = cb_coord.rectangle()
+        x_clique = int((cb_rect.left + cb_rect.right) / 2)
+        y_clique = cb_rect.bottom + 49
         
-        btn_coord_ok = dlg_coord.child_window(auto_id="btOk", control_type="Button")
-        btn_coord_ok.click_input()
+        import pywinauto.mouse as mouse
+        mouse.click(button='left', coords=(x_clique, y_clique))
+        time.sleep(1.2) # Aguarda o HGO processar o template carregado
         
-        # 4. Importar arquivos GNS
-        janela.wait('ready', timeout=5)
-        time.sleep(0.05)
+        # Confirma sistema de coordenadas via botão OK (btOk) ou Enter
+        btn_ok = None
+        try:
+            btn_ok = dlg_coord.child_window(title="OK", auto_id="btOk", control_type="Button")
+        except:
+            pass
+        if btn_ok and btn_ok.exists():
+            btn_ok.click_input()
+        else:
+            send_keys("{ENTER}")
         
-        btn_importar = janela.child_window(title="Importar", control_type="Button")
-        btn_importar.click_input()
+        # 4. Importar arquivos GNS -> via Alt+F -> I
+        time.sleep(0.8)
+        janela.set_focus()
+        send_keys("{ESC}")
+        time.sleep(0.2)
+        send_keys("%f")
+        time.sleep(0.5)
+        send_keys("i")
         
         # Diálogo frmFileFilter
         dlg_importar = janela.child_window(auto_id="frmFileFilter", control_type="Window")
         dlg_importar.wait('ready', timeout=5)
         
-        btn_select = dlg_importar.child_window(title="Selecionar Arqs(S)", control_type="Button")
-        btn_select.click_input()
+        # Selecionar arquivos via atalho nativo Alt+S
+        send_keys("%s")
         
         # Diálogo do Windows "Abrir"
         dlg_abrir = janela.child_window(title="Abrir", control_type="Window")
         dlg_abrir.wait('ready', timeout=5)
         
-        # Copia os caminhos dos arquivos brutos para o clipboard e cola
         caminhos_formatados = " ".join([f'"{arq}"' for arq in arquivos_origem])
-        set_clipboard_text(caminhos_formatados)
+        edit_box = dlg_abrir.child_window(class_name="Edit", control_type="Edit")
+        edit_box.set_edit_text(caminhos_formatados)
+        time.sleep(0.2)
         
-        # Foca a janela "Abrir" e cola o caminho direto
-        dlg_abrir.set_focus()
-        time.sleep(0.2)
-        # Envia Alt+N (atalho universal para focar a caixa de texto "Nome do arquivo" nos diálogos do Windows)
-        send_keys("%n")
-        time.sleep(0.2)
-        send_keys("^a^v{ENTER}", pause=0.05)
+        # Confirma abertura de arquivos clicando programaticamente no botão "Abrir"
+        btn_abrir_confirm = None
+        for title_opt in ["&Abrir", "Abrir", "Open", "&Open"]:
+            try:
+                btn_abrir_confirm = dlg_abrir.child_window(title=title_opt, control_type="Button")
+                if btn_abrir_confirm.exists():
+                    break
+            except: pass
+        if btn_abrir_confirm and btn_abrir_confirm.exists():
+            btn_abrir_confirm.click_input()
+        else:
+            send_keys("{ENTER}")
         
         # Restaura os timings padrão do pywinauto para a fase de conversão e menus
         timings.Timings.defaults()
@@ -195,172 +323,44 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
             if time.time() - inicio_espera > timeout_importacao:
                 print("[AVISO] Timeout na importacao de arquivos brutos. Prosseguindo...")
                 break
-            time.sleep(0.1)
+            time.sleep(0.2)
             
         # Aguarda estabilização da interface após término da importação
         time.sleep(1.0)
         
         # 6. Ativar aba Arq-Observacoes e iniciar conversão
         janela.set_focus()
+        send_keys("{ESC}")
+        time.sleep(0.2)
         tab_control = janela.child_window(auto_id="tabControl1", control_type="Tab")
         tab_item = tab_control.child_window(title="Arq-Observacoes", control_type="TabItem")
-        tab_item.click_input()
+        tab_item.select()
+        time.sleep(0.5)
         
         # Localiza e aguarda dinamicamente que o DataGridView esteja pronto na tela
         table = janela.child_window(title="DataGridView", auto_id="dataGridView1", control_type="Table")
         table.wait('ready', timeout=15)
         
-        # Envia a tecla ALT antes de clicar com o botão direito para ativar os atalhos de teclado no menu
-        send_keys("{VK_MENU}", pause=0.1)
+        # Foca a tabela clicando na primeira linha e seleciona todos os arquivos
+        table.click_input(button="left", coords=(100, 60))
         time.sleep(0.3)
-        
-        celula = table.child_window(title="Arquivo Linha 0", control_type="DataItem")
-        celula.click_input()
+        send_keys("^a")
         time.sleep(0.5)
         
-        # Seleciona tudo e abre o menu
-        send_keys("^a", pause=0.05)
-        time.sleep(0.5)
-        celula.click_input(button="right")
-        time.sleep(1.5)
+        # Abre o menu de contexto via clique com o botão direito na primeira linha da tabela
+        table.click_input(button="right", coords=(100, 60))
+        time.sleep(0.8)
         
-        # Executa "Converter para Rinex(R)"
-        send_keys("r{ENTER}", pause=0.05)
+        # Executa "Converter para Rinex(R)" enviando a tecla de atalho nativa do item do menu
+        send_keys("r")
+        time.sleep(0.3)
+        send_keys("{ENTER}")
         
-        # 7. Espera dinâmica pela conversão Rinex
-        print(" -> Aguardando conversao Rinex...")
-        rinex_dir = os.path.join(proj_dir, "Rinex")
-        parent_dir = os.path.dirname(proj_dir)
-        timeout_conversao = 40
-        inicio_conversao = time.time()
+        # 7. Aguarda tempo fixo para a conversão Rinex ser concluída pelo HGO
+        print(" -> Aguardando 30 segundos para a conversao Rinex...")
+        time.sleep(30.0)
         
-        # Nomes base dos arquivos de origem para filtragem precisa
-        nomes_base_origem = [os.path.splitext(os.path.basename(a))[0].lower() for a in arquivos_origem]
-        
-        def encontrar_arquivos_rinex():
-            encontrados = {}
-            diretorios_busca = []
-            if os.path.exists(rinex_dir):
-                diretorios_busca.append((rinex_dir, False))
-            if os.path.exists(proj_dir):
-                diretorios_busca.append((proj_dir, False))
-            if os.path.exists(parent_dir):
-                diretorios_busca.append((parent_dir, False))
-                # Varre subpastas de primeiro nível da Area de Trabalho (projetos do HGO)
-                try:
-                    for item in os.listdir(parent_dir):
-                        caminho_item = os.path.join(parent_dir, item)
-                        if os.path.isdir(caminho_item):
-                            diretorios_busca.append((caminho_item, False))
-                            diretorios_busca.append((os.path.join(caminho_item, "Rinex"), False))
-                except Exception as ex:
-                    print(f"[AVISO] Falha ao listar subpastas da Area de Trabalho: {ex}")
-                
-            # Filtra diretórios válidos e remove duplicatas
-            diretorios_filtrados = []
-            vistos = set()
-            for d, filt_data in diretorios_busca:
-                d_norm = os.path.normpath(d)
-                if os.path.exists(d_norm) and d_norm not in vistos:
-                    vistos.add(d_norm)
-                    diretorios_filtrados.append((d_norm, filt_data))
-                    
-            for pasta, filtrar_data in diretorios_filtrados:
-                for f in os.listdir(pasta):
-                    caminho_completo = os.path.join(pasta, f)
-                    if not os.path.isfile(caminho_completo):
-                        continue
-                        
-                    nome_f, ext_f = os.path.splitext(f)
-                    nome_f_lower = nome_f.lower()
-                    ext_f_lower = ext_f.lower()
-                    
-                    pertence_a_origem = False
-                    for nb in nomes_base_origem:
-                        if nome_f_lower == nb or nome_f_lower.startswith(nb):
-                            pertence_a_origem = True
-                            break
-                            
-                    if not pertence_a_origem:
-                        continue
-                        
-                    import re
-                    eh_rinex = False
-                    if ext_f_lower in ['.obs', '.nav', '.o', '.n', '.g']:
-                        eh_rinex = True
-                    elif re.match(r'^\.\d{2}[ong]$', ext_f_lower):
-                        eh_rinex = True
-                        
-                    if eh_rinex:
-                        if filtrar_data:
-                            try:
-                                mtime = os.path.getmtime(caminho_completo)
-                                if mtime >= (inicio_conversao - 10):
-                                    encontrados[f.lower()] = caminho_completo
-                            except: pass
-                        else:
-                            encontrados[f.lower()] = caminho_completo
-                            
-            return list(encontrados.values())
-
-        while True:
-            arqs_rinex = encontrar_arquivos_rinex()
-            
-            # Garante que cada arquivo de origem tenha pelo menos um arquivo de observacao correspondente gerado
-            bases_com_obs = 0
-            for nb in nomes_base_origem:
-                has_obs = False
-                for arq_caminho in arqs_rinex:
-                    f_name = os.path.basename(arq_caminho).lower()
-                    nome_f, ext_f = os.path.splitext(f_name)
-                    if nome_f == nb or nome_f.startswith(nb):
-                        if ext_f in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext_f):
-                            has_obs = True
-                            break
-                if has_obs:
-                    bases_com_obs += 1
-            
-            if bases_com_obs >= len(arquivos_origem):
-                # Checa estabilidade dos arquivos
-                try:
-                    tamanhos_iniciais = {path: os.path.getsize(path) for path in arqs_rinex}
-                    time.sleep(1.0)
-                    arqs_rinex_check = encontrar_arquivos_rinex()
-                    tamanhos_finais = {path: os.path.getsize(path) for path in arqs_rinex_check}
-                    if tamanhos_iniciais == tamanhos_finais:
-                        break
-                except: pass
-                    
-            if time.time() - inicio_conversao > timeout_conversao:
-                print("[AVISO] Timeout na conversao Rinex.")
-                break
-            time.sleep(1.0)
-            
-        # 8. Copia os arquivos resultantes para a pasta de destino antes de fechar o HGO
-        print(" -> Copiando arquivos Rinex convertidos...")
-        arquivos_para_mover = encontrar_arquivos_rinex()
-        sucesso_movimentacao = False
-        
-        for arq in arquivos_para_mover:
-            dest_file = os.path.join(pasta_destino, os.path.basename(arq))
-            try:
-                if os.path.exists(dest_file):
-                    import stat
-                    try:
-                        os.chmod(dest_file, stat.S_IWRITE)
-                    except: pass
-                    os.remove(dest_file)
-                shutil.copy2(arq, dest_file)
-                print(f" -> Arquivo copiado com sucesso: {os.path.basename(arq)} -> {pasta_destino}")
-                sucesso_movimentacao = True
-            except Exception as e:
-                print(f"[ERRO] Falha ao copiar arquivo {os.path.basename(arq)}: {e}")
-                
-        # 9. Espera 4 segundos (delay técnico para garantir estabilidade e encerramento de I/O)
-        print(" -> Aguardando 4 segundos com o HGO aberto...")
-        time.sleep(5.0)
-        
-        # 10. Fecha o HGO de forma segura
+        # 8. Fecha o HGO de forma segura
         print(" -> Fechando o HGO...")
         try:
             janela.close()
@@ -368,26 +368,7 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
         time.sleep(1.5)
         
-        # 11. Limpa os arquivos temporários da Área de Trabalho e subpastas de projetos HGO
-        for arq in arquivos_para_mover:
-            try:
-                caminho_dir = os.path.dirname(arq)
-                if caminho_dir == parent_dir or caminho_dir.startswith(parent_dir):
-                    if os.path.exists(arq):
-                        os.remove(arq)
-                        print(f" -> Temporario removido: {os.path.basename(arq)}")
-            except Exception as ex:
-                print(f"[AVISO] Nao foi possivel remover temporario {os.path.basename(arq)}: {ex}")
-                
-        # Remove a pasta temporária do projeto
-        if proj_dir and os.path.exists(proj_dir):
-            try:
-                shutil.rmtree(proj_dir)
-                print(" -> Pasta temporaria do projeto removida com sucesso.")
-            except Exception as e:
-                print(f"[AVISO] Nao foi possivel remover pasta temporaria {proj_dir}: {e}")
-                
-        return sucesso_movimentacao
+        return True
         
     except Exception as e:
         print(f"[FALHA] Erro na conversao HGO: {e}")

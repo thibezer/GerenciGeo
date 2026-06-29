@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Anuência do Confrontante - {c_nome}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 1.2cm 2cm 1.5cm 2cm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 29.7cm !important;
+                box-sizing: border-box !important;
+                display: block !important;
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
+            .page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            p,
+            li,
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            p,
+            li {
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+
+            .bloco-assinaturas-fechamento {
+                padding-top: 2cm !important;
+            }
+
+            /* Estilos específicos de impressão para Leaflet */
+            .leaflet-tile-container img {
+                mix-blend-mode: normal !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .leaflet-container {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+
+        /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
+        .custom-tooltip {
+            background-color: rgba(15, 23, 42, 0.9) !important;
+            border: 1px solid #0284c7 !important;
+            border-radius: 4px !important;
+            color: #ffffff !important;
+            font-family: monospace !important;
+            font-size: 8px !important;
+            font-weight: bold !important;
+            padding: 2px 6px !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        .custom-tooltip::before {
+            border-top-color: rgba(15, 23, 42, 0.9) !important;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência do Confrontante
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Termo Consolidado de Respeito de Divisas</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+    <!-- BARRA_ACOES_FIM -->
+
+    <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
+    <div
+        class="page bg-white text-slate-800 pt-8 pb-16 px-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none">
+        <div>
+            <!-- CABEÇALHO DA EMPRESA -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários LTDA</div>
+            </div>
+
+            <!-- TÍTULO JURÍDICO -->
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
+                    ANUÊNCIA DE LIMITES</h2>
+            </div>
+
+            <!-- CORPO DO TEXTO DA ANUÊNCIA -->
+            <div class="space-y-3 text-xs text-justify leading-relaxed text-slate-700">
+                <p>{qualificacao_confrontante}, na qualidade de proprietário(a) e/ou possuidor(a) legítimo(a) da área
+                    confrontante registrada sob a <strong>Matrícula nº {c_matricula}</strong>, e assumindo integralmente
+                    as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
+                    condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
+                        Federal nº 6.015 de 1973</strong>), <strong>DECLARAM</strong> não existir nenhuma disputa,
+                    litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
+                    vizinho denominado <strong>{nome_lote}</strong>, de propriedade de
+                    <strong>{proprietarios_str}</strong>, objeto da <strong>Matrícula nº {numero_matricula}</strong> do
+                    Serviço de Registro de Imóveis da Comarca de {comarca}.
+                </p>
+
+                <p>O(s) declarante(s) atesta(m) que a linha de divisa comum entre as propriedades corresponde ao
+                    caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico
+                    Local (SGL) oficial do projeto:</p>
+
+                <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
+                {tabela_divisas_html}
+
+                <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
+                <p class="break-inside-avoid">Declaramos ainda que o profissional responsável técnico
+                    <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
+                    <strong>{registro_profissional}</strong>, credenciado pelo INCRA sob o código
+                    <strong>{credencial_incra}</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
+                    Técnica - ART/TRT nº <strong>{final_trt}</strong>, indicou com precisão todas as
+                    demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
+                    gráficas. Os declarantes concordam integralmente com essa demarcação, expressa na planta e
+                    no memorial descritivo em anexo, e reconhecem esta descrição como o limite legal e definitivo entre
+                    as suas propriedades, assinando em plena concordância.
+                </p>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
+        <div class="bloco-assinaturas-fechamento break-inside-avoid w-full mt-4">
+            <p class="text-xs font-medium text-slate-900 text-left">{municipio}/PR, {data_extenso}.</p>
+            <div class="pt-4">
+                {bloco_assinaturas}
+            </div>
+        </div>
+    </div>
+
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+    {mapa_divisa_leaflet}
+
+    <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
+    {script_inicializacao_mapas}
+</body>
+
+</html>

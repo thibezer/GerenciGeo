@@ -7,6 +7,7 @@ import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
 import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
+import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 
 export let activeMapaController: MesaTrabalhoMapa | null = null;
@@ -91,6 +92,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     // 2. Registra os submódulos no contexto comum
     setupMesaGeodesica(ctx);
     setupOrganizadorPerimetro(ctx);
+    setupGeradorDocumentos(ctx);
     setupAuditoriaHistorico(ctx);
 
     // 3. Estilos de Resizers individuais
@@ -317,6 +319,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const btnGeo = document.getElementById('btn-etapa-geoprocessamento');
       const btnCart = document.getElementById('btn-etapa-cartorio');
+      const btnDoc = document.getElementById('btn-etapa-documentos');
       const btnAud = document.getElementById('btn-etapa-auditoria');
       const containerIngestao = document.getElementById('container-ingestao-arquivos');
       const gridSuperior = document.getElementById('grid-superior-detalhe');
@@ -326,6 +329,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       const containerAuditoriaCampo = document.getElementById('container-etapa-auditoria-campo');
       const bannerSugestao = document.getElementById('banner-sugestao-numeracao');
       const panelHomologacao = document.getElementById('panel-homologacao-incra');
+      const painelWorkspace = document.getElementById('painel-workspace-gnss');
 
       const lblTituloLateral = document.getElementById('lbl-titulo-tabela-lateral');
       const badgeLateral = document.getElementById('badge-tabela-lateral');
@@ -333,14 +337,14 @@ export const mesaTrabalhoRoute: RouteDef = {
       const containerAbasMatriculas = document.getElementById('container-abas-matriculas');
       const containerInfoMatricula = document.getElementById('container-info-matricula-ativa');
       if (containerAbasMatriculas) {
-        if (etapa === 'cartorio') {
+        if (etapa === 'cartorio' || etapa === 'documentos') {
           containerAbasMatriculas.classList.remove('hidden');
         } else {
           containerAbasMatriculas.classList.add('hidden');
         }
       }
       if (containerInfoMatricula) {
-        if (etapa === 'cartorio') {
+        if (etapa === 'cartorio' || etapa === 'documentos') {
           containerInfoMatricula.classList.remove('hidden');
         } else {
           containerInfoMatricula.classList.add('hidden');
@@ -350,6 +354,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (etapa === 'geoprocessamento') {
         if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.remove('hidden');
@@ -368,6 +373,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (containerDivisas) containerDivisas.classList.add('hidden');
         if (containerTabelas) containerTabelas.classList.remove('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
+        if (painelWorkspace) painelWorkspace.classList.remove('hidden');
         if (lblTituloLateral) lblTituloLateral.innerText = "Auditoria de Translação Geodésica";
         if (badgeLateral) {
           badgeLateral.innerText = "VETOR DELTA ECEF";
@@ -379,6 +385,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       } else if (etapa === 'cartorio') {
         if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
@@ -392,19 +399,48 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (containerDivisas) containerDivisas.classList.remove('hidden');
         if (containerTabelas) containerTabelas.classList.remove('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
+        if (painelWorkspace) painelWorkspace.classList.remove('hidden');
         if (lblTituloLateral) lblTituloLateral.innerText = "Segmentos de Divisa (Confrontantes)";
         if (badgeLateral) {
           badgeLateral.innerText = "EDICAO REAL-TIME";
           badgeLateral.className = "text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold";
         }
         if (btnSalvarPerimetro) btnSalvarPerimetro.classList.remove('hidden');
-        if (panelHomologacao) panelHomologacao.classList.remove('hidden');
+        if (panelHomologacao) panelHomologacao.classList.add('hidden'); // Oculto na Etapa 2
         ctx.carregarSugestoesNumeracao();
+      } else if (etapa === 'documentos') {
+        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+
+        if (containerIngestao) containerIngestao.classList.add('hidden');
+        if (gridSuperior) gridSuperior.classList.remove('hidden');
+        const containerReordenar = document.getElementById('container-reordenar-manual');
+        if (containerReordenar) containerReordenar.classList.add('hidden');
+        const splitterSup = document.getElementById('splitter-superior');
+        if (splitterSup) splitterSup.classList.add('hidden');
+        
+        const splitterInf = document.getElementById('splitter-inferior');
+        if (splitterInf) splitterInf.classList.add('hidden');
+
+        if (containerDivisas) containerDivisas.classList.add('hidden');
+        if (containerTabelas) containerTabelas.classList.add('hidden');
+        if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
+        if (painelWorkspace) painelWorkspace.classList.add('hidden');
+        if (btnSalvarPerimetro) btnSalvarPerimetro.classList.add('hidden');
+        if (bannerSugestao) bannerSugestao.classList.add('hidden');
+        if (panelHomologacao) panelHomologacao.classList.remove('hidden'); // Visível na Etapa 3
+        
+        if (ctx.currentProfissionalId) {
+          ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
+        }
       } else if (etapa === 'auditoria') {
         if (bannerSugestao) bannerSugestao.classList.add('hidden');
         if (panelHomologacao) panelHomologacao.classList.add('hidden');
         if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
+        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
@@ -416,6 +452,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         const splitterInf = document.getElementById('splitter-inferior');
         if (splitterInf) splitterInf.classList.add('hidden');
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.remove('hidden');
+        if (painelWorkspace) painelWorkspace.classList.add('hidden');
         renderHistoricoCampo(ctx);
       }
 
@@ -1396,6 +1433,10 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     document.getElementById('btn-etapa-cartorio')?.addEventListener('click', () => {
       ctx.alternarEtapa('cartorio');
+    });
+
+    document.getElementById('btn-etapa-documentos')?.addEventListener('click', () => {
+      ctx.alternarEtapa('documentos');
     });
 
     document.getElementById('btn-etapa-auditoria')?.addEventListener('click', () => {

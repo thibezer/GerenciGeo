@@ -4,6 +4,20 @@
  * Contém todo o layout HTML inicial, cabeçalho sticky, mapa Leaflet, dropzones,
  * barras de ferramentas, tabelas inferiores e modais de override e controle.
  */
+export const METODOS_SIGEF_OPTIONS = `
+    <option value="PG1">PG1 - Posicionamento GNSS - Relativo</option>
+    <option value="PG2">PG2 - Posicionamento GNSS - Absoluto</option>
+    <option value="PT1">PT1 - Poligonação</option>
+    <option value="PT2">PT2 - Irradiação</option>
+`;
+
+export const REGIMES_BENS_OPTIONS = `
+    <option value="Comunhão Parcial de Bens">Comunhão Parcial de Bens</option>
+    <option value="Comunhão Universal de Bens">Comunhão Universal de Bens</option>
+    <option value="Separação Total de Bens">Separação Total de Bens</option>
+    <option value="Separação Obrigatória de Bens">Separação Obrigatória de Bens</option>
+`;
+
 export const renderMesaTrabalho = (): string => {
    return `
     <div class="space-y-6 animate-in fade-in duration-300">
@@ -50,6 +64,10 @@ export const renderMesaTrabalho = (): string => {
             <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-cartorio" type="button">
               <i data-lucide="database" class="w-4 h-4"></i>
               Organizador de Perímetro
+            </button>
+            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-documentos" type="button">
+              <i data-lucide="file-text" class="w-4 h-4"></i>
+              Peças de Cartório
             </button>
             <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-auditoria" type="button">
               <i data-lucide="history" class="w-4 h-4"></i>
@@ -181,14 +199,21 @@ export const renderMesaTrabalho = (): string => {
               <i data-lucide="folder-open" class="w-5 h-5 text-mint-vibrant"></i>
               Workspace GNSS (Repositório Físico do Windows)
             </h4>
-            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+             <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+               <!-- Ghost: ação de suporte — deve recuar (Design_UI §7.3) -->
+               <button class="text-xs py-1 px-2.5 flex items-center gap-1 text-white/40 hover:text-white/75 hover:bg-white/5 rounded-md transition-all font-medium" id="btn-atualizar-arquivos-list">
+                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i>
+                 Atualizar
+               </button>
+               <!-- Secondary Warning: ação importante mas não a principal (Design_UI §7.3) -->
                <button class="btn-secondary text-xs py-1 px-3 flex items-center gap-1 hover:border-yellow-500/40 bg-yellow-500/10 border-yellow-500/20 text-yellow-400 hover:text-yellow-300 font-bold" id="btn-testar-busca-rinex" type="button">
                  <i data-lucide="play" class="w-3.5 h-3.5 mr-1"></i>
-                 Testar Busca HGO
+                 Testar HGO
                </button>
-               <button class="btn-secondary text-xs py-1 px-3 flex items-center gap-1 hover:border-mint-vibrant/40" id="btn-atualizar-arquivos-list">
-                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1"></i>
-                 Atualizar Lista
+               <!-- Primary: ação principal desta seção — capsule verde preenchido (Design_UI §7.3) -->
+               <button class="bg-mint-vibrant text-forest-deep font-bold text-xs px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all shrink-0" id="btn-download-rinex-zip" type="button">
+                 <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                 Baixar RINEX .ZIP
                </button>
             </div>
           </div>
@@ -212,6 +237,10 @@ export const renderMesaTrabalho = (): string => {
             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-consolidar-pontos-utm">
               <i data-lucide="download" class="w-3.5 h-3.5 text-mint-vibrant"></i>
               Exportar
+            </button>
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-sky-400 hover:bg-sky-500/10 border-sky-500/20 active:scale-95 transition-all" id="btn-sincronizar-nuvem" type="button" title="Sincronizar perímetro consolidado com o Hub de Consulta na Nuvem">
+              <i data-lucide="cloud-lightning" class="w-3.5 h-3.5"></i>
+              Sincronizar Nuvem
             </button>
             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-reordenar-caminhamento">
                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-mint-vibrant"></i>
@@ -319,11 +348,12 @@ export const renderMesaTrabalho = (): string => {
               <table class="w-full text-left border-collapse">
                 <thead>
                   <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
-                    <th class="px-4 py-3">Ponto A</th>
-                    <th class="px-4 py-3">Ponto B</th>
-                    <th class="px-4 py-3">Confrontante</th>
-                    <th class="px-4 py-3">Tipo Limite</th>
-                    <th class="px-4 py-3">Método SIGEF</th>
+                    <th class="px-3 py-2.5 resizable-col" data-col-id="col_segmento_de_para">De ➔ Para</th>
+                    <th class="px-2 py-2.5 text-right resizable-col" data-col-id="col_segmento_dist">Dist (m)</th>
+                    <th class="px-2 py-2.5 text-right resizable-col" data-col-id="col_segmento_azim">Azimute</th>
+                    <th class="px-3 py-2.5 resizable-col" data-col-id="col_segmento_confrontante">Confrontante Oficial / Divisa</th>
+                    <th class="px-2 py-2.5 text-center resizable-col" data-col-id="col_segmento_anuencia">Anuên</th>
+                    <th class="px-3 py-2.5 text-center resizable-col" data-col-id="col_segmento_acoes">Peças Técnicas</th>
                   </tr>
                 </thead>
                 <tbody id="tbl-segmentos-triagem" class="text-xs divide-y divide-white/5 text-white/60">
@@ -353,13 +383,24 @@ export const renderMesaTrabalho = (): string => {
             <!-- Esquerda: Dropzone de Upload -->
             <div class="lg:col-span-1 flex flex-col justify-between space-y-4">
               <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-5 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="homologacao-dropzone">
-                <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv,.ods" />
+                <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv,.ods" multiple />
                 <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                   <i data-lucide="file-check" class="w-5 h-5 text-mint-vibrant"></i>
                 </div>
                 <p class="text-xs font-bold text-white">Lançar TXT/CSV/ODS Homologado</p>
-                <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta relatórios .TXT, .CSV ou planilhas .ODS</p>
+                <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta relatórios .TXT, .CSV ou planilhas .ODS (múltiplos)</p>
               </div>
+
+              <!-- Container de Mapeamento de Abas/Arquivos -->
+              <div id="container-mapeamento-abas-homologacao" class="hidden space-y-3 bg-white/5 border border-white/10 rounded-xl p-4 mt-2">
+                <h5 class="text-xs font-bold text-mint-vibrant uppercase tracking-wider flex items-center gap-1.5">
+                  <i data-lucide="layers" class="w-4 h-4"></i>
+                  Mapeamento de Abas ➔ Matrículas
+                </h5>
+                <p class="text-[10px] text-white/40">Selecione qual matrícula corresponde a cada trecho/aba identificado:</p>
+                <div id="lista-abas-mapeamento" class="space-y-3 max-h-[300px] overflow-y-auto pr-1"></div>
+              </div>
+
               <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
                 <i data-lucide="upload" class="w-4 h-4"></i>
                 Importar Pontos no Banco
@@ -497,7 +538,7 @@ export const renderMesaTrabalho = (): string => {
                   </div>
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Estado Civil</label>
-                     <select id="select-conf-estado-civil" class="glass-input w-full text-xs">
+                     <select id="conf-estado-civil" class="glass-input w-full text-xs">
                         <option value="solteiro">Solteiro(a)</option>
                         <option value="casado">Casado(a)</option>
                         <option value="divorciado">Divorciado(a)</option>
@@ -507,29 +548,25 @@ export const renderMesaTrabalho = (): string => {
                   </div>
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Regime de Bens</label>
-                     <input type="text" id="input-conf-regime-bens" list="regimes-bens-list" class="glass-input w-full text-xs font-sans" placeholder="Se casado (Ex: Comunhão Parcial)" />
-                     <datalist id="regimes-bens-list">
-                        <option value="Comunhão Parcial de Bens">
-                        <option value="Comunhão Universal de Bens">
-                        <option value="Separação Total de Bens">
-                        <option value="Separação Obrigatória de Bens">
-                        <option value="Participação Final nos Aqüestos">
-                     </datalist>
+                     <select id="conf-regime-bens" class="glass-input w-full text-xs">
+                        <option value="">Não Aplicável</option>
+                        ${REGIMES_BENS_OPTIONS}
+                     </select>
                   </div>
                </div>
 
-               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div id="group-dados-conjuge" class="grid grid-cols-1 md:grid-cols-3 gap-4 hidden">
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge (Nome)</label>
-                     <input type="text" id="input-conf-conjuge-nome" class="glass-input w-full text-xs" placeholder="Nome do cônjuge" />
+                     <input type="text" id="input-conf-conjuge-nome" class="glass-input w-full text-xs campos-extra-conjuge" placeholder="Nome do cônjuge" />
                   </div>
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge CPF</label>
-                     <input type="text" id="input-conf-conjuge-cpf" class="glass-input w-full text-xs" placeholder="CPF do cônjuge" />
+                     <input type="text" id="input-conf-conjuge-cpf" class="glass-input w-full text-xs campos-extra-conjuge" placeholder="CPF do cônjuge" />
                   </div>
                   <div>
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Cônjuge RG</label>
-                     <input type="text" id="input-conf-conjuge-rg" class="glass-input w-full text-xs" placeholder="RG do cônjuge" />
+                     <input type="text" id="input-conf-conjuge-rg" class="glass-input w-full text-xs campos-extra-conjuge" placeholder="RG do cônjuge" />
                   </div>
                </div>
 
@@ -543,15 +580,23 @@ export const renderMesaTrabalho = (): string => {
                      <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Matrícula Confrontante (Opcional)</label>
                      <input type="text" id="input-conf-matricula-imovel" class="glass-input w-full text-xs font-mono" placeholder="Ex: 5196" />
                   </div>
-                  <div class="flex items-end gap-2">
-                     <button class="btn-primary py-2 px-6 text-xs font-bold flex-grow flex items-center justify-center gap-1.5" id="btn-salvar-confrontante-qualificacao" type="button">
-                        <i data-lucide="save" class="w-4 h-4"></i>
-                        Salvar Confrontante
-                     </button>
-                     <button class="btn-secondary py-2 px-3 text-xs font-bold text-white border-white/10 hover:bg-white/5 active:scale-95" id="btn-cancelar-confrontante-qualificacao" type="button">
-                        Cancelar
-                     </button>
+                  <div>
+                     <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Anexo da Certidão/Matrícula (PDF/Imagem)</label>
+                     <div class="flex items-center gap-2 min-h-[34px] bg-white/[0.02] border border-white/5 rounded-technical px-3 py-1.5" id="wrapper-anexo-matricula-conf">
+                        <!-- Injetado via Javascript -->
+                     </div>
+                     <input type="file" id="file-matricula-conf" class="hidden" accept=".pdf,image/*" />
                   </div>
+               </div>
+
+               <div class="flex justify-end gap-2 border-t border-white/5 pt-4">
+                  <button class="btn-primary py-2 px-6 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95" id="btn-salvar-confrontante-qualificacao" type="button">
+                     <i data-lucide="save" class="w-4 h-4"></i>
+                     Salvar Confrontante
+                  </button>
+                  <button class="btn-secondary py-2 px-3 text-xs font-bold text-white border-white/10 hover:bg-white/5 active:scale-95" id="btn-cancelar-confrontante-qualificacao" type="button">
+                     Cancelar
+                  </button>
                </div>
             </div>
           </div>

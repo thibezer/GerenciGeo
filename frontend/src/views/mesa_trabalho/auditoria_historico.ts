@@ -43,12 +43,14 @@ export function setupAuditoriaHistorico(ctx: MesaTrabalhoContext) {
         return;
       }
 
-      const categoriasMap: { [key: string]: { label: string; icone: string; color: string; desc: string } } = {
-        "Brutos": { label: "1. Brutos", icone: "file-box", color: "text-orange-400 bg-orange-500/10 border-orange-500/20", desc: "Binários .GNS / Cadernetas brutos" },
-        "Rinex": { label: "2. Rinex", icone: "file-digit", color: "text-blue-400 bg-blue-500/10 border-blue-500/20", desc: "Arquivos de Observação/Navegação" },
-        "Processados": { label: "3. Pós-Processados", icone: "cpu", color: "text-mint-vibrant bg-mint-vibrant/10 border-mint-vibrant/20", desc: "Corrigidos / PPP / Processados HGO" },
-        "Exportacoes": { label: "4. Exportações", icone: "file-symlink", color: "text-purple-400 bg-purple-500/10 border-purple-500/20", desc: "KML gerados / DXF / Shapes" },
-        "Documentos": { label: "5. Documentos", icone: "file-text", color: "text-pink-400 bg-pink-500/10 border-pink-500/20", desc: "DADOS_GERAIS.json / Snapshots" }
+      // Design System §7.1 — Cards do Workspace GNSS
+      // Ref: GerenciGeo_Design_UI.md — padding 12px 16px, bg-overlay nos itens, border-radius concêntrico
+      const categoriasMap: { [key: string]: { label: string; seq: string; icone: string; desc: string } } = {
+        "Brutos":      { label: "Brutos",          seq: "01", icone: "file-box",      desc: "Binários .GNS / Cadernetas brutos" },
+        "Rinex":       { label: "Rinex",            seq: "02", icone: "file-digit",   desc: "Arquivos de Observação/Navegação" },
+        "Processados": { label: "Pós-Processados",  seq: "03", icone: "cpu",          desc: "Corrigidos / PPP / Processados HGO" },
+        "Exportacoes": { label: "Exportações",      seq: "04", icone: "file-symlink", desc: "KML gerados / DXF / Shapes" },
+        "Documentos":  { label: "Documentos",       seq: "05", icone: "file-text",    desc: "DADOS_GERAIS.json / Snapshots" }
       };
 
       container.innerHTML = Object.keys(categoriasMap).map(cat => {
@@ -62,37 +64,59 @@ export function setupAuditoriaHistorico(ctx: MesaTrabalhoContext) {
           });
         }
 
-        const arquivosHtml = arquivos.length === 0
-          ? `<div class="text-[9px] text-white/20 italic py-3 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-technical">Pasta vazia</div>`
+        const temArquivos = arquivos.length > 0;
+
+        // Número sequencial: verde (acento único) quando tem arquivos; branco/20 quando vazio
+        const seqColor = temArquivos ? "text-mint-vibrant" : "text-white/20";
+
+        // Borda do card: default (branco 10%) com arquivos, subtle (branco 6%) sem
+        const cardBorder = temArquivos ? "border-white/10" : "border-white/[0.06]";
+
+        // Contagem de arquivos
+        const countBadge = temArquivos
+          ? `<span class="text-[9px] font-mono text-white/35 ml-auto">${arquivos.length}</span>`
+          : `<span class="text-[9px] font-mono text-white/20 ml-auto">—</span>`;
+
+        // Itens de arquivo: fundo bg-overlay diferenciado + border-radius concêntrico (card=rounded-xl → itens=rounded-md)
+        // Ações ficam opacity-0 até hover do item (não poluem visualmente no repouso)
+        const arquivosHtml = !temArquivos
+          ? `<div class="text-[9px] text-white/20 italic py-2 text-center">Pasta vazia</div>`
           : arquivos.map((f: any) => `
-            <div class="flex items-center justify-between p-2.5 md:p-1.5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 rounded-technical text-xs md:text-[10px] gap-2 md:gap-1.5 transition-all group/item">
+            <div class="flex items-center justify-between px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.09] rounded-md gap-2 transition-all group/item cursor-default">
               <div class="min-w-0 flex-1">
-                <p class="font-mono text-white truncate font-medium" title="${f.nome}">${f.nome}</p>
-                <p class="text-[8px] text-white/30 font-mono mt-0.5">${f.tamanho} • ${f.modificado}</p>
+                <p class="font-mono text-[11px] text-white/85 truncate font-medium leading-none" title="${f.nome}">${f.nome}</p>
+                <p class="text-[8px] text-white/35 mt-1 font-mono">${f.tamanho} · ${f.modificado}</p>
               </div>
-              <div class="flex items-center gap-3 md:gap-0.5 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-                <button class="btn-visualizar-workspace text-blue-400 hover:text-white p-3 md:p-0.5 hover:bg-blue-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar Arquivo">
+              <div class="flex items-center gap-px shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                <button class="btn-visualizar-workspace text-white/50 hover:text-white p-1 hover:bg-white/10 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar">
                   <i data-lucide="eye" class="w-3 h-3"></i>
                 </button>
-                <button class="btn-download-workspace text-mint-vibrant hover:text-white p-3 md:p-0.5 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Download do Arquivo">
+                <button class="btn-download-workspace text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Download">
                   <i data-lucide="download" class="w-3 h-3"></i>
                 </button>
-                <button class="btn-deletar-workspace text-red-400 hover:text-white p-3 md:p-0.5 hover:bg-red-500/20 rounded transition-all active:scale-95 inline-flex items-center justify-center" data-cat="${cat}" data-nome="${f.nome}" title="Excluir Arquivo do Workspace">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <button class="btn-deletar-workspace text-white/30 hover:text-red-400 p-1 hover:bg-red-500/15 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Excluir">
+                  <i data-lucide="trash-2" class="w-3 h-3"></i>
                 </button>
               </div>
             </div>
           `).join('');
 
+        // Card: padding 12px 16px (py-3 px-4), gap interno 8px (gap-2)
+        // Header: número (verde=acento único) + ícone + título + contagem
+        // Subtítulo: text-tertiary, recua
+        // Lista: scroll se > 3 itens, max-h definida
         return `
-          <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-xl p-2.5 space-y-2">
-            <div class="border-b border-white/5 pb-1.5">
-              <div class="flex items-center gap-1 font-bold text-xs text-white">
-                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border ${info.color}">${info.label}</span>
+          <div class="flex flex-col bg-white/[0.015] border ${cardBorder} rounded-xl py-3 px-4 gap-2 transition-colors">
+            <div class="flex flex-col gap-0.5">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[10px] font-bold tracking-widest ${seqColor}">${info.seq}</span>
+                <i data-lucide="${info.icone}" class="w-3.5 h-3.5 text-white/40 shrink-0"></i>
+                <span class="text-[12px] font-semibold text-white/85">${info.label}</span>
+                ${countBadge}
               </div>
-              <p class="text-[8px] text-white/30 mt-0.5">${info.desc}</p>
+              <p class="text-[8px] text-white/30 leading-snug pl-px">${info.desc}</p>
             </div>
-            <div class="flex-1 overflow-y-auto space-y-1.5 max-h-[115px] pr-1">
+            <div class="flex flex-col gap-1 overflow-y-auto max-h-[112px] pr-px">
               ${arquivosHtml}
             </div>
           </div>

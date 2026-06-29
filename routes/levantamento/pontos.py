@@ -436,6 +436,7 @@ async def importar_caderneta_txt(
     id: int, 
     matricula_id: int = Form(None), 
     base_escolhida_id: int = Form(None), 
+    inverter_ne: bool = Form(False),
     file: UploadFile = File(...)
 ):
     verificar_levantamento_arquivado(id)
@@ -450,7 +451,7 @@ async def importar_caderneta_txt(
         with open(caminho_salvo, "wb") as buffer:
             buffer.write(await file.read())
             
-        parser = TxtGeodesicParser(id, matricula_id, base_escolhida_id)
+        parser = TxtGeodesicParser(id, matricula_id, base_escolhida_id, inverter_ne=inverter_ne)
         pontos_processados = parser.processar_arquivo(str(caminho_salvo))
         
         if not pontos_processados:
@@ -646,4 +647,124 @@ def auditar_perimetro_matricula(mid: int):
     from business.sigef_validator import SigefValidator
     res_auditoria = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=mat.get("area_ha") or 0.0)
     return res_auditoria
+
+
+@router.post("/pontos/analisar-txt")
+async def analisar_arquivo_txt_temporario(
+    fuso_utm: int = Form(22),
+    inverter_ne: bool = Form(False),
+    file: UploadFile = File(...)
+):
+    try:
+        content = await file.read()
+        linhas = content.decode("utf-8", errors="ignore").splitlines()
+        
+        # Identificar layout
+        layout = "topcon"
+        for linha in linhas:
+            linha_limpa = linha.strip()
+            if not linha_limpa or linha_limpa.startswith("#"):
+                continue
+            partes = [p.strip() for p in linha_limpa.split(",")]
+            if len(partes) == 7:
+                layout = "topcon"
+                break
+            elif len(partes) >= 8:
+                quinta_coluna = partes[4]
+                if quinta_coluna.lower() in ["set_base", "rover", "base_rtk", "rtk_base", "base", "set-base"]:
+                    layout = "rtk"
+                    break
+                try:
+                    float(quinta_coluna)
+                    layout = "topcon"
+                except ValueError:
+                    layout = "rtk"
+                break
+
+        pontos_brutos = []
+        for linha in linhas:
+            linha_limpa = linha.strip()
+            if not linha_limpa or linha_limpa.startswith("#"):
+                continue
+            partes = [p.strip() for p in linha_limpa.split(",")]
+            if len(partes) < 4:
+                continue
+            try:
+                nome = partes[0]
+                n1 = float(partes[1])
+                e1 = float(partes[2])
+                alt = float(partes[3])
+                
+                if inverter_ne:
+                    norte = e1
+                    este = n1
+                else:
+                    norte = n1
+                    este = e1
+                desc = ""
+                sig_n = 0.0
+                sig_e = 0.0
+                sig_z = 0.0
+
+                if layout == "rtk":
+                    if len(partes) >= 5:
+                        desc = partes[4]
+                    if len(partes) >= 8:
+                        sig_n = float(partes[5])
+                        sig_e = float(partes[6])
+                        sig_z = float(partes[7])
+                else:
+                    if len(partes) >= 7:
+                        sig_n = float(partes[4])
+                        sig_e = float(partes[5])
+                        sig_z = float(partes[6])
+
+                pontos_brutos.append({
+                    "nome": nome,
+                    "norte": norte,
+                    "este": este,
+                    "alt": alt,
+                    "descricao": desc,
+                    "sigma_n": sig_n,
+                    "sigma_e": sig_e,
+                    "sigma_z": sig_z
+                })
+            except Exception:
+                continue
+
+        if not pontos_brutos:
+            return {"error": "Nenhum ponto válido encontrado no arquivo."}
+
+        # Converter de UTM para Geodésica Lat/Lon
+        crs_geodesica = "epsg:4674"
+        crs_plana = f"epsg:319{60 + fuso_utm}"
+        transformer_to_latlon = Transformer.from_crs(crs_plana, crs_geodesica, always_xy=True)
+
+        pontos_convertidos = []
+        for p in pontos_brutos:
+            try:
+                lon, lat = transformer_to_latlon.transform(p["este"], p["norte"])
+                pontos_convertidos.append({
+                    "nome": p["nome"],
+                    "lat": lat,
+                    "lon": lon,
+                    "alt": p["alt"],
+                    "norte": p["norte"],
+                    "este": p["este"],
+                    "sigma_n": p["sigma_n"],
+                    "sigma_e": p["sigma_e"],
+                    "sigma_z": p["sigma_z"],
+                    "descricao": p["descricao"]
+                })
+            except Exception as e_trans:
+                logging.getLogger(__name__).warning(f"Erro ao converter ponto {p['nome']}: {e_trans}")
+
+        return {
+            "layout_detectado": layout.upper(),
+            "fuso_utm": fuso_utm,
+            "pontos": pontos_convertidos
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
+
 

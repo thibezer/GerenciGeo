@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laudo Técnico e Memorial Justificativo - {nome_lote}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm 15mm 20mm 15mm !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                display: block !important;
+            }
+
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            p,
+            li {
+                orphans: 2 !important;
+                widows: 2 !important;
+                break-inside: auto !important;
+            }
+
+            .overflow-y-auto {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <div
+        class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Laudo Técnico de Agrimensura</h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Memorial Técnico e Metodologia de Campo</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+
+    <div
+        class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
+        <div>
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários</div>
+            </div>
+
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">LAUDO TÉCNICO E MEMORIAL
+                    JUSTIFICATIVO</h2>
+            </div>
+
+            <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
+                <p>O presente Laudo Técnico tem por objetivo descrever e justificar as operações de campo e escritório
+                    realizadas para o Georreferenciamento e Retificação Territorial do imóvel rural
+                    <strong>{nome_lote}</strong>, com área total medida de <strong>{area_ha} ha</strong>, pertencente a
+                    <strong>{proprietarios_str}</strong>, localizado no município de {municipio}/PR, sob a Matrícula nº
+                    <strong>{numero_matricula}</strong>.
+                </p>
+
+                <div>
+                    <h3 class="font-bold text-slate-900 mb-1">1. Metodologia de Posicionamento e Coleta de Dados</h3>
+                    <p>Para a coleta de coordenadas dos vértices limites do perímetro do imóvel, utilizou-se o método de
+                        posicionamento por satélite GNSS com o equipamento <strong>{equipamento_f}</strong>. O
+                        posicionamento baseou-se em marcos homologados e triangulados, com posterior processamento
+                        científico através da submissão à API de pós-processamento geodésico do IBGE (IBGE-PPP). Os
+                        vértices do tipo Rover foram determinados de forma estática e RTK, respeitando a precisão
+                        centimétrica metrológica M-Sigma em todas as leituras de sigmas horizontais e verticais.</p>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-slate-900 mb-1">2. Padrões Cartográficos e Datum de Referência</h3>
+                    <p>O processamento topográfico final e a planta do imóvel rural foram gerados de forma rigorosa no
+                        Sistema Geodésico de Referência <strong>SIRGAS 2000</strong>, projetado em coordenadas planas
+                        **UTM Zona 22S (EPSG:31982)** com Meridiano Central 51° W e Elipsoide de Referência GRS80.</p>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-slate-900 mb-1">3. Vértices Homologados Cadastrados ({total_pontos}
+                        pontos)</h3>
+                    <div class="max-h-[300px] overflow-y-auto border border-slate-200 rounded-lg my-2 scrollbar-thin">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr
+                                    class="bg-slate-50 text-[9px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                    <th class="px-2 py-1.5">Vértice</th>
+                                    <th class="px-2 py-1.5 text-center">Tipo</th>
+                                    <th class="px-2 py-1.5 text-right">Este (X)</th>
+                                    <th class="px-2 py-1.5 text-right">Norte (Y)</th>
+                                    <th class="px-2 py-1.5 text-right">Altitude (Z)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tabela_pontos_html}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-slate-900 mb-1">4. Parecer e Conclusão Técnico-Legal</h3>
+                    <p>ATESTO, na qualidade de responsável técnico credenciado no INCRA sob o código
+                        <strong>{credencial_incra}</strong>, sob o amparo da TRT/ART nº <strong>{final_trt}</strong>
+                        quitada em <strong>{data_trt_f}</strong>, que os limites descritos representam com exatidão
+                        física a realidade de posse de fato consolidada em campo. Não há indícios ou detecção de
+                        sobreposição de coordenadas com áreas vizinhas certificadas no SIGEF.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinatura) unidas para evitar quebra órfã -->
+        <div class="break-inside-avoid mt-4 flex flex-col items-center self-center w-full">
+            <p class="w-full text-left text-xs font-medium text-slate-900">{municipio}-{uf}, {data_extenso}.</p>
+
+            <div class="mt-16 flex flex-col items-center">
+                <div class="w-[280px] border-t border-slate-400 mt-4 mb-2"></div>
+                <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
+                <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">{conselho_exibicao}</div>
+                <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">Credencial INCRA: {credencial_incra}
+                </div>
+                <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">{endereco_prof}</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

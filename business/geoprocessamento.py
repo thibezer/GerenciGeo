@@ -380,14 +380,15 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
 def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     """
     Propaga a correção da Base (base_id) para todos os rovers vinculados (ponto_base_id = base_id)
-    utilizando translação plana rigorosa em UTM + Altitude para conservar as distâncias de campo
-    e manter os deltas constantes, e depois converte os resultados de volta para geodésicas (Lat/Lon)
-    no elipsoide GRS80 (SIRGAS 2000) para gravação.
+    utilizando translação rigorosa tridimensional no espaço geocêntrico cartesiano ECEF 
+    para eliminar distorções de projeção e depois converte as coordenadas de volta 
+    para geodésicas (Lat/Lon) no elipsoide GRS80 (SIRGAS 2000) para gravação.
     """
     import math
     import logging
     from database.connection import execute_query, DatabaseManager
     from business.historico_campo import HistoricoCampoLogger
+    from pyproj import Transformer
     
     logger = logging.getLogger(__name__)
     
@@ -411,23 +412,30 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         return 0
         
     try:
-        # A. Converte as coordenadas geodésicas corrigidas da Base para UTM (SIRGAS 2000)
-        # Determina o fuso com base na longitude da base corrigida
+        # A. Determina o fuso com base na longitude da base corrigida
         longitude_base = base["lon"]
         zona_utm = calcular_zona_utm_segura(longitude_base)
         epsg_utm = f"319{60 + zona_utm}"
         
-        transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
-        e_base_corr, n_base_corr = transformer_to_utm.transform(base["lon"], base["lat"])
+        # B. Converte a coordenada original UTM de campo da Base para Geodésica original
+        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        lon_base_orig, lat_base_orig = transformer_to_latlon.transform(base["e_original"], base["n_original"])
+        alt_base_orig = base["alt_original"] if base["alt_original"] is not None else 0.0
         
-        # B. Vetor Delta UTM plano e altitude
-        delta_e = e_base_corr - base["e_original"]
-        delta_n = n_base_corr - base["n_original"]
-        delta_h = base["alt"] - base["alt_original"]
+        # C. Converte coordenada geodésica original da Base para ECEF original
+        x_base_orig, y_base_orig, z_base_orig = geodesic_to_ecef(lat_base_orig, lon_base_orig, alt_base_orig)
         
-        logger.info(f"[GEOPROCESSAMENTO] Vetor Delta UTM para Base {base['nome_vertice']}: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+        # D. Converte coordenada geodésica corrigida da Base (IBGE-PPP) para ECEF corrigida
+        x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
+        
+        # E. Vetor Delta 3D ECEF
+        delta_x = x_base_corr - x_base_orig
+        delta_y = y_base_corr - y_base_orig
+        delta_z = z_base_corr - z_base_orig
+        
+        logger.info(f"[GEOPROCESSAMENTO] Vetor Delta ECEF 3D para Base {base['nome_vertice']}: dX={delta_x:.4f}m, dY={delta_y:.4f}m, dZ={delta_z:.4f}m")
     except Exception as e_trans:
-        logger.error(f"[GEOPROCESSAMENTO] Falha ao calcular vetor Delta UTM para Base {base['nome_vertice']}: {e_trans}")
+        logger.error(f"[GEOPROCESSAMENTO] Falha ao calcular vetor Delta ECEF para Base {base['nome_vertice']}: {e_trans}")
         return 0
         
     # 3. Recupera todos os rovers ativos vinculados a essa Base
@@ -448,8 +456,6 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     detalhamento_logs = []
     
     try:
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-        
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
@@ -466,13 +472,19 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                     n_orig = float(r["n_original"])
                     alt_orig = float(r["alt_original"]) if r.get("alt_original") is not None else 0.0
                     
-                    # A. Translação plana UTM rigorosa
-                    e_corr = e_orig + delta_e
-                    n_corr = n_orig + delta_n
-                    alt_corr = alt_orig + delta_h
+                    # A. Converte UTM original do Rover para Geodésica original
+                    lon_orig, lat_orig = transformer_to_latlon.transform(e_orig, n_orig)
                     
-                    # B. UTM Corrigida -> Geodésica Corrigida
-                    lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
+                    # B. Converte Geodésica original do Rover para ECEF original
+                    x_orig, y_orig, z_orig = geodesic_to_ecef(lat_orig, lon_orig, alt_orig)
+                    
+                    # C. Aplica translação 3D ECEF
+                    x_corr = x_orig + delta_x
+                    y_corr = y_orig + delta_y
+                    z_corr = z_orig + delta_z
+                    
+                    # D. Converte ECEF corrigido para Geodésico corrigido
+                    lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
                     
                     # E. Propagação de Incertezas
                     sig_n_val = float(r["sigma_n"]) if r.get("sigma_n") is not None else 0.0
@@ -512,7 +524,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
             conn.commit()
             
         if total_corrigidos > 0:
-            desc_auditoria = f"Translação rigorosa UTM/Plana em lote aplicada com sucesso para {total_corrigidos} rovers vinculados à Base {base['nome_vertice']}."
+            desc_auditoria = f"Translação rigorosa ECEF 3D em lote aplicada com sucesso para {total_corrigidos} rovers vinculados à Base {base['nome_vertice']}."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
                 tipo_evento="CORRECAO_TRANSLACAO",
@@ -520,7 +532,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 dados_detalhados={
                     "base_id": base_id,
                     "base_nome": base["nome_vertice"],
-                    "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
+                    "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
                     "rovers_corrigidos": detalhamento_logs
                 }
             )
@@ -593,22 +605,32 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
         
     base_corr = dict(row_base)
     if not base_corr["lat"] or base_corr["lat"] == 0.0:
-        logger.error(f"[VINCULO_TARDE] A base selecionada {base_corr['nome_vertice']} não possui coordenadas corrigidas.")
-        raise ValueError("A base selecionada ainda não possui coordenadas corrigidas.")
-        
-    # 3. Determina o Vetor Delta UTM plano e altitude
+        logger.error(f"[VINCULO_TARDE] A base selecionada {base_corr['nome_vertice']} não possui coordenadas geodésicas válidas.")
+        raise ValueError(f"A base selecionada {base_corr['nome_vertice']} não possui coordenadas geodésicas válidas.")
+
+    # 3. Determina o Vetor Delta ECEF 3D a partir das coordenadas
     longitude_base = base_corr["lon"]
     zona_utm = int((longitude_base + 180) / 6) + 1
     epsg_utm = f"319{60 + zona_utm}"
     
-    transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
-    e_base_corr, n_base_corr = transformer_to_utm.transform(base_corr["lon"], base_corr["lat"])
+    transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
     
-    delta_e = e_base_corr - ponto_sel["e_original"]
-    delta_n = n_base_corr - ponto_sel["n_original"]
-    delta_h = base_corr["alt"] - ponto_sel["alt_original"]
+    # Converte coordenadas brutas de campo (UTM) do ponto selecionado (amarração) para Geodésica original
+    lon_base_orig, lat_base_orig = transformer_to_latlon.transform(ponto_sel["e_original"], ponto_sel["n_original"])
+    alt_base_orig = ponto_sel["alt_original"] if ponto_sel["alt_original"] is not None else 0.0
     
-    logger.info(f"[VINCULO_TARDE] Vetor Delta UTM calculado: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+    # Converte coordenada geodésica original da Base para ECEF original
+    x_base_orig, y_base_orig, z_base_orig = geodesic_to_ecef(lat_base_orig, lon_base_orig, alt_base_orig)
+    
+    # Converte coordenada geodésica corrigida da Base (oficial) para ECEF corrigida
+    x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base_corr["lat"], base_corr["lon"], base_corr["alt"])
+    
+    # Vetor Delta ECEF 3D
+    delta_x = x_base_corr - x_base_orig
+    delta_y = y_base_corr - y_base_orig
+    delta_z = z_base_corr - z_base_orig
+    
+    logger.info(f"[VINCULO_TARDE] Vetor Delta ECEF 3D calculado: dX={delta_x:.4f}m, dY={delta_y:.4f}m, dZ={delta_z:.4f}m")
     
     # 4. Recupera todos os rovers pertencentes ao mesmo arquivo_origem e levantamento
     query_rovers = """
@@ -623,8 +645,6 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     detalhamento_logs = []
     
     try:
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-        
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
@@ -663,11 +683,23 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                 if not r["e_original"] or not r["n_original"]:
                     continue
                     
-                e_corr = r["e_original"] + delta_e
-                n_corr = r["n_original"] + delta_n
-                alt_corr = r["alt_original"] + delta_h
+                e_orig = r["e_original"]
+                n_orig = r["n_original"]
+                alt_orig = r["alt_original"] if r.get("alt_original") is not None else 0.0
                 
-                lon_corr, lat_corr = transformer_to_latlon.transform(e_corr, n_corr)
+                # A. Converte UTM original do Rover para Geodésica original
+                lon_orig, lat_orig = transformer_to_latlon.transform(e_orig, n_orig)
+                
+                # B. Converte Geodésica original do Rover para ECEF original
+                x_orig, y_orig, z_orig = geodesic_to_ecef(lat_orig, lon_orig, alt_orig)
+                
+                # C. Aplica translação 3D ECEF
+                x_corr = x_orig + delta_x
+                y_corr = y_orig + delta_y
+                z_corr = z_orig + delta_z
+                
+                # D. Converte ECEF corrigido para Geodésico corrigido
+                lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
                 
                 sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
                 sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
@@ -698,7 +730,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                 
             conn.commit()
             
-        desc_auditoria = f"Vínculo Tardio V.L.A.E.G. aplicado com sucesso. {total_atualizados} pontos do arquivo '{arquivo_origem}' foram transladados e amarrados à Base '{base_corr['nome_vertice']}'."
+        desc_auditoria = f"Vínculo Tardio V.L.A.E.G. aplicado com sucesso. {total_atualizados} pontos do arquivo '{arquivo_origem}' foram transladados e amarrados no espaço ECEF 3D à Base '{base_corr['nome_vertice']}'."
         HistoricoCampoLogger.registrar_evento(
             levantamento_id=levantamento_id,
             tipo_evento="VINCULO_BASE_TARDE",
@@ -707,7 +739,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                 "arquivo_origem": arquivo_origem,
                 "base_id": base_ppp_id,
                 "base_nome": base_corr["nome_vertice"],
-                "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
+                "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
                 "total_pontos_vinculados": total_atualizados,
                 "detalhes": detalhamento_logs
             }
@@ -1028,9 +1060,18 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
                 # Reverte rover. Se o tipo_ponto atual for 'B' (base orfã), reverte para 'P'
                 novo_tipo = r["tipo_ponto"]
                 if novo_tipo == 'B':
-                    if r["nome_vertice"].upper().startswith("M"):
+                    import re
+                    nome_upper = r["nome_vertice"].strip().upper()
+                    match_completo = re.search(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", nome_upper)
+                    match_simples = re.search(r"\b(M|P|V)-(\d+)\b", nome_upper)
+                    
+                    if match_completo:
+                        novo_tipo = match_completo.group(2)
+                    elif match_simples:
+                        novo_tipo = match_simples.group(1)
+                    elif nome_upper.startswith("M"):
                         novo_tipo = "M"
-                    elif r["nome_vertice"].upper().startswith("V"):
+                    elif nome_upper.startswith("V"):
                         novo_tipo = "V"
                     else:
                         novo_tipo = "P"

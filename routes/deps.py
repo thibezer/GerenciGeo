@@ -116,30 +116,21 @@ def verificar_propriedade_arquivada(prop_id: int):
 def extrair_nome_confrontante_limpo(descritivo: str):
     """
     Extrai nome limpo do campo descritivo do confrontante (coluna L da planilha INCRA).
-    Usado como FALLBACK quando não há número de matrícula (coluna K) preenchido.
-    Exemplos de saída: 'ESTRADA MUNICIPAL YARA', 'RIO PARANÁ'
+    Delegado para business/confrontante_manager.py
     """
-    import re
-    if not descritivo:
-        return None
+    from business.confrontante_manager import extrair_nome_confrontante_limpo as extrair_negocio
+    return extrair_negocio(descritivo)
 
-    match_prop = re.search(r'propriedade\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
-    if match_prop:
-        nome = match_prop.group(1).strip()
-    else:
-        match_posse = re.search(r'posse\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
-        if match_posse:
-            nome = match_posse.group(1).strip()
-        else:
-            parts = re.split(r'[,;\n\(\)]', descritivo)
-            first_part = parts[0].strip() if parts else ""
-            if first_part and len(first_part) < 60:
-                nome = first_part
-            else:
-                nome = None
 
-    if nome:
-        nome = re.sub(r'\s+', ' ', nome).strip()
-        if len(nome) >= 3:
-            return nome
-    return None
+def verificar_ambiente_local():
+    """
+    Verifica se a aplicação está rodando em ambiente local.
+    Caso contrário, bloqueia operações pesadas de desktop na nuvem (Hostinger).
+    """
+    from config import RUNNING_LOCAL
+    if not RUNNING_LOCAL:
+        raise HTTPException(
+            status_code=403,
+            detail="Operação restrita ao Software Desktop Local."
+        )
+

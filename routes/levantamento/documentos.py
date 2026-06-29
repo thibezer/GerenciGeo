@@ -328,6 +328,22 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/anuencia-lote-html", response_class=HTMLResponse)
+def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_ids: Optional[str] = Query(None)):
+    """Gera as declarações de anuência de múltiplos confrontantes em lote em uma única página para impressão contínua"""
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_declaracao_anuencia_lote_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            confrontantes_ids=confrontantes_ids
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/levantamentos/{id}/documentos/gerar-requerimento", response_class=HTMLResponse)
 def gerar_requerimento(id: int, matricula_id: int):
     """Gera um requerimento em HTML formatado para retificação de registro"""
@@ -361,7 +377,21 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
         pasta_anuencias = folder / "Documentos" / "Anuancias"
         pasta_anuencias.mkdir(parents=True, exist_ok=True)
         
-        caminho_salvo = pasta_anuencias / f"anuencia_{confrontante_id}_assinado.pdf"
+        # Recupera o número da matrícula correspondente a este confrontante no levantamento
+        row_mat = execute_query(
+            """
+            SELECT m.numero_matricula 
+            FROM segmentos s
+            JOIN matriculas m ON s.matricula_id = m.id
+            WHERE s.confrontante_id = ? AND s.levantamento_id = ?
+            LIMIT 1
+            """,
+            params=(confrontante_id, id),
+            fetch_one=True
+        )
+        matricula_num = row_mat["numero_matricula"] if (row_mat and row_mat["numero_matricula"]) else "SEM_MATRICULA"
+        
+        caminho_salvo = pasta_anuencias / f"anuencia_matricula_{matricula_num}_{confrontante_id}_assinado.pdf"
         with open(caminho_salvo, "wb") as buffer:
             buffer.write(await file.read())
             

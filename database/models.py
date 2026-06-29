@@ -200,6 +200,7 @@ def create_tables(conn):
             rg_conjuge TEXT,
             matricula_imovel TEXT,
             cns_confrontante TEXT, -- ADICIONADO CONFORME PLANO v2.3
+            caminho_matricula_pdf TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
@@ -299,7 +300,7 @@ def create_tables(conn):
             matricula_id INTEGER,
             tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M', 'P', 'V')),
             numero INTEGER NOT NULL,
-            codigo_completo TEXT UNIQUE NOT NULL,
+            codigo_completo TEXT NOT NULL,
             norte REAL,
             este REAL,
             altitude REAL,
@@ -317,7 +318,8 @@ def create_tables(conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL,
-            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE
+            FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+            UNIQUE(levantamento_id, planilha_origem, codigo_completo)
         );
         """,
         """
@@ -452,7 +454,8 @@ def create_tables(conn):
             ("cpf_conjuge", "TEXT"),
             ("rg_conjuge", "TEXT"),
             ("matricula_imovel", "TEXT"),
-            ("cns_confrontante", "TEXT")
+            ("cns_confrontante", "TEXT"),
+            ("caminho_matricula_pdf", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
@@ -546,6 +549,8 @@ def create_tables(conn):
         migrar_restricao_unicidade_pontos(conn)
         # Executa migração de suporte ao status ARQUIVADO na tabela levantamentos se necessário
         migrar_status_arquivado_levantamentos(conn)
+        # Executa migração de unicidade de banco_pontos por planilha se necessário
+        migrar_restricao_unicidade_banco_pontos(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -719,3 +724,88 @@ def migrar_status_arquivado_levantamentos(conn):
                 cursor.execute("PRAGMA foreign_keys = ON;")
             except Exception:
                 pass
+
+def migrar_restricao_unicidade_banco_pontos(conn):
+    """Garante a migração da tabela banco_pontos para usar UNIQUE(levantamento_id, planilha_origem, codigo_completo) em vez de UNIQUE(codigo_completo)"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='banco_pontos'")
+    row = cursor.fetchone()
+    if not row:
+        return
+        
+    sql = row[0]
+    # Se contiver 'codigo_completo TEXT UNIQUE' ou não contiver a restrição composta de planilha_origem
+    if "codigo_completo TEXT UNIQUE" in sql or "UNIQUE(levantamento_id, planilha_origem, codigo_completo)" not in sql:
+        logger.info("[MIGRAÇÃO] Iniciando migração da tabela 'banco_pontos' para suportar unicidade composta por planilha...")
+        try:
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+            cursor.execute("BEGIN TRANSACTION;")
+            
+            # 1. Cria tabela temporária com a estrutura correta e sem a restrição UNIQUE global no codigo_completo
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS banco_pontos_backup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profissional_id INTEGER NOT NULL,
+                levantamento_id INTEGER,
+                matricula_id INTEGER,
+                tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M', 'P', 'V')),
+                numero INTEGER NOT NULL,
+                codigo_completo TEXT NOT NULL,
+                norte REAL,
+                este REAL,
+                altitude REAL,
+                lat REAL,
+                lon REAL,
+                sigma_n REAL,
+                sigma_e REAL,
+                sigma_z REAL,
+                metodo_posicionamento TEXT,
+                tipo_limite TEXT,
+                cns_confrontante TEXT,
+                matricula_confrontante TEXT,
+                confrontante_descritivo TEXT,
+                planilha_origem TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE,
+                FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE SET NULL,
+                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+                UNIQUE(levantamento_id, planilha_origem, codigo_completo)
+            );
+            """)
+            
+            # 2. Copia os dados existentes resolvendo potenciais conflitos
+            cursor.execute("""
+            INSERT OR IGNORE INTO banco_pontos_backup (
+                id, profissional_id, levantamento_id, matricula_id, tipo_ponto, numero, codigo_completo,
+                norte, este, altitude, lat, lon, sigma_n, sigma_e, sigma_z,
+                metodo_posicionamento, tipo_limite, cns_confrontante, matricula_confrontante, confrontante_descritivo,
+                planilha_origem, created_at
+            )
+            SELECT id, profissional_id, levantamento_id, matricula_id, tipo_ponto, numero, codigo_completo,
+                   norte, este, altitude, lat, lon, sigma_n, sigma_e, sigma_z,
+                   metodo_posicionamento, tipo_limite, cns_confrontante, matricula_confrontante, confrontante_descritivo,
+                   planilha_origem, created_at
+            FROM banco_pontos;
+            """)
+            
+            # 3. Elimina a tabela antiga
+            cursor.execute("DROP TABLE banco_pontos;")
+            
+            # 4. Renomeia a tabela nova
+            cursor.execute("ALTER TABLE banco_pontos_backup RENAME TO banco_pontos;")
+            
+            cursor.execute("COMMIT;")
+            logger.info("[MIGRAÇÃO] Tabela 'banco_pontos' migrada com sucesso para unicidade composta por planilha.")
+        except Exception as e:
+            try:
+                cursor.execute("ROLLBACK;")
+            except Exception:
+                pass
+            logger.error(f"[MIGRAÇÃO] Falha crítica ao migrar tabela banco_pontos: {e}")
+            raise e
+        finally:
+            try:
+                cursor.execute("PRAGMA foreign_keys = ON;")
+            except Exception:
+                pass
+

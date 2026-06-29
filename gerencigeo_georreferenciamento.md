@@ -219,6 +219,11 @@ A Mesa de Trabalho foi estruturalmente decomposta em 4 partes físicas na mesma 
   `PT,X,Y,Z,SX,SY,SZ,CONFRONTANTE`
   Os desvios padrão são formatados em metros com 3 casas decimais e a string do confrontante é sanitizada em caixa alta e limpa de vírgulas internas para evitar quebras de colunas no CAD.
 
+### D. Refinamento do Organizador de Perímetro (Etapa 2 - Cartório) (V2.6)
+- **Máquina de Estados de Passo Único para Cônjuge:** A função `configurarMaquinadeEstadosCivil` controla dinamicamente a visibilidade e o bloqueio do bloco de dados do cônjuge (`#group-dados-conjuge`) e seus inputs extras (`.campos-extra-conjuge`). Se o estado civil selecionado exigir cônjuge (casado/união estável), o select de Regime de Bens (`#conf-regime-bens`) é habilitado; caso contrário, é desabilitado e limpo, ocultando o container de cônjuge. Caso o regime selecionado contenha "parcial", os inputs extras do cônjuge são desabilitados com o placeholder "Omitido no Laudo (Parcial)". A função escuta reativamente os eventos `change` no Estado Civil e `change`/`input` no Regime de Bens para atualizações instantâneas em tempo real.
+- **Cálculo de Geometria Plana Real na Tabela de Divisas:** As colunas de Distância e Azimute da tabela de confrontações são computadas dinamicamente no frontend com base nas coordenadas UTM planas (ou geodésicas convertidas) dos vértices inicial e final da divisa. O azimute é formatado no padrão de Graus, Minutos e Segundos (GMS) com arredondamento seguro contra overflow (se os segundos $\ge 59.5$, zeram e incrementam minutos/graus).
+- **Atalhos Rápidos de Emissão de Peças Técnicas com Delegação de Eventos:** A tabela de divisas incorpora um grupo de botões de ações com ícones Lucide (📄 Anuência, ✍️ Requerimento, 🔬 Laudo) permitindo a emissão de documentos direcionados diretamente do grid. O clique é capturado via delegação de eventos centralizada no contêiner da tabela. Caso a TRT não esteja gravada no levantamento, um prompt reativo solicitará o preenchimento, persistindo essas informações no banco antes de abrir as abas de impressão.
+
 ---
 
 ## 9. Especificação de Base Física de Campo (B) e Regras de Ordenação Estritas
@@ -288,3 +293,40 @@ Para evitar a redundância crônica de inserções e contornar a limitação da 
 1. **Normalização Fonética:** Uma função auxiliar de normalização de strings em Python (`normalizar_texto_busca`) baseada em `unicodedata.normalize('NFKD', ...)` remove acentos e caracteres especiais das strings de confrontação antes de testar equivalências de nomes.
 2. **Resolução em Passo Único com Cache:** Carrega em memória todos os confrontantes históricos do levantamento técnico em dicionários com busca rápida $O(1)$.
 3. **Amarração de Segmentos Sem Consultas:** A associação e amarração final de divisas físicas e a geração de segmentos na tabela `segmentos` utilizam o dicionário resolvido em memória, eliminando blocos redundantes de consultas SQL.
+
+---
+
+## 13. Gestão Separada de Templates HTML de Peças Técnicas (V2.7)
+
+Os templates HTML das peças técnicas geradas dinamicamente pelo sistema foram totalmente extraídos das strings internas do Python para arquivos dedicados de forma a separar a apresentação da lógica de negócio.
+
+### A. Estrutura de Diretórios de Templates
+Todos os templates HTML nativos são agora armazenados de forma limpa na pasta física `/templates` na raiz do projeto:
+* `requerimento_cartorio.html` (Requerimento de Averbação/Retificação de Cartório)
+* `declaracao_responsabilidade.html` (Declaração de Responsabilidade de Limites e Posse)
+* `laudo_tecnico.html` (Laudo Técnico e Memorial Justificativo - Cartório)
+* `declaracao_anuencia.html` (Declaração de Anuência e Respeito de Limites do Confrontante)
+* `laudo_fronteira.html` (Laudo de Localização em Faixa de Fronteira)
+* `requerimento_ratificacao.html` (Requerimento de Ratificação de Fronteira)
+
+### B. Mecanismo de Carregamento e Injeção
+Para evitar conflito de análise (*parsing*) entre chaves `{}` do Python e as chaves nativas utilizadas por folhas de estilo (CSS/Tailwind) e lógica em tempo de execução de cliente (JavaScript), o motor de renderização adota:
+1. **Carregamento Independente de I/O em UTF-8:** A função utilitária `carregar_template(nome_arquivo)` mapeia o arquivo absoluto e o lê utilizando codificação estrita em UTF-8.
+2. **Substituição Linear de Placeholders:** O preenchimento das variáveis dinâmicas ocorre de forma explícita via chamada consecutiva do método `.replace("{PLACEHOLDER}", valor_calculado)` em vez do método `.format()`, preservando a integridade das folhas de estilo e funções dinâmicas do frontend no navegador.
+
+---
+
+## 14. Arquitetura Distribuidora Edge-First e Sincronização em Nuvem (v2.4)
+
+O GerenciGeo v2.4 adota a arquitetura de Software Desktop Híbrido (**Edge-First**), descentralizando o processamento pesado de coordenadas e a manipulação de hardware local do servidor em nuvem (Hostinger) para rodar localmente no Windows.
+
+### A. Divisão de Topologias
+1. **Ambiente Desktop Local (100% Autônomo):** Executa o backend FastAPI local (`api.py`), monitoramento GNSS (`gnss_worker.py`), integração RPA do HGO (`converterrinex.py`) e persistência física em SQLite de alta fidelidade (`database/gerencigeo.db`). A interface gráfica é envelopada no Windows usando a biblioteca `pywebview` apontando para a porta local `8000`.
+2. **Ambiente Web Cloud (Hostinger Hub):** Servidor leve rodando o FastAPI em modo restrito (com a flag `RUNNING_LOCAL = False`). Todas as operações de ingestão RINEX, processamento do robô HGO e uploads são desativados (retornando HTTP 403 Forbidden). O banco de dados MySQL armazena apenas dados cadastrais simplificados e a geometria perimetral dissolvida em formato GeoJSON/WKT para visualização móvel rápida.
+
+### B. Protocolo de Sincronização Unidirecional (Atômico)
+Para atualizar o Hub na nuvem, o backend local serializa os dados cadastrais da matrícula ativa e dissolve a geometria dos segmentos perimetrais válidos (com o fechamento obrigatório $P_{last} \to P_1$) em uma string GeoJSON válida.
+O envio do payload é assíncrono via biblioteca `httpx` para o endpoint `https://gerencigeo-seu-site.com.br/api/v1/sync/imovel` exigindo autenticação através do header `X-API-KEY` com o token de segurança `G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C` estabelecido em `config.py`.
+
+### C. Elevação de Privilégios de Administrador (UAC)
+Como a esteira de georreferenciamento precisa ler portas seriais (RTK USB/COM) e comandar o robô HGO de automação de interface no Windows, o wrapper `ui/app.py` exige de forma nativa e automática direitos administrativos via WinAPI (`ctypes.windll.shell32.IsUserAnAdmin`), re-executando a chamada com privilégios elevados se necessário antes de subir a interface desktop e o servidor local.

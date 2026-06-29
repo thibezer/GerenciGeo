@@ -1,4 +1,6 @@
 import './style.css';
+import './design-engine.css';
+
 import type { RouteDef } from './types';
 import { initIcons, clearTimeoutsAndIntervals } from './utils';
 import { dashboardRoute } from './views/dashboard';

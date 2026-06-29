@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from business.levantamento_manager import vincular_cliente_propriedade
 from config import EXPORT_BASE_FOLDER
+from routes.deps import verificar_propriedade_arquivada
 
 router = APIRouter(tags=["Propriedades & Matrículas"])
 
@@ -84,6 +85,7 @@ def create_propriedade(p: PropriedadeCreate):
 
 @router.put("/propriedades/{prop_id}")
 def update_propriedade(prop_id: int, p: PropriedadeCreate):
+    verificar_propriedade_arquivada(prop_id)
     if len(p.uf) != 2:
         return {"error": "UF deve conter exatamente 2 caracteres"}
     try:
@@ -98,6 +100,7 @@ def update_propriedade(prop_id: int, p: PropriedadeCreate):
 
 @router.delete("/propriedades/{prop_id}")
 def delete_propriedade(prop_id: int):
+    verificar_propriedade_arquivada(prop_id)
     try:
         execute_query("DELETE FROM propriedades WHERE id = ?", params=(prop_id,), commit=True)
         return {"message": "Propriedade excluída com sucesso"}
@@ -108,6 +111,7 @@ def delete_propriedade(prop_id: int):
 
 @router.post("/propriedades/{prop_id}/upload-car")
 async def upload_propriedade_car(prop_id: int, file: UploadFile = File(...)):
+    verificar_propriedade_arquivada(prop_id)
     try:
         prop = execute_query("SELECT id, nome_propriedade FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
         if not prop:
@@ -134,6 +138,7 @@ async def upload_propriedade_car(prop_id: int, file: UploadFile = File(...)):
 
 @router.post("/propriedades/{prop_id}/upload-ccir")
 async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
+    verificar_propriedade_arquivada(prop_id)
     try:
         prop = execute_query("SELECT id, nome_propriedade FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
         if not prop:
@@ -179,6 +184,7 @@ def download_propriedade_ccir(prop_id: int):
 
 @router.delete("/propriedades/{prop_id}/arquivo-car")
 def delete_propriedade_car(prop_id: int):
+    verificar_propriedade_arquivada(prop_id)
     try:
         row = execute_query("SELECT caminho_arquivo_car FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
         if row and row["caminho_arquivo_car"]:
@@ -192,6 +198,7 @@ def delete_propriedade_car(prop_id: int):
 
 @router.delete("/propriedades/{prop_id}/arquivo-ccir")
 def delete_propriedade_ccir(prop_id: int):
+    verificar_propriedade_arquivada(prop_id)
     try:
         row = execute_query("SELECT caminho_arquivo_ccir FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
         if row and row["caminho_arquivo_ccir"]:
@@ -232,6 +239,7 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
 
 @router.post("/propriedades/{prop_id}/clientes")
 def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
+    verificar_propriedade_arquivada(prop_id)
     res = vincular_cliente_propriedade(prop_id, pc.cliente_id, pc.percentual_participacao)
     if "error" in res:
         return {"error": res["error"]}
@@ -239,6 +247,7 @@ def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
 
 @router.delete("/propriedades/{prop_id}/clientes/{cliente_id}")
 def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
+    verificar_propriedade_arquivada(prop_id)
     try:
         execute_query(
             "DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",

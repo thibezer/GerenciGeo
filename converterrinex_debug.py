@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import subprocess
+import re
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 from pywinauto import timings
@@ -49,9 +50,9 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
     if isinstance(arquivos_origem, str):
         arquivos_origem = [arquivos_origem]
         
-    # Normaliza caminhos e filtra arquivos existentes
-    arquivos_origem = [os.path.normpath(a) for a in arquivos_origem if os.path.exists(a)]
-    pasta_destino = os.path.normpath(pasta_destino)
+    # Converte caminhos para absolutos, normaliza e filtra arquivos existentes
+    arquivos_origem = [os.path.normpath(os.path.abspath(a)) for a in arquivos_origem if os.path.exists(a)]
+    pasta_destino = os.path.normpath(os.path.abspath(pasta_destino))
     
     if not arquivos_origem:
         print("[ERRO] Nenhum arquivo de origem válido foi encontrado.")
@@ -72,118 +73,248 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
         time.sleep(0.5)
         
-        # Inicia HGO com RunAsInvoker para evitar necessidade de elevação UAC
-        print("Iniciando HGO.exe...")
+        # Inicia HGO com RunAsInvoker e define a pasta de execução CWD segura (evitando C:\WINDOWS\system32)
+        print("Iniciando HGO.exe com CWD seguro...")
         os.environ["__COMPAT_LAYER"] = "RunAsInvoker"
-        subprocess.Popen([caminho_exe])
-        
-        # Conecta ao HGO.exe recém-iniciado (timeout de 5 segundos)
-        app = Application(backend="uia").connect(path=caminho_exe, timeout=5)
-        janela = app.window(title_re=".*Hi-Target Geomatics Office.*")
-        janela.wait('ready', timeout=5)
+        cwd_seguro = os.path.dirname(os.path.abspath(__file__))
+        proc = subprocess.Popen([caminho_exe], cwd=cwd_seguro)
+        # Conecta ao HGO.exe recém-iniciado pelo PID do processo (timeout de 10 segundos)
+        print("Conectando ao HGO.exe pelo PID...")
+        app = Application(backend="uia").connect(process=proc.pid, timeout=10)
+        janela = app.window(title_re="(?i).*hi-target.*")
+        print("Aguardando janela principal estar pronta...")
+        janela.wait('ready', timeout=10)
         janela.set_focus()
         
         # 1. Cria o projeto
-        print("Clicando no botão 'Novo'...")
-        btn_novo = janela.child_window(title="Novo", control_type="Button")
-        btn_novo.click_input()
+        print("Criando Novo Projeto via Alt+F -> N...")
+        send_keys("%f")
+        time.sleep(0.4)
+        send_keys("n")
         
         dlg_novo = janela.child_window(auto_id="frmNewProject", control_type="Window")
         dlg_novo.wait('ready', timeout=5)
         
         # Lê o caminho de trabalho padrão configurado no HGO
         tb_path = dlg_novo.child_window(auto_id="tbWorkPath", control_type="Edit")
-        desktop_dir = os.path.normpath(tb_path.window_text())
-        proj_dir = os.path.join(desktop_dir, proj_name)
+        desktop_dir = os.path.normpath(os.path.abspath(tb_path.window_text()))
+        proj_dir = os.path.normpath(os.path.abspath(os.path.join(desktop_dir, proj_name)))
         print(f" -> Pasta de trabalho identificada: {desktop_dir}")
         print(f" -> Pasta do projeto temporario: {proj_dir}")
         
         tb_name = dlg_novo.child_window(auto_id="tbProjectName", control_type="Edit")
-        tb_name.click_input()
-        send_keys(f"^a{{BACKSPACE}}{proj_name}", pause=0.01)
+        print(f"Definindo nome do projeto temporario: {proj_name}")
+        tb_name.set_edit_text(proj_name)
+        time.sleep(0.2)
         
-        btn_ok = dlg_novo.child_window(auto_id="btOK", control_type="Button")
-        btn_ok.click_input()
+        print("Confirmando criacao do projeto (Clicando em OK(O))...")
+        btn_ok = None
+        for auto_id_opt in ["btOK", "btnOK", "OK"]:
+            try:
+                btn_ok = dlg_novo.child_window(auto_id=auto_id_opt, control_type="Button")
+                if btn_ok.exists():
+                    break
+            except:
+                pass
+        
+        if not btn_ok or not btn_ok.exists():
+            try:
+                btn_ok = dlg_novo.child_window(title="OK(O)", control_type="Button")
+            except:
+                pass
+
+        if btn_ok and btn_ok.exists():
+            btn_ok.set_focus()
+            time.sleep(0.1)
+            btn_ok.invoke()
+        else:
+            send_keys("%o")
         
         # 2. Propriedades do Projeto -> OK
-        dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-        dlg_prop.wait('ready', timeout=5)
+        print("Aguardando se abre automaticamente ou abrindo Propriedades do Projeto via Alt+F -> P...")
+        time.sleep(0.5)
+        dlg_prop = None
+        try:
+            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+            dlg_prop.wait('ready', timeout=3.0)
+            print(" -> Diálogo de propriedades detectado automaticamente.")
+        except:
+            print(" -> Diálogo de propriedades não abriu automaticamente. Forçando via Alt+F -> P...")
+            janela.set_focus()
+            send_keys("%f")
+            time.sleep(0.4)
+            send_keys("p")
+            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+            dlg_prop.wait('ready', timeout=5.0)
         
-        print("Clicando na aba 'Avancado'...")
+        print("Selecionando a aba 'Avancado'...")
         tab_avancado = dlg_prop.child_window(title="Avancado", control_type="TabItem")
-        tab_avancado.click_input()
+        tab_avancado.select()
+        time.sleep(0.3)
         
         cb_chars = dlg_prop.child_window(auto_id="cbZHDPtNameType", control_type="ComboBox")
-        cb_chars.click_input()
-        send_keys("8{ENTER}", pause=0.01)
+        try:
+            cb_chars.select("8")
+            time.sleep(0.3)
+            print(" -> Selecionado '8' via UIA.")
+        except Exception as ex:
+            print(f" -> Falha ao selecionar diretamente, usando teclado: {ex}")
+            cb_chars.set_focus()
+            send_keys("8{ENTER}", pause=0.01)
+            time.sleep(0.3)
         
-        btn_prop_ok = dlg_prop.child_window(auto_id="btOK", control_type="Button")
-        btn_prop_ok.click_input()
+        print("Confirmando Propriedades do Projeto (Clicando em OK(O))...")
+        btn_prop_ok = None
+        for auto_id_opt in ["btOK", "btnOK", "OK"]:
+            try:
+                btn_prop_ok = dlg_prop.child_window(auto_id=auto_id_opt, control_type="Button")
+                if btn_prop_ok.exists():
+                    break
+            except: pass
+        if not btn_prop_ok or not btn_prop_ok.exists():
+            try:
+                btn_prop_ok = dlg_prop.child_window(title="OK(O)", control_type="Button")
+            except: pass
+            
+        if btn_prop_ok and btn_prop_ok.exists():
+            btn_prop_ok.set_focus()
+            time.sleep(0.1)
+            btn_prop_ok.invoke()
+        else:
+            send_keys("%o")
         
         # 3. Janela de Coordenadas -> Seleciona SIRGAS_UTM22S
-        dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
-        dlg_coord.wait('ready', timeout=5)
-        
-        print("Abrindo ComboBox e selecionando 'SIRGAS_UTM22S'...")
+        print("Aguardando se abre automaticamente ou abrindo Sistema de Coordenadas via Alt+F -> R...")
+        time.sleep(0.5)
+        dlg_coord = None
+        for i in range(10):
+            for title_opt in ["Coordenada", "Sistema de Coordenadas"]:
+                try:
+                    dlg_coord = janela.child_window(title=title_opt, control_type="Window")
+                    if dlg_coord.exists():
+                        break
+                except:
+                    pass
+            if dlg_coord and dlg_coord.exists():
+                break
+            try:
+                dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
+                if dlg_coord.exists():
+                    break
+            except:
+                pass
+            time.sleep(0.3)
+
+        if not dlg_coord or not dlg_coord.exists():
+            print(" -> Diálogo de coordenadas não abriu automaticamente. Forçando via Alt+F -> R...")
+            janela.set_focus()
+            send_keys("%f")
+            time.sleep(0.4)
+            send_keys("r")
+            
+            for i in range(10):
+                for title_opt in ["Coordenada", "Sistema de Coordenadas"]:
+                    try:
+                        dlg_coord = janela.child_window(title=title_opt, control_type="Window")
+                        if dlg_coord.exists():
+                            break
+                    except:
+                        pass
+                if dlg_coord and dlg_coord.exists():
+                    break
+                try:
+                    dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
+                    if dlg_coord.exists():
+                        break
+                except:
+                    pass
+                time.sleep(0.3)
+
+        if not dlg_coord or not dlg_coord.exists():
+            raise Exception("Não foi possível localizar a janela de Coordenadas.")
+
+        # Interage com o comboBox1 (superior) via clique físico com offset mapeado (+49px)
+        print("Mapeando coordenadas fisicas da tela...")
         cb_coord = dlg_coord.child_window(auto_id="comboBox1", control_type="ComboBox")
         btn_abrir = cb_coord.child_window(title="Abrir", control_type="Button")
         
-        # Garante foco antes do clique
+        # Garante foco no diálogo e expande o combobox
+        janela.set_focus()
         dlg_coord.set_focus()
         btn_abrir.click_input()
-        time.sleep(0.1)
+        time.sleep(0.8) # Aguarda a lista expandir
         
-        item_sirgas = cb_coord.child_window(title="SIRGAS_UTM22S", control_type="ListItem")
-        item_sirgas.click_input()
-        time.sleep(0.1)
+        # Clica no item SIRGAS_UTM22S usando as coordenadas físicas calculadas
+        cb_rect = cb_coord.rectangle()
+        x_clique = int((cb_rect.left + cb_rect.right) / 2)
+        y_clique = cb_rect.bottom + 49
         
-        print("Confirmando Sistema de Coordenadas...")
-        btn_coord_ok = dlg_coord.child_window(auto_id="btOk", control_type="Button")
-        btn_coord_ok.click_input()
+        print(f"Clicando fisicamente no item 'SIRGAS_UTM22S' em X={x_clique}, Y={y_clique}...")
+        import pywinauto.mouse as mouse
+        mouse.click(button='left', coords=(x_clique, y_clique))
+        time.sleep(1.2) # Aguarda o HGO processar o template carregado
+        
+        # Confirma sistema de coordenadas via botão OK (btOk) ou Enter
+        print("Confirmando Sistema de Coordenadas (Clicando no botão OK)...")
+        btn_ok = None
+        try:
+            btn_ok = dlg_coord.child_window(title="OK", auto_id="btOk", control_type="Button")
+        except:
+            pass
+        if btn_ok and btn_ok.exists():
+            btn_ok.click_input()
+        else:
+            send_keys("{ENTER}")
         
         # 4. Importar arquivos GNS
-        janela.wait('ready', timeout=5)
-        time.sleep(0.05)
-        
-        print("Abrindo diálogo de importação...")
-        btn_importar = janela.child_window(title="Importar", control_type="Button")
-        btn_importar.click_input()
+        print("Preparando importacao de arquivos...")
+        time.sleep(0.8)
+        janela.set_focus()
+        send_keys("{ESC}")
+        time.sleep(0.2)
+        send_keys("%f")
+        time.sleep(0.5)
+        send_keys("i")
         
         # Diálogo frmFileFilter
         dlg_importar = janela.child_window(auto_id="frmFileFilter", control_type="Window")
         dlg_importar.wait('ready', timeout=5)
         
-        print("Clicando em 'Selecionar Arqs(S)'...")
-        btn_select = dlg_importar.child_window(title="Selecionar Arqs(S)", control_type="Button")
-        btn_select.click_input()
+        print("Acionando botao de selecao de arquivos...")
+        send_keys("%s")
         
         # Diálogo do Windows "Abrir"
         dlg_abrir = janela.child_window(title="Abrir", control_type="Window")
         dlg_abrir.wait('ready', timeout=5)
         
-        # Copia os caminhos dos arquivos brutos para o clipboard e cola
+        print("Inserindo caminhos dos arquivos brutos GNSS...")
         caminhos_formatados = " ".join([f'"{arq}"' for arq in arquivos_origem])
-        set_clipboard_text(caminhos_formatados)
+        edit_box = dlg_abrir.child_window(class_name="Edit", control_type="Edit")
+        edit_box.set_edit_text(caminhos_formatados)
+        time.sleep(0.2)
         
-        # Foca a janela "Abrir" e cola o caminho direto
-        print("Preenchendo caminho do arquivo no diálogo do Windows...")
-        dlg_abrir.set_focus()
-        time.sleep(0.2)
-        # Envia Alt+N (atalho universal para focar a caixa de texto "Nome do arquivo" nos diálogos do Windows)
-        send_keys("%n")
-        time.sleep(0.2)
-        send_keys("^a^v{ENTER}", pause=0.05)
+        print("Confirmando dialogo de arquivo 'Abrir' clicando programaticamente no botao...")
+        btn_abrir_confirm = None
+        for title_opt in ["&Abrir", "Abrir", "Open", "&Open"]:
+            try:
+                btn_abrir_confirm = dlg_abrir.child_window(title=title_opt, control_type="Button")
+                if btn_abrir_confirm.exists():
+                    break
+            except: pass
+        if btn_abrir_confirm and btn_abrir_confirm.exists():
+            btn_abrir_confirm.click_input()
+        else:
+            send_keys("{ENTER}")
         
         # Restaura os timings padrão do pywinauto para a fase de conversão e menus
         timings.Timings.defaults()
         
         # 5. Espera dinâmica pela importação dos arquivos (.zsd)
         obs_dir = os.path.join(proj_dir, "ObsBinData")
-        print(f" -> Pasta do projeto criada no disco: {proj_dir}")
-        print(f" -> Aguardando importacao automatica do .zsd na pasta: {obs_dir}")
+        print(f" -> Aguardando importacao dinamica na pasta: {obs_dir}")
         
         arquivos_esperados = [os.path.splitext(os.path.basename(a))[0] + ".zsd" for a in arquivos_origem]
-        timeout_importacao = 25  # Timeout estendido para importação física de I/O
+        timeout_importacao = 20
         inicio_espera = time.time()
         
         while True:
@@ -208,41 +339,41 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
             if time.time() - inicio_espera > timeout_importacao:
                 print("[AVISO] Timeout na importacao de arquivos brutos. Prosseguindo...")
                 break
-            time.sleep(0.1)
+            time.sleep(0.2)
             
         # Aguarda estabilização da interface após término da importação
         time.sleep(1.0)
         
         # 6. Ativar aba Arq-Observacoes e iniciar conversão
-        print("Mudando para a aba 'Arq-Observacoes'...")
+        print("Focando janela principal do HGO...")
         janela.set_focus()
+        send_keys("{ESC}")
+        time.sleep(0.2)
         tab_control = janela.child_window(auto_id="tabControl1", control_type="Tab")
         tab_item = tab_control.child_window(title="Arq-Observacoes", control_type="TabItem")
-        tab_item.click_input()
+        print("Selecionando aba 'Arq-Observacoes'...")
+        tab_item.select()
+        time.sleep(0.5)
         
         # Localiza e aguarda dinamicamente que o DataGridView esteja pronto na tela
         table = janela.child_window(title="DataGridView", auto_id="dataGridView1", control_type="Table")
         table.wait('ready', timeout=15)
         
-        print("Focando linha da tabela...")
-        janela.set_focus()
-        celula = table.child_window(title="Arquivo Linha 0", control_type="DataItem")
-        celula.click_input()
-        time.sleep(0.5)
-        
-        print("Selecionando todos e abrindo menu de contexto...")
-        send_keys("^a", pause=0.05)
-        time.sleep(0.5)
-        
-        # Envia a tecla ALT antes de clicar com o botão direito para ativar os atalhos de teclado no menu
-        send_keys("{VK_MENU}", pause=0.1)
+        print("Focando tabela de arquivos (Clicando com o botão esquerdo na primeira linha)...")
+        table.click_input(button="left", coords=(100, 60))
         time.sleep(0.3)
+        send_keys("^a")
+        time.sleep(0.5)
         
-        celula.click_input(button="right")
-        time.sleep(1.0)
+        print("Abrindo menu de contexto via clique com o botão direito na primeira linha da tabela...")
+        table.click_input(button="right", coords=(100, 60))
+        time.sleep(0.8)
         
-        print("Disparando conversão (R + ENTER)...")
-        send_keys("r{ENTER}", pause=0.05)
+        # Executa "Converter para Rinex(R)"
+        print("Enviando comando para Converter para Rinex...")
+        send_keys("r")
+        time.sleep(0.3)
+        send_keys("{ENTER}")
         
         # 7. Espera dinâmica pela conversão Rinex
         print(" -> Aguardando conversao Rinex...")
@@ -272,6 +403,35 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
                             diretorios_busca.append((os.path.join(caminho_item, "Rinex"), False))
                 except Exception as ex:
                     print(f"[AVISO] Falha ao listar subpastas da Area de Trabalho: {ex}")
+            
+            # Adiciona a pasta de origem de cada arquivo GNSS bruto (e suas subpastas)
+            for arq in arquivos_origem:
+                origem_dir = os.path.dirname(os.path.abspath(arq))
+                if os.path.exists(origem_dir):
+                    diretorios_busca.append((origem_dir, False))
+                    try:
+                        for item in os.listdir(origem_dir):
+                            caminho_item = os.path.join(origem_dir, item)
+                            if os.path.isdir(caminho_item):
+                                diretorios_busca.append((caminho_item, False))
+                                diretorios_busca.append((os.path.join(caminho_item, "Rinex"), False))
+                    except: pass
+            
+            # Adiciona a pasta de destino final (caso já tenham sido jogados lá)
+            if os.path.exists(pasta_destino):
+                diretorios_busca.append((pasta_destino, False))
+                
+            # Adiciona caminhos comuns de Area de Trabalho (onde o HGO costuma salvar os arquivos convertidos)
+            paths_desktop = [
+                r"D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho",
+                os.path.join(os.path.expanduser("~"), "Desktop"),
+                os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop"),
+                os.path.join(os.path.expanduser("~"), "OneDrive", "Área de Trabalho"),
+                os.path.join(os.path.expanduser("~"), "Arquivos de Microsoft Copilot Chat", "Área de Trabalho")
+            ]
+            for dp in paths_desktop:
+                if os.path.exists(dp):
+                    diretorios_busca.append((dp, False))
                 
             # Filtra diretórios válidos e remove duplicatas
             diretorios_filtrados = []
@@ -283,9 +443,18 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
                     diretorios_filtrados.append((d_norm, filt_data))
                     
             for pasta, filtrar_data in diretorios_filtrados:
-                for f in os.listdir(pasta):
+                try:
+                    arquivos_pasta = os.listdir(pasta)
+                except Exception as ex_list:
+                    print(f"[AVISO] Ignorando pasta sem permissao de acesso: {pasta} ({ex_list})")
+                    continue
+                    
+                for f in arquivos_pasta:
                     caminho_completo = os.path.join(pasta, f)
-                    if not os.path.isfile(caminho_completo):
+                    try:
+                        if not os.path.isfile(caminho_completo):
+                            continue
+                    except:
                         continue
                         
                     nome_f, ext_f = os.path.splitext(f)
@@ -311,9 +480,12 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
                     if eh_rinex:
                         if filtrar_data:
                             try:
-                                mtime = os.path.getmtime(caminho_completo)
-                                if mtime >= (inicio_conversao - 10):
+                                if proj_dir and os.path.normpath(caminho_completo).startswith(os.path.normpath(proj_dir)):
                                     encontrados[f.lower()] = caminho_completo
+                                else:
+                                    mtime = os.path.getmtime(caminho_completo)
+                                    if mtime >= (inicio_conversao - 600):
+                                        encontrados[f.lower()] = caminho_completo
                             except: pass
                         else:
                             encontrados[f.lower()] = caminho_completo

@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from config import EXPORT_BASE_FOLDER
@@ -46,6 +47,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Inclui todas as rotas centralizadas do diretório routes/
 app.include_router(api_router)
+
+# Monta o frontend Vite compilado para ser servido na raiz
+frontend_dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+else:
+    logging.getLogger(__name__).warning(f"Diretório frontend/dist não encontrado em {frontend_dist}. Estáticos não montados.")
+
 
 def sou_administrador():
     import ctypes

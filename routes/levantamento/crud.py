@@ -2,13 +2,16 @@
 routes/levantamento/crud.py — CRUD de Levantamentos e Gestão de Arquivos do Projeto
 """
 import os
+import io
+import re
 import stat
 import shutil
+import zipfile
 import logging
 import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
@@ -203,11 +206,16 @@ async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTask
 async def testar_busca_rinex(lev_id: int):
     verificar_levantamento_arquivado(lev_id)
     try:
+        import sys, re
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        from buscador_rinex import encontrar_rinex
+        
         wm = WorkspaceManager()
         folder = wm.get_levantamento_folder(lev_id)
         
         pasta_brutos = folder / "Brutos"
         pasta_rinex = folder / "Rinex"
+        os.makedirs(str(pasta_rinex), exist_ok=True)
         
         if not pasta_brutos.exists():
             return {"success": False, "message": "Pasta 'Brutos' não existe no workspace deste levantamento."}
@@ -216,120 +224,138 @@ async def testar_busca_rinex(lev_id: int):
         arquivos_brutos = [f for f in os.listdir(pasta_brutos) if f.upper().endswith((".GNS", ".ZHD"))]
         if not arquivos_brutos:
             return {"success": False, "message": "Nenhum arquivo bruto (.GNS ou .ZHD) localizado na pasta 'Brutos'."}
-            
-        area_trabalho = r"D:\OneDrive_Thiago\OneDrive\Arquivos de Microsoft Copilot Chat\Área de Trabalho"
-        diretorios_busca = [
-            area_trabalho,
-            str(pasta_rinex),
-            str(folder)
-        ]
         
-        # Adiciona subpastas do HGO na Área de Trabalho
-        if os.path.exists(area_trabalho):
-            for item in os.listdir(area_trabalho):
-                caminho_item = os.path.join(area_trabalho, item)
-                if os.path.isdir(caminho_item):
-                    diretorios_busca.append(caminho_item)
-                    diretorios_busca.append(os.path.join(caminho_item, "Rinex"))
-                    
-        # Filtra pastas que existem
-        diretorios_busca = list(set([os.path.normpath(d) for d in diretorios_busca if os.path.exists(d)]))
+        # Nomes base dos arquivos brutos para o buscador
+        nomes_base = [os.path.splitext(a)[0] for a in arquivos_brutos]
         
-        import re
+        # Busca via buscador_rinex.py
+        arquivos_encontrados = encontrar_rinex(
+            nomes_base_origem=nomes_base,
+            pasta_destino=str(pasta_rinex),
+            pastas_extras=[str(folder)]
+        )
+        
         encontrados = []
         copiados = []
+        ja_existentes = []
         erros = []
         registrados = []
         
         repo = HistoricoRinexRepo()
         
-        for arq_bruto in arquivos_brutos:
-            prefixo = os.path.splitext(arq_bruto)[0].lower()
-            tamanho_bruto = os.path.getsize(pasta_brutos / arq_bruto)
+        for arq in arquivos_encontrados:
+            f = os.path.basename(arq)
+            origem = os.path.dirname(arq)
+            nome_f, ext_f = os.path.splitext(f)
+            ext_f_lower = ext_f.lower()
             
-            for dir_busca in diretorios_busca:
+            # Identifica o arquivo bruto correspondente
+            arq_bruto_match = next(
+                (b for b in arquivos_brutos if nome_f.lower() == os.path.splitext(b)[0].lower()
+                 or nome_f.lower().startswith(os.path.splitext(b)[0].lower())),
+                arquivos_brutos[0]
+            )
+            
+            encontrados.append({"bruto": arq_bruto_match, "rinex": f, "origem": origem, "caminho": arq})
+            
+            # Copia para a pasta Rinex do workspace
+            dest_caminho = pasta_rinex / f
+            ja_esta_no_workspace = os.path.normpath(arq) == os.path.normpath(str(dest_caminho))
+            
+            if ja_esta_no_workspace:
+                ja_existentes.append(f)
+            else:
                 try:
-                    for f in os.listdir(dir_busca):
-                        caminho_completo = os.path.join(dir_busca, f)
-                        if not os.path.isfile(caminho_completo):
-                            continue
-                            
-                        nome_f, ext_f = os.path.splitext(f)
-                        nome_f_lower = nome_f.lower()
-                        ext_f_lower = ext_f.lower()
-                        
-                        # Verifica se pertence ao arquivo bruto
-                        if nome_f_lower == prefixo or nome_f_lower.startswith(prefixo):
-                            eh_rinex = False
-                            if ext_f_lower in ['.obs', '.nav', '.o', '.n', '.g']:
-                                eh_rinex = True
-                            elif re.match(r'^\.\d{2}[ong]$', ext_f_lower):
-                                eh_rinex = True
-                                
-                            if eh_rinex:
-                                encontrados.append({
-                                    "bruto": arq_bruto,
-                                    "rinex": f,
-                                    "origem": dir_busca,
-                                    "caminho": caminho_completo
-                                })
-                                
-                                # Move para a pasta Rinex
-                                dest_caminho = pasta_rinex / f
-                                if os.path.normpath(caminho_completo) != os.path.normpath(dest_caminho):
-                                    try:
-                                        if dest_caminho.exists():
-                                            os.chmod(dest_caminho, stat.S_IWRITE)
-                                        shutil.copy2(caminho_completo, dest_caminho)
-                                        copiados.append(f)
-                                    except Exception as e_copy:
-                                        erros.append(f"Erro ao copiar {f}: {e_copy}")
-                                        continue
-                                
-                                # Se for arquivo de observação, faz o parse dos metadados e registra no BD
-                                if ext_f_lower in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext_f_lower):
-                                    try:
-                                        meta = ler_metadados_rinex(str(dest_caminho))
-                                        if meta:
-                                            repo.insert(
-                                                arquivo_nome=arq_bruto,
-                                                arquivo_tamanho=tamanho_bruto,
-                                                arquivo_path=str(pasta_brutos / arq_bruto),
-                                                ponto_nome=meta['marcador'],
-                                                data_inicio=meta['inicio'],
-                                                data_fim=meta['fim'],
-                                                latitude=meta['lat'],
-                                                longitude=meta['lon'],
-                                                sucesso=True
-                                            )
-                                            registrados.append(f"{f} -> Marcador: {meta['marcador']}")
-                                        else:
-                                            repo.insert(
-                                                arquivo_nome=arq_bruto,
-                                                arquivo_tamanho=tamanho_bruto,
-                                                arquivo_path=str(pasta_brutos / arq_bruto),
-                                                sucesso=True
-                                            )
-                                            registrados.append(f"{f} (sem metadados)")
-                                    except Exception as e_db:
-                                        erros.append(f"Erro ao registrar BD para {f}: {e_db}")
-                                        
-                except Exception as e_dir:
-                    erros.append(f"Erro ao ler pasta {dir_busca}: {e_dir}")
-                    
+                    if dest_caminho.exists():
+                        os.chmod(str(dest_caminho), stat.S_IWRITE)
+                    shutil.copy2(arq, str(dest_caminho))
+                    copiados.append(f)
+                except Exception as e_copy:
+                    erros.append(f"Erro ao copiar {f}: {e_copy}")
+                    continue
+            
+            # Se for arquivo de observação, faz o parse dos metadados e registra no BD
+            if ext_f_lower in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext_f_lower):
+                tamanho_bruto = os.path.getsize(pasta_brutos / arq_bruto_match) if (pasta_brutos / arq_bruto_match).exists() else 0
+                try:
+                    meta = ler_metadados_rinex(str(dest_caminho))
+                    if meta:
+                        repo.insert(
+                            arquivo_nome=arq_bruto_match,
+                            arquivo_tamanho=tamanho_bruto,
+                            arquivo_path=str(pasta_brutos / arq_bruto_match),
+                            ponto_nome=meta['marcador'],
+                            data_inicio=meta['inicio'],
+                            data_fim=meta['fim'],
+                            latitude=meta['lat'],
+                            longitude=meta['lon'],
+                            sucesso=True
+                        )
+                        registrados.append(f"{f} -> Marcador: {meta['marcador']}")
+                    else:
+                        repo.insert(
+                            arquivo_nome=arq_bruto_match,
+                            arquivo_tamanho=tamanho_bruto,
+                            arquivo_path=str(pasta_brutos / arq_bruto_match),
+                            sucesso=True
+                        )
+                        registrados.append(f"{f} (sem metadados)")
+                except Exception as e_db:
+                    erros.append(f"Erro ao registrar BD para {f}: {e_db}")
+        
         # Regenera documentos
         wm.gerar_documento_cliente_workspace(lev_id)
         
+        total_msg = (
+            f"Busca finalizada. {len(encontrados)} arquivo(s) encontrado(s): "
+            f"{len(copiados)} copiado(s) para o workspace, "
+            f"{len(ja_existentes)} já existia(m), "
+            f"{len(registrados)} registrado(s) no banco."
+        )
         return {
             "success": True,
-            "message": f"Busca finalizada. Encontrados {len(encontrados)} arquivos Rinex, copiados {len(copiados)}, registrados {len(registrados)}.",
+            "message": total_msg,
             "arquivos_rinex_encontrados": encontrados,
             "arquivos_copiados": copiados,
+            "arquivos_ja_existentes": ja_existentes,
             "arquivos_registrados": registrados,
             "erros": erros
         }
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.get("/levantamentos/{lev_id}/rinex/download-zip")
+def download_rinex_zip(lev_id: int):
+    """Empacota todos os arquivos da pasta Rinex do levantamento num .zip em memória e o envia para download."""
+    try:
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(lev_id)
+        pasta_rinex = folder / "Rinex"
+        
+        if not pasta_rinex.exists():
+            raise HTTPException(status_code=404, detail="Pasta Rinex não encontrada para este levantamento.")
+        
+        arquivos = [f for f in pasta_rinex.iterdir() if f.is_file()]
+        if not arquivos:
+            raise HTTPException(status_code=404, detail="Nenhum arquivo Rinex encontrado para este levantamento.")
+        
+        # Empacota em memória
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            for arq in arquivos:
+                zf.write(arq, arcname=arq.name)
+        buf.seek(0)
+        
+        nome_zip = f"Rinex_Lev{lev_id}.zip"
+        return StreamingResponse(
+            buf,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={nome_zip}"}
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/levantamentos/{lev_id}/arquivos")
 def get_arquivos_levantamento(lev_id: int):

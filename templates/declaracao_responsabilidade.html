@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Responsabilidade de Limites - {nome_lote}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm 15mm 20mm 15mm !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                display: block !important;
+            }
+
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            p,
+            li {
+                orphans: 2 !important;
+                widows: 2 !important;
+                break-inside: auto !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <div
+        class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Responsabilidade</h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Atestado de limites e respeito às posses vizinhas</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+
+    <div
+        class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
+        <div>
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários</div>
+            </div>
+
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-[#0c1510] tracking-wide uppercase">DECLARAÇÃO DE RESPONSABILIDADE DE
+                    LIMITES E POSSE</h2>
+            </div>
+
+            <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
+                <p>Os abaixo assinados, {qualificacao_completa}, na qualidade de legítimos proprietários do imóvel rural
+                    denominado <strong>{nome_lote}</strong>, com área de <strong>{area_ha} ha</strong>, localizado no
+                    município de {municipio}/{uf}, objeto da Matrícula nº <strong>{numero_matricula}</strong> do
+                    Registro de Imóveis da Comarca de {comarca}, declaram sob as penas da lei, em especial as sanções
+                    previstas no art. 299 do Código Penal Brasileiro, que:</p>
+
+                <div class="pl-4 space-y-3 font-medium text-slate-600">
+                    <div class="flex items-start gap-2">
+                        <span class="font-bold text-slate-800 leading-none">I -</span>
+                        <span>As divisas do imóvel rural descritas no levantamento topográfico e memorial técnico foram
+                            rigorosamente respeitadas e demarcadas em campo de acordo com os marcos históricos de posse
+                            mansa e pacífica;</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="font-bold text-slate-800 leading-none">II -</span>
+                        <span>Não há litígios, disputas judiciais ou extrajudiciais pendentes com nenhum dos vizinhos
+                            confrontantes a respeito das linhas divisórias demarcadas;</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="font-bold text-slate-800 leading-none">III -</span>
+                        <span>O levantamento técnico não avança sobre áreas de domínio público (estradas federais,
+                            estaduais ou municipais) ou faixas de servidão de utilidade pública;</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="font-bold text-slate-800 leading-none">IV -</span>
+                        <span>Isentam o profissional credenciado executor dos trabalhos técnicos de qualquer
+                            responsabilidade civil ou criminal decorrente de futuras contestações sobre a titularidade
+                            ou localização física das divisas históricas acordadas.</span>
+                    </div>
+                </div>
+
+                <p>Por ser a expressão pura da verdade, firmam a presente em duas vias de igual teor.</p>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
+        <div class="break-inside-avoid w-full mt-4">
+            <p class="text-left text-xs font-medium text-slate-900">{municipio}-{uf}, {data_extenso}.</p>
+            <div class="pt-4">
+                {bloco_assinaturas}
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

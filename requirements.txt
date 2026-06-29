@@ -6,6 +6,9 @@ python-multipart
 pyshp
 python-docx
 Pillow
+pywebview>=5.0
+httpx>=0.25.0
+
 
 
 

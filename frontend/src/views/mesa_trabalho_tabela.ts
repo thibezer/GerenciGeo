@@ -33,6 +33,7 @@ interface Segmento {
   confrontante_id?: number | null;
   tipo_limite_sigef: string;
   metodo_posicionamento_sigef: string;
+  anuencia_assinada?: number;
 }
 
 /**
@@ -411,10 +412,60 @@ export const renderAuditoriaTranslacaoHtml = (
 export const renderLinhaSegmentoHtml = (
   s: Segmento,
   confrontantesList: any[],
-  pontosList: any[]
+  pontosList: any[],
+  latLonToUTM: (lat: number, lon: number) => { e: number; n: number }
 ): string => {
   const pIni = pontosList.find(p => p.id === s.ponto_inicio_id);
   const pFim = pontosList.find(p => p.id === s.ponto_fim_id);
+
+  const obterCoordenadas = (p: any) => {
+    if (!p) return null;
+    if (p.e_corrigido !== undefined && p.e_corrigido !== null && p.n_corrigido !== undefined && p.n_corrigido !== null) {
+      return { e: p.e_corrigido, n: p.n_corrigido };
+    }
+    if (p.e_original !== undefined && p.e_original !== null && p.n_original !== undefined && p.n_original !== null) {
+      return { e: p.e_original, n: p.n_original };
+    }
+    if (p.lat && p.lon) {
+      return latLonToUTM(p.lat, p.lon);
+    }
+    return null;
+  };
+
+  const coordIni = obterCoordenadas(pIni);
+  const coordFim = obterCoordenadas(pFim);
+
+  let distStr = '-';
+  let azimuteStr = '-';
+
+  if (coordIni && coordFim) {
+    const dE = coordFim.e - coordIni.e;
+    const dN = coordFim.n - coordIni.n;
+    const dist = Math.sqrt(dE * dE + dN * dN);
+    distStr = dist.toFixed(2);
+
+    let azRad = Math.atan2(dE, dN);
+    let azDeg = (azRad * 180) / Math.PI;
+    if (azDeg < 0) azDeg += 360;
+
+    // Arredondamento clássico com proteção de segundos >= 59.5
+    const totalSegundos = Math.round(azDeg * 3600);
+    let segundos = totalSegundos % 60;
+    let totalMinutos = Math.floor(totalSegundos / 60);
+    let minutos = totalMinutos % 60;
+    let graus = Math.floor(totalMinutos / 60) % 360;
+
+    if (segundos >= 60) {
+      segundos = 0;
+      minutos += 1;
+    }
+    if (minutos >= 60) {
+      minutos = 0;
+      graus = (graus + 1) % 360;
+    }
+
+    azimuteStr = `${graus}°${String(minutos).padStart(2, '0')}'${String(segundos).padStart(2, '0')}"`;
+  }
 
   const confOptions = confrontantesList.map(c => `
     <option value="${c.id}" ${c.id === s.confrontante_id ? 'selected' : ''}>${c.nome}</option>
@@ -429,30 +480,62 @@ export const renderLinhaSegmentoHtml = (
   ].map(o => `<option value="${o.val}" ${o.val === s.tipo_limite_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
 
   const metodoOptions = [
-    { val: 'PG1', txt: 'RTK Relativo (PG1)' },
-    { val: 'MC1', txt: 'Estático (MC1)' },
-    { val: 'MC2', txt: 'Estático Rápido (MC2)' },
-    { val: 'PG2', txt: 'RTK Wms/Ntrip (PG2)' }
+    { val: 'PG1', txt: 'PG1 - Posicionamento GNSS - Relativo' },
+    { val: 'PG2', txt: 'PG2 - Posicionamento GNSS - Absoluto' },
+    { val: 'PT1', txt: 'PT1 - Poligonação' },
+    { val: 'PT2', txt: 'PT2 - Irradiação' }
   ].map(o => `<option value="${o.val}" ${o.val === s.metodo_posicionamento_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
 
   return `
     <tr class="linha-segmento-tbl hover:bg-white/[0.02] border-b border-white/5" data-seg-id="${s.id}">
-      <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pIni ? pIni.nome_vertice : '??'}</td>
-      <td class="px-4 py-2.5 font-bold font-sans text-xs text-white">${pFim ? pFim.nome_vertice : '??'}</td>
-      <td class="px-4 py-2.5">
-        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-conf w-full" data-seg-id="${s.id}">
-          ${confOptions.join('')}
-        </select>
+      <td class="px-3 py-2.5 font-bold font-sans text-xs text-white">
+        <span class="text-white/40 block text-[9px] uppercase">De ➔ Para</span>
+        ${pIni ? pIni.nome_vertice : '??'} ➔ ${pFim ? pFim.nome_vertice : '??'}
       </td>
-      <td class="px-4 py-2.5">
-        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-limite w-full" data-seg-id="${s.id}">
-          ${limiteOptions}
-        </select>
+      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/90 tabular-nums">${distStr}</td>
+      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/90 tabular-nums">${azimuteStr}</td>
+      <td class="px-3 py-2.5">
+        <div class="space-y-1.5 py-1">
+          <select class="glass-input text-xs py-1 px-1.5 select-segmento-confrontante w-full" data-segmento-id="${s.id}">
+            ${confOptions.join('')}
+          </select>
+          <div class="grid grid-cols-2 gap-1">
+            <select class="glass-input text-[10px] py-0.5 px-1 select-segmento-limite w-full" data-segmento-id="${s.id}">
+              ${limiteOptions}
+            </select>
+            <select class="glass-input text-[10px] py-0.5 px-1 select-segmento-posicionamento w-full" data-segmento-id="${s.id}">
+              ${metodoOptions}
+            </select>
+          </div>
+        </div>
       </td>
-      <td class="px-4 py-2.5">
-        <select class="glass-input text-xs py-2 px-2.5 sm:text-[10px] sm:py-0.5 sm:px-1 select-seg-metodo w-full" data-seg-id="${s.id}">
-          ${metodoOptions}
-        </select>
+      <td class="px-2 py-2.5 text-center">
+        <div class="flex items-center justify-center">
+          <input type="checkbox" class="chk-segmento-anuente rounded border-white/10 text-mint-vibrant focus:ring-mint-vibrant bg-white/5 w-5 h-5 md:w-4 md:h-4 cursor-pointer" data-segmento-id="${s.id}" ${s.anuencia_assinada === 1 ? 'checked' : ''} />
+        </div>
+      </td>
+      <td class="px-3 py-2.5 text-center">
+        <div class="flex items-center justify-center gap-1.5">
+          <button class="btn-emitir-anuencia-rapida p-1.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant rounded transition-all active:scale-95 flex items-center justify-center" 
+                  data-segmento-id="${s.id}" 
+                  data-confrontante-id="${s.confrontante_id || ''}" 
+                  title="Emissão Rápida de Termo de Anuência" 
+                  type="button">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+          </button>
+          <button class="btn-emitir-requerimento-rapido p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded transition-all active:scale-95 flex items-center justify-center" 
+                  data-segmento-id="${s.id}" 
+                  title="Emissão Rápida de Requerimento de Retificação" 
+                  type="button">
+            <i data-lucide="file-signature" class="w-4 h-4"></i>
+          </button>
+          <button class="btn-emitir-laudo-rapido p-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded transition-all active:scale-95 flex items-center justify-center" 
+                  data-segmento-id="${s.id}" 
+                  title="Emissão Rápida de Laudo Técnico" 
+                  type="button">
+            <i data-lucide="file-check" class="w-4 h-4"></i>
+          </button>
+        </div>
       </td>
     </tr>
   `;

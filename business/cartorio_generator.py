@@ -1,8 +1,11 @@
 import os
 import logging
+import math
 from datetime import datetime
+from pyproj import Transformer, Geod
 from database.connection import execute_query
 from config import EXPORT_BASE_FOLDER
+from business.geoprocessamento import calcular_zona_utm_segura
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +91,6 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
 
 def obter_segmentos_detalhados_confrontante(matricula_id: int, confrontante_id: int) -> list[dict]:
     """Busca e retorna os segmentos de confrontação ordenados com dados topográficos e geométricos completos"""
-    row_nome = execute_query("SELECT nome FROM confrontantes WHERE id = ?", params=(confrontante_id,), fetch_one=True)
-    if not row_nome:
-        return []
-    nome_alvo = row_nome["nome"]
-
     query = """
         SELECT s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
                pi.nome_vertice as ini_nome, pi.lat as ini_lat, pi.lon as ini_lon, pi.ordem_caminhamento as ini_ordem,
@@ -100,13 +98,48 @@ def obter_segmentos_detalhados_confrontante(matricula_id: int, confrontante_id: 
         FROM segmentos s
         JOIN pontos pi ON s.ponto_inicio_id = pi.id
         JOIN pontos pf ON s.ponto_fim_id = pf.id
-        JOIN confrontantes c ON s.confrontante_id = c.id
-        WHERE s.matricula_id = ? AND UPPER(TRIM(c.nome)) = UPPER(TRIM(?))
+        WHERE s.matricula_id = ? AND s.confrontante_id = ?
     """
-    rows = execute_query(query, params=(matricula_id, nome_alvo), fetch_all=True)
+    rows = execute_query(query, params=(matricula_id, confrontante_id), fetch_all=True)
     segs = [dict(r) for r in rows]
     segs.sort(key=lambda x: x["ini_ordem"] if x["ini_ordem"] is not None else 0)
     return segs
+
+def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon) -> tuple[str, str]:
+    if any(coord is None for coord in [ini_lat, ini_lon, fim_lat, fim_lon]):
+        return "-", "-"
+    
+    try:
+        # Usar pyproj.Geod com elipsoide GRS80 (SIRGAS 2000) para cálculo geodésico rigoroso 2D (elipsoidal)
+        # Isso remove as distorções do fator de escala UTM (k) e bate perfeitamente com os cálculos do SIGEF.
+        geod = Geod(ellps="GRS80")
+        az_ida, az_volta, distancia = geod.inv(ini_lon, ini_lat, fim_lon, fim_lat)
+        
+        distancia_str = f"{distancia:.2f} m"
+        
+        # Ajusta azimute para a faixa 0-360
+        az_deg = az_ida % 360.0
+        
+        # Formatar azimute no padrão GMS (Graus, Minutos e Segundos)
+        graus = int(az_deg)
+        minutos_dec = (az_deg - graus) * 60.0
+        minutos = int(minutos_dec)
+        segundos = (minutos_dec - minutos) * 60.0
+        
+        # Proteção clássica para arredondamento de segundos
+        if segundos >= 59.5:
+            segundos = 0.0
+            minutos += 1
+            if minutos >= 60:
+                minutos = 0
+                graus = (graus + 1) % 360
+                
+        azimute_str = f"{graus}°{minutos:02d}'{segundos:02.0f}\""
+        
+        return azimute_str, distancia_str
+    except Exception as e:
+        logger.warning(f"Erro ao calcular azimute/distância geodésica do segmento: {e}")
+        return "-", "-"
 
 def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int) -> str:
     """Gera uma tabela HTML estruturada com os dados de caminhamento técnico da divisa lindeira"""
@@ -118,28 +151,32 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int) -> str:
     for s in segmentos:
         lat_f = f"{s['ini_lat']:.7f}°" if s['ini_lat'] else "-"
         lon_f = f"{s['ini_lon']:.7f}°" if s['ini_lon'] else "-"
+        
+        # Calcular Azimute e Distância
+        azimute_f, dist_f = calcular_azimute_e_distancia(s["ini_lat"], s["ini_lon"], s["fim_lat"], s["fim_lon"])
+        
         linhas_html += f"""
         <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
-            <td class="px-3 py-2 font-bold text-slate-900">{s['ini_nome']}</td>
-            <td class="px-3 py-2 font-bold text-slate-900">{s['fim_nome']}</td>
-            <td class="px-3 py-2 font-sans">{s['tipo_limite_sigef'] or 'Limite não definido'}</td>
-            <td class="px-3 py-2 text-center">{s['metodo_posicionamento_sigef'] or 'PG1'}</td>
-            <td class="px-3 py-2 text-right">{lat_f}</td>
-            <td class="px-3 py-2 text-right">{lon_f}</td>
+            <td class="px-3 py-1 font-bold text-slate-900">{s['ini_nome']}</td>
+            <td class="px-3 py-1 font-bold text-slate-900">{s['fim_nome']}</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">{azimute_f}</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">{dist_f}</td>
+            <td class="px-3 py-1 text-right">{lat_f}</td>
+            <td class="px-3 py-1 text-right">{lon_f}</td>
         </tr>
         """
 
     table_html = f"""
-    <div class="my-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+    <div class="my-2 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
         <table class="w-full text-left border-collapse bg-slate-50/50">
             <thead>
                 <tr class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">
-                    <th class="px-3 py-2">De</th>
-                    <th class="px-3 py-2">Para</th>
-                    <th class="px-3 py-2">Tipo de Limite (INCRA)</th>
-                    <th class="px-3 py-2 text-center">Método</th>
-                    <th class="px-3 py-2 text-right">Lat. Inicial</th>
-                    <th class="px-3 py-2 text-right">Lon. Inicial</th>
+                    <th class="px-3 py-1">De</th>
+                    <th class="px-3 py-1">Para</th>
+                    <th class="px-3 py-1 text-right">Azimute</th>
+                    <th class="px-3 py-1 text-right">Distância</th>
+                    <th class="px-3 py-1 text-right">Lat. Inicial</th>
+                    <th class="px-3 py-1 text-right">Lon. Inicial</th>
                 </tr>
             </thead>
             <tbody>
@@ -158,6 +195,11 @@ def obter_data_extenso() -> str:
     }
     agora = datetime.now()
     return f"{agora.day} de {meses[agora.month]} de {agora.year}"
+
+def carregar_template(nome_arquivo: str) -> str:
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", nome_arquivo)
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
 class CartorioReportGenerator:
     
@@ -219,7 +261,7 @@ class CartorioReportGenerator:
             except:
                 data_trt_f = raw_data_trt
                 
-        bloco_assinaturas = '<div class="mt-16 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
+        bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
         for owner in dados["owners"]:
             bloco_assinaturas += f"""
             <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
@@ -241,70 +283,30 @@ class CartorioReportGenerator:
         bloco_assinaturas += "</div>"
         data_extenso = obter_data_extenso()
 
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Requerimento ao Registro de Imóveis - {nome_lote}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {{ font-family: 'Inter', sans-serif; }}
-        @media print {{
-            @page {{ size: A4; margin: 2cm 2cm; }}
-            .no-print {{ display: none !important; }}
-            body {{ background-color: white !important; padding: 0 !important; }}
-            .page {{ box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }}
-        }}
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Requerimento de Averbação / Retificação</h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Destinado ao Cartório de Registro de Imóveis (CRI)</p>
-            </div>
-        </div>
-        <button onclick="window.print()" class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
-            Imprimir Documento
-        </button>
-    </div>
-
-    <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        <div>
-            <div class="flex flex-col items-center pb-2 mb-8 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
-                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
-            </div>
-
-            <p class="text-xs font-bold uppercase text-slate-900 mb-8 tracking-wide">
-                ILUSTRÍSSIMO SENHOR OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca} - ESTADO DO PARANÁ.
-            </p>
-
-            <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
-                <p>{qualificacao_completa}, na qualidade de legítimos proprietários, vêm respeitosamente requerer a Vossa Senhoria, com fulcro no art. 213, inciso II da Lei nº 6.015/1973 e na Lei nº 10.267/2001, a <strong>AVERBAÇÃO DO GEORREFERENCIAMENTO E RETIFICAÇÃO CONSENSUAL DE ÁREA</strong> do imóvel rural de sua propriedade denominado <strong>{nome_lote}</strong>, com área de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, objeto da Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis, inscrito no CCIR/INCRA sob o nº <strong>{ccir}</strong> e cadastrado no ITR/Receita Federal sob o nº <strong>{itr}</strong>.</p>
-                
-                <p>O presente requerimento fundamenta-se nos trabalhos técnicos de georreferenciamento devidamente homologados pelo INCRA, sob o código de certificação SIGEF nº <strong class="font-mono text-slate-900">{georref_sigef}</strong>, cujo memorial descritivo, planta e anuências seguem anexados, atestando a exatidão das divisas, sem qualquer sobreposição a terras públicas ou privadas.</p>
-                
-                <p>Os serviços de agrimensura foram executados pelo Responsável Técnico <strong>{dados["lev"]["nome_profissional"]}</strong>, inscrito no {dados["lev"]["conselho_profissional"] or "conselho profissional"} sob o registro nº <strong>{dados["lev"]["registro_profissional"]}</strong>, sob TRT/ART nº <strong>{final_trt}</strong>, recolhida/quitada na data de <strong>{data_trt_f}</strong>.</p>
-                
-                <p>Atribui-se a esta retificação, para efeitos fiscais e emolumentares, o valor venal de <strong>{valor_venal_str}</strong> com base na declaração de ITR.</p>
-                
-                <p>Nesses termos, pede e espera deferimento.</p>
-                
-                <p class="text-left pt-6 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
-            </div>
-        </div>
-        {bloco_assinaturas}
-    </div>
-</body>
-</html>
-"""
+        template = carregar_template("requerimento_cartorio.html")
+        replacements = {
+            "{nome_lote}": nome_lote,
+            "{comarca}": comarca,
+            "{qualificacao_completa}": qualificacao_completa,
+            "{area_ha}": f"{dados['mat']['area_ha']:.4f}" if dados['mat']['area_ha'] else "0,0000",
+            "{numero_matricula}": dados["mat"]["numero_matricula"] or "_____",
+            "{ccir}": ccir,
+            "{itr}": itr,
+            "{georref_sigef}": georref_sigef,
+            "{nome_profissional}": dados["lev"]["nome_profissional"] or "_____",
+            "{conselho_profissional}": dados["lev"]["conselho_profissional"] or "conselho profissional",
+            "{registro_profissional}": dados["lev"]["registro_profissional"] or "_____",
+            "{final_trt}": final_trt,
+            "{data_trt_f}": data_trt_f,
+            "{valor_venal_str}": valor_venal_str,
+            "{municipio}": dados["prop"]["municipio"] or "_____",
+            "{uf}": dados["prop"]["uf"] or "PR",
+            "{data_extenso}": data_extenso,
+            "{bloco_assinaturas}": bloco_assinaturas
+        }
+        html_content = template
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value))
         return html_content
 
     @staticmethod
@@ -324,7 +326,7 @@ class CartorioReportGenerator:
         qualificacao_completa = " e ".join(qualificacoes)
         data_extenso = obter_data_extenso()
 
-        bloco_assinaturas = '<div class="mt-20 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
+        bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
         for owner in dados["owners"]:
             bloco_assinaturas += f"""
             <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
@@ -335,83 +337,21 @@ class CartorioReportGenerator:
             """
         bloco_assinaturas += "</div>"
 
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Declaração de Responsabilidade de Limites - {nome_lote}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {{ font-family: 'Inter', sans-serif; }}
-        @media print {{
-            @page {{ size: A4; margin: 2cm 2cm; }}
-            .no-print {{ display: none !important; }}
-            body {{ background-color: white !important; padding: 0 !important; }}
-            .page {{ box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }}
-        }}
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Responsabilidade</h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Atestado de limites e respeito às posses vizinhas</p>
-            </div>
-        </div>
-        <button onclick="window.print()" class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
-            Imprimir Documento
-        </button>
-    </div>
-
-    <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        <div>
-            <div class="flex flex-col items-center pb-2 mb-12 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
-                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
-            </div>
-
-            <div class="text-center mb-8">
-                <h2 class="text-sm font-bold text-[#0c1510] tracking-wide uppercase">DECLARAÇÃO DE RESPONSABILIDADE DE LIMITES E POSSE</h2>
-            </div>
-
-            <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
-                <p>Os abaixo assinados, {qualificacao_completa}, na qualidade de legítimos proprietários do imóvel rural denominado <strong>{nome_lote}</strong>, com área de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, localizado no município de {dados["prop"]["municipio"]}/PR, objeto da Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> do Registro de Imóveis da Comarca de {comarca}, declaram sob as penas da lei, em especial as sanções previstas no art. 299 do Código Penal Brasileiro, que:</p>
-                
-                <div class="pl-4 space-y-3 font-medium text-slate-600">
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">I -</span>
-                        <span>As divisas do imóvel rural descritas no levantamento topográfico e memorial técnico foram rigorosamente respeitadas e demarcadas em campo de acordo com os marcos históricos de posse mansa e pacífica;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">II -</span>
-                        <span>Não há litígios, disputas judiciais ou extrajudiciais pendentes com nenhum dos vizinhos confrontantes a respeito das linhas divisórias demarcadas;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">III -</span>
-                        <span>O levantamento técnico não avança sobre áreas de domínio público (estradas federais, estaduais ou municipais) ou faixas de servidão de utilidade pública;</span>
-                    </div>
-                    <div class="flex items-start gap-2">
-                        <span class="font-bold text-slate-800 leading-none">IV -</span>
-                        <span>Isentam o profissional credenciado executor dos trabalhos técnicos de qualquer responsabilidade civil ou criminal decorrente de futuras contestações sobre a titularidade ou localização física das divisas históricas acordadas.</span>
-                    </div>
-                </div>
-
-                <p>Por ser a expressão pura da verdade, firmam a presente em duas vias de igual teor.</p>
-                
-                <p class="text-left pt-8 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
-            </div>
-        </div>
-        {bloco_assinaturas}
-    </div>
-</body>
-</html>
-"""
+        template = carregar_template("declaracao_responsabilidade.html")
+        replacements = {
+            "{nome_lote}": nome_lote,
+            "{comarca}": comarca,
+            "{qualificacao_completa}": qualificacao_completa,
+            "{area_ha}": f"{dados['mat']['area_ha']:.4f}" if dados['mat']['area_ha'] else "0,0000",
+            "{numero_matricula}": dados["mat"]["numero_matricula"] or "_____",
+            "{municipio}": dados["prop"]["municipio"] or "_____",
+            "{uf}": dados["prop"]["uf"] or "PR",
+            "{data_extenso}": data_extenso,
+            "{bloco_assinaturas}": bloco_assinaturas
+        }
+        html_content = template
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value))
         return html_content
 
     @staticmethod
@@ -474,114 +414,315 @@ class CartorioReportGenerator:
 
         data_extenso = obter_data_extenso()
 
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laudo Técnico e Memorial Justificativo - {nome_lote}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {{ font-family: 'Inter', sans-serif; }}
-        @media print {{
-            @page {{ size: A4; margin: 2cm 2cm; }}
-            .no-print {{ display: none !important; }}
-            body {{ background-color: white !important; padding: 0 !important; }}
-            .page {{ box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }}
-        }}
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Laudo Técnico de Agrimensura</h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Memorial Técnico e Metodologia de Campo</p>
-            </div>
-        </div>
-        <button onclick="window.print()" class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
-            Imprimir Documento
-        </button>
-    </div>
-
-    <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        <div>
-            <div class="flex flex-col items-center pb-2 mb-8 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
-                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
-            </div>
-
-            <div class="text-center mb-6">
-                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">LAUDO TÉCNICO E MEMORIAL JUSTIFICATIVO</h2>
-            </div>
-
-            <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
-                <p>O presente Laudo Técnico tem por objetivo descrever e justificar as operações de campo e escritório realizadas para o Georreferenciamento e Retificação Territorial do imóvel rural <strong>{nome_lote}</strong>, com área total medida de <strong>{dados["mat"]["area_ha"]:.4f} ha</strong>, pertencente a <strong>{proprietarios_str}</strong>, localizado no município de {dados["prop"]["municipio"]}/PR, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong>.</p>
-                
-                <div>
-                    <h3 class="font-bold text-slate-900 mb-1">1. Metodologia de Posicionamento e Coleta de Dados</h3>
-                    <p>Para a coleta de coordenadas dos vértices limites do perímetro do imóvel, utilizou-se o método de posicionamento por satélite GNSS com o equipamento <strong>{equipamento_f}</strong>. O posicionamento baseou-se em marcos homologados e triangulados, com posterior processamento científico através da submissão à API de pós-processamento geodésico do IBGE (IBGE-PPP). Os vértices do tipo Rover foram determinados de forma estática e RTK, respeitando a precisão centimétrica metrológica M-Sigma em todas as leituras de sigmas horizontais e verticais.</p>
-                </div>
-                
-                <div>
-                    <h3 class="font-bold text-slate-900 mb-1">2. Padrões Cartográficos e Datum de Referência</h3>
-                    <p>O processamento topográfico final e a planta do imóvel rural foram gerados de forma rigorosa no Sistema Geodésico de Referência <strong>SIRGAS 2000</strong>, projetado em coordenadas planas **UTM Zona 22S (EPSG:31982)** com Meridiano Central 51° W e Elipsoide de Referência GRS80.</p>
-                </div>
-
-                <div>
-                    <h3 class="font-bold text-slate-900 mb-1">3. Vértices Homologados Cadastrados ({total_pontos} pontos)</h3>
-                    <div class="max-h-[300px] overflow-y-auto border border-slate-200 rounded-lg my-2 scrollbar-thin">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-50 text-[9px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                                    <th class="px-2 py-1.5">Vértice</th>
-                                    <th class="px-2 py-1.5 text-center">Tipo</th>
-                                    <th class="px-2 py-1.5 text-right">Este (X)</th>
-                                    <th class="px-2 py-1.5 text-right">Norte (Y)</th>
-                                    <th class="px-2 py-1.5 text-right">Altitude (Z)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {tabela_pontos_html}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="font-bold text-slate-900 mb-1">4. Parecer e Conclusão Técnico-Legal</h3>
-                    <p>ATESTO, na qualidade de responsável técnico credenciado no INCRA sob o código <strong>{credencial_incra}</strong>, sob o amparo da TRT/ART nº <strong>{final_trt}</strong> quitada em <strong>{data_trt_f}</strong>, que os limites descritos representam com exatidão física a realidade de posse de fato consolidada em campo. Não há indícios ou detecção de sobreposição de coordenadas com áreas vizinhas certificadas no SIGEF.</p>
-                </div>
-
-                <p class="text-left pt-6 font-medium">{dados["prop"]["municipio"]}-{dados["prop"]["uf"]}, {data_extenso}.</p>
-            </div>
-        </div>
-
-        <div class="mt-12 flex flex-col items-center self-center break-inside-avoid">
-            <div class="w-[280px] border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
-            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">{conselho_exibicao}</div>
-            <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">Credencial INCRA: {credencial_incra}</div>
-            <div class="text-[9px] text-slate-400 text-center font-mono mt-0.5">{endereco_prof}</div>
-        </div>
-    </div>
-</body>
-</html>
-"""
+        template = carregar_template("laudo_tecnico.html")
+        replacements = {
+            "{nome_lote}": nome_lote,
+            "{area_ha}": f"{dados['mat']['area_ha']:.4f}" if dados['mat']['area_ha'] else "0,0000",
+            "{numero_matricula}": dados["mat"]["numero_matricula"] or "_____",
+            "{proprietarios_str}": proprietarios_str,
+            "{municipio}": dados["prop"]["municipio"] or "_____",
+            "{uf}": dados["prop"]["uf"] or "PR",
+            "{equipamento_f}": equipamento_f,
+            "{total_pontos}": total_pontos,
+            "{tabela_pontos_html}": tabela_pontos_html,
+            "{credencial_incra}": credencial_incra,
+            "{final_trt}": final_trt,
+            "{data_trt_f}": data_trt_f,
+            "{data_extenso}": data_extenso,
+            "{nome_prof}": nome_prof or "_____",
+            "{conselho_exibicao}": conselho_exibicao,
+            "{endereco_prof}": endereco_prof
+        }
+        html_content = template
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value))
         return html_content
 
     @staticmethod
-    def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_id: int) -> str:
+    def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: int, c_nome: str, c_matricula: str) -> tuple[str, dict]:
+        """Gera o HTML da Página 2 (Anexo Gráfico) e os dados de coordenadas do Leaflet"""
+        try:
+            # 1. Carregar todos os pontos da matrícula
+            todos_pontos = execute_query(
+                """
+                SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono
+                FROM pontos
+                WHERE levantamento_id = ? AND matricula_id = ?
+                ORDER BY ordem_caminhamento ASC
+                """,
+                params=(lev_id, matricula_id),
+                fetch_all=True
+            )
+            if not todos_pontos:
+                return "", {}
+                
+            # 2. Filtrar pontos com coordenadas válidas e mapear em dicionário
+            pts_validos = []
+            lons = []
+            for row in todos_pontos:
+                pt = dict(row)
+                lat = pt["lat_corrigido"] if pt["lat_corrigido"] is not None else pt["lat"]
+                lon = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
+                if lat is not None and lon is not None:
+                    pt["_lat"] = lat
+                    pt["_lon"] = lon
+                    pts_validos.append(pt)
+                    lons.append(lon)
+                    
+            if len(pts_validos) < 3:
+                return "", {}
+                
+            lon_medio = sum(lons) / len(lons)
+            zona_utm = int((lon_medio + 180) / 6) + 1
+            
+            pts_coords = {pt["id"]: (pt["_lat"], pt["_lon"], pt["nome_vertice"]) for pt in pts_validos}
+            
+            # 3. Montar poligonal principal ordenada (exclui ignorar_poligono = 1)
+            poligono_coords = []
+            for pt in pts_validos:
+                if (pt["ignorar_poligono"] or 0) == 0:
+                    poligono_coords.append([pt["_lat"], pt["_lon"]])
+                    
+            if len(poligono_coords) < 2:
+                return "", {}
+                
+            # 4. Buscar segmentos do confrontante ordenados por ordem de caminhamento do ponto inicial
+            rows_segs = execute_query(
+                """
+                SELECT s.ponto_inicio_id, s.ponto_fim_id, pi.ordem_caminhamento as ini_ordem
+                FROM segmentos s
+                JOIN pontos pi ON s.ponto_inicio_id = pi.id
+                WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
+                """,
+                params=(lev_id, matricula_id, confrontante_id),
+                fetch_all=True
+            )
+            
+            segs = [dict(r) for r in rows_segs]
+            if segs:
+                segs.sort(key=lambda x: x["ini_ordem"] if x["ini_ordem"] is not None else 0)
+                extremidade_inicial_id = segs[0]["ponto_inicio_id"]
+                extremidade_final_id = segs[-1]["ponto_fim_id"]
+            else:
+                extremidade_inicial_id = None
+                extremidade_final_id = None
+            
+            lindeira_coords = []
+            lindeira_pontos = []
+            pts_vistos = set()
+            
+            for s in segs:
+                p_ini_id = s["ponto_inicio_id"]
+                p_fim_id = s["ponto_fim_id"]
+                
+                if p_ini_id in pts_coords and p_fim_id in pts_coords:
+                    lat1, lon1, nome1 = pts_coords[p_ini_id]
+                    lat2, lon2, nome2 = pts_coords[p_fim_id]
+                    
+                    # Segmento linear entre início e fim
+                    lindeira_coords.append([[lat1, lon1], [lat2, lon2]])
+                    
+                    if p_ini_id not in pts_vistos:
+                        exibir = (p_ini_id == extremidade_inicial_id or p_ini_id == extremidade_final_id)
+                        lindeira_pontos.append({"coords": [lat1, lon1], "nome": nome1, "exibir_nome": exibir})
+                        pts_vistos.add(p_ini_id)
+                    if p_fim_id not in pts_vistos:
+                        exibir = (p_fim_id == extremidade_inicial_id or p_fim_id == extremidade_final_id)
+                        lindeira_pontos.append({"coords": [lat2, lon2], "nome": nome2, "exibir_nome": exibir})
+                        pts_vistos.add(p_fim_id)
+                        
+            if not lindeira_coords:
+                return "", {}
+                
+            map_id = f"map_confrontante_{confrontante_id}"
+            
+            html = f"""
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+    <div class="page bg-white text-slate-800 pt-8 pb-16 px-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
+        <!-- CABEÇALHO DA EMPRESA -->
+        <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+            <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+            <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários LTDA</div>
+        </div>
+        
+        <div class="text-center mb-4">
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">ANEXO GRÁFICO - CROQUI DE LIMITES</h2>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Confrontante: <strong class="text-slate-900">{c_nome}</strong> | Matrícula: <strong class="text-slate-900">{c_matricula}</strong></p>
+        </div>
+
+        <!-- Container do Mapa Leaflet -->
+        <div id="{map_id}" class="w-full h-[580px] border border-slate-300 rounded-xl shadow-sm bg-slate-100 overflow-hidden relative break-inside-avoid">
+            <!-- Indicador de Carregamento -->
+            <div id="loader_{map_id}" class="absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
+                <div class="flex flex-col items-center gap-2">
+                    <svg class="animate-spin h-8 w-8 text-[#0284c7]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Carregando Imagens de Satélite...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legenda do Mapa -->
+        <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex justify-around text-[10px] text-slate-600 font-bold uppercase tracking-wider break-inside-avoid">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-0.5 border-t-2 border-dashed border-[#94a3b8]"></div>
+                <span>Limite Geral do Imóvel</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-1 bg-[#0284c7] rounded"></div>
+                <span class="text-[#0284c7]">Divisa Lindeira</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full border-[1.5px] border-[#0284c7] bg-white"></div>
+                <span>Vértice de Divisa</span>
+            </div>
+        </div>
+
+        <div class="mt-6 text-[8px] text-slate-400 text-justify leading-relaxed break-inside-avoid">
+            * Este croqui possui caráter puramente ilustrativo para fins de anuência de divisa lindeira, não substituindo o memorial descritivo oficial de georreferenciamento nem as plantas técnicas aprovadas pelo INCRA/SIGEF. As coordenadas apresentadas baseiam-se na projeção UTM Zone {zona_utm}S sob o datum de referência SIRGAS 2000.
+         </div>
+    </div>
+    <!-- FIM DE FOLHAS CONSOLIDADAS -->
+            """
+            
+            map_data = {
+                "id": map_id,
+                "poligono": poligono_coords,
+                "lindeira": lindeira_coords,
+                "lindeira_pontos": lindeira_pontos
+            }
+            
+            return html, map_data
+        except Exception as e:
+            logger.error(f"Erro ao gerar anexo gráfico da confrontação: {e}", exc_info=True)
+            return "", {}
+
+    @staticmethod
+    def gerar_js_inicializacao_mapas(lista_mapas_data: list[dict]) -> str:
+        """Gera la tag <script> para carregar o Leaflet com imagens de satélite do Google em segundo plano"""
+        import json
+        mapas_json = json.dumps(lista_mapas_data)
+        
+        js_code = f"""
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {{
+            const mapasData = {mapas_json};
+            
+            mapasData.forEach(function(m) {{
+                try {{
+                    const map = L.map(m.id, {{
+                        zoomControl: false,
+                        attributionControl: false,
+                        fadeAnimation: false,
+                        zoomAnimation: false
+                    }});
+                    
+                    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={{x}}&y={{y}}&z={{z}}', {{
+                        maxZoom: 20,
+                        crossOrigin: true
+                    }});
+                    
+                    googleSat.addTo(map);
+                    
+                    if (m.poligono && m.poligono.length > 0) {{
+                        L.polygon(m.poligono, {{
+                            color: '#94a3b8',
+                            fill: false,
+                            weight: 1.5,
+                            dashArray: '4, 4'
+                        }}).addTo(map);
+                    }}
+                    
+                    const bounds = L.latLngBounds();
+                    if (m.lindeira && m.lindeira.length > 0) {{
+                        m.lindeira.forEach(function(seg) {{
+                            L.polyline(seg, {{
+                                color: '#0284c7',
+                                weight: 4.5,
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }}).addTo(map);
+                            bounds.extend(seg[0]);
+                            bounds.extend(seg[1]);
+                        }});
+                    }}
+                    
+                    if (m.lindeira_pontos && m.lindeira_pontos.length > 0) {{
+                        m.lindeira_pontos.forEach(function(pt) {{
+                            const marker = L.circleMarker(pt.coords, {{
+                                radius: 2.0,
+                                color: '#0284c7',
+                                fillColor: '#ffffff',
+                                fillOpacity: 1.0,
+                                weight: 1.5
+                            }}).addTo(map);
+                            
+                            if (pt.exibir_nome) {{
+                                marker.bindTooltip(pt.nome, {{
+                                    permanent: true,
+                                    direction: 'top',
+                                    className: 'custom-tooltip',
+                                    offset: [0, -5]
+                                }});
+                            }}
+                        }});
+                    }}
+                    
+                    if (bounds.isValid()) {{
+                        map.fitBounds(bounds, {{
+                            padding: [40, 40],
+                            maxZoom: 18
+                        }});
+                    }} else if (m.poligono && m.poligono.length > 0) {{
+                        map.fitBounds(m.poligono, {{
+                            padding: [20, 20]
+                        }});
+                    }}
+                    
+                    let tilesLoaded = 0;
+                    map.on('tileload', function() {{
+                        tilesLoaded++;
+                        if (tilesLoaded >= 3) {{
+                            const loader = document.getElementById("loader_" + m.id);
+                            if (loader) loader.style.display = "none";
+                        }}
+                    }});
+                    
+                    setTimeout(function() {{
+                        const loader = document.getElementById("loader_" + m.id);
+                        if (loader) loader.style.display = "none";
+                    }}, 1500);
+                    
+                }} catch (e) {{
+                    console.error("Erro ao inicializar mapa " + m.id + ": ", e);
+                    const loader = document.getElementById("loader_" + m.id);
+                    if (loader) {{
+                        loader.innerHTML = '<span class="text-xs text-red-500 font-bold">Falha ao carregar imagens do mapa.</span>';
+                    }}
+                }}
+            }});
+        }});
+    </script>
+        """
+        return js_code
+
+    @staticmethod
+    def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_id: int, apenas_corpo: bool = False) -> str:
         dados = obter_dados_comuns(lev_id, matricula_id)
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
         comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
         proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
         proprietarios_str = " e ".join(proprietarios_list)
         
+        # Dados do Profissional para a Cláusula de Homologação
+        nome_prof = dados["lev"]["nome_profissional"]
+        registro_prof = dados["lev"]["registro_profissional"]
+        conselho_prof = dados["lev"]["conselho_profissional"] or "CFTA"
+        credencial_incra = dados["lev"]["codigo_credenciado"] or "Não Informado"
+        final_trt = dados["lev"].get("lev_numero_trt") or "____________________"
+
         row_conf = execute_query(
             """
             SELECT id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
@@ -614,12 +755,13 @@ class CartorioReportGenerator:
         regime = conf.get("regime_bens") or "Não Informado"
         is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil
         
-        # Implementação Estrita da Regra de Ouro para a Qualificação da Comunhão Parcial
         if is_casado:
             conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
-            if "parcial" in regime.lower():
+            # Se for regime de separação de bens, o cônjuge é apenas citado sem qualificação completa.
+            if "separacao" in regime.lower() or "separação" in regime.lower():
                 casado_info = f", casado(a) sob o regime de {regime} com {conj_n}"
             else:
+                # Nos outros regimes (como parcial ou universal), qualifica completamente.
                 conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
                 conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
                 casado_info = f", casado(a) sob o regime de {regime} com {conj_n}, portador(a) do RG nº {conj_rg} e inscrito(a) no CPF nº {conj_cpf}"
@@ -628,92 +770,172 @@ class CartorioReportGenerator:
             
         qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, inscrito no CPF nº {c_cpf} e portador do RG nº {c_rg}'
 
-        # Geração da Nova Tabela de Divisas Topográfica
         tabela_divisas_html = gerar_tabela_divisas_html(matricula_id, confrontante_id)
 
-        bloco_assinaturas = '<div class="mt-20 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full break-inside-avoid">'
+        bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
+        
+        # 1. Assinatura dos Proprietários Requerentes (Imóvel que está sendo georreferenciado)
+        for owner in dados["owners"]:
+            bloco_assinaturas += f"""
+            <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
+                <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{owner["nome_completo"]}</div>
+                <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+            </div>
+            """
+
+        # 2. Assinatura do Confrontante Anuente
         bloco_assinaturas += f"""
         <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
             <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
             <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{c_nome}</div>
             <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
-            <div class="text-[9px] text-slate-400 text-center italic mt-1">(Reconhecer firma)</div>
         </div>
         """
-        if is_casado:
+        # Só assina se for casado e NÃO for sob o regime de separação de bens.
+        if is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower()):
             conj_n = conf.get("nome_conjuge") or "Cônjuge do Confrontante"
             bloco_assinaturas += f"""
             <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
                 <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
                 <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{conj_n}</div>
                 <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
-                <div class="text-[9px] text-slate-400 text-center italic mt-1">(Reconhecer firma)</div>
             </div>
             """
         bloco_assinaturas += "</div>"
         data_extenso = obter_data_extenso()
 
-        html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Declaração de Anuência do Confrontante - {c_nome}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {{ font-family: 'Inter', sans-serif; }}
-        @media print {{
-            @page {{ size: A4; margin: 2cm 2cm; }}
-            .no-print {{ display: none !important; }}
-            body {{ background-color: white !important; padding: 0 !important; }}
-            .page {{ box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }}
-        }}
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        # Gerar o anexo gráfico (Página 2) e mapa Leaflet
+        mapa_divisa_leaflet, map_data = CartorioReportGenerator.gerar_anexo_grafico_html(
+            lev_id, matricula_id, confrontante_id, c_nome, c_matricula
+        )
+        
+        script_inicializacao_mapas = ""
+        if map_data:
+            script_inicializacao_mapas = CartorioReportGenerator.gerar_js_inicializacao_mapas([map_data])
+
+        html_content = carregar_template("declaracao_anuencia.html")
+
+        # Substituições lineares por .replace() para proteger as chaves do Tailwind CSS
+        html_content = html_content.replace("{c_nome}", c_nome)
+        html_content = html_content.replace("{municipio}", dados["prop"]["municipio"])
+        html_content = html_content.replace("{data_extenso}", data_extenso)
+        html_content = html_content.replace("{qualificacao_confrontante}", qualificacao_confrontante)
+        html_content = html_content.replace("{c_matricula}", c_matricula)
+        html_content = html_content.replace("{nome_lote}", nome_lote)
+        html_content = html_content.replace("{proprietarios_str}", proprietarios_str)
+        html_content = html_content.replace("{numero_matricula}", dados["mat"]["numero_matricula"])
+        html_content = html_content.replace("{comarca}", comarca)
+        html_content = html_content.replace("{tabela_divisas_html}", tabela_divisas_html)
+        html_content = html_content.replace("{mapa_divisa_leaflet}", mapa_divisa_leaflet)
+        html_content = html_content.replace("{script_inicializacao_mapas}", script_inicializacao_mapas)
+        html_content = html_content.replace("{bloco_assinaturas}", bloco_assinaturas)
+        
+        # Injeção das chaves do Responsável Técnico
+        html_content = html_content.replace("{nome_profissional}", nome_prof)
+        html_content = html_content.replace("{conselho_profissional}", conselho_prof)
+        html_content = html_content.replace("{registro_profissional}", registro_prof)
+        html_content = html_content.replace("{credencial_incra}", credencial_incra)
+        html_content = html_content.replace("{final_trt}", final_trt)
+
+        if apenas_corpo:
+            import re
+            match = re.search(r'(<!-- FOLHA A4.*?<!-- FIM DE FOLHAS CONSOLIDADAS -->)', html_content, re.DOTALL)
+            if match:
+                return match.group(1)
+            return html_content
+
+        return html_content
+
+    @staticmethod
+    def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:
+        if confrontantes_ids:
+            try:
+                ids = [int(x.strip()) for x in confrontantes_ids.split(",") if x.strip().isdigit()]
+            except Exception:
+                raise ValueError("Lista de confrontantes_ids em formato inválido.")
+        else:
+            rows = execute_query(
+                "SELECT DISTINCT confrontante_id FROM segmentos WHERE matricula_id = ? AND confrontante_id IS NOT NULL",
+                params=(matricula_id,),
+                fetch_all=True
+            )
+            ids = [r["confrontante_id"] for r in rows]
+            
+        if not ids:
+            raise ValueError("Nenhum confrontante com limites definidos encontrado para esta matrícula.")
+            
+        dados = obter_dados_comuns(lev_id, matricula_id)
+        num_mat = dados["mat"]["numero_matricula"] or "SEM_MATRICULA"
+        
+        template_base = carregar_template("declaracao_anuencia.html")
+        
+        corpos_paginas = []
+        lista_mapas_data = []
+        for c_id in ids:
+            try:
+                corpo = CartorioReportGenerator.gerar_declaracao_anuencia_html(lev_id, matricula_id, c_id, apenas_corpo=True)
+                corpos_paginas.append(corpo)
+                
+                # Resgata metadados para construir mapa Leaflet correspondente
+                row_conf = execute_query("SELECT nome, matricula_imovel FROM confrontantes WHERE id = ?", params=(c_id,), fetch_one=True)
+                if row_conf:
+                    c_nome = row_conf["nome"] or ""
+                    c_mat = row_conf["matricula_imovel"] or ""
+                    _, map_data = CartorioReportGenerator.gerar_anexo_grafico_html(lev_id, matricula_id, c_id, c_nome, c_mat)
+                    if map_data:
+                        lista_mapas_data.append(map_data)
+            except Exception as e:
+                logger.warning(f"Ignorado confrontante {c_id} no lote de anuências devido a erro: {e}")
+                
+        if not corpos_paginas:
+            raise ValueError("Não foi possível gerar nenhuma anuência para as confrontações indicadas.")
+            
+        # Ajusta título e barra de ações
+        template_base = template_base.replace(
+            "<title>Declaração de Anuência do Confrontante - {c_nome}</title>",
+            f"<title>Lote de Anuências - Matrícula {num_mat}</title>"
+        )
+        
+        barra_lote_html = """<!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
             </div>
             <div>
-                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência do Confrontante</h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Termo Consolidado de Respeito de Divisas</p>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Lote de Anuências do Confrontante</h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Múltiplos Termos de Respeito de Divisas (Matrícula {numero_matricula})</p>
             </div>
         </div>
-        <button onclick="window.print()" class="px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
-            Imprimir Documento
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Todos em Lote
         </button>
     </div>
-
-    <div class="page bg-white text-slate-800 p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
-        <div>
-            <div class="flex flex-col items-center pb-2 mb-12 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
-                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários</div>
-            </div>
-
-            <div class="text-center mb-8">
-                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE ANUÊNCIA E RESPEITO DE LIMITES</h2>
-            </div>
-
-            <div class="space-y-6 text-xs text-justify leading-relaxed text-slate-700">
-                <p>{dados["prop"]["municipio"]}/PR, {data_extenso}.</p>
-                <p>{qualificacao_confrontante}, na qualidade de proprietário e/ou possuidor legítimo da área confrontante registrada sob a Matrícula nº <strong>{c_matricula}</strong>, declara expressamente a quem possa interessar, sob as penas da lei, que concorda integralmente com as linhas de limites e demarcações territoriais executadas para o Georreferenciamento do imóvel rural vizinho denominado <strong>{nome_lote}</strong>, de propriedade de <strong>{proprietarios_str}</strong>, sob a Matrícula nº <strong>{dados["mat"]["numero_matricula"]}</strong> deste Registro de Imóveis da Comarca de {comarca}.</p>
-                
-                <p>O declarante atesta que a linha de divisa comum entre as propriedades corresponde ao caminhamento topográfico detalhado na tabela técnica abaixo:</p>
-                
-                {tabela_divisas_html}
-                
-                <p>Declara, outrossim, que a referida linha divisória respeita os limites históricos consolidados de posse e que não houve nenhuma invasão, turbação ou alteração física de marcos e cercas comuns durante a execução técnica dos trabalhos geodésicos em campo.</p>
-                
-                <p>Por ser verdade, firma a presente declaração para que produza seus devidos efeitos legais junto ao Oficial do Registro de Imóveis competente.</p>
-            </div>
-        </div>
-        {bloco_assinaturas}
-    </div>
-</body>
-</html>
-"""
-        return html_content
+    <!-- BARRA_ACOES_FIM -->"""
+        
+        import re
+        template_base = re.sub(r'<!-- BARRA_ACOES_INICIO -->.*?<!-- BARRA_ACOES_FIM -->', barra_lote_html, template_base, flags=re.DOTALL)
+        template_base = template_base.replace("{numero_matricula}", num_mat)
+        
+        idx_corpo_ini = template_base.find("<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->")
+        if idx_corpo_ini == -1:
+            idx_corpo_ini = template_base.find("<div\n        class=\"page")
+            
+        header_html = template_base[:idx_corpo_ini]
+        lote_corpos = "\n    <!-- FIM DE FOLHA / QUEBRA DE PÁGINA -->\n".join(corpos_paginas)
+        
+        # Gerar o JS de inicialização de todos os mapas consolidado
+        script_inicializacao_mapas = ""
+        if lista_mapas_data:
+            script_inicializacao_mapas = CartorioReportGenerator.gerar_js_inicializacao_mapas(lista_mapas_data)
+            
+        footer_html = f"\n{script_inicializacao_mapas}\n</body>\n</html>"
+        
+        return header_html + lote_corpos + footer_html

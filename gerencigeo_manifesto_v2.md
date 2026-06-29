@@ -1,6 +1,6 @@
 # 🛰️ GerenciGeo — Manifesto de Especificação Técnica e Arquitetura
 **Padrão Arquitetural:** Field-to-Finish Integrado (FastAPI + SQLite + Tailwind/TS + Toolchain Topografia)
-**Versão do Documento:** 2.3.0
+**Versão do Documento:** 2.5.0
 **Status do Ecossistema:** Estrutura Estratégica Consolidada
 
 Este documento estabelece as diretrizes arquiteturais, a modelagem de dados e as regras de negócio do ecossistema **GerenciGeo**. Ele atua como a única fonte de verdade para o desenvolvimento do sistema, devendo ser interpretado por agentes de IA (como o Antigravity) e desenvolvedores para garantir a consistência absoluta de código entre as camadas de persistência, negócio e interface.
@@ -371,6 +371,12 @@ O georreferenciamento de um imóvel rural é estruturado operacionalmente no Ger
    - Um levantamento no sistema navega estritamente por três estados sequenciais: `'EM_ANDAMENTO'`, `'CONCLUIDO'` e `'ARQUIVADO'`.
    - **Tranca de Segurança de Cold Storage (Read-Only Lock):** Projetos que possuam seu status alterado para `'ARQUIVADO'` tornam-se imediatamente imutáveis na camada de negócio. A API do servidor implementa um middleware (`verificar_propriedade_arquivada` in `api.py`) que intercepta rotas de escrita (`POST`, `PUT`, `DELETE`) para pontos, segmentos e confrontantes daquela propriedade. Se houver tentativa de escrita, o servidor retorna instantaneamente um código de status `HTTP 403 Forbidden` informando que a operação está bloqueada devido à trava jurídica de segurança de cold storage.
 
+### 2.5.1 Área de Triagem Espacial e Testador de Arquivos de Pontos (V2.5)
+- O GerenciGeo fornece um painel temporário de triagem espacial de pontos que permite ao operador testar arquivos `.txt` (layouts Topcon ou RTK) e ver sua plotagem e topologia aproximada em um mapa Leaflet antes de associar permanentemente os dados a qualquer levantamento cadastrado.
+- **Ingestão Volátil In-Memory**: O endpoint `POST /pontos/analisar-txt` recebe o arquivo, um fuso UTM e a opção de inversão (`inverter_ne`), realiza o parse in-memory e a conversão matemática UTM -> Lat/Lon geodésicas SIRGAS 2000, retornando a lista estruturada de pontos sem persistir qualquer informação no banco SQLite.
+- **Inversão de Coordenadas N/E**: Para acomodar layouts de softwares que exportam na ordem Leste/Norte (X/Y) em vez de Norte/Leste (Y/X), tanto o endpoint temporário quanto a rota oficial de importação (`POST /levantamentos/{id}/importar-txt`) suportam o parâmetro booleano `inverter_ne` para realizar a troca de posição das colunas no ato da leitura.
+- **Mapeamento e Confirmação de Destino**: O frontend exibe os pontos no mapa com markers estilizados baseados em suas funções e plota a polilinha perimetral tracejada de fechamento. O usuário escolhe o levantamento destino ativo, a matrícula e a base opcional e dispara a rota oficial de importação do levantamento (`POST /levantamentos/{id}/importar-txt`), garantindo a rastreabilidade e consistência relacional final.
+
 ### 2.6 Módulo de Faixa de Fronteira e Ratificação Jurídica
 
 Como o imóvel rural localiza-se na faixa de fronteira internacional (fronteira Brasil-Paraguai), sua retificação exige a anuência e ratificação dos órgãos de Defesa Nacional. O GerenciGeo automatiza a emissão destas peças jurídicas com rigor determinístico.
@@ -659,7 +665,7 @@ Para garantir a otimização de espaço e a visualização correta do painel pri
 
 ---
 
-### 4.9 Refatoração Modular de Rotas, Auditoria de Pontos e Prevenção de Reimportação (v2.3.0)
+### 4.9 Refatoração Modular de Rotas, Auditoria de Pontos e Prevenção de Reimportação (v2.4.0)
 
 O ecossistema evoluiu para suportar uma estrutura escalável de endpoints e uma camada rica de auditoria visual na mesa de trabalho, mitigando erros operacionais e garantindo o rastreamento dos dados brutos e homologados de forma precisa.
 
@@ -689,9 +695,145 @@ A interface de Homologação expõe o painel **"🔍 Auditoria de Pontos no Banc
 *   **Agrupamento e Destaques Visuais:** Os pontos são agrupados por arquivo (`planilha_origem`). Se um código de vértice for identificado em múltiplos arquivos de origem simultaneamente (duplicidade geodésica perigosa), a linha do ponto adquire a classe `bg-rose-500/10 text-rose-300` e a seção correspondente exibe uma badge de alerta.
 *   **Exclusão de Lote Dinâmica:** Cada grupo possui um botão de remoção rápida que faz a chamada `DELETE /levantamentos/{id}/planilhas-homologadas?planilha_origem=...`, permitindo que o operador limpe importações incorretas e reorganize a mesa de trabalho sem comprometer a integridade referencial dos dados corretos.
 
-#### D. Refatoração Modular e Divisão em Submódulos da Mesa de Trabalho (Frontend)
-Para melhorar a legibilidade e escalabilidade do frontend da Mesa de Trabalho, o arquivo monolítico de mais de 4.100 linhas (`mesa_trabalho.ts`) foi desacoplado de forma modular em 3 submódulos distintos baseados no padrão de **Contexto Compartilhado** sob o diretório `frontend/src/views/mesa_trabalho/`:
+#### D. Refatoração Modular e Divisão em Submódulos da Mesa de Trabalho (Frontend) (v2.4.0)
+
+Para melhorar a legibilidade e escalabilidade do frontend da Mesa de Trabalho, o arquivo monolítico de mais de 4.100 linhas (`mesa_trabalho.ts`) foi desacoplado de forma modular em submódulos distintos baseados no padrão de **Contexto Compartilhado** sob o diretório `frontend/src/views/mesa_trabalho/`:
 1.  **Interface de Contexto (`mesa_trabalho_context.ts`):** Estabelece a interface `MesaTrabalhoContext`, contendo o estado unificado (IDs selecionados, lista de pontos, flags de visualização) e as funções de callbacks centrais (carregar detalhes do levantamento, alternar etapas de UI, gerenciar abas de matrículas), prevenindo dependências circulares de imports no Vite.
 2.  **Mesa Geodésica (`mesa_geodesica.ts`):** Centraliza a lógica de triagem e ingestão GNSS da primeira etapa de UI (`'geoprocessamento'`), englobando a tabela de pontos de campo brutos/corrigidos, o motor linear/ECEF de translação manual de bases e a fila de arquivos de uploads.
-3.  **Organizador de Perímetro (`organizador_perimetro.ts`):** Contém a lógica relacional e cartorial da aba `'cartorio'`. Lida com a ordenação perimetral de vértices, reordenação simplificada por arraste/clique no mapa, qualificação de confrontantes jurídicos em nível de segmentos, controle de anuências, processamento de shapefiles de divisas, e emissão de laudos técnicos/requerimentos vinculando dados de TRT CFTA. Também faz a plotagem da poligonal de vértices homologados consumindo dinamicamente o endpoint `/pontos-homologados`.
-4.  **Histórico de Auditoria (`auditoria_historico.ts`):** Responsável por exibir a timeline de logs de campo, auditorias de translações geodésicas aplicadas, e deleção física de arquivos GNSS no Windows Workspace.
+3.  **Organizador de Perímetro (`organizador_perimetro.ts`):** Contém a lógica relacional e de divisas perimetrais da aba `'cartorio'`. Lida com a ordenação perimetral de vértices, reordenação simplificada por arraste/clique no mapa e a tabela lateral de segmentos de divisa com adicionador rápido de confrontante.
+4.  **Gerador de Documentos (`gerador_documentos.ts`):** Controlador dedicado para a nova Etapa 3 (`'documentos'`). Centraliza as lógicas do painel de homologação do SIGEF (upload de planilhas aprovadas, lista de vértices homologados), auditoria de duplicatas no banco de pontos, qualificação detalhada de confrontantes (relação civil e máquina de estados conjugais) e botões de emissão de peças técnicas (Requerimento, Declaração, Laudo e Termo de Anuência).
+5.  **Histórico de Auditoria (`auditoria_historico.ts`):** Responsável por exibir a timeline de logs de campo, auditorias de translações geodésicas aplicadas, e deleção física de arquivos GNSS no Windows Workspace (aba `'auditoria'`).
+
+---
+
+### 4.10 Preenchimento Reativo de Confrontantes por CPF e Prevenção de Mesclagem de Nomes Repetidos (v2.4.1)
+
+Para melhorar a produtividade de cadastro e evitar erros cadastrais ao qualificar proprietários de imóveis lindeiros, foram introduzidos os seguintes mecanismos reativos e correções de agrupamento na Mesa de Trabalho:
+
+#### A. Ajuste de Agrupamento de Confrontantes Ativos
+A query que seleciona a lista de confrontantes ativos para anuência e qualificação de uma matrícula (`GET /levantamentos/{id}/matriculas/{matricula_id}/confrontantes-ativos`) foi corrigida para agrupar as correspondências por ID físico do banco de dados (`GROUP BY c.id`) em vez de agrupar por nome normatizado (`GROUP BY UPPER(TRIM(c.nome))`). Isto garante que:
+- Múltiplos confrontantes com nomes idênticos associados a segmentos distintos da divisa sejam preservados independentemente no banco de dados e na interface do usuário.
+- O select de anuência/qualificação exponha opções individuais para cada proprietário confrontante lindeiro, sem mesclagens ou desaparecimentos indesejados.
+
+#### B. Endpoint Global de Busca por CPF/CNPJ
+Foi adicionada a rota `GET /confrontantes/buscar-por-cpf` que aceita um parâmetro de consulta `cpf`. O backend executa a limpeza de pontuações e traços, localizando o registro de confrontante mais recente na tabela `confrontantes` que possua dados preenchidos válidos e retornando suas qualificações completas (nome, nacionalidade, profissão, estado civil, regime de bens, dados do cônjuge e endereço).
+
+#### C. Preenchimento Automático Reativo no Frontend
+No formulário de edição de confrontante (`gerador_documentos.ts`), foi acoplado um listener ao evento `blur` do campo de CPF (`#input-conf-cpf`). Ao preencher um CPF/CNPJ válido e sair do campo, o sistema:
+1. Consulta assincronamente a rota de busca por CPF.
+2. Se dados preenchidos forem localizados, auto-preenche todos os campos cadastrais do formulário, incluindo opcionalmente a matrícula do imóvel (apenas se esta estiver em branco no formulário para evitar sobrescrever a designação de um lote vizinho específico).
+3. Aciona reativamente a máquina de estados civis (`configurarMaquinadeEstadosCivil`) para sincronizar a interface e visibilidade dos campos de cônjuge e regime de bens.
+4. Exibe uma notificação visual animada de sucesso abaixo do campo do CPF por 5 segundos.
+
+---
+
+### 4.11 Sincronização e Modularização do Motor de Anuências e RT (v2.4.2)
+
+O motor de geração de relatórios de cartório foi atualizado em `business/cartorio_generator.py` para sincronizar o arquivo de anuência física com as novas chaves estruturadas de design e metadados:
+
+#### A. Adoção da Tabela Topográfica de Divisas
+- Foi eliminada a antiga variável descritiva textual `{divisa_descricao_texto}`.
+- Foi implementado o motor de tabelas topográficas nativas (`gerar_tabela_divisas_html` e `obter_segmentos_detalhados_confrontante`) na Declaração de Anuência do Confrontante (`declaracao_anuencia.html`), que gera dinamicamente uma tabela estruturada contendo os pontos de divisa (De/Para), o Azimute e a Distância calculados dinamicamente entre os vértices, além das Coordenadas Geográficas (Lat/Lon) iniciais de cada trecho.
+
+#### B. Injeção de Dados do Responsável Técnico
+O método `gerar_declaracao_anuencia_html` extrai dinamicamente as chaves de cadastro do profissional técnico de dentro de `dados["lev"]` e as injeta no template:
+- `{nome_profissional}`: Nome completo do profissional técnico.
+- `{conselho_profissional}`: Conselho profissional de classe (CFTA/CREA).
+- `{registro_profissional}`: Número de registro no respectivo conselho.
+- `{credencial_incra}`: Código de credenciamento do profissional junto ao INCRA.
+- `{final_trt}`: Número da TRT/ART do projeto.
+
+#### C. Proteção do Motor CSS (Tailwind)
+O motor de renderização da anuência foi migrado de formatação f-string direta para substituições de strings lineares atômicas via `.replace()`, protegendo as declarações de regras CSS com chaves `{}` do Tailwind CSS presentes no cabeçalho do template `templates/declaracao_anuencia.html`.
+
+---
+
+### 4.12 Ajuste de Qualificação e Outorga Conjugal na Anuência do Confrontante (v2.4.3)
+
+Para atender às exigências cartoriais de validade jurídica das declarações de anuência de confrontação de imóveis rurais (Lei 6.015/73):
+- **Qualificação Completa de Cônjuge no Regime Parcial/Outros**: Quando o confrontante lindeiro for casado sob o regime de Comunhão Parcial de Bens ou outro regime comum (como Comunhão Universal), seu cônjuge também é qualificado de forma completa na peça jurídica (incluindo o nome, RG e CPF).
+- **Tratamento Simplificado de Casamento sob Separação de Bens**: Quando o confrontante for casado sob o regime de Separação de Bens (seja convencional ou obrigatória), o cônjuge é apenas citado no corpo da qualificação do declarante (ex: "casado sob o regime de separação de bens com Fulano"), sem a exigência de qualificação documental complementar (RG e CPF).
+- **Outorga Conjugal (Assinaturas)**: O cônjuge do confrontante assina o termo de anuência em conjunto com ele (outorga conjugal) na mesa de assinaturas apenas se o casamento for sob regimes de comunhão de bens (como parcial, universal, etc.). Se o casamento for sob o regime de **Separação de Bens**, a outorga conjugal é dispensada e a assinatura do cônjuge é omitida do bloco de assinaturas final.
+- **Interface Reativa no Frontend (`gerador_documentos.ts`)**: A máquina de estados de visibilidade e desativação dos campos (`configurarMaquinadeEstadosCivil`) foi atualizada para que os campos de CPF e RG do cônjuge do confrontante lindeiro fiquem habilitados e disponíveis para edição por padrão. Eles passam a ser limpos e desabilitados (`disabled = true`) apenas se o usuário selecionar o regime de **Separação de Bens** (total ou obrigatória). No regime de **Comunhão Parcial de Bens** ou outros, os campos permanecem ativos, permitindo o cadastro completo necessário para a qualificação judicial.
+- **Propagação Automática de Dados Cadastrais por CPF/CNPJ**: Na rota de atualização do confrontante (`PUT /confrontantes/{cid}`), implementou-se a sincronização atômica de dados cadastrais. Ao salvar alterações nas qualificações de um confrontante (nome, rg, nacionalidade, profissão, estado civil, regime de bens, endereço e dados do cônjuge), o sistema propaga automaticamente essas atualizações para todos os outros registros do banco de dados que compartilham do mesmo CPF/CNPJ, poupando redigitação. A propagação respeita a trava de segurança ignorando levantamentos no status `'ARQUIVADO'`.
+
+### 4.13 Multi-Perímetro Simultâneo, Vértices de Terceiros e Suporte a Pontos Compartilhados (v2.4.5)
+
+Para possibilitar a correta visualização da planta integrada de divisas do imóvel e garantir a consistência das poligonais levantadas em campo que compartilham confrontações comuns:
+- **Remoção da Constraint UNIQUE Global em Vértices**: A restrição única da tabela `banco_pontos` no SQLite (`codigo_completo UNIQUE`) causava a perda de vértices de divisa comuns quando múltiplos arquivos ODS (diferentes glebas/matrículas) eram importados para o mesmo levantamento. O ponto compartilhado era ignorado por causa da restrição e ficava atrelado apenas à primeira planilha importada. Implementou-se uma migração transacional (função `migrar_restricao_unicidade_banco_pontos` no `database/models.py`) que alterou a unicidade para composta `UNIQUE(levantamento_id, planilha_origem, codigo_completo)`. Isso permite a coexistência de um mesmo vértice compartilhado em planilhas/matrículas diferentes.
+- **Plotagem Multi-Perímetro no Mapa por Matrícula**: A renderização do mapa Leaflet foi readequada para consumir o novo endpoint de backend `GET /levantamentos/{id}/pontos-homologados` (que lê e retorna todas as coordenadas e respectivas ordens de caminhamento diretamente da tabela `pontos` filtrada por `origem_homologada = 1`). A função `plotPoligonalHomologada` em `mesa_trabalho_mapa.ts` foi modificada para agrupar as coordenadas estritamente pela chave `matricula_id` e ordená-las por `ordem_caminhamento`, desenhando perfeitamente os contornos de cada matrícula de forma fechada e independente (eliminando linhas cruzadas em "leque/zigue-zague" mesmo em divisas sobrepostas compartilhadas).
+- **Mapeamento de Vértices de Outros Profissionais**: Ajustou-se o algoritmo de classificação de tipo de vértice (`M`, `P` ou `V`) na importação de cadernetas de campo (`TxtGeodesicParser.processar_arquivo` em `business/txt_parser.py`) e na rotina de reversão de bases (`reverter_rovers_para_bruto` in `business/geoprocessamento.py`). Em vez da validação simplificada por letra inicial (`startswith`), utiliza-se busca por expressão regular com base nos padrões do SIGEF (`([A-Z]{3,4})-(M|P|V)-(\d+)` e `(M|P|V)-(\d+)`). Isso assegura que marcos já homologados e implantados por outros profissionais (ex: `DDK-M-1534`) ou do próprio levantamento contendo prefixos sejam classificados corretamente de acordo com seu tipo real, prevenindo falhas de topologia e poligonais abertas.
+- **Sincronização de Banco de Dados**: A integridade das tabelas físicas `pontos` e `segmentos` foi restabelecida no levantamento atual através de script de migração corretivo (`scratch/fix_database_associations.py`), que alinhou pontos importados com suas respectivas matrículas associadas conforme o `banco_pontos`.
+
+---
+
+### 4.14 Isolamento e Resolução Inteligente de Confrontantes para Múltiplas Matrículas (v2.4.6)
+
+Para aprimorar a consistência cadastral de levantamentos contendo múltiplos perímetros (glebas/matrículas) e otimizar a experiência do topógrafo na organização de divisas:
+- **Criação do Módulo Dedicado (`confrontante_manager.py`)**: Centralizou-se toda a lógica de processamento, desduplicação fonética e vinculação geométrica de confrontantes em `business/confrontante_manager.py`. Isso removeu a lógica de negócios misturada em rotas de API (`homologacao.py`) e delegou a extração de nomes em `routes/deps.py` para o novo módulo.
+- **Motor de Resolução de Confrontantes Refinado**: O motor de importação (`resolver_confrontantes_planilha`) e de vinculação (`vincular_confrontantes_pontos`) agora realizam busca exata baseada na matrícula do imóvel confrontante. Se a matrícula confrontante for diferente no banco (ex: "5893" e "6622"), registros separados de confrontante são criados, mesmo que possuam o mesmo nome de proprietário. A desduplicação por nome é executada apenas se a matrícula estiver vazia ou coincidente, evitando que lindeiros distintos sejam mesclados incorretamente no mesmo ID físico do levantamento.
+- **Preservação de Dados de Divisas na Ordenação Manual**: Ajustou-se a rotina `salvar_ordem_caminhamento` em `business/levantamento_manager.py`. Antes de purgar os segmentos antigos para reconstrução sequencial das polilinhas (fechamento $P_n \to P_1$), o sistema lê as amarrações anteriores (ID do confrontante, tipo de limite e método de posicionamento de cada segmento). Ao inserir os novos segmentos, a rota checa se a conexão (ou sua inversa) existia anteriormente e copia de volta essas informações, evitando que o usuário perca suas amarrações ao reordenar vértices manualmente na interface.
+
+---
+
+### 4.15 Importação Multilha/Multi-aba em Lote com Mapeamento Interativo de Matrículas (v2.5.0)
+
+Para agilizar o fluxo de homologação regulatória de múltiplos imóveis rurais/glebas cadastrados sob o mesmo levantamento técnico georreferenciado e eliminar a necessidade de uploads sucessivos e demorados:
+- **Novos Endpoints de Ingestão e Processamento em Lote**:
+  - `POST /levantamentos/{id}/analisar-planilha-abas`: Inspeciona a estrutura interna de um único arquivo físico. Se ODS, descompacta-o em memória e extrai as abas da planilha (`content.xml`), listando apenas aquelas que contêm pelo menos um marco compatível com a expressão regular de marcos regulamentares (`M`, `P` ou `V`). Se for arquivo plano (TXT/CSV), retorna uma aba virtual. O resultado indica o nome de cada aba e a quantidade de vértices geodésicos encontrados.
+  - `POST /levantamentos/{id}/importar-pontos-aprovados-lote`: Recebe múltiplos arquivos físicos e uma string JSON mapeando cada chave `NomeArquivo#NomeAba` para o `matricula_id` correspondente. Executa em lote sob uma única transação no SQLite: purga os pontos de origem antigos apenas das matrículas que estão mapeadas no lote, desduplica os pontos mantendo a ordem de caminhamento perimetral, grava as coordenadas na tabela `pontos` marcando o status como `'BRUTO'` (para texto) ou `'CORRIGIDO'` (para planilhas georreferenciadas), calcula as distâncias geodésicas e azimutes gerando os segmentos de divisa, resolve e desduplica as confrontações e atualiza de forma incremental e atômica os contadores de marcos dos profissionais responsáveis técnicos.
+- **Interface e Mapeamento Prévio Interativo no Frontend**:
+  - A entrada de homologação (`mesa_trabalho_template.ts`) foi atualizada com o atributo `multiple` para permitir a seleção múltipla de arquivos por meio do dropzone.
+  - Foi criado o painel de mapeamento de abas para matrículas (`#container-mapeamento-abas-homologacao`). Ao arrastar ou selecionar arquivos, o sistema dispara requisições assíncronas concorrentes (`Promise.all` em `gerador_documentos.ts`) ao endpoint de análise e renderiza na UI as abas detectadas agrupadas por arquivo de origem.
+  - Cada linha de aba/arquivo exibe sua contagem de pontos e um seletor `<select>` contendo todas as matrículas cadastradas no levantamento. O motor possui pré-seleção inteligente baseada na busca pelo número do lote/matrícula no nome do arquivo ou da aba correspondente, além de pré-selecionar a matrícula se houver apenas um registro cadastrado para o levantamento.
+  - O processamento de lote ocorre em uma única etapa, enviando todos os arquivos físicos e a query string JSON de mapeamento, garantindo que o mapa e a tabela de dados sejam atualizados imediatamente.
+
+---
+
+### 4.16 Customização do Nome de Anuências e Emissão em Lote (v2.5.1)
+
+Para otimizar a organização e a produtividade no processamento de peças técnicas destinadas ao Registro de Imóveis:
+- **Inclusão da Matrícula no Nome do PDF**:
+  - **Física (Servidor)**: A rota de upload de termo assinado (`POST /levantamentos/{id}/documentos/anuencias/{confrontante_id}/upload`) consulta a matrícula associada à divisa do confrontante e salva o arquivo fisicamente sob o padrão `anuencia_matricula_{numero_matricula}_{confrontante_id}_assinado.pdf`.
+  - **Digital (Navegador)**: A tag `<title>` do template `declaracao_anuencia.html` foi parametrizada para incluir `{numero_matricula}`. Assim, quando o usuário imprime e salva a anuência individual ou o lote como PDF no navegador via `window.print()`, o nome padrão sugerido para o arquivo inclui o número da matrícula.
+- **Emissão de Anuências em Lote (PDF Único)**:
+  - **Nova Rota no Backend**: Criou-se o endpoint `GET /levantamentos/{id}/matriculas/{matricula_id}/anuencia-lote-html` que busca todos os confrontantes lindeiros atrelados a divisas daquela matrícula e monta um documento HTML consolidado unindo as declarações.
+  - **Quebras de Página Estritas**: Adicionou-se propriedades de controle de quebra de página no CSS `@media print` para a classe `.page` (`page-break-after: always` e `break-after: page`), definindo uma exceção para o último elemento (`.page:last-child { page-break-after: avoid }`). Isso permite que, na impressão de lote, cada anuência ocupe exatamente uma folha A4 sem gerar páginas em branco extras ao final do documento PDF.
+  - **Integração no Frontend**: O dropdown de anuências (`select-confrontante-anuencia`) recebeu a opção `"✨ Gerar Todas em Lote (PDF Único)"`. Ao selecioná-la e clicar em gerar, o sistema detecta o valor `"lote"`, abre a rota de lote em uma nova aba do navegador para visualização/impressão e oculta reativamente o formulário de qualificação do confrontante.
+
+---
+
+### 4.17 Arquitetura Híbrida Edge-First e Especificação do Hub Web (v2.5.2)
+
+Com a migração do ecossistema do processamento centralizado na nuvem para o modelo **Edge-First (Desktop Local)**, a especificação técnica do ambiente em nuvem e a integração local-nuvem passam a seguir as regras descritas abaixo:
+
+#### A. O Módulo Web Leve (`cloud_api.py` na Nuvem)
+O servidor online na Hostinger executa o arquivo `cloud_api.py` sob FastAPI de forma enxuta e isolada:
+- **Exclusão de Dependências Pesadas:** É proibido importar e utilizar bibliotecas espaciais pesadas (como `pyproj` ou `pyshp`) ou bibliotecas de automação do Windows (como `pywinauto` ou `pythonnet`) na nuvem para garantir compatibilidade com ambientes compartilhados Linux modestos.
+- **Desativação de Ingestão de Campo:** Todas as rotas de ingestão GNSS, conversão RPA e submissão PPP são bloqueadas. O backend online valida que `RUNNING_LOCAL == False` e recusa qualquer requisição a esses endpoints com erro **HTTP 403 Forbidden** e a mensagem `"Operação restrita ao Software Desktop Local"`.
+
+#### B. Modelo de Dados Simplificado na Nuvem (MySQL)
+O banco de dados na Hostinger armazena apenas dados cadastrais simplificados para fins de consulta móvel rápida e monitoramento corporativo, estruturado nas seguintes colunas físicas:
+- `id` (INTEGER PRIMARY KEY)
+- `nome_propriedade` (VARCHAR)
+- `municipio` (VARCHAR)
+- `uf` (VARCHAR)
+- `area_ha` (DOUBLE/FLOAT)
+- `status_levantamento` (VARCHAR)
+- `numero_matricula` (VARCHAR)
+- `ccir` (VARCHAR)
+- `limite_perimetral` (LONGTEXT - String contendo a geometria simplificada no formato **Polígono GeoJSON** ou **WKT (Well-Known Text)** projetada em WGS84 para renderização direta em mapas mobile Leaflet/Google Maps).
+
+#### C. Endpoint de Sincronização Unidirecional (`POST /api/v1/sync/imovel`)
+Disponibilizado na Hostinger para escuta de pacotes de dados enviados pelas instâncias locais autorizadas:
+1. **Validação de Segurança:** Exige o cabeçalho `X-API-KEY` contendo o token estático configurado (`G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C`). Requisições sem chave ou com chaves divergentes são rejeitadas imediatamente com **HTTP 401 Unauthorized**.
+2. **Gravação Transacional:** Recebe o payload JSON contendo os dados cadastrais da propriedade e a string do polígono perimetral. Efetua um `INSERT OR UPDATE` (Upsert) na tabela simplificada do MySQL na nuvem, garantindo a atualização instantânea do Hub de Consulta.
+
+#### D. Ocultação Dinâmica no Frontend Cloud (Mesa de Trabalho Ocultada)
+Para evitar que operadores tentem carregar arquivos ou emitir relatórios locais pesados quando acessam o sistema pelo link da web:
+1. **Detecção de Contexto:** O frontend lê a URL de acesso (`window.location.origin`). Se a URL indicar o host da nuvem Hostinger (não contiver `127.0.0.1`, `localhost` ou `::1`), o sistema assume modo **Cloud Hub**.
+2. **Ocultação Reativa de Elementos:**
+   - Desativa e oculta visualmente as dropzones de upload de arquivos RINEX/GNS (`#triagem-dropzone` e `#homologacao-dropzone`).
+   - Remove ou esconde a seção inteira do Workspace GNSS local (`#painel-workspace-gnss`).
+   - Oculta botões de geração de peças técnicas locais pesadas (como o testador HGO e geradores de lote) e insere uma mensagem informativa elegante na barra de status superior: `"Modo de Consulta Hub Web Ativo. Operações de Ingestão Restritas ao App Desktop."`
+

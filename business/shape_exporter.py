@@ -3,23 +3,26 @@ import zipfile
 import shapefile
 import logging
 from database.connection import execute_query
-from business.geoprocessamento import latlon_to_utm22s
 
 logger = logging.getLogger(__name__)
 
-# String WKT oficial da EPSG:31982 (SIRGAS 2000 / UTM zone 22S) definida constitucionalmente
-EPSG_31982_WKT = (
-    'PROJCS["SIRGAS 2000 / UTM zone 22S",GEOGCS["SIRGAS 2000",'
-    'DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",'
-    'SPHEROID["GRS 1980",6378137,298.257222101],TOWGS84[0,0,0,0,0,0,0]],'
-    'PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],'
-    'UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4674"]],'
-    'PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],'
-    'PARAMETER["central_meridian",-51],PARAMETER["scale_factor",0.9996],'
-    'PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],'
-    'UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],'
-    'AUTHORITY["EPSG","31982"]]'
-)
+def obter_wkt_epsg_sirgas2000_south(zona: int) -> str:
+    """Retorna a string WKT oficial da EPSG UTM correspondente no Hemisfério Sul (EPSG:31981 a 31984)"""
+    epsg = 31960 + zona
+    central_meridian = 6 * zona - 183
+    wkt = (
+        f'PROJCS["SIRGAS 2000 / UTM zone {zona}S",GEOGCS["SIRGAS 2000",'
+        'DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",'
+        'SPHEROID["GRS 1980",6378137,298.257222101],TOWGS84[0,0,0,0,0,0,0]],'
+        'PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],'
+        'UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4674"]],'
+        'PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],'
+        f'PARAMETER["central_meridian",{central_meridian}],PARAMETER["scale_factor",0.9996],'
+        'PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],'
+        f'UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],'
+        f'AUTHORITY["EPSG","{epsg}"]]'
+    )
+    return wkt
 
 class ShapefileExporter:
     @staticmethod
@@ -91,7 +94,28 @@ class ShapefileExporter:
         
         pontos = [dict(p) for p in rows_pontos]
 
-        # 5. Processa as coordenadas e projeta para UTM Zona 22S (EPSG:31982)
+        # 5. Determinação do fuso UTM e Projeção Adaptativa de Coordenadas
+        lons_validas = []
+        for pt in pontos:
+            lon_f = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
+            if lon_f:
+                try:
+                    lons_validas.append(float(lon_f))
+                except (ValueError, TypeError):
+                    continue
+
+        if not lons_validas:
+            raise ValueError("Não há coordenadas de longitude válidas para determinar o fuso UTM.")
+
+        lon_media = sum(lons_validas) / len(lons_validas)
+        from business.geoprocessamento import calcular_zona_utm_segura
+        zona_utm = calcular_zona_utm_segura(lon_media)
+        epsg_utm = 31960 + zona_utm
+        wkt_prj_dinamico = obter_wkt_epsg_sirgas2000_south(zona_utm)
+
+        from pyproj import Transformer
+        transformer_dinamico = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+
         pontos_processados = []
         coordenadas_utm_poligono = []
 
@@ -106,9 +130,9 @@ class ShapefileExporter:
                 continue
 
             try:
-                x_utm, y_utm = latlon_to_utm22s(lat_f, lon_f)
+                x_utm, y_utm = transformer_dinamico.transform(lon_f, lat_f)
             except Exception as e_proj:
-                logger.error(f"Erro ao projetar vértice {pt['nome_vertice']} para UTM Zone 22S: {e_proj}")
+                logger.error(f"Erro ao projetar vértice {pt['nome_vertice']} para UTM Zone {zona_utm}S: {e_proj}")
                 continue
 
             # Mapeia sigmas (incertezas)
@@ -196,7 +220,7 @@ class ShapefileExporter:
             zip_file.writestr("pontos.shp", shp_pt_buf.getvalue())
             zip_file.writestr("pontos.shx", shx_pt_buf.getvalue())
             zip_file.writestr("pontos.dbf", dbf_pt_buf.getvalue())
-            zip_file.writestr("pontos.prj", EPSG_31982_WKT)
+            zip_file.writestr("pontos.prj", wkt_prj_dinamico)
 
             # ----------------------------------------------------
             # CAMADA 2: Perímetro Poligonal (POLYGON)
@@ -251,6 +275,6 @@ class ShapefileExporter:
             zip_file.writestr("perimetro.shp", shp_poly_buf.getvalue())
             zip_file.writestr("perimetro.shx", shx_poly_buf.getvalue())
             zip_file.writestr("perimetro.dbf", dbf_poly_buf.getvalue())
-            zip_file.writestr("perimetro.prj", EPSG_31982_WKT)
+            zip_file.writestr("perimetro.prj", wkt_prj_dinamico)
 
         return zip_buffer.getvalue()
