@@ -159,6 +159,44 @@ const initApp = () => {
       window.dispatchEvent(new Event('resize'));
     });
   }
+
+  // Controle da sidebar mobile (hamburger e overlay)
+  const btnHamburger = document.getElementById('btn-hamburger-mobile');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+  
+  if (btnHamburger && sidebar && sidebarOverlay) {
+    const toggleMobileSidebar = (open: boolean) => {
+      if (open) {
+        sidebar.classList.add('sidebar-mobile-active');
+        sidebarOverlay.classList.add('active');
+      } else {
+        sidebar.classList.remove('sidebar-mobile-active');
+        sidebarOverlay.classList.add('opacity-0');
+        setTimeout(() => {
+          sidebarOverlay.classList.remove('active', 'opacity-0');
+        }, 300);
+      }
+    };
+
+    btnHamburger.addEventListener('click', () => toggleMobileSidebar(true));
+    sidebarOverlay.addEventListener('click', () => toggleMobileSidebar(false));
+
+    // Fechar ao navegar por qualquer link da sidebar
+    document.querySelectorAll('#sidebar nav a').forEach(link => {
+      link.addEventListener('click', () => toggleMobileSidebar(false));
+    });
+    
+    // Fechar ao clicar no botão Configurações da sidebar
+    document.getElementById('btn-sidebar-settings')?.addEventListener('click', () => toggleMobileSidebar(false));
+  }
+  
+  // Se for ambiente Web (Hostinger), mostra o badge também no header mobile
+  if (!isLocal) {
+    const badgeMobile = document.getElementById('web-cloud-indicator-mobile');
+    if (badgeMobile) {
+      badgeMobile.classList.remove('hidden');
+    }
+  }
 };
 
 if (document.readyState === 'loading') {

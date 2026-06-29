@@ -598,3 +598,65 @@ thead th,
   }
 }
 
+/* ==========================================================================
+   Mobile Sidebar Off-Canvas Styles
+   ========================================================================== */
+@media (max-width: 767.98px) {
+  #sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 224px !important;
+    z-index: 100000 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  
+  #sidebar.sidebar-mobile-active {
+    transform: translateX(0) !important;
+  }
+  
+  /* Força a exibição dos textos na sidebar quando aberta no celular, independente do estado collapsed no desktop */
+  #sidebar.sidebar-mobile-active .sidebar-text {
+    display: inline !important;
+  }
+  
+  #sidebar.sidebar-mobile-active nav a {
+    justify-content: flex-start !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  
+  #sidebar.sidebar-mobile-active #sidebar-header {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  
+  /* Esconde o botão de recolhimento padrão no celular */
+  #sidebar #btn-toggle-sidebar {
+    display: none !important;
+  }
+
+  /* Overlay de fundo */
+  #sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  
+  #sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+
