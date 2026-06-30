@@ -61,4 +61,6 @@ export interface MesaTrabalhoContext {
   subirPontoSimplificado: (pontoId: number) => void;
   descerPontoSimplificado: (pontoId: number) => void;
   alternarModoReordenarManual: (ativo: boolean) => void;
+  expandirIngestao?: () => void;
+  colapsarIngestao?: () => void;
 }

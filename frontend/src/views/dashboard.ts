@@ -304,20 +304,44 @@ export const dashboardRoute: RouteDef = {
       const x = Math.round(map.layerPointToContainerPoint(e.layerPoint).x);
       const y = Math.round(map.layerPointToContainerPoint(e.layerPoint).y);
 
-      const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&INFO_FORMAT=application/json&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
+      const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&INFO_FORMAT=text/plain&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
 
       // Indica carregamento no cursor do mapa
       const mapContainer = document.getElementById('map-container');
       if (mapContainer) mapContainer.style.cursor = 'wait';
 
       try {
-        const res = await fetch(`${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`);
-        const data = await res.json();
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl);
+        const text = await res.text();
 
-        if (data.features && data.features.length > 0) {
-          const feature = data.features[0];
-          const props = feature.properties;
-          const uuid = feature.id || props.parcela_codigo || props.co_parcela || props.id_parcela;
+        // Faz o parsing do formato text/plain retornado pelo MapServer (i3Geo)
+        let props: any = null;
+        let featureId = '';
+
+        if (text && text.includes("GetFeatureInfo results:")) {
+          const lines = text.split('\n');
+          const currentFeature: any = {};
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            // Suporta chaves e valores acentuados, cedilhas, com aspas simples, aspas duplas ou sem aspas
+            const match = trimmed.match(/^([\w_]+)\s*=\s*['"]?([^'"]*)['"]?$/) || trimmed.match(/([\w_]+)\s*=\s*['"]?([^'"]*)['"]?/);
+            if (match) {
+              const key = match[1];
+              const value = match[2].trim();
+              currentFeature[key] = value;
+            }
+          }
+
+          if (Object.keys(currentFeature).length > 0) {
+            props = currentFeature;
+            featureId = currentFeature.parcela_codigo || currentFeature.id || '';
+          }
+        }
+
+        if (props) {
+          const uuid = featureId || props.parcela_codigo || props.co_parcela || props.id_parcela;
           const link = uuid ? `https://sigef.incra.gov.br/geo/parcela/detalhe/${uuid}/` : `https://sigef.incra.gov.br/consultar/parcelas`;
 
           if (modalContent) {

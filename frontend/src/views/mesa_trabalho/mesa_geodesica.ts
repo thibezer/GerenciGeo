@@ -343,6 +343,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     const dropzoneIcon = document.getElementById('triagem-dropzone-icon');
     const dropzoneTitle = document.getElementById('triagem-dropzone-title');
     const dropzoneDesc = document.getElementById('triagem-dropzone-desc');
+    const chkContainer = document.getElementById('triagem-opcoes-lote');
 
     if (ctx.filesQueue.length === 0) {
       if (dropzoneEl) {
@@ -357,6 +358,10 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
       filaContainer?.classList.add('hidden');
       btnProcessar?.classList.add('hidden');
+      if (chkContainer) {
+        chkContainer.classList.remove('flex');
+        chkContainer.classList.add('hidden');
+      }
       return;
     }
 
@@ -372,6 +377,10 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
     filaContainer?.classList.remove('hidden');
     btnProcessar?.classList.remove('hidden');
+    if (chkContainer) {
+      chkContainer.classList.remove('hidden');
+      chkContainer.classList.add('flex');
+    }
 
     if (btnProcessar) {
       (btnProcessar as HTMLButtonElement).disabled = false;
@@ -458,8 +467,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   fileInput?.addEventListener('change', (e: any) => {
     if (e.target.files) {
       Array.from(e.target.files as FileList).forEach(f => {
-        const isTxt = f.name.toLowerCase().endsWith('.txt');
-        ctx.filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
+        const isGns = f.name.toLowerCase().endsWith('.gns');
+        ctx.filesQueue.push({ file: f, destination: isGns ? 'base' : 'rover_rtk' });
       });
       ctx.renderFilaArquivos();
     }
@@ -481,8 +490,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.02]');
     if (e.dataTransfer && e.dataTransfer.files) {
       Array.from(e.dataTransfer.files).forEach(f => {
-        const isTxt = f.name.toLowerCase().endsWith('.txt');
-        ctx.filesQueue.push({ file: f, destination: isTxt ? 'rover_rtk' : 'base' });
+        const isGns = f.name.toLowerCase().endsWith('.gns');
+        ctx.filesQueue.push({ file: f, destination: isGns ? 'base' : 'rover_rtk' });
       });
       ctx.renderFilaArquivos();
     }
@@ -490,6 +499,9 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
   btnProcessar?.addEventListener('click', async () => {
     if (ctx.filesQueue.length === 0) return;
+
+    const chkInverter = document.getElementById('chk-inverter-ne-mesa') as HTMLInputElement;
+    const inverterNE = chkInverter?.checked ? 'true' : 'false';
 
     let basesEnviadas = 0;
     let brutosEnviados = 0;
@@ -547,6 +559,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
         if (mId) {
           formData.append('matricula_id', mId.toString());
         }
+        formData.append('inverter_ne', inverterNE);
         try {
           const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-txt`, {
             method: 'POST',
@@ -576,6 +589,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
         if (item.base_escolhida_id) {
           formData.append('base_escolhida_id', item.base_escolhida_id.toString());
         }
+        formData.append('inverter_ne', inverterNE);
         try {
           const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-txt`, {
             method: 'POST',
@@ -605,6 +619,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
     alert(msgAlerta);
 
+    if (chkInverter) chkInverter.checked = false;
     ctx.filesQueue = [];
     ctx.renderFilaArquivos();
     ctx.loadLevantamentoDetails();

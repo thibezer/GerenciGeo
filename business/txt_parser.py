@@ -1,5 +1,7 @@
 import os
 import logging
+import csv
+import pandas as pd
 from pyproj import Transformer
 from database.connection import execute_query, DatabaseManager
 from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
@@ -65,9 +67,89 @@ class TxtGeodesicParser:
             logger.error(f"[PARSER] Erro ao buscar base no banco (base_id={base_id}): {e}")
         return None
 
+    def _normalizar_linhas_texto(self, linhas_brutas: list) -> list:
+        linhas_normalizadas = []
+        linhas_validas = []
+        
+        for l in linhas_brutas:
+            l_clean = l.strip()
+            if not l_clean or l_clean.startswith("#"):
+                continue
+            linhas_validas.append(l_clean)
+            
+        if not linhas_validas:
+            return linhas_brutas
+
+        sample = "\n".join(linhas_validas[:10])
+        delimitador = ","
+        
+        try:
+            sniffer = csv.Sniffer()
+            dialect = sniffer.sniff(sample, delimiters=[',', ';', '\t', ' '])
+            delimitador = dialect.delimiter
+        except Exception:
+            # Fallback robusto por contagem simples
+            delimitadores_possiveis = [',', ';', '\t', ' ']
+            contagens = {d: 0 for d in delimitadores_possiveis}
+            for l in linhas_validas[:10]:
+                for d in delimitadores_possiveis:
+                    contagens[d] += l.count(d)
+            
+            max_cont = 0
+            for d in delimitadores_possiveis:
+                if contagens[d] > max_cont:
+                    max_cont = contagens[d]
+                    delimitador = d
+
+        logger.info(f"[PARSER] Delimitador autodetectado: '{delimitador}'")
+
+        for l in linhas_brutas:
+            l_clean = l.strip()
+            if not l_clean:
+                linhas_normalizadas.append("")
+                continue
+            if l_clean.startswith("#"):
+                linhas_normalizadas.append(l_clean)
+                continue
+                
+            if delimitador == ' ':
+                partes = l_clean.split()
+            else:
+                partes = [p.strip() for p in l_clean.split(delimitador)]
+                
+            nova_linha = ",".join(partes)
+            linhas_normalizadas.append(nova_linha)
+            
+        return linhas_normalizadas
+
+    def _converter_planilha_para_linhas_csv(self, caminho_arquivo: str, ext: str) -> list:
+        logger.info(f"[PARSER] Lendo planilha {ext} via Pandas...")
+        if ext == '.ods':
+            df = pd.read_excel(caminho_arquivo, engine='odf')
+        else:
+            df = pd.read_excel(caminho_arquivo)
+            
+        linhas_csv = []
+        for _, row in df.iterrows():
+            valores = []
+            for val in row.values:
+                if pd.isna(val):
+                    valores.append("")
+                else:
+                    if isinstance(val, (int, float)):
+                        if isinstance(val, float) and val.is_integer():
+                            valores.append(str(int(val)))
+                        else:
+                            valores.append(str(val))
+                    else:
+                        valores.append(str(val).strip())
+            linhas_csv.append(",".join(valores))
+            
+        return linhas_csv
+
     def processar_arquivo(self, caminho_arquivo: str) -> list:
         """
-        Lê o arquivo de texto, detecta o layout, calcula o vetor de translação da base
+        Lê o arquivo de texto ou planilha, detecta o layout, calcula o vetor de translação da base
         no espaço tridimensional cartesiano geocêntrico ECEF e aplica a translação em bloco
         sobre os rovers, convertendo tudo de volta para lat/lon SIRGAS 2000 Geodésico.
         Propaga quadraticamente os desvios padrão (Sigmas) da base e rovers.
@@ -76,9 +158,20 @@ class TxtGeodesicParser:
             raise FileNotFoundError(f"Arquivo não localizado: {caminho_arquivo}")
 
         nome_arquivo = os.path.basename(caminho_arquivo)
+        ext = os.path.splitext(caminho_arquivo)[1].lower()
 
-        with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
-            linhas = f.readlines()
+        linhas = []
+        if ext in ['.txt', '.csv']:
+            with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
+                linhas_brutas = f.readlines()
+            linhas = self._normalizar_linhas_texto(linhas_brutas)
+        elif ext in ['.xls', '.xlsx', '.ods']:
+            linhas = self._converter_planilha_para_linhas_csv(caminho_arquivo, ext)
+        else:
+            # Fallback seguro para ler como texto
+            with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore") as f:
+                linhas_brutas = f.readlines()
+            linhas = self._normalizar_linhas_texto(linhas_brutas)
 
         layout = self.identificar_layout(linhas)
         logger.info(f"[PARSER] Layout identificado para {nome_arquivo}: {layout.upper()}")
@@ -101,7 +194,18 @@ class TxtGeodesicParser:
                 e1 = float(partes[2])
                 alt = float(partes[3])
                 
-                if self.inverter_ne:
+                inverter = self.inverter_ne
+                if not inverter:
+                    # Autodetecção determinística baseada na invariante UTM no Brasil
+                    # E (Este) fica sempre entre 100.000m e 900.000m.
+                    # N (Norte) no Hemisfério Sul fica sempre entre 5.000.000m e 10.000.000m.
+                    # Se n1 (lido como N) for < 1.000.000m e e1 (lido como E) for > 1.000.000m,
+                    # as coordenadas estão logicamente invertidas.
+                    if n1 < 1000000.0 and e1 > 1000000.0:
+                        inverter = True
+                        logger.info(f"[PARSER] Autodetectada inversão N/E no ponto '{nome}': n_bruto={n1}, e_bruto={e1}. Corrigindo automaticamente.")
+
+                if inverter:
                     norte = e1
                     este = n1
                 else:

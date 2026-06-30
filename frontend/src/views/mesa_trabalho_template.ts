@@ -116,17 +116,25 @@ export const renderMesaTrabalho = (): string => {
             
             <!-- Zona Drop -->
             <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="triagem-dropzone">
-              <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT" />
+              <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT,.csv,.CSV,.xls,.XLS,.xlsx,.XLSX,.ods,.ODS" />
               <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform" id="triagem-dropzone-icon">
                 <i data-lucide="upload" class="w-5 h-5 text-mint-vibrant"></i>
               </div>
               <p class="text-xs font-bold" id="triagem-dropzone-title">Arraste múltiplos arquivos para triagem</p>
-              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest" id="triagem-dropzone-desc">Suporta binários .GNS or relatórios .TXT</p>
+              <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest" id="triagem-dropzone-desc">Suporta binários .GNS, relatórios .TXT/CSV ou planilhas Excel/ODS</p>
             </div>
 
             <!-- Fila de arquivos selecionados -->
             <div class="mt-4 flex-1 overflow-y-auto space-y-2 hidden max-h-[160px]" id="triagem-fila-container">
               <!-- Lista de arquivos com seletor -->
+            </div>
+
+            <!-- Opções de Processamento do Lote -->
+            <div class="mt-3 hidden items-center gap-2 px-1 py-1 text-xs select-none" id="triagem-opcoes-lote">
+               <label class="flex items-center gap-1.5 cursor-pointer text-white/60 hover:text-white transition-colors">
+                  <input type="checkbox" id="chk-inverter-ne-mesa" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer" />
+                  <span>Inverter Coordenadas N/E</span>
+               </label>
             </div>
 
             <button class="btn-primary w-full py-2.5 mt-4 text-xs font-bold hidden flex items-center justify-center gap-1.5" id="btn-processar-lote">

@@ -9,6 +9,8 @@ Pillow
 pywebview>=5.0
 httpx>=0.25.0
 pyproj>=3.0.0
+xlrd
+odfpy
 
 
 
