@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual do Proprietário: Pós-Georreferenciamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0c120f;
+            background-image: radial-gradient(circle at 10% 20%, rgba(0, 245, 160, 0.03) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 40%);
+        }
+        
+        h1, h2, h3, h4 {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .doc-shadow {
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(255, 255, 255, 0.05) inset;
+        }
+
+        .glow-hover:hover {
+            box-shadow: 0 0 20px rgba(0, 245, 160, 0.15);
+            border-color: rgba(0, 245, 160, 0.3) !important;
+        }
+
+        @media print {
+            body {
+                background: white !important;
+                color: #0f172a !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                background: white !important;
+                color: #0f172a !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-300 min-h-screen pb-16 selection:bg-[#00f5a0] selection:text-[#0c1510]">
+
+    <!-- Cabeçalho / Banner Superior -->
+    <header class="border-b border-white/5 bg-[#080d0a]/80 backdrop-blur-md sticky top-0 z-40 no-print">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-xl flex items-center justify-center">
+                    <i data-lucide="book-open" class="text-[#00f5a0] w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                        COMPLETA
+                        <span class="text-[9px] bg-[#00f5a0]/20 text-[#00f5a0] px-2 py-0.5 rounded font-mono font-bold">MANUAL DIGITAL</span>
+                    </h3>
+                    <p class="text-[10px] text-slate-500">Agrimensura e regularização fundiária de imóveis rurais</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="window.print()" class="px-4 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-[0_0_15px_rgba(0,245,160,0.2)] transition-all flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    Imprimir Guia
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Container Principal -->
+    <main class="max-w-4xl mx-auto px-4 mt-8 print-page">
+        
+        <!-- Bloco Principal de Texto / Capa -->
+        <div class="bg-gradient-to-b from-[#111c16] to-[#0c120f] border border-white/5 rounded-2xl p-6 md:p-10 mb-8 doc-shadow relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-[#00f5a0]/5 rounded-full blur-3xl -z-10"></div>
+            
+            <div class="text-center max-w-2xl mx-auto">
+                <span class="text-xs uppercase font-extrabold tracking-widest text-[#00f5a0] px-3 py-1 bg-[#00f5a0]/10 rounded-full">Guia Prático do Proprietário</span>
+                <h1 class="text-3xl md:text-4xl font-extrabold text-white mt-4 tracking-tight leading-tight">
+                    MANUAL DO PROPRIETÁRIO:<br class="hidden sm:inline"> PÓS-GEORREFERENCIAMENTO
+                </h1>
+                <p class="text-sm md:text-base text-slate-400 mt-3 font-medium">
+                    Entenda a organização dos seus documentos e saiba como proceder para registrar a sua área
+                </p>
+            </div>
+
+            <div class="border-t border-white/5 my-8"></div>
+
+            <div class="space-y-4 text-sm md:text-base leading-relaxed text-slate-300">
+                <p>
+                    <strong class="text-white">Parabéns!</strong> A etapa técnica de medição, levantamento topográfico e certificação do seu imóvel rural <strong class="text-[#00f5a0]">{nome_lote}</strong> foi concluída com sucesso. Agora, para que a sua propriedade esteja 100% regularizada, entramos na fase de <strong>registro cartorial</strong>.
+                </p>
+                <p>
+                    Como a sua propriedade é composta por mais de um polígono (áreas/glebas separadas), a sua documentação foi organizada em <strong>duas levas estratégicas</strong> para facilitar a apresentação no Cartório de Registro de Imóveis (CRI) de <strong class="text-white">{municipio_cartorio}</strong>. Este manual vai ajudar você a entender cada papel e o passo a passo para o registro.
+                </p>
+            </div>
+        </div>
+
+        <!-- Seção 1: Organização dos Documentos -->
+        <section class="mb-12">
+            <div class="flex items-center gap-2 mb-6">
+                <div class="w-8 h-8 rounded-lg bg-[#00f5a0]/10 flex items-center justify-center text-[#00f5a0] font-bold">1</div>
+                <h2 class="text-xl font-bold text-white tracking-wide">COMO A SUA DOCUMENTAÇÃO ESTÁ ORGANIZADA</h2>
+            </div>
+            
+            <p class="text-sm text-slate-400 mb-8 leading-relaxed">
+                Os documentos foram divididos em dois blocos principais: os <strong>documentos gerais do processo</strong> (referentes a toda a área) e os <strong>documentos específicos de cada gleba/polígono</strong> individual medido. Clique nas miniaturas para entender o que é cada item.
+            </p>
+
+            <!-- 1ª LEVA: GERAIS DA PROPRIEDADE -->
+            <div class="mb-10">
+                <div class="flex items-center gap-2 border-b border-white/5 pb-2 mb-6">
+                    <i data-lucide="folder-open" class="text-[#00f5a0] w-5 h-5"></i>
+                    <h3 class="text-base font-bold text-[#00f5a0] tracking-wide uppercase">1ª Leva: Documentos Gerais da Propriedade</h3>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Requerimento de Registro -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('requerimento')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="text-center font-bold border-b border-slate-200 pb-0.5 text-[5px]">REQUERIMENTO</div>
+                            <div class="space-y-0.5 py-1">
+                                <div class="h-1 bg-slate-300 w-full"></div>
+                                <div class="h-1 bg-slate-300 w-4/5"></div>
+                                <div class="h-1 bg-slate-300 w-5/6"></div>
+                                <div class="border border-slate-200 rounded p-0.5 my-1">
+                                    <div class="h-0.5 bg-slate-200 w-full mb-0.5"></div>
+                                    <div class="h-0.5 bg-slate-200 w-2/3"></div>
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-1 text-center">
+                                <div class="w-12 h-1 border-t border-slate-400 mx-auto"></div>
+                                <div class="text-[3px]">Proprietário</div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Requerimento de Registro
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                É a petição (o pedido formal) que você, proprietário, assina solicitando ao oficial do cartório a averbação das novas medições na matrícula.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Declaração de Responsabilidade de Limites e Posse -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('declaracao')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="text-center font-bold border-b border-slate-200 pb-0.5 text-[5px]">DECLARAÇÃO</div>
+                            <div class="space-y-1 py-1 flex-grow">
+                                <div class="h-0.5 bg-slate-300 w-full"></div>
+                                <div class="h-0.5 bg-slate-300 w-11/12"></div>
+                                <div class="pl-1 space-y-0.5">
+                                    <div class="flex items-center gap-0.5"><div class="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div><div class="h-0.5 bg-slate-200 w-full"></div></div>
+                                    <div class="flex items-center gap-0.5"><div class="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div><div class="h-0.5 bg-slate-200 w-5/6"></div></div>
+                                    <div class="flex items-center gap-0.5"><div class="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div><div class="h-0.5 bg-slate-200 w-11/12"></div></div>
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-1 text-center flex justify-around">
+                                <div>
+                                    <div class="w-7 h-1 border-t border-slate-300 mx-auto"></div>
+                                    <div class="text-[3px]">Proprietário</div>
+                                </div>
+                                <div>
+                                    <div class="w-7 h-1 border-t border-slate-300 mx-auto"></div>
+                                    <div class="text-[3px]">Cônjuge</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Declaração de Limites e Posse
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Documento onde você declara formalmente que respeitou as divisas históricas dos confrontantes e que a ocupação é pacífica e mansa.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Laudo Técnico Descritivo -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('laudo')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="flex justify-between items-center border-b border-slate-200 pb-0.5">
+                                <span class="font-extrabold text-[4px]">COMPLETA</span>
+                                <span class="bg-emerald-100 text-emerald-800 rounded px-0.5 text-[3px]">LAUDO</span>
+                            </div>
+                            <div class="space-y-0.5 py-1">
+                                <div class="h-1 bg-slate-300 w-full"></div>
+                                <div class="h-1 bg-slate-300 w-3/4"></div>
+                                <table class="w-full text-[2px] border border-slate-200 mt-0.5">
+                                    <tr class="bg-slate-100"><th class="border-b border-slate-200">Pt</th><th class="border-b border-slate-200">X</th><th class="border-b border-slate-200">Y</th></tr>
+                                    <tr><td class="border-b border-slate-100">M1</td><td class="border-b border-slate-100">...</td><td class="border-b border-slate-100">...</td></tr>
+                                    <tr><td class="border-b border-slate-100">M2</td><td class="border-b border-slate-100">...</td><td class="border-b border-slate-100">...</td></tr>
+                                </table>
+                            </div>
+                            <div class="text-[3px] text-slate-400 text-right">Data/Local</div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Laudo Técnico Descritivo
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Memorial justificativo elaborado pelo agrimensor detalhando a metodologiaGNSS executada e justificando tecnicamente a divisão da área.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- TRT/ART (Termo de Responsabilidade Técnica) -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('trt')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="bg-slate-800 text-white p-0.5 text-center font-bold text-[4px]">TRT / ART</div>
+                            <div class="grid grid-cols-2 gap-0.5 py-1">
+                                <div class="border border-slate-200 rounded p-0.5"><div class="text-[3px] text-slate-400">RT</div><div class="h-1 bg-slate-200 w-full mt-0.5"></div></div>
+                                <div class="border border-slate-200 rounded p-0.5"><div class="text-[3px] text-slate-400">CREA/CFTA</div><div class="h-1 bg-slate-200 w-full mt-0.5"></div></div>
+                                <div class="border border-slate-200 rounded p-0.5 col-span-2"><div class="text-[3px] text-slate-400">CONTRATANTE</div><div class="h-1 bg-slate-200 w-2/3 mt-0.5"></div></div>
+                            </div>
+                            <div class="flex justify-between items-center text-[3px] text-slate-400 pt-1">
+                                <span class="bg-slate-100 px-0.5 rounded">QUITADA</span>
+                                <span>Autenticação</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                TRT / ART Quitada
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                O comprovante de recolhimento profissional junto ao conselho de classe, atestando a habilitação legal do responsável técnico pela medição.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- NOVO: Termo de Responsabilidade Técnica (SIGEF/INCRA) do profissional -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer md:col-span-2" onclick="abrirModal('termo_rt')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="text-center font-extrabold border-b border-slate-200 pb-0.5 text-[5px]">TERMO RESP. SIGEF</div>
+                            <div class="space-y-0.5 py-1">
+                                <div class="h-1 bg-slate-300 w-full font-bold"></div>
+                                <div class="h-1 bg-slate-200 w-11/12"></div>
+                                <div class="h-1 bg-slate-200 w-5/6"></div>
+                                <div class="border border-emerald-100 bg-emerald-50/30 p-0.5 text-emerald-800 rounded font-mono text-[3px]">
+                                    § 5º art. 176 - Lei 6015/73
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-1 text-center">
+                                <div class="w-12 h-1 border-t border-slate-400 mx-auto"></div>
+                                <div class="text-[3px]">Responsável Técnico</div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Termo de Responsabilidade Técnica (SIGEF/INCRA)
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Declaração juramentada do profissional técnico responsável certificando sob as penas da lei que executou a medição "in loco", respeitando as posses e determinando as coordenadas exatas da poligonal sem sobreposições.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 2ª LEVA: ESPECÍFICOS DE CADA POLÍGONO -->
+            <div>
+                <div class="flex items-center gap-2 border-b border-white/5 pb-2 mb-6">
+                    <i data-lucide="layers" class="text-[#00f5a0] w-5 h-5"></i>
+                    <h3 class="text-base font-bold text-[#00f5a0] tracking-wide uppercase">2ª Leva: Documentos Específicos de Cada Polígono</h3>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Mapa Oficial do Imóvel -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('mapa')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="border-b border-slate-200 pb-0.5 text-center font-bold text-[5px]">PLANTA GERAL</div>
+                            <div class="flex-grow flex items-center justify-center p-0.5">
+                                <!-- Polígono desenhado -->
+                                <svg class="w-12 h-12 text-[#00f5a0]" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polygon points="20,20 80,10 90,80 30,90 10,50" fill="rgba(0, 245, 160, 0.1)"></polygon>
+                                    <circle cx="20" cy="20" r="3" fill="#0c1510"></circle>
+                                    <circle cx="80" cy="10" r="3" fill="#0c1510"></circle>
+                                    <circle cx="90" cy="80" r="3" fill="#0c1510"></circle>
+                                    <circle cx="30" cy="90" r="3" fill="#0c1510"></circle>
+                                </svg>
+                            </div>
+                            <div class="flex justify-between items-center text-[3px] border-t border-slate-100 pt-0.5">
+                                <span>Escala 1:2500</span>
+                                <div class="w-2 h-2 bg-slate-800 rounded"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Mapa / Planta Oficial (SIGEF)
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                O desenho geométrico em escala com as divisas, rumos, confrontantes e vértices identificados. Possui o código de autenticação e QR Code do SIGEF.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Memorial Descritivo Oficial -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer" onclick="abrirModal('memorial')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="text-center font-bold border-b border-slate-200 pb-0.5 text-[5px]">MEMORIAL</div>
+                            <div class="space-y-0.5 py-1">
+                                <div class="h-1 bg-slate-300 w-full"></div>
+                                <div class="h-0.5 bg-slate-200 w-full"></div>
+                                <div class="text-[3px] font-mono text-slate-600 bg-slate-50 p-0.5 my-1">
+                                    Lat: 24°06'12" S<br>Lon: 54°17'45" W
+                                </div>
+                                <div class="h-0.5 bg-slate-200 w-3/4"></div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-0.5 flex justify-between items-center text-[3px]">
+                                <span>INCRA / SIGEF</span>
+                                <span>Pág. 1/2</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Memorial Descritivo (SIGEF)
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Descrição formal das divisas e perímetros por meio de ângulos, azimutes, distâncias calculadas e coordenadas geodésicas oficiais de cada vértice.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Anuência dos Confrontantes -->
+                    <div class="bg-[#111714] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 transition-all duration-300 glow-hover cursor-pointer md:col-span-2" onclick="abrirModal('anuencias')">
+                        <div class="shrink-0 aspect-[1/1.41] w-20 border border-slate-700 bg-white rounded shadow p-1 flex flex-col justify-between text-[4px] leading-tight select-none text-slate-800">
+                            <div class="text-center font-bold border-b border-slate-200 pb-0.5 text-[5px]">ANUÊNCIA</div>
+                            <div class="space-y-1 py-1">
+                                <div class="h-1 bg-slate-300 w-full"></div>
+                                <div class="h-1 bg-slate-300 w-11/12"></div>
+                                <div class="border border-dashed border-slate-300 rounded p-1 text-[3px] text-center font-bold">
+                                    CONCORDÂNCIA DE DIVISAS
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-1 text-center">
+                                <div class="w-12 h-1 border-t border-slate-400 mx-auto"></div>
+                                <div class="text-[3px]">Assinatura Confrontante</div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center gap-1.5">
+                                Anuência do Confrontante
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-slate-500"></i>
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Termo assinado pelo vizinho confrontante declarando que concorda com a divisa levantada. Essencial para evitar litígios futuros no cartório.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Seção 2: Passo a Passo -->
+        <section class="mb-12">
+            <div class="flex items-center gap-2 mb-6">
+                <div class="w-8 h-8 rounded-lg bg-[#00f5a0]/10 flex items-center justify-center text-[#00f5a0] font-bold">2</div>
+                <h2 class="text-xl font-bold text-white tracking-wide">PASSO A PASSO: O QUE FAZER AGORA?</h2>
+            </div>
+
+            <div class="relative pl-6 border-l border-white/10 space-y-8">
+                
+                <!-- Passo 1 -->
+                <div class="relative">
+                    <span class="absolute -left-9 top-1.5 w-6 h-6 rounded-full bg-[#00f5a0] text-[#0c1510] font-extrabold flex items-center justify-center text-xs">1</span>
+                    <h3 class="text-base font-bold text-white">Recolher as Assinaturas dos Vizinhos (Confrontantes)</h3>
+                    <p class="text-xs text-slate-400 mt-1">Antes de ir ao cartório, precisamos garantir que os confrontantes estão de acordo com as divisas.</p>
+                    
+                    <div class="bg-[#111714] border border-white/5 rounded-xl p-4 mt-3 space-y-2.5">
+                        <div class="flex items-start gap-2 text-xs">
+                            <span class="font-extrabold text-[#00f5a0] shrink-0">O QUE FAZER:</span>
+                            <span class="text-slate-300">Pegue as <strong>Anuências dos Confrontantes</strong> (da 2ª leva) e colha a assinatura de cada vizinho proprietário de imóvel lindeiro.</span>
+                        </div>
+                        <div class="flex items-start gap-2 text-xs">
+                            <span class="font-extrabold text-[#00f5a0] shrink-0">REGRA DE OURO:</span>
+                            <span class="text-slate-300">É necessário reconhecer firma por semelhança/verdadeira de todas as assinaturas em cartório. Se o confrontante for casado, ambos devem assinar (salvo regime de separação total de bens).</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 2 -->
+                <div class="relative">
+                    <span class="absolute -left-9 top-1.5 w-6 h-6 rounded-full bg-[#00f5a0] text-[#0c1510] font-extrabold flex items-center justify-center text-xs">2</span>
+                    <h3 class="text-base font-bold text-white">Dar entrada no Cartório de Registro de Imóveis (CRI)</h3>
+                    <p class="text-xs text-slate-400 mt-1">Com as assinaturas colhidas, o processo completo deve ser protocolado no cartório de registro da sua comarca.</p>
+                    
+                    <div class="bg-[#111714] border border-white/5 rounded-xl p-4 mt-3 space-y-2.5">
+                        <div class="flex items-start gap-2 text-xs">
+                            <span class="font-extrabold text-[#00f5a0] shrink-0">PEDIDO:</span>
+                            <span class="text-slate-300">Solicite formalmente a <strong>Averbação do Georreferenciamento e Retificação Territorial</strong>.</span>
+                        </div>
+                        <div class="flex items-start gap-2 text-xs">
+                            <span class="font-extrabold text-[#00f5a0] shrink-0">O QUE ENTREGAR:</span>
+                            <span class="text-slate-300">Entregue os documentos gerais (1ª leva), as pastas individuais de cada gleba (2ª leva contendo mapas, memoriais e anuências), além de CCIR, ITR/NIRF, CAR vigentes, e cópias autenticadas de RG e CPF dos proprietários.</span>
+                        </div>
+                        <div class="flex items-start gap-2 text-xs">
+                            <span class="font-extrabold text-[#00f5a0] shrink-0">COMO O CARTÓRIO CONFERE:</span>
+                            <span class="text-slate-300">O escrevente do cartório acessará o SIGEF utilizando o código da parcela impresso no seu Mapa/Memorial para auditar que a poligonal foi validada pelo INCRA.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Seção 3: Informações Importantes -->
+        <section class="mb-12 bg-emerald-950/20 border border-emerald-500/10 rounded-2xl p-6 doc-shadow">
+            <div class="flex items-center gap-2 mb-4">
+                <i data-lucide="alert-triangle" class="text-amber-400 w-5 h-5"></i>
+                <h2 class="text-lg font-bold text-white tracking-wide">INFORMAÇÕES IMPORTANTES</h2>
+            </div>
+            
+            <div class="space-y-4 text-xs md:text-sm">
+                <div class="border-l-2 border-amber-400 pl-3">
+                    <h4 class="font-bold text-white">Nota de Exigência (Diligência)</h4>
+                    <p class="text-slate-400 mt-1 leading-relaxed">
+                        O cartório tem prazos legais para analisar a documentação. Caso identifique alguma inconsistência no histórico da matrícula ou solicite ajustes nos limites declarados, emitirá uma **Nota de Exigência**. Se isso acontecer, envie-nos imediatamente uma foto deste documento para que possamos prestar o suporte técnico e providenciar os acertos no sistema.
+                    </p>
+                </div>
+                <div class="border-l-2 border-[#00f5a0] pl-3">
+                    <h4 class="font-bold text-white">Divergências ou Perdas de Documentação</h4>
+                    <p class="text-slate-400 mt-1 leading-relaxed">
+                        Como se trata de um kit extenso de papéis técnicos, caso perca alguma anuência ou identifique alguma divergência de nomes de confrontantes nos termos gerados, avise-nos imediatamente para que possamos emitir novas vias atualizadas sem custo adicional.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção de Fechamento / Rodapé -->
+        <footer class="border-t border-white/5 pt-8 mt-12 text-center break-inside-avoid">
+            <p class="text-xs text-slate-500 font-medium mb-6">
+                Gerado de forma dinâmica por COMPLETA Agrimensura • {municipio}-{uf}.
+            </p>
+            
+            <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Contatos do Responsável Técnico</h4>
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-6">
+                <!-- RT Principal (Dinamico) -->
+                <div class="bg-[#111714] border border-white/5 p-4 rounded-xl min-w-[240px] flex items-center gap-3">
+                    <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                        <i data-lucide="user" class="text-[#00f5a0] w-4 h-4"></i>
+                    </div>
+                    <div class="text-left">
+                        <div class="text-xs font-bold text-white uppercase">{nome_prof}</div>
+                        <div class="text-[9px] text-[#00f5a0] font-mono mt-0.5">{conselho_exibicao}</div>
+                    </div>
+                </div>
+
+                <!-- Dimas e Thiago de suporte -->
+                <div class="bg-[#111714] border border-white/5 p-4 rounded-xl min-w-[240px] flex items-center gap-3">
+                    <div class="w-8 h-8 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-center">
+                        <i data-lucide="phone-call" class="text-[#00f5a0] w-4 h-4"></i>
+                    </div>
+                    <div class="text-left">
+                        <div class="text-[10px] font-bold text-slate-400">SUPORTE CARTORIAL</div>
+                        <div class="text-[11px] font-bold text-white mt-0.5">Dimas: (44) 98402-1432</div>
+                        <div class="text-[11px] font-bold text-white">Thiago: (44) 98436-1330</div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+    </main>
+
+    <!-- MODAL PARA EXIBIÇÃO DETALHADA DE DOCUMENTO -->
+    <div id="doc-modal" class="fixed inset-0 bg-[#0c120f]/90 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden no-print" onclick="fecharModal()">
+        <div class="bg-[#111714] border border-white/10 rounded-2xl max-w-xl w-full p-6 md:p-8 doc-shadow flex flex-col md:flex-row gap-6 animate-in fade-in zoom-in-95 duration-300" onclick="event.stopPropagation()">
+            
+            <!-- Representação Visual do Documento no Modal -->
+            <div id="modal-doc-preview" class="shrink-0 aspect-[1/1.41] w-44 border border-slate-700 bg-white rounded-lg shadow-xl p-3 flex flex-col justify-between text-[6px] text-slate-800 select-none">
+                <!-- Injetado dinamicamente -->
+            </div>
+
+            <!-- Informações Explicativas -->
+            <div class="flex-grow flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start">
+                        <h3 id="modal-title" class="text-lg font-bold text-white">Título do Documento</h3>
+                        <button onclick="fecharModal()" class="w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <span id="modal-badge" class="inline-block text-[9px] font-bold uppercase tracking-wider text-[#00f5a0] bg-[#00f5a0]/10 px-2 py-0.5 rounded mt-1.5">LEVA</span>
+                    <p id="modal-desc" class="text-xs text-slate-400 mt-4 leading-relaxed">Descrição detalhada do documento e do processo.</p>
+                </div>
+                
+                <div class="border-t border-white/5 pt-4 mt-6">
+                    <div class="flex items-start gap-2 text-xs text-slate-300">
+                        <i data-lucide="edit-3" class="w-4 h-4 text-[#00f5a0] shrink-0 mt-0.5"></i>
+                        <div>
+                            <span class="font-bold text-white block">Quem assina?</span>
+                            <span id="modal-signer" class="text-slate-400 text-xs">Proprietário e agrimensor</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Script de Inicialização de Ícones e Controle do Modal -->
+    <script>
+        // Inicialização de ícones Lucide
+        lucide.createIcons();
+
+        // Dados explicativos e HTML de visualização de cada documento para o Modal
+        const docsData = {
+            requerimento: {
+                title: "Requerimento de Registro",
+                badge: "1ª Leva: Documento Geral",
+                desc: "Petição dirigida ao Oficial do Cartório de Registro de Imóveis (CRI) solicitando formalmente que proceda com a averbação do georreferenciamento e a correspondente retificação perimetral das matrículas. Nele é qualificado o proprietário e descrita a necessidade legal da retificação.",
+                signer: "Todos os proprietários do imóvel e seus respectivos cônjuges (quando aplicável pelo regime de casamento).",
+                html: `
+                    <div class="text-center font-bold border-b border-slate-300 pb-1 text-[8px]">REQUERIMENTO DE RETIFICAÇÃO</div>
+                    <div class="space-y-1.5 py-3">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="h-1 bg-slate-200 w-11/12"></div>
+                        <div class="h-1 bg-slate-200 w-4/5"></div>
+                        <div class="border border-slate-200 rounded p-1 my-2">
+                            <div class="h-1 bg-slate-100 w-full mb-0.5"></div>
+                            <div class="h-1 bg-slate-100 w-2/3"></div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-2 text-center">
+                        <div class="w-24 h-1 border-t border-slate-400 mx-auto"></div>
+                        <div class="text-[5px] font-bold">Assinatura do Proprietário</div>
+                    </div>
+                `
+            },
+            declaracao: {
+                title: "Declaração de Limites e Posse",
+                badge: "1ª Leva: Documento Geral",
+                desc: "Documento oficial exigido pelos cartórios sob amparo da Lei dos Registros Públicos (Lei 6.015/73) onde os proprietários atestam de forma civil e criminal que respeitaram rigorosamente as divisas históricas acordadas com os vizinhos e que a posse das glebas é mansa, pacífica e isenta de qualquer contestação ou litígio.",
+                signer: "Os proprietários solicitantes da retificação.",
+                html: `
+                    <div class="text-center font-bold border-b border-slate-300 pb-1 text-[8px]">DECLARAÇÃO DE LIMITES</div>
+                    <div class="space-y-2 py-3">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="pl-2 space-y-1">
+                            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 bg-slate-400 rounded-full shrink-0"></div><div class="h-1 bg-slate-200 w-full"></div></div>
+                            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 bg-slate-400 rounded-full shrink-0"></div><div class="h-1 bg-slate-200 w-5/6"></div></div>
+                            <div class="flex items-center gap-1"><div class="w-1.5 h-1.5 bg-slate-400 rounded-full shrink-0"></div><div class="h-1 bg-slate-200 w-11/12"></div></div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-2 text-center flex justify-around">
+                        <div>
+                            <div class="w-12 h-1 border-t border-slate-300 mx-auto"></div>
+                            <div class="text-[4px] font-bold">Proprietário</div>
+                        </div>
+                        <div>
+                            <div class="w-12 h-1 border-t border-slate-300 mx-auto"></div>
+                            <div class="text-[4px] font-bold">Cônjuge</div>
+                        </div>
+                    </div>
+                `
+            },
+            laudo: {
+                title: "Laudo Técnico Descritivo",
+                badge: "1ª Leva: Documento Geral",
+                desc: "Relatório detalhado emitido pelo engenheiro/topógrafo executor. Explica a metodologia de posicionamento via satélites GNSS, datum de referência (SIRGAS 2000), os equipamentos utilizados e a justificativa técnica para a consolidação ou divisão de glebas, fornecendo segurança cartográfica ao escrevente do cartório.",
+                signer: "O profissional Responsável Técnico (Agrensor/Engenheiro).",
+                html: `
+                    <div class="flex justify-between items-center border-b border-slate-200 pb-1">
+                        <span class="font-extrabold text-[8px]">COMPLETA AGRIMENSURA</span>
+                        <span class="bg-emerald-100 text-emerald-800 rounded px-1 text-[5px] font-bold">LAUDO</span>
+                    </div>
+                    <div class="space-y-1.5 py-3">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <table class="w-full text-[4px] border border-slate-200 mt-1">
+                            <tr class="bg-slate-100"><th class="border-b border-slate-200">Pt</th><th class="border-b border-slate-200">Coordenadas Flat (UTM)</th><th class="border-b border-slate-200">Alt</th></tr>
+                            <tr><td class="border-b border-slate-100">M1</td><td class="border-b border-slate-100">512940.12E / 7349182.90N</td><td class="border-b border-slate-100">321m</td></tr>
+                            <tr><td class="border-b border-slate-100">M2</td><td class="border-b border-slate-100">512984.95E / 7349250.31N</td><td class="border-b border-slate-100">319m</td></tr>
+                        </table>
+                    </div>
+                    <div class="text-[4px] text-slate-500 text-right mt-2">Altônia-PR., 2026.</div>
+                `
+            },
+            trt: {
+                title: "TRT / ART Quitada",
+                badge: "1ª Leva: Documento Geral",
+                desc: "Anotação/Termo de Responsabilidade Técnica. É o registro oficial do projeto junto ao Conselho de Classe (CFTA ou CREA) que comprova a habilitação do agrimensor para executar o levantamento topográfico e garante a responsabilização profissional pelas coordenadas obtidas.",
+                signer: "O profissional Responsável Técnico (comprovante de quitação bancária anexado ao processo).",
+                html: `
+                    <div class="bg-slate-800 text-white p-1 text-center font-bold text-[7px]">TERMO DE RESPONSABILIDADE TÉCNICA</div>
+                    <div class="grid grid-cols-2 gap-1 py-2">
+                        <div class="border border-slate-200 rounded p-1"><div class="text-[4px] text-slate-400">PROFISSIONAL</div><div class="h-1 bg-slate-200 w-full mt-0.5"></div></div>
+                        <div class="border border-slate-200 rounded p-1"><div class="text-[4px] text-slate-400">REGISTRO Nº</div><div class="h-1 bg-slate-200 w-full mt-0.5"></div></div>
+                        <div class="border border-slate-200 rounded p-1 col-span-2"><div class="text-[4px] text-slate-400">ATIVIDADE TÉCNICA</div><div class="h-1 bg-slate-200 w-3/4 mt-0.5"></div></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[4px] text-slate-500 border-t border-slate-100 pt-1">
+                        <span class="bg-emerald-100 text-emerald-800 font-bold px-1 rounded">TRT COMPROVADA</span>
+                        <span>Autenticação Digital</span>
+                    </div>
+                `
+            },
+            termo_rt: {
+                title: "Termo de Responsabilidade Técnica (SIGEF/INCRA)",
+                badge: "1ª Leva: Documento Geral",
+                desc: "Declaração formal assinada pessoalmente pelo profissional credenciado perante o INCRA. Sob as penas da lei, ele atesta que percorreu pessoalmente a divisa histórica, implantou os marcos correspondentes, e obteve as medições geométricas sem avançar sobre terras confrontantes ou invadir áreas protegidas.",
+                signer: "O profissional Responsável Técnico credenciado no INCRA.",
+                html: `
+                    <div class="text-center font-extrabold border-b border-slate-300 pb-1 text-[8px]">TERMO DE RESPONSABILIDADE - SIGEF</div>
+                    <div class="space-y-1.5 py-3">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="h-1 bg-slate-200 w-11/12"></div>
+                        <div class="border border-emerald-200 bg-emerald-50/50 p-1 text-emerald-900 rounded font-mono text-[4px] leading-normal">
+                            Declaramos sob as penas da lei que o levantamento georreferenciado respeita as posses e os limites territoriais.
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-2 text-center">
+                        <div class="w-24 h-1 border-t border-slate-400 mx-auto"></div>
+                        <div class="text-[5px] font-bold">Assinatura do Profissional</div>
+                    </div>
+                `
+            },
+            mapa: {
+                title: "Mapa / Planta Oficial (SIGEF)",
+                badge: "2ª Leva: Documento Específico",
+                desc: "A planta topográfica contendo o desenho vetorial fechado do perímetro da gleba. Contém a localização e numeração de cada marco, indicação dos nomes dos proprietários vizinhos lindeiros, estradas e acidentes geográficos, acompanhado de autenticação eletrônica (QR Code) que liga o mapa à base de dados do SIGEF/INCRA.",
+                signer: "O profissional habilitado (gerado eletronicamente e autenticado no portal do SIGEF).",
+                html: `
+                    <div class="border-b border-slate-200 pb-0.5 text-center font-bold text-[7px]">PLANTA TOPOGRÁFICA DO PERÍMETRO</div>
+                    <div class="flex-grow flex items-center justify-center p-2">
+                        <svg class="w-24 h-24 text-emerald-600" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="20,20 80,15 85,75 35,85 15,55" fill="rgba(16, 185, 129, 0.05)"></polygon>
+                            <circle cx="20" cy="20" r="2.5" fill="#1e293b"></circle><text class="text-[4px]" x="22" y="19">M01</text>
+                            <circle cx="80" cy="15" r="2.5" fill="#1e293b"></circle><text class="text-[4px]" x="82" y="14">M02</text>
+                            <circle cx="85" cy="75" r="2.5" fill="#1e293b"></circle><text class="text-[4px]" x="87" y="74">V01</text>
+                            <circle cx="35" cy="85" r="2.5" fill="#1e293b"></circle><text class="text-[4px]" x="37" y="84">V02</text>
+                            <circle cx="15" cy="55" r="2.5" fill="#1e293b"></circle><text class="text-[4px]" x="17" y="54">P01</text>
+                        </svg>
+                    </div>
+                    <div class="flex justify-between items-center text-[4px] border-t border-slate-100 pt-1">
+                        <span>SIRGAS 2000 / UTM 22S</span>
+                        <!-- QR Code simulado -->
+                        <div class="w-5 h-5 bg-slate-800 p-0.5 flex flex-wrap gap-px">
+                            <div class="w-1 h-1 bg-white"></div><div class="w-1 h-1 bg-black"></div><div class="w-1 h-1 bg-white"></div>
+                            <div class="w-1 h-1 bg-black"></div><div class="w-1 h-1 bg-white"></div><div class="w-1 h-1 bg-black"></div>
+                        </div>
+                    </div>
+                `
+            },
+            memorial: {
+                title: "Memorial Descritivo Oficial (SIGEF)",
+                badge: "2ª Leva: Documento Específico",
+                desc: "Texto técnico e oficial contendo a descrição narrativa exata do caminhamento perimetral. Indica de qual vértice inicia o caminhamento, qual o tipo de divisa (cerca, valo, córrego), os azimutes e as distâncias até o próximo ponto de divisa, bem como as coordenadas de latitude, longitude e altitude de cada vértice.",
+                signer: "Emitido automaticamente pelo portal do SIGEF/INCRA a partir da homologação do georreferenciamento.",
+                html: `
+                    <div class="text-center font-bold border-b border-slate-300 pb-1 text-[7px]">MEMORIAL DESCRITIVO OFICIAL</div>
+                    <div class="space-y-1 py-2">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="h-1 bg-slate-200 w-full"></div>
+                        <div class="border border-slate-200 bg-slate-50 p-1 font-mono text-[3.5px] leading-relaxed my-1">
+                            Inicia-se a descrição do perímetro no vértice M01, de coordenada N: 7.349.182m e E: 512.940m... segue confrontando com a Estrada Municipal...
+                        </div>
+                        <div class="h-1 bg-slate-200 w-11/12"></div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-1 flex justify-between items-center text-[4px]">
+                        <span class="font-bold">SIGEF / INCRA</span>
+                        <span>Código: A57B-23F0-D42B</span>
+                    </div>
+                `
+            },
+            anuencias: {
+                title: "Anuência do Confrontante",
+                badge: "2ª Leva: Documento Específico",
+                desc: "Declaração jurídica onde o vizinho confrontante concorda formalmente com os limites georreferenciados apresentados. Exigida por lei para garantir o respeito aos direitos de posse vizinhos, permitindo a averbação direta e sem litígios do georreferenciamento perante o cartório de registro.",
+                signer: "O confrontante lindeiro (vizinho), seu cônjuge (outorga de casamento) e duas testemunhas (todas com firmas reconhecidas em cartório).",
+                html: `
+                    <div class="text-center font-bold border-b border-slate-300 pb-1 text-[7px]">DECLARAÇÃO DE ANUÊNCIA E ACORDO</div>
+                    <div class="space-y-1 py-2 flex-grow">
+                        <div class="h-1 bg-slate-300 w-full"></div>
+                        <div class="h-1 bg-slate-200 w-full"></div>
+                        <div class="border border-slate-100 rounded p-1 text-[4px] text-center font-semibold bg-emerald-50/50 text-emerald-800 leading-normal">
+                            Declaramos que estamos de acordo com a divisa topográfica estabelecida entre os vértices M01 e M02.
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-2 text-center space-y-1">
+                        <div class="flex justify-around">
+                            <div><div class="w-12 h-0.5 bg-slate-400"></div><div class="text-[3px]">Confrontante</div></div>
+                            <div><div class="w-12 h-0.5 bg-slate-400"></div><div class="text-[3px]">Testemunha 1</div></div>
+                        </div>
+                    </div>
+                `
+            }
+        };
+
+        // Funções para Controle do Modal
+        function abrirModal(docKey) {
+            const doc = docsData[docKey];
+            if (!doc) return;
+
+            document.getElementById('modal-title').textContent = doc.title;
+            document.getElementById('modal-badge').textContent = doc.badge;
+            document.getElementById('modal-desc').textContent = doc.desc;
+            document.getElementById('modal-signer').textContent = doc.signer;
+
+            const previewContainer = document.getElementById('modal-doc-preview');
+            previewContainer.innerHTML = doc.html;
+
+            document.getElementById('doc-modal').classList.remove('hidden');
+        }
+
+        function fecharModal() {
+            document.getElementById('doc-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

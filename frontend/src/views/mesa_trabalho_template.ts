@@ -489,7 +489,7 @@ export const renderMesaTrabalho = (): string => {
             </div>
 
             <!-- Grid de Botões de Emissão -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
               <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-req-cartorio" type="button">
                 <i data-lucide="file-edit" class="w-4 h-4 text-mint-vibrant"></i>
                 Requerimento de Retificação
@@ -501,6 +501,14 @@ export const renderMesaTrabalho = (): string => {
               <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-laudo-tec" type="button">
                 <i data-lucide="file-signature" class="w-4 h-4 text-mint-vibrant"></i>
                 Laudo Técnico Descritivo
+              </button>
+              <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-termo-sigef" type="button">
+                <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
+                Termo Resp. SIGEF
+              </button>
+              <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-manual-proprietario" type="button">
+                <i data-lucide="book-open" class="w-4 h-4 text-mint-vibrant"></i>
+                Manual Proprietário
               </button>
               <div class="flex gap-2">
                 <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 text-xs text-white focus:outline-none transition-all">

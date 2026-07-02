@@ -585,6 +585,74 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
     
+    const btnTermoSigef = document.getElementById('btn-emitir-termo-sigef');
+    if (btnTermoSigef) {
+      btnTermoSigef.onclick = async () => {
+        if (!ctx.currentMatriculaId) return;
+        
+        try {
+          const resLev = await fetch(`${API_BASE}/levantamentos`);
+          const allLevs = await resLev.json();
+          const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
+          if (levObj) ctx.currentLevantamento = levObj;
+        } catch (e) {
+          console.error("Erro ao recarregar levantamento:", e);
+        }
+        
+        let trt = "";
+        let data = "";
+        
+        if (ctx.currentLevantamento && ctx.currentLevantamento.numero_trt && ctx.currentLevantamento.numero_trt.trim()) {
+          trt = ctx.currentLevantamento.numero_trt;
+          data = ctx.currentLevantamento.data_trt || "";
+        } else {
+          const trtVal = prompt("Informe o número do TRT/ART:");
+          if (trtVal === null) return;
+          const dataVal = prompt("Informe a data de quitação do TRT/ART (AAAA-MM-DD):", new Date().toISOString().substring(0, 10));
+          if (dataVal === null) return;
+          trt = trtVal;
+          data = dataVal;
+          
+          if (ctx.currentLevantamento) {
+            const payload = {
+              propriedade_id: ctx.currentLevantamento.propriedade_id,
+              profissional_id: ctx.currentLevantamento.profissional_id,
+              data_inicio: ctx.currentLevantamento.data_inicio,
+              status: ctx.currentLevantamento.status || "EM_ANDAMENTO",
+              numero_trt: trt,
+              data_trt: data
+            };
+            try {
+              const resPut = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              const resData = await resPut.json();
+              if (!resData.error) {
+                ctx.currentLevantamento.numero_trt = trt;
+                ctx.currentLevantamento.data_trt = data;
+              }
+            } catch (err) {
+              console.error("Erro ao salvar TRT no levantamento:", err);
+            }
+          }
+        }
+        
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/termo-responsabilidade-sigef-html?numero_trt=${encodeURIComponent(trt)}&data_trt=${encodeURIComponent(data)}`;
+        window.open(url, '_blank');
+      };
+    }
+    
+    const btnManualProprietario = document.getElementById('btn-emitir-manual-proprietario');
+    if (btnManualProprietario) {
+      btnManualProprietario.onclick = () => {
+        if (!ctx.currentMatriculaId) return;
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/manual-proprietario-html`;
+        window.open(url, '_blank');
+      };
+    }
+    
     const btnAnuencia = document.getElementById('btn-emitir-anuencia');
     if (btnAnuencia) {
       btnAnuencia.onclick = () => {

@@ -302,9 +302,9 @@ Os templates HTML das peças técnicas geradas dinamicamente pelo sistema foram 
 
 ### A. Estrutura de Diretórios de Templates
 Todos os templates HTML nativos são agora armazenados de forma limpa na pasta física `/templates` na raiz do projeto:
-* `requerimento_cartorio.html` (Requerimento de Averbação/Retificação de Cartório)
-* `declaracao_responsabilidade.html` (Declaração de Responsabilidade de Limites e Posse)
-* `laudo_tecnico.html` (Laudo Técnico e Memorial Justificativo - Cartório)
+* `requerimento_cartorio.html` (Requerimento de Averbação/Retificação de Cartório) [Nota: Em caso de múltiplas matrículas, agrupa-as de forma consolidada em formato de tabela]
+* `declaracao_responsabilidade.html` (Declaração de Responsabilidade de Limites e Posse) [Nota: Em caso de múltiplas matrículas, agrupa-as de forma consolidada em formato de tabela]
+* `laudo_tecnico.html` (Laudo Técnico e Memorial Justificativo - Cartório) [Nota: Bloco visual de assinatura do RT removido para fluxo de assinatura 100% digital. Adicionalmente, em caso de múltiplas matrículas, agrupa as glebas na introdução e inclui uma coluna de origem para cada vértice na tabela de coordenadas]
 * `declaracao_anuencia.html` (Declaração de Anuência e Respeito de Limites do Confrontante)
 * `laudo_fronteira.html` (Laudo de Localização em Faixa de Fronteira)
 * `requerimento_ratificacao.html` (Requerimento de Ratificação de Fronteira)

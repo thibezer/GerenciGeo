@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termo de Responsabilidade Técnica SIGEF - {nome_lote}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm 15mm 20mm 15mm !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                display: block !important;
+            }
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+            p, li {
+                orphans: 2 !important;
+                widows: 2 !important;
+                break-inside: auto !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    
+    <!-- Barra Superior de Controle (no-print) -->
+    <div class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                    COMPLETA
+                    <span class="text-[9px] uppercase bg-[#00f5a0]/20 text-[#00f5a0] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">PRONTO PARA IMPRESSÃO</span>
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Termo de Responsabilidade Técnica • A4 Premium</p>
+            </div>
+        </div>
+        
+        <button onclick="window.print()" class="px-5 py-2.5 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-[0_0_15px_rgba(0,245,160,0.3)] transition-all flex items-center gap-2 text-xs uppercase tracking-wider transition cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir / Salvar PDF
+        </button>
+    </div>
+ 
+    <!-- Página Principal (A4) -->
+    <div class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
+        
+        <div>
+            <!-- Cabeçalho Principal -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">
+                    COMPLETA
+                </div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">
+                    Agrimensura e Projetos Agropecuários
+                </div>
+            </div>
+
+            <div class="text-center mb-8 mt-4">
+                <h2 class="text-sm font-bold text-slate-900 tracking-wide uppercase leading-snug">
+                    TERMO DE RESPONSABILIDADE TÉCNICA POR LEVANTAMENTO GEORREFERENCIADO AO SISTEMA GEODÉSICO BRASILEIRO PARA CERTIFICAÇÃO DE IMÓVEL RURAL JUNTO AO INCRA/SIGEF
+                </h2>
+            </div>
+ 
+            <!-- Conteúdo em Seções -->
+            <div class="space-y-6 text-sm text-justify leading-relaxed text-slate-700">
+                
+                <p>
+                    <strong class="text-slate-900">{nome_prof}</strong>, {formacao_prof}, {conselho_exibicao}, 
+                    portador da Cédula de Identidade RG nº <strong class="text-slate-900">{rg_prof}</strong> e CPF nº <strong class="text-slate-900">{cpf_prof}</strong>, 
+                    residente e domiciliado à {end_residencial_prof}, 
+                    estabelecida à {end_comercial_prof}, com 
+                    credenciamento junto ao INCRA sob o código <strong class="text-slate-900">{credencial_incra}</strong>.
+                </p>
+
+                {texto_declaracao_imoveis_html}
+
+                <p>
+                    <strong>DECLARO</strong> que tenho conhecimento do disposto no § 14 do inciso II, do artigo 
+                    213 da Lei 6.015/73, que este levantamento foi efetuado "in loco" e não com base em 
+                    elementos extraídos da matrícula do imóvel. Declaro mais que os confrontantes 
+                    constantes neste mapa são únicos do imóvel ora retificando.
+                </p>
+
+                <p>
+                    <strong>DECLARO</strong> ainda que as identificações dos confrontantes se deu baseando-se nas 
+                    informações levantadas no local e juntamente com o proprietário, bem como realizei o 
+                    levantamento planimétrico nos vértices divisórios entre o imóvel retificando e os imóveis 
+                    lindeiros e estou representando fielmente as situações de campo no mapa e memorial 
+                    descritivo em anexo.
+                </p>
+
+                <p>
+                    Atesto, sob as penas da lei, que efetuei pessoalmente o levantamento da área e que 
+                    os valores corretos dos ângulos, distâncias, coordenadas e a identificação dos 
+                    confrontantes são os apresentados nesta oportunidade, na planta e no memorial descritivo 
+                    que acompanham o presente laudo.
+                </p>
+
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinatura) unidas para evitar quebra órfã -->
+        <div class="break-inside-avoid w-full mt-12 flex flex-col items-center">
+            <p class="text-xs text-slate-500 font-medium text-left w-full mb-12">
+                {municipio}-{uf}., <span id="data-impressao">{data_hoje_extenso}</span>.
+            </p>
+            
+            <div class="flex flex-col items-center min-w-[280px]">
+                <div class="w-full border-t border-slate-400 mt-8 mb-2"></div>
+                <div class="text-sm font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
+                <div class="text-xs text-slate-500 text-center font-medium mt-0.5">{formacao_prof}</div>
+                <div class="text-[11px] text-slate-400 text-center font-medium font-mono mt-0.5">{conselho_exibicao}</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

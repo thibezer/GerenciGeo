@@ -837,3 +837,33 @@ Para evitar que operadores tentem carregar arquivos ou emitir relatórios locais
    - Remove ou esconde a seção inteira do Workspace GNSS local (`#painel-workspace-gnss`).
    - Oculta botões de geração de peças técnicas locais pesadas (como o testador HGO e geradores de lote) e insere uma mensagem informativa elegante na barra de status superior: `"Modo de Consulta Hub Web Ativo. Operações de Ingestão Restritas ao App Desktop."`
 
+---
+
+### 4.18 Remoção do Bloco de Assinatura Física do RT nos Templates (v2.5.3)
+
+Para otimizar o layout de impressão das peças técnicas e adequar o sistema ao fluxo moderno de assinaturas digitais/eletrônicas (como via certificado ICP-Brasil ou portais de assinatura):
+- **Otimização de Espaço de Página e Prevenção de Páginas Órfãs**: O bloco de assinatura visual do Responsável Técnico foi inteiramente removido do template do Laudo Técnico (`laudo_tecnico.html`). O fechamento do documento agora é finalizado de forma limpa na data e local formatados (`{municipio}-{uf}, {data_extenso}.`), liberando espaço vertical e evitando quebras de página inadequadas (que geravam uma folha extra contendo apenas o bloco de assinatura físico).
+
+---
+
+### 4.19 Consolidação Automática de Múltiplas Matrículas/Glebas em Peça Única (v2.5.4)
+
+Para otimizar e unificar o processo de averbação e retificação imobiliária nos Cartórios de Registro de Imóveis (CRI) e reduzir o volume de assinaturas e impressões redundantes:
+- **Detecção e Agrupamento no Backend**: A lógica de geração dos métodos `gerar_requerimento_cartorio_html`, `gerar_declaracao_responsabilidade_html` e `gerar_laudo_tecnico_html` em `business/cartorio_generator.py` foi atualizada para consultar todas as matrículas atreladas à propriedade do levantamento.
+- **Layout Tabular Dinâmico**: 
+  - Se a propriedade possuir múltiplas matrículas, os documentos são gerados de forma consolidada no plural, contendo uma tabela HTML detalhando cada gleba (denominação, matrícula, área individual e UUID de certificação SIGEF).
+  - No **Requerimento de Cartório**, os itens iniciais (1, 2, 3 e 4) são substituídos dinamicamente pelo formato consolidado com a área total somada, e o item de encerramento é pluralizado (solicitando o encerramento em lote de todas as matrículas originárias).
+  - Na **Declaração de Responsabilidade**, a qualificação inicial é reescrita e aponta para a tabela estruturada com todas as glebas sob responsabilidade declarada dos proprietários.
+  - No **Laudo Técnico**, a introdução é adaptada no plural e exibe a tabela de resumo de glebas. Adicionalmente, a tabela de coordenadas dos vértices é estruturada de forma dinâmica para incluir uma **coluna extra à direita ("Gleba / Matrícula")** que mapeia a origem física de cada ponto cadastrado no levantamento.
+- **Retrocompatibilidade Preservada**: Caso a propriedade possua apenas uma matrícula cadastrada, os templates continuam renderizando o texto original corrido no singular e com tabelas em formato clássico (5 colunas para o Laudo), preservando 100% o comportamento padrão do ecossistema.
+
+### 4.20 Termo de Responsabilidade Técnica para Certificação INCRA/SIGEF (v2.5.5)
+
+Para simplificar e otimizar os fluxos de certificação de imóveis rurais perante o INCRA e o SIGEF, foi integrado ao GerenciGeo o Termo de Responsabilidade Técnica (TRT/ART) descritivo do agrimensor:
+- **Novo Template Dedicado (`termo_responsabilidade_sigef.html`)**: Estruturado sob Tailwind CSS com cabeçalho padrão corporativo da COMPLETA Agrimensura, contendo todas as declarações legais fundamentadas na Lei Federal 6.015/73 (Art. 213, § 14 e Art. 176, § 5º), Lei 10.267/01 e decretos 4.449/02 e 5.570/05. A página A4 é projetada com recursos de `@media print` para evitar quebras órfãs de linhas e otimizar o bloco de assinatura técnica final.
+- **Preenchimento Dinâmico Unificado (`business/cartorio_generator.py`)**: O método estático `gerar_termo_responsabilidade_sigef_html` consome dados unificados de profissional e imóvel da função `obter_dados_comuns`. Ele realiza a injeção determinística de variáveis como nome do profissional, formação, conselho profissional, CPF, RG, credencial do INCRA, denominação e comarca do imóvel, área certificada (com duas casas decimais), número de registro do SIGEF (parcela/georreferenciamento), além da data por extenso de forma independente do locale do SO.
+- **Roteamento Exposto via API FastAPI (`routes/levantamento/documentos.py`)**: Registrou-se o endpoint `GET /levantamentos/{id}/matriculas/{matricula_id}/termo-responsabilidade-sigef-html` com injeção opcional do número de TRT/ART, que delega o preenchimento ao gerador e retorna o HTMLResponse correspondente ao navegador.
+- **Ação Integrada na Mesa de Trabalho (`mesa_trabalho_template.ts` e `gerador_documentos.ts`)**:
+  - Foi criado o botão `#btn-emitir-termo-sigef` ("Termo Resp. SIGEF") estilizado com ícone Lucide correspondente.
+  - O painel de botões de emissão de peças técnicas foi expandido de 4 para 5 colunas responsivas (`lg:grid-cols-5`) para acomodar a nova ação sem prejudicar o design.
+  - O evento do clique do botão no frontend realiza a verificação de existência da matrícula, solicita interativamente as informações de TRT/ART caso ausentes e atualiza o banco de dados antes de abrir a aba de impressão do navegador.

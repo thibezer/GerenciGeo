@@ -114,37 +114,7 @@
                 segue:</p>
 
             <ol class="list-none space-y-4 pl-0">
-                <li class="flex items-start gap-2">
-                    <span class="font-bold text-slate-900">1.</span>
-                    <span>Os requerentes são os legítimos proprietários e possuidores do imóvel rural denominado <strong
-                            class="text-slate-900">{nome_lote}</strong>, situado no município de {municipio}/{uf},
-                        objeto da <strong>Matrícula nº {numero_matricula}</strong> deste prestigiado Ofício de Registro
-                        Imobiliário.</span>
-                </li>
-
-                <li class="flex items-start gap-2">
-                    <span class="font-bold text-slate-900">2.</span>
-                    <span>O referido imóvel rural perfaz originalmente uma área total descrita de <strong>{area_ha}
-                            ha</strong>, registrada conforme as antigas descrições precárias de divisas constantes no
-                        assento imobiliário original.</span>
-                </li>
-
-                <li class="flex items-start gap-2">
-                    <span class="font-bold text-slate-900">3.</span>
-                    <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão do
-                        imóvel para fins de obtenção da certificação técnica junto ao INCRA, constatou-se formalmente
-                        que os dados descritivos e a área histórica contidos na matrícula descrita não correspondem à
-                        exata, fidedigna e atual realidade de fato existente e consolidada em campo.</span>
-                </li>
-
-                <li class="flex items-start gap-2">
-                    <span class="font-bold text-slate-900">4.</span>
-                    <span>Em cumprimento às normas vigentes, o <strong>INCRA aprovou o projeto de
-                            georreferenciamento</strong> do referido imóvel, emitindo a Certificação SIGEF sob o número
-                        de protocolo técnico <strong
-                            class="font-mono text-slate-900 font-bold">{georref_sigef}</strong>, apurando e certificando
-                        a poligonal perimetral exata da propriedade.</span>
-                </li>
+                {itens_iniciais_requerimento_html}
 
                 <li class="flex items-start gap-2">
                     <span class="font-bold text-slate-900">5.</span>
@@ -187,8 +157,7 @@
             <p class="pt-2">Diante do exposto, com base na Lei Federal nº 10.267/2001, no § 5º do art. 9º do Decreto nº
                 4.449/2002 e no art. 176, § 3º c/c art. 213, inciso II da Lei nº 6.015/1973, <strong>REQUEREM</strong> a
                 Vossa Senhoria se digne a proceder com a averbação da certificação do imóvel, autorizando o
-                <strong>ENCERRAMENTO DA MATRÍCULA Nº {numero_matricula}</strong> e a subsequente <strong>ABERTURA DE
-                    NOVA MATRÍCULA GEORREFERENCIADA</strong>, fazendo-se constar a real, exata e efetiva área apurada e
+                {texto_encerramento_html}, fazendo-se constar a real, exata e efetiva área apurada e
                 sua perfeita descrição perimetral.
             </p>
 

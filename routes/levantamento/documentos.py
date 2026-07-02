@@ -313,6 +313,38 @@ def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: Optional[str]
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/termo-responsabilidade-sigef-html", response_class=HTMLResponse)
+def get_termo_responsabilidade_sigef_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = ""):
+    """Gera o termo de responsabilidade técnica SIGEF em HTML estruturado"""
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_termo_responsabilidade_sigef_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            numero_trt=numero_trt,
+            data_trt=data_trt
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/manual-proprietario-html", response_class=HTMLResponse)
+def get_manual_proprietario_html(id: int, matricula_id: int):
+    """Gera o manual do proprietário pós-georreferenciamento em HTML estruturado (público)"""
+    try:
+        from business.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_manual_proprietario_html(
+            lev_id=id,
+            matricula_id=matricula_id
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: int):
     try:
