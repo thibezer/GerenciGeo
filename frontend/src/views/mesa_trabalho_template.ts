@@ -262,7 +262,7 @@ export const renderMesaTrabalho = (): string => {
                 <i data-lucide="upload" class="w-3.5 h-3.5 text-purple-400"></i>
                 Importar CSV Vizinho
              </button>
-             <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" />
+             <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-gerar-requerimento-cri">
                <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                Requerimento

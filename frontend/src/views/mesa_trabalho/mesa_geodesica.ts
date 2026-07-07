@@ -973,33 +973,45 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   });
 
   inputCsvVizinho?.addEventListener('change', async (e: any) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     try {
-      showToast("Processando e importando CSV do vizinho...", "info");
+      showToast(`Processando ${files.length} arquivo(s) de vizinho...`, "info");
       
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv`, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      
+      let sucessos = 0;
+      let mensagens = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        
+        if (data.error || data.detail) {
+          console.error(`Erro ao importar ${file.name}:`, data.error || data.detail);
+        } else {
+          sucessos++;
+          mensagens.push(data.mensagem);
+        }
+      }
+
       inputCsvVizinho.value = '';
 
-      if (data.error || data.detail) {
-        alert(data.error || data.detail);
-      } else {
-        showToast(data.mensagem || "Georreferenciamento de vizinho importado com sucesso!", 'success');
-        
+      if (sucessos > 0) {
+        showToast(`Sucesso: ${sucessos} de ${files.length} arquivo(s) importados!`, 'success');
         ctx.loadLevantamentoDetails();
+      } else {
+        alert("Erro ao importar arquivos de vizinho.");
       }
     } catch (err) {
       console.error(err);
-      alert("Erro ao enviar arquivo CSV de vizinho.");
+      alert("Erro ao enviar arquivos de vizinho.");
       inputCsvVizinho.value = '';
     }
   });

@@ -341,6 +341,7 @@ def get_pontos(id: int):
             LEFT JOIN matriculas m ON p.matricula_id = m.id
             WHERE p.levantamento_id = ?
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
+              AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
             ORDER BY p.ordem_caminhamento ASC, p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
