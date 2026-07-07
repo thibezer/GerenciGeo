@@ -22,117 +22,225 @@ export const renderMesaTrabalho = (): string => {
    return `
     <div class="workspace-wrapper animate-in fade-in duration-300">
       <header class="ribbon-master-container">
-        <!-- Camada 1: Title & QA Utilities -->
-        <div class="ribbon-layer-one">
-          <div class="flex items-center gap-4">
-            <div class="ribbon-logo font-mono uppercase tracking-wider font-black">GERENCIGEO // WORKSTATION</div>
-            <div class="h-4 w-[1px] bg-white/10"></div>
-            <div class="ribbon-qa-zone">
-              <button id="btn-voltar-lista-qa" class="ribbon-qa-btn" title="Voltar para Lista"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-              <button id="btn-salvar-qa" class="ribbon-qa-btn" title="Salvar Rascunho Local"><i data-lucide="save" class="w-4 h-4"></i></button>
-            </div>
+        <!-- Camada 1 — App Bar (Application Menu Bar) -->
+        <div id="ribbon-layer1" class="ribbon-layer1">
+          <div class="rl1-brand">
+            <i data-lucide="crosshair" class="rl1-logo-icon"></i>
+            <span class="rl1-logo-text">Gerenci<span class="accent">Geo</span> // WORKSTATION</span>
           </div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1.5">
-              <label style="font-size: 10px; color: #888; text-transform: uppercase; font-family: monospace;">Fuso UTM:</label>
-              <select id="utm-zone-qa" class="ribbon-select-dark cursor-pointer font-mono">
-                <option value="21S">21S</option>
-                <option value="22S" selected>22S</option>
-                <option value="23S">23S</option>
-              </select>
-            </div>
-            <div class="h-4 w-[1px] bg-white/10"></div>
-            <div class="text-[10px] text-white/40 font-mono" id="container-info-matricula-ativa">
-              MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span>
-            </div>
+          <div class="rl1-separator"></div>
+          <div class="rl1-qat">
+            <button class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
+              <i data-lucide="chevron-left"></i><span>Voltar</span>
+            </button>
+            <button class="rl1-btn" id="btn-salvar-rascunho" title="Salvar rascunho (Ctrl+S)" type="button">
+              <i data-lucide="save"></i><span>Salvar</span>
+            </button>
           </div>
-        </div>
-
-        <!-- Camada 2: Fixed Core Meta-info -->
-        <div class="ribbon-layer-two">
-          <div class="property-meta-item">Imóvel: <strong id="txt-nome-propriedade" class="text-white hover:text-mint-vibrant transition-colors font-bold">Carregando...</strong> <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold font-bold" id="badge-status-lev">-</span></div>
-          <div class="property-meta-item">Cliente: <strong id="txt-nome-cliente">-</strong></div>
-          <div class="property-meta-item">Código CAR: <strong id="txt-codigo-car" class="font-mono">-</strong></div>
-          <div class="flex-grow"></div>
-          <!-- Seletor de Matrículas (Abas de Triagem) embutido no contexto fixo -->
-          <div class="flex bg-white/5 border border-white/10 p-0.5 rounded" id="container-abas-matriculas">
-            <!-- Abas carregadas dinamicamente -->
+          <div class="rl1-spacer"></div>
+          <div class="rl1-context">
+            <label class="rl1-select-label">Fuso</label>
+            <select id="select-fuso-ribbon" class="rl1-select">
+              <option value="21S">21S</option>
+              <option value="22S" selected>22S</option>
+              <option value="23S">23S</option>
+            </select>
+            <label class="rl1-select-label">Matrícula</label>
+            <select id="select-matricula-ribbon" class="rl1-select" style="min-width:130px">
+              <!-- Preenchido dinamicamente no JS com options -->
+            </select>
+          </div>
+          <div class="rl1-separator"></div>
+          <div class="rl1-user">
+            <div class="rl1-avatar" title="Administrador">AD</div>
           </div>
         </div>
 
-        <!-- Camada 3: Dynamic Ribbon Panels -->
-        <div class="ribbon-layer-three">
-          <div class="ribbon-tab-headers">
-            <button class="ribbon-tab-btn active ribbon-tab-btn-el" data-tab="geoprocessamento" type="button">Mesa Geodésica</button>
-            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="cartorio" type="button">Organizador de Perímetros</button>
-            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="documentos" type="button">Peças de Cartório</button>
-            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="auditoria" type="button">Histórico de Auditoria</button>
+        <!-- Camada 2 — Metadados do Projeto (Project Info Bar) -->
+        <div id="ribbon-layer2" class="ribbon-layer2">
+          <span class="rl2-prop-name" id="txt-nome-propriedade">Carregando...</span>
+          <span class="rl2-badge status-ativo" id="badge-status-lev">—</span>
+          <div class="rl2-sep"></div>
+          <span class="rl2-meta-item">
+            <span class="rl2-meta-label">Cliente:</span>
+            <span class="rl2-meta-value" id="txt-nome-cliente">—</span>
+          </span>
+          <div class="rl2-sep"></div>
+          <span class="rl2-meta-item">
+            <span class="rl2-meta-label">CAR:</span>
+            <span class="rl2-meta-value font-mono" id="txt-codigo-car">—</span>
+          </span>
+          <div class="rl2-sep"></div>
+          <span class="rl2-meta-item">
+            <span class="rl2-meta-label">TRT:</span>
+            <span class="rl2-meta-value font-mono" id="txt-numero-trt">—</span>
+          </span>
+        </div>
+
+        <!-- Camada 3 — Abas de Ferramentas (Tool Tabs) -->
+        <div id="ribbon-layer3" class="ribbon-layer3">
+          <!-- Sub-camada 3a: Abas de navegação -->
+          <div class="rl3-tabs" role="tablist">
+            <button class="rl3-tab active" id="tab-geoprocessamento" role="tab" aria-selected="true" aria-controls="panel-geoprocessamento" data-tab="geoprocessamento" type="button">
+              <i data-lucide="cpu" aria-hidden="true"></i>
+              Mesa Geodésica
+            </button>
+            <button class="rl3-tab" id="tab-perimetro" role="tab" aria-selected="false" aria-controls="panel-perimetro" data-tab="cartorio" type="button">
+              <i data-lucide="pentagon" aria-hidden="true"></i>
+              Org. de Perímetro
+            </button>
+            <button class="rl3-tab" id="tab-cartorio" role="tab" aria-selected="false" aria-controls="panel-cartorio" data-tab="documentos" type="button">
+              <i data-lucide="file-text" aria-hidden="true"></i>
+              Peças de Cartório
+            </button>
+            <button class="rl3-tab" id="tab-auditoria" role="tab" aria-selected="false" aria-controls="panel-auditoria" data-tab="auditoria" type="button">
+              <i data-lucide="history" aria-hidden="true"></i>
+              Histórico de Auditoria
+            </button>
           </div>
-          <div class="ribbon-tab-contents">
-            <!-- Painéis para Aba 1: Mesa Geodésica -->
-            <div id="tab-panel-geoprocessamento" class="ribbon-panel-row">
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-importar-csv-vizinho" class="ribbon-action-btn" type="button" title="Importar confrontante (CSV do SIGEF)"><i data-lucide="upload" class="w-4 h-4"></i><span>Importar CSV</span></button>
+
+          <!-- Sub-camada 3b: Painéis de ferramentas -->
+          <div class="rl3-panels">
+            <!-- PAINEL: Mesa Geodésica -->
+            <div class="rl3-panel" id="panel-geoprocessamento" role="tabpanel">
+              <!-- Grupo: Ingestão -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-drop-arquivos" title="Arraste ou selecione arquivos .GNS/.TXT" type="button">
+                    <i data-lucide="upload-cloud"></i>
+                    <span>Ingestão</span>
+                  </button>
+                  <button class="rl3-tool-btn" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
+                    <i data-lucide="play"></i>
+                    <span>Processar Lote</span>
+                  </button>
+                </div>
+                <div class="rl3-group-label">Ingestão</div>
+              </div>
+              <div class="rl3-divider"></div>
+
+              <!-- Grupo: Vizinhos (SIGEF) -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
+                    <i data-lucide="upload"></i>
+                    <span>Importar CSV</span>
+                  </button>
                   <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
-                  <button id="btn-override-base-manual" class="ribbon-action-btn" type="button" title="Override Base Manual"><i data-lucide="shield-alert" class="w-4 h-4"></i><span>Base Manual</span></button>
+                  <button class="rl3-tool-btn rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
+                    <i data-lucide="trash-2"></i>
+                    <span>Limpar Camada</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Entrada do SIGEF</div>
+                <div class="rl3-group-label">Vizinhos (SIGEF)</div>
               </div>
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-reordenar-caminhamento" class="ribbon-action-btn" type="button" title="Reordenar pontos da matrícula"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span>Reordenar</span></button>
+              <div class="rl3-divider"></div>
+
+              <!-- Grupo: Coordenadas -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <div class="rl3-toggle-row">
+                    <span class="rl3-toggle-label">Modo:</span>
+                    <button class="rl3-toggle-btn active" id="btn-modo-utm" data-mode="utm" type="button">UTM</button>
+                    <button class="rl3-toggle-btn" id="btn-modo-geo" data-mode="geodesico" type="button">Geo</button>
+                  </div>
+                  <button class="rl3-tool-btn" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
+                    <i data-lucide="archive"></i>
+                    <span>RINEX .ZIP</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Operações</div>
+                <div class="rl3-group-label">Coordenadas</div>
               </div>
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-limpar-vizinhos" class="ribbon-action-btn" type="button" title="Limpar confrontantes importados"><i data-lucide="trash-2" class="w-4 h-4"></i><span>Limpar Camada</span></button>
+              <div class="rl3-divider"></div>
+
+              <!-- Grupo: Exportar -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn" id="btn-exportar-kml" type="button">
+                    <i data-lucide="map-pin"></i>
+                    <span>KML</span>
+                  </button>
+                  <button class="rl3-tool-btn" id="btn-unificar-sigef" type="button">
+                    <i data-lucide="file-spreadsheet"></i>
+                    <span>Unificar SIGEF</span>
+                  </button>
+                  <button class="rl3-tool-btn" id="btn-consolidar-pontos-utm" type="button">
+                    <i data-lucide="download"></i>
+                    <span>Exportar CSV</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Limpeza</div>
+                <div class="rl3-group-label">Exportar</div>
+              </div>
+              <div class="rl3-divider"></div>
+
+              <!-- Grupo: Edição -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
+                    <i data-lucide="arrow-up-down"></i>
+                    <span>Reordenar</span>
+                  </button>
+                  <button class="rl3-tool-btn rl3-btn-warn" id="btn-override-base-manual" title="Sobrescrever ponto base manualmente" type="button">
+                    <i data-lucide="shield-alert"></i>
+                    <span>Base Manual</span>
+                  </button>
+                </div>
+                <div class="rl3-group-label">Edição</div>
+              </div>
+              <div class="rl3-divider"></div>
+
+              <!-- Grupo: Projeto -->
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn" id="btn-sincronizar-nuvem" type="button">
+                    <i data-lucide="cloud-lightning"></i>
+                    <span>Nuvem</span>
+                  </button>
+                  <button class="rl3-tool-btn rl3-btn-danger" id="btn-arquivar-projeto-seguro" title="Arquivar este levantamento" type="button">
+                    <i data-lucide="archive-x"></i>
+                    <span>Arquivar</span>
+                  </button>
+                </div>
+                <div class="rl3-group-label">Projeto</div>
               </div>
             </div>
 
-            <!-- Painéis para Aba 2: Organizador de Perímetros -->
-            <div id="tab-panel-cartorio" class="ribbon-panel-row hidden">
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-consolidar-pontos-utm" class="ribbon-action-btn" type="button" title="Exportar planilha de coordenadas UTM"><i data-lucide="download" class="w-4 h-4"></i><span>Exportar</span></button>
-                  <button id="btn-unificar-sigef" class="ribbon-action-btn" type="button" title="Unificar limites perimetrais do SIGEF"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Unificar 1A</span></button>
+            <!-- PAINEL: Organizador de Perímetro -->
+            <div class="rl3-panel hidden" id="panel-perimetro" role="tabpanel">
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-calcular-confrontantes" type="button">
+                    <i data-lucide="cpu"></i>
+                    <span>Calcular Lados</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Topografia de Divisas</div>
-              </div>
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-sincronizar-nuvem" class="ribbon-action-btn" type="button" title="Sincronizar dados consolidados na nuvem"><i data-lucide="cloud-lightning" class="w-4 h-4"></i><span>Sincronizar</span></button>
-                </div>
-                <div class="panel-group-title">Cloud</div>
+                <div class="rl3-group-label">Topografia</div>
               </div>
             </div>
 
-            <!-- Painéis para Aba 3: Peças de Cartório -->
-            <div id="tab-panel-documentos" class="ribbon-panel-row hidden">
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-exportar-kml" class="ribbon-action-btn" type="button" title="Exportar para Google Earth KML"><i data-lucide="map" class="w-4 h-4"></i><span>Gerar KML</span></button>
+            <!-- PAINEL: Peças de Cartório -->
+            <div class="rl3-panel hidden" id="panel-cartorio" role="tabpanel">
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn" id="btn-gerar-requerimento-cri" type="button">
+                    <i data-lucide="file-text"></i>
+                    <span>Requerimento</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Exportações</div>
-              </div>
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-gerar-requerimento-cri" class="ribbon-action-btn" type="button" title="Gerar requerimento para registro de imóvel"><i data-lucide="file-text" class="w-4 h-4"></i><span>Requerimento</span></button>
-                </div>
-                <div class="panel-group-title">Documentos</div>
+                <div class="rl3-group-label">Documentos</div>
               </div>
             </div>
 
-            <!-- Painéis para Aba 4: Histórico de Auditoria -->
-            <div id="tab-panel-auditoria" class="ribbon-panel-row hidden">
-              <div class="ribbon-panel-group">
-                <div class="panel-group-actions">
-                  <button id="btn-arquivar-projeto-seguro" class="ribbon-action-btn" type="button" title="Arquivar projeto para leitura apenas"><i data-lucide="archive" class="w-4 h-4"></i><span>Arquivar</span></button>
+            <!-- PAINEL: Histórico de Auditoria -->
+            <div class="rl3-panel hidden" id="panel-auditoria" role="tabpanel">
+              <div class="rl3-group">
+                <div class="rl3-group-tools">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-verificar-sigmas" type="button">
+                    <i data-lucide="shield-check"></i>
+                    <span>Validar INCRA</span>
+                  </button>
                 </div>
-                <div class="panel-group-title">Segurança</div>
+                <div class="rl3-group-label">Auditoria</div>
               </div>
             </div>
           </div>

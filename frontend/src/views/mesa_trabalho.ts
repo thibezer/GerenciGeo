@@ -193,34 +193,35 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         ctx.carregarConfrontantesAtivosSelect();
 
-        const abasContainer = document.getElementById('container-abas-matriculas');
+        const abasContainer = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
         if (abasContainer) {
           if (ctx.matriculasList.length === 0) {
             abasContainer.innerHTML = `
-              <div class="flex items-center gap-2 p-1 shrink-0">
-                <span class="text-xs text-white/30 font-mono">[Nenhuma Matrícula Cadastrada]</span>
-              </div>
+              <option value="">[Sem Matrícula]</option>
             `;
           } else {
-            let abasHtml = ctx.matriculasList.map((m) => `
-              <button class="px-4 py-3 md:py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-all btn-mat-tab whitespace-nowrap active:scale-95" data-mat-id="${m.id}" type="button">
-                Matrícula ${m.numero_matricula}
-              </button>
+            let abasHtml = ctx.matriculasList.map((m: any) => `
+              <option value="${m.id}" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
+                Matrícula ${m.numero_matricula} (${m.area_ha || m.area || '0'}ha)
+              </option>
             `).join('');
 
             abasContainer.innerHTML = abasHtml;
 
-            document.querySelectorAll('.btn-mat-tab').forEach(b => {
-              b.addEventListener('click', () => {
-                const mId = parseInt(b.getAttribute('data-mat-id') || '0');
+            const novoSelect = abasContainer.cloneNode(true) as HTMLSelectElement;
+            abasContainer.parentNode?.replaceChild(novoSelect, abasContainer);
+
+            novoSelect.addEventListener('change', () => {
+              const mId = parseInt(novoSelect.value || '0');
+              if (mId) {
                 ctx.switchMatriculaTab(mId);
-              });
+              }
             });
 
             if (ctx.currentMatriculaId === null && ctx.matriculasList.length > 0) {
               ctx.switchMatriculaTab(ctx.matriculasList[0].id);
             } else if (ctx.currentMatriculaId !== null) {
-              ctx.switchMatriculaTab(ctx.currentMatriculaId);
+              novoSelect.value = ctx.currentMatriculaId.toString();
             }
           }
         }
@@ -285,16 +286,10 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.switchMatriculaTab = (matriculaId: number) => {
       ctx.currentMatriculaId = matriculaId;
 
-      document.querySelectorAll('.btn-mat-tab').forEach(b => {
-        const id = parseInt(b.getAttribute('data-mat-id') || '0');
-        if (id === ctx.currentMatriculaId) {
-          b.classList.replace('border-transparent', 'border-mint-vibrant');
-          b.classList.replace('text-white/40', 'text-mint-vibrant');
-        } else {
-          b.classList.replace('border-mint-vibrant', 'border-transparent');
-          b.classList.replace('text-mint-vibrant', 'text-white/40');
-        }
-      });
+      const selectMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
+      if (selectMat) {
+        selectMat.value = matriculaId.toString();
+      }
 
       const matObj = ctx.matriculasList.find(m => m.id === ctx.currentMatriculaId);
       const txtMat = document.getElementById('txt-nome-matricula-ativa');
@@ -463,20 +458,24 @@ export const mesaTrabalhoRoute: RouteDef = {
         renderHistoricoCampo(ctx);
       }
 
-      const tabBtn = document.querySelector(`.ribbon-tab-btn-el[data-tab="${etapa}"]`) as HTMLButtonElement;
+      const tabBtn = document.querySelector(`.rl3-tab[data-tab="${etapa}"]`) as HTMLButtonElement;
       if (tabBtn) {
-        const tabButtons = document.querySelectorAll('.ribbon-tab-btn-el');
-        const panelRows = document.querySelectorAll('.ribbon-panel-row');
+        const tabButtons = document.querySelectorAll('.rl3-tab');
+        const panelRows = document.querySelectorAll('.rl3-panel');
         
         tabButtons.forEach(btn => {
-          btn.classList.remove('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
-          btn.classList.add('text-white/40');
+          btn.classList.remove('active');
         });
-        tabBtn.classList.add('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
-        tabBtn.classList.remove('text-white/40');
+        tabBtn.classList.add('active');
 
         panelRows.forEach(row => row.classList.add('hidden'));
-        const targetPanel = document.getElementById(`tab-panel-${etapa}`);
+        
+        let panelId = 'panel-geoprocessamento';
+        if (etapa === 'cartorio') panelId = 'panel-perimetro';
+        else if (etapa === 'documentos') panelId = 'panel-cartorio';
+        else if (etapa === 'auditoria') panelId = 'panel-auditoria';
+
+        const targetPanel = document.getElementById(panelId);
         if (targetPanel) {
           targetPanel.classList.remove('hidden');
         }
@@ -1648,8 +1647,8 @@ export const mesaTrabalhoRoute: RouteDef = {
 };
 
 function setupRibbonInteractions(ctx: any): void {
-  const tabButtons = document.querySelectorAll('.ribbon-tab-btn-el');
-  const panelRows = document.querySelectorAll('.ribbon-panel-row');
+  const tabButtons = document.querySelectorAll('.rl3-tab');
+  const panelRows = document.querySelectorAll('.rl3-panel');
 
   tabButtons.forEach(button => {
     button.addEventListener('click', (e: Event) => {
@@ -1659,14 +1658,18 @@ function setupRibbonInteractions(ctx: any): void {
       if (!tabTarget) return;
 
       tabButtons.forEach(btn => {
-        btn.classList.remove('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
-        btn.classList.add('text-white/40');
+        btn.classList.remove('active');
       });
-      targetBtn.classList.add('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
-      targetBtn.classList.remove('text-white/40');
+      targetBtn.classList.add('active');
 
       panelRows.forEach(row => row.classList.add('hidden'));
-      const targetPanel = document.getElementById(`tab-panel-${tabTarget}`);
+      
+      let panelId = 'panel-geoprocessamento';
+      if (tabTarget === 'cartorio') panelId = 'panel-perimetro';
+      else if (tabTarget === 'documentos') panelId = 'panel-cartorio';
+      else if (tabTarget === 'auditoria') panelId = 'panel-auditoria';
+
+      const targetPanel = document.getElementById(panelId);
       if (targetPanel) {
         targetPanel.classList.remove('hidden');
       }
@@ -1677,14 +1680,14 @@ function setupRibbonInteractions(ctx: any): void {
     });
   });
 
-  const btnVoltar = document.getElementById('btn-voltar-lista-qa');
+  const btnVoltar = document.getElementById('btn-voltar-lista');
   if (btnVoltar) {
     btnVoltar.addEventListener('click', () => {
       window.location.hash = '#levantamentos';
     });
   }
 
-  const btnSalvar = document.getElementById('btn-salvar-qa');
+  const btnSalvar = document.getElementById('btn-salvar-rascunho');
   if (btnSalvar) {
     btnSalvar.addEventListener('click', () => {
       if (ctx && typeof ctx.salvarRascunhoLocal === 'function') {
@@ -1695,7 +1698,7 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
-  const selectUtm = document.getElementById('utm-zone-qa') as HTMLSelectElement;
+  const selectUtm = document.getElementById('select-fuso-ribbon') as HTMLSelectElement;
   if (selectUtm) {
     selectUtm.addEventListener('change', (e: Event) => {
       const targetSelect = e.target as HTMLSelectElement;
