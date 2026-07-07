@@ -268,7 +268,7 @@ Em um sistema de dados geodésicos, a clareza de números é prioridade sobre ex
 /* Alternativa: Segoe UI Variable (nativa no Windows 11) */
 
 :root {
-  --font-sans: 'Inter', 'Segoe UI Variable', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Segoe UI', 'Tahoma', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
 }
 

@@ -749,8 +749,8 @@ def gerar_requerimento_html(levantamento_id: int, matricula_id: int) -> str:
         <meta charset="UTF-8">
         <title>Requerimento de Retificação de Área - {prop_data.get('nome_propriedade', 'Imóvel')}</title>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
-            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; background-color: #fff; }}
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            body {{ font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; background-color: #fff; }}
             .page {{ max-width: 800px; margin: 0 auto; }}
             .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
             .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; letter-spacing: 2px; }}
@@ -884,8 +884,8 @@ def gerar_termo_anuencia_html(levantamento_id: int, confrontante_id: int) -> str
         <meta charset="UTF-8">
         <title>Termo de Anuência de Confrontante - {conf['nome']}</title>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
-            body {{ font-family: 'Manrope', Arial, sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; }}
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            body {{ font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif; color: #2d3748; line-height: 1.6; padding: 40px; }}
             .page {{ max-width: 800px; margin: 0 auto; }}
             .header {{ text-align: center; margin-bottom: 40px; border-bottom: 2px solid #00f5a0; padding-bottom: 20px; }}
             .logo {{ font-size: 24px; font-weight: 700; color: #0c1510; text-transform: uppercase; }}

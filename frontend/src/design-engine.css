@@ -89,7 +89,7 @@
   --geo-sp-6:  24px;
 
   /* --- Tipografia --- */
-  --geo-font-sans: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --geo-font-sans: 'Inter', 'Segoe UI', 'Tahoma', system-ui, sans-serif;
   --geo-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace;
 
   /* --- Transições --- */

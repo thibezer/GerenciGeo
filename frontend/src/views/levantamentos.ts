@@ -737,7 +737,7 @@ export const levantamentosRoute: RouteDef = {
 
                const marker = L.marker(latLng, { icon: customIcon })
                   .bindPopup(`
-                     <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.3; font-size:11px;">
+                     <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3; font-size:11px;">
                         <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#00b366;">${p.nome}</div>
                         <div style="font-size:10px; color:#555; font-weight:bold;">${popupRole}</div>
                         <div style="margin-top:4px;">N: ${p.norte.toFixed(3)}</div>

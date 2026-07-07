@@ -113,8 +113,8 @@ export const dashboardRoute: RouteDef = {
         const container = document.getElementById('alerts-container');
         if (!container) return;
         if (!data.alerts || data.alerts.length === 0) {
-           container.innerHTML = `<div class="text-center text-white/40 text-sm py-4">Nenhum alerta pendente.</div>`;
-           return;
+          container.innerHTML = `<div class="text-center text-white/40 text-sm py-4">Nenhum alerta pendente.</div>`;
+          return;
         }
         container.innerHTML = data.alerts.map((alert: any) => `
            <div class="p-2.5 sm:p-3 bg-white/[0.02] border border-white/5 rounded-lg flex items-start gap-2.5 sm:gap-3 hover:bg-white/[0.05] transition-colors">
@@ -139,7 +139,7 @@ export const dashboardRoute: RouteDef = {
     if (savedCenter) {
       try {
         defaultCenter = JSON.parse(savedCenter);
-      } catch (e) {}
+      } catch (e) { }
     }
     if (savedZoom) {
       defaultZoom = parseInt(savedZoom);
@@ -170,7 +170,7 @@ export const dashboardRoute: RouteDef = {
     // Adiciona indicador de Norte Geográfico estilizado
     const NorthArrowControl = L.Control.extend({
       options: { position: 'topright' },
-      onAdd: function() {
+      onAdd: function () {
         const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-north-arrow');
         div.style.background = 'rgba(17, 17, 19, 0.82)';
         div.style.backdropFilter = 'blur(12px)';
@@ -322,7 +322,7 @@ export const dashboardRoute: RouteDef = {
         if (text && text.includes("GetFeatureInfo results:")) {
           const lines = text.split('\n');
           const currentFeature: any = {};
-          
+
           for (const line of lines) {
             const trimmed = line.trim();
             // Suporta chaves e valores acentuados, cedilhas, com aspas simples, aspas duplas ou sem aspas
@@ -395,7 +395,7 @@ export const dashboardRoute: RouteDef = {
     // Função de download do Shapefile
     const downloadShapefile = (levId: number, matId: number, numeroMatricula: string) => {
       const url = `${API_BASE}/levantamentos/${levId}/matriculas/${matId}/exportar-shapefile`;
-      
+
       // Cria um link temporário para iniciar o download direto do ZIP
       const a = document.createElement('a');
       a.href = url;
@@ -413,10 +413,10 @@ export const dashboardRoute: RouteDef = {
 
       data.forEach(item => {
         localMatriculas.push(item);
-        
+
         // Formata as coordenadas para o Leaflet: [lat, lon]
         const latLons = item.coordenadas.map((c: any) => [c.lat, c.lon] as [number, number]);
-        
+
         // Estilo visual premium e vibrante Mint-vibrant (#10b981) com transições
         const polygon = L.polygon(latLons, {
           color: '#10b981',       // Mint vibrant
@@ -475,17 +475,17 @@ export const dashboardRoute: RouteDef = {
         // Centraliza o mapa dinamicamente no primeiro polígono local cadastrado
         const firstBounds = (localLayersGroup.getLayers()[0] as any).getBounds();
         map.fitBounds(firstBounds, { padding: [50, 50] });
-        
+
         // Adiciona a camada de parcelas locais no menu de camadas oficial do Leaflet
         overlayMaps["Nossos Imóveis"] = localLayersGroup;
-        
+
         // Recria o controle de camadas para incluir as parcelas locais
         if (layersControl) {
           map.removeControl(layersControl);
         }
         layersControl = L.control.layers(undefined, overlayMaps, { collapsed: false }).addTo(map);
 
-        
+
         // Adiciona o Painel Flutuante Premium de Download / Exportador Rápido
         const CamadasLocaisControl = L.Control.extend({
           options: { position: 'topright' },
@@ -498,7 +498,7 @@ export const dashboardRoute: RouteDef = {
             div.style.width = '240px';
             div.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)';
             div.style.backdropFilter = 'blur(12px)';
-            
+
             let listHtml = `
               <div class="text-white text-xs font-mono select-none">
                 <p class="text-[9px] uppercase tracking-widest text-mint-vibrant font-bold border-b border-white/10 pb-1.5 mb-2 flex items-center gap-1" style="display: flex; align-items: center; gap: 4px;">
@@ -531,13 +531,13 @@ export const dashboardRoute: RouteDef = {
                 </div>
               </div>
             `;
-            
+
             div.innerHTML = listHtml;
-            
+
             // Previne propagação de cliques e scroll para o mapa do Leaflet
             L.DomEvent.disableClickPropagation(div);
             L.DomEvent.disableScrollPropagation(div);
-            
+
             return div;
           }
         });
@@ -548,7 +548,7 @@ export const dashboardRoute: RouteDef = {
             // Procura o polígono da matrícula clicada
             const bounds = layer.getBounds();
             const pt = bounds.getCenter();
-            
+
             const targetMat = localMatriculas.find(x => x.id === matId);
             if (targetMat) {
               const c1 = layer.getLatLngs()[0][0];

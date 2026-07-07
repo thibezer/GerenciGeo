@@ -65,7 +65,7 @@
 /* Leaflet Adjustments */
 .leaflet-container {
     background: #0c1510 !important;
-    font-family: 'Manrope', sans-serif !important;
+    font-family: var(--geo-font-sans), sans-serif !important;
 }
 
 /* Transição suave de tiles — Elimina o piscar ao dar zoom/pan (estilo Ether Pro).
@@ -232,7 +232,7 @@ select.glass-input option {
    display: inline-block;
    background-color: rgba(12, 21, 16, 0.9); /* Fundo Deep Forest escuro com opacidade */
    color: #00f5a0; /* Verde menta vibrante do padrão de design */
-   font-family: 'Manrope', 'Fira Code', monospace;
+   font-family: var(--geo-font-sans), 'Fira Code', monospace;
    font-size: 9px;
    font-weight: 700;
    letter-spacing: 0.5px;

@@ -265,7 +265,7 @@ export class MesaTrabalhoMapa {
         
         if (!this.modoCliqueSequencialAtivo) {
           marker.bindPopup(`
-            <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.3;">
+            <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3;">
               <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${p.nome_vertice}</div>
               <div style="font-size:11px; color:#555;">${popupRole} · ${p.tipo_ponto || p.tipo}</div>
               <div style="font-size:11px; color:#777; font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
@@ -310,7 +310,7 @@ export class MesaTrabalhoMapa {
           dashArray: s.tipo_limite_sigef === 'LN1' ? '6, 6' : undefined,
           pane: 'perimetroPane'
         }).bindPopup(`
-          <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.3;">
+          <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3;">
             <div style="font-weight:700; font-size:12px; margin-bottom:3px;">${pIni.nome_vertice} ↔ ${pFim.nome_vertice}</div>
             <div style="font-size:11px; color:#555;">Limite: ${s.tipo_limite_sigef} · ${s.metodo_posicionamento_sigef}</div>
           </div>
@@ -396,7 +396,7 @@ export class MesaTrabalhoMapa {
       });
 
       const popupContent = `
-        <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.35; min-width:180px;">
+        <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.35; min-width:180px;">
           <div style="font-weight:800; font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; border-b:1px solid #eee; padding-bottom:3px; margin-bottom:5px;">Vértice Homologado SIGEF</div>
           <div style="font-weight:700; font-size:13px; margin-bottom:3px;">${p.codigo_completo}</div>
           <div style="font-size:11px; color:#555; font-family:'JetBrains Mono',monospace;">Este (E): ${p.este ? p.este.toFixed(2) : 'N/A'} m</div>
@@ -611,7 +611,7 @@ export class MesaTrabalhoMapa {
     })
       .setLatLng(e.latlng)
       .setContent(`
-        <div style="font-family:'Manrope',sans-serif; display:flex; align-items:center; gap:8px; color:#555; font-size:12px;">
+        <div style="font-family:var(--geo-font-sans),sans-serif; display:flex; align-items:center; gap:8px; color:#555; font-size:12px;">
           <svg style="animation:spin 1s linear infinite; width:14px; height:14px; flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" stroke="#ccc" stroke-width="4" fill="none"></circle>
             <path fill="#10b981" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -635,7 +635,7 @@ export class MesaTrabalhoMapa {
           const sigefConsultarUrl = `https://sigef.incra.gov.br/geo/parcela/detalhe/${uuid}/`;
           
           const popupContent = `
-            <div style="font-family:'Manrope',sans-serif; color:#1a1a1a; line-height:1.4; min-width:180px;">
+            <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.4; min-width:180px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid #e5e5e5;">
                 <span style="font-weight:700; font-size:11px; color:#10b981; text-transform:uppercase; letter-spacing:0.5px;">SIGEF</span>
                 <span style="font-size:10px; color:#999;">${props.situacao_informada || props.status || 'Certificada'}</span>
@@ -666,7 +666,7 @@ export class MesaTrabalhoMapa {
           loadingPopup.setContent(popupContent);
         } else {
           loadingPopup.setContent(`
-            <div style="font-family:'Manrope',sans-serif; font-size:12px; color:#b45309; padding:2px 0;">
+            <div style="font-family:var(--geo-font-sans),sans-serif; font-size:12px; color:#b45309; padding:2px 0;">
               Lote identificado, mas código da parcela indisponível.
             </div>
           `);
@@ -678,7 +678,7 @@ export class MesaTrabalhoMapa {
     } catch (err) {
       console.warn("Erro ao consultar SIGEF:", err);
       loadingPopup.setContent(`
-        <div style="font-family:'Manrope',sans-serif; font-size:12px; color:#dc2626; padding:2px 0;">
+        <div style="font-family:var(--geo-font-sans),sans-serif; font-size:12px; color:#dc2626; padding:2px 0;">
           Erro ao comunicar com o proxy do SIGEF.
         </div>
       `);
