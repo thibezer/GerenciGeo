@@ -633,52 +633,367 @@ td[colspan][class*="text-center"] {
     box-sizing: border-box;
 }
 
-/* Camada 1: Utilitários */
-.ribbon-layer-one {
-    height: 32px;
-    background-color: #0e120f;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 12px;
-    border-bottom: 1px solid #1a221d;
+/* Camada 1 */
+.ribbon-layer1 {
+  height: 36px;
+  background: #0b0d0c;
+  border-bottom: 0.5px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 0;
+  user-select: none;
+  flex-shrink: 0;
 }
-.ribbon-logo { font-weight: 700; font-size: 11px; letter-spacing: 1px; color: #00f5a0; }
-.ribbon-qa-zone { display: flex; align-items: center; gap: 8px; }
-.ribbon-qa-btn { background: transparent; border: none; color: #aaaaaa; padding: 4px 8px; cursor: pointer; font-size: 13px; border-radius: 3px; transition: all 0.15s ease; }
-.ribbon-qa-btn:hover { background-color: #252a26; color: #ffffff; }
-.ribbon-select-dark { background-color: #212823; border: 1px solid #323d35; color: #ffffff; font-size: 11px; padding: 2px 6px; border-radius: 3px; outline: none; }
 
-/* Camada 2: Contexto Fixo */
-.ribbon-layer-two {
-    height: 38px;
-    background-color: #131714;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    gap: 24px;
-    border-bottom: 1px solid #1a221d;
-    font-size: 12px;
+.rl1-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  min-width: 140px;
 }
-.property-meta-item { color: #888888; }
-.property-meta-item strong { color: #ffffff; font-weight: 500; }
+.rl1-logo-icon { width: 18px; height: 18px; color: #00f5a0; }
+.rl1-logo-text { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.9); }
+.rl1-logo-text .accent { color: #00f5a0; }
 
-/* Camada 3: Abas e Painéis Técnicos */
-.ribbon-layer-three { background-color: #171d19; flex-grow: 1; display: flex; flex-direction: column; }
-.ribbon-tab-headers { display: flex; background-color: #101411; padding-left: 8px; gap: 2px; }
-.ribbon-tab-btn { background: transparent; border: none; color: #999999; padding: 6px 16px; font-size: 12px; cursor: pointer; border-radius: 4px 4px 0 0; }
-.ribbon-tab-btn.active { background-color: #171d19; color: #00f5a0; font-weight: 600; }
+.rl1-separator {
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,0.08);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
 
-/* Tratamento de transbordamento horizontal para telas de notebook */
-.ribbon-tab-contents { flex-grow: 1; display: flex; background-color: #171d19; }
-.ribbon-panel-row { display: flex; height: 85px; padding: 4px; gap: 4px; width: 100%; overflow-x: auto; overflow-y: hidden; box-sizing: border-box; }
-.ribbon-panel-row::-webkit-scrollbar { height: 4px; }
-.ribbon-panel-row::-webkit-scrollbar-thumb { background: #2a332d; border-radius: 2px; }
+.rl1-qat {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
 
-.ribbon-panel-group { display: flex; flex-direction: column; border-right: 1px solid #222c26; padding: 0 8px; align-items: center; justify-content: space-between; min-width: max-content; }
-.panel-group-actions { display: flex; gap: 6px; align-items: center; flex-grow: 1; }
-.panel-group-title { font-size: 9px; color: #666666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.rl1-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 100ms, color 100ms;
+  white-space: nowrap;
+}
+.rl1-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+.rl1-btn i { width: 13px; height: 13px; }
 
-.ribbon-action-btn { background: transparent; border: 1px solid transparent; color: #cccccc; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 75px; height: 56px; font-size: 10px; cursor: pointer; border-radius: 4px; text-align: center; gap: 4px; transition: all 0.2s ease; }
-.ribbon-action-btn i { font-size: 16px; }
-.ribbon-action-btn:hover { background-color: #212a24; border: 1px solid #2d3b32; color: #00f5a0; }
+.rl1-spacer { flex: 1; }
+
+.rl1-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.rl1-select-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rl1-select {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.06);
+  border: 0.5px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  font-family: monospace;
+}
+.rl1-select:focus { border-color: rgba(0,245,160,0.25); outline: none; }
+
+.rl1-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,245,160,0.1);
+  border: 1px solid rgba(0,245,160,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #00f5a0;
+  cursor: pointer;
+  margin: 0 4px;
+}
+
+/* Camada 2 */
+.ribbon-layer2 {
+  height: 32px;
+  background: #0d1410;
+  border-bottom: 0.5px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.rl2-prop-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.rl2-badge {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.rl2-badge.status-ativo    { background: rgba(0,245,160,0.1); color: #00f5a0; border: 0.5px solid rgba(0,245,160,0.25); }
+
+.rl2-sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(255,255,255,0.06);
+  margin: 0 10px;
+  flex-shrink: 0;
+}
+
+.rl2-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.rl2-meta-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.28);
+  font-weight: 600;
+}
+
+.rl2-meta-value {
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl2-meta-value.font-mono { font-family: monospace; font-size: 10px; }
+
+/* Camada 3 */
+.ribbon-layer3 {
+  background: #111714;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* Sub-camada 3a: Tabs */
+.rl3-tabs {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 8px;
+  gap: 2px;
+  height: 32px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.06);
+}
+
+.rl3-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  height: 28px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.45);
+  background: transparent;
+  border: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+  position: relative;
+  white-space: nowrap;
+}
+.rl3-tab i { width: 13px; height: 13px; flex-shrink: 0; }
+
+.rl3-tab:hover {
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.04);
+}
+
+.rl3-tab.active {
+  color: #00f5a0;
+  background: rgba(0,224,138,0.08);
+}
+
+/* Linha indicadora na tab ativa */
+.rl3-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  background: #00f5a0;
+  border-radius: 1px 1px 0 0;
+}
+
+/* Sub-camada 3b: Painéis */
+.rl3-panels {
+  height: 55px;
+  overflow: hidden;
+}
+
+.rl3-panel {
+  display: flex;
+  align-items: stretch;
+  height: 55px;
+  padding: 4px 8px;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.rl3-panel::-webkit-scrollbar { display: none; }
+.rl3-panel.hidden { display: none !important; }
+
+/* Grupos de ferramentas dentro dos painéis */
+.rl3-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: fit-content;
+  padding: 0 4px;
+}
+
+.rl3-group-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.rl3-group-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.22);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.rl3-divider {
+  width: 1px;
+  height: 44px;
+  background: rgba(255,255,255,0.06);
+  margin: 0 6px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Botões de ferramenta */
+.rl3-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 42px;
+  height: 38px;
+  padding: 3px 6px;
+  font-size: 9px;
+  color: rgba(255,255,255,0.65);
+  background: transparent;
+  border: 0.5px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 100ms, color 100ms, border-color 100ms;
+  white-space: nowrap;
+}
+.rl3-tool-btn i { width: 16px; height: 16px; }
+.rl3-tool-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+  border-color: rgba(255,255,255,0.08);
+}
+.rl3-tool-btn:active { transform: scale(0.96); }
+
+/* Botão grande (ação principal do grupo) */
+.rl3-tool-btn.rl3-btn-lg {
+  min-width: 52px;
+  height: 38px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #00f5a0;
+  border-color: rgba(0,245,160,0.25);
+  background: rgba(0,245,160,0.1);
+}
+.rl3-tool-btn.rl3-btn-lg:hover { background: rgba(0,224,138,0.15); }
+
+/* Botão de aviso (ação potencialmente perigosa) */
+.rl3-tool-btn.rl3-btn-warn {
+  color: #ffd60a;
+  border-color: rgba(255,214,10,0.22);
+  background: rgba(255,214,10,0.1);
+}
+
+/* Botão destrutivo */
+.rl3-tool-btn.rl3-btn-danger {
+  color: #ff453a;
+  border-color: rgba(255,69,58,0.22);
+  background: rgba(255,69,58,0.1);
+}
+
+/* Toggle row (UTM / Geodésico) */
+.rl3-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 2px;
+}
+.rl3-toggle-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  padding: 0 4px;
+}
+.rl3-toggle-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: all 100ms;
+}
+.rl3-toggle-btn.active {
+  background: rgba(0,245,160,0.1);
+  color: #00f5a0;
+}

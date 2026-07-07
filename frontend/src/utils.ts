@@ -1,4 +1,4 @@
-import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe } from 'lucide';
+import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar } from 'lucide';
 
 // --- FUNÇÕES AUXILIARES GLOBAIS DE VALIDAÇÃO E MÁSCARAS ---
 export const formatarCAR = (v: string): string => {
@@ -28,7 +28,7 @@ export const formatarCCIR = (v: string): string => {
 // Initialize Icons
 export const initIcons = () => {
   createIcons({
-    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe }
+    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar }
   });
 };
 
