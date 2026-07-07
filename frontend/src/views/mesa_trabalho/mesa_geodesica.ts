@@ -1015,4 +1015,87 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       inputCsvVizinho.value = '';
     }
   });
+
+  const btnLimparVizinhos = document.getElementById('btn-limpar-vizinhos');
+  btnLimparVizinhos?.addEventListener('click', async () => {
+    if (!confirm("Tem certeza que deseja apagar todos os pontos de vizinhos importados no mapa?")) return;
+
+    try {
+      showToast("Removendo pontos de vizinhos...", "info");
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-vizinhos`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      
+      if (data.error || data.detail) {
+        alert(data.error || data.detail);
+      } else {
+        showToast("Todos os pontos de vizinhos foram apagados!", "success");
+        ctx.loadLevantamentoDetails();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao remover pontos de vizinhos.");
+    }
+  });
+
+  const handlePopupActions = async (e: MouseEvent) => {
+    const btnIntegrar = (e.target as HTMLElement).closest('.btn-integrar-vizinho-mapa');
+    const btnOcultar = (e.target as HTMLElement).closest('.btn-ocultar-vizinho-mapa');
+
+    if (btnIntegrar) {
+      const pId = btnIntegrar.getAttribute('data-ponto-id');
+      if (!pId) return;
+
+      try {
+        showToast("Integrando ponto ao levantamento...", "info");
+        const matriculaIdParam = ctx.currentMatriculaId ? `?matricula_id=${ctx.currentMatriculaId}` : '';
+        const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/integrar-vizinho/${pId}${matriculaIdParam}`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        
+        if (data.error || data.detail) {
+          alert(data.error || data.detail);
+        } else {
+          showToast(data.mensagem || "Ponto integrado com sucesso!", "success");
+          ctx.loadLevantamentoDetails();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao integrar ponto.");
+      }
+    }
+
+    if (btnOcultar) {
+      const pId = btnOcultar.getAttribute('data-ponto-id');
+      if (!pId) return;
+
+      try {
+        showToast("Ocultando ponto do vizinho...", "info");
+        const res = await fetch(`${API_BASE}/pontos/${pId}/toggle-ignorar-vizinho`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        
+        if (data.error || data.detail) {
+          alert(data.error || data.detail);
+        } else {
+          showToast("Ponto ocultado do mapa!", "success");
+          if (ctx.mapaController) {
+            const map = ctx.mapaController.getMap();
+            map?.closePopup();
+          }
+          ctx.loadLevantamentoDetails();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao ocultar ponto.");
+      }
+    }
+  };
+
+  document.removeEventListener('click', (ctx as any)._popupActionsListener);
+  (ctx as any)._popupActionsListener = handlePopupActions;
+  document.addEventListener('click', handlePopupActions);
 }

@@ -145,7 +145,7 @@ export class MesaTrabalhoMapa {
       { 
         "Imóveis SIGEF (PR)": sigef, 
         "Poligonal Homologada (INCRA)": this.bancoPontosGroup,
-        "Imóveis Vizinhos (ODS)": this.pontosVizinhosGroup!
+        "Imóveis Vizinhos (SIGEF/CSV)": this.pontosVizinhosGroup!
       },
       { collapsed: true }
     ).addTo(this.map);
@@ -511,7 +511,15 @@ export class MesaTrabalhoMapa {
             <div class="mb-1"><strong>Proprietário:</strong> ${p.nome_confrontante || 'Desconhecido'}</div>
             <div class="mb-1"><strong>Propriedade:</strong> ${p.nome_propriedade || 'Desconhecida'}</div>
             <div class="mb-1"><strong>Coordenadas:</strong> ${p.lat.toFixed(7)}, ${p.lon.toFixed(7)}</div>
-            <div class="text-[10px] text-white/50 border-t border-white/5 pt-1 mt-1 font-mono uppercase tracking-wider">Pontos Imutáveis do Vizinho</div>
+            <div class="text-[10px] text-white/50 border-t border-white/5 pt-1 mt-1 font-mono uppercase tracking-wider mb-2">Pontos Imutáveis do Vizinho</div>
+            <div class="flex gap-2 border-t border-white/10 pt-2">
+              <button class="px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-forest-deep hover:bg-mint-vibrant/90 active:scale-95 transition-all btn-integrar-vizinho-mapa" data-ponto-id="${p.id}" type="button">
+                Integrar
+              </button>
+              <button class="px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-white/70 border border-white/10 hover:bg-white/10 active:scale-95 transition-all btn-ocultar-vizinho-mapa" data-ponto-id="${p.id}" type="button">
+                Ocultar
+              </button>
+            </div>
           </div>
         `;
 

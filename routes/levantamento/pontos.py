@@ -773,4 +773,61 @@ async def analisar_arquivo_txt_temporario(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
 
+@router.post("/levantamentos/{id}/pontos/integrar-vizinho/{pid}")
+def integrar_ponto_vizinho(id: int, pid: int, matricula_id: Optional[int] = None):
+    verificar_levantamento_arquivado(id)
+    try:
+        p_viz = execute_query(
+            "SELECT * FROM pontos WHERE id = ? AND levantamento_id = ? AND ponto_vizinho = 1",
+            params=(pid, id),
+            fetch_one=True
+        )
+        if not p_viz:
+            raise HTTPException(status_code=404, detail="Ponto de vizinho não encontrado neste levantamento.")
+            
+        if matricula_id:
+            row_max = execute_query(
+                "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?",
+                params=(id, matricula_id),
+                fetch_one=True
+            )
+        else:
+            row_max = execute_query(
+                "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ?",
+                params=(id,),
+                fetch_one=True
+            )
+        max_ord = row_max["max_ord"] if row_max and row_max["max_ord"] is not None else 0
+        nova_ordem = max_ord + 1
+        
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO pontos (
+                    levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
+                    n_original, e_original, alt_original, sigma_n, sigma_e, sigma_z,
+                    sigma_lat, sigma_lon, sigma_alt, status_ponto, metodo_posicionamento,
+                    arquivo_origem, origem_homologada, confrontante_id, ponto_vizinho, ordem_caminhamento
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    id, matricula_id, p_viz["nome_vertice"], p_viz["tipo_ponto"], p_viz["lat"], p_viz["lon"], p_viz["alt"],
+                    p_viz["n_original"], p_viz["e_original"], p_viz["alt_original"], p_viz["sigma_n"], p_viz["sigma_e"], p_viz["sigma_z"],
+                    p_viz["sigma_lat"], p_viz["sigma_lon"], p_viz["sigma_alt"], "CORRIGIDO", p_viz["metodo_posicionamento"],
+                    p_viz["arquivo_origem"], 0, None, 0, nova_ordem
+                )
+            )
+            novo_ponto_id = cursor.lastrowid
+            conn.commit()
+            
+        return {
+            "success": True, 
+            "novo_ponto_id": novo_ponto_id, 
+            "mensagem": f"Vértice '{p_viz['nome_vertice']}' integrado com sucesso!"
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
 

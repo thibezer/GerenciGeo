@@ -505,7 +505,7 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                             id, None, pt["codigo_completo"], pt["tipo_ponto"], pt["lat"], pt["lon"], pt["altitude"],
                             pt["norte"], pt["este"], pt["altitude"], pt["sigma_n"], pt["sigma_e"], pt["sigma_z"],
                             pt["sigma_n"], pt["sigma_e"], pt["sigma_z"], "CORRIGIDO", pt["metodo_posicionamento"],
-                            filename, 1, confrontante_id, 1, dados_json
+                            filename, 0, confrontante_id, 1, dados_json
                         )
                     )
 
@@ -638,10 +638,45 @@ def get_pontos_vizinhos(id: int):
                    c.nome as nome_confrontante, c.nome_propriedade
             FROM pontos p
             JOIN confrontantes c ON p.confrontante_id = c.id
-            WHERE p.levantamento_id = ? AND p.ponto_vizinho = 1
+            WHERE p.levantamento_id = ? AND p.ponto_vizinho = 1 AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
             ORDER BY p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         return rows
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/levantamentos/{id}/pontos-vizinhos")
+def limpar_pontos_vizinhos(id: int):
+    verificar_levantamento_arquivado(id)
+    try:
+        execute_query("DELETE FROM pontos WHERE levantamento_id = ? AND ponto_vizinho = 1", params=(id,), commit=True)
+        execute_query(
+            """
+            DELETE FROM confrontantes 
+            WHERE levantamento_id = ? 
+              AND codigo_incra_imovel IS NOT NULL 
+              AND id NOT IN (SELECT DISTINCT confrontante_id FROM segmentos WHERE levantamento_id = ? AND confrontante_id IS NOT NULL)
+            """,
+            params=(id, id),
+            commit=True
+        )
+        return {"success": True, "message": "Todos os pontos de vizinhos foram removidos com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/pontos/{pid}/toggle-ignorar-vizinho")
+def toggle_ignorar_vizinho(pid: int):
+    try:
+        row = execute_query("SELECT levantamento_id, ignorar_poligono FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Ponto não encontrado.")
+            
+        verificar_levantamento_arquivado(row["levantamento_id"])
+        
+        novo_status = 1 if not row["ignorar_poligono"] else 0
+        execute_query("UPDATE pontos SET ignorar_poligono = ? WHERE id = ?", params=(novo_status, pid), commit=True)
+        return {"success": True, "ignorar_poligono": novo_status}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))

@@ -263,6 +263,10 @@ export const renderMesaTrabalho = (): string => {
                 Importar CSV Vizinho
              </button>
              <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
+             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-red-400 hover:bg-red-500/10 border-red-500/20 active:scale-95 transition-all" id="btn-limpar-vizinhos" type="button" title="Remover todos os pontos de vizinhos importados no mapa">
+                 <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
+                 Limpar Vizinhos
+              </button>
             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-gerar-requerimento-cri">
                <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                Requerimento
