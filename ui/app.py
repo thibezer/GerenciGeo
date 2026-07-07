@@ -38,12 +38,32 @@ def start_app():
     t = threading.Thread(target=iniciar_servidor, daemon=True)
     t.start()
     
+    class WindowAPI:
+        def minimize(self):
+            w = webview.active_window()
+            if w:
+                w.minimize()
+        def toggle_maximize(self):
+            w = webview.active_window()
+            if w:
+                try:
+                    w.toggle_maximize()
+                except:
+                    w.maximize()
+        def close(self):
+            w = webview.active_window()
+            if w:
+                w.destroy()
+
+    api = WindowAPI()
     webview.create_window(
         "GerenciGeo - Georreferenciamento Avançado v2.4",
         "http://127.0.0.1:8000/principal.html",
         width=1280,
         height=720,
-        min_size=(1024, 768)
+        min_size=(1024, 768),
+        frameless=True,
+        js_api=api
     )
     webview.start(debug=True)
 

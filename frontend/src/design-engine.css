@@ -940,7 +940,15 @@ td[colspan][class*="text-center"] {
   font-weight: 400;
   box-sizing: border-box !important;
 }
-.rl3-tool-btn i { width: 14px; height: 14px; margin-bottom: 1px; }
+.rl3-tool-btn i,
+.rl3-tool-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  margin-bottom: 1px !important;
+  flex-shrink: 0 !important;
+}
 .rl3-tool-btn:hover {
   background: rgba(255,255,255,0.08) !important;
   color: rgba(255,255,255,0.95) !important;
@@ -1019,4 +1027,64 @@ td[colspan][class*="text-center"] {
   background: rgba(0,245,160,0.08);
   color: #00f5a0;
   font-weight: 500;
+}
+
+/* Suporte a Arrastar Janela do pywebview frameless na Camada 1 */
+.ribbon-layer1 {
+  -webkit-app-region: drag !important;
+  cursor: move !important;
+}
+
+.rl1-brand,
+.rl1-separator,
+.rl1-qat,
+.rl1-btn,
+.rl1-context,
+.rl1-select,
+.rl1-avatar,
+.rl1-window-controls {
+  -webkit-app-region: no-drag !important;
+  cursor: default !important;
+}
+
+/* Estilos dos Botões de Janela do Sistema (AutoCAD Style) */
+.rl1-window-controls {
+  display: flex;
+  align-items: stretch;
+  height: 30px; /* Alinhado à altura da Camada 1 */
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.rl1-win-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45) !important;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.rl1-win-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.rl1-win-btn i,
+.rl1-win-btn svg {
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+}
+
+.rl1-win-btn-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
 }

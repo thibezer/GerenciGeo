@@ -1708,4 +1708,26 @@ function setupRibbonInteractions(ctx: any): void {
       ctx.loadLevantamentoDetails();
     });
   }
+
+  // AutoCAD Titlebar Window Actions via pywebview js_api
+  const winBtnMin = document.getElementById('win-btn-minimize');
+  if (winBtnMin) {
+    winBtnMin.addEventListener('click', () => {
+      (window as any).pywebview?.api?.minimize();
+    });
+  }
+
+  const winBtnMax = document.getElementById('win-btn-maximize');
+  if (winBtnMax) {
+    winBtnMax.addEventListener('click', () => {
+      (window as any).pywebview?.api?.toggle_maximize();
+    });
+  }
+
+  const winBtnClose = document.getElementById('win-btn-close');
+  if (winBtnClose) {
+    winBtnClose.addEventListener('click', () => {
+      (window as any).pywebview?.api?.close();
+    });
+  }
 }

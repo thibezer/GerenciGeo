@@ -53,6 +53,18 @@ export const renderMesaTrabalho = (): string => {
           <div class="rl1-user">
             <div class="rl1-avatar" title="Administrador">AD</div>
           </div>
+          <!-- Botões de controle de janela (AutoCAD Window Controls) -->
+          <div class="rl1-window-controls">
+            <button class="rl1-win-btn" id="win-btn-minimize" title="Minimizar" type="button">
+              <i data-lucide="minus"></i>
+            </button>
+            <button class="rl1-win-btn" id="win-btn-maximize" title="Maximizar/Restaurar" type="button">
+              <i data-lucide="square"></i>
+            </button>
+            <button class="rl1-win-btn rl1-win-btn-close" id="win-btn-close" title="Fechar" type="button">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
         </div>
 
         <!-- Camada 2 — Metadados do Projeto (Project Info Bar) -->
