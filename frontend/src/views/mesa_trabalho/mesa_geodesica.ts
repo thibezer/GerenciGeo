@@ -1,5 +1,5 @@
 import { API_BASE } from '../../config';
-import { initIcons } from '../../utils';
+import { initIcons, showToast } from '../../utils';
 import { renderLinhaPontoGeoprocessamentoHtml, renderAuditoriaTranslacaoHtml } from '../mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
@@ -130,6 +130,10 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
 
     if (bpAtivo) {
       ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+    }
+
+    if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
+      ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
     }
 
     ctx.mapaController.fitBounds(pontosMat);
@@ -959,5 +963,44 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       ctx.filtroRapidoAtivo = targetBtn.getAttribute('data-filtro') || 'todos';
       ctx.renderMatriculaDados();
     });
+  });
+
+  const btnImportarCsvVizinho = document.getElementById('btn-importar-csv-vizinho');
+  const inputCsvVizinho = document.getElementById('input-csv-vizinho') as HTMLInputElement;
+
+  btnImportarCsvVizinho?.addEventListener('click', () => {
+    inputCsvVizinho?.click();
+  });
+
+  inputCsvVizinho?.addEventListener('change', async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      showToast("Processando e importando CSV do vizinho...", "info");
+      
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      inputCsvVizinho.value = '';
+
+      if (data.error || data.detail) {
+        alert(data.error || data.detail);
+      } else {
+        showToast(data.mensagem || "Georreferenciamento de vizinho importado com sucesso!", 'success');
+        
+        ctx.loadLevantamentoDetails();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao enviar arquivo CSV de vizinho.");
+      inputCsvVizinho.value = '';
+    }
   });
 }

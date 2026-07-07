@@ -28,6 +28,7 @@ export interface MesaTrabalhoContext {
   modoCliqueSequencialAtivo: boolean;
   bancoPontosExibido: boolean;
   bancoPontosList: any[];
+  pontosVizinhosList: any[];
   travamentoInicio: number;
   travamentoFim: number;
   travamentoInicioPontoId: number | null;

@@ -58,6 +58,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       modoCliqueSequencialAtivo: false,
       bancoPontosExibido: false,
       bancoPontosList: [],
+      pontosVizinhosList: [],
       travamentoInicio: 0,
       travamentoFim: 0,
       travamentoInicioPontoId: null,
@@ -175,17 +176,19 @@ export const mesaTrabalhoRoute: RouteDef = {
           }
         }
 
-        const [resMat, resPt, resSeg, resConf] = await Promise.all([
+        const [resMat, resPt, resSeg, resConf, resViz] = await Promise.all([
           fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas`),
           fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos`),
           fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/segmentos`),
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`)
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-vizinhos`)
         ]);
 
         ctx.matriculasList = await resMat.json();
         ctx.pontosList = await resPt.json();
         ctx.segmentosList = await resSeg.json();
         ctx.confrontantesList = await resConf.json();
+        ctx.pontosVizinhosList = await resViz.json();
 
         ctx.carregarConfrontantesAtivosSelect();
 
@@ -493,6 +496,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.selectPontoFromTabela(pId);
       });
       ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+      if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
+        ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+      }
     };
 
     ctx.atualizarDestaqueLinhasTabela = () => {

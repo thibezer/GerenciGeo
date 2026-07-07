@@ -442,7 +442,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     query_rovers = """
         SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
         FROM pontos 
-        WHERE levantamento_id = ? AND ponto_base_id = ?
+        WHERE levantamento_id = ? AND ponto_base_id = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
     """
     rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
     if not rows_rovers:
@@ -636,7 +636,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     query_rovers = """
         SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
         FROM pontos 
-        WHERE levantamento_id = ? AND arquivo_origem = ? AND id != ?
+        WHERE levantamento_id = ? AND arquivo_origem = ? AND id != ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
     """
     rows_rovers = execute_query(query_rovers, params=(levantamento_id, arquivo_origem, ponto_id_selecionado), fetch_all=True)
     rovers = [dict(r) for r in rows_rovers]
@@ -897,7 +897,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     query_rovers = """
         SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
         FROM pontos 
-        WHERE levantamento_id = ? AND arquivo_origem = ?
+        WHERE levantamento_id = ? AND arquivo_origem = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
     """
     rows_rovers = execute_query(query_rovers, params=(levantamento_id, arquivo_origem), fetch_all=True)
     rovers = [dict(r) for r in rows_rovers]

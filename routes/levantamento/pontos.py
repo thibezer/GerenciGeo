@@ -395,9 +395,11 @@ def create_ponto(id: int, p: PontoCreate):
 @router.delete("/pontos/{pid}")
 def delete_ponto(pid: int):
     try:
-        row = execute_query("SELECT levantamento_id, nome_vertice, tipo_ponto, lat, lon, alt FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        row = execute_query("SELECT levantamento_id, nome_vertice, tipo_ponto, lat, lon, alt, ponto_vizinho FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
         if row:
             p_data = dict(row)
+            if p_data.get("ponto_vizinho") == 1:
+                raise HTTPException(status_code=403, detail="Pontos de confrontantes/vizinhos são imutáveis e não podem ser excluídos individualmente.")
             verificar_levantamento_arquivado(p_data["levantamento_id"])
             
             check_base_uso = execute_query("SELECT COUNT(*) as count FROM pontos WHERE ponto_base_id = ?", params=(pid,), fetch_one=True)
@@ -607,9 +609,12 @@ class PontoUpdate(BaseModel):
 @router.put("/pontos/{pid}")
 def update_ponto(pid: int, payload: PontoUpdate):
     try:
-        row = execute_query("SELECT levantamento_id FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        row = execute_query("SELECT levantamento_id, ponto_vizinho FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
         if not row:
             raise HTTPException(status_code=404, detail="Ponto não encontrado.")
+            
+        if row.get("ponto_vizinho") == 1:
+            raise HTTPException(status_code=403, detail="Pontos de confrontantes/vizinhos são imutáveis e não podem ser alterados.")
             
         verificar_levantamento_arquivado(row["levantamento_id"])
         

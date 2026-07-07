@@ -15,6 +15,7 @@ export class MesaTrabalhoMapa {
   private satelliteLayer: L.TileLayer | null = null;
   private gridGroup: L.LayerGroup | null = null;
   private bancoPontosGroup: L.LayerGroup | null = null;
+  private pontosVizinhosGroup: L.LayerGroup | null = null;
   public modoCliqueSequencialAtivo: boolean = false;
   private sigefLayer: L.TileLayer.WMS | null = null;
   public levantamentoId: number | null = null;
@@ -94,6 +95,9 @@ export class MesaTrabalhoMapa {
     // Inicializa a camada de Poligonal Homologada (INCRA)
     this.bancoPontosGroup = L.layerGroup().addTo(this.map);
 
+    // Inicializa a camada de Pontos de Vizinhos (ODS)
+    this.pontosVizinhosGroup = L.layerGroup().addTo(this.map);
+
     // Registra listeners para desenhar a grade dinamicamente sob zooms altos
     this.map.on('zoomend moveend', () => this.atualizarGrade());
 
@@ -138,7 +142,11 @@ export class MesaTrabalhoMapa {
 
     L.control.layers(
       { "Satélite Google": googleSat },
-      { "Imóveis SIGEF (PR)": sigef, "Poligonal Homologada (INCRA)": this.bancoPontosGroup },
+      { 
+        "Imóveis SIGEF (PR)": sigef, 
+        "Poligonal Homologada (INCRA)": this.bancoPontosGroup,
+        "Imóveis Vizinhos (ODS)": this.pontosVizinhosGroup!
+      },
       { collapsed: true }
     ).addTo(this.map);
 
@@ -185,6 +193,9 @@ export class MesaTrabalhoMapa {
     }
     if (this.bancoPontosGroup) {
       this.bancoPontosGroup.clearLayers();
+    }
+    if (this.pontosVizinhosGroup) {
+      this.pontosVizinhosGroup.clearLayers();
     }
     this.markers = [];
     this.polylines = [];
@@ -458,6 +469,64 @@ export class MesaTrabalhoMapa {
       this.map.setView(marker.getLatLng(), targetZoom);
       marker.openPopup();
     }
+  }
+
+  /**
+   * Plota marcadores e polígonos dos confrontantes/vizinhos importados via ODS
+   */
+  public plotPontosVizinhos(pontos: any[]): void {
+    if (!this.map || !this.pontosVizinhosGroup) return;
+
+    this.pontosVizinhosGroup.clearLayers();
+
+    const grupos = new Map<number, any[]>();
+    pontos.forEach(p => {
+      if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0) {
+        const cId = p.confrontante_id;
+        if (!grupos.has(cId)) grupos.set(cId, []);
+        grupos.get(cId)!.push(p);
+      }
+    });
+
+    grupos.forEach((pontosGrupo) => {
+      if (pontosGrupo.length >= 2) {
+        pontosGrupo.sort((a, b) => a.id - b.id);
+
+        const coords = pontosGrupo.map(p => L.latLng(p.lat, p.lon));
+        coords.push(L.latLng(pontosGrupo[0].lat, pontosGrupo[0].lon));
+
+        L.polyline(coords, {
+          color: '#a855f7',
+          weight: 2.5,
+          dashArray: '4, 6',
+          pane: 'overlayPane'
+        }).addTo(this.pontosVizinhosGroup!);
+      }
+
+      pontosGrupo.forEach(p => {
+        const popupContent = `
+          <div class="p-2 font-sans text-xs bg-forest-deep text-white min-w-[200px]">
+            <div class="font-bold text-purple-400 mb-1 border-b border-white/10 pb-1">Confrontante (Importado)</div>
+            <div class="mb-1"><strong>Vértice:</strong> <span class="font-mono">${p.nome_vertice}</span></div>
+            <div class="mb-1"><strong>Proprietário:</strong> ${p.nome_confrontante || 'Desconhecido'}</div>
+            <div class="mb-1"><strong>Propriedade:</strong> ${p.nome_propriedade || 'Desconhecida'}</div>
+            <div class="mb-1"><strong>Coordenadas:</strong> ${p.lat.toFixed(7)}, ${p.lon.toFixed(7)}</div>
+            <div class="text-[10px] text-white/50 border-t border-white/5 pt-1 mt-1 font-mono uppercase tracking-wider">Pontos Imutáveis do Vizinho</div>
+          </div>
+        `;
+
+        const customIcon = L.divIcon({
+          className: 'custom-div-icon',
+          html: `<div class="w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)]"></div>`,
+          iconSize: [10, 10],
+          iconAnchor: [5, 5]
+        });
+
+        L.marker([p.lat, p.lon], { icon: customIcon })
+          .bindPopup(popupContent, { className: 'custom-leaflet-popup' })
+          .addTo(this.pontosVizinhosGroup!);
+      });
+    });
   }
   /**
    * Pré-carrega tiles de satélite ao redor dos bounds da propriedade em múltiplos

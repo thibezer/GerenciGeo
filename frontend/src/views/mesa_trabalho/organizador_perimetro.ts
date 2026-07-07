@@ -95,6 +95,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     if (bpAtivo) {
       ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
     }
+    if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
+      ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+    }
     ctx.mapaController.fitBounds(pontosMat);
   }
 

@@ -175,10 +175,14 @@ def create_tables(conn):
             status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
             ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
             origem_homologada INTEGER DEFAULT 0,
+            confrontante_id INTEGER,
+            ponto_vizinho INTEGER DEFAULT 0 CHECK(ponto_vizinho IN (0, 1)),
+            dados_vizinho_json TEXT,
             
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
             FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
+            FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL,
             UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
         );
         """,
@@ -201,6 +205,8 @@ def create_tables(conn):
             matricula_imovel TEXT,
             cns_confrontante TEXT, -- ADICIONADO CONFORME PLANO v2.3
             caminho_matricula_pdf TEXT,
+            nome_propriedade TEXT,
+            codigo_incra_imovel TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
@@ -377,7 +383,10 @@ def create_tables(conn):
             ("arquivo_origem", "TEXT"),
             ("status_correcao", "TEXT DEFAULT 'BRUTO'"),
             ("ignorar_poligono", "INTEGER DEFAULT 0"),
-            ("origem_homologada", "INTEGER DEFAULT 0")
+            ("origem_homologada", "INTEGER DEFAULT 0"),
+            ("confrontante_id", "INTEGER"),
+            ("ponto_vizinho", "INTEGER DEFAULT 0"),
+            ("dados_vizinho_json", "TEXT")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -455,7 +464,9 @@ def create_tables(conn):
             ("rg_conjuge", "TEXT"),
             ("matricula_imovel", "TEXT"),
             ("cns_confrontante", "TEXT"),
-            ("caminho_matricula_pdf", "TEXT")
+            ("caminho_matricula_pdf", "TEXT"),
+            ("nome_propriedade", "TEXT"),
+            ("codigo_incra_imovel", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}

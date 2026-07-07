@@ -258,6 +258,11 @@ export const renderMesaTrabalho = (): string => {
                 <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
                 Base manual
              </button>
+            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-purple-400 hover:bg-purple-500/10 border-purple-500/20 active:scale-95 transition-all" id="btn-importar-csv-vizinho" type="button" title="Importar georreferenciamento de confrontante a partir de arquivos CSV do SIGEF (CVS vertices.csv ou CVS poligono.csv)">
+                <i data-lucide="upload" class="w-3.5 h-3.5 text-purple-400"></i>
+                Importar CSV Vizinho
+             </button>
+             <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" />
             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-gerar-requerimento-cri">
                <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                Requerimento
