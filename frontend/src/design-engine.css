@@ -614,7 +614,7 @@ td[colspan][class*="text-center"] {
 /* Redimensionamento automático do Canvas inferior */
 .workspace-body {
     flex-grow: 1;
-    height: calc(100vh - 155px); /* Ajuste exato para as 3 camadas da Ribbon */
+    height: calc(100vh - 149px); /* Ajuste exato para as 3 camadas da Ribbon */
     overflow: hidden;
     position: relative;
 }
@@ -629,13 +629,13 @@ td[colspan][class*="text-center"] {
     color: #e0e0e0;
     user-select: none;
     width: 100%;
-    height: 155px; /* Altura fixa controlada */
+    height: 149px; /* Altura fixa controlada (30px + 32px + 87px) */
     box-sizing: border-box;
 }
 
 /* Camada 1 */
 .ribbon-layer1 {
-  height: 36px;
+  height: 30px; /* Alinhado com a altura dos botões do sistema do Electron/Tauri */
   background: #0b0d0c;
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
   display: flex;
@@ -650,16 +650,15 @@ td[colspan][class*="text-center"] {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
-  min-width: 140px;
+  padding: 0 4px;
+  min-width: 90px;
 }
-.rl1-logo-icon { width: 18px; height: 18px; color: #00f5a0; }
-.rl1-logo-text { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.9); }
+.rl1-logo-text { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); }
 .rl1-logo-text .accent { color: #00f5a0; }
 
 .rl1-separator {
   width: 1px;
-  height: 20px;
+  height: 16px;
   background: rgba(255,255,255,0.08);
   margin: 0 4px;
   flex-shrink: 0;
@@ -676,8 +675,9 @@ td[colspan][class*="text-center"] {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 2px 6px;
   font-size: 11px;
+  font-weight: 400;
   color: rgba(255,255,255,0.6);
   background: transparent;
   border: none;
@@ -687,7 +687,7 @@ td[colspan][class*="text-center"] {
   white-space: nowrap;
 }
 .rl1-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
-.rl1-btn i { width: 13px; height: 13px; }
+.rl1-btn i { width: 12px; height: 12px; }
 
 .rl1-spacer { flex: 1; }
 
@@ -699,36 +699,38 @@ td[colspan][class*="text-center"] {
 }
 
 .rl1-select-label {
-  font-size: 10px;
+  font-size: 9px;
   color: rgba(255,255,255,0.35);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 400;
 }
 
 .rl1-select {
-  height: 22px;
-  padding: 0 6px;
-  font-size: 11px;
+  height: 20px;
+  padding: 0 4px;
+  font-size: 10px;
   background: rgba(255,255,255,0.06);
   border: 0.5px solid rgba(255,255,255,0.12);
   border-radius: 3px;
   color: rgba(255,255,255,0.85);
   cursor: pointer;
   font-family: monospace;
+  font-weight: 400;
 }
 .rl1-select:focus { border-color: rgba(0,245,160,0.25); outline: none; }
 
 .rl1-avatar {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: rgba(0,245,160,0.1);
   border: 1px solid rgba(0,245,160,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 8px;
+  font-weight: 500;
   color: #00f5a0;
   cursor: pointer;
   margin: 0 4px;
@@ -749,7 +751,7 @@ td[colspan][class*="text-center"] {
 
 .rl2-prop-name {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: rgba(255,255,255,0.88);
   white-space: nowrap;
   overflow: hidden;
@@ -759,20 +761,20 @@ td[colspan][class*="text-center"] {
 
 .rl2-badge {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 400;
   font-family: monospace;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 2px 7px;
-  border-radius: 99px;
+  padding: 1px 6px;
+  border-radius: 4px;
   margin-left: 8px;
   white-space: nowrap;
 }
-.rl2-badge.status-ativo    { background: rgba(0,245,160,0.1); color: #00f5a0; border: 0.5px solid rgba(0,245,160,0.25); }
+.rl2-badge.status-ativo    { background: rgba(0,245,160,0.08); color: #00f5a0; border: 0.5px solid rgba(0,245,160,0.2); }
 
 .rl2-sep {
   width: 1px;
-  height: 14px;
+  height: 12px;
   background: rgba(255,255,255,0.06);
   margin: 0 10px;
   flex-shrink: 0;
@@ -791,7 +793,7 @@ td[colspan][class*="text-center"] {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(255,255,255,0.28);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .rl2-meta-value {
@@ -800,6 +802,7 @@ td[colspan][class*="text-center"] {
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
 }
 .rl2-meta-value.font-mono { font-family: monospace; font-size: 10px; }
 
@@ -827,7 +830,7 @@ td[colspan][class*="text-center"] {
   padding: 0 12px;
   height: 28px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   color: rgba(255,255,255,0.45);
   background: transparent;
   border: none;
@@ -847,6 +850,7 @@ td[colspan][class*="text-center"] {
 .rl3-tab.active {
   color: #00f5a0;
   background: rgba(0,224,138,0.08);
+  font-weight: 500;
 }
 
 /* Linha indicadora na tab ativa */
@@ -892,7 +896,7 @@ td[colspan][class*="text-center"] {
 .rl3-group-tools {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
 }
 
@@ -903,6 +907,7 @@ td[colspan][class*="text-center"] {
   letter-spacing: 0.07em;
   margin-top: 2px;
   white-space: nowrap;
+  font-weight: 400;
 }
 
 .rl3-divider {
@@ -914,57 +919,71 @@ td[colspan][class*="text-center"] {
   flex-shrink: 0;
 }
 
-/* Botões de ferramenta */
+/* Botões de ferramenta gráficos */
 .rl3-tool-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 42px;
-  height: 38px;
-  padding: 3px 6px;
+  min-width: 48px;
+  height: 38px !important;
+  padding: 2px 6px !important;
   font-size: 9px;
-  color: rgba(255,255,255,0.65);
-  background: transparent;
-  border: 0.5px solid transparent;
-  border-radius: 5px;
+  color: rgba(255,255,255,0.65) !important;
+  background: rgba(255,255,255,0.02) !important;
+  border: 0.5px solid rgba(255,255,255,0.08) !important;
+  border-radius: 4px !important;
   cursor: pointer;
-  transition: background 100ms, color 100ms, border-color 100ms;
+  transition: all 100ms ease;
   white-space: nowrap;
+  font-weight: 400;
+  box-sizing: border-box !important;
 }
-.rl3-tool-btn i { width: 16px; height: 16px; }
+.rl3-tool-btn i { width: 14px; height: 14px; margin-bottom: 1px; }
 .rl3-tool-btn:hover {
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.9);
-  border-color: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.08) !important;
+  color: rgba(255,255,255,0.95) !important;
+  border-color: rgba(255,255,255,0.2) !important;
 }
 .rl3-tool-btn:active { transform: scale(0.96); }
 
 /* Botão grande (ação principal do grupo) */
 .rl3-tool-btn.rl3-btn-lg {
-  min-width: 52px;
-  height: 38px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #00f5a0;
-  border-color: rgba(0,245,160,0.25);
-  background: rgba(0,245,160,0.1);
+  min-width: 54px;
+  height: 38px !important;
+  font-size: 9px;
+  font-weight: 500;
+  color: #00f5a0 !important;
+  border-color: rgba(0,245,160,0.25) !important;
+  background: rgba(0,245,160,0.05) !important;
 }
-.rl3-tool-btn.rl3-btn-lg:hover { background: rgba(0,224,138,0.15); }
+.rl3-tool-btn.rl3-btn-lg:hover { 
+  background: rgba(0,245,160,0.12) !important;
+  color: #00f5a0 !important;
+  border-color: rgba(0,245,160,0.4) !important;
+}
 
 /* Botão de aviso (ação potencialmente perigosa) */
 .rl3-tool-btn.rl3-btn-warn {
-  color: #ffd60a;
-  border-color: rgba(255,214,10,0.22);
-  background: rgba(255,214,10,0.1);
+  color: #ffd60a !important;
+  border-color: rgba(255,214,10,0.25) !important;
+  background: rgba(255,214,10,0.05) !important;
+}
+.rl3-tool-btn.rl3-btn-warn:hover {
+  background: rgba(255,214,10,0.12) !important;
+  border-color: rgba(255,214,10,0.4) !important;
 }
 
 /* Botão destrutivo */
 .rl3-tool-btn.rl3-btn-danger {
-  color: #ff453a;
-  border-color: rgba(255,69,58,0.22);
-  background: rgba(255,69,58,0.1);
+  color: #ff453a !important;
+  border-color: rgba(255,69,58,0.25) !important;
+  background: rgba(255,69,58,0.05) !important;
+}
+.rl3-tool-btn.rl3-btn-danger:hover {
+  background: rgba(255,69,58,0.12) !important;
+  border-color: rgba(255,69,58,0.4) !important;
 }
 
 /* Toggle row (UTM / Geodésico) */
@@ -976,16 +995,19 @@ td[colspan][class*="text-center"] {
   border: 0.5px solid rgba(255,255,255,0.08);
   border-radius: 4px;
   padding: 2px;
+  height: 38px;
+  box-sizing: border-box;
 }
 .rl3-toggle-label {
   font-size: 9px;
   color: rgba(255,255,255,0.3);
   padding: 0 4px;
+  font-weight: 400;
 }
 .rl3-toggle-btn {
-  padding: 2px 8px;
+  padding: 4px 8px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   border: none;
   border-radius: 3px;
   background: transparent;
@@ -994,6 +1016,7 @@ td[colspan][class*="text-center"] {
   transition: all 100ms;
 }
 .rl3-toggle-btn.active {
-  background: rgba(0,245,160,0.1);
+  background: rgba(0,245,160,0.08);
   color: #00f5a0;
+  font-weight: 500;
 }

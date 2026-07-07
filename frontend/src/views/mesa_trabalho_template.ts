@@ -25,8 +25,7 @@ export const renderMesaTrabalho = (): string => {
         <!-- Camada 1 — App Bar (Application Menu Bar) -->
         <div id="ribbon-layer1" class="ribbon-layer1">
           <div class="rl1-brand">
-            <i data-lucide="crosshair" class="rl1-logo-icon"></i>
-            <span class="rl1-logo-text">Gerenci<span class="accent">Geo</span> // WORKSTATION</span>
+            <span class="rl1-logo-text">Gerenci<span class="accent">Geo</span></span>
           </div>
           <div class="rl1-separator"></div>
           <div class="rl1-qat">

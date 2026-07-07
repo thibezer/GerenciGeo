@@ -64,7 +64,7 @@ O GerenciGeo na Mesa de Trabalho deve se comportar como um aplicativo desktop na
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  RIBBON — CAMADA 1: App Bar (altura fixa: 36px)             │
+│  RIBBON — CAMADA 1: App Bar (altura fixa: 30px)             │
 ├─────────────────────────────────────────────────────────────┤
 │  RIBBON — CAMADA 2: Metadados do Projeto (altura fixa: 32px) │
 ├─────────────────────────────────────────────────────────────┤
@@ -73,7 +73,7 @@ O GerenciGeo na Mesa de Trabalho deve se comportar como um aplicativo desktop na
 │  [Painéis de tools dentro da aba ativa]                     │
 ├───────────────────┬─────────────────────────────────────────┤
 │  PAINEL DE        │  ÁREA DE VISUALIZAÇÃO (Mapa Leaflet)     │
-│  PROPRIEDADES     │  Altura: calc(100vh - 155px - 280px)     │
+│  PROPRIEDADES     │  Altura: calc(100vh - 149px - 280px)     │
 │  (largura: 280px) │  Scroll: não                            │
 │  Scroll: sim      │                                         │
 │                   ├─────────────────────────────────────────┤
@@ -89,10 +89,10 @@ O GerenciGeo na Mesa de Trabalho deve se comportar como um aplicativo desktop na
 
 ```css
 /* Alturas fixas da Ribbon */
---ribbon-layer1-h: 36px;
+--ribbon-layer1-h: 30px;
 --ribbon-layer2-h: 32px;
 --ribbon-layer3-h: 87px;  /* 32px tabs + 55px painéis */
---ribbon-total-h: 155px;  /* soma das 3 camadas */
+--ribbon-total-h: 149px;  /* soma das 3 camadas */
 
 /* Status bar */
 --statusbar-h: 24px;
@@ -130,34 +130,33 @@ O GerenciGeo na Mesa de Trabalho deve se comportar como um aplicativo desktop na
 
 ### 3.1 Camada 1 — App Bar (Application Menu Bar)
 
-**Altura:** 36px  
+**Altura:** 30px  
 **Cor de fundo:** `#0b0d0c` (mais escuro que o workspace, cria hierarquia visual)  
 **Borda inferior:** `0.5px solid rgba(255,255,255,0.06)`
 
 #### Elementos da Camada 1 (da esquerda para direita):
 
 ```
-[Logo 24px] [GerenciGeo] | [← Voltar] [💾 Salvar] | ... espaço flex ... | [Fuso: 22S ▾] [Mat: 001/002 ▾] [👤 Admin]
+[GerenciGeo] | [← Voltar] [💾 Salvar] | ... espaço flex ... | [Fuso: 22S ▾] [Mat: 001/002 ▾] [👤 Admin]
 ```
 
 | Elemento | Tipo | Largura | Comportamento |
 |----------|------|---------|---------------|
-| Logo + nome | Static | 160px | Nenhum |
+| Nome | Static | 120px | Nenhum |
 | Separador | `1px solid rgba(255,255,255,0.08)` | 1px | — |
 | ← Voltar | Ghost button | 72px | `window.location.hash = '#levantamentos'` |
 | 💾 Salvar | Ghost button | 72px | Salva rascunho local + POST API |
 | (flex-1 espaço) | — | auto | — |
 | Fuso UTM | Select compacto | 90px | Altera `ctx.modoCoordenadas` e fuso |
 | Matrícula ativa | Select compacto | 120px | `ctx.switchMatriculaTab()` |
-| Avatar Admin | Circle 24px | 36px | Abre configurações |
+| Avatar Admin | Circle 20px | 30px | Abre configurações |
 
-**Regra crítica:** Nenhum elemento na App Bar deve ter altura visual maior que 28px. Ela é uma banda estreita de contexto, não de ação primária.
+**Regra crítica:** Nenhum elemento na App Bar deve ter altura visual maior que 24px. Ela é uma banda estreita de contexto, não de ação primária.
 
 ```html
 <!-- Estrutura HTML da Camada 1 -->
 <div id="ribbon-layer1" class="ribbon-layer1">
   <div class="rl1-brand">
-    <i data-lucide="crosshair" class="rl1-logo-icon"></i>
     <span class="rl1-logo-text">Gerenci<span class="accent">Geo</span></span>
   </div>
   <div class="rl1-separator"></div>
