@@ -13,6 +13,7 @@ export default {
         'border-glass': 'rgba(255, 255, 255, 0.1)',
       },
       fontFamily: {
+        sans: ['Inter', 'Segoe UI', 'Tahoma', 'sans-serif'],
         inter: ['Inter', 'Segoe UI', 'Tahoma', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
