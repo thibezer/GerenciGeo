@@ -600,3 +600,85 @@ td[colspan][class*="text-center"] {
 [class*="divide-white\/5"] > * + * {
   border-color: var(--geo-border-faint) !important;
 }
+
+.hidden { display: none !important; }
+
+/* Configuração do Layout do App-Workstation */
+.workspace-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Redimensionamento automático do Canvas inferior */
+.workspace-body {
+    flex-grow: 1;
+    height: calc(100vh - 155px); /* Ajuste exato para as 3 camadas da Ribbon */
+    overflow: hidden;
+    position: relative;
+}
+
+/* Container da Ribbon Mestre */
+.ribbon-master-container {
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1e1b;
+    border-bottom: 2px solid #2d332f;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e0e0e0;
+    user-select: none;
+    width: 100%;
+    height: 155px; /* Altura fixa controlada */
+    box-sizing: border-box;
+}
+
+/* Camada 1: Utilitários */
+.ribbon-layer-one {
+    height: 32px;
+    background-color: #0e120f;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid #1a221d;
+}
+.ribbon-logo { font-weight: 700; font-size: 11px; letter-spacing: 1px; color: #00f5a0; }
+.ribbon-qa-zone { display: flex; align-items: center; gap: 8px; }
+.ribbon-qa-btn { background: transparent; border: none; color: #aaaaaa; padding: 4px 8px; cursor: pointer; font-size: 13px; border-radius: 3px; transition: all 0.15s ease; }
+.ribbon-qa-btn:hover { background-color: #252a26; color: #ffffff; }
+.ribbon-select-dark { background-color: #212823; border: 1px solid #323d35; color: #ffffff; font-size: 11px; padding: 2px 6px; border-radius: 3px; outline: none; }
+
+/* Camada 2: Contexto Fixo */
+.ribbon-layer-two {
+    height: 38px;
+    background-color: #131714;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    border-bottom: 1px solid #1a221d;
+    font-size: 12px;
+}
+.property-meta-item { color: #888888; }
+.property-meta-item strong { color: #ffffff; font-weight: 500; }
+
+/* Camada 3: Abas e Painéis Técnicos */
+.ribbon-layer-three { background-color: #171d19; flex-grow: 1; display: flex; flex-direction: column; }
+.ribbon-tab-headers { display: flex; background-color: #101411; padding-left: 8px; gap: 2px; }
+.ribbon-tab-btn { background: transparent; border: none; color: #999999; padding: 6px 16px; font-size: 12px; cursor: pointer; border-radius: 4px 4px 0 0; }
+.ribbon-tab-btn.active { background-color: #171d19; color: #00f5a0; font-weight: 600; }
+
+/* Tratamento de transbordamento horizontal para telas de notebook */
+.ribbon-tab-contents { flex-grow: 1; display: flex; background-color: #171d19; }
+.ribbon-panel-row { display: flex; height: 85px; padding: 4px; gap: 4px; width: 100%; overflow-x: auto; overflow-y: hidden; box-sizing: border-box; }
+.ribbon-panel-row::-webkit-scrollbar { height: 4px; }
+.ribbon-panel-row::-webkit-scrollbar-thumb { background: #2a332d; border-radius: 2px; }
+
+.ribbon-panel-group { display: flex; flex-direction: column; border-right: 1px solid #222c26; padding: 0 8px; align-items: center; justify-content: space-between; min-width: max-content; }
+.panel-group-actions { display: flex; gap: 6px; align-items: center; flex-grow: 1; }
+.panel-group-title { font-size: 9px; color: #666666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+.ribbon-action-btn { background: transparent; border: 1px solid transparent; color: #cccccc; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 75px; height: 56px; font-size: 10px; cursor: pointer; border-radius: 4px; text-align: center; gap: 4px; transition: all 0.2s ease; }
+.ribbon-action-btn i { font-size: 16px; }
+.ribbon-action-btn:hover { background-color: #212a24; border: 1px solid #2d3b32; color: #00f5a0; }

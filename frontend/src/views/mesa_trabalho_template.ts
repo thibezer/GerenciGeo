@@ -20,61 +20,127 @@ export const REGIMES_BENS_OPTIONS = `
 
 export const renderMesaTrabalho = (): string => {
    return `
-    <div class="space-y-6 animate-in fade-in duration-300">
-      <!-- DETALHES DO PROJETO E TRIAGEM -->
-      <div id="painel-detalhe-projeto" class="space-y-4">
-        <!-- Cabeçalho de Ação Sticky e Condensado -->
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-forest-deep/80 backdrop-blur-md border border-white/5 py-2.5 px-4 rounded-xl shadow-lg flex-wrap" id="mesa-trabalho-header">
-          <div class="flex items-center gap-3.5">
-            <button class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1 hover:bg-white/10 active:scale-95 transition-all duration-200" id="btn-voltar-lista">
-              <i data-lucide="chevron-left" class="w-4 h-4"></i>
-              Voltar
-            </button>
-            <div class="w-[1px] h-7 bg-white/10 self-center hidden sm:block"></div>
-            <div>
-              <h3 class="text-sm md:text-base font-bold flex items-center gap-2 leading-snug">
-                <span id="txt-nome-propriedade" class="text-white hover:text-mint-vibrant transition-colors">Carregando...</span>
-                <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold" id="badge-status-lev">-</span>
-              </h3>
-              <p class="text-xs text-white/40 mt-1 dados-secundarios-cliente leading-snug flex items-center flex-wrap gap-x-3 gap-y-1">
-                <span class="flex items-center gap-1">
-                  <span class="text-white/30 uppercase tracking-widest text-[9px]">Cliente:</span>
-                  <span class="text-white/75 font-medium" id="txt-nome-cliente">-</span>
-                </span>
-                <span class="text-white/10 hidden sm:inline">•</span>
-                <span class="flex items-center gap-1">
-                  <span class="text-white/30 uppercase tracking-widest text-[9px]">CAR:</span>
-                  <span class="text-white/75 font-mono" id="txt-codigo-car">-</span>
-                </span>
-              </p>
+    <div class="workspace-wrapper animate-in fade-in duration-300">
+      <header class="ribbon-master-container">
+        <!-- Camada 1: Title & QA Utilities -->
+        <div class="ribbon-layer-one">
+          <div class="flex items-center gap-4">
+            <div class="ribbon-logo font-mono uppercase tracking-wider font-black">GERENCIGEO // WORKSTATION</div>
+            <div class="h-4 w-[1px] bg-white/10"></div>
+            <div class="ribbon-qa-zone">
+              <button id="btn-voltar-lista-qa" class="ribbon-qa-btn" title="Voltar para Lista"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+              <button id="btn-salvar-qa" class="ribbon-qa-btn" title="Salvar Rascunho Local"><i data-lucide="save" class="w-4 h-4"></i></button>
             </div>
           </div>
-          
-          <!-- Seletor de Matrículas (Abas de Triagem) -->
-          <div class="flex bg-white/5 border border-white/10 p-0.5 rounded-md overflow-x-auto self-start md:self-auto" id="container-abas-matriculas">
-            <!-- Abas carregadas dinamicamente -->
-          </div>
-
-          <!-- Seletor de Etapas de Trabalho (Ajuste Fino V2.3) -->
-          <div class="flex bg-white/[0.02] border border-white/10 p-1 rounded-xl gap-1.5 shrink-0 overflow-x-auto" id="container-abas-etapas">
-            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-geoprocessamento" type="button">
-              <i data-lucide="cpu" class="w-4 h-4"></i>
-              Mesa Geodésica
-            </button>
-            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-cartorio" type="button">
-              <i data-lucide="database" class="w-4 h-4"></i>
-              Organizador de Perímetro
-            </button>
-            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-documentos" type="button">
-              <i data-lucide="file-text" class="w-4 h-4"></i>
-              Peças de Cartório
-            </button>
-            <button class="flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95" id="btn-etapa-auditoria" type="button">
-              <i data-lucide="history" class="w-4 h-4"></i>
-              Histórico de Auditoria
-            </button>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <label style="font-size: 10px; color: #888; text-transform: uppercase; font-family: monospace;">Fuso UTM:</label>
+              <select id="utm-zone-qa" class="ribbon-select-dark cursor-pointer font-mono">
+                <option value="21S">21S</option>
+                <option value="22S" selected>22S</option>
+                <option value="23S">23S</option>
+              </select>
+            </div>
+            <div class="h-4 w-[1px] bg-white/10"></div>
+            <div class="text-[10px] text-white/40 font-mono" id="container-info-matricula-ativa">
+              MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span>
+            </div>
           </div>
         </div>
+
+        <!-- Camada 2: Fixed Core Meta-info -->
+        <div class="ribbon-layer-two">
+          <div class="property-meta-item">Imóvel: <strong id="txt-nome-propriedade" class="text-white hover:text-mint-vibrant transition-colors font-bold">Carregando...</strong> <span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider font-semibold font-bold" id="badge-status-lev">-</span></div>
+          <div class="property-meta-item">Cliente: <strong id="txt-nome-cliente">-</strong></div>
+          <div class="property-meta-item">Código CAR: <strong id="txt-codigo-car" class="font-mono">-</strong></div>
+          <div class="flex-grow"></div>
+          <!-- Seletor de Matrículas (Abas de Triagem) embutido no contexto fixo -->
+          <div class="flex bg-white/5 border border-white/10 p-0.5 rounded" id="container-abas-matriculas">
+            <!-- Abas carregadas dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Camada 3: Dynamic Ribbon Panels -->
+        <div class="ribbon-layer-three">
+          <div class="ribbon-tab-headers">
+            <button class="ribbon-tab-btn active ribbon-tab-btn-el" data-tab="geoprocessamento" type="button">Mesa Geodésica</button>
+            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="cartorio" type="button">Organizador de Perímetros</button>
+            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="documentos" type="button">Peças de Cartório</button>
+            <button class="ribbon-tab-btn ribbon-tab-btn-el" data-tab="auditoria" type="button">Histórico de Auditoria</button>
+          </div>
+          <div class="ribbon-tab-contents">
+            <!-- Painéis para Aba 1: Mesa Geodésica -->
+            <div id="tab-panel-geoprocessamento" class="ribbon-panel-row">
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-importar-csv-vizinho" class="ribbon-action-btn" type="button" title="Importar confrontante (CSV do SIGEF)"><i data-lucide="upload" class="w-4 h-4"></i><span>Importar CSV</span></button>
+                  <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
+                  <button id="btn-override-base-manual" class="ribbon-action-btn" type="button" title="Override Base Manual"><i data-lucide="shield-alert" class="w-4 h-4"></i><span>Base Manual</span></button>
+                </div>
+                <div class="panel-group-title">Entrada do SIGEF</div>
+              </div>
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-reordenar-caminhamento" class="ribbon-action-btn" type="button" title="Reordenar pontos da matrícula"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span>Reordenar</span></button>
+                </div>
+                <div class="panel-group-title">Operações</div>
+              </div>
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-limpar-vizinhos" class="ribbon-action-btn" type="button" title="Limpar confrontantes importados"><i data-lucide="trash-2" class="w-4 h-4"></i><span>Limpar Camada</span></button>
+                </div>
+                <div class="panel-group-title">Limpeza</div>
+              </div>
+            </div>
+
+            <!-- Painéis para Aba 2: Organizador de Perímetros -->
+            <div id="tab-panel-cartorio" class="ribbon-panel-row hidden">
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-consolidar-pontos-utm" class="ribbon-action-btn" type="button" title="Exportar planilha de coordenadas UTM"><i data-lucide="download" class="w-4 h-4"></i><span>Exportar</span></button>
+                  <button id="btn-unificar-sigef" class="ribbon-action-btn" type="button" title="Unificar limites perimetrais do SIGEF"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Unificar 1A</span></button>
+                </div>
+                <div class="panel-group-title">Topografia de Divisas</div>
+              </div>
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-sincronizar-nuvem" class="ribbon-action-btn" type="button" title="Sincronizar dados consolidados na nuvem"><i data-lucide="cloud-lightning" class="w-4 h-4"></i><span>Sincronizar</span></button>
+                </div>
+                <div class="panel-group-title">Cloud</div>
+              </div>
+            </div>
+
+            <!-- Painéis para Aba 3: Peças de Cartório -->
+            <div id="tab-panel-documentos" class="ribbon-panel-row hidden">
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-exportar-kml" class="ribbon-action-btn" type="button" title="Exportar para Google Earth KML"><i data-lucide="map" class="w-4 h-4"></i><span>Gerar KML</span></button>
+                </div>
+                <div class="panel-group-title">Exportações</div>
+              </div>
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-gerar-requerimento-cri" class="ribbon-action-btn" type="button" title="Gerar requerimento para registro de imóvel"><i data-lucide="file-text" class="w-4 h-4"></i><span>Requerimento</span></button>
+                </div>
+                <div class="panel-group-title">Documentos</div>
+              </div>
+            </div>
+
+            <!-- Painéis para Aba 4: Histórico de Auditoria -->
+            <div id="tab-panel-auditoria" class="ribbon-panel-row hidden">
+              <div class="ribbon-panel-group">
+                <div class="panel-group-actions">
+                  <button id="btn-arquivar-projeto-seguro" class="ribbon-action-btn" type="button" title="Arquivar projeto para leitura apenas"><i data-lucide="archive" class="w-4 h-4"></i><span>Arquivar</span></button>
+                </div>
+                <div class="panel-group-title">Segurança</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace-body overflow-y-auto p-6 space-y-6">
+        <div id="painel-detalhe-projeto" class="space-y-4">
 
         <!-- Banner de Numeração Sugerida INCRA -->
         <div id="banner-sugestao-numeracao" class="bg-forest-deep/40 border border-mint-vibrant/20 px-4 py-2 rounded-xl flex items-center justify-between text-xs hidden animate-in slide-in-from-top duration-300">
@@ -231,55 +297,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
         </div>
 
-        <!-- Barra de Ferramentas Técnicas -->
-        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 py-1">
-          <div class="flex items-center gap-2 overflow-x-auto pr-2 pb-1 scrollbar-thin">
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-exportar-kml">
-              <i data-lucide="map-icon" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-              KML
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-unificar-sigef">
-              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-              Unificar SIGEF (1A)
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-consolidar-pontos-utm">
-              <i data-lucide="download" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-              Exportar
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-sky-400 hover:bg-sky-500/10 border-sky-500/20 active:scale-95 transition-all" id="btn-sincronizar-nuvem" type="button" title="Sincronizar perímetro consolidado com o Hub de Consulta na Nuvem">
-              <i data-lucide="cloud-lightning" class="w-3.5 h-3.5"></i>
-              Sincronizar Nuvem
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-reordenar-caminhamento">
-               <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-               Reordenar pontos
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-yellow-400 hover:bg-yellow-500/10 border-yellow-500/20 active:scale-95 transition-all" id="btn-override-base-manual" type="button">
-                <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
-                Base manual
-             </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-purple-400 hover:bg-purple-500/10 border-purple-500/20 active:scale-95 transition-all" id="btn-importar-csv-vizinho" type="button" title="Importar georreferenciamento de confrontante a partir de arquivos CSV do SIGEF (CVS vertices.csv ou CVS poligono.csv)">
-                <i data-lucide="upload" class="w-3.5 h-3.5 text-purple-400"></i>
-                Importar CSV Vizinho
-             </button>
-             <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
-             <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 text-red-400 hover:bg-red-500/10 border-red-500/20 active:scale-95 transition-all" id="btn-limpar-vizinhos" type="button" title="Remover todos os pontos de vizinhos importados no mapa">
-                 <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-400"></i>
-                 Limpar Vizinhos
-              </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 flex items-center gap-1 shrink-0 active:scale-95 transition-all" id="btn-gerar-requerimento-cri">
-               <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-               Requerimento
-            </button>
-            <button class="btn-secondary text-xs px-3.5 py-2.5 md:text-[11px] md:px-2 md:py-1 text-red-400 hover:bg-red-500/10 border-red-500/20 shrink-0 active:scale-95 transition-all" id="btn-arquivar-projeto-seguro">
-               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-               Arquivar
-            </button>
-          </div>
-          <div class="text-left sm:text-right shrink-0" id="container-info-matricula-ativa">
-            <span class="text-[10px] text-white/40 font-mono">MATRÍCULA ATIVA: <span class="text-mint-vibrant font-bold font-mono" id="txt-nome-matricula-ativa">-</span></span>
-          </div>
-        </div>
+
         <!-- Tabelas Inferiores (Pontos vs Divisas) -->
         <div class="flex flex-col lg:flex-row gap-0 relative w-full" id="container-tabelas-inferiores">
           <!-- Tabela 1: Vértices -->
@@ -1038,5 +1056,7 @@ export const renderMesaTrabalho = (): string => {
           </button>
        </div>
     </div>
+    </main>
+</div>
   `;
 };

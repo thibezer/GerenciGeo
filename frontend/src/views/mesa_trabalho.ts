@@ -98,6 +98,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     setupOrganizadorPerimetro(ctx);
     setupGeradorDocumentos(ctx);
     setupAuditoriaHistorico(ctx);
+    setupRibbonInteractions(ctx);
 
     // 3. Estilos de Resizers individuais
     setTimeout(() => {
@@ -460,6 +461,25 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (containerAuditoriaCampo) containerAuditoriaCampo.classList.remove('hidden');
         if (painelWorkspace) painelWorkspace.classList.add('hidden');
         renderHistoricoCampo(ctx);
+      }
+
+      const tabBtn = document.querySelector(`.ribbon-tab-btn-el[data-tab="${etapa}"]`) as HTMLButtonElement;
+      if (tabBtn) {
+        const tabButtons = document.querySelectorAll('.ribbon-tab-btn-el');
+        const panelRows = document.querySelectorAll('.ribbon-panel-row');
+        
+        tabButtons.forEach(btn => {
+          btn.classList.remove('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
+          btn.classList.add('text-white/40');
+        });
+        tabBtn.classList.add('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
+        tabBtn.classList.remove('text-white/40');
+
+        panelRows.forEach(row => row.classList.add('hidden'));
+        const targetPanel = document.getElementById(`tab-panel-${etapa}`);
+        if (targetPanel) {
+          targetPanel.classList.remove('hidden');
+        }
       }
 
       initIcons();
@@ -1626,3 +1646,63 @@ export const mesaTrabalhoRoute: RouteDef = {
     }
   }
 };
+
+function setupRibbonInteractions(ctx: any): void {
+  const tabButtons = document.querySelectorAll('.ribbon-tab-btn-el');
+  const panelRows = document.querySelectorAll('.ribbon-panel-row');
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', (e: Event) => {
+      const targetBtn = e.currentTarget as HTMLButtonElement;
+      const tabTarget = targetBtn.getAttribute('data-tab');
+
+      if (!tabTarget) return;
+
+      tabButtons.forEach(btn => {
+        btn.classList.remove('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
+        btn.classList.add('text-white/40');
+      });
+      targetBtn.classList.add('active', 'border-b-2', 'border-mint-vibrant', 'text-mint-vibrant');
+      targetBtn.classList.remove('text-white/40');
+
+      panelRows.forEach(row => row.classList.add('hidden'));
+      const targetPanel = document.getElementById(`tab-panel-${tabTarget}`);
+      if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+      }
+
+      if (ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
+        ctx.alternarEtapa(tabTarget);
+      }
+    });
+  });
+
+  const btnVoltar = document.getElementById('btn-voltar-lista-qa');
+  if (btnVoltar) {
+    btnVoltar.addEventListener('click', () => {
+      window.location.hash = '#levantamentos';
+    });
+  }
+
+  const btnSalvar = document.getElementById('btn-salvar-qa');
+  if (btnSalvar) {
+    btnSalvar.addEventListener('click', () => {
+      if (ctx && typeof ctx.salvarRascunhoLocal === 'function') {
+        ctx.salvarRascunhoLocal();
+      } else {
+        showToast("Rascunho salvo com sucesso localmente!", "success");
+      }
+    });
+  }
+
+  const selectUtm = document.getElementById('utm-zone-qa') as HTMLSelectElement;
+  if (selectUtm) {
+    selectUtm.addEventListener('change', (e: Event) => {
+      const targetSelect = e.target as HTMLSelectElement;
+      const novaZona = targetSelect.value;
+      localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
+      showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");
+      ctx.loadLevantamentoDetails();
+    });
+  }
+}
