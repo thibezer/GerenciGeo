@@ -726,11 +726,15 @@ export const clientesRoute: RouteDef = {
         }
      });
 
-     // Filtro de busca na tabela
+     // Filtro de busca na tabela com Debounce
+     let timeoutBusca: ReturnType<typeof setTimeout>;
      document.getElementById('busca-cliente')?.addEventListener('input', (e) => {
-        termoBusca = (e.target as HTMLInputElement).value.toLowerCase();
-        paginaAtual = 1;
-        renderTabela();
+        clearTimeout(timeoutBusca);
+        timeoutBusca = setTimeout(() => {
+           termoBusca = (e.target as HTMLInputElement).value.toLowerCase();
+           paginaAtual = 1;
+           renderTabela();
+        }, 300);
      });
 
      // Limite por página
