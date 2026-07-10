@@ -4,11 +4,26 @@ import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
 import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
+import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
+import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
 import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
+import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
+import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
+
+// Interceptadores globais de erros para depuração do pywebview
+window.addEventListener('error', (event) => {
+  console.error("Exceção global capturada:", event.error);
+  alert(`[Erro de Script]: ${event.message}\nArquivo: ${event.filename}\nLinha: ${event.lineno}:${event.colno}\nStack: ${event.error?.stack}`);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error("Promessa não tratada capturada:", event.reason);
+  alert(`[Erro de Promessa]: ${event.reason?.message || event.reason}\nStack: ${event.reason?.stack}`);
+});
 
 export let activeMapaController: MesaTrabalhoMapa | null = null;
 let ctxClickOutsideHandler: ((e: MouseEvent) => void) | null = null;
@@ -48,6 +63,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       modoReordenarAtivo: false,
 
       selectedPontoIds: [],
+      selectedVizinhoPontoIds: [],
       lastSelectedPontoId: null,
       currentSortColumn: 'ordem',
       currentSortDirection: 'asc',
@@ -61,6 +77,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       pontosVizinhosList: [],
       travamentoInicio: 0,
       travamentoFim: 0,
+      arquivosDesativadosList: [],
       travamentoInicioPontoId: null,
       travamentoFimPontoId: null,
       sequenciaCliqueProximoIndice: null,
@@ -90,12 +107,18 @@ export const mesaTrabalhoRoute: RouteDef = {
       verificarRascunhoLocal: () => {},
       subirPontoSimplificado: () => {},
       descerPontoSimplificado: () => {},
+      inverterOrdemPerimetral: () => {},
+      lidarCliqueMarcadorSequencial: () => {},
+      obterPontosParaOrdenacao: () => [],
       alternarModoReordenarManual: () => {}
     };
+
+    ctx.atualizarPainelPropriedades = () => atualizarPainelPropriedades(ctx);
 
     // 2. Registra os submódulos no contexto comum
     setupMesaGeodesica(ctx);
     setupOrganizadorPerimetro(ctx);
+    setupOrdenadorManual(ctx);
     setupGeradorDocumentos(ctx);
     setupAuditoriaHistorico(ctx);
     setupRibbonInteractions(ctx);
@@ -185,11 +208,20 @@ export const mesaTrabalhoRoute: RouteDef = {
           fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-vizinhos`)
         ]);
 
-        ctx.matriculasList = await resMat.json();
-        ctx.pontosList = await resPt.json();
-        ctx.segmentosList = await resSeg.json();
-        ctx.confrontantesList = await resConf.json();
-        ctx.pontosVizinhosList = await resViz.json();
+        const matData = await resMat.json();
+        ctx.matriculasList = Array.isArray(matData) ? matData : [];
+        
+        const ptData = await resPt.json();
+        ctx.pontosList = Array.isArray(ptData) ? ptData : [];
+        
+        const segData = await resSeg.json();
+        ctx.segmentosList = Array.isArray(segData) ? segData : [];
+        
+        const confData = await resConf.json();
+        ctx.confrontantesList = Array.isArray(confData) ? confData : [];
+        
+        const vizData = await resViz.json();
+        ctx.pontosVizinhosList = Array.isArray(vizData) ? vizData : [];
 
         ctx.carregarConfrontantesAtivosSelect();
 
@@ -245,6 +277,12 @@ export const mesaTrabalhoRoute: RouteDef = {
     const inicializarMapOnce = () => {
       if (!ctx.triagemMap) {
         ctx.triagemMap = ctx.mapaController.init('mapa-triagem');
+        
+        // Ativa interações AutoCAD no Canvas (Pan com botão do meio, janelas de seleção, etc)
+        const canvasInteracao = new CanvasInteracao(ctx);
+        canvasInteracao.ativar(ctx.mapaController);
+        ctx.mapaController.canvasInteracao = canvasInteracao;
+        ctx.canvasInteracao = canvasInteracao;
         
         // Listener de cliques sequenciais no mapa Leaflet
         ctx.triagemMap?.on('popupopen', (e: any) => {
@@ -319,6 +357,40 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.alternarEtapa = (etapa: string) => {
       ctx.etapaAtiva = etapa;
 
+      // Alternância de views do workspace-body (AutoCAD style abas)
+      const allViews = document.querySelectorAll('.view-panel');
+      allViews.forEach(v => {
+        v.classList.add('hidden');
+        v.classList.remove('active-view');
+      });
+
+      let targetViewId = 'view-mesa-geodesica';
+      if (etapa === 'cartorio') targetViewId = 'view-org-perimetro';
+      else if (etapa === 'documentos') targetViewId = 'view-cartorio';
+      else if (etapa === 'auditoria') targetViewId = 'view-auditoria';
+
+      const targetView = document.getElementById(targetViewId);
+      if (targetView) {
+        targetView.classList.remove('hidden');
+        targetView.classList.add('active-view');
+      }
+
+      const containerMapa = document.getElementById('container-mapa-leaflet-parent');
+      const splitterMapa = document.getElementById('splitter-mapa-tabela');
+
+      if (etapa === 'geoprocessamento' || etapa === 'cartorio') {
+        containerMapa?.classList.remove('hidden');
+        splitterMapa?.classList.remove('hidden');
+        if (ctx.triagemMap) {
+          setTimeout(() => {
+            ctx.triagemMap?.invalidateSize();
+          }, 50);
+        }
+      } else {
+        containerMapa?.classList.add('hidden');
+        splitterMapa?.classList.add('hidden');
+      }
+
       const btnGeo = document.getElementById('btn-etapa-geoprocessamento');
       const btnCart = document.getElementById('btn-etapa-cartorio');
       const btnDoc = document.getElementById('btn-etapa-documentos');
@@ -359,16 +431,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
 
-        if (containerIngestao) containerIngestao.classList.remove('hidden');
         if (gridSuperior) gridSuperior.classList.remove('hidden');
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) {
-          if (containerIngestao && !containerIngestao.classList.contains('ingestao-collapsed')) {
-            splitterSup.classList.remove('hidden');
-          } else {
-            splitterSup.classList.add('hidden');
-          }
-        }
         const splitterInf = document.getElementById('splitter-inferior');
         if (splitterInf) splitterInf.classList.add('hidden');
 
@@ -392,8 +455,6 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
         if (gridSuperior) gridSuperior.classList.remove('hidden');
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) splitterSup.classList.add('hidden');
         
         const splitterInf = document.getElementById('splitter-inferior');
         if (splitterInf) splitterInf.classList.remove('hidden');
@@ -410,6 +471,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (btnSalvarPerimetro) btnSalvarPerimetro.classList.remove('hidden');
         if (panelHomologacao) panelHomologacao.classList.add('hidden'); // Oculto na Etapa 2
         ctx.carregarSugestoesNumeracao();
+        if (typeof ctx.verificarRascunhoLocal === 'function') {
+          ctx.verificarRascunhoLocal();
+        }
       } else if (etapa === 'documentos') {
         if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
         if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
@@ -420,8 +484,6 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (gridSuperior) gridSuperior.classList.remove('hidden');
         const containerReordenar = document.getElementById('container-reordenar-manual');
         if (containerReordenar) containerReordenar.classList.add('hidden');
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) splitterSup.classList.add('hidden');
         
         const splitterInf = document.getElementById('splitter-inferior');
         if (splitterInf) splitterInf.classList.add('hidden');
@@ -447,8 +509,6 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         if (containerIngestao) containerIngestao.classList.add('hidden');
         if (gridSuperior) gridSuperior.classList.add('hidden');
-        const splitterSup = document.getElementById('splitter-superior');
-        if (splitterSup) splitterSup.classList.add('hidden');
         
         if (containerTabelas) containerTabelas.classList.add('hidden');
         const splitterInf = document.getElementById('splitter-inferior');
@@ -507,12 +567,16 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
       const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
-        ? ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B')
-        : ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
+        ? ctx.pontosList.filter(p => p && p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B' && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)))
+        : ctx.obterPontosParaOrdenacao();
 
       ctx.mapaController.clearOverlays();
       ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
-        ctx.selectPontoFromTabela(pId);
+        if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
+          ctx.lidarCliqueMarcadorSequencial(pId);
+        } else {
+          ctx.selectPontoFromTabela(pId);
+        }
       });
       ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
       if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
@@ -526,229 +590,87 @@ export const mesaTrabalhoRoute: RouteDef = {
         const isSelected = ctx.selectedPontoIds.includes(pId);
 
         if (isSelected) {
-          tr.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
+          tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
           tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
         } else {
-          tr.classList.remove('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/30');
+          tr.classList.remove('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
           tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
         }
       });
       
       const bar = document.getElementById('batch-action-bar-mesa');
       const countEl = document.getElementById('batch-selection-count-mesa');
+      const btnIntegrar = document.getElementById('btn-batch-integrate-mesa');
       if (bar && countEl) {
-        const count = ctx.selectedPontoIds.length;
-        if (count > 0) {
-          countEl.innerText = count.toString();
+        const countNormal = ctx.selectedPontoIds.length;
+        const countVizinhos = ctx.selectedVizinhoPontoIds.length;
+        const countTotal = countNormal + countVizinhos;
+
+        if (countTotal > 0) {
+          countEl.innerText = countTotal.toString();
           bar.classList.remove('hidden');
+
+          // Se houver pontos vizinhos selecionados, mostra botão para integrá-los
+          if (btnIntegrar) {
+            if (countVizinhos > 0) {
+              btnIntegrar.classList.remove('hidden');
+            } else {
+              btnIntegrar.classList.add('hidden');
+            }
+          }
         } else {
           bar.classList.add('hidden');
         }
       }
+      // 1. Limpa o destaque anterior dos marcadores normais
+      document.querySelectorAll('.coordinate-marker').forEach((el: any) => {
+        const bgClass = el.getAttribute('data-ponto-bg') || 'bg-mint-vibrant';
+        el.className = `w-2.5 h-2.5 ${bgClass} border border-[#0c1510] rounded-full flex items-center justify-center shadow-md transition-all duration-150`;
+      });
+
+      // 2. Limpa o destaque anterior dos marcadores de vizinhos
+      document.querySelectorAll('.neighbor-marker').forEach((el: any) => {
+        el.className = "w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] transition-all duration-150 neighbor-marker";
+      });
+
+      // 3. Aplica destaque amarelo neon apenas nos pontos selecionados no momento
+      ctx.selectedPontoIds.forEach((pId: number) => {
+        const markerEl = document.getElementById(`map-marker-${pId}`);
+        if (markerEl) {
+          markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full flex items-center justify-center shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] coordinate-marker";
+        }
+      });
+
+      // 4. Aplica destaque amarelo neon nos vizinhos selecionados
+      ctx.selectedVizinhoPontoIds.forEach((pId: number) => {
+        const markerEl = document.getElementById(`vizinho-marker-${pId}`);
+        if (markerEl) {
+          markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] neighbor-marker";
+        }
+      });
+
+      atualizarPainelPropriedades(ctx);
     };
 
     ctx.selectPontoFromTabela = (pontoId: number) => {
-      document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
-        const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
-        if (pId === pontoId) {
-          tr.classList.add('bg-white/10', 'border-white/20');
-          tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else {
-          tr.classList.remove('bg-white/10', 'border-white/20');
-        }
-      });
+      ctx.selectedPontoIds = [pontoId];
+      ctx.selectedVizinhoPontoIds = [];
+      ctx.lastSelectedPontoId = pontoId;
+
+      const row = document.getElementById(`tr-ponto-${pontoId}`);
+      if (row) {
+         row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      ctx.atualizarDestaqueLinhasTabela();
     };
 
     // 5. Configuração de Event Delegation (Tabelas de Campo/Matrícula)
     const setupEventDelegation = () => {
-      const tblTriagem = document.getElementById('tbl-pontos-triagem');
-      const containerReordenar = document.getElementById('lista-reordenar-simplificada');
       const containerWorkspace = document.getElementById('container-workspace-arquivos');
-      const painelInferior = document.getElementById('container-tabelas-inferiores');
 
-      const containerTabela = painelInferior || tblTriagem;
-
-      if (containerTabela) {
-        containerTabela.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          const linha = target.closest('.linha-ponto-tbl');
-          const btnSubir = target.closest('.btn-subir-ponto');
-          const btnDescer = target.closest('.btn-descer-ponto');
-
-          if (btnSubir) {
-            e.stopPropagation();
-            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
-            if (pId) ctx.subirPonto(pId);
-            return;
-          }
-          if (btnDescer) {
-            e.stopPropagation();
-            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
-            if (pId) ctx.descerPonto(pId);
-            return;
-          }
-          const btnFocar = target.closest('.btn-focar-ponto-mapa');
-          if (btnFocar) {
-            e.stopPropagation();
-            const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
-            if (pId) {
-              ctx.selectPontoFromTabela(pId);
-              ctx.mapaController.selectPonto(pId, 21);
-            }
-            return;
-          }
-          if (linha && !target.closest('.chk-ignorar-poligono')) {
-            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
-            if (!pId) return;
-
-            const mouseEvent = e as MouseEvent;
-            if (mouseEvent.ctrlKey || mouseEvent.metaKey) {
-              if (ctx.selectedPontoIds.includes(pId)) {
-                ctx.selectedPontoIds = ctx.selectedPontoIds.filter(id => id !== pId);
-              } else {
-                ctx.selectedPontoIds.push(pId);
-                ctx.lastSelectedPontoId = pId;
-              }
-            } else if (mouseEvent.shiftKey && ctx.lastSelectedPontoId !== null) {
-              const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
-                ? [...ctx.pontosList]
-                : ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-              const index1 = pontosMat.findIndex(pt => pt.id === ctx.lastSelectedPontoId);
-              const index2 = pontosMat.findIndex(pt => pt.id === pId);
-
-              if (index1 !== -1 && index2 !== -1) {
-                const start = Math.min(index1, index2);
-                const end = Math.max(index1, index2);
-                const idsInRange = pontosMat.slice(start, end + 1).map(pt => pt.id);
-                idsInRange.forEach(id => {
-                  if (!ctx.selectedPontoIds.includes(id)) {
-                    ctx.selectedPontoIds.push(id);
-                  }
-                });
-              }
-            } else {
-              ctx.selectedPontoIds = [pId];
-              ctx.lastSelectedPontoId = pId;
-            }
-
-            ctx.atualizarDestaqueLinhasTabela();
-            ctx.selectPontoFromTabela(pId);
-          }
-        });
-
-        containerTabela.addEventListener('dblclick', (e) => {
-          const target = e.target as HTMLElement;
-          const linha = target.closest('.linha-ponto-tbl');
-          if (linha && !target.closest('.chk-ignorar-poligono')) {
-            const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
-            if (pId) {
-              e.stopPropagation();
-              abrirModalEditarPonto(pId);
-            }
-          }
-        });
-
-        containerTabela.addEventListener('change', async (e) => {
-          const target = e.target as HTMLElement;
-          const chk = target.closest('.chk-ignorar-poligono') as HTMLInputElement;
-          if (chk) {
-            const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
-            if (!pId) return;
-            const ignorarVal = chk.checked ? 0 : 1;
-            try {
-              await fetch(`${API_BASE}/pontos/${pId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ignorar_poligono: ignorarVal })
-              });
-              ctx.loadLevantamentoDetails();
-            } catch (err) {
-              console.error("Erro ao alterar participação no polígono:", err);
-              showToast("Erro ao alterar participação do ponto no polígono.", "error");
-            }
-          }
-        });
-      }
-
-      if (containerReordenar) {
-        containerReordenar.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-
-          const btnTravar = target.closest('.btn-travar-ponto');
-          const btnSubir = target.closest('.btn-subir-simplificado');
-          const btnDescer = target.closest('.btn-descer-simplificado');
-
-          if (btnTravar) {
-            e.stopPropagation();
-            const ordem = parseInt(btnTravar.getAttribute('data-ordem') || '0');
-            const isTravado = ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio &&
-              ordem >= ctx.travamentoInicio && ordem <= ctx.travamentoFim;
-
-            if (isTravado) {
-              ctx.travamentoInicio = 0;
-              ctx.travamentoFim = 0;
-              ctx.travamentoInicioPontoId = null;
-              ctx.travamentoFimPontoId = null;
-            } else {
-              ctx.travamentoInicio = 1;
-              ctx.travamentoFim = ordem;
-              const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-              pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-              const pInicio = pontosMatCompleto[0];
-              const pFim = pontosMatCompleto[ordem - 1];
-              ctx.travamentoInicioPontoId = pInicio ? pInicio.id : null;
-              ctx.travamentoFimPontoId = pFim ? pFim.id : null;
-            }
-            ctx.renderListaReordenarSimplificada();
-            return;
-          }
-
-          if (btnSubir) {
-            e.stopPropagation();
-            const pId = parseInt(btnSubir.getAttribute('data-ponto-id') || '0');
-            if (pId) ctx.subirPontoSimplificado(pId);
-            return;
-          }
-
-          if (btnDescer) {
-            e.stopPropagation();
-            const pId = parseInt(btnDescer.getAttribute('data-ponto-id') || '0');
-            if (pId) ctx.descerPontoSimplificado(pId);
-            return;
-          }
-        });
-
-        const aplicarMudancaOrdem = (inp: HTMLInputElement) => {
-          const pId = parseInt(inp.getAttribute('data-ponto-id') || '0');
-          const oldVal = parseInt(inp.getAttribute('data-old-ordem') || '1');
-          const newVal = parseInt(inp.value || '0');
-          const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-          const totalPontos = pontosMatCompleto.length;
-
-          if (isNaN(newVal) || newVal < 1 || newVal > totalPontos) {
-            inp.value = oldVal.toString();
-            return;
-          }
-          if (newVal !== oldVal) {
-            ctx.moverPontoPosicao(pId, newVal);
-          }
-        };
-
-        containerReordenar.addEventListener('change', (e) => {
-          const target = e.target as HTMLElement;
-          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
-          if (inp) aplicarMudancaOrdem(inp);
-        });
-
-        containerReordenar.addEventListener('keydown', (e) => {
-          const target = e.target as HTMLElement;
-          const inp = target.closest('.input-ordem-direta') as HTMLInputElement;
-          if (inp && e.key === 'Enter') {
-            e.preventDefault();
-            inp.blur();
-          }
-        });
-      }
+      // Inicializa os eventos de clique, duplo clique e mudança da tabela inferior via tabela_dados.ts
+      inicializarEventosTabela(ctx, abrirModalEditarPonto);
 
       if (containerWorkspace) {
         containerWorkspace.addEventListener('click', async (e) => {
@@ -985,28 +907,42 @@ export const mesaTrabalhoRoute: RouteDef = {
     };
 
     const confirmarExclusaoPonto = async (pId: number) => {
+      if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
+         await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+         return;
+      }
+
       const isLote = ctx.selectedPontoIds.length > 1 && ctx.selectedPontoIds.includes(pId);
 
       if (isLote) {
-        if (!await customConfirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${ctx.selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
+         if (!await customConfirm(`ATENÇÃO: Tem certeza absoluta que deseja excluir definitivamente os ${ctx.selectedPontoIds.length} vértices selecionados? Esta operação é irreversível e removerá todos de uma só vez.`)) return;
 
-        try {
-          const promessas = ctx.selectedPontoIds.map(id => fetch(`${API_BASE}/pontos/${id}`, { method: 'DELETE' }).then(r => r.json()));
-          const resultados = await Promise.all(promessas);
+         try {
+           const promessas = ctx.selectedPontoIds.map(id => 
+              fetch(`${API_BASE}/pontos/${id}`, { method: 'DELETE' }).then(async r => {
+                 if (r.status === 403) return { error: "Acesso negado (projeto arquivado)." };
+                 if (!r.ok) {
+                    const txt = await r.json().catch(() => ({ error: "Erro desconhecido" }));
+                    return { error: txt.detail || txt.error || "Falha na requisição" };
+                 }
+                 return r.json().catch(() => ({}));
+              })
+           );
+           const resultados = await Promise.all(promessas);
 
-          const erros = resultados.filter(r => r.error).map(r => r.error);
-          if (erros.length > 0) {
-            await customAlert(`Ocorreram alguns erros ao tentar excluir em lote:\n${erros.slice(0, 5).join('\n')}`);
-          } else {
-            showToast(`${ctx.selectedPontoIds.length} vértices excluídos com sucesso!`, 'success');
-          }
-          ctx.selectedPontoIds = [];
-          await ctx.loadLevantamentoDetails();
-        } catch (err) {
-          console.error("Erro ao excluir pontos em lote:", err);
-          showToast("Erro de comunicação com o servidor API ao tentar excluir os pontos selecionados.", 'error');
-        }
-        return;
+           const erros = resultados.filter(r => r.error).map(r => r.error);
+           if (erros.length > 0) {
+             await customAlert(`Ocorreram alguns erros ao tentar excluir em lote:\n${erros.slice(0, 5).join('\n')}`);
+           } else {
+             showToast(`${ctx.selectedPontoIds.length} vértices excluídos com sucesso!`, 'success');
+           }
+           ctx.selectedPontoIds = [];
+           await ctx.loadLevantamentoDetails();
+         } catch (err) {
+           console.error("Erro ao excluir pontos em lote:", err);
+           showToast("Erro de comunicação com o servidor API ao tentar excluir os pontos selecionados.", 'error');
+         }
+         return;
       }
 
       const pt = ctx.pontosList.find(x => x.id === pId);
@@ -1016,6 +952,10 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       try {
         const res = await fetch(`${API_BASE}/pontos/${pId}`, { method: 'DELETE' });
+        if (res.status === 403) {
+           await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+           return;
+        }
         const data = await res.json();
         if (data.error) {
           await customAlert(data.error);
@@ -1279,68 +1219,118 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
+    const inicializarFiltroArquivos = () => {
+      const btnFiltro = document.getElementById('btn-filtro-arquivos');
+      const popover = document.getElementById('popover-filtro-arquivos');
+
+      if (!btnFiltro || !popover) return;
+
+      btnFiltro.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popover.classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!popover.classList.contains('hidden') && !popover.contains(target) && target !== btnFiltro) {
+          popover.classList.add('hidden');
+        }
+      });
+    };
+
+    const inicializarRedimensionamentoColunas = () => {
+      const headerRow = document.getElementById('tbl-pontos-header');
+      if (!headerRow) return;
+
+      const ths = headerRow.querySelectorAll('th');
+      ths.forEach(th => {
+        const widthStyle = th.style.width;
+        if (widthStyle) {
+          // Cria o elemento resizer
+          const resizer = document.createElement('div');
+          resizer.className = 'vtx-col-resizer';
+          th.appendChild(resizer);
+
+          let startX = 0;
+          let startWidth = 0;
+
+          const onMouseMove = (e: MouseEvent) => {
+            const width = startWidth + (e.clientX - startX);
+            if (width > 25) { // Largura mínima para segurança
+              th.style.width = `${width}px`;
+            }
+          };
+
+          const onMouseUp = () => {
+            resizer.classList.remove('resizing');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+          };
+
+          resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.clientX;
+            startWidth = th.offsetWidth;
+            resizer.classList.add('resizing');
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+        }
+      });
+    };
+
+    ctx.inicializarRedimensionamentoColunas = inicializarRedimensionamentoColunas;
+
     const inicializarIngestaoCollapse = () => {
       const containerIngestao = document.getElementById('container-ingestao-arquivos');
-      const btnColapsar = document.getElementById('btn-colapsar-ingestao');
-      const splitterSup = document.getElementById('splitter-superior');
-
       if (!containerIngestao) return;
 
       const expandirIngestao = () => {
-        if (containerIngestao.classList.contains('ingestao-collapsed')) {
-          containerIngestao.classList.remove('ingestao-collapsed');
-          if (splitterSup) splitterSup.classList.remove('hidden');
-          
-          const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
-          if (savedSupWidth) {
-            containerIngestao.style.width = `${savedSupWidth}px`;
-          } else {
-            containerIngestao.style.width = '48%';
-          }
-          
-          if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
-          }
-        }
+        containerIngestao.classList.remove('hidden');
+        containerIngestao.classList.add('flex');
+        initIcons();
       };
 
       const colapsarIngestao = () => {
-        if (!containerIngestao.classList.contains('ingestao-collapsed')) {
-          containerIngestao.classList.add('ingestao-collapsed');
-          if (splitterSup) splitterSup.classList.add('hidden');
-          containerIngestao.style.width = '';
-          if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
-          }
-        }
+        containerIngestao.classList.add('hidden');
+        containerIngestao.classList.remove('flex');
       };
 
       ctx.expandirIngestao = expandirIngestao;
       ctx.colapsarIngestao = colapsarIngestao;
 
-      containerIngestao.addEventListener('click', (e) => {
-        if (containerIngestao.classList.contains('ingestao-collapsed')) {
+      // Evento de clique no botão do Ribbon (Ingestão)
+      const btnDropArquivos = document.getElementById('btn-drop-arquivos');
+      if (btnDropArquivos) {
+        btnDropArquivos.addEventListener('click', () => {
           expandirIngestao();
-          e.stopPropagation();
-        }
-      });
-
-      if (btnColapsar) {
-        btnColapsar.addEventListener('click', (e) => {
-          colapsarIngestao();
-          e.stopPropagation();
         });
       }
 
-      containerIngestao.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        expandirIngestao();
-      });
+      // Evento de clique para fechar o modal
+      const btnFechar = document.getElementById('btn-fechar-modal-ingestao');
+      if (btnFechar) {
+        btnFechar.addEventListener('click', colapsarIngestao);
+      }
+      
+      const btnCancelar = document.getElementById('btn-cancelar-ingestao-modal');
+      if (btnCancelar) {
+        btnCancelar.addEventListener('click', colapsarIngestao);
+      }
 
-      containerIngestao.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        expandirIngestao();
-      });
+      // Repasse do botão processar do modal para o botão processar original do ribbon
+      const btnProcessarModal = document.getElementById('btn-processar-lote-modal');
+      if (btnProcessarModal) {
+        btnProcessarModal.addEventListener('click', () => {
+          const btnOriginal = document.getElementById('btn-processar-lote');
+          if (btnOriginal) {
+            btnOriginal.click();
+          }
+          colapsarIngestao();
+        });
+      }
     };
 
     const aplicarLargurasSalvas = () => {
@@ -1357,6 +1347,24 @@ export const mesaTrabalhoRoute: RouteDef = {
         const widthPx = parseInt(savedInfWidth);
         const containerDivisas = document.getElementById('container-tabela-divisas');
         if (containerDivisas) containerDivisas.style.width = `${widthPx}px`;
+      }
+      const savedPropsWidth = localStorage.getItem('gerencigeo_props_panel_width') || '280px';
+      const panelProps = document.getElementById('painel-propriedades');
+      const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
+      if (panelProps && workspaceBody) {
+        if (panelProps.classList.contains('collapsed')) {
+          workspaceBody.style.setProperty('--props-panel-w', '36px');
+        } else {
+          workspaceBody.style.setProperty('--props-panel-w', savedPropsWidth);
+          panelProps.style.width = savedPropsWidth;
+        }
+      }
+
+      // Restaurar altura da tabela e mapa salvos
+      const savedTableHeight = localStorage.getItem('gerencigeo_table_height') || '280px';
+      const mainContent = document.querySelector('.workspace-main-content') as HTMLElement;
+      if (mainContent) {
+        mainContent.style.setProperty('--table-area-h', savedTableHeight.endsWith('px') ? savedTableHeight : `${savedTableHeight}px`);
       }
     };
 
@@ -1460,6 +1468,106 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.body.classList.add('cursor-col-resize', 'select-none');
         });
       }
+
+      // Redimensionador de Altura do Mapa vs Tabela (Splitter Horizontal)
+      const splitterMapa = document.getElementById('splitter-mapa-tabela');
+      const mainContent = document.querySelector('.workspace-main-content') as HTMLElement;
+
+      if (splitterMapa && mainContent) {
+        let isDraggingMapa = false;
+        let startY = 0;
+        let startHeight = 0;
+
+        const onMouseMoveMapa = (e: MouseEvent) => {
+          if (!isDraggingMapa) return;
+          const deltaY = startY - e.clientY; // Arrastar para cima aumenta a altura da tabela/view inferior
+          const newHeight = Math.max(150, Math.min(window.innerHeight - 300, startHeight + deltaY));
+
+          mainContent.style.setProperty('--table-area-h', `${newHeight}px`);
+          localStorage.setItem('gerencigeo_table_height', `${newHeight}px`);
+          
+          if (ctx.triagemMap) {
+            ctx.triagemMap.invalidateSize();
+          }
+        };
+
+        const onMouseUpMapa = () => {
+          isDraggingMapa = false;
+          splitterMapa.classList.remove('resizing');
+          document.removeEventListener('mousemove', onMouseMoveMapa);
+          document.removeEventListener('mouseup', onMouseUpMapa);
+          document.body.classList.remove('cursor-row-resize', 'select-none');
+          
+          if (ctx.triagemMap) {
+            setTimeout(() => {
+              ctx.triagemMap?.invalidateSize();
+            }, 50);
+          }
+        };
+
+        splitterMapa.addEventListener('mousedown', (e: MouseEvent) => {
+          e.preventDefault();
+          isDraggingMapa = true;
+          startY = e.clientY;
+          
+          // Lê a altura da view-panel ativa no momento
+          const activePanel = document.querySelector('.view-panel.active-view') as HTMLElement;
+          startHeight = activePanel ? activePanel.getBoundingClientRect().height : 280;
+
+          splitterMapa.classList.add('resizing');
+          document.addEventListener('mousemove', onMouseMoveMapa);
+          document.addEventListener('mouseup', onMouseUpMapa);
+          document.body.classList.add('cursor-row-resize', 'select-none');
+        });
+      }
+
+      // Redimensionador do Painel de Propriedades Lateral
+      const resizerProps = document.getElementById('props-panel-resizer');
+      const panelProps = document.getElementById('painel-propriedades');
+      const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
+
+      if (resizerProps && panelProps && workspaceBody) {
+        let isDraggingProps = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        const onMouseMoveProps = (e: MouseEvent) => {
+          if (!isDraggingProps) return;
+          const deltaX = e.clientX - startX;
+          const newWidth = Math.max(200, Math.min(600, startWidth + deltaX));
+
+          workspaceBody.style.setProperty('--props-panel-w', `${newWidth}px`);
+          panelProps.style.width = `${newWidth}px`;
+          localStorage.setItem('gerencigeo_props_panel_width', `${newWidth}px`);
+
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
+        };
+
+        const onMouseUpProps = () => {
+          isDraggingProps = false;
+          resizerProps.classList.remove('resizing');
+          document.removeEventListener('mousemove', onMouseMoveProps);
+          document.removeEventListener('mouseup', onMouseUpProps);
+          document.body.classList.remove('cursor-col-resize', 'select-none');
+          if (ctx.triagemMap) {
+            setTimeout(() => ctx.triagemMap!.invalidateSize(), 50);
+          }
+        };
+
+        resizerProps.addEventListener('mousedown', (e: MouseEvent) => {
+          if (panelProps.classList.contains('collapsed')) return; // Protege se estiver colapsado
+
+          e.preventDefault();
+          isDraggingProps = true;
+          resizerProps.classList.add('resizing');
+          startX = e.clientX;
+          startWidth = panelProps.getBoundingClientRect().width;
+
+          document.body.classList.add('cursor-col-resize', 'select-none');
+          document.addEventListener('mousemove', onMouseMoveProps);
+          document.addEventListener('mouseup', onMouseUpProps);
+        });
+      }
       
       aplicarLargurasSalvas();
     };
@@ -1501,8 +1609,17 @@ export const mesaTrabalhoRoute: RouteDef = {
     });
 
     // Eventos da barra flutuante de ações em lote da mesa
-    document.getElementById('btn-batch-clear-mesa')?.addEventListener('click', () => {
+    document.getElementById('btn-batch-cancel-mesa')?.addEventListener('click', () => {
        ctx.selectedPontoIds = [];
+       ctx.selectedVizinhoPontoIds = [];
+       ctx.lastSelectedPontoId = null;
+       ctx.atualizarDestaqueLinhasTabela();
+    });
+
+    document.getElementById('btn-batch-limpar')?.addEventListener('click', () => {
+       ctx.selectedPontoIds = [];
+       ctx.selectedVizinhoPontoIds = [];
+       ctx.lastSelectedPontoId = null;
        ctx.atualizarDestaqueLinhasTabela();
     });
     
@@ -1510,6 +1627,220 @@ export const mesaTrabalhoRoute: RouteDef = {
        if (ctx.selectedPontoIds.length > 0) {
           confirmarExclusaoPonto(ctx.selectedPontoIds[0]);
        }
+    });
+
+    document.getElementById('btn-batch-deletar')?.addEventListener('click', () => {
+       if (ctx.selectedPontoIds.length > 0) {
+          confirmarExclusaoPonto(ctx.selectedPontoIds[0]);
+       }
+    });
+
+    document.getElementById('btn-batch-ignorar')?.addEventListener('click', async () => {
+       if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
+          await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+          return;
+       }
+       
+       const totalSelecionados = ctx.selectedPontoIds.length;
+       if (totalSelecionados === 0) return;
+
+       const pontosSel = ctx.pontosList.filter(p => ctx.selectedPontoIds.includes(p.id));
+       if (pontosSel.length === 0) return;
+
+       const temPontoAtivo = pontosSel.some(p => p.ignorar_poligono !== 1);
+       const novoEstado = temPontoAtivo ? 1 : 0;
+
+       if (!await customConfirm(`Deseja alterar a participação no polígono de ${totalSelecionados} vértice(s) para: "${novoEstado === 1 ? 'Ignorar' : 'Participar'}"?`)) return;
+
+       showToast("Atualizando vértices em lote...", "info");
+
+       try {
+          const promessas = ctx.selectedPontoIds.map(id => 
+             fetch(`${API_BASE}/pontos/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ignorar_poligono: novoEstado })
+             }).then(async r => {
+                if (r.status === 403) return { error: "Acesso negado (projeto arquivado)." };
+                if (!r.ok) {
+                   const txt = await r.json().catch(() => ({ error: "Erro desconhecido" }));
+                   return { error: txt.detail || txt.error || "Falha na requisição" };
+                }
+                return r.json().catch(() => ({}));
+             })
+          );
+
+          const resultados = await Promise.all(promessas);
+          const erros = resultados.filter(r => r.error).map(r => r.error);
+
+          if (erros.length > 0) {
+             await customAlert(`Ocorreram alguns erros ao tentar atualizar em lote:\n${erros.slice(0, 5).join('\n')}`);
+          } else {
+             showToast(`${totalSelecionados} vértice(s) atualizado(s) com sucesso!`, "success");
+          }
+
+          await ctx.loadLevantamentoDetails();
+       } catch (err) {
+          console.error("Erro ao alternar polígono em lote:", err);
+          showToast("Erro ao tentar atualizar os pontos selecionados em lote.", "error");
+       }
+    });
+
+    document.getElementById('btn-batch-integrate-mesa')?.addEventListener('click', async () => {
+       const totalVizinhos = ctx.selectedVizinhoPontoIds.length;
+       if (totalVizinhos === 0) return;
+
+       if (!await customConfirm(`Deseja integrar os ${totalVizinhos} pontos vizinhos selecionados ao levantamento da matrícula atual?`)) return;
+
+       const matriculaIdParam = ctx.currentMatriculaId ? `?matricula_id=${ctx.currentMatriculaId}` : '';
+       let sucessos = 0;
+       let falhas = 0;
+
+       showToast(`Integrando ${totalVizinhos} pontos...`, 'info');
+
+       for (const pId of ctx.selectedVizinhoPontoIds) {
+          try {
+             const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/integrar-vizinho/${pId}${matriculaIdParam}`, {
+                method: 'POST'
+             });
+             if (res.ok) {
+                sucessos++;
+             } else {
+                falhas++;
+             }
+          } catch (err) {
+             falhas++;
+          }
+       }
+
+       if (sucessos > 0) {
+          showToast(`${sucessos} pontos vizinhos integrados com sucesso!`, 'success');
+          await ctx.loadLevantamentoDetails();
+          ctx.selectedVizinhoPontoIds = [];
+          ctx.atualizarDestaqueLinhasTabela();
+       }
+       if (falhas > 0) {
+          showToast(`Falha ao integrar ${falhas} pontos vizinhos.`, 'error');
+       }
+    });
+
+    // Lógica para abrir o modal de filtro Revit
+    document.getElementById('btn-batch-filter-mesa')?.addEventListener('click', () => {
+       const container = document.getElementById('container-categorias-filtro');
+       if (!container) return;
+       
+       container.innerHTML = '';
+
+       const pontosSelecionados = ctx.pontosList.filter((p: any) => ctx.selectedPontoIds.includes(p.id));
+       const vizinhosSelecionados = ctx.pontosVizinhosList.filter((p: any) => ctx.selectedVizinhoPontoIds.includes(p.id));
+
+       const categorias = [
+         {
+           id: 'base-ppp',
+           nome: 'Bases Homologadas PPP (M)',
+           count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'M' || p.tipo === 'M').length
+         },
+         {
+           id: 'base-campo',
+           nome: 'Bases de Campo (B)',
+           count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'B' || p.tipo === 'B').length
+         },
+         {
+           id: 'rover-vertice',
+           nome: 'Vértices do Perímetro (P/V)',
+           count: pontosSelecionados.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.tipo_ponto !== 'M' && p.tipo !== 'M').length
+         },
+         {
+           id: 'ponto-bruto',
+           nome: 'Pontos com Status BRUTO',
+           count: pontosSelecionados.filter((p: any) => p.status_ponto === 'BRUTO').length
+         },
+         {
+           id: 'ponto-corrigido',
+           nome: 'Pontos com Status CORRIGIDO',
+           count: pontosSelecionados.filter((p: any) => p.status_ponto === 'CORRIGIDO').length
+         },
+         {
+           id: 'vizinho-ods',
+           nome: 'Vértices Vizinhos (Roxos)',
+           count: vizinhosSelecionados.length
+         }
+       ];
+
+       const categoriasAtivas = categorias.filter(c => c.count > 0);
+
+       if (categoriasAtivas.length === 0) {
+         container.innerHTML = '<div class="text-white/20 italic py-2 text-center text-xs">Nenhum elemento selecionado para filtrar.</div>';
+         return;
+       }
+
+       categoriasAtivas.forEach(cat => {
+         const item = document.createElement('label');
+         item.className = 'flex items-center gap-2.5 p-2 bg-white/[0.02] border border-white/5 hover:bg-white/[0.06] rounded-technical text-xs text-white/80 cursor-pointer select-none transition-all';
+         item.innerHTML = `
+           <input type="checkbox" checked value="${cat.id}" class="chk-filtro-categoria rounded border-white/10 text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-[#0c1510]" />
+           <div class="flex justify-between items-center w-full">
+             <span>${cat.nome}</span>
+             <span class="font-mono bg-white/5 border border-white/10 text-white/50 text-[10px] px-1.5 py-0.5 rounded">${cat.count}</span>
+           </div>
+         `;
+         container.appendChild(item);
+       });
+
+       document.getElementById('modal-filtro-revit-mesa')?.classList.remove('hidden');
+    });
+
+    document.getElementById('btn-filtro-selecionar-todos')?.addEventListener('click', () => {
+       document.querySelectorAll('.chk-filtro-categoria').forEach((chk: any) => (chk as HTMLInputElement).checked = true);
+    });
+  
+    document.getElementById('btn-filtro-limpar-todos')?.addEventListener('click', () => {
+       document.querySelectorAll('.chk-filtro-categoria').forEach((chk: any) => (chk as HTMLInputElement).checked = false);
+    });
+  
+    const fecharModalFiltro = () => {
+       document.getElementById('modal-filtro-revit-mesa')?.classList.add('hidden');
+    };
+    document.getElementById('btn-fechar-modal-filtro')?.addEventListener('click', fecharModalFiltro);
+    document.getElementById('btn-filtro-cancelar')?.addEventListener('click', fecharModalFiltro);
+  
+    document.getElementById('btn-filtro-aplicar')?.addEventListener('click', () => {
+       const checkedVals = Array.from(document.querySelectorAll('.chk-filtro-categoria:checked')).map((el: any) => el.value);
+  
+       const pontosSelecionados = ctx.pontosList.filter((p: any) => ctx.selectedPontoIds.includes(p.id));
+       const vizinhosSelecionados = ctx.pontosVizinhosList.filter((p: any) => ctx.selectedVizinhoPontoIds.includes(p.id));
+  
+       const novosPontoIds: number[] = [];
+       const novosVizinhoIds: number[] = [];
+  
+       pontosSelecionados.forEach((p: any) => {
+          const isM = p.tipo_ponto === 'M' || p.tipo === 'M';
+          const isB = p.tipo_ponto === 'B' || p.tipo === 'B';
+          const isRover = !isM && !isB;
+          const isBruto = p.status_ponto === 'BRUTO';
+          const isCorrigido = p.status_ponto === 'CORRIGIDO';
+  
+          let match = false;
+          if (isM && checkedVals.includes('base-ppp')) match = true;
+          if (isB && checkedVals.includes('base-campo')) match = true;
+          if (isRover && checkedVals.includes('rover-vertice')) match = true;
+          if (isBruto && checkedVals.includes('ponto-bruto')) match = true;
+          if (isCorrigido && checkedVals.includes('ponto-corrigido')) match = true;
+  
+          if (match) {
+             novosPontoIds.push(p.id);
+          }
+       });
+  
+       if (checkedVals.includes('vizinho-ods')) {
+          vizinhosSelecionados.forEach((p: any) => novosVizinhoIds.push(p.id));
+       }
+  
+       ctx.selectedPontoIds = novosPontoIds;
+       ctx.selectedVizinhoPontoIds = novosVizinhoIds;
+  
+       ctx.atualizarDestaqueLinhasTabela();
+       fecharModalFiltro();
     });
 
     const inicializarDragDropGlobal = () => {
@@ -1614,6 +1945,8 @@ export const mesaTrabalhoRoute: RouteDef = {
     inicializarBuscaPonto();
     inicializarScrollCollapseHeader();
     inicializarIngestaoCollapse();
+    inicializarFiltroArquivos();
+    inicializarRedimensionamentoColunas();
     inicializarSplitters();
     ctx.inicializarEventosCartorio();
     activeDragCleanup = inicializarDragDropGlobal();
@@ -1629,6 +1962,10 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (activeDragCleanup) {
         activeDragCleanup();
         activeDragCleanup = null;
+      }
+      if (ctx.canvasInteracao) {
+        ctx.canvasInteracao.desativar();
+        ctx.canvasInteracao = null;
       }
       if (ctx.triagemMap) {
         ctx.triagemMap.remove();
@@ -1687,6 +2024,27 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
+  // Listeners para os botões de navegação global transferidos da barra lateral
+  const navButtons = [
+    { id: 'nav-btn-dashboard', hash: '#dashboard' },
+    { id: 'nav-btn-clientes', hash: '#clientes' },
+    { id: 'nav-btn-levantamentos', hash: '#levantamentos' },
+    { id: 'nav-btn-propriedades', hash: '#propriedades' },
+    { id: 'nav-btn-hgo', hash: '#hgo' },
+    { id: 'nav-btn-fronteira', hash: '#fronteira' },
+    { id: 'nav-btn-ccir', hash: '#ccir' },
+    { id: 'nav-btn-configuracoes', hash: '#configuracoes' }
+  ];
+
+  navButtons.forEach(btnInfo => {
+    const btn = document.getElementById(btnInfo.id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        window.location.hash = btnInfo.hash;
+      });
+    }
+  });
+
   const btnSalvar = document.getElementById('btn-salvar-rascunho');
   if (btnSalvar) {
     btnSalvar.addEventListener('click', () => {
@@ -1730,4 +2088,40 @@ function setupRibbonInteractions(ctx: any): void {
       (window as any).pywebview?.api?.close();
     });
   }
+
+  // AutoCAD Properties Panel Toggle Action
+  const panel = document.getElementById('painel-propriedades');
+  const btnToggleProps = document.getElementById('btn-toggle-props');
+  const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
+  if (panel && btnToggleProps && workspaceBody) {
+    btnToggleProps.addEventListener('click', () => {
+      panel.classList.add('transition-width');
+      const isCollapsed = panel.classList.toggle('collapsed');
+      
+      if (isCollapsed) {
+        workspaceBody.style.setProperty('--props-panel-w', '36px');
+      } else {
+        const larguraSalva = localStorage.getItem('gerencigeo_props_panel_width') || '280px';
+        workspaceBody.style.setProperty('--props-panel-w', larguraSalva);
+      }
+
+      const icon = btnToggleProps.querySelector('i, svg');
+      if (icon) {
+        if (isCollapsed) {
+          icon.innerHTML = `<path d="m9 18 6-6-6-6"/>`; // chevron-right
+          btnToggleProps.setAttribute('title', 'Expandir painel');
+        } else {
+          icon.innerHTML = `<path d="m15 18-6-6 6-6"/>`; // chevron-left
+          btnToggleProps.setAttribute('title', 'Recolher painel');
+        }
+      }
+
+      // Remove a transição e invalida mapa para o redimensionamento fluir
+      setTimeout(() => {
+        panel.classList.remove('transition-width');
+        if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
+      }, 190);
+    });
+  }
 }
+

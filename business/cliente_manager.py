@@ -38,7 +38,12 @@ def validar_cpf_cnpj(documento: str) -> bool:
 class ClienteManager:
     def verificar_dados_conjuge(self, cliente_id: int):
         """Verifica se cliente casado possui dados do cônjuge, se não, cria pendência se não houver uma ativa."""
-        query = "SELECT nome_completo, estado_civil, nome_conjuge, cpf_conjuge FROM clientes WHERE id = ?"
+        query = """
+            SELECT p.nome as nome_completo, p.estado_civil, p.nome_conjuge, p.cpf_conjuge 
+            FROM clientes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE c.id = ?
+        """
         cliente = execute_query(query, params=(cliente_id,), fetch_one=True)
         if not cliente:
             return

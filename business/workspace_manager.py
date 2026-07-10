@@ -290,10 +290,14 @@ class WorkspaceManager:
             raise ValueError("Nenhum ponto geodésico localizado no banco de dados para este levantamento.")
 
         # 2. Recupera todos os segmentos de divisa
+        # COALESCE entre c.nome (esquema >=v2) e pe.nome via pessoa_id (esquema legado)
+        # para compatibilidade com bancos criados antes da migração da coluna `nome`
         query_segmentos = """
-            SELECT s.ponto_inicio_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef, c.nome as nome_confrontante
+            SELECT s.ponto_inicio_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
+                   COALESCE(c.nome, pe.nome, '') as nome_confrontante
             FROM segmentos s
             LEFT JOIN confrontantes c ON s.confrontante_id = c.id
+            LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
             WHERE s.levantamento_id = ?
         """
         segmentos = {s["ponto_inicio_id"]: dict(s) for s in execute_query(query_segmentos, params=(levantamento_id,), fetch_all=True)}

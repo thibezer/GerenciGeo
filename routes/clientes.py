@@ -87,7 +87,15 @@ def create_cliente(cli: ClienteCreate):
 @router.get("/clientes")
 def get_clientes():
     try:
-        clientes = [dict(r) for r in execute_query("SELECT * FROM clientes", fetch_all=True)]
+        query = """
+            SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
+                   p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.created_at
+            FROM clientes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+        """
+        clientes = [dict(r) for r in execute_query(query, fetch_all=True)]
         for c in clientes:
             metas = execute_query("SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?", params=(c['id'],), fetch_all=True)
             c['metadados'] = {m['chave']: m['valor'] for m in metas}
@@ -116,6 +124,13 @@ def delete_cliente(cliente_id: int):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
             cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
+            
+            # Limpa pessoas órfãs (não associadas a clientes nem confrontantes)
+            cursor.execute("""
+                DELETE FROM pessoas 
+                WHERE id NOT IN (SELECT pessoa_id FROM clientes WHERE pessoa_id IS NOT NULL)
+                  AND id NOT IN (SELECT pessoa_id FROM confrontantes WHERE pessoa_id IS NOT NULL);
+            """)
             conn.commit()
         return {"message": "Cliente excluído com sucesso"}
     except Exception as e:

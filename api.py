@@ -37,6 +37,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware para evitar cache do WebView2 em arquivos estáticos e HTML do frontend
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/assets/") or path.endswith(".html") or path.endswith(".js") or path.endswith(".css"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logging.getLogger(__name__).error(f"Erro inesperado no servidor: {exc}", exc_info=True)

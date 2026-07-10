@@ -19,8 +19,18 @@ interface Ponto {
   n_original?: number;
   e_corrigido?: number;
   n_corrigido?: number;
+  lat_corrigido?: number;
+  lon_corrigido?: number;
+  alt_corrigido?: number;
+  sigma_lat?: number;
+  sigma_lon?: number;
+  sigma_alt?: number;
+  sigma_e?: number;
+  sigma_n?: number;
+  sigma_z?: number;
   ordem_caminhamento?: number;
   status_correcao?: string;
+  status_ponto?: string;
   ignorar_poligono?: number;
   arquivo_origem?: string;
 }
@@ -178,18 +188,11 @@ const formatarDeltaHtml = (valStr: string): string => {
   
   const absVal = Math.abs(val);
   const sinal = val > 0 ? '+' : '-';
-  const displayVal = `${sinal}${absVal.toLocaleString('pt-BR')}`;
+  const displayVal = `${sinal}${absVal.toFixed(0)}`;
   
-  let corClass = 'text-white/50';
-  if (absVal <= 3) {
-    corClass = 'text-emerald-400 font-semibold'; // Verde para <= 3mm (dentro do limite rígido)
-  } else if (absVal <= 10) {
-    corClass = 'text-yellow-400 font-semibold'; // Amarelo para 3-10mm (aviso)
-  } else {
-    corClass = 'text-rose-400 font-bold'; // Vermelho para > 10mm (fora do limite)
-  }
-  
-  return `<span class="${corClass}">${displayVal}</span>`;
+  // Como isso é translação (deslocamento da base) e não incerteza do receptor,
+  // exibimos em cor neutra suave ou azul suave para indicar translação aplicada
+  return `<span class="text-white/60 font-mono">${displayVal}</span>`;
 };
 
 /**
@@ -221,10 +224,10 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
   if (modoCoordenadas === 'geodesico') {
      col1 = p.lat ? p.lat.toFixed(8) : '-';
      col2 = p.lon ? p.lon.toFixed(8) : '-';
-     col3 = p.alt ? p.alt.toFixed(3) : '-';
-     col4 = p.lat ? p.lat.toFixed(8) : '-';
-     col5 = p.lon ? p.lon.toFixed(8) : '-';
-     col6 = p.alt ? p.alt.toFixed(3) : '-';
+     col3 = p.lat_corrigido ? p.lat_corrigido.toFixed(8) : (p.lat ? p.lat.toFixed(8) : '-');
+     col4 = p.lon_corrigido ? p.lon_corrigido.toFixed(8) : (p.lon ? p.lon.toFixed(8) : '-');
+     col5 = p.alt_original ? p.alt_original.toFixed(3) : (p.alt ? p.alt.toFixed(3) : '-');
+     col6 = p.alt_corrigido ? p.alt_corrigido.toFixed(3) : (p.alt ? p.alt.toFixed(3) : '-');
   } else {
      // Coordenadas Planas UTM
      let brutE = '-';
@@ -261,10 +264,10 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
         }
      }
 
-     col1 = brutE;
-     col2 = brutN;
-     col3 = corrE;
-     col4 = corrN;
+     col1 = brutN;
+     col2 = brutE;
+     col3 = corrN;
+     col4 = corrE;
      col5 = brutH;
      col6 = corrH;
   }

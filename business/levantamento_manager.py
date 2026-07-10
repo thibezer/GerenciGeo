@@ -46,14 +46,37 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM clientes WHERE cpf_cnpj = ?", (cpf_cnpj,))
-            if cursor.fetchone():
-                return {"error": "CPF/CNPJ já cadastrado"}
             
+            # 1. Verifica se já existe uma pessoa com esse CPF/CNPJ
+            pessoa_id = None
+            if cpf_cnpj:
+                cursor.execute("""
+                    SELECT id FROM pessoas 
+                    WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+                """, (cpf_cnpj,))
+                row_p = cursor.fetchone()
+                if row_p:
+                    pessoa_id = row_p[0]
+                    # Verifica se essa pessoa já possui papel de cliente comercial
+                    cursor.execute("SELECT id FROM clientes WHERE pessoa_id = ?", (pessoa_id,))
+                    if cursor.fetchone():
+                        return {"error": "CPF/CNPJ já cadastrado"}
+            
+            # 2. Se não existir, insere os dados da pessoa
+            if not pessoa_id:
+                cursor.execute("""
+                    INSERT INTO pessoas (
+                        nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (nome_completo, cli_data.get("cpf_cnpj"), rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge))
+                pessoa_id = cursor.lastrowid
+                
+            # 3. Insere a associação do cliente apontando para a pessoa
             cursor.execute("""
-                INSERT INTO clientes (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep, sexo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, cidade, estado, cep, sexo))
+                INSERT INTO clientes (pessoa_id, profissional_id, email, telefone, cidade, estado, cep, sexo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (pessoa_id, cli_data.get("profissional_id") or 1, email, telefone, cidade, estado, cep, sexo))
             cliente_id = cursor.lastrowid
             
             if metadados:
@@ -105,27 +128,49 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            # Pega dados antigos para histórico
-            cursor.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,))
+            
+            # 1. Pega dados antigos da pessoa mesclados para histórico de auditoria
+            query_old = """
+                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.nacionalidade,
+                       p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo,
+                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, c.email, c.telefone,
+                       c.cidade, c.estado, c.cep, c.sexo, c.created_at, c.pessoa_id
+                FROM clientes c
+                JOIN pessoas p ON c.pessoa_id = p.id
+                WHERE c.id = ?
+            """
+            cursor.execute(query_old, (cliente_id,))
             row = cursor.fetchone()
             if not row:
                 return {"error": "Cliente não encontrado."}
             old_data = dict(row)
+            pessoa_id = old_data["pessoa_id"]
             
-            # Valida se o CPF já pertence a outro cliente
-            cursor.execute("SELECT id FROM clientes WHERE cpf_cnpj = ? AND id != ?", (cpf_cnpj, cliente_id))
-            if cursor.fetchone():
-                return {"error": "CPF/CNPJ já cadastrado para outro cliente"}
+            # 2. Valida se o CPF já pertence a outro cliente comercial
+            if cpf_cnpj:
+                cursor.execute("""
+                    SELECT c.id FROM clientes c
+                    JOIN pessoas p ON c.pessoa_id = p.id
+                    WHERE REPLACE(REPLACE(REPLACE(p.cpf_cnpj, '.', ''), '-', ''), '/', '') = ? AND c.id != ?
+                """, (cpf_cnpj, cliente_id))
+                if cursor.fetchone():
+                    return {"error": "CPF/CNPJ já cadastrado para outro cliente"}
             
+            # 3. Atualiza os dados civis da pessoa
+            cursor.execute("""
+                UPDATE pessoas
+                SET nome = ?, cpf_cnpj = ?, rg = ?, nacionalidade = ?, profissao = ?,
+                    estado_civil = ?, regime_bens = ?, endereco_completo = ?,
+                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
+                WHERE id = ?
+            """, (nome_completo, cli_data.get("cpf_cnpj"), rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, pessoa_id))
+            
+            # 4. Atualiza os dados de relacionamento na tabela clientes
             cursor.execute("""
                 UPDATE clientes 
-                SET nome_completo=?, cpf_cnpj=?, rg_ie=?, data_nascimento_fundacao=?, estado_civil=?, profissao=?, nacionalidade=?, 
-                    nome_conjuge=?, cpf_conjuge=?, rg_conjuge=?, regime_bens=?, email=?, telefone=?, endereco_completo=?, 
-                    cidade=?, estado=?, cep=?, sexo=?
-                WHERE id=?
-            """, (nome_completo, cpf_cnpj, rg_ie, data_nascimento_fundacao, estado_civil, profissao, nacionalidade, 
-                  nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens, email, telefone, endereco_completo, 
-                  cidade, estado, cep, sexo, cliente_id))
+                SET email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?
+                WHERE id = ?
+            """, (email, telefone, cidade, estado, cep, sexo, cliente_id))
             
             # Atualiza metadados (limpa e insere novos)
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
@@ -219,8 +264,8 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                 query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id IS NULL"
                 params_base = lambda o, pid: (o, pid, levantamento_id)
             else:
-                query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id = ?"
-                params_base = lambda o, pid: (o, pid, levantamento_id, matricula_id)
+                query_update = "UPDATE pontos SET ordem_caminhamento = ?, matricula_id = ? WHERE id = ? AND levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)"
+                params_base = lambda o, pid: (o, matricula_id, pid, levantamento_id, matricula_id)
 
             for item in pontos_ordem:
                 cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
@@ -384,9 +429,9 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             lon_c, lat_c = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
             alt_c = alt_rover_corr
             
-            sig_lat_prop = math.sqrt((pt_antigo["sigma_n"] or 0.0)**2 + (base["sigma_lat"] or 0.0)**2)
-            sig_lon_prop = math.sqrt((pt_antigo["sigma_e"] or 0.0)**2 + (base["sigma_lon"] or 0.0)**2)
-            sig_alt_prop = math.sqrt((pt_antigo["sigma_z"] or 0.0)**2 + (base["sigma_alt"] or 0.0)**2)
+            sig_lat_prop = pt_antigo["sigma_lat"] if pt_antigo.get("sigma_lat") is not None else (pt_antigo["sigma_n"] or 0.0)
+            sig_lon_prop = pt_antigo["sigma_lon"] if pt_antigo.get("sigma_lon") is not None else (pt_antigo["sigma_e"] or 0.0)
+            sig_alt_prop = pt_antigo["sigma_alt"] if pt_antigo.get("sigma_alt") is not None else (pt_antigo["sigma_z"] or 0.0)
             
             execute_query(
                 """
@@ -529,6 +574,18 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 data["status_ponto"] = "CORRIGIDO"
                 data["status_correcao"] = "CORRIGIDO"
 
+        elif (tipo_atual in ('P', 'V')) and n_corr is not None and e_corr is not None:
+            # Para pontos de detalhe (P/V): converte UTM → Geodésico e salva lat/lon
+            zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
+            epsg_utm = f"319{60 + zona}"
+            transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+            lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
+            data["lat"] = lat_val
+            data["lon"] = lon_val
+            if alt_corr is not None:
+                data["alt"] = alt_corr
+
+
         if corrigir_lote_rtk:
             from business.geoprocessamento import aplicar_correcao_manual_lote
             dados_brutos = {
@@ -634,7 +691,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         # D. Coordenadas Espaciais e Status
         atualizar_coordenadas = False
         
-        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono"]:
+        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono", "sequencia_travada_id"]:
             val = data.get(campo)
             if val is not None and val != pt_antigo[campo]:
                 campos_update.append(f"{campo} = ?")
@@ -952,3 +1009,162 @@ def gerar_termo_anuencia_html(levantamento_id: int, confrontante_id: int) -> str
     </html>
     """
     return html_content
+
+
+def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dict:
+    """
+    Ordena automaticamente os pontos da matrícula utilizando o algoritmo Nearest Neighbor.
+    """
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Seleciona campos adicionais para fazer a deduplicação por nome e tipo
+            cursor.execute(
+                """
+                SELECT id, nome_vertice, tipo_ponto, lat, lon, status_ponto, matricula_id, sequencia_travada_id, ordem_caminhamento
+                FROM pontos
+                WHERE levantamento_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                """,
+                (levantamento_id,)
+            )
+            todos_rows = [dict(r) for r in cursor.fetchall()]
+
+            if matricula_id is None or matricula_id == 0:
+                pontos_filtrados = [p for p in todos_rows if p["matricula_id"] is None]
+            else:
+                pontos_filtrados = [p for p in todos_rows if p["matricula_id"] == matricula_id]
+                if not pontos_filtrados:
+                    # Fallback para avulsos
+                    pontos_filtrados = [p for p in todos_rows if p["matricula_id"] is None]
+
+            # Deduplica por (nome_vertice, tipo_ponto)
+            # Prioriza: status_ponto == 'CORRIGIDO', depois maior id
+            dict_dedup = {}
+            for p in pontos_filtrados:
+                key = (p["nome_vertice"], p["tipo_ponto"])
+                if key not in dict_dedup:
+                    dict_dedup[key] = p
+                else:
+                    p_existente = dict_dedup[key]
+                    if p["status_ponto"] == 'CORRIGIDO' and p_existente["status_ponto"] != 'CORRIGIDO':
+                        dict_dedup[key] = p
+                    elif p["status_ponto"] == p_existente["status_ponto"] and p["id"] > p_existente["id"]:
+                        dict_dedup[key] = p
+
+            pontos = list(dict_dedup.values())
+            
+            if len(pontos) < 3:
+                return {"sucesso": False, "erro": "Necessário pelo menos 3 pontos para ordenar."}
+            
+            # Agrupa os blocos travados
+            from collections import defaultdict
+            dict_blocos = defaultdict(list)
+            pontos_soltos = []
+            
+            for p in pontos:
+                seq_id = p.get("sequencia_travada_id")
+                if seq_id and str(seq_id).strip():
+                    dict_blocos[str(seq_id).strip()].append(p)
+                else:
+                    pontos_soltos.append(p)
+                    
+            # Valida e ordena internamente cada bloco
+            blocos_ativos = []
+            for seq_id, pts_bloco in list(dict_blocos.items()):
+                # Ordena pelo caminhamento original (e por id como fallback)
+                pts_bloco.sort(key=lambda x: (x["ordem_caminhamento"] or 999999, x["id"]))
+                if len(pts_bloco) >= 2:
+                    blocos_ativos.append({
+                        "id": seq_id,
+                        "pontos": pts_bloco,
+                        "pontas": [pts_bloco[0], pts_bloco[-1]]
+                    })
+                else:
+                    # Bloco com apenas 1 ponto vira solto
+                    pontos_soltos.extend(pts_bloco)
+
+            # Algoritmo de busca com restrições
+            pontos_ordenados = []
+            
+            # Determina o ponto de partida mais ao Norte entre pontos soltos e pontas de blocos
+            possiveis_partidas = []
+            for p in pontos_soltos:
+                possiveis_partidas.append((p["lat"] or -90.0, p, None, None)) # (lat, ponto, bloco, ponta_idx)
+            for b in blocos_ativos:
+                possiveis_partidas.append((b["pontas"][0]["lat"] or -90.0, b["pontas"][0], b, 0))
+                possiveis_partidas.append((b["pontas"][1]["lat"] or -90.0, b["pontas"][1], b, 1))
+                
+            if not possiveis_partidas:
+                return {"sucesso": False, "erro": "Nenhum ponto com coordenadas válidas para iniciar."}
+                
+            # Seleciona o que está mais ao Norte
+            _, pt_atual, bloco_atual, ponta_idx = max(possiveis_partidas, key=lambda x: x[0])
+            
+            # Consome o ponto de partida/bloco inicial
+            if bloco_atual:
+                pts_bloco = bloco_atual["pontos"]
+                if ponta_idx == 0:
+                    pontos_ordenados.extend(pts_bloco)
+                else:
+                    pontos_ordenados.extend(reversed(pts_bloco))
+                blocos_ativos.remove(bloco_atual)
+                pt_atual = pontos_ordenados[-1]
+            else:
+                pontos_ordenados.append(pt_atual)
+                pontos_soltos.remove(pt_atual)
+                
+            # Loop principal
+            while pontos_soltos or blocos_ativos:
+                candidatos = []
+                
+                # Opções de pontos soltos
+                for p in pontos_soltos:
+                    d = math.hypot(
+                        (p["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
+                        (p["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
+                    )
+                    candidatos.append((d, p, None, None))
+                    
+                # Opções de pontas de blocos ativos
+                for b in blocos_ativos:
+                    d0 = math.hypot(
+                        (b["pontas"][0]["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
+                        (b["pontas"][0]["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
+                    )
+                    candidatos.append((d0, b["pontas"][0], b, 0))
+                    
+                    d1 = math.hypot(
+                        (b["pontas"][1]["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
+                        (b["pontas"][1]["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
+                    )
+                    candidatos.append((d1, b["pontas"][1], b, 1))
+                    
+                if not candidatos:
+                    break
+                    
+                # Escolhe o mais próximo
+                _, proximo_pt, proximo_bloco, ponta_idx = min(candidatos, key=lambda x: x[0])
+                
+                if proximo_bloco:
+                    pts_bloco = proximo_bloco["pontos"]
+                    if ponta_idx == 0:
+                        pontos_ordenados.extend(pts_bloco)
+                    else:
+                        pontos_ordenados.extend(reversed(pts_bloco))
+                    blocos_ativos.remove(proximo_bloco)
+                    pt_atual = pontos_ordenados[-1]
+                else:
+                    pontos_ordenados.append(proximo_pt)
+                    pontos_soltos.remove(proximo_pt)
+                    pt_atual = proximo_pt
+                    
+            # Prepara a lista de objetos no formato aceito por salvar_ordem_caminhamento
+            pontos_ordem = [{"id": pt["id"], "ordem": idx + 1} for idx, pt in enumerate(pontos_ordenados)]
+            
+        # Salva a nova ordem e reconstrói as divisas usando a lógica já consolidada
+        return salvar_ordem_caminhamento(levantamento_id, matricula_id, pontos_ordem)
+        
+    except Exception as e:
+        logger.error(f"Erro ao ordenar pontos: {e}", exc_info=True)
+        return {"sucesso": False, "erro": str(e)}

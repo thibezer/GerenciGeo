@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
-import { renderLinhaPontoGeoprocessamentoHtml, renderAuditoriaTranslacaoHtml } from '../mesa_trabalho_tabela';
+import { renderLinhaPontoGeoprocessamentoHtml, renderAuditoriaTranslacaoHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
@@ -49,7 +49,12 @@ export const latLonToUTM = (lat: number, lon: number) => {
 export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
   const isIgnoradoOuBase = (p: any) => p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
 
-  let pontosMat = [...ctx.pontosList];
+  // Quando há matrícula ativa, usa a mesma fonte que o Organizador de Perímetro
+  // (filtrada por matrícula e deduplicada) para garantir que a coluna "Ordem" seja
+  // consistente entre as duas views. Sem matrícula (triagem pura), usa todos os pontos.
+  let pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
+    ? ctx.obterPontosParaOrdenacao()
+    : [...ctx.pontosList];
 
   // Calcula o mapa de ordem real estável de caminhamento antes de qualquer filtro
   const pontosOrdenadosOriginal = [...pontosMat].sort((a, b) => {
@@ -78,19 +83,19 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
   const totalBrutos = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO').length;
   const totalCorrigidos = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO').length;
 
-  const btnTodos = document.querySelector('.btn-filtro-rapido[data-filtro="todos"]');
+  const btnTodos = document.querySelector('.vtx-filter-chip[data-filtro="todos"]');
   if (btnTodos) btnTodos.textContent = `Todos (${totalTodos})`;
   
-  const btnBases = document.querySelector('.btn-filtro-rapido[data-filtro="bases"]');
+  const btnBases = document.querySelector('.vtx-filter-chip[data-filtro="bases"]');
   if (btnBases) btnBases.textContent = `Bases (M/B) (${totalBases})`;
   
-  const btnRovers = document.querySelector('.btn-filtro-rapido[data-filtro="rovers"]');
+  const btnRovers = document.querySelector('.vtx-filter-chip[data-filtro="rovers"]');
   if (btnRovers) btnRovers.textContent = `Rovers (P/V) (${totalRovers})`;
   
-  const btnBrutos = document.querySelector('.btn-filtro-rapido[data-filtro="brutos"]');
+  const btnBrutos = document.querySelector('.vtx-filter-chip[data-filtro="brutos"]');
   if (btnBrutos) btnBrutos.textContent = `Brutos (${totalBrutos})`;
   
-  const btnCorrigidos = document.querySelector('.btn-filtro-rapido[data-filtro="corrigidos"]');
+  const btnCorrigidos = document.querySelector('.vtx-filter-chip[data-filtro="corrigidos"]');
   if (btnCorrigidos) btnCorrigidos.textContent = `Corrigidos (${totalCorrigidos})`;
 
   if (ctx.ocultarForaPoligono) {
@@ -119,6 +124,56 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     );
   }
 
+  // Renderização dinâmica e configuração das checkboxes de arquivo no Popover
+  const arquivosUnicos = Array.from(new Set(
+    (ctx.pontosList || [])
+      .map(p => p.arquivo_origem)
+      .filter(name => typeof name === 'string' && name.trim() !== '')
+  )) as string[];
+
+  const arquivosDesativados = ctx.arquivosDesativadosList || [];
+
+  const popover = document.getElementById('popover-filtro-arquivos');
+  if (popover) {
+    if (arquivosUnicos.length === 0) {
+      popover.innerHTML = `<div class="text-[10px] text-white/30 italic text-center py-1">Nenhum arquivo de origem encontrado.</div>`;
+    } else {
+      popover.innerHTML = arquivosUnicos.map(arq => {
+        const ativo = !arquivosDesativados.includes(arq);
+        return `
+          <label class="flex items-center gap-2 text-[10px] text-white/70 hover:text-white cursor-pointer select-none py-0.5">
+            <input type="checkbox" class="chk-filtro-arquivo rounded bg-white/5 border-white/10 text-mint-vibrant focus:ring-mint-vibrant" data-arquivo="${arq}" ${ativo ? 'checked' : ''} />
+            <span class="truncate" title="${arq}">${arq}</span>
+          </label>
+        `;
+      }).join('');
+
+      popover.querySelectorAll('.chk-filtro-arquivo').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const chk = e.target as HTMLInputElement;
+          const arq = chk.getAttribute('data-arquivo') || '';
+          if (!ctx.arquivosDesativadosList) ctx.arquivosDesativadosList = [];
+
+          if (chk.checked) {
+            ctx.arquivosDesativadosList = ctx.arquivosDesativadosList.filter(a => a !== arq);
+          } else {
+            if (!ctx.arquivosDesativadosList.includes(arq)) {
+              ctx.arquivosDesativadosList.push(arq);
+            }
+          }
+
+          ctx.renderMatriculaDados();
+          ctx.atualizarPolilinhaMapaTemp();
+        });
+      });
+    }
+  }
+
+  // Filtragem final baseada nos arquivos desativados
+  if (arquivosDesativados.length > 0) {
+    pontosMat = pontosMat.filter(p => !arquivosDesativados.includes(p.arquivo_origem));
+  }
+
   if (ctx.triagemMap) {
     const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
@@ -143,32 +198,34 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
   if (tblHeader) {
     if (ctx.modoCoordenadas === 'geodesico') {
       tblHeader.innerHTML = `
-           <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_lat_bruta">Lat Bruta ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_lon_bruta">Lon Bruta ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_lat_corr">Lat Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_lon_corr">Lon Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-alt-bruta" data-col-id="col_vertice_alt_bruta">Alt Bruta ${ctx.currentSortColumn === 'alt_bruta' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_alt_corr">Alt Corr ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_poligono">Políg</th>
-           <th class="px-4 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 36px;">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome" style="width: 100px;">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_lat_bruta" style="width: 130px;">Lat Bruta ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_lon_bruta" style="width: 130px;">Lon Bruta ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_lat_corr" style="width: 130px;">Lat Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_lon_corr" style="width: 130px;">Lon Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-alt-bruta" data-col-id="col_vertice_alt_bruta" style="width: 80px;">Alt Bruta ${ctx.currentSortColumn === 'alt_bruta' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_alt_corr" style="width: 80px;">Alt Corr ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col" data-col-id="col_vertice_poligono" style="width: 36px;">Políg</th>
+           <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status" style="width: 75px;">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
          `;
     } else {
       tblHeader.innerHTML = `
-           <th class="px-2 py-3 text-center resizable-col w-[60px] cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_n_bruto">Norte Bruto ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_e_bruto">Este Bruto ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_n_corr">Norte Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_e_corr">Este Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-n" data-col-id="col_vertice_dn">Δ N (mm) ${ctx.currentSortColumn === 'delta_n' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-e" data-col-id="col_vertice_de">Δ E (mm) ${ctx.currentSortColumn === 'delta_e' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-h" data-col-id="col_vertice_dh">Δ H (mm) ${ctx.currentSortColumn === 'delta_h' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-3 text-center resizable-col" data-col-id="col_vertice_poligono">Políg</th>
-           <th class="px-4 py-3 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 36px;">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome" style="width: 100px;">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_n_bruto" style="width: 130px;">Norte Bruto ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_e_bruto" style="width: 130px;">Este Bruto ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_n_corr" style="width: 130px;">Norte Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_e_corr" style="width: 130px;">Este Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-n" data-col-id="col_vertice_dn" style="width: 62px;">Δ N (mm) ${ctx.currentSortColumn === 'delta_n' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-e" data-col-id="col_vertice_de" style="width: 62px;">Δ E (mm) ${ctx.currentSortColumn === 'delta_e' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-h" data-col-id="col_vertice_dh" style="width: 62px;">Δ H (mm) ${ctx.currentSortColumn === 'delta_h' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-2 py-1 text-center resizable-col" data-col-id="col_vertice_poligono" style="width: 36px;">Políg</th>
+           <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status" style="width: 75px;">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+           <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
          `;
     }
 
@@ -200,12 +257,16 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     setupSortHeader('header-sort-delta-e', 'delta_e');
     setupSortHeader('header-sort-delta-h', 'delta_h');
     setupSortHeader('header-sort-status', 'status');
+
+    if (ctx.inicializarRedimensionamentoColunas) {
+      ctx.inicializarRedimensionamentoColunas();
+    }
   }
 
   const listPt = document.getElementById('tbl-pontos-triagem');
   if (listPt) {
     if (pontosMat.length === 0) {
-      listPt.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a este levantamento.</td></tr>`;
+      listPt.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a este levantamento.</td></tr>`;
     } else {
       pontosMat.sort((a, b) => {
         let valA: any;
@@ -362,6 +423,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
       filaContainer?.classList.add('hidden');
       btnProcessar?.classList.add('hidden');
+      const btnProcessarModal = document.getElementById('btn-processar-lote-modal');
+      if (btnProcessarModal) btnProcessarModal.classList.add('hidden');
       if (chkContainer) {
         chkContainer.classList.remove('flex');
         chkContainer.classList.add('hidden');
@@ -381,6 +444,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
     filaContainer?.classList.remove('hidden');
     btnProcessar?.classList.remove('hidden');
+    const btnProcessarModal = document.getElementById('btn-processar-lote-modal');
+    if (btnProcessarModal) btnProcessarModal.classList.remove('hidden');
     if (chkContainer) {
       chkContainer.classList.remove('hidden');
       chkContainer.classList.add('flex');
@@ -390,6 +455,12 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       (btnProcessar as HTMLButtonElement).disabled = false;
       btnProcessar.classList.remove('opacity-50', 'cursor-not-allowed');
       btnProcessar.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Processar Lote em Segundo Plano`;
+    }
+    const btnProcessarModalEl = document.getElementById('btn-processar-lote-modal') as HTMLButtonElement;
+    if (btnProcessarModalEl) {
+      btnProcessarModalEl.disabled = false;
+      btnProcessarModalEl.classList.remove('opacity-50', 'cursor-not-allowed');
+      btnProcessarModalEl.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Iniciar Processamento`;
     }
 
     const basesPossiveis = ctx.pontosList.filter(p => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'BASE');
@@ -862,6 +933,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     }
 
     ctx.renderMatriculaDados();
+    ctx.atualizarPainelPropriedades?.();
   });
 
   document.getElementById('btn-toggle-ocultar-ignorados')?.addEventListener('click', () => {
@@ -950,15 +1022,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   });
 
   // Ouvintes de filtros rápidos de tabela
-  document.querySelectorAll('.btn-filtro-rapido').forEach(btn => {
+  document.querySelectorAll('.vtx-filter-chip').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const targetBtn = e.currentTarget as HTMLButtonElement;
       
-      document.querySelectorAll('.btn-filtro-rapido').forEach(b => {
-        b.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/50 border border-transparent hover:text-white hover:bg-white/[0.08] btn-filtro-rapido transition-all";
+      document.querySelectorAll('.vtx-filter-chip').forEach(b => {
+        b.classList.remove('active');
       });
       
-      targetBtn.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 btn-filtro-rapido transition-all";
+      targetBtn.classList.add('active');
       
       ctx.filtroRapidoAtivo = targetBtn.getAttribute('data-filtro') || 'todos';
       ctx.renderMatriculaDados();

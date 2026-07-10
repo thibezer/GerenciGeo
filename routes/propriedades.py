@@ -48,9 +48,10 @@ def get_propriedades():
         for p in propriedades:
             # Busca clientes vinculados
             clients_query = """
-                SELECT c.id, c.nome_completo, c.cpf_cnpj, pc.percentual_participacao
+                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
                 FROM propriedade_clientes pc
                 JOIN clientes c ON pc.cliente_id = c.id
+                JOIN pessoas p ON c.pessoa_id = p.id
                 WHERE pc.propriedade_id = ?
             """
             p['clientes'] = [dict(r) for r in execute_query(clients_query, params=(p['id'],), fetch_all=True)]
@@ -227,8 +228,8 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
         if exists:
             raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
             
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(prop_id, m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(prop_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
         return {"message": "Matrícula cadastrada com sucesso na propriedade."}
     except HTTPException:
         raise

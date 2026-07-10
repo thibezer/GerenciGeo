@@ -297,19 +297,25 @@ button {
 
 #container-tabela-vertices thead th,
 #tbl-pontos-header th {
-  font-size: 10px !important;
+  font-size: 8.5px !important;
   font-weight: 600 !important;
   letter-spacing: 0.07em !important;
   text-transform: uppercase !important;
   color: var(--geo-text-tertiary) !important;
-  padding: 8px var(--geo-sp-4) !important;
+  padding: 0 8px !important;
+  height: 18px !important;
+  line-height: 18px !important;
   white-space: nowrap !important;
   background-color: #0b130e !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  position: relative !important;
 }
 
 #container-tabela-vertices tbody tr {
   border-bottom: 0.5px solid var(--geo-border-faint) !important;
-  height: 44px !important;
+  height: 16px !important;
   transition: background var(--geo-transition-fast) !important;
 }
 
@@ -318,10 +324,11 @@ button {
 }
 
 #container-tabela-vertices tbody td {
-  padding: 0 var(--geo-sp-4) !important;
-  font-size: 12px !important;
+  padding: 0 6px !important;
+  font-size: 10px !important;
   color: var(--geo-text-primary) !important;
   vertical-align: middle !important;
+  height: 16px !important;
 }
 
 /* Badge STATUS — de filled para outline capsule */
@@ -1029,10 +1036,10 @@ td[colspan][class*="text-center"] {
   font-weight: 500;
 }
 
-/* Suporte a Arrastar Janela do pywebview frameless na Camada 1 */
+/* Desabilitado arraste pois usamos janela nativa com bordas */
 .ribbon-layer1 {
-  -webkit-app-region: drag !important;
-  cursor: move !important;
+  -webkit-app-region: no-drag !important;
+  cursor: default !important;
 }
 
 .rl1-brand,
@@ -1049,7 +1056,7 @@ td[colspan][class*="text-center"] {
 
 /* Estilos dos Botões de Janela do Sistema (AutoCAD Style) */
 .rl1-window-controls {
-  display: flex;
+  display: none !important; /* Ocultado pois a moldura nativa do Windows é usada */
   align-items: stretch;
   height: 30px; /* Alinhado à altura da Camada 1 */
   margin-left: 8px;
@@ -1088,3 +1095,648 @@ td[colspan][class*="text-center"] {
   background: #e81123 !important;
   color: #ffffff !important;
 }
+
+/* ==========================================================================
+   ESTILOS DE VIEWPORT, PAINEL DE PROPRIEDADES E TABELA DE VÉRTICES (V.L.A.E.G.)
+   ========================================================================== */
+
+:root {
+  --geo-font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --geo-bg-surface: #141916;
+  --geo-bg-base: #0f1311;
+  --geo-bg-elevated: #181f1b;
+  --geo-bg-overlay: rgba(255,255,255,0.03);
+  --geo-border-default: rgba(255,255,255,0.08);
+  --geo-border-subtle: rgba(255,255,255,0.06);
+  --geo-border-faint: rgba(255,255,255,0.04);
+  --geo-text-primary: rgba(255,255,255,0.9);
+  --geo-text-secondary: rgba(255,255,255,0.6);
+  --geo-text-tertiary: rgba(255,255,255,0.3);
+  --geo-text-disabled: rgba(255,255,255,0.2);
+  --geo-radius-panel: 6px;
+  --geo-radius-input: 4px;
+  --geo-radius-badge: 99px;
+  --geo-accent: #00f5a0;
+  --geo-accent-bg: rgba(0,245,160,0.08);
+  --geo-accent-border: rgba(0,245,160,0.22);
+  --geo-accent-text: #00f5a0;
+  --geo-status-raw: #8b949e;
+  --geo-status-raw-bg: rgba(139,148,158,0.1);
+  --geo-status-raw-border: rgba(139,148,158,0.2);
+  --geo-status-ok: #30d158;
+  --geo-status-ok-bg: rgba(48,209,88,0.1);
+  --geo-status-ok-border: rgba(48,209,88,0.2);
+  --geo-status-warn: #ffd60a;
+  --geo-status-warn-bg: rgba(255,214,10,0.08);
+  --geo-status-warn-border: rgba(255,214,10,0.2);
+  --geo-status-error: #ff453a;
+  --geo-status-error-bg: rgba(255,69,58,0.08);
+  --geo-status-error-border: rgba(255,69,58,0.2);
+  --props-panel-w: 280px;
+  --table-area-h: 280px;
+}
+
+/* Arquitetura de Viewport e Workspace */
+.workspace-body {
+  display: grid !important;
+  grid-template-columns: var(--props-panel-w) 1fr !important;
+  height: calc(100vh - 149px) !important; /* Altura Ribbon 149px */
+  overflow: hidden !important;
+  padding: 0 !important; /* Remove paddings que causam scroll */
+  margin: 0 !important;
+  gap: 0 !important;
+  background: var(--geo-bg-base);
+}
+
+.workspace-main-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.view-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.view-panel.hidden {
+  display: none !important;
+}
+
+/* Aba 1: Mesa Geodésica */
+#view-mesa-geodesica {
+  display: flex;
+  flex-direction: column;
+  height: var(--table-area-h, 280px);
+  overflow: hidden;
+}
+
+/* Aba 2: Organizador de Perímetro */
+#view-org-perimetro {
+  height: var(--table-area-h, 280px);
+}
+
+.map-container-wrapper {
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  border-bottom: 0.5px solid var(--geo-border-subtle);
+}
+
+.mapa-leaflet-canvas {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.table-container-wrapper {
+  height: var(--table-area-h);
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: var(--geo-bg-surface);
+}
+
+/* Splitter de redimensionamento horizontal/vertical */
+.row-splitter {
+  height: 3px;
+  background: var(--geo-border-faint);
+  cursor: row-resize;
+  transition: background 150ms;
+}
+.row-splitter:hover {
+  background: var(--geo-accent);
+}
+
+.col-splitter {
+  width: 4px;
+  background: var(--geo-border-faint);
+  cursor: col-resize;
+  transition: background 150ms;
+  flex-shrink: 0;
+  height: 100%;
+  z-index: 10;
+}
+.col-splitter:hover, .col-splitter.resizing {
+  background: var(--geo-accent) !important;
+}
+
+/* ===================================================
+   PAINEL DE PROPRIEDADES (AutoCAD Style)
+   =================================================== */
+.props-panel {
+  width: var(--props-panel-w);
+  background: var(--geo-bg-surface);
+  border-right: 0.5px solid var(--geo-border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative; /* Adicionado para posicionar o resizer absoluto */
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.props-panel.transition-width {
+  transition: width 180ms cubic-bezier(0.4, 0, 0.2, 1); /* Transição ativada apenas sob esta classe */
+}
+
+.props-panel.collapsed {
+  width: 36px !important;
+}
+
+/* Alça de redimensionamento da aba lateral de propriedades */
+.props-panel-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 50;
+  background-color: transparent;
+  transition: background-color 0.2s;
+}
+
+.props-panel-resizer:hover,
+.props-panel-resizer.resizing {
+  background-color: #00f5a0 !important;
+}
+
+.props-panel.collapsed .props-panel-title,
+.props-panel.collapsed .props-panel-body,
+.props-panel.collapsed #props-panel-actions {
+  display: none !important;
+}
+
+.props-panel.collapsed .props-panel-header {
+  flex-direction: column;
+  padding: 12px 0;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Texto rotacionado quando colapsado */
+.props-panel.collapsed::after {
+  content: "PROPRIEDADES";
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  font-size: 10px;
+  color: rgba(255,255,255,0.22);
+  letter-spacing: 0.15em;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.props-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--geo-border-faint);
+  background: var(--geo-bg-elevated);
+  flex-shrink: 0;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.props-panel-title {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.props-panel-toggle {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 100ms, background 100ms;
+}
+.props-panel-toggle:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+.props-panel-toggle svg { width: 12px; height: 12px; }
+
+.props-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* Seções expansíveis */
+.props-section {
+  border-bottom: 0.5px solid var(--geo-border-faint);
+}
+
+.props-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 23px; /* Altura estrita para cabeçalhos de grupo */
+  box-sizing: border-box;
+  background-color: rgba(0, 0, 0, 0.28) !important; /* Cor mais escura que os outros campos */
+  cursor: pointer;
+  user-select: none;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.45);
+  transition: color 100ms, background-color 100ms;
+}
+.props-section-header:hover { 
+  color: rgba(255,255,255,0.7); 
+  background-color: rgba(0, 0, 0, 0.38) !important;
+}
+.props-section-header svg { width: 10px; height: 10px; transition: transform 150ms; }
+.props-section-header.collapsed svg { transform: rotate(-90deg); }
+
+.props-section-body {
+  padding: 0; /* Padding horizontal zero, controlado pelos campos para margem de 10px */
+}
+.props-section-body.hidden { display: none !important; }
+
+/* Campos do painel */
+.props-field {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  height: 18px; /* Exatamente 18px de altura por campo */
+  padding: 0 10px; /* Margem lateral estrita de 10px */
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04); /* Separados apenas por 1 linha de 1px */
+  background: transparent;
+}
+
+.props-field-label {
+  font-size: 8px;
+  color: rgba(255,255,255,0.32);
+  text-align: left; /* Rótulos alinhados estritamente à esquerda */
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.props-field-value {
+  font-size: 10px;
+  font-family: var(--geo-font-mono);
+  color: rgba(255,255,255,0.85);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  padding: 0 4px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 18px; /* Exatamente 18px para o input, igualando a altura da linha do campo */
+  line-height: 18px; /* Alinha o texto perfeitamente */
+  text-align: left !important; /* Valores alinhados estritamente à esquerda */
+}
+
+.props-field-value:focus {
+  border-color: rgba(0,245,160,0.2);
+  background: rgba(255,255,255,0.03);
+  outline: none;
+}
+
+.props-field-value[readonly] {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: rgba(255,255,255,0.5);
+  cursor: default;
+  padding-left: 4px;
+}
+
+/* Containers utilitários para manter margem de 10px */
+.props-quality-container,
+.props-info-container,
+.props-batch-container {
+  padding: 6px 10px;
+  box-sizing: border-box;
+}
+
+.props-field-value:focus {
+  border-color: rgba(0,245,160,0.3);
+  background: rgba(255,255,255,0.05);
+  outline: none;
+}
+
+.props-field-value[readonly] {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: rgba(255,255,255,0.55);
+  cursor: default;
+  padding-left: 0;
+}
+
+/* Campo com alteração pendente (estado dirty) */
+.props-field-value.dirty {
+  border-color: rgba(255,214,10,0.35) !important;
+  background: rgba(255,214,10,0.04) !important;
+}
+
+/* Barra de qualidade geodésica */
+.props-quality-bar {
+  display: grid;
+  grid-template-columns: 80px 1fr 42px 14px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.props-quality-track {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.props-quality-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+.props-quality-fill.ok   { background: #30d158; }
+.props-quality-fill.warn { background: #ffd60a; }
+.props-quality-fill.err  { background: #ff453a; }
+
+.props-quality-value {
+  font-size: 10px;
+  font-family: var(--geo-font-mono);
+  color: rgba(255,255,255,0.55);
+  text-align: right;
+}
+
+.props-quality-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 4px;
+}
+.props-quality-status.ok   { background: #30d158; box-shadow: 0 0 6px rgba(48,209,88,0.4); }
+.props-quality-status.warn { background: #ffd60a; box-shadow: 0 0 6px rgba(255,214,10,0.4); }
+.props-quality-status.err  { background: #ff453a; box-shadow: 0 0 6px rgba(255,69,58,0.4); }
+
+.props-panel-footer {
+  padding: 8px 10px;
+  border-top: 0.5px solid var(--geo-border-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  background: var(--geo-bg-elevated);
+}
+
+/* ===================================================
+   TABELA DE VÉRTICES (CAD Table Style)
+   =================================================== */
+.table-area {
+  display: flex;
+  flex-direction: column;
+  height: var(--table-area-h, 280px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  background: var(--geo-bg-base);
+}
+
+.vtx-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 0.5px solid var(--geo-border-faint);
+  background: var(--geo-bg-surface);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  height: 32px;
+  box-sizing: border-box;
+}
+.vtx-filter-bar::-webkit-scrollbar { display: none; }
+
+.vtx-filter-chip {
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 400;
+  border-radius: 99px;
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.45);
+  transition: all 100ms;
+}
+.vtx-filter-chip:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.07); }
+.vtx-filter-chip.active {
+  background: var(--geo-accent-bg);
+  color: var(--geo-accent-text);
+  border-color: var(--geo-accent-border);
+  font-weight: 500;
+}
+
+.vtx-filter-spacer { flex: 1; }
+
+.vtx-search {
+  position: relative;
+  width: 140px;
+  flex-shrink: 0;
+}
+.vtx-search input {
+  width: 100%;
+  height: 20px;
+  padding: 0 8px 0 22px;
+  font-size: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid var(--geo-border-default);
+  border-radius: var(--geo-radius-input);
+  color: var(--geo-text-primary);
+  font-family: var(--geo-font-mono);
+}
+.vtx-search svg {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  color: rgba(255,255,255,0.25);
+  pointer-events: none;
+}
+
+.vtx-table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
+  position: relative;
+}
+
+.vtx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: fixed;
+}
+
+.vtx-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0c1510 !important; /* Fundo escuro opaco padrão da mesa de trabalho */
+  padding: 0 8px;
+  height: 18px;
+  line-height: 18px;
+  font-size: 8.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--geo-text-tertiary);
+  white-space: nowrap;
+  border-bottom: 0.5px solid var(--geo-border-subtle);
+  user-select: none;
+  cursor: pointer;
+}
+.vtx-table thead th:hover { color: var(--geo-text-secondary); }
+
+.vtx-col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 20;
+}
+.vtx-col-resizer:hover,
+.vtx-col-resizer.resizing {
+  background: rgba(0, 245, 160, 0.4) !important;
+}
+
+.vtx-table tbody tr {
+  border-bottom: 0.5px solid var(--geo-border-faint);
+  transition: background 80ms;
+  cursor: pointer;
+  height: 16px; /* Altura compacta */
+}
+.vtx-table tbody tr:hover { background: var(--geo-bg-overlay); }
+.vtx-table tbody tr.selected { background: rgba(0,245,160,0.25) !important; }
+.vtx-table tbody tr.selected td { color: var(--geo-text-primary); }
+
+/* Cores de linhas base */
+.vtx-table tbody tr.tipo-base-ppp { background: rgba(88,86,214,0.04); }
+.vtx-table tbody tr.tipo-base-ppp:hover { background: rgba(88,86,214,0.08); }
+.vtx-table tbody tr.tipo-base-fisica { background: rgba(255,69,58,0.04); }
+.vtx-table tbody tr.tipo-base-fisica:hover { background: rgba(255,69,58,0.08); }
+
+.vtx-table tbody td {
+  padding: 0 6px;
+  height: 16px;
+  vertical-align: middle;
+  color: var(--geo-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+}
+
+.vtx-table td.col-coord {
+  font-family: var(--geo-font-mono);
+  font-size: 10px;
+  text-align: right;
+  color: rgba(255,255,255,0.8);
+}
+
+.vtx-table td.col-delta {
+  font-family: var(--geo-font-mono);
+  font-size: 10px;
+  text-align: right;
+  font-weight: 500;
+}
+.vtx-table td.col-delta.ok   { color: #30d158; }
+.vtx-table td.col-delta.warn { color: #ffd60a; }
+.vtx-table td.col-delta.err  { color: #ff453a; }
+
+.vtx-table td.col-ordem {
+  font-family: var(--geo-font-mono);
+  font-size: 10px;
+  text-align: center;
+  color: rgba(255,255,255,0.35);
+}
+
+/* Badges */
+.vtx-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+.vtx-badge.tipo-m { background: rgba(88,86,214,0.15); color: #a78bfa; border: 0.5px solid rgba(88,86,214,0.25); }
+.vtx-badge.tipo-b { background: rgba(255,69,58,0.15); color: #f87171; border: 0.5px solid rgba(255,69,58,0.25); }
+.vtx-badge.tipo-p { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); border: 0.5px solid rgba(255,255,255,0.08); }
+.vtx-badge.tipo-v { background: rgba(90,200,250,0.1); color: #5ac8fa; border: 0.5px solid rgba(90,200,250,0.2); }
+
+.vtx-badge.status-bruto     { background: var(--geo-status-raw-bg); color: var(--geo-status-raw); border: 0.5px solid var(--geo-status-raw-border); }
+.vtx-badge.status-corrigido { background: var(--geo-status-ok-bg); color: var(--geo-status-ok); border: 0.5px solid var(--geo-status-ok-border); }
+
+/* Batch Bar Flutuante */
+.vtx-batch-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: rgba(12,21,16,0.95);
+  backdrop-filter: blur(8px);
+  border: 0.5px solid var(--geo-accent-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 50;
+  white-space: nowrap;
+  height: 24px;
+  box-sizing: border-box;
+}
+.vtx-batch-bar.hidden { display: none !important; }
+
+/* Override compactos para componentes internos da Batch Bar */
+.vtx-batch-bar .vtx-filter-chip {
+  padding: 1px 6px;
+  font-size: 9px;
+}
+.vtx-batch-bar span {
+  font-size: 9px !important;
+}
+.vtx-batch-bar .rl1-separator {
+  height: 12px;
+  margin: 0 2px;
+}
+

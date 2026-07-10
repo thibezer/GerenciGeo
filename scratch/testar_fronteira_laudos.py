@@ -54,16 +54,23 @@ def run_tests():
 
     # Cliente: Maria Oliveira Teste (Feminino, Casada)
     execute_query("""
-        INSERT INTO clientes (
-            nome_completo, cpf_cnpj, rg_ie, estado_civil, sexo, nacionalidade, 
-            profissao, endereco_completo, cidade, estado,
+        INSERT INTO pessoas (
+            nome, cpf_cnpj, rg, estado_civil, nacionalidade, 
+            profissao, endereco_completo,
             nome_conjuge, cpf_conjuge, rg_conjuge, regime_bens
         ) VALUES (
-            'Maria Oliveira Teste', '37299462001', '7654321-PR', 'Casada', 'F', 'brasileira',
-            'produtora rural', 'Linha Central, Km 10', 'Cascavel', 'PR',
+            'Maria Oliveira Teste', '37299462001', '7654321-PR', 'Casada', 'brasileira',
+            'produtora rural', 'Linha Central, Km 10',
             'Thiago Silva Teste', '42857708300', '1234567-PR', 'Comunhão Parcial de Bens'
         )
     """, commit=True)
+    pessoa_id = execute_query("SELECT id FROM pessoas LIMIT 1", fetch_one=True)['id']
+
+    execute_query("""
+        INSERT INTO clientes (
+            pessoa_id, profissional_id, email, telefone, cidade, estado, cep, sexo
+        ) VALUES (?, ?, 'maria@teste.com', '4599999999', 'Cascavel', 'PR', '85800-000', 'F')
+    """, params=(pessoa_id, prof_id), commit=True)
     cli_id = execute_query("SELECT id FROM clientes LIMIT 1", fetch_one=True)['id']
 
     # Propriedade
@@ -83,8 +90,8 @@ def run_tests():
     execute_query("""
         INSERT INTO matriculas (
             propriedade_id, numero_matricula, area_ha, cri_comarca, 
-            cri_circunscricao, livro_registro, folha_registro, ccir, itr, denominacao
-        ) VALUES (?, 'Matricula_A_101', 120.5, 'Cascavel', '1° CRI', 'Livro 2-RG', 'Folha 50', 'CCIR-456', 'ITR-789', 'Fazenda Primavera - Gleba A')
+            cri_circunscricao, livro_registro, folha_registro, itr, denominacao
+        ) VALUES (?, 'Matricula_A_101', 120.5, 'Cascavel', '1° CRI', 'Livro 2-RG', 'Folha 50', 'ITR-789', 'Fazenda Primavera - Gleba A')
     """, params=(prop_id,), commit=True)
     mat_id = execute_query("SELECT id FROM matriculas WHERE numero_matricula = 'Matricula_A_101' LIMIT 1", fetch_one=True)['id']
 
@@ -92,8 +99,8 @@ def run_tests():
     execute_query("""
         INSERT INTO matriculas (
             propriedade_id, numero_matricula, area_ha, cri_comarca, 
-            cri_circunscricao, livro_registro, folha_registro, ccir, itr, denominacao, georreferenciamento
-        ) VALUES (?, 'Matricula_B_102', 85.23, 'Cascavel', '1° CRI', 'Livro 2-RG', 'Folha 51', 'CCIR-456', 'ITR-789', 'Fazenda Primavera - Gleba B', 'ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj')
+            cri_circunscricao, livro_registro, folha_registro, itr, denominacao, georreferenciamento
+        ) VALUES (?, 'Matricula_B_102', 85.23, 'Cascavel', '1° CRI', 'Livro 2-RG', 'Folha 51', 'ITR-789', 'Fazenda Primavera - Gleba B', 'ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj')
     """, params=(prop_id,), commit=True)
     mat_b_id = execute_query("SELECT id FROM matriculas WHERE numero_matricula = 'Matricula_B_102' LIMIT 1", fetch_one=True)['id']
 

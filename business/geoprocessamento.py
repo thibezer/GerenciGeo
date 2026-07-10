@@ -652,9 +652,9 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
             sig_base_lon = base_corr["sigma_lon"] or 0.0
             sig_base_alt = base_corr["sigma_alt"] or 0.0
             
-            sig_lat_sel = math.sqrt((ponto_sel["sigma_n"] or 0.0)**2 + sig_base_lat**2)
-            sig_lon_sel = math.sqrt((ponto_sel["sigma_e"] or 0.0)**2 + sig_base_lon**2)
-            sig_alt_sel = math.sqrt((ponto_sel["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+            sig_lat_sel = ponto_sel["sigma_lat"] if ponto_sel.get("sigma_lat") is not None else (ponto_sel["sigma_n"] or 0.0)
+            sig_lon_sel = ponto_sel["sigma_lon"] if ponto_sel.get("sigma_lon") is not None else (ponto_sel["sigma_e"] or 0.0)
+            sig_alt_sel = ponto_sel["sigma_alt"] if ponto_sel.get("sigma_alt") is not None else (ponto_sel["sigma_z"] or 0.0)
             
             cursor.execute(
                 """
@@ -701,9 +701,9 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                 # D. Converte ECEF corrigido para Geodésico corrigido
                 lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
                 
-                sig_lat_prop = math.sqrt((r["sigma_n"] or 0.0)**2 + sig_base_lat**2)
-                sig_lon_prop = math.sqrt((r["sigma_e"] or 0.0)**2 + sig_base_lon**2)
-                sig_alt_prop = math.sqrt((r["sigma_z"] or 0.0)**2 + sig_base_alt**2)
+                sig_lat_prop = r["sigma_lat"] if r.get("sigma_lat") is not None else (r["sigma_n"] or 0.0)
+                sig_lon_prop = r["sigma_lon"] if r.get("sigma_lon") is not None else (r["sigma_e"] or 0.0)
+                sig_alt_prop = r["sigma_alt"] if r.get("sigma_alt") is not None else (r["sigma_z"] or 0.0)
                 
                 cursor.execute(
                     """

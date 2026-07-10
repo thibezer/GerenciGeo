@@ -483,14 +483,14 @@ thead th,
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#container-ingestao-arquivos {
+#container-ingestao-arquivos-legado {
   width: 48%; /* Metade da tela expandida */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
 /* Ingestão Colapsada (Mini View) */
-#container-ingestao-arquivos.ingestao-collapsed {
+#container-ingestao-arquivos-legado.ingestao-collapsed {
   width: 130px !important;
   padding: 12px !important;
   cursor: pointer;
@@ -498,25 +498,25 @@ thead th,
   border-color: rgba(0, 245, 160, 0.08) !important;
 }
 
-#container-ingestao-arquivos.ingestao-collapsed:hover {
+#container-ingestao-arquivos-legado.ingestao-collapsed:hover {
   background: rgba(0, 245, 160, 0.04) !important;
   border-color: rgba(0, 245, 160, 0.25) !important;
 }
 
-#container-ingestao-arquivos.ingestao-collapsed #triagem-dropzone,
-#container-ingestao-arquivos.ingestao-collapsed h4,
-#container-ingestao-arquivos.ingestao-collapsed span,
-#container-ingestao-arquivos.ingestao-collapsed #btn-processar-lote,
-#container-ingestao-arquivos.ingestao-collapsed #triagem-fila-container,
-#container-ingestao-arquivos.ingestao-collapsed .flex.justify-between.items-center.mb-4 {
+#container-ingestao-arquivos-legado.ingestao-collapsed #triagem-dropzone,
+#container-ingestao-arquivos-legado.ingestao-collapsed h4,
+#container-ingestao-arquivos-legado.ingestao-collapsed span,
+#container-ingestao-arquivos-legado.ingestao-collapsed #btn-processar-lote,
+#container-ingestao-arquivos-legado.ingestao-collapsed #triagem-fila-container,
+#container-ingestao-arquivos-legado.ingestao-collapsed .flex.justify-between.items-center.mb-4 {
   display: none !important;
 }
 
-#container-ingestao-arquivos .mini-ingestao-view {
+#container-ingestao-arquivos-legado .mini-ingestao-view {
   display: none;
 }
 
-#container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view {
+#container-ingestao-arquivos-legado.ingestao-collapsed .mini-ingestao-view {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -572,27 +572,27 @@ thead th,
    Mesa de Ingestão de Arquivos Colapsada Responsiva (Mobile-First)
    ========================================================================== */
 @media (max-width: 1023px) {
-  #container-ingestao-arquivos.ingestao-collapsed {
+  #container-ingestao-arquivos-legado.ingestao-collapsed {
     width: 100% !important;
     height: 70px !important;
     padding: 8px 16px !important;
   }
-  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view {
+  #container-ingestao-arquivos-legado.ingestao-collapsed .mini-ingestao-view {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-start !important;
     height: 100% !important;
     gap: 12px !important;
   }
-  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view .w-12 {
+  #container-ingestao-arquivos-legado.ingestao-collapsed .mini-ingestao-view .w-12 {
     width: 32px !important;
     height: 32px !important;
   }
-  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view .w-12 i {
+  #container-ingestao-arquivos-legado.ingestao-collapsed .mini-ingestao-view .w-12 i {
     width: 16px !important;
     height: 16px !important;
   }
-  #container-ingestao-arquivos.ingestao-collapsed .mini-ingestao-view span {
+  #container-ingestao-arquivos-legado.ingestao-collapsed .mini-ingestao-view span {
     display: inline !important;
     font-size: 11px !important;
   }

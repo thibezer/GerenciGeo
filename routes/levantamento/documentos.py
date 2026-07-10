@@ -150,19 +150,22 @@ def get_dados_fronteira(prop_id: int):
             raise HTTPException(status_code=404, detail="Propriedade não encontrada")
         
         owner = execute_query("""
-            SELECT c.id, c.nome_completo, c.cpf_cnpj, c.rg_ie, c.estado_civil, c.regime_bens, 
-                   c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge
+            SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge
             FROM propriedade_clientes pc
             JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE pc.propriedade_id = ?
             ORDER BY pc.percentual_participacao DESC, c.id ASC
             LIMIT 1
         """, params=(prop_id,), fetch_one=True)
         
+        # O CCIR agora reside estritamente na tabela propriedades, de onde o herdamos
         matriculas = execute_query("""
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro
-            FROM matriculas
-            WHERE propriedade_id = ?
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.propriedade_id = ?
         """, params=(prop_id,), fetch_all=True)
         
         matriculas_list = []
@@ -232,21 +235,26 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
         
         if payload.proprietario:
             o = payload.proprietario
-            execute_query("""
-                UPDATE clientes 
-                SET nome_completo = ?, cpf_cnpj = ?, rg_ie = ?, estado_civil = ?, regime_bens = ?,
-                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
-                WHERE id = ?
-            """, params=(o.nome_completo, o.cpf_cnpj, o.rg_ie, o.estado_civil, o.regime_bens,
-                         o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, o.id), commit=True)
+            row_cli = execute_query("SELECT pessoa_id FROM clientes WHERE id = ?", params=(o.id,), fetch_one=True)
+            if row_cli:
+                pessoa_id = row_cli["pessoa_id"]
+                # Atualiza os dados civis na tabela única pessoas
+                execute_query("""
+                    UPDATE pessoas
+                    SET nome = ?, cpf_cnpj = ?, rg = ?, estado_civil = ?, regime_bens = ?,
+                        nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
+                    WHERE id = ?
+                """, params=(o.nome_completo, o.cpf_cnpj, o.rg_ie, o.estado_civil, o.regime_bens,
+                             o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, pessoa_id), commit=True)
             
         for m in payload.matriculas:
+            # Como a coluna ccir foi normalizada e removida de matriculas, atualizamos apenas as colunas válidas
             execute_query("""
                 UPDATE matriculas 
-                SET numero_matricula = ?, ccir = ?, itr = ?, area_ha = ?, cri_comarca = ?, 
+                SET numero_matricula = ?, itr = ?, area_ha = ?, cri_comarca = ?, 
                     cri_circunscricao = ?, livro_registro = ?, folha_registro = ?
                 WHERE id = ? AND propriedade_id = ?
-            """, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, m.cri_comarca,
+            """, params=(m.numero_matricula, m.itr, m.area_ha, m.cri_comarca,
                          m.cri_circunscricao, m.livro_registro, m.folha_registro, m.id, prop_id), commit=True)
             
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
@@ -479,7 +487,13 @@ def status_cartorio(id: int):
             matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
             
     # Valida anuências
-    confrontantes = execute_query("SELECT * FROM confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
+    query_confrontantes = """
+        SELECT c.*, p.nome
+        FROM confrontantes c
+        JOIN pessoas p ON c.pessoa_id = p.id
+        WHERE c.levantamento_id = ?
+    """
+    confrontantes = execute_query(query_confrontantes, params=(id,), fetch_all=True)
     conf_total = len(confrontantes)
     
     anuencias_rows = execute_query("SELECT * FROM anuencias_confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)

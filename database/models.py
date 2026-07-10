@@ -178,6 +178,7 @@ def create_tables(conn):
             confrontante_id INTEGER,
             ponto_vizinho INTEGER DEFAULT 0 CHECK(ponto_vizinho IN (0, 1)),
             dados_vizinho_json TEXT,
+            sequencia_travada_id TEXT,
             
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
@@ -386,7 +387,8 @@ def create_tables(conn):
             ("origem_homologada", "INTEGER DEFAULT 0"),
             ("confrontante_id", "INTEGER"),
             ("ponto_vizinho", "INTEGER DEFAULT 0"),
-            ("dados_vizinho_json", "TEXT")
+            ("dados_vizinho_json", "TEXT"),
+            ("sequencia_travada_id", "TEXT")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -453,6 +455,10 @@ def create_tables(conn):
         # Migração dinâmica para a tabela confrontantes
 
         colunas_confrontantes = [
+            # Colunas adicionadas ao esquema v2 (bancos legados não as têm → migração automática)
+            ("nome", "TEXT"),
+            ("cpf_cnpj", "TEXT"),
+            ("pessoa_id", "INTEGER"),
             ("rg", "TEXT"),
             ("nacionalidade", "TEXT DEFAULT 'brasileiro(a)'"),
             ("profissao", "TEXT"),
@@ -632,9 +638,15 @@ def migrar_restricao_unicidade_pontos(conn):
                 arquivo_origem TEXT,
                 status_correcao TEXT DEFAULT 'BRUTO' CHECK(status_correcao IN ('BRUTO', 'CORRIGIDO')),
                 ignorar_poligono INTEGER DEFAULT 0 CHECK(ignorar_poligono IN (0, 1)),
+                origem_homologada INTEGER DEFAULT 0,
+                confrontante_id INTEGER,
+                ponto_vizinho INTEGER DEFAULT 0 CHECK(ponto_vizinho IN (0, 1)),
+                dados_vizinho_json TEXT,
+                sequencia_travada_id TEXT,
                 FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
                 FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
                 FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
+                FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL,
                 UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
             );
             """)
@@ -646,14 +658,27 @@ def migrar_restricao_unicidade_pontos(conn):
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
                 sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id, metodo_posicionamento,
-                arquivo_origem, status_correcao, ignorar_poligono
+                arquivo_origem, status_correcao, ignorar_poligono, origem_homologada, confrontante_id, ponto_vizinho, dados_vizinho_json, sequencia_travada_id
             )
             SELECT id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
                    sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, created_at,
                    n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                   sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id,
-                   metodo_posicionamento, arquivo_origem, status_correcao, ignorar_poligono
-            FROM pontos;
+                   sigma_n, sigma_e, sigma_z, arquivo_rinex, arquivo_resultado_ppp, status_ponto, ponto_base_id, metodo_posicionamento,
+                   arquivo_origem, status_correcao, ignorar_poligono,
+                   (CASE WHEN colunas_existentes_original.contem_orig = 1 THEN origem_homologada ELSE 0 END),
+                   (CASE WHEN colunas_existentes_original.contem_conf = 1 THEN confrontante_id ELSE NULL END),
+                   (CASE WHEN colunas_existentes_original.contem_viz = 1 THEN ponto_vizinho ELSE 0 END),
+                   (CASE WHEN colunas_existentes_original.contem_json = 1 THEN dados_vizinho_json ELSE NULL END),
+                   (CASE WHEN colunas_existentes_original.contem_seq = 1 THEN sequencia_travada_id ELSE NULL END)
+            FROM (
+               SELECT p.*, 
+                      (SELECT 1 FROM pragma_table_info('pontos') WHERE name='origem_homologada') as contem_orig,
+                      (SELECT 1 FROM pragma_table_info('pontos') WHERE name='confrontante_id') as contem_conf,
+                      (SELECT 1 FROM pragma_table_info('pontos') WHERE name='ponto_vizinho') as contem_viz,
+                      (SELECT 1 FROM pragma_table_info('pontos') WHERE name='dados_vizinho_json') as contem_json,
+                      (SELECT 1 FROM pragma_table_info('pontos') WHERE name='sequencia_travada_id') as contem_seq
+               FROM pontos p
+            ) as colunas_existentes_original;
             """)
             
             # 3. Elimina a tabela antiga

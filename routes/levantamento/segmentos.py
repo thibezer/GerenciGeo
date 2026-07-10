@@ -30,6 +30,8 @@ class ConfrontanteCreate(BaseModel):
     rg_conjuge: Optional[str] = None
     matricula_imovel: Optional[str] = None
     cns_confrontante: Optional[str] = None # ADICIONADO PARA AMARRAÇÃO MANUAL
+    nome_propriedade: Optional[str] = None
+    codigo_incra_imovel: Optional[str] = None
 
 class SegmentoCreate(BaseModel):
     matricula_id: int
@@ -52,14 +54,35 @@ def buscar_confrontante_por_cpf(cpf: str):
         
     try:
         query = """
-            SELECT * FROM confrontantes
-            WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
-              AND nome IS NOT NULL AND nome != ''
-            ORDER BY id DESC LIMIT 1
+            SELECT c.id, p.nome, p.cpf_cnpj, c.tipo_relacao, p.rg, p.nacionalidade, p.profissao,
+                   p.estado_civil, p.regime_bens, p.endereco_completo, p.nome_conjuge,
+                   p.cpf_conjuge, p.rg_conjuge, c.matricula_imovel, c.cns_confrontante,
+                   c.levantamento_id
+            FROM confrontantes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE REPLACE(REPLACE(REPLACE(p.cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+              AND p.nome IS NOT NULL AND p.nome != ''
+            ORDER BY c.id DESC LIMIT 1
         """
         row = execute_query(query, params=(cpf_limpo,), fetch_one=True)
         if row:
             return dict(row)
+            
+        # Se não achou na relação de confrontantes, busca apenas em pessoas para autopreencher
+        query_pessoa = """
+            SELECT id as pessoa_id, nome, cpf_cnpj, rg, nacionalidade, profissao,
+                   estado_civil, regime_bens, endereco_completo, nome_conjuge,
+                   cpf_conjuge, rg_conjuge
+            FROM pessoas
+            WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+            LIMIT 1
+        """
+        row_p = execute_query(query_pessoa, params=(cpf_limpo,), fetch_one=True)
+        if row_p:
+            res = dict(row_p)
+            res["nome"] = res.pop("nome")  # Renomeia nome para bater com form
+            return res
+            
         return {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -67,7 +90,17 @@ def buscar_confrontante_por_cpf(cpf: str):
 @router.get("/levantamentos/{id}/confrontantes")
 def get_confrontantes(id: int):
     try:
-        return [dict(r) for r in execute_query("SELECT * FROM confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)]
+        query = """
+            SELECT c.id, c.levantamento_id, p.nome, p.cpf_cnpj, c.tipo_relacao, p.rg,
+                   p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   c.matricula_imovel, c.cns_confrontante, c.caminho_matricula_pdf,
+                   c.nome_propriedade, c.codigo_incra_imovel, c.created_at
+            FROM confrontantes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE c.levantamento_id = ?
+        """
+        return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
         return {"error": str(e)}
 
@@ -75,20 +108,48 @@ def get_confrontantes(id: int):
 def create_confrontante(id: int, c: ConfrontanteCreate):
     verificar_levantamento_arquivado(id)
     try:
-        query = """
-            INSERT INTO confrontantes 
-            (levantamento_id, nome, cpf_cnpj, tipo_relacao, rg, nacionalidade, profissao, 
-             estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, matricula_imovel, cns_confrontante)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        execute_query(
-            query, 
-            params=(
-                id, c.nome, c.cpf_cnpj, c.tipo_relacao, c.rg, c.nacionalidade, c.profissao,
-                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel, c.cns_confrontante
-            ), 
-            commit=True
-        )
+        cpf_cnpj = c.cpf_cnpj
+        cpf_limpo = "".join(char for char in cpf_cnpj if char.isdigit()) if cpf_cnpj else ""
+        
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Verifica se a pessoa já existe
+            pessoa_id = None
+            if cpf_limpo:
+                cursor.execute("""
+                    SELECT id FROM pessoas 
+                    WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+                """, (cpf_limpo,))
+                row_p = cursor.fetchone()
+                if row_p:
+                    pessoa_id = row_p[0]
+                    # Atualiza os dados civis da pessoa se houver novos dados informados
+                    cursor.execute("""
+                        UPDATE pessoas
+                        SET nome = ?, rg = ?, nacionalidade = ?, profissao = ?, estado_civil = ?,
+                            regime_bens = ?, endereco_completo = ?, nome_conjuge = ?,
+                            cpf_conjuge = ?, rg_conjuge = ?
+                        WHERE id = ?
+                    """, (c.nome, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
+            
+            if not pessoa_id:
+                cursor.execute("""
+                    INSERT INTO pessoas (
+                        nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens,
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (c.nome, c.cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge))
+                pessoa_id = cursor.lastrowid
+                
+            cursor.execute("""
+                INSERT INTO confrontantes (
+                    pessoa_id, levantamento_id, tipo_relacao, matricula_imovel, cns_confrontante,
+                    nome_propriedade, codigo_incra_imovel
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (pessoa_id, id, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel))
+            conn.commit()
+            
         return {"message": "Confrontante adicionado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
@@ -97,56 +158,34 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
 @router.put("/confrontantes/{cid}")
 def update_confrontante(cid: int, c: ConfrontanteCreate):
     try:
-        row = execute_query("SELECT levantamento_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
-        if row:
-            verificar_levantamento_arquivado(row["levantamento_id"])
+        row = execute_query("SELECT pessoa_id, levantamento_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Confrontante não encontrado.")
             
-        query = """
-            UPDATE confrontantes 
-            SET nome = ?, cpf_cnpj = ?, tipo_relacao = ?, rg = ?, nacionalidade = ?, profissao = ?, 
-                estado_civil = ?, regime_bens = ?, endereco_completo = ?, nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, matricula_imovel = ?, cns_confrontante = ?
-            WHERE id = ?
-        """
-        execute_query(
-            query, 
-            params=(
-                c.nome, c.cpf_cnpj, c.tipo_relacao, c.rg, c.nacionalidade, c.profissao,
-                c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.matricula_imovel, c.cns_confrontante, cid
-            ), 
-            commit=True
-        )
-
-        # Propagação automática de dados para outros registros de confrontante com o mesmo CPF/CNPJ (se informado)
-        # desde que o levantamento correspondente não esteja ARQUIVADO.
-        if c.cpf_cnpj and c.cpf_cnpj.strip():
-            cpf_limpo = "".join(char for char in c.cpf_cnpj if char.isdigit())
-            if cpf_limpo:
-                query_propagar = """
-                    UPDATE confrontantes
-                    SET nome = ?, 
-                        rg = ?, 
-                        nacionalidade = ?, 
-                        profissao = ?, 
-                        estado_civil = ?, 
-                        regime_bens = ?, 
-                        endereco_completo = ?, 
-                        nome_conjuge = ?, 
-                        cpf_conjuge = ?, 
-                        rg_conjuge = ?
-                    WHERE id != ? 
-                      AND REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
-                      AND levantamento_id IN (SELECT id FROM levantamentos WHERE status != 'ARQUIVADO')
-                """
-                execute_query(
-                    query_propagar,
-                    params=(
-                        c.nome, c.rg, c.nacionalidade, c.profissao,
-                        c.estado_civil, c.regime_bens, c.endereco_completo,
-                        c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge,
-                        cid, cpf_limpo
-                    ),
-                    commit=True
-                )
+        pessoa_id = row["pessoa_id"]
+        verificar_levantamento_arquivado(row["levantamento_id"])
+            
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Atualiza os dados civis na tabela única pessoas
+            cursor.execute("""
+                UPDATE pessoas
+                SET nome = ?, cpf_cnpj = ?, rg = ?, nacionalidade = ?, profissao = ?,
+                    estado_civil = ?, regime_bens = ?, endereco_completo = ?,
+                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
+                WHERE id = ?
+            """, (c.nome, c.cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
+            
+            # Atualiza metadados específicos da divisa na tabela confrontantes
+            cursor.execute("""
+                UPDATE confrontantes
+                SET tipo_relacao = ?, matricula_imovel = ?, cns_confrontante = ?,
+                    nome_propriedade = ?, codigo_incra_imovel = ?
+                WHERE id = ?
+            """, (c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel, cid))
+            
+            conn.commit()
 
         return {"message": "Confrontante atualizado com sucesso"}
     except Exception as e:
@@ -157,10 +196,22 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
 def delete_confrontante(cid: int):
     try:
         row = execute_query("SELECT levantamento_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
-        if row:
-            verificar_levantamento_arquivado(row["levantamento_id"])
+        if not row:
+            raise HTTPException(status_code=404, detail="Confrontante não encontrado.")
             
-        execute_query("DELETE FROM confrontantes WHERE id = ?", params=(cid,), commit=True)
+        verificar_levantamento_arquivado(row["levantamento_id"])
+            
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM confrontantes WHERE id = ?", (cid,))
+            
+            # Limpa pessoas órfãs (não associadas a clientes nem confrontantes)
+            cursor.execute("""
+                DELETE FROM pessoas 
+                WHERE id NOT IN (SELECT pessoa_id FROM clientes WHERE pessoa_id IS NOT NULL)
+                  AND id NOT IN (SELECT pessoa_id FROM confrontantes WHERE pessoa_id IS NOT NULL);
+            """)
+            conn.commit()
         return {"message": "Confrontante removido com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
@@ -269,19 +320,20 @@ def get_segmentos(id: int):
             SELECT s.*, 
                    p_ini.nome_vertice as nome_ponto_inicio, 
                    p_fim.nome_vertice as nome_ponto_fim, 
-                   c.nome as nome_confrontante,
+                   p.nome as nome_confrontante,
                    m.numero_matricula
             FROM segmentos s
             JOIN pontos p_ini ON s.ponto_inicio_id = p_ini.id
             JOIN pontos p_fim ON s.ponto_fim_id = p_fim.id
             JOIN matriculas m ON s.matricula_id = m.id
             LEFT JOIN confrontantes c ON s.confrontante_id = c.id
+            LEFT JOIN pessoas p ON c.pessoa_id = p.id
             WHERE s.levantamento_id = ?
               AND (s.origem_homologada IS NULL OR s.origem_homologada = 0)
         """
         return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/levantamentos/{id}/segmentos")
 def create_segmento(id: int, s: SegmentoCreate):
@@ -333,12 +385,13 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
     try:
         rows = execute_query(
             """
-            SELECT c.id, c.nome, c.cpf_cnpj, c.matricula_imovel, c.caminho_matricula_pdf
+            SELECT c.id, p.nome, p.cpf_cnpj, c.matricula_imovel, c.caminho_matricula_pdf
             FROM segmentos s
             JOIN confrontantes c ON s.confrontante_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE s.levantamento_id = ? AND s.matricula_id = ?
             GROUP BY c.id
-            ORDER BY c.nome ASC
+            ORDER BY p.nome ASC
             """,
             params=(id, matricula_id),
             fetch_all=True
@@ -459,10 +512,11 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
                 
-                cursor.execute(
-                    "SELECT id, nome, nome_propriedade FROM confrontantes WHERE levantamento_id = ? AND codigo_incra_imovel = ?",
-                    (id, qrcode_imovel)
-                )
+                cursor.execute("""
+                    SELECT c.id, p.nome, c.nome_propriedade FROM confrontantes c
+                    JOIN pessoas p ON c.pessoa_id = p.id
+                    WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
+                """, (id, qrcode_imovel))
                 row_conf = cursor.fetchone()
                 
                 if row_conf:
@@ -472,12 +526,20 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                 else:
                     nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}"
                     nome_propriedade = "Propriedade Vizinha"
+                    
+                    # 1. Cria a pessoa correspondente
+                    cursor.execute("""
+                        INSERT INTO pessoas (nome) VALUES (?)
+                    """, (nome_detentor,))
+                    pessoa_id = cursor.lastrowid
+                    
+                    # 2. Cria o confrontante
                     cursor.execute(
                         """
-                        INSERT INTO confrontantes (levantamento_id, nome, nome_propriedade, codigo_incra_imovel)
+                        INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel)
                         VALUES (?, ?, ?, ?)
                         """,
-                        (id, nome_detentor, nome_propriedade, qrcode_imovel)
+                        (pessoa_id, id, nome_propriedade, qrcode_imovel)
                     )
                     confrontante_id = cursor.lastrowid
 
@@ -582,10 +644,11 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
                 
-                cursor.execute(
-                    "SELECT id, nome FROM confrontantes WHERE levantamento_id = ? AND codigo_incra_imovel = ?",
-                    (id, qrcode_imovel)
-                )
+                cursor.execute("""
+                    SELECT c.id, p.nome, c.pessoa_id FROM confrontantes c
+                    JOIN pessoas p ON c.pessoa_id = p.id
+                    WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
+                """, (id, qrcode_imovel))
                 row_conf = cursor.fetchone()
                 
                 if row_conf:
@@ -593,19 +656,33 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                     novo_nome = row_conf["nome"]
                     if row_conf["nome"].startswith("Vizinho SIGEF -"):
                         novo_nome = f"Proprietário de {nome_propriedade}"
-
+                        
+                    # Atualiza a tabela pessoas
                     cursor.execute(
-                        "UPDATE confrontantes SET nome = ?, nome_propriedade = ? WHERE id = ?",
-                        (novo_nome, nome_propriedade, confrontante_id)
+                        "UPDATE pessoas SET nome = ? WHERE id = ?",
+                        (novo_nome, row_conf["pessoa_id"])
+                    )
+                    # Atualiza a tabela confrontantes
+                    cursor.execute(
+                        "UPDATE confrontantes SET nome_propriedade = ? WHERE id = ?",
+                        (nome_propriedade, confrontante_id)
                     )
                 else:
                     novo_nome = f"Proprietário de {nome_propriedade}"
+                    
+                    # 1. Cria a pessoa correspondente
+                    cursor.execute("""
+                        INSERT INTO pessoas (nome) VALUES (?)
+                    """, (novo_nome,))
+                    pessoa_id = cursor.lastrowid
+                    
+                    # 2. Cria o confrontante
                     cursor.execute(
                         """
-                        INSERT INTO confrontantes (levantamento_id, nome, nome_propriedade, codigo_incra_imovel)
+                        INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel)
                         VALUES (?, ?, ?, ?)
                         """,
-                        (id, novo_nome, nome_propriedade, qrcode_imovel)
+                        (pessoa_id, id, nome_propriedade, qrcode_imovel)
                     )
                     confrontante_id = cursor.lastrowid
 
@@ -635,9 +712,10 @@ def get_pontos_vizinhos(id: int):
         query = """
             SELECT p.id, p.levantamento_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt,
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.confrontante_id, p.dados_vizinho_json,
-                   c.nome as nome_confrontante, c.nome_propriedade
+                   pe.nome as nome_confrontante, c.nome_propriedade
             FROM pontos p
             JOIN confrontantes c ON p.confrontante_id = c.id
+            JOIN pessoas pe ON c.pessoa_id = pe.id
             WHERE p.levantamento_id = ? AND p.ponto_vizinho = 1 AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
             ORDER BY p.id ASC
         """

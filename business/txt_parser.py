@@ -399,10 +399,9 @@ class TxtGeodesicParser:
                 lon_corr_val = lon_corrigido if aplicar_translace_plana else None
                 alt_corr_val = alt_corrigido if aplicar_translace_plana else None
                 
-                # Lei de Propagação de Variâncias (Composição Quadrática das Incertezas)
-                sigma_lat_prop = math.sqrt(p["sigma_n"]**2 + sigma_base_lat**2)
-                sigma_lon_prop = math.sqrt(p["sigma_e"]**2 + sigma_base_lon**2)
-                sigma_alt_prop = math.sqrt(p["sigma_z"]**2 + sigma_base_alt**2)
+                sigma_lat_prop = p["sigma_n"]
+                sigma_lon_prop = p["sigma_e"]
+                sigma_alt_prop = p["sigma_z"]
             else:
                 status_ponto_final = "CORRIGIDO"
                 lat_corr_val = lat_corrigido

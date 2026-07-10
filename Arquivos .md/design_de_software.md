@@ -1943,7 +1943,7 @@ export const loadWorkspaceState = (): WorkspaceState => {
 #### Estrutura
 - [ ] `100vh` sem scroll vertical da página inteira
 - [ ] Ribbon com exatamente 3 camadas, alturas fixas conforme especificado
-- [ ] Painel de propriedades colapsável (280px ↔ 36px)
+- [ ] Painel de propriedades colapsável (280px ↔ 25px)
 - [ ] Tabela com altura fixa e scroll interno
 - [ ] Status bar sempre visível na base
 

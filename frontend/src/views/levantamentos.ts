@@ -737,13 +737,13 @@ export const levantamentosRoute: RouteDef = {
 
                const marker = L.marker(latLng, { icon: customIcon })
                   .bindPopup(`
-                     <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3; font-size:11px;">
+                     <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3; font-size:11px;">
                         <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#00b366;">${p.nome}</div>
-                        <div style="font-size:10px; color:#555; font-weight:bold;">${popupRole}</div>
-                        <div style="margin-top:4px;">N: ${p.norte.toFixed(3)}</div>
-                        <div>E: ${p.este.toFixed(3)}</div>
-                        <div>Alt: ${p.alt.toFixed(3)}</div>
-                        <div style="font-size:9px; color:#777; font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
+                        <div style="font-size:10px; color:rgba(255, 255, 255, 0.65); font-weight:bold;">${popupRole}</div>
+                        <div style="margin-top:4px; color:rgba(255, 255, 255, 0.85);">N: ${p.norte.toFixed(3)}</div>
+                        <div style="color:rgba(255, 255, 255, 0.85);">E: ${p.este.toFixed(3)}</div>
+                        <div style="color:rgba(255, 255, 255, 0.85);">Alt: ${p.alt.toFixed(3)}</div>
+                        <div style="font-size:9px; color:rgba(255, 255, 255, 0.45); font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
                      </div>
                   `, { maxWidth: 220 })
                   .addTo(mapaTriagem!);
@@ -843,7 +843,7 @@ export const levantamentosRoute: RouteDef = {
          arquivoSelecionadoTriagem = null;
          pontosProcessadosTriagem = [];
          if (labelUpload) labelUpload.innerText = 'Arraste ou clique para selecionar arquivo .txt';
-         if (iconUpload) iconUpload.className = 'w-6 h-6 text-white/20 mx-auto mb-1';
+         if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-white/20 mx-auto mb-1');
          if (countPontos) countPontos.innerText = '0';
          if (tagLayout) tagLayout.classList.add('hidden');
          if (listaPontos) listaPontos.innerHTML = '<div class="text-white/20 italic text-center py-4">Nenhum arquivo carregado</div>';
@@ -869,7 +869,7 @@ export const levantamentosRoute: RouteDef = {
             if (file.name.endsWith('.txt')) {
                arquivoSelecionadoTriagem = file;
                if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
-               if (iconUpload) iconUpload.className = 'w-6 h-6 text-mint-vibrant mx-auto mb-1';
+               if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
             } else {
                alert('Apenas arquivos de extensão .txt são permitidos na triagem.');
             }
@@ -881,7 +881,7 @@ export const levantamentosRoute: RouteDef = {
             const file = inputFile.files[0];
             arquivoSelecionadoTriagem = file;
             if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
-            if (iconUpload) iconUpload.className = 'w-6 h-6 text-mint-vibrant mx-auto mb-1';
+            if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
          }
       });
 

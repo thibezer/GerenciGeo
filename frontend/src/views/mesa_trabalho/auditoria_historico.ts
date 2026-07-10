@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config';
 import { initIcons } from '../../utils';
-import { renderHistoricoTimelineHtml } from '../mesa_trabalho_tabela';
+import { renderHistoricoTimelineHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 export const renderHistoricoCampo = async (ctx: MesaTrabalhoContext) => {

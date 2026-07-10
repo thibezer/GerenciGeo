@@ -45,9 +45,26 @@ const navigate = (route: string) => {
     return;
   }
 
+  // Exibição condicional da barra lateral (Sidebar)
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    if (route === 'mesa_trabalho') {
+      sidebar.classList.add('hidden');
+    } else {
+      sidebar.classList.remove('hidden');
+    }
+  }
+
   const container = document.getElementById('view-container');
   const breadcrumbCurrent = document.getElementById('breadcrumb-current');
   if (!container) return;
+
+  // Ajusta padding e overflow do view-container quando entra na mesa_trabalho para evitar scroll na Ribbon
+  if (route === 'mesa_trabalho') {
+    container.className = 'flex-1 overflow-hidden p-0 min-w-0';
+  } else {
+    container.className = 'flex-1 overflow-y-auto p-6 min-w-0';
+  }
   
   if (activeRoute && activeRoute.cleanup) {
     try {

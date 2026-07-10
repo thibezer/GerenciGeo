@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config';
 import { initIcons } from '../../utils';
-import { renderLinhaPontoCartorioHtml, renderLinhaSegmentoHtml } from '../mesa_trabalho_tabela';
+import { renderLinhaPontoCartorioHtml, renderLinhaSegmentoHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { latLonToUTM } from './mesa_geodesica';
 
@@ -9,9 +9,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
 
   const isIgnoradoOuBase = (p: any) => p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
 
-  let pontosMat = ctx.pontosList.filter(
-    p => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B'
-  );
+  let pontosMat = ctx.obterPontosParaOrdenacao();
 
   // Calcula o mapa de ordem real estável de caminhamento antes de qualquer filtro
   const pontosOrdenadosOriginal = [...pontosMat].sort((a, b) => {
@@ -104,12 +102,13 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
   const tblHeader = document.getElementById('tbl-pontos-header');
   if (tblHeader) {
     tblHeader.innerHTML = `
-      <th class="px-4 py-3 text-center w-[110px] resizable-col cursor-pointer hover:bg-white/5 transition-colors font-mono select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem">Ordem ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-3 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_este_lat">${ctx.modoCoordenadas === 'geodesico' ? 'Latitude' : 'Este (E)'} ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_norte_lon">${ctx.modoCoordenadas === 'geodesico' ? 'Longitude' : 'Norte (N)'} ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-3 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_altitude">Altitude (m) ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 75px;">Ordem ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_este_lat">${ctx.modoCoordenadas === 'geodesico' ? 'Latitude' : 'Este (E)'} ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_norte_lon">${ctx.modoCoordenadas === 'geodesico' ? 'Longitude' : 'Norte (N)'} ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_altitude">Altitude (m) ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
+      <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
     `;
 
     const setupSortHeader = (id: string, column: string) => {
@@ -138,7 +137,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
   const listPt = document.getElementById('tbl-pontos-triagem');
   if (listPt) {
     if (pontosMat.length === 0) {
-      listPt.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
+      listPt.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
     } else {
       pontosMat.sort((a, b) => {
         let valA: any;
@@ -309,410 +308,15 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       });
     }
   }
+
+  // Renderiza também a lista simplificada do ordenador manual
+  if (typeof ctx.renderListaReordenarSimplificada === 'function') {
+    ctx.renderListaReordenarSimplificada();
+  }
 };
 
 export function setupOrganizadorPerimetro(ctx: MesaTrabalhoContext) {
-  // 1. Métodos de reordenação e rascunhos atrelados ao contexto
-  ctx.subirPonto = (pontoId: number) => {
-    if (ctx.etapaAtiva !== 'cartorio' || !ctx.currentMatriculaId) return;
-
-    const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B');
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const idx = pontosMat.findIndex(p => p.id === pontoId);
-    if (idx > 0) {
-      const p1 = pontosMat[idx];
-      const p2 = pontosMat[idx - 1];
-
-      const tempOrdem = p1.ordem_caminhamento || idx + 1;
-      p1.ordem_caminhamento = p2.ordem_caminhamento || idx;
-      p2.ordem_caminhamento = tempOrdem;
-
-      const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
-      if (btnSalvar) {
-        btnSalvar.classList.remove('hidden');
-        btnSalvar.classList.add('animate-pulse');
-      }
-
-      ctx.renderMatriculaDados();
-      ctx.atualizarPolilinhaMapaTemp();
-    }
-  };
-
-  ctx.descerPonto = (pontoId: number) => {
-    if (ctx.etapaAtiva !== 'cartorio' || !ctx.currentMatriculaId) return;
-
-    const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B');
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const idx = pontosMat.findIndex(p => p.id === pontoId);
-    if (idx !== -1 && idx < pontosMat.length - 1) {
-      const p1 = pontosMat[idx];
-      const p2 = pontosMat[idx + 1];
-
-      const tempOrdem = p1.ordem_caminhamento || idx + 1;
-      p1.ordem_caminhamento = p2.ordem_caminhamento || idx + 2;
-      p2.ordem_caminhamento = tempOrdem;
-
-      const btnSalvar = document.getElementById('btn-salvar-perimetro-custom');
-      if (btnSalvar) {
-        btnSalvar.classList.remove('hidden');
-        btnSalvar.classList.add('animate-pulse');
-      }
-
-      ctx.renderMatriculaDados();
-      ctx.atualizarPolilinhaMapaTemp();
-    }
-  };
-
-  ctx.salvarRascunhoLocal = () => {
-    if (!ctx.currentLevId) return;
-    const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const draft = pontosMatCompleto.map(p => ({
-      id: p.id,
-      ordem: p.ordem_caminhamento
-    }));
-
-    localStorage.setItem(`rascunho_ordem_lev_${ctx.currentLevId}`, JSON.stringify(draft));
-  };
-
-  ctx.verificarRascunhoLocal = () => {
-    if (!ctx.currentLevId) return;
-    const key = `rascunho_ordem_lev_${ctx.currentLevId}`;
-    const draftStr = localStorage.getItem(key);
-    if (draftStr) {
-      const draft = JSON.parse(draftStr);
-      if (draft && draft.length > 0) {
-        const confirmar = confirm("Detectamos um rascunho de ordenação manual não salvo anteriormente. Deseja restaurar esse progresso?");
-        if (confirmar) {
-          draft.forEach((d: any) => {
-            const pt = ctx.pontosList.find(p => p.id === d.id);
-            if (pt) {
-              pt.ordem_caminhamento = d.ordem;
-            }
-          });
-          ctx.travamentoInicio = 0;
-          ctx.travamentoFim = 0;
-          ctx.travamentoInicioPontoId = null;
-          ctx.travamentoFimPontoId = null;
-          ctx.renderListaReordenarSimplificada();
-          ctx.atualizarPolilinhaMapaTemp();
-        } else {
-          localStorage.removeItem(key);
-        }
-      }
-    }
-  };
-
-  ctx.moverPontoPosicao = (pontoId: number, novaPosicao: number) => {
-    const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const oldIdx = pontosMatCompleto.findIndex(p => p.id === pontoId);
-    if (oldIdx === -1) return;
-
-    const ordemOriginal = oldIdx + 1;
-
-    const pertenceAoBlocoTravado = ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio &&
-      ordemOriginal >= ctx.travamentoInicio && ordemOriginal <= ctx.travamentoFim;
-
-    if (pertenceAoBlocoTravado) {
-      const tamanhoBloco = (ctx.travamentoFim - ctx.travamentoInicio) + 1;
-
-      let novaPos = novaPosicao;
-      if (novaPos < 1) novaPos = 1;
-      if (novaPos > pontosMatCompleto.length - tamanhoBloco + 1) {
-        novaPos = pontosMatCompleto.length - tamanhoBloco + 1;
-      }
-
-      if (novaPos === ctx.travamentoInicio) {
-        ctx.renderListaReordenarSimplificada();
-        return;
-      }
-
-      const idxInicioBloco = ctx.travamentoInicio - 1;
-      const blocoMovido = pontosMatCompleto.splice(idxInicioBloco, tamanhoBloco);
-
-      const novoIdxInsercao = novaPos - 1;
-      pontosMatCompleto.splice(novoIdxInsercao, 0, ...blocoMovido);
-
-      pontosMatCompleto.forEach((p, index) => {
-        p.ordem_caminhamento = index + 1;
-      });
-
-      ctx.travamentoInicio = novaPos;
-      ctx.travamentoFim = novaPos + tamanhoBloco - 1;
-
-      ctx.renderListaReordenarSimplificada();
-      ctx.atualizarPolilinhaMapaTemp();
-      ctx.salvarRascunhoLocal();
-      return;
-    }
-
-    let newIdx = novaPosicao - 1;
-    if (ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio) {
-      const blocoInicioIdx = ctx.travamentoInicio - 1;
-      const blocoFimIdx = ctx.travamentoFim - 1;
-
-      if (newIdx >= blocoInicioIdx && newIdx <= blocoFimIdx) {
-        if (oldIdx < blocoInicioIdx) {
-          newIdx = blocoInicioIdx;
-        } else {
-          newIdx = blocoFimIdx + 1;
-        }
-      }
-    }
-
-    if (newIdx < 0) newIdx = 0;
-    if (newIdx >= pontosMatCompleto.length) newIdx = pontosMatCompleto.length - 1;
-
-    if (oldIdx === newIdx) {
-      ctx.renderListaReordenarSimplificada();
-      return;
-    }
-
-    const [pontoMovido] = pontosMatCompleto.splice(oldIdx, 1);
-    pontosMatCompleto.splice(newIdx, 0, pontoMovido);
-
-    pontosMatCompleto.forEach((p, index) => {
-      p.ordem_caminhamento = index + 1;
-    });
-
-    ctx.renderListaReordenarSimplificada();
-    ctx.atualizarPolilinhaMapaTemp();
-    ctx.salvarRascunhoLocal();
-  };
-
-  ctx.renderListaReordenarSimplificada = () => {
-    const container = document.getElementById('lista-reordenar-simplificada');
-    if (!container) return;
-
-    const pontosMatCompleto = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    pontosMatCompleto.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-    const totalPontos = pontosMatCompleto.length;
-
-    if (ctx.travamentoInicioPontoId !== null && ctx.travamentoFimPontoId !== null) {
-      const idxInicio = pontosMatCompleto.findIndex(p => p.id === ctx.travamentoInicioPontoId);
-      const idxFim = pontosMatCompleto.findIndex(p => p.id === ctx.travamentoFimPontoId);
-      if (idxInicio !== -1 && idxFim !== -1) {
-        ctx.travamentoInicio = Math.min(idxInicio, idxFim) + 1;
-        ctx.travamentoFim = Math.max(idxInicio, idxFim) + 1;
-      } else {
-        ctx.travamentoInicio = 0;
-        ctx.travamentoFim = 0;
-        ctx.travamentoInicioPontoId = null;
-        ctx.travamentoFimPontoId = null;
-      }
-    } else {
-      ctx.travamentoInicio = 0;
-      ctx.travamentoFim = 0;
-    }
-
-    const txtFaixa = document.getElementById('txt-faixa-travada');
-    if (txtFaixa) {
-      if (ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio) {
-        txtFaixa.innerText = `${ctx.travamentoInicio} a ${ctx.travamentoFim}`;
-      } else {
-        txtFaixa.innerText = "Nenhum";
-      }
-    }
-
-    if (totalPontos === 0) {
-      container.innerHTML = `<div class="text-white/20 p-8 text-center">Nenhum ponto para ordenar.</div>`;
-      return;
-    }
-
-    let pontosMatFiltrados = [...pontosMatCompleto];
-    if (ctx.searchFilterOrdenadorValue.trim()) {
-      const query = ctx.searchFilterOrdenadorValue.toLowerCase().trim();
-      pontosMatFiltrados = pontosMatFiltrados.filter(p =>
-        (p.nome_vertice && p.nome_vertice.toLowerCase().includes(query)) ||
-        (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(query)) ||
-        (p.tipo && p.tipo.toLowerCase().includes(query))
-      );
-    }
-
-    if (pontosMatFiltrados.length === 0) {
-      container.innerHTML = `<div class="text-white/20 p-8 text-center">Nenhum ponto encontrado com "${ctx.searchFilterOrdenadorValue}".</div>`;
-      return;
-    }
-
-    container.innerHTML = pontosMatFiltrados.map((p) => {
-      const ordemOriginal = pontosMatCompleto.findIndex(orig => orig.id === p.id) + 1;
-      const isTravado = ctx.travamentoInicio > 0 && ctx.travamentoFim >= ctx.travamentoInicio &&
-        ordemOriginal >= ctx.travamentoInicio && ordemOriginal <= ctx.travamentoFim;
-
-      return `
-        <div class="flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded-technical text-xs font-mono transition-all duration-300 linha-ponto-ordenador hover:border-mint-vibrant/25 hover:bg-white/[0.04] ${isTravado ? 'border-mint-vibrant/30 bg-mint-vibrant/[0.03] font-semibold' : ''}" id="ordenador-item-${p.id}">
-          <div class="flex items-center gap-2">
-            <button class="btn-travar-ponto p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" 
-                    data-ponto-id="${p.id}" 
-                    data-ordem="${ordemOriginal}" 
-                    title="${isTravado ? 'Destravar esta sequência' : 'Travar até este ponto'}" 
-                    type="button">
-              <i data-lucide="${isTravado ? 'lock' : 'unlock'}" class="w-3.5 h-3.5 ${isTravado ? 'text-mint-vibrant' : 'text-white/40'}"></i>
-            </button>
-            <input type="number" 
-                   class="input-ordem-direta text-center text-[10px] bg-mint-vibrant/10 text-mint-vibrant font-bold border border-mint-vibrant/25 rounded w-10 focus:outline-none focus:border-mint-vibrant focus:ring-1 focus:ring-mint-vibrant/30 py-0.5 px-1 font-mono transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                   min="1" 
-                   max="${totalPontos}" 
-                   value="${ordemOriginal}" 
-                   data-ponto-id="${p.id}"
-                   data-old-ordem="${ordemOriginal}" />
-            <span class="font-bold text-white">${p.nome_vertice}</span>
-            <span class="text-[9px] text-white/30">(${p.tipo_ponto || p.tipo})</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button class="btn-subir-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-              <i data-lucide="chevron-up" class="w-4 h-4"></i>
-            </button>
-            <button class="btn-descer-simplificado p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-              <i data-lucide="chevron-down" class="w-4 h-4"></i>
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    initIcons();
-  };
-
-  ctx.subirPontoSimplificado = (pontoId: number) => {
-    const pontosMat = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const idx = pontosMat.findIndex(p => p.id === pontoId);
-    if (idx > 0) {
-      ctx.moverPontoPosicao(pontoId, idx);
-    }
-  };
-
-  ctx.descerPontoSimplificado = (pontoId: number) => {
-    const pontosMat = ctx.pontosList.filter(p => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
-
-    const idx = pontosMat.findIndex(p => p.id === pontoId);
-    if (idx !== -1 && idx < pontosMat.length - 1) {
-      ctx.moverPontoPosicao(pontoId, idx + 2);
-    }
-  };
-
-  ctx.alternarModoReordenarManual = (ativo: boolean) => {
-    ctx.modoReordenarAtivo = ativo;
-    const btnAtivar = document.getElementById('btn-ativar-reordenacao');
-    const containerIngestao = document.getElementById('container-ingestao-arquivos');
-    const containerReordenar = document.getElementById('container-reordenar-manual');
-    const header = document.getElementById('mesa-trabalho-header');
-    const gridSuperior = document.getElementById('grid-superior-detalhe');
-
-    if (ativo) {
-      if (btnAtivar) {
-        btnAtivar.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
-        btnAtivar.classList.add('border-mint-vibrant/40');
-      }
-      if (containerIngestao) containerIngestao.classList.add('hidden');
-      if (containerReordenar) {
-        containerReordenar.classList.remove('hidden');
-      }
-      if (gridSuperior) {
-        gridSuperior.style.height = '680px';
-      }
-      const splitterSup = document.getElementById('splitter-superior');
-      if (splitterSup) splitterSup.classList.remove('hidden');
-      if (header) {
-        header.classList.add('hidden');
-      }
-
-      ctx.verificarRascunhoLocal();
-      ctx.renderListaReordenarSimplificada();
-    } else {
-      if (btnAtivar) {
-        btnAtivar.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-        btnAtivar.classList.remove('border-mint-vibrant/40');
-      }
-      if (containerIngestao) containerIngestao.classList.remove('hidden');
-      if (containerReordenar) {
-        containerReordenar.classList.add('hidden');
-      }
-      if (gridSuperior) {
-        gridSuperior.style.height = '480px';
-      }
-      const splitterSup = document.getElementById('splitter-superior');
-      if (splitterSup) {
-        if (containerIngestao && !containerIngestao.classList.contains('ingestao-collapsed')) {
-          splitterSup.classList.remove('hidden');
-        } else {
-          splitterSup.classList.add('hidden');
-        }
-      }
-      if (header) {
-        header.classList.remove('hidden');
-      }
-
-      ctx.modoCliqueSequencialAtivo = false;
-      ctx.travamentoInicio = 0;
-      ctx.travamentoFim = 0;
-      ctx.sequenciaCliqueProximoIndice = null;
-      ctx.mapaController.modoCliqueSequencialAtivo = false;
-
-      const btnCliqueSequencial = document.getElementById('btn-toggle-clique-sequencial');
-      if (btnCliqueSequencial) {
-        btnCliqueSequencial.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
-        btnCliqueSequencial.classList.remove('border-mint-vibrant/40');
-        const iconClique = document.getElementById('icon-clique-sequencial');
-        if (iconClique) {
-          iconClique.setAttribute('data-lucide', 'play');
-          iconClique.classList.remove('animate-pulse');
-        }
-        const txtClique = document.getElementById('txt-clique-sequencial');
-        if (txtClique) txtClique.innerText = "Caminhar por Clique";
-      }
-
-      ctx.loadLevantamentoDetails();
-    }
-
-    if (ctx.triagemMap) {
-      setTimeout(() => ctx.triagemMap!.invalidateSize(), 150);
-    }
-  };
-
-  // 2. Callbacks de homologação e confrontantes
-  // Removidos e migrados para gerador_documentos.ts
-  
-  ctx.carregarSugestoesNumeracao = async () => {
-    if (!ctx.currentLevId) return;
-    try {
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-sugeridos`);
-      const data = await res.json();
-      
-      const banner = document.getElementById('banner-sugestao-numeracao');
-      const sugM = document.getElementById('sugestao-m');
-      const sugP = document.getElementById('sugestao-p');
-      const sugV = document.getElementById('sugestao-v');
-      
-      if (data && data.sugestoes) {
-        if (sugM) sugM.innerText = data.sugestoes.M.codigo_sugerido || '-';
-        if (sugP) sugP.innerText = data.sugestoes.P.codigo_sugerido || '-';
-        if (sugV) sugV.innerText = data.sugestoes.V.codigo_sugerido || '-';
-        
-        if (banner) {
-          if (ctx.etapaAtiva === 'cartorio') {
-            banner.classList.remove('hidden');
-          } else {
-            banner.classList.add('hidden');
-          }
-        }
-      } else {
-        if (banner) banner.classList.add('hidden');
-      }
-    } catch (err) {
-      console.error("Erro ao carregar sugestões de numeração:", err);
-    }
-  };
-
-  // 3. Inicializador do cadastro rápido de confrontantes na Etapa 2
+  // 1. Inicializador do cadastro rápido de confrontantes na Etapa 2
   const inicializarConfrontanteRapido = () => {
     const input = document.getElementById('input-confrontante-nome-rapido') as HTMLInputElement;
     const btn = document.getElementById('btn-confrontante-adicionar-rapido') as HTMLButtonElement;

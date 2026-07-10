@@ -12,12 +12,14 @@ export interface MesaTrabalhoContext {
   confrontantesList: any[];
   triagemMap: L.Map | null;
   mapaController: any; // MesaTrabalhoMapa
+  canvasInteracao?: any;
   filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[];
   modoCoordenadas: string;
   etapaAtiva: string;
   modoReordenarAtivo: boolean;
 
   selectedPontoIds: number[];
+  selectedVizinhoPontoIds: number[];
   lastSelectedPontoId: number | null;
   currentSortColumn: string;
   currentSortDirection: 'asc' | 'desc';
@@ -31,6 +33,7 @@ export interface MesaTrabalhoContext {
   pontosVizinhosList: any[];
   travamentoInicio: number;
   travamentoFim: number;
+  arquivosDesativadosList?: string[];
   travamentoInicioPontoId: number | null;
   travamentoFimPontoId: number | null;
   sequenciaCliqueProximoIndice: number | null;
@@ -61,7 +64,12 @@ export interface MesaTrabalhoContext {
   verificarRascunhoLocal: () => void;
   subirPontoSimplificado: (pontoId: number) => void;
   descerPontoSimplificado: (pontoId: number) => void;
+  inverterOrdemPerimetral: () => void;
+  lidarCliqueMarcadorSequencial: (pontoId: number) => void;
+  obterPontosParaOrdenacao: () => any[];
   alternarModoReordenarManual: (ativo: boolean) => void;
   expandirIngestao?: () => void;
   colapsarIngestao?: () => void;
+  atualizarPainelPropriedades?: () => void;
+  inicializarRedimensionamentoColunas?: () => void;
 }

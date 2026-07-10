@@ -58,9 +58,10 @@ def get_levantamentos():
         # Busca proprietários vinculados para cada levantamento
         for l in levantamentos:
             clients_query = """
-                SELECT c.id, c.nome_completo, c.cpf_cnpj, pc.percentual_participacao
+                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
                 FROM propriedade_clientes pc
                 JOIN clientes c ON pc.cliente_id = c.id
+                JOIN pessoas p ON c.pessoa_id = p.id
                 WHERE pc.propriedade_id = ?
             """
             l['clientes'] = [dict(r) for r in execute_query(clients_query, params=(l['propriedade_id'],), fetch_all=True)]

@@ -161,8 +161,8 @@ def create_matricula(id: int, m: MatriculaCreate):
             return {"error": "Levantamento não encontrado"}
         propriedade_id = row['propriedade_id']
         
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(propriedade_id, m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(propriedade_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
         
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
@@ -363,7 +363,8 @@ def get_pontos(id: int):
                     pass
         return rows
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao buscar pontos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno de banco de dados: {str(e)}")
 
 @router.post("/levantamentos/{id}/pontos")
 def create_ponto(id: int, p: PontoCreate):
@@ -566,6 +567,17 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
     wm.gerar_documento_cliente_workspace(id)
     return resultado
 
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/ordenar-vizinhos")
+def post_ordenar_vizinhos_perimetro(id: int, matricula_id: int):
+    verificar_levantamento_arquivado(id)
+    from business.levantamento_manager import ordenar_vizinho_mais_proximo
+    resultado = ordenar_vizinho_mais_proximo(id, matricula_id)
+    if not resultado.get("sucesso"):
+        raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
+    wm = WorkspaceManager()
+    wm.gerar_documento_cliente_workspace(id)
+    return resultado
+
 @router.post("/levantamentos/{id}/salvar-ordem")
 def post_salvar_ordem_global(id: int, payload: PayloadSalvarOrdem):
     verificar_levantamento_arquivado(id)
@@ -582,6 +594,17 @@ def post_reordenar_global(id: int):
     resultado = reordenar_perimetro_matricula(id, None)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
+    wm = WorkspaceManager()
+    wm.gerar_documento_cliente_workspace(id)
+    return resultado
+
+@router.post("/levantamentos/{id}/ordenar-vizinhos")
+def post_ordenar_vizinhos_global(id: int):
+    verificar_levantamento_arquivado(id)
+    from business.levantamento_manager import ordenar_vizinho_mais_proximo
+    resultado = ordenar_vizinho_mais_proximo(id, None)
+    if not resultado.get("sucesso"):
+        raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
     wm = WorkspaceManager()
     wm.gerar_documento_cliente_workspace(id)
     return resultado
@@ -606,6 +629,7 @@ class PontoUpdate(BaseModel):
     e_corrigido: float = None
     alt_corrigido: float = None
     fuso: str = None
+    sequencia_travada_id: Optional[str] = None
 
 @router.put("/pontos/{pid}")
 def update_ponto(pid: int, payload: PontoUpdate):
@@ -614,7 +638,7 @@ def update_ponto(pid: int, payload: PontoUpdate):
         if not row:
             raise HTTPException(status_code=404, detail="Ponto não encontrado.")
             
-        if row.get("ponto_vizinho") == 1:
+        if row["ponto_vizinho"] == 1:
             raise HTTPException(status_code=403, detail="Pontos de confrontantes/vizinhos são imutáveis e não podem ser alterados.")
             
         verificar_levantamento_arquivado(row["levantamento_id"])
@@ -815,7 +839,7 @@ def integrar_ponto_vizinho(id: int, pid: int, matricula_id: Optional[int] = None
                     id, matricula_id, p_viz["nome_vertice"], p_viz["tipo_ponto"], p_viz["lat"], p_viz["lon"], p_viz["alt"],
                     p_viz["n_original"], p_viz["e_original"], p_viz["alt_original"], p_viz["sigma_n"], p_viz["sigma_e"], p_viz["sigma_z"],
                     p_viz["sigma_lat"], p_viz["sigma_lon"], p_viz["sigma_alt"], "CORRIGIDO", p_viz["metodo_posicionamento"],
-                    p_viz["arquivo_origem"], 0, None, 0, nova_ordem
+                    p_viz["arquivo_origem"], 0, p_viz["confrontante_id"], 0, nova_ordem
                 )
             )
             novo_ponto_id = cursor.lastrowid

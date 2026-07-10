@@ -82,8 +82,13 @@ def resolver_confrontantes_planilha(levantamento_id: int, pontos_ordenados: list
     evitando mesclar confrontantes com o mesmo nome mas matrículas diferentes.
     """
     # 1. Carregar todos os confrontantes do levantamento
+    # COALESCE: esquema novo usa c.nome; esquema legado usa pe.nome via pessoa_id
     cursor.execute(
-        "SELECT id, nome, matricula_imovel, cns_confrontante FROM confrontantes WHERE levantamento_id = ?",
+        """SELECT c.id, COALESCE(c.nome, pe.nome, '') as nome,
+                  c.matricula_imovel, c.cns_confrontante
+           FROM confrontantes c
+           LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
+           WHERE c.levantamento_id = ?""",
         (levantamento_id,)
     )
     confrontantes_existentes = cursor.fetchall()
@@ -213,7 +218,10 @@ def vincular_confrontantes_pontos(levantamento_id: int, pontos_inseridos: list, 
     Retorna um mapeamento de codigo_completo para o confrontante_id correto.
     """
     cursor.execute(
-        "SELECT id, nome, matricula_imovel FROM confrontantes WHERE levantamento_id = ?",
+        """SELECT c.id, COALESCE(c.nome, pe.nome, '') as nome, c.matricula_imovel
+           FROM confrontantes c
+           LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
+           WHERE c.levantamento_id = ?""",
         (levantamento_id,)
     )
     confs_db = [dict(r) for r in cursor.fetchall()]

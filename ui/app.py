@@ -60,9 +60,9 @@ def start_app():
         "GerenciGeo - Georreferenciamento Avançado v2.4",
         "http://127.0.0.1:8000/principal.html",
         width=1280,
-        height=720,
+        height=800,
         min_size=(1024, 768),
-        frameless=True,
+        frameless=False,
         js_api=api
     )
     webview.start(debug=True)

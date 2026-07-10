@@ -187,10 +187,11 @@ class BorderAreaReportGenerator:
 
         # 3. Recupera metadados da Matrícula específica (incluindo novos campos de valor_itr, denominacao, georreferenciamento)
         query_mat = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE id = ? AND propriedade_id = ?
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.id = ? AND m.propriedade_id = ?
         """
         row_mat = execute_query(query_mat, params=(matricula_id, propriedade_id), fetch_one=True)
         if not row_mat:
@@ -199,11 +200,12 @@ class BorderAreaReportGenerator:
 
         # 4. Busca o proprietário principal vinculado à propriedade (incluindo sexo)
         query_proprietario = """
-            SELECT c.nome_completo, c.cpf_cnpj, c.rg_ie, c.estado_civil, c.regime_bens, 
-                   c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.profissao, c.nacionalidade, c.endereco_completo, c.cidade, c.estado,
+            SELECT p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado,
                    c.sexo, pc.percentual_participacao
             FROM propriedade_clientes pc
             JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE pc.propriedade_id = ?
             ORDER BY pc.percentual_participacao DESC, c.id ASC
             LIMIT 1
@@ -370,10 +372,11 @@ class BorderAreaReportGenerator:
 
         # 3. Recupera metadados da Matrícula específica (incluindo valor_itr, denominacao, georreferenciamento)
         query_mat = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE id = ? AND propriedade_id = ?
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.id = ? AND m.propriedade_id = ?
         """
         row_mat = execute_query(query_mat, params=(matricula_id, propriedade_id), fetch_one=True)
         if not row_mat:
@@ -382,11 +385,12 @@ class BorderAreaReportGenerator:
 
         # 4. Busca todos os proprietários vinculados à propriedade com dados completos (incluindo sexo)
         query_proprietarios = """
-            SELECT c.nome_completo, c.cpf_cnpj, c.rg_ie, c.estado_civil, c.regime_bens, 
-                   c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.profissao, c.nacionalidade, c.endereco_completo, c.cidade, c.estado,
+            SELECT p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado,
                    c.sexo, pc.percentual_participacao
             FROM propriedade_clientes pc
             JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE pc.propriedade_id = ?
             ORDER BY pc.percentual_participacao DESC, c.id ASC
         """

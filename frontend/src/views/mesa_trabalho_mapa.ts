@@ -12,6 +12,7 @@ export class MesaTrabalhoMapa {
   private map: L.Map | null = null;
   private markers: L.Marker[] = [];
   private polylines: L.Polyline[] = [];
+  private vizinhosMarkers: L.Marker[] = [];
   private satelliteLayer: L.TileLayer | null = null;
   private gridGroup: L.LayerGroup | null = null;
   private bancoPontosGroup: L.LayerGroup | null = null;
@@ -20,6 +21,7 @@ export class MesaTrabalhoMapa {
   private sigefLayer: L.TileLayer.WMS | null = null;
   public levantamentoId: number | null = null;
   private bancoPontosAtivo: boolean = false;
+  public canvasInteracao: any = null;
 
   constructor() {}
 
@@ -155,7 +157,13 @@ export class MesaTrabalhoMapa {
       // 1. Não faz nada se estiver no modo de clique sequencial
       if (this.modoCliqueSequencialAtivo) return;
 
-      // 2. Só executa se a camada do SIGEF estiver ativada/visível no mapa
+      // 2. Previne consulta se uma janela de seleção foi arrastada
+      if (this.canvasInteracao && this.canvasInteracao.selectionHappened) {
+        this.canvasInteracao.selectionHappened = false;
+        return;
+      }
+
+      // 3. Só executa se a camada do SIGEF estiver ativada/visível no mapa
       if (this.sigefLayer && this.map && this.map.hasLayer(this.sigefLayer)) {
         await this.consultarSigef(e);
       }
@@ -169,6 +177,20 @@ export class MesaTrabalhoMapa {
    */
   public getMap(): L.Map | null {
     return this.map;
+  }
+
+  /**
+   * Retorna os marcadores ativos no mapa
+   */
+  public getMarkers(): L.Marker[] {
+    return this.markers;
+  }
+
+  /**
+   * Retorna os marcadores de vizinhos ativos no mapa
+   */
+  public getVizinhosMarkers(): L.Marker[] {
+    return this.vizinhosMarkers;
   }
 
   /**
@@ -199,6 +221,7 @@ export class MesaTrabalhoMapa {
     }
     this.markers = [];
     this.polylines = [];
+    this.vizinhosMarkers = [];
   }
 
   /**
@@ -245,24 +268,22 @@ export class MesaTrabalhoMapa {
       if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0) {
         const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
         const isBasePPP = p.tipo_ponto === 'M' || p.tipo === 'M';
-        let markerBg = 'bg-mint-vibrant text-[#0c1510]';
+        let markerBg = 'bg-mint-vibrant';
         
         if (isBasePPP) {
-          markerBg = 'bg-indigo-600 text-white';
+          markerBg = 'bg-indigo-500';
         } else if (isBaseFisica) {
-          markerBg = 'bg-rose-600 text-white';
+          markerBg = 'bg-rose-500';
         }
 
         const opacityClass = this.bancoPontosAtivo ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
         const markerHtml = `
-          <div class="w-5 h-5 ${markerBg} border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold font-mono shadow-lg transition-transform hover:scale-125 ${opacityClass}" id="map-marker-${p.id}">
-            ${p.nome_vertice.substring(0, 3)}
-          </div>
+          <div class="w-2.5 h-2.5 ${markerBg} border border-[#0c1510] rounded-full shadow-md transition-all duration-150 coordinate-marker ${opacityClass}" data-ponto-bg="${markerBg}" id="map-marker-${p.id}"></div>
         `;
         const customIcon = L.divIcon({
           html: markerHtml,
-          className: 'custom-leaflet-marker',
-          iconSize: [20, 20]
+          className: 'custom-leaflet-marker flex items-center justify-center',
+          iconSize: [16, 16]
         });
 
         const popupRole = isBasePPP 
@@ -276,10 +297,10 @@ export class MesaTrabalhoMapa {
         
         if (!this.modoCliqueSequencialAtivo) {
           marker.bindPopup(`
-            <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3;">
-              <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${p.nome_vertice}</div>
-              <div style="font-size:11px; color:#555;">${popupRole} · ${p.tipo_ponto || p.tipo}</div>
-              <div style="font-size:11px; color:#777; font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
+            <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3;">
+              <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#ffffff;">${p.nome_vertice}</div>
+              <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">${popupRole} · ${p.tipo_ponto || p.tipo}</div>
+              <div style="font-size:11px; color:rgba(255, 255, 255, 0.45); font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
             </div>
           `, {
             className: 'compact-popup',
@@ -321,9 +342,9 @@ export class MesaTrabalhoMapa {
           dashArray: s.tipo_limite_sigef === 'LN1' ? '6, 6' : undefined,
           pane: 'perimetroPane'
         }).bindPopup(`
-          <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.3;">
-            <div style="font-weight:700; font-size:12px; margin-bottom:3px;">${pIni.nome_vertice} ↔ ${pFim.nome_vertice}</div>
-            <div style="font-size:11px; color:#555;">Limite: ${s.tipo_limite_sigef} · ${s.metodo_posicionamento_sigef}</div>
+          <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3;">
+            <div style="font-weight:700; font-size:12px; margin-bottom:3px; color:#ffffff;">${pIni.nome_vertice} ↔ ${pFim.nome_vertice}</div>
+            <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">Limite: ${s.tipo_limite_sigef} · ${s.metodo_posicionamento_sigef}</div>
           </div>
         `, {
           className: 'compact-popup',
@@ -407,14 +428,14 @@ export class MesaTrabalhoMapa {
       });
 
       const popupContent = `
-        <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.35; min-width:180px;">
-          <div style="font-weight:800; font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; border-b:1px solid #eee; padding-bottom:3px; margin-bottom:5px;">Vértice Homologado SIGEF</div>
-          <div style="font-weight:700; font-size:13px; margin-bottom:3px;">${p.codigo_completo}</div>
-          <div style="font-size:11px; color:#555; font-family:'JetBrains Mono',monospace;">Este (E): ${p.este ? p.este.toFixed(2) : 'N/A'} m</div>
-          <div style="font-size:11px; color:#555; font-family:'JetBrains Mono',monospace; margin-bottom:3px;">Norte (N): ${p.norte ? p.norte.toFixed(2) : 'N/A'} m</div>
-          <div style="font-size:11px; color:#555; margin-bottom:2px;">Alt (h): <strong>${p.altitude ? p.altitude.toFixed(2) : 'N/A'} m</strong></div>
-          <div style="font-size:10px; color:#666;">Método: ${p.metodo_posicionamento || 'N/A'} · Limite: ${p.tipo_limite || 'N/A'}</div>
-          ${p.confrontante_descritivo ? `<div style="font-size:10px; color:#444; border-top:1px solid #eee; padding-top:4px; margin-top:4px; word-break:break-word;"><strong>Conf:</strong> ${p.confrontante_descritivo}</div>` : ''}
+        <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.35; min-width:180px;">
+          <div style="font-weight:800; font-size:11px; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; border-b:1px solid rgba(255, 255, 255, 0.1); padding-bottom:3px; margin-bottom:5px;">Vértice Homologado SIGEF</div>
+          <div style="font-weight:700; font-size:13px; margin-bottom:3px; color:#ffffff;">${p.codigo_completo}</div>
+          <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); font-family:'JetBrains Mono',monospace;">Este (E): ${p.este ? p.este.toFixed(2) : 'N/A'} m</div>
+          <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); font-family:'JetBrains Mono',monospace; margin-bottom:3px;">Norte (N): ${p.norte ? p.norte.toFixed(2) : 'N/A'} m</div>
+          <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Alt (h): <strong>${p.altitude ? p.altitude.toFixed(2) : 'N/A'} m</strong></div>
+          <div style="font-size:10px; color:rgba(255, 255, 255, 0.45);">Método: ${p.metodo_posicionamento || 'N/A'} · Limite: ${p.tipo_limite || 'N/A'}</div>
+          ${p.confrontante_descritivo ? `<div style="font-size:10px; color:rgba(255, 255, 255, 0.65); border-top:1px solid rgba(255, 255, 255, 0.1); padding-top:4px; margin-top:4px; word-break:break-word;"><strong>Conf:</strong> ${p.confrontante_descritivo}</div>` : ''}
         </div>
       `;
 
@@ -478,6 +499,7 @@ export class MesaTrabalhoMapa {
     if (!this.map || !this.pontosVizinhosGroup) return;
 
     this.pontosVizinhosGroup.clearLayers();
+    this.vizinhosMarkers = [];
 
     const grupos = new Map<number, any[]>();
     pontos.forEach(p => {
@@ -524,15 +546,19 @@ export class MesaTrabalhoMapa {
         `;
 
         const customIcon = L.divIcon({
-          className: 'custom-div-icon',
-          html: `<div class="w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)]"></div>`,
-          iconSize: [10, 10],
-          iconAnchor: [5, 5]
+          className: 'custom-div-icon flex items-center justify-center',
+          html: `<div class="w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] transition-all duration-150 neighbor-marker" data-ponto-bg="bg-purple-500" id="vizinho-marker-${p.id}"></div>`,
+          iconSize: [16, 16]
         });
 
-        L.marker([p.lat, p.lon], { icon: customIcon })
-          .bindPopup(popupContent, { className: 'custom-leaflet-popup' })
-          .addTo(this.pontosVizinhosGroup!);
+        const marker = L.marker([p.lat, p.lon], { icon: customIcon })
+          .bindPopup(popupContent, { className: 'custom-leaflet-popup' });
+        
+        (marker as any).pontoId = p.id;
+        (marker as any).isVizinho = true;
+        
+        marker.addTo(this.pontosVizinhosGroup!);
+        this.vizinhosMarkers.push(marker);
       });
     });
   }
@@ -712,27 +738,27 @@ export class MesaTrabalhoMapa {
           const sigefConsultarUrl = `https://sigef.incra.gov.br/geo/parcela/detalhe/${uuid}/`;
           
           const popupContent = `
-            <div style="font-family:var(--geo-font-sans),sans-serif; color:#1a1a1a; line-height:1.4; min-width:180px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid #e5e5e5;">
+            <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.4; min-width:180px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid rgba(255, 255, 255, 0.1);">
                 <span style="font-weight:700; font-size:11px; color:#10b981; text-transform:uppercase; letter-spacing:0.5px;">SIGEF</span>
-                <span style="font-size:10px; color:#999;">${props.situacao_informada || props.status || 'Certificada'}</span>
+                <span style="font-size:10px; color:rgba(255, 255, 255, 0.5);">${props.situacao_informada || props.status || 'Certificada'}</span>
               </div>
-              <div style="font-weight:700; font-size:12px; margin-bottom:4px; word-break:break-word;">${props.nome_area || props.nome_imovel || 'Imóvel Sem Nome'}</div>
-              <div style="font-size:11px; color:#555; margin-bottom:2px;">Cód: <span style="font-family:'JetBrains Mono',monospace;">${props.codigo_imovel || 'N/A'}</span></div>
-              <div style="display:flex; gap:12px; font-size:11px; color:#555; margin-bottom:6px;">
-                <span>Mat: <strong style="color:#1a1a1a;">${props.registro_matricula || props.matricula || 'N/A'}</strong></span>
+              <div style="font-weight:700; font-size:12px; margin-bottom:4px; color:#ffffff; word-break:break-word;">${props.nome_area || props.nome_imovel || 'Imóvel Sem Nome'}</div>
+              <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Cód: <span style="font-family:'JetBrains Mono',monospace;">${props.codigo_imovel || 'N/A'}</span></div>
+              <div style="display:flex; gap:12px; font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:6px;">
+                <span>Mat: <strong style="color:#ffffff;">${props.registro_matricula || props.matricula || 'N/A'}</strong></span>
                 <span>${props.data_submissao || ''}</span>
               </div>
-              <div style="display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid #e5e5e5;">
-                <a href="${downloadUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 8px; background:#e6faf1; border:1px solid #a7f3d0; color:#059669; font-size:11px; font-weight:700; border-radius:5px; text-decoration:none; cursor:pointer;">
+              <div style="display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255, 255, 255, 0.1);">
+                <a href="${downloadUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 8px; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.3); color:#34d399; font-size:11px; font-weight:700; border-radius:5px; text-decoration:none; cursor:pointer;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Baixar Shapefile
                 </a>
-                <button onclick="window.importarVizinhoSIGEF('${uuid}', '${(props.nome_area || props.nome_imovel || 'Imóvel').replace(/'/g, "\\'")}')" style="display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 8px; background:#e0f2fe; border:1px solid #bae6fd; color:#0369a1; font-size:11px; font-weight:700; border-radius:5px; cursor:pointer; width:100%; text-align:center;">
+                <button onclick="window.importarVizinhoSIGEF('${uuid}', '${(props.nome_area || props.nome_imovel || 'Imóvel').replace(/'/g, "\\'")}')" style="display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 8px; background:rgba(14, 165, 233, 0.15); border:1px solid rgba(14, 165, 233, 0.3); color:#38bdf8; font-size:11px; font-weight:700; border-radius:5px; cursor:pointer; width:100%; text-align:center;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Importar Confrontante (CSV)
                 </button>
-                <a href="${sigefConsultarUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 6px; background:#f5f5f5; border:1px solid #e0e0e0; color:#555; font-size:10px; font-weight:600; border-radius:5px; text-decoration:none; cursor:pointer;">
+                <a href="${sigefConsultarUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 6px; background:rgba(255, 255, 255, 0.05); border:1px solid rgba(255, 255, 255, 0.1); color:rgba(255, 255, 255, 0.7); font-size:10px; font-weight:600; border-radius:5px; text-decoration:none; cursor:pointer;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   Abrir no SIGEF
                 </a>

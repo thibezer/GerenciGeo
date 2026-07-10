@@ -55,10 +55,11 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
     # 3. Matrícula
     row_mat = execute_query(
         """
-        SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-               valor_itr, denominacao, georreferenciamento
-        FROM matriculas
-        WHERE id = ? AND propriedade_id = ?
+        SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+               m.valor_itr, m.denominacao, m.georreferenciamento
+        FROM matriculas m
+        JOIN propriedades pr ON m.propriedade_id = pr.id
+        WHERE m.id = ? AND m.propriedade_id = ?
         """,
         params=(matricula_id, prop_id),
         fetch_one=True
@@ -70,10 +71,11 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
     # 4. Proprietários
     rows_owners = execute_query(
         """
-        SELECT c.nome_completo, c.cpf_cnpj, c.rg_ie, c.estado_civil, c.regime_bens, 
-               c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.profissao, c.nacionalidade, c.endereco_completo, c.cidade, c.estado, c.sexo
+        SELECT p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+               p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado, c.sexo
         FROM propriedade_clientes pc
         JOIN clientes c ON pc.cliente_id = c.id
+        JOIN pessoas p ON c.pessoa_id = p.id
         WHERE pc.propriedade_id = ?
         ORDER BY pc.percentual_participacao DESC, c.id ASC
         """,
@@ -248,11 +250,12 @@ class CartorioReportGenerator:
         # 1. Recuperar todas as matrículas cadastradas para a propriedade
         prop_id = dados["prop"]["id"]
         query_mats = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE propriedade_id = ?
-            ORDER BY numero_matricula
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.propriedade_id = ?
+            ORDER BY m.numero_matricula
         """
         rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
         mats = [dict(m) for m in rows_mats]
@@ -446,11 +449,12 @@ class CartorioReportGenerator:
         # 1. Recuperar todas as matrículas cadastradas para a propriedade
         prop_id = dados["prop"]["id"]
         query_mats = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE propriedade_id = ?
-            ORDER BY numero_matricula
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.propriedade_id = ?
+            ORDER BY m.numero_matricula
         """
         rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
         mats = [dict(m) for m in rows_mats]
@@ -573,11 +577,12 @@ class CartorioReportGenerator:
         # 1. Recuperar todas as matrículas cadastradas para a propriedade
         prop_id = dados["prop"]["id"]
         query_mats = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE propriedade_id = ?
-            ORDER BY numero_matricula
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.propriedade_id = ?
+            ORDER BY m.numero_matricula
         """
         rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
         mats = [dict(m) for m in rows_mats]
@@ -1051,10 +1056,11 @@ class CartorioReportGenerator:
 
         row_conf = execute_query(
             """
-            SELECT id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
-                   endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, matricula_imovel
-            FROM confrontantes
-            WHERE id = ? AND levantamento_id = ?
+            SELECT c.id, p.nome, p.cpf_cnpj, p.rg, p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens, 
+                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, c.matricula_imovel
+            FROM confrontantes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE c.id = ? AND c.levantamento_id = ?
             """,
             params=(confrontante_id, lev_id),
             fetch_one=True
@@ -1204,7 +1210,13 @@ class CartorioReportGenerator:
                 corpos_paginas.append(corpo)
                 
                 # Resgata metadados para construir mapa Leaflet correspondente
-                row_conf = execute_query("SELECT nome, matricula_imovel FROM confrontantes WHERE id = ?", params=(c_id,), fetch_one=True)
+                query_c = """
+                    SELECT p.nome, c.matricula_imovel 
+                    FROM confrontantes c
+                    JOIN pessoas p ON c.pessoa_id = p.id
+                    WHERE c.id = ?
+                """
+                row_conf = execute_query(query_c, params=(c_id,), fetch_one=True)
                 if row_conf:
                     c_nome = row_conf["nome"] or ""
                     c_mat = row_conf["matricula_imovel"] or ""
@@ -1290,11 +1302,12 @@ class CartorioReportGenerator:
         # 1. Recuperar todas as matrículas cadastradas para a propriedade do levantamento
         prop_id = dados["prop"]["id"]
         query_mats = """
-            SELECT id, numero_matricula, ccir, itr, area_ha, cri_comarca, cri_circunscricao, livro_registro, folha_registro,
-                   valor_itr, denominacao, georreferenciamento
-            FROM matriculas
-            WHERE propriedade_id = ?
-            ORDER BY numero_matricula
+            SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
+                   m.valor_itr, m.denominacao, m.georreferenciamento
+            FROM matriculas m
+            JOIN propriedades pr ON m.propriedade_id = pr.id
+            WHERE m.propriedade_id = ?
+            ORDER BY m.numero_matricula
         """
         rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
         mats = [dict(m) for m in rows_mats]
