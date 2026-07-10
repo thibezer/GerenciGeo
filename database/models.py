@@ -25,27 +25,35 @@ def create_tables(conn):
         );
         """,
         """
-        CREATE TABLE IF NOT EXISTS clientes (
+        CREATE TABLE IF NOT EXISTS pessoas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome_completo TEXT NOT NULL,              
+            nome TEXT NOT NULL,
             cpf_cnpj TEXT UNIQUE NOT NULL,
-            rg_ie TEXT,
-            data_nascimento_fundacao DATE,
-            estado_civil TEXT,               
-            profissao TEXT,
+            rg TEXT,
             nacionalidade TEXT,
+            profissao TEXT,
+            estado_civil TEXT,
+            regime_bens TEXT,
+            endereco_completo TEXT,
             nome_conjuge TEXT,
             cpf_conjuge TEXT,
             rg_conjuge TEXT,
-            regime_bens TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pessoa_id INTEGER NOT NULL,
+            data_nascimento_fundacao DATE,
             email TEXT,
             telefone TEXT,
-            endereco_completo TEXT,
             cidade TEXT,
             estado TEXT,
             cep TEXT,
             sexo TEXT DEFAULT 'M',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
         );
         """,
         """
