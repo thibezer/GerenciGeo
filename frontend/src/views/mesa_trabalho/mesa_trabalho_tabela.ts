@@ -9,6 +9,7 @@
 interface Ponto {
   id: number;
   nome_vertice: string;
+  nome_original?: string;
   tipo_ponto?: string;
   tipo?: string;
   lat?: number;
@@ -163,6 +164,7 @@ export const renderLinhaPontoCartorioHtml = (
           </button>
         </div>
         ${badgeArquivoHtml}
+        ${p.nome_original && p.nome_original !== p.nome_vertice ? `<div class="text-[9px] text-white/35 font-mono italic mt-0.5 max-w-[120px] truncate" title="Nome original de campo: ${p.nome_original}">Original: ${p.nome_original}</div>` : ''}
       </td>
       <td class="px-2 py-2.5 text-center">
          ${badgeHtml}
