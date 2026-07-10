@@ -259,84 +259,95 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # A. Atualiza a ordem_caminhamento de cada ponto de forma atômica
-            if matricula_id is None or matricula_id == 0:
-                query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id IS NULL"
-                params_base = lambda o, pid: (o, pid, levantamento_id)
-            else:
-                query_update = "UPDATE pontos SET ordem_caminhamento = ?, matricula_id = ? WHERE id = ? AND levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)"
-                params_base = lambda o, pid: (o, matricula_id, pid, levantamento_id, matricula_id)
+            try:
 
-            for item in pontos_ordem:
-                cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
-            
-            if matricula_id is None or matricula_id == 0:
-                conn.commit()
-                return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem dos pontos avulsos salva com sucesso."}
-
-            # B. Obter metadados dos limites dos segmentos anteriores para preservá-los
-            query_preservar_limites = """
-                SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                FROM segmentos
-                WHERE levantamento_id = ? AND matricula_id = ?
-            """
-            cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
-            segmentos_antigos = cursor.fetchall()
-            
-            mapa_segmento_info = {}
-            for seg in segmentos_antigos:
-                chave = (seg["ponto_inicio_id"], seg["ponto_fim_id"])
-                mapa_segmento_info[chave] = {
-                    "confrontante_id": seg["confrontante_id"],
-                    "tipo_limite_sigef": seg["tipo_limite_sigef"],
-                    "metodo_posicionamento_sigef": seg["metodo_posicionamento_sigef"]
-                }
-
-            # C. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
-            cursor.execute(
-                "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
-                (levantamento_id, matricula_id)
-            )
-            
-            # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
-            cursor.execute(
-                "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY ordem_caminhamento ASC",
-                (levantamento_id, matricula_id)
-            )
-            rows = cursor.fetchall()
-            if len(rows) < 2:
-                conn.commit()
-                return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem salva. Menos de 2 pontos ativos."}
-            
-            pts_ordenados_ids = [r["id"] for r in rows]
-            primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
-            metodo_padrao = "PG1" if primeiro_pt_sigma > 0.0 else "MC1"
-            
-            # E. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
-            query_seg = """
-                INSERT INTO segmentos (
-                    levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
-                    confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """
-            
-            def obter_info_segmento(pt_ini_id, pt_fim_id):
-                chave_original = (pt_ini_id, pt_fim_id)
-                chave_inversa = (pt_fim_id, pt_ini_id)
-                if chave_original in mapa_segmento_info:
-                    return mapa_segmento_info[chave_original]
-                elif chave_inversa in mapa_segmento_info:
-                    return mapa_segmento_info[chave_inversa]
+                # A. Atualiza a ordem_caminhamento de cada ponto de forma atômica
+                if matricula_id is None or matricula_id == 0:
+                    query_update = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ? AND levantamento_id = ? AND matricula_id IS NULL"
+                    params_base = lambda o, pid: (o, pid, levantamento_id)
                 else:
-                    return {
-                        "confrontante_id": None,
-                        "tipo_limite_sigef": "LN1",
-                        "metodo_posicionamento_sigef": metodo_padrao
+                    query_update = "UPDATE pontos SET ordem_caminhamento = ?, matricula_id = ? WHERE id = ? AND levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)"
+                    params_base = lambda o, pid: (o, matricula_id, pid, levantamento_id, matricula_id)
+
+                for item in pontos_ordem:
+                    cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
+
+                if matricula_id is None or matricula_id == 0:
+                    conn.commit()
+                    return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem dos pontos avulsos salva com sucesso."}
+
+                # B. Obter metadados dos limites dos segmentos anteriores para preservá-los
+                query_preservar_limites = """
+                    SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                    FROM segmentos
+                    WHERE levantamento_id = ? AND matricula_id = ?
+                """
+                cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
+                segmentos_antigos = cursor.fetchall()
+
+                mapa_segmento_info = {}
+                for seg in segmentos_antigos:
+                    chave = (seg["ponto_inicio_id"], seg["ponto_fim_id"])
+                    mapa_segmento_info[chave] = {
+                        "confrontante_id": seg["confrontante_id"],
+                        "tipo_limite_sigef": seg["tipo_limite_sigef"],
+                        "metodo_posicionamento_sigef": seg["metodo_posicionamento_sigef"]
                     }
-            
-            for i in range(len(pts_ordenados_ids) - 1):
-                pt_ini_id = pts_ordenados_ids[i]
-                pt_fim_id = pts_ordenados_ids[i+1]
+
+                # C. Remove toda a topologia/segmentos de divisa existentes daquela matrícula
+                cursor.execute(
+                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
+                    (levantamento_id, matricula_id)
+                )
+
+                # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
+                cursor.execute(
+                    "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY ordem_caminhamento ASC",
+                    (levantamento_id, matricula_id)
+                )
+                rows = cursor.fetchall()
+                if len(rows) < 2:
+                    conn.commit()
+                    return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem salva. Menos de 2 pontos ativos."}
+
+                pts_ordenados_ids = [r["id"] for r in rows]
+                primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
+                metodo_padrao = "PG1" if primeiro_pt_sigma > 0.0 else "MC1"
+
+                # E. Recria de forma sequencial as polilinhas (ligando o de cima com o de baixo e o fechamento)
+                query_seg = """
+                    INSERT INTO segmentos (
+                        levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id,
+                        confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """
+
+                def obter_info_segmento(pt_ini_id, pt_fim_id):
+                    chave_original = (pt_ini_id, pt_fim_id)
+                    chave_inversa = (pt_fim_id, pt_ini_id)
+                    if chave_original in mapa_segmento_info:
+                        return mapa_segmento_info[chave_original]
+                    elif chave_inversa in mapa_segmento_info:
+                        return mapa_segmento_info[chave_inversa]
+                    else:
+                        return {
+                            "confrontante_id": None,
+                            "tipo_limite_sigef": "LN1",
+                            "metodo_posicionamento_sigef": metodo_padrao
+                        }
+
+                for i in range(len(pts_ordenados_ids) - 1):
+                    pt_ini_id = pts_ordenados_ids[i]
+                    pt_fim_id = pts_ordenados_ids[i+1]
+                    info = obter_info_segmento(pt_ini_id, pt_fim_id)
+                    cursor.execute(query_seg, (
+                        levantamento_id, matricula_id,
+                        pt_ini_id, pt_fim_id,
+                        info["confrontante_id"], info["tipo_limite_sigef"], info["metodo_posicionamento_sigef"]
+                    ))
+
+                pt_ini_id = pts_ordenados_ids[-1]
+                pt_fim_id = pts_ordenados_ids[0]
                 info = obter_info_segmento(pt_ini_id, pt_fim_id)
                 cursor.execute(query_seg, (
                     levantamento_id, matricula_id, 
@@ -344,16 +355,10 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                     info["confrontante_id"], info["tipo_limite_sigef"], info["metodo_posicionamento_sigef"]
                 ))
                 
-            pt_ini_id = pts_ordenados_ids[-1]
-            pt_fim_id = pts_ordenados_ids[0]
-            info = obter_info_segmento(pt_ini_id, pt_fim_id)
-            cursor.execute(query_seg, (
-                levantamento_id, matricula_id, 
-                pt_ini_id, pt_fim_id,
-                info["confrontante_id"], info["tipo_limite_sigef"], info["metodo_posicionamento_sigef"]
-            ))
-            
-            conn.commit()
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
             
         # Sincroniza metadados no workspace físico
         wm = WorkspaceManager()
@@ -752,15 +757,15 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             except Exception as ex_reorder:
                 logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
 
-        if propagar_base_bloco:
-            rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
-            logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+            if propagar_base_bloco:
+                rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
+                logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
 
-        if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
-            new_base_id = pt_antigo["ponto_base_id"]
-            recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
-        
-        return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
+            if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
+                new_base_id = pt_antigo["ponto_base_id"]
+                recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
+
+            return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
     except Exception as e:
         logger.error(f"Erro ao atualizar ponto {pid}: {e}", exc_info=True)
         return {"error": str(e), "status_code": 400}

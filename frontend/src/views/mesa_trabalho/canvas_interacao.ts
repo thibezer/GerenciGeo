@@ -341,4 +341,15 @@ export class CanvasInteracao {
       this.ctx.mapaController.fitBounds(pontosMat);
     }
   }
+
+  public destroy() {
+    if (this.mapContainer) {
+      this.mapContainer.removeEventListener('mousedown', this.handleMouseDown);
+      this.mapContainer.removeEventListener('mousemove', this.handleMouseMove);
+      this.mapContainer.removeEventListener('contextmenu', this.handleContextMenu);
+    }
+    window.removeEventListener('mouseup', this.handleMouseUp);
+    window.removeEventListener('keydown', this.handleKeyDown);
+  }
+
 }

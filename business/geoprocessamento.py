@@ -281,82 +281,87 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
                 
-                # A. Atualiza a nova ordem de caminhamento nos vértices
-                query_update_pt = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?"
-                for nova_ordem, pt in enumerate(pontos_ordenados, start=1):
-                    cursor.execute(query_update_pt, (nova_ordem, pt["id"]))
+                try:
                 
-                if matricula_id is not None and matricula_id != 0:
-                    # B. Obtém metadados dos limites dos segmentos anteriores para preservá-los
-                    query_preservar_limites = """
-                        SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                        FROM segmentos
-                        WHERE levantamento_id = ? AND matricula_id = ?
-                    """
-                    cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
-                    segmentos_antigos = cursor.fetchall()
-                    
-                    # Mapeia as conexões antigas para manter limites e confrontantes configurados pelo topógrafo
-                    mapa_segmento_info = {}
-                    for seg in segmentos_antigos:
-                        # Chave baseada na conexão bidirecional por segurança
-                        chave = (seg[0], seg[1])
-                        mapa_segmento_info[chave] = {
-                            "confrontante_id": seg[2],
-                            "tipo_limite_sigef": seg[3],
-                            "metodo_posicionamento_sigef": seg[4]
-                        }
+                    # A. Atualiza a nova ordem de caminhamento nos vértices
+                    query_update_pt = "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?"
+                    for nova_ordem, pt in enumerate(pontos_ordenados, start=1):
+                        cursor.execute(query_update_pt, (nova_ordem, pt["id"]))
 
-                    # C. Remove todos os segmentos anteriores
-                    cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, matricula_id))
+                    if matricula_id is not None and matricula_id != 0:
+                        # B. Obtém metadados dos limites dos segmentos anteriores para preservá-los
+                        query_preservar_limites = """
+                            SELECT ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                            FROM segmentos
+                            WHERE levantamento_id = ? AND matricula_id = ?
+                        """
+                        cursor.execute(query_preservar_limites, (levantamento_id, matricula_id))
+                        segmentos_antigos = cursor.fetchall()
                     
-                    # D. Reconstroi a cadeia de segmentos
-                    primeiro_pt = pontos_ordenados[0]
-                    metodo_padrao = "PG1" if (primeiro_pt.get("sigma_lat") or 0.0) > 0.0 else "MC1"
-                    
-                    query_insert_seg = """
-                        INSERT INTO segmentos (
-                            levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, 
-                            confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """
-                    
-                    segmentos_criados = 0
-                    for i in range(n):
-                        pt_ini = pontos_ordenados[i]
-                        pt_fim = pontos_ordenados[(i + 1) % n]
-                        
-                        # Tenta reaproveitar limites e confrontantes já inseridos
-                        chave_original = (pt_ini["id"], pt_fim["id"])
-                        chave_inversa = (pt_fim["id"], pt_ini["id"])
-                        
-                        if chave_original in mapa_segmento_info:
-                            info = mapa_segmento_info[chave_original]
-                        elif chave_inversa in mapa_segmento_info:
-                            info = mapa_segmento_info[chave_inversa]
-                        else:
-                            info = {
-                                "confrontante_id": None,
-                                "tipo_limite_sigef": "LN1",  # Limite padrão: Linha
-                                "metodo_posicionamento_sigef": metodo_padrao
+                        # Mapeia as conexões antigas para manter limites e confrontantes configurados pelo topógrafo
+                        mapa_segmento_info = {}
+                        for seg in segmentos_antigos:
+                            # Chave baseada na conexão bidirecional por segurança
+                            chave = (seg[0], seg[1])
+                            mapa_segmento_info[chave] = {
+                                "confrontante_id": seg[2],
+                                "tipo_limite_sigef": seg[3],
+                                "metodo_posicionamento_sigef": seg[4]
                             }
-                        
-                        cursor.execute(query_insert_seg, (
-                            levantamento_id,
-                            matricula_id,
-                            pt_ini["id"],
-                            pt_fim["id"],
-                            info["confrontante_id"],
-                            info["tipo_limite_sigef"],
-                            info["metodo_posicionamento_sigef"]
-                        ))
-                        segmentos_criados += 1
+
+                        # C. Remove todos os segmentos anteriores
+                        cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, matricula_id))
                     
-                    conn.commit()
-                    logger.info(f"[TOPOLOGIA] Perímetro ordenado com sucesso. {segmentos_criados} segmentos gravados.")
-                else:
-                    conn.commit()
-                    logger.info("[TOPOLOGIA] Pontos avulsos do levantamento ordenados com sucesso no banco.")
+                        # D. Reconstroi a cadeia de segmentos
+                        primeiro_pt = pontos_ordenados[0]
+                        metodo_padrao = "PG1" if (primeiro_pt.get("sigma_lat") or 0.0) > 0.0 else "MC1"
+                    
+                        query_insert_seg = """
+                            INSERT INTO segmentos (
+                                levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id,
+                                confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """
+                    
+                        segmentos_criados = 0
+                        for i in range(n):
+                            pt_ini = pontos_ordenados[i]
+                            pt_fim = pontos_ordenados[(i + 1) % n]
+                        
+                            # Tenta reaproveitar limites e confrontantes já inseridos
+                            chave_original = (pt_ini["id"], pt_fim["id"])
+                            chave_inversa = (pt_fim["id"], pt_ini["id"])
+                        
+                            if chave_original in mapa_segmento_info:
+                                info = mapa_segmento_info[chave_original]
+                            elif chave_inversa in mapa_segmento_info:
+                                info = mapa_segmento_info[chave_inversa]
+                            else:
+                                info = {
+                                    "confrontante_id": None,
+                                    "tipo_limite_sigef": "LN1",  # Limite padrão: Linha
+                                    "metodo_posicionamento_sigef": metodo_padrao
+                                }
+                        
+                            cursor.execute(query_insert_seg, (
+                                levantamento_id,
+                                matricula_id,
+                                pt_ini["id"],
+                                pt_fim["id"],
+                                info["confrontante_id"],
+                                info["tipo_limite_sigef"],
+                                info["metodo_posicionamento_sigef"]
+                            ))
+                            segmentos_criados += 1
+                    
+                        conn.commit()
+                        logger.info(f"[TOPOLOGIA] Perímetro ordenado com sucesso. {segmentos_criados} segmentos gravados.")
+                    else:
+                        conn.commit()
+                        logger.info("[TOPOLOGIA] Pontos avulsos do levantamento ordenados com sucesso no banco.")
+                except Exception as e:
+                    conn.rollback()
+                    raise e
                 
             return {
                 "sucesso": True,

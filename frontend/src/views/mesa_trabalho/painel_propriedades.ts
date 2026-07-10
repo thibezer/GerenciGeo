@@ -983,8 +983,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
         try {
           let sucessoTotal = true;
+          let processados = 0;
+          const totalCount = ctx.selectedPontoIds.length;
 
           for (const pid of ctx.selectedPontoIds) {
+            novoBtn.innerText = `Salvando ${++processados} de ${totalCount} vértices...`;
             const payload: any = {};
 
             if (tipoAlterado) payload.tipo_ponto = tipoEl.value;
@@ -1118,6 +1121,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
         } catch (err) {
           console.error(err);
           showToast("Erro ao salvar alterações em lote.", "error");
+        } finally {
+          novoBtn.innerText = "Salvar Alterações em Lote";
         }
       };
     }
