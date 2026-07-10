@@ -144,6 +144,7 @@ def create_tables(conn):
             levantamento_id INTEGER NOT NULL,
             matricula_id INTEGER,
             nome_vertice TEXT NOT NULL,       
+            nome_original TEXT,
             tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V','B')),
             lat REAL,
             lon REAL,
@@ -367,6 +368,7 @@ def create_tables(conn):
         # Migração Automática Avançada (Manifesto v2.2.0)
         # Adiciona dinamicamente as colunas do "Antes e Depois" geodésico se elas não existirem no banco físico
         colunas_novas = [
+            ("nome_original", "TEXT"),
             ("n_original", "REAL"),
             ("e_original", "REAL"),
             ("alt_original", "REAL"),
@@ -401,6 +403,28 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em pontos: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col}: {ex_mig}")
+                    
+        # Inicializa o nome_original para registros antigos que agora possuem a coluna nome_original
+        try:
+            cursor.execute("UPDATE pontos SET nome_original = nome_vertice WHERE nome_original IS NULL")
+            logger.info("Valores de nome_original inicializados com sucesso na tabela pontos.")
+        except Exception as ex_init:
+            logger.warning(f"Erro ao inicializar nome_original na tabela pontos: {ex_init}")
+
+        # Cria o trigger que garante nome_original = nome_vertice no insert
+        try:
+            cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_pontos_nome_original 
+            AFTER INSERT ON pontos 
+            FOR EACH ROW 
+            WHEN NEW.nome_original IS NULL
+            BEGIN
+                UPDATE pontos SET nome_original = NEW.nome_vertice WHERE id = NEW.id;
+            END;
+            """)
+            logger.info("Trigger trg_pontos_nome_original verificado/criado com sucesso.")
+        except Exception as ex_trg:
+            logger.warning(f"Erro ao criar trigger trg_pontos_nome_original: {ex_trg}")
         
         # Migração dinâmica para a tabela propriedades (codigo_ccir)
         colunas_propriedades = [
@@ -612,6 +636,7 @@ def migrar_restricao_unicidade_pontos(conn):
                 levantamento_id INTEGER NOT NULL,
                 matricula_id INTEGER,
                 nome_vertice TEXT NOT NULL,       
+                nome_original TEXT,
                 tipo_ponto TEXT NOT NULL CHECK(tipo_ponto IN ('M','P','V','B')),
                 lat REAL,
                 lon REAL,

@@ -210,8 +210,19 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${origemTexto}</span>
           </div>
           <div class="props-field">
+            <label class="props-field-label">Nome Original</label>
+            <input type="text" value="${p.nome_original || p.nome_vertice || '-'}" class="props-field-value font-mono text-white/50" readonly />
+          </div>
+          <div class="props-field flex items-center justify-between">
             <label class="props-field-label">Vértice</label>
-            <input type="text" id="prop-nome-vertice" value="${p.nome_vertice || ''}" class="props-field-value font-mono" ${isDisabled ? 'disabled' : ''} />
+            <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
+              <input type="text" id="prop-nome-vertice" value="${p.nome_vertice || ''}" class="props-field-value font-mono flex-1 min-w-0" ${isDisabled ? 'disabled' : ''} />
+              ${!isDisabled ? `
+                <button type="button" id="btn-sugerir-nome" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Sugerir Nome Oficial (INCRA)">
+                  <i data-lucide="sparkles" class="w-2.5 h-2.5"></i>
+                </button>
+              ` : ''}
+            </div>
           </div>
 
           <div class="props-field">
@@ -467,6 +478,39 @@ export function atualizarPainelPropriedades(ctx: any): void {
         el.addEventListener('change', verificarAlteracoes);
       }
     });
+
+    const btnSugerir = document.getElementById('btn-sugerir-nome');
+    if (btnSugerir) {
+      btnSugerir.onclick = async () => {
+        try {
+          const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
+          const tipo = tipoSelect ? tipoSelect.value : (p.tipo_ponto || p.tipo);
+          
+          if (!['M', 'P', 'V'].includes(tipo)) {
+            showToast("Sugestão de nome oficial apenas para Marcos (M), Pontos (P) ou Virtuais (V).", "info");
+            return;
+          }
+
+          const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-sugeridos`);
+          if (!res.ok) throw new Error("Erro ao buscar sugestão de código");
+          
+          const data = await res.json();
+          const sug = data.sugestoes[tipo];
+          if (sug && sug.codigo_sugerido) {
+            const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
+            if (nomeInput) {
+              nomeInput.value = sug.codigo_sugerido;
+              nomeInput.classList.add('dirty');
+              verificarAlteracoes();
+              showToast(`Sugestão aplicada: ${sug.codigo_sugerido}`, "success");
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          showToast("Erro ao sugerir código de ponto.", "error");
+        }
+      };
+    }
 
     // Salvar Alterações
     const btnSalvar = document.getElementById('btn-props-salvar');
