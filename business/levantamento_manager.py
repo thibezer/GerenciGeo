@@ -540,7 +540,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 fetch_one=True
             )
             if exists:
-                return {"error": f"Já existe um vértice com o nome '{nome_novo}' para este mesmo tipo e matrícula.", "status_code": 400}
+                return {"error": "Conflito de unicidade de nome para o mesmo tipo/matrícula.", "status_code": 400}
                 
             campos_update.append("nome_vertice = ?")
             valores_update.append(nome_novo)
@@ -585,8 +585,8 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             epsg_utm = f"319{60 + zona}"
             transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
             lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
-            data["lat"] = lat_val
-            data["lon"] = lon_val
+            data["lat"] = float(lat_val)
+            data["lon"] = float(lon_val)
             if alt_corr is not None:
                 data["alt"] = alt_corr
 
