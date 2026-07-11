@@ -569,6 +569,21 @@ thead th,
 }
 
 /* ==========================================================================
+   Anti-Flicker: Transição suave de tiles nas camadas de mapa base
+   Elimina o "piscar branco" durante animações de zoom no Leaflet
+   ========================================================================== */
+
+/* Aplicado via className: 'smooth-zoom-layer' nas camadas TileLayer */
+.smooth-zoom-layer {
+  transition: opacity 0.25s ease-in-out;
+}
+
+/* Garante que os tiles antigos permaneçam visíveis enquanto os novos carregam */
+.smooth-zoom-layer.leaflet-zoom-animated {
+  will-change: transform, opacity;
+}
+
+/* ==========================================================================
    Mesa de Ingestão de Arquivos Colapsada Responsiva (Mobile-First)
    ========================================================================== */
 @media (max-width: 1023px) {

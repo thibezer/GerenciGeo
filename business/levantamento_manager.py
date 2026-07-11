@@ -638,7 +638,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             valores_update.append(tipo_ponto)
             
             if tipo_ponto in ['M', 'B']:
-                campos_update.append("ponto_base_id = NULL")
+                # Usa placeholder seguro em vez de NULL literal para evitar mismatch de parâmetros
+                campos_update.append("ponto_base_id = ?")
+                valores_update.append(None)
                 pt_antigo["ponto_base_id"] = None
                 
             HistoricoCampoLogger.registrar_evento(
@@ -701,7 +703,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         
         for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono", "sequencia_travada_id"]:
             val = data.get(campo)
-            if val is not None and val != pt_antigo[campo]:
+            # Usa .get() para tolerância a colunas ausentes em bancos de dados antigos
+            val_antigo = pt_antigo.get(campo)
+            if val is not None and val != val_antigo:
                 campos_update.append(f"{campo} = ?")
                 valores_update.append(val)
                 atualizar_coordenadas = True
@@ -760,15 +764,18 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             except Exception as ex_reorder:
                 logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
 
-            if propagar_base_bloco:
-                rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
-                logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+        # BUGFIX: esses blocos estavam indevidamente dentro do if reordenar_poligono_reativo,
+        # causando que a função retornasse None implicitamente quando o flag era False.
+        if propagar_base_bloco:
+            rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
+            logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
 
-            if recalcular_rover and pt_antigo["tipo_ponto"] in ["P", "V"]:
-                new_base_id = pt_antigo["ponto_base_id"]
-                recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
+        if recalcular_rover and pt_antigo.get("tipo_ponto") in ["P", "V"]:
+            new_base_id = pt_antigo.get("ponto_base_id")
+            recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
 
-            return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
+        # Sempre retorna sucesso após executar todas as lógicas reativas
+        return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
     except Exception as e:
         logger.error(f"Erro ao atualizar ponto {pid}: {e}", exc_info=True)
         return {"error": str(e), "status_code": 400}

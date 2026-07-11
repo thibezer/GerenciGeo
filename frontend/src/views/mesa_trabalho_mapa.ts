@@ -1,6 +1,9 @@
 import L from 'leaflet';
 import { API_BASE } from '../config';
 
+/** Chave usada para persistir o estado das camadas no localStorage do navegador */
+const LS_KEY_CAMADAS = 'gerenci_geo_camadas_ativas';
+
 /**
  * Controller Dedicado para o Mapa Leaflet da Mesa de Trabalho
  * 
@@ -80,13 +83,14 @@ export class MesaTrabalhoMapa {
 
     // Google Satélite Pane
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-      maxZoom: 24, // Permite acompanhar o zoom do mapa
-      maxNativeZoom: 20, // O satélite físico do Google só tem tiles até 20
+      maxZoom: 24,          // Permite acompanhar o zoom do mapa
+      maxNativeZoom: 20,    // O satélite físico do Google só tem tiles até 20
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       attribution: 'Google Maps',
-      keepBuffer: 16, // Mantém 16 tiles vizinhos carregados na memória
+      keepBuffer: 16,       // Mantém 16 tiles vizinhos carregados na memória
       updateWhenZooming: false, // Sem flicker no meio do zoom
-      updateWhenIdle: true // Só carrega novos tiles quando o mapa parar
+      updateWhenIdle: true, // Só carrega novos tiles quando o mapa parar
+      className: 'smooth-zoom-layer' // Transição suave de opacidade entre zooms
     }).addTo(this.map);
 
     this.satelliteLayer = googleSat;
@@ -151,6 +155,52 @@ export class MesaTrabalhoMapa {
       },
       { collapsed: true }
     ).addTo(this.map);
+
+    // ── Persistência de camadas ──────────────────────────────────────────────
+    // Mapa de IDs internos → referência de camada para serialização/restauração
+    const camadasMap: { [id: string]: L.Layer } = {
+      satelite:  googleSat,
+      sigef:     sigef,
+      bancoPontos:   this.bancoPontosGroup!,
+      pontosVizinhos: this.pontosVizinhosGroup!
+    };
+
+    // Salva o estado sempre que o usuário ligar/desligar uma camada
+    const salvarEstadoCamadas = (): void => {
+      if (!this.map) return;
+      const ativas: string[] = Object.entries(camadasMap)
+        .filter(([, layer]) => this.map!.hasLayer(layer))
+        .map(([id]) => id);
+      localStorage.setItem(LS_KEY_CAMADAS, JSON.stringify(ativas));
+    };
+
+    this.map.on('overlayadd overlayremove baselayerchange', salvarEstadoCamadas);
+
+    // Restaura o estado persistido da sessão anterior
+    const estadoSalvo = localStorage.getItem(LS_KEY_CAMADAS);
+    if (estadoSalvo) {
+      try {
+        const ativas: string[] = JSON.parse(estadoSalvo);
+
+        // Para cada camada conhecida, adiciona se estava ativa ou remove se não estava
+        Object.entries(camadasMap).forEach(([id, layer]) => {
+          const deveEstarAtiva = ativas.includes(id);
+          const estaAtiva = this.map!.hasLayer(layer);
+
+          if (deveEstarAtiva && !estaAtiva) {
+            layer.addTo(this.map!);
+          } else if (!deveEstarAtiva && estaAtiva) {
+            this.map!.removeLayer(layer);
+          }
+        });
+
+        console.log('[GerenciGeo] Camadas restauradas do localStorage:', ativas);
+      } catch (e) {
+        console.warn('[GerenciGeo] Falha ao restaurar estado de camadas do localStorage:', e);
+        localStorage.removeItem(LS_KEY_CAMADAS);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // Registra clique no mapa para consultar metadados das parcelas vizinhas do SIGEF WMS
     this.map.on('click', async (e: L.LeafletMouseEvent) => {

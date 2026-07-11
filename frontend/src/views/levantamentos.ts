@@ -7,7 +7,7 @@ import L from 'leaflet';
 let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 
 export const levantamentosRoute: RouteDef = {
-  render: () => `
+   render: () => `
     <div class="space-y-6 animate-in fade-in duration-300">
       <!-- LISTA DE LEVANTAMENTOS -->
       <div id="painel-lista-projetos" class="space-y-6">
@@ -204,117 +204,117 @@ export const levantamentosRoute: RouteDef = {
       </div>
    </div>
   `,
-  setup: () => {
-    let levantamentosList: any[] = [];
-    let globalPropriedadesList: any[] = [];
-    let editandoLevId: number | null = null;
-    let viewMode: 'grid' | 'list' = (localStorage.getItem('lev_view_mode') as 'grid' | 'list') || 'grid';
+   setup: () => {
+      let levantamentosList: any[] = [];
+      let globalPropriedadesList: any[] = [];
+      let editandoLevId: number | null = null;
+      let viewMode: 'grid' | 'list' = (localStorage.getItem('lev_view_mode') as 'grid' | 'list') || 'grid';
 
-    const updateToggleButtonsState = () => {
-       const btnGrid = document.getElementById('btn-mode-grid');
-       const btnList = document.getElementById('btn-mode-list');
-       if (btnGrid && btnList) {
-          if (viewMode === 'grid') {
-             btnGrid.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-             btnList.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-          } else {
-             btnList.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-             btnGrid.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-          }
-       }
-    };
+      const updateToggleButtonsState = () => {
+         const btnGrid = document.getElementById('btn-mode-grid');
+         const btnList = document.getElementById('btn-mode-list');
+         if (btnGrid && btnList) {
+            if (viewMode === 'grid') {
+               btnGrid.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
+               btnList.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
+            } else {
+               btnList.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
+               btnGrid.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
+            }
+         }
+      };
 
-    const configurarComboboxPropriedades = () => {
-      const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
-      const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
-      const listaFlutuante = document.getElementById('lista-flutuante-propriedades');
+      const configurarComboboxPropriedades = () => {
+         const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
+         const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
+         const listaFlutuante = document.getElementById('lista-flutuante-propriedades');
 
-      if (!inputBusca || !inputHidden || !listaFlutuante) return;
+         if (!inputBusca || !inputHidden || !listaFlutuante) return;
 
-      const renderOpcoes = (termo: string) => {
-        const t = termo.toLowerCase();
-        const filtradas = globalPropriedadesList.filter(p => 
-          p.nome_propriedade.toLowerCase().includes(t) ||
-          p.municipio.toLowerCase().includes(t) ||
-          p.uf.toLowerCase().includes(t) ||
-          (p.codigo_car && p.codigo_car.toLowerCase().includes(t))
-        );
+         const renderOpcoes = (termo: string) => {
+            const t = termo.toLowerCase();
+            const filtradas = globalPropriedadesList.filter(p =>
+               p.nome_propriedade.toLowerCase().includes(t) ||
+               p.municipio.toLowerCase().includes(t) ||
+               p.uf.toLowerCase().includes(t) ||
+               (p.codigo_car && p.codigo_car.toLowerCase().includes(t))
+            );
 
-        if (filtradas.length === 0) {
-          listaFlutuante.innerHTML = '<div class="p-3 text-xs text-white/30 italic">Nenhuma propriedade localizada.</div>';
-        } else {
-          listaFlutuante.innerHTML = filtradas.map(p => `
+            if (filtradas.length === 0) {
+               listaFlutuante.innerHTML = '<div class="p-3 text-xs text-white/30 italic">Nenhuma propriedade localizada.</div>';
+            } else {
+               listaFlutuante.innerHTML = filtradas.map(p => `
             <div class="opcao-prop-item p-3 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${p.id}" data-nome="${p.nome_propriedade} (${p.municipio}/${p.uf})">
               <span class="font-bold text-white">${p.nome_propriedade}</span>
               <span class="text-[10px] text-white/40 font-mono mt-0.5">CAR: ${p.codigo_car || 'N/I'} • ${p.municipio}/${p.uf}</span>
             </div>
           `).join('');
 
-          listaFlutuante.querySelectorAll('.opcao-prop-item').forEach(item => {
-            item.addEventListener('click', () => {
-              const id = item.getAttribute('data-id') || '';
-              const nome = item.getAttribute('data-nome') || '';
-              
-              inputBusca.value = nome;
-              inputHidden.value = id;
-              listaFlutuante.classList.add('hidden');
+               listaFlutuante.querySelectorAll('.opcao-prop-item').forEach(item => {
+                  item.addEventListener('click', () => {
+                     const id = item.getAttribute('data-id') || '';
+                     const nome = item.getAttribute('data-nome') || '';
+
+                     inputBusca.value = nome;
+                     inputHidden.value = id;
+                     listaFlutuante.classList.add('hidden');
+                  });
+               });
+            }
+         };
+
+         inputBusca.addEventListener('focus', () => {
+            listaFlutuante.classList.remove('hidden');
+            renderOpcoes(inputBusca.value);
+         });
+
+         inputBusca.addEventListener('input', () => {
+            listaFlutuante.classList.remove('hidden');
+            renderOpcoes(inputBusca.value);
+         });
+
+         clickOutsideHandler = (e: MouseEvent) => {
+            if (!inputBusca.contains(e.target as Node) && !listaFlutuante.contains(e.target as Node)) {
+               listaFlutuante.classList.add('hidden');
+            }
+         };
+         document.addEventListener('click', clickOutsideHandler);
+      };
+
+      const loadLevantamentos = () => {
+         const grid = document.getElementById('grid-projetos');
+         if (!grid) return;
+         grid.innerHTML = '<div class="text-white/20 p-8 text-center col-span-full">Carregando levantamentos...</div>';
+
+         fetch(`${API_BASE}/levantamentos`)
+            .then(res => res.json())
+            .then(data => {
+               levantamentosList = data;
+               if (!data || data.length === 0) {
+                  grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
+                  grid.innerHTML = '<div class="text-white/30 p-8 text-center col-span-full bg-white/[0.01] border border-dashed border-white/5 rounded-xl">Nenhum levantamento cadastrado. Crie um novo para iniciar.</div>';
+                  return;
+               }
+
+               renderListaProjetos(data);
+            })
+            .catch(() => {
+               grid.innerHTML = `<div class="text-red-400 p-8 text-center col-span-full">Erro de conexão com o servidor API.</div>`;
             });
-          });
-        }
       };
 
-      inputBusca.addEventListener('focus', () => {
-        listaFlutuante.classList.remove('hidden');
-        renderOpcoes(inputBusca.value);
-      });
+      const renderListaProjetos = (lista: any[]) => {
+         const grid = document.getElementById('grid-projetos');
+         if (!grid) return;
 
-      inputBusca.addEventListener('input', () => {
-        listaFlutuante.classList.remove('hidden');
-        renderOpcoes(inputBusca.value);
-      });
-
-      clickOutsideHandler = (e: MouseEvent) => {
-        if (!inputBusca.contains(e.target as Node) && !listaFlutuante.contains(e.target as Node)) {
-          listaFlutuante.classList.add('hidden');
-        }
-      };
-      document.addEventListener('click', clickOutsideHandler);
-    };
-
-    const loadLevantamentos = () => {
-      const grid = document.getElementById('grid-projetos');
-      if (!grid) return;
-      grid.innerHTML = '<div class="text-white/20 p-8 text-center col-span-full">Carregando levantamentos...</div>';
-
-      fetch(`${API_BASE}/levantamentos`)
-        .then(res => res.json())
-        .then(data => {
-          levantamentosList = data;
-          if (!data || data.length === 0) {
+         if (viewMode === 'grid') {
             grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
-            grid.innerHTML = '<div class="text-white/30 p-8 text-center col-span-full bg-white/[0.01] border border-dashed border-white/5 rounded-xl">Nenhum levantamento cadastrado. Crie um novo para iniciar.</div>';
-            return;
-          }
-          
-          renderListaProjetos(data);
-        })
-        .catch(() => {
-          grid.innerHTML = `<div class="text-red-400 p-8 text-center col-span-full">Erro de conexão com o servidor API.</div>`;
-        });
-    };
+            grid.innerHTML = lista.map((l: any) => {
+               const proprietarios = l.clientes && l.clientes.length
+                  ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
+                  : 'Sem proprietário vinculado';
 
-    const renderListaProjetos = (lista: any[]) => {
-       const grid = document.getElementById('grid-projetos');
-       if (!grid) return;
-
-       if (viewMode === 'grid') {
-          grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
-          grid.innerHTML = lista.map((l: any) => {
-             const proprietarios = l.clientes && l.clientes.length 
-                 ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ') 
-                 : 'Sem proprietário vinculado';
-
-             return `
+               return `
                <div class="glass-card p-4 flex flex-col justify-between hover:border-mint-vibrant/20 transition-colors group lev-card-item" data-id="${l.id}">
                  <div>
                    <div class="flex justify-between items-start gap-4 mb-2">
@@ -361,11 +361,11 @@ export const levantamentosRoute: RouteDef = {
                   </div>
                </div>
              `;
-          }).join('');
-       } else {
-          // Visualização em Lista do Windows Explorer
-          grid.className = "w-full overflow-x-auto";
-          grid.innerHTML = `
+            }).join('');
+         } else {
+            // Visualização em Lista do Windows Explorer
+            grid.className = "w-full overflow-x-auto";
+            grid.innerHTML = `
             <div class="glass-card p-0 overflow-hidden border border-white/5">
                <table class="w-full text-left text-xs border-collapse">
                   <thead>
@@ -381,10 +381,10 @@ export const levantamentosRoute: RouteDef = {
                   </thead>
                   <tbody class="divide-y divide-white/5 text-white/80">
                      ${lista.map((l: any) => {
-                        const proprietarios = l.clientes && l.clientes.length 
-                            ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ') 
-                            : 'Sem proprietário';
-                        return `
+               const proprietarios = l.clientes && l.clientes.length
+                  ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
+                  : 'Sem proprietário';
+               return `
                            <tr class="hover:bg-white/[0.01] transition-colors lev-list-item" data-id="${l.id}">
                               <td class="px-4 py-3 text-center">
                                  <i data-lucide="folder" class="w-4 h-4 text-amber-400 fill-amber-400/20 shrink-0"></i>
@@ -419,237 +419,237 @@ export const levantamentosRoute: RouteDef = {
                               </td>
                            </tr>
                         `;
-                     }).join('')}
+            }).join('')}
                   </tbody>
                </table>
             </div>
           `;
-       }
- 
-       initIcons();
-
-        // Delegação de eventos no grid-projetos
-        grid.onclick = (e) => {
-          const target = e.target as HTMLElement;
-          const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev') as HTMLElement;
-          if (!btn) return;
-
-          const id = parseInt(btn.getAttribute('data-id') || '0');
-          
-          if (btn.classList.contains('btn-auditar') || btn.classList.contains('btn-auditar-icon') || btn.classList.contains('btn-auditar-link')) {
-             localStorage.setItem('active_levantamento_id', id.toString());
-             window.location.hash = '#mesa_trabalho';
-          } else if (btn.classList.contains('btn-desarquivar-lev')) {
-             (async () => {
-                const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");
-                if (justificativa === null) return; // Cancelou
-                if (!justificativa.trim()) {
-                   alert("A justificativa é obrigatória para desarquivamento.");
-                   return;
-                }
-                
-                try {
-                   const res = await fetch(`${API_BASE}/levantamentos/${id}/desarquivar`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ justificativa })
-                   });
-                   const data = await res.json();
-                   if (res.ok) {
-                      alert(data.message || "Levantamento desarquivado com sucesso.");
-                      loadLevantamentos();
-                   } else {
-                      alert(data.detail || "Erro ao desarquivar levantamento.");
-                   }
-                } catch (err) {
-                   console.error(err);
-                   alert("Erro na requisição de desarquivamento.");
-                }
-             })();
-          } else if (btn.classList.contains('btn-editar-lev')) {
-            (async () => {
-              const l = levantamentosList.find(x => x.id === id);
-              if (!l) return;
-              editandoLevId = id;
-              try {
-                 const res = await fetch(`${API_BASE}/propriedades`);
-                 globalPropriedadesList = await res.json();
-              } catch(err) { console.error("Erro:", err); }
-              
-              const modalTitulo = document.getElementById('modal-lev-titulo');
-              if (modalTitulo) modalTitulo.innerText = "Editar Levantamento";
-              const submitBtn = document.getElementById('btn-submit-lev');
-              if (submitBtn) submitBtn.innerText = "Salvar Alterações";
-              
-              const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
-              const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
-              const selectProf = document.getElementById('select-lev-profissional') as HTMLSelectElement;
-              const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
-              const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
-              const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
-              const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
-              const containerStatus = document.getElementById('container-lev-status');
-              
-              const propObj = globalPropriedadesList.find(p => p.id === l.propriedade_id);
-              if (inputBusca && propObj) inputBusca.value = `${propObj.nome_propriedade} (${propObj.municipio}/${propObj.uf})`;
-              if (inputHidden) inputHidden.value = l.propriedade_id.toString();
-              if (selectProf) selectProf.value = l.profissional_id.toString();
-              if (inputData) inputData.value = l.data_inicio;
-              if (inputTrtNumero) inputTrtNumero.value = l.numero_trt || '';
-              if (inputTrtData) inputTrtData.value = l.data_trt || '';
-              if (selectStatus) selectStatus.value = l.status;
-              if (containerStatus) containerStatus.classList.remove('hidden');
-              document.getElementById('modal-levantamento')?.classList.remove('hidden');
-            })();
-         } else if (btn.classList.contains('btn-excluir-lev')) {
-             (async () => {
-              if (confirm('Deseja apagar também a pasta física (Workspace) de arquivos associada a este levantamento?\n\nOK: Apagar registro + Pasta física\nCancelar: Cancelar exclusão')) {
-                 await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=true`, { method: 'DELETE' });
-                 loadLevantamentos();
-              }
-            })();
          }
-       };
-    };
- 
-    // --- BOTOES DE ALTERNAÇÃO DE VISUALIZAÇÃO ---
-    updateToggleButtonsState();
- 
-    document.getElementById('btn-mode-grid')?.addEventListener('click', () => {
-       if (viewMode === 'grid') return;
-       viewMode = 'grid';
-       localStorage.setItem('lev_view_mode', 'grid');
-       updateToggleButtonsState();
-       renderListaProjetos(levantamentosList);
-    });
- 
-    document.getElementById('btn-mode-list')?.addEventListener('click', () => {
-       if (viewMode === 'list') return;
-       viewMode = 'list';
-       localStorage.setItem('lev_view_mode', 'list');
-       updateToggleButtonsState();
-       renderListaProjetos(levantamentosList);
-    });
- 
-    // --- BUSCA DINÂMICA FILTRADA ---
-    document.getElementById('busca-levantamento')?.addEventListener('input', (e) => {
-       const term = (e.target as HTMLInputElement).value.toLowerCase();
-       const items = document.querySelectorAll('.lev-card-item, .lev-list-item');
-       items.forEach(el => {
-          const propTitle = el.querySelector('.prop-title-text, .btn-auditar-link')?.textContent?.toLowerCase() || '';
-          const owners = el.querySelector('.prop-owners-text, td:nth-child(5)')?.textContent?.toLowerCase() || '';
-          const extra = el.querySelector('.prop-extra-text, td:nth-child(2)')?.textContent?.toLowerCase() || '';
-          const match = propTitle.includes(term) || owners.includes(term) || extra.includes(term);
-          if (el.classList.contains('lev-card-item')) {
-             (el as HTMLElement).style.display = match ? 'flex' : 'none';
-          } else {
-             (el as HTMLElement).style.display = match ? 'table-row' : 'none';
-          }
-       });
-    });
- 
-    document.getElementById('btn-novo-lev')?.addEventListener('click', async () => {
-       editandoLevId = null;
-       
-       const modalTitulo = document.getElementById('modal-lev-titulo');
-       if (modalTitulo) modalTitulo.innerText = "Novo Levantamento";
-       
-       const submitBtn = document.getElementById('btn-submit-lev');
-       if (submitBtn) submitBtn.innerText = "Criar Levantamento";
-       
-       const containerStatus = document.getElementById('container-lev-status');
-       if (containerStatus) containerStatus.classList.add('hidden');
-       
-       const modalLev = document.getElementById('modal-levantamento');
-       const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
-       const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
-       const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
-       const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
-       const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
-       
-       if (inputData) {
-          inputData.value = new Date().toISOString().split('T')[0];
-       }
-       if (inputBusca) inputBusca.value = '';
-       if (inputHidden) inputHidden.value = '';
-       if (inputTrtNumero) inputTrtNumero.value = '';
-       if (inputTrtData) inputTrtData.value = '';
-       
-       try {
-          const res = await fetch(`${API_BASE}/propriedades`);
-          globalPropriedadesList = await res.json();
-          if (globalPropriedadesList.length === 0) {
-             alert("Cadastre uma propriedade no módulo de Propriedades primeiro!");
-             return;
-          }
-          modalLev?.classList.remove('hidden');
-       } catch(e) {
-          alert("Erro ao buscar propriedades.");
-       }
-    });
- 
-    document.getElementById('btn-fechar-modal-lev')?.addEventListener('click', () => {
-       document.getElementById('modal-levantamento')?.classList.add('hidden');
-    });
-    document.getElementById('btn-cancelar-lev')?.addEventListener('click', () => {
-       document.getElementById('modal-levantamento')?.classList.add('hidden');
-     });
- 
-     document.getElementById('form-levantamento')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const propriedade_id = parseInt((document.getElementById('select-lev-propriedade') as HTMLSelectElement).value);
-        const profesional_id = parseInt((document.getElementById('select-lev-profissional') as HTMLSelectElement).value);
-        const data_inicio = (document.getElementById('input-lev-data') as HTMLInputElement).value;
-        const numero_trt = (document.getElementById('input-lev-trt-numero') as HTMLInputElement).value.trim() || null;
-        const data_trt = (document.getElementById('input-lev-trt-data') as HTMLInputElement).value || null;
-        
-        const payload: any = { propriedade_id, profissional_id: profesional_id, data_inicio, numero_trt, data_trt };
-        
-        if (editandoLevId) {
-           const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
-           payload.status = selectStatus.value;
-        }
-        
-        try {
-           const url = editandoLevId ? `${API_BASE}/levantamentos/${editandoLevId}` : `${API_BASE}/levantamentos`;
-           const method = editandoLevId ? 'PUT' : 'POST';
-           
-           const res = await fetch(url, {
-              method: method,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-           });
-           const data = await res.json();
-           if (data.error) {
-              alert(data.error);
-           } else {
-              document.getElementById('modal-levantamento')?.classList.add('hidden');
-              loadLevantamentos();
-           }
-        } catch(e) {
-           alert("Erro ao salvar levantamento.");
-        }
-     });
+
+         initIcons();
+
+         // Delegação de eventos no grid-projetos
+         grid.onclick = (e) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev') as HTMLElement;
+            if (!btn) return;
+
+            const id = parseInt(btn.getAttribute('data-id') || '0');
+
+            if (btn.classList.contains('btn-auditar') || btn.classList.contains('btn-auditar-icon') || btn.classList.contains('btn-auditar-link')) {
+               localStorage.setItem('active_levantamento_id', id.toString());
+               window.location.hash = '#mesa_trabalho';
+            } else if (btn.classList.contains('btn-desarquivar-lev')) {
+               (async () => {
+                  const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");
+                  if (justificativa === null) return; // Cancelou
+                  if (!justificativa.trim()) {
+                     alert("A justificativa é obrigatória para desarquivamento.");
+                     return;
+                  }
+
+                  try {
+                     const res = await fetch(`${API_BASE}/levantamentos/${id}/desarquivar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ justificativa })
+                     });
+                     const data = await res.json();
+                     if (res.ok) {
+                        alert(data.message || "Levantamento desarquivado com sucesso.");
+                        loadLevantamentos();
+                     } else {
+                        alert(data.detail || "Erro ao desarquivar levantamento.");
+                     }
+                  } catch (err) {
+                     console.error(err);
+                     alert("Erro na requisição de desarquivamento.");
+                  }
+               })();
+            } else if (btn.classList.contains('btn-editar-lev')) {
+               (async () => {
+                  const l = levantamentosList.find(x => x.id === id);
+                  if (!l) return;
+                  editandoLevId = id;
+                  try {
+                     const res = await fetch(`${API_BASE}/propriedades`);
+                     globalPropriedadesList = await res.json();
+                  } catch (err) { console.error("Erro:", err); }
+
+                  const modalTitulo = document.getElementById('modal-lev-titulo');
+                  if (modalTitulo) modalTitulo.innerText = "Editar Levantamento";
+                  const submitBtn = document.getElementById('btn-submit-lev');
+                  if (submitBtn) submitBtn.innerText = "Salvar Alterações";
+
+                  const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
+                  const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
+                  const selectProf = document.getElementById('select-lev-profissional') as HTMLSelectElement;
+                  const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
+                  const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
+                  const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
+                  const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
+                  const containerStatus = document.getElementById('container-lev-status');
+
+                  const propObj = globalPropriedadesList.find(p => p.id === l.propriedade_id);
+                  if (inputBusca && propObj) inputBusca.value = `${propObj.nome_propriedade} (${propObj.municipio}/${propObj.uf})`;
+                  if (inputHidden) inputHidden.value = l.propriedade_id.toString();
+                  if (selectProf) selectProf.value = l.profissional_id.toString();
+                  if (inputData) inputData.value = l.data_inicio;
+                  if (inputTrtNumero) inputTrtNumero.value = l.numero_trt || '';
+                  if (inputTrtData) inputTrtData.value = l.data_trt || '';
+                  if (selectStatus) selectStatus.value = l.status;
+                  if (containerStatus) containerStatus.classList.remove('hidden');
+                  document.getElementById('modal-levantamento')?.classList.remove('hidden');
+               })();
+            } else if (btn.classList.contains('btn-excluir-lev')) {
+               (async () => {
+                  if (confirm('Deseja apagar também a pasta física (Workspace) de arquivos associada a este levantamento?\n\nOK: Apagar registro + Pasta física\nCancelar: Cancelar exclusão')) {
+                     await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=true`, { method: 'DELETE' });
+                     loadLevantamentos();
+                  }
+               })();
+            }
+         };
+      };
+
+      // --- BOTOES DE ALTERNAÇÃO DE VISUALIZAÇÃO ---
+      updateToggleButtonsState();
+
+      document.getElementById('btn-mode-grid')?.addEventListener('click', () => {
+         if (viewMode === 'grid') return;
+         viewMode = 'grid';
+         localStorage.setItem('lev_view_mode', 'grid');
+         updateToggleButtonsState();
+         renderListaProjetos(levantamentosList);
+      });
+
+      document.getElementById('btn-mode-list')?.addEventListener('click', () => {
+         if (viewMode === 'list') return;
+         viewMode = 'list';
+         localStorage.setItem('lev_view_mode', 'list');
+         updateToggleButtonsState();
+         renderListaProjetos(levantamentosList);
+      });
+
+      // --- BUSCA DINÂMICA FILTRADA ---
+      document.getElementById('busca-levantamento')?.addEventListener('input', (e) => {
+         const term = (e.target as HTMLInputElement).value.toLowerCase();
+         const items = document.querySelectorAll('.lev-card-item, .lev-list-item');
+         items.forEach(el => {
+            const propTitle = el.querySelector('.prop-title-text, .btn-auditar-link')?.textContent?.toLowerCase() || '';
+            const owners = el.querySelector('.prop-owners-text, td:nth-child(5)')?.textContent?.toLowerCase() || '';
+            const extra = el.querySelector('.prop-extra-text, td:nth-child(2)')?.textContent?.toLowerCase() || '';
+            const match = propTitle.includes(term) || owners.includes(term) || extra.includes(term);
+            if (el.classList.contains('lev-card-item')) {
+               (el as HTMLElement).style.display = match ? 'flex' : 'none';
+            } else {
+               (el as HTMLElement).style.display = match ? 'table-row' : 'none';
+            }
+         });
+      });
+
+      document.getElementById('btn-novo-lev')?.addEventListener('click', async () => {
+         editandoLevId = null;
+
+         const modalTitulo = document.getElementById('modal-lev-titulo');
+         if (modalTitulo) modalTitulo.innerText = "Novo Levantamento";
+
+         const submitBtn = document.getElementById('btn-submit-lev');
+         if (submitBtn) submitBtn.innerText = "Criar Levantamento";
+
+         const containerStatus = document.getElementById('container-lev-status');
+         if (containerStatus) containerStatus.classList.add('hidden');
+
+         const modalLev = document.getElementById('modal-levantamento');
+         const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
+         const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
+         const inputData = document.getElementById('input-lev-data') as HTMLInputElement;
+         const inputTrtNumero = document.getElementById('input-lev-trt-numero') as HTMLInputElement;
+         const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
+
+         if (inputData) {
+            inputData.value = new Date().toISOString().split('T')[0];
+         }
+         if (inputBusca) inputBusca.value = '';
+         if (inputHidden) inputHidden.value = '';
+         if (inputTrtNumero) inputTrtNumero.value = '';
+         if (inputTrtData) inputTrtData.value = '';
+
+         try {
+            const res = await fetch(`${API_BASE}/propriedades`);
+            globalPropriedadesList = await res.json();
+            if (globalPropriedadesList.length === 0) {
+               alert("Cadastre uma propriedade no módulo de Propriedades primeiro!");
+               return;
+            }
+            modalLev?.classList.remove('hidden');
+         } catch (e) {
+            alert("Erro ao buscar propriedades.");
+         }
+      });
+
+      document.getElementById('btn-fechar-modal-lev')?.addEventListener('click', () => {
+         document.getElementById('modal-levantamento')?.classList.add('hidden');
+      });
+      document.getElementById('btn-cancelar-lev')?.addEventListener('click', () => {
+         document.getElementById('modal-levantamento')?.classList.add('hidden');
+      });
+
+      document.getElementById('form-levantamento')?.addEventListener('submit', async (e) => {
+         e.preventDefault();
+         const propriedade_id = parseInt((document.getElementById('select-lev-propriedade') as HTMLSelectElement).value);
+         const profesional_id = parseInt((document.getElementById('select-lev-profissional') as HTMLSelectElement).value);
+         const data_inicio = (document.getElementById('input-lev-data') as HTMLInputElement).value;
+         const numero_trt = (document.getElementById('input-lev-trt-numero') as HTMLInputElement).value.trim() || null;
+         const data_trt = (document.getElementById('input-lev-trt-data') as HTMLInputElement).value || null;
+
+         const payload: any = { propriedade_id, profissional_id: profesional_id, data_inicio, numero_trt, data_trt };
+
+         if (editandoLevId) {
+            const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
+            payload.status = selectStatus.value;
+         }
+
+         try {
+            const url = editandoLevId ? `${API_BASE}/levantamentos/${editandoLevId}` : `${API_BASE}/levantamentos`;
+            const method = editandoLevId ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+               method: method,
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.error) {
+               alert(data.error);
+            } else {
+               document.getElementById('modal-levantamento')?.classList.add('hidden');
+               loadLevantamentos();
+            }
+         } catch (e) {
+            alert("Erro ao salvar levantamento.");
+         }
+      });
 
       const loadProfissionais = () => {
          const selectProf = document.getElementById('select-lev-profissional') as HTMLSelectElement;
          if (!selectProf) return;
-         
+
          fetch(`${API_BASE}/profissionais`)
-           .then(res => res.json())
-           .then(data => {
-             if (!data || data.length === 0) {
-               selectProf.innerHTML = '<option value="">Nenhum profissional cadastrado</option>';
-               return;
-             }
-             selectProf.innerHTML = data.map((p: any) => `
+            .then(res => res.json())
+            .then(data => {
+               if (!data || data.length === 0) {
+                  selectProf.innerHTML = '<option value="">Nenhum profissional cadastrado</option>';
+                  return;
+               }
+               selectProf.innerHTML = data.map((p: any) => `
                <option value="${p.id}">${p.nome} (${p.registro || 'Sem Registro'})</option>
              `).join('');
-           })
-           .catch(err => {
-             console.error("Erro ao carregar profissionais:", err);
-             selectProf.innerHTML = '<option value="">Erro ao carregar profissionais</option>';
-           });
+            })
+            .catch(err => {
+               console.error("Erro ao carregar profissionais:", err);
+               selectProf.innerHTML = '<option value="">Erro ao carregar profissionais</option>';
+            });
       };
 
       // =========================================================================
@@ -713,11 +713,11 @@ export const levantamentosRoute: RouteDef = {
                const isBaseFisica = p.descricao && p.descricao.toLowerCase() === 'set_base';
                const isBasePPP = p.nome && (p.nome.toUpperCase().startsWith('M') || p.nome.toUpperCase().includes('BASE'));
                let markerBg = 'bg-mint-vibrant text-[#0c1510]';
-               
+
                if (isBasePPP) {
-                 markerBg = 'bg-indigo-600 text-white';
+                  markerBg = 'bg-indigo-600 text-white';
                } else if (isBaseFisica) {
-                 markerBg = 'bg-rose-600 text-white';
+                  markerBg = 'bg-rose-600 text-white';
                }
 
                const markerHtml = `
@@ -726,14 +726,14 @@ export const levantamentosRoute: RouteDef = {
                  </div>
                `;
                const customIcon = L.divIcon({
-                 html: markerHtml,
-                 className: 'custom-leaflet-marker',
-                 iconSize: [20, 20]
+                  html: markerHtml,
+                  className: 'custom-leaflet-marker',
+                  iconSize: [20, 20]
                });
 
-               const popupRole = isBasePPP 
-                 ? 'Base Homologada PPP (Provável)' 
-                 : (isBaseFisica ? 'Base de Campo (RTK set_base)' : 'Vértice de Perímetro');
+               const popupRole = isBasePPP
+                  ? 'Base Homologada PPP (Provável)'
+                  : (isBaseFisica ? 'Base de Campo (RTK set_base)' : 'Vértice de Perímetro');
 
                const marker = L.marker(latLng, { icon: customIcon })
                   .bindPopup(`
@@ -747,7 +747,7 @@ export const levantamentosRoute: RouteDef = {
                      </div>
                   `, { maxWidth: 220 })
                   .addTo(mapaTriagem!);
-               
+
                mapaTriagemMarkers.push(marker);
             }
          });
@@ -770,19 +770,19 @@ export const levantamentosRoute: RouteDef = {
       const btnTriagem = document.getElementById('btn-triagem-txt');
       const modalTriagem = document.getElementById('modal-triagem');
       const btnFecharTriagem = document.getElementById('btn-fechar-modal-triagem');
-      
+
       const dropZone = document.getElementById('drop-zone-triagem');
       const inputFile = document.getElementById('input-file-triagem') as HTMLInputElement;
       const labelUpload = document.getElementById('label-upload-triagem');
       const iconUpload = document.getElementById('icon-upload-triagem');
-      
+
       const selectFuso = document.getElementById('select-fuso-triagem') as HTMLSelectElement;
       const chkInverterNE = document.getElementById('chk-inverter-ne') as HTMLInputElement;
       const btnProcessar = document.getElementById('btn-processar-triagem');
       const countPontos = document.getElementById('count-pontos-triagem');
       const tagLayout = document.getElementById('tag-layout-triagem');
       const listaPontos = document.getElementById('lista-pontos-triagem');
-      
+
       const selectDestino = document.getElementById('select-destino-triagem') as HTMLSelectElement;
       const selectMatricula = document.getElementById('select-matricula-triagem') as HTMLSelectElement;
       const selectBase = document.getElementById('select-base-triagem') as HTMLSelectElement;
@@ -799,7 +799,7 @@ export const levantamentosRoute: RouteDef = {
       // Abrir Modal de Triagem
       btnTriagem?.addEventListener('click', () => {
          modalTriagem?.classList.remove('hidden');
-         
+
          // Inicializa o mapa do Leaflet
          setTimeout(() => {
             initMapaTriagem();
@@ -810,13 +810,13 @@ export const levantamentosRoute: RouteDef = {
 
          // Preencher o select de levantamento destino com levantamentos ativos
          if (selectDestino) {
-            selectDestino.innerHTML = '<option value="">Selecione o levantamento de destino...</option>' + 
+            selectDestino.innerHTML = '<option value="">Selecione o levantamento de destino...</option>' +
                levantamentosList
                   .filter(l => l.status === 'EM_ANDAMENTO')
                   .map(l => `<option value="${l.id}">${l.nome_propriedade} (${l.municipio}/${l.uf})</option>`)
                   .join('');
          }
-         
+
          // Resetar selects dependentes
          if (selectMatricula) {
             selectMatricula.innerHTML = '<option value="">Selecione o levantamento...</option>';
@@ -863,7 +863,7 @@ export const levantamentosRoute: RouteDef = {
       dropZone?.addEventListener('drop', (e) => {
          e.preventDefault();
          dropZone.classList.remove('border-mint-vibrant/60', 'bg-mint-vibrant/5');
-         
+
          if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
             const file = e.dataTransfer.files[0];
             if (file.name.endsWith('.txt')) {
@@ -875,7 +875,7 @@ export const levantamentosRoute: RouteDef = {
             }
          }
       });
-      
+
       inputFile?.addEventListener('change', () => {
          if (inputFile.files && inputFile.files.length > 0) {
             const file = inputFile.files[0];
@@ -942,7 +942,7 @@ export const levantamentosRoute: RouteDef = {
 
             // Plotar no Mapa
             plotarPontosNoMapaTriagem(pontosProcessadosTriagem);
-            
+
             // Ativa o botão de associação se já houver levantamento destino
             atualizarBotaoImportar();
 
@@ -986,7 +986,7 @@ export const levantamentosRoute: RouteDef = {
                   selectMatricula.innerHTML = '<option value="">Sem matrículas vinculadas</option>';
                   selectMatricula.disabled = true;
                } else {
-                  selectMatricula.innerHTML = '<option value="">[Geral - Sem Matrícula]</option>' + 
+                  selectMatricula.innerHTML = '<option value="">[Geral - Sem Matrícula]</option>' +
                      matriculas.map((m: any) => `<option value="${m.id}">Matrícula: ${m.numero_matricula} (${m.area_ha.toFixed(2)} Ha)</option>`).join('');
                   selectMatricula.disabled = false;
                }
@@ -1004,7 +1004,7 @@ export const levantamentosRoute: RouteDef = {
                   selectBase.innerHTML = '<option value="">[Sem Bases]</option>';
                   selectBase.disabled = true;
                } else {
-                  selectBase.innerHTML = '<option value="">[Nenhuma Base / Autodetectar]</option>' + 
+                  selectBase.innerHTML = '<option value="">[Nenhuma Base / Autodetectar]</option>' +
                      bases.map((p: any) => `<option value="${p.id}">Base: ${p.nome_vertice}</option>`).join('');
                   selectBase.disabled = false;
                }
@@ -1030,15 +1030,15 @@ export const levantamentosRoute: RouteDef = {
 
          const formData = new FormData();
          formData.append('file', arquivoSelecionadoTriagem);
-         
+
          const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
          formData.append('inverter_ne', inverterNE);
-         
+
          const matriculaVal = selectMatricula.value;
          if (matriculaVal) {
             formData.append('matricula_id', matriculaVal);
          }
-         
+
          const baseVal = selectBase.value;
          if (baseVal && !selectBase.disabled) {
             formData.append('base_escolhida_id', baseVal);
@@ -1064,10 +1064,10 @@ export const levantamentosRoute: RouteDef = {
             }
 
             alert(data.message || 'Pontos e topologia importados com sucesso no levantamento de destino!');
-            
+
             // Fechar modal de triagem
             btnFecharTriagem?.click();
-            
+
             // Recarregar lista de levantamentos na tela principal
             loadLevantamentos();
 
