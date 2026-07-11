@@ -1,8 +1,0 @@
-feat(org-perimetro): refatora UX de ordenação e segurança transacional
-
-- Refatora `ordenador_manual.ts` em submódulos isolados (context, storage, ui).
-- Substitui botões de reordenação por Drag and Drop nativo.
-- Adiciona bloqueio de faixas nativo ao DnD e alertas via design-engine.css.
-- Inclui feedback visual e contagem na edição em lote do painel de propriedades.
-- Adiciona tratativas atômicas explícitas com rollback nas rotinas do SQLite para o fechamento geodésico da topologia.
-- Implementa função de destroy para prevenir vazamento de memória em listeners visuais.

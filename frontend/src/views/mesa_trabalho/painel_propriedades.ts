@@ -210,10 +210,10 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${origemTexto}</span>
           </div>
           <div class="props-field">
-            <label class="props-field-label">Nome Original</label>
-            <input type="text" value="${p.nome_original || p.nome_vertice || '-'}" class="props-field-value font-mono text-white/50" readonly />
+            <label class="props-field-label">Nome Original (Campo)</label>
+            <input type="text" value="${p.ponto_nome || p.arquivo_nome || p.nome_vertice || '-'}" class="props-field-value opacity-50 cursor-not-allowed text-white/50" readonly disabled title="Nome original importado do equipamento GPS" />
           </div>
-          <div class="props-field flex items-center justify-between">
+          <div class="props-field">
             <label class="props-field-label">Vértice</label>
             <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
               <input type="text" id="prop-nome-vertice" value="${p.nome_vertice || ''}" class="props-field-value font-mono flex-1 min-w-0" ${isDisabled ? 'disabled' : ''} />
@@ -998,8 +998,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
     });
 
     // Quando clica no checkbox, remove o indeterminate e marca dirty
-    const checkPoliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
-    if (checkPoliEl) {
+    const checkPoliElOrig = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
+    if (checkPoliElOrig) {
+      const checkPoliEl = checkPoliElOrig.cloneNode(true) as HTMLInputElement;
+      checkPoliElOrig.parentNode?.replaceChild(checkPoliEl, checkPoliElOrig);
+
       checkPoliEl.addEventListener('change', () => {
         checkPoliEl.indeterminate = false;
         verificarAlteracoesMulti();
@@ -1023,6 +1026,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         const confAlterado = (confEl && confEl.value !== multiOriginais.confrontante) ||
                              (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) ||
                              (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio);
+        if (poliEl) poliEl.indeterminate = false;
         const poliAlterado = poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono;
 
         try {
@@ -1031,7 +1035,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const totalCount = ctx.selectedPontoIds.length;
 
           for (const pid of ctx.selectedPontoIds) {
-            novoBtn.innerText = `Salvando ${++processados} de ${totalCount} vértices...`;
+            novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando vértice ${++processados} de ${totalCount}...`;
+            initIcons();
             const payload: any = {};
 
             if (tipoAlterado) payload.tipo_ponto = tipoEl.value;
@@ -1103,7 +1108,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 if (!resConf.ok) {
                   sucessoTotal = false;
                   showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: HTTP ${resConf.status} — ${resConfText}`, 'error');
-                  break;
+                  continue;
                 }
               } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && seg) {
                 // Cria novo confrontante e associa ao segmento
@@ -1128,27 +1133,32 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 if (!resConf.ok) {
                   sucessoTotal = false;
                   showToast(`❌ Erro ao criar confrontante do ponto ${pid}: HTTP ${resConf.status} — ${resConfText}`, 'error');
-                  break;
+                  continue;
                 }
 
                 let resConfData: any;
                 try { resConfData = JSON.parse(resConfText); } catch { resConfData = {}; }
                 const confId = resConfData.id || resConfData.confrontante_id;
                 if (confId && seg) {
-                  const segPayload = {
-                    matricula_id: seg.matricula_id,
-                    ponto_inicio_id: seg.ponto_inicio_id,
-                    ponto_fim_id: seg.ponto_fim_id,
-                    confrontante_id: confId,
-                    tipo_limite_sigef: seg.tipo_limite_sigef,
-                    metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                  };
-                  console.log(`[SAVE-LOTE] PUT /segmentos/${seg.id}`, segPayload);
-                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(segPayload)
-                  });
+                  try {
+                    const segPayload = {
+                      matricula_id: seg.matricula_id,
+                      ponto_inicio_id: seg.ponto_inicio_id,
+                      ponto_fim_id: seg.ponto_fim_id,
+                      confrontante_id: confId,
+                      tipo_limite_sigef: seg.tipo_limite_sigef,
+                      metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
+                    };
+                    console.log(`[SAVE-LOTE] PUT /segmentos/${seg.id}`, segPayload);
+                    const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(segPayload)
+                    });
+                    if (!resSeg.ok) sucessoTotal = false;
+                  } catch (e) {
+                    sucessoTotal = false;
+                  }
                 }
               } else {
                 console.log(`[SAVE-LOTE] Ponto ${pid}: sem confrontante e sem dados suficientes para criar. Ignorado.`);
