@@ -91,8 +91,8 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
                     for shape in sf.shapes():
                         for pt in shape.points:
                             x, y = pt[0], pt[1]
-                            # Detecção automática de UTM
-                            if abs(x) > 10000 or abs(y) > 10000:
+                            # Eliminação de qualquer aproximação plana euclidiana (forçando elipsóide GRS80)
+                            if abs(x) > 180 or abs(y) > 90:
                                 lon, lat = transformer.transform(x, y)
                             else:
                                 lon, lat = x, y

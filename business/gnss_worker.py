@@ -37,7 +37,11 @@ class GNSSPipelineWorker(threading.Thread):
         
         for arq in self.lista_arquivos:
             tamanho = os.path.getsize(arq)
-            if tamanho < 51200:
+            try:
+                if tamanho < 51200:
+                    raise ValueError("Arquivo corrompido: tamanho inferior a 50KB")
+                validos.append(arq)
+            except ValueError as e:
                 corrompidos.append(arq)
                 nome_arq = os.path.basename(arq)
                 self.repo.insert(
@@ -46,11 +50,14 @@ class GNSSPipelineWorker(threading.Thread):
                     arquivo_path=arq,
                     sucesso=False
                 )
-            else:
-                validos.append(arq)
+                try:
+                    os.remove(arq)
+                except OSError:
+                    pass
+                self.result_queue.put({"tipo": "log", "mensagem": f"[ERRO] {str(e)}: {nome_arq}"})
                 
         if corrompidos:
-            self.result_queue.put({"tipo": "log", "mensagem": f"[FILTRO QC] {len(corrompidos)} arquivos menores que 50KB ignorados e salvos no histórico."})
+            self.result_queue.put({"tipo": "log", "mensagem": f"[FILTRO QC] {len(corrompidos)} arquivos corrompidos menores que 50KB isolados, apagados e registrados no histórico."})
 
         total = len(validos)
         if total == 0:
@@ -68,7 +75,8 @@ class GNSSPipelineWorker(threading.Thread):
         try:
             self.result_queue.put({"tipo": "log", "mensagem": "[HGO] Iniciando automação do HGO no backend..."})
             
-            sucesso_geral = converter_rinex(validos, self.pasta_destino, caminho_exe=self.caminho_exe)
+            import asyncio
+            sucesso_geral = asyncio.run(converter_rinex(validos, self.pasta_destino, caminho_exe=self.caminho_exe))
             
             if self._stop_event.is_set():
                 self.result_queue.put({"tipo": "log", "mensagem": "[CANCELADO] Interrupção pelo usuário."})

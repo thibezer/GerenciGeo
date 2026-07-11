@@ -9,7 +9,7 @@ def latlon_to_utm22s(lat, lon):
     """
     # Alterado de epsg:4326 para epsg:4674 para garantir consistência matemática absoluta
     transformer = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
-    easting, northing = transformer.transform(lon, lat)
+    easting, northing = transformer.transform(float(lon), float(lat))
     return easting, northing
 
 def calcular_zona_utm_segura(lon) -> int:

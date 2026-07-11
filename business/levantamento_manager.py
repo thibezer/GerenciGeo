@@ -393,46 +393,49 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
             transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
             
-            e_base_corr, n_base_corr = transformer_to_utm.transform(base["lon"], base["lat"])
-            alt_base_corr = base["alt"]
+            # Conversão para ECEF requer geodesic_to_ecef / ecef_to_geodesic
             
             # Ajuste preventivo contra valores nulos nas coordenadas originais da base
             e_base_orig = base["e_original"]
             n_base_orig = base["n_original"]
             alt_base_orig = base["alt_original"]
             if e_base_orig is None or n_base_orig is None:
-                if base["lon"] is not None and base["lat"] is not None:
-                    e_base_orig, n_base_orig = transformer_to_utm.transform(base["lon"], base["lat"])
-                else:
-                    e_base_orig, n_base_orig = 0.0, 0.0
+                lat_base_orig = base["lat"] or 0.0
+                lon_base_orig = base["lon"] or 0.0
+            else:
+                lon_base_orig, lat_base_orig = transformer_to_latlon.transform(e_base_orig, n_base_orig)
             if alt_base_orig is None:
                 alt_base_orig = base["alt"] or 0.0
                 
-            # 2. Calcula o Vetor de Translação Plana constante
-            delta_e = e_base_corr - e_base_orig
-            delta_n = n_base_corr - n_base_orig
-            delta_h = alt_base_corr - alt_base_orig
+            # 2. Calcula o Vetor de Translação ECEF 3D constante
+            x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"] or 0.0)
+            x_base_orig, y_base_orig, z_base_orig = geodesic_to_ecef(lat_base_orig, lon_base_orig, alt_base_orig)
+
+            delta_x = x_base_corr - x_base_orig
+            delta_y = y_base_corr - y_base_orig
+            delta_z = z_base_corr - z_base_orig
             
             # Ajuste preventivo contra valores nulos nas coordenadas originais do rover
             e_rover_orig = pt_antigo["e_original"]
             n_rover_orig = pt_antigo["n_original"]
             alt_rover_orig = pt_antigo["alt_original"]
             if e_rover_orig is None or n_rover_orig is None:
-                if pt_antigo["lon"] is not None and pt_antigo["lat"] is not None:
-                    e_rover_orig, n_rover_orig = transformer_to_utm.transform(pt_antigo["lon"], pt_antigo["lat"])
-                else:
-                    e_rover_orig, n_rover_orig = 0.0, 0.0
+                lat_rover_orig = pt_antigo["lat"] or 0.0
+                lon_rover_orig = pt_antigo["lon"] or 0.0
+            else:
+                lon_rover_orig, lat_rover_orig = transformer_to_latlon.transform(e_rover_orig, n_rover_orig)
             if alt_rover_orig is None:
                 alt_rover_orig = pt_antigo["alt"] or 0.0
                 
-            # 3. Aplica a translação no plano e Altitude do Rover
-            e_rover_corr = e_rover_orig + delta_e
-            n_rover_corr = n_rover_orig + delta_n
-            alt_rover_corr = alt_rover_orig + delta_h
+            # 3. Aplica a translação no espaço ECEF 3D do Rover
+            x_rover_orig, y_rover_orig, z_rover_orig = geodesic_to_ecef(lat_rover_orig, lon_rover_orig, alt_rover_orig)
+
+            x_rover_corr = x_rover_orig + delta_x
+            y_rover_corr = y_rover_orig + delta_y
+            z_rover_corr = z_rover_orig + delta_z
             
-            # 4. Retroprojeta a coordenada UTM corrigida para Geodésica no SIRGAS 2000
-            lon_c, lat_c = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
-            alt_c = alt_rover_corr
+            # 4. Retroprojeta a coordenada ECEF corrigida para Geodésica no SIRGAS 2000
+            lat_c, lon_c, alt_c = ecef_to_geodesic(x_rover_corr, y_rover_corr, z_rover_corr)
             
             sig_lat_prop = pt_antigo["sigma_lat"] if pt_antigo.get("sigma_lat") is not None else (pt_antigo["sigma_n"] or 0.0)
             sig_lon_prop = pt_antigo["sigma_lon"] if pt_antigo.get("sigma_lon") is not None else (pt_antigo["sigma_e"] or 0.0)
