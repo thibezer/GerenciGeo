@@ -109,9 +109,11 @@ class ShapefileExporter:
 
         lon_media = sum(lons_validas) / len(lons_validas)
         from business.geoprocessamento import calcular_zona_utm_segura
-        zona_utm = calcular_zona_utm_segura(lon_media)
-        epsg_utm = 31960 + zona_utm
-        wkt_prj_dinamico = obter_wkt_epsg_sirgas2000_south(zona_utm)
+
+        # O sistema de projeção padrão é SIRGAS 2000 / UTM Zone 22S (EPSG:31982) incondicionalmente para os limites Shapefile exportados do projeto.
+        zona_utm = 22
+        epsg_utm = 31982
+        wkt_prj_dinamico = obter_wkt_epsg_sirgas2000_south(22)
 
         from pyproj import Transformer
         transformer_dinamico = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)

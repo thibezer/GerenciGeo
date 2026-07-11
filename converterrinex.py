@@ -42,7 +42,9 @@ def set_clipboard_text(text):
         user32.CloseClipboard()
     return True
 
-def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"):
+import asyncio
+
+async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"):
     """
     Realiza a conversão de um ou mais arquivos .GNS para RINEX usando o HGO.
     Suporta arquivo único (string) ou lote de arquivos (lista).
@@ -70,12 +72,12 @@ def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Fil
     try:
         # Garante que nenhum HGO anterior esteja rodando para evitar conflitos de foco
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         
         # Inicia HGO com RunAsInvoker e define a pasta de execução CWD segura (evitando C:\WINDOWS\system32)
         os.environ["__COMPAT_LAYER"] = "RunAsInvoker"
         cwd_seguro = os.path.dirname(os.path.abspath(__file__))
-        proc = subprocess.Popen([caminho_exe], cwd=cwd_seguro)
+        proc = await asyncio.create_subprocess_exec(caminho_exe, cwd=cwd_seguro)
         # Conecta ao HGO.exe recém-iniciado pelo PID do processo
         app = Application(backend="uia").connect(process=proc.pid, timeout=10)
         janela = app.window(title_re="(?i).*hi-target.*")
