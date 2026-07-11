@@ -1,34 +1,29 @@
-# findings.md — Pesquisas e Descobertas (Protocolo V.L.A.E.G.)
+# Plano de Ação
 
-Este arquivo registra a análise profunda da arquitetura do GerenciGeo, restrições e invariantes de engenharia antes do desenvolvimento do código de produção.
+## FASE 1: Refinamento de UX, Listeners e Tratamento no Frontend
+1. *Auditoria de Event Listeners:*
+   - Em `frontend/src/views/mesa_trabalho/painel_propriedades.ts`, na função `atualizarPainelPropriedades`, usar a técnica de `.cloneNode(true)` para resetar listeners anexados dinamicamente nos botões principais (`btn-props-salvar`, `btn-props-descartar`) e inputs de controle geral, a fim de evitar sobreposição de chamadas.
+   - Tratar também o listener associado ao id `prop-multi-ignorar-poligono` com a mesma técnica (clonando e substituindo) para garantir que não haja callbacks duplicados disparando lógicas de atualização de array indevidas.
+2. *Feedback Visual de Salvamento em Lote:*
+   - Na função anexada ao novo clone do botão de salvamento em lote (`novoBtn.onclick`), inserir o tracking de progresso dentro do bloco try que itera a promessa de fetch: alterando a cada repetição (`for (const pid of ctx.selectedPontoIds)`) a label do botão para `Salvando \${++processados} de \${totalCount}...` mantendo no `finally` o recuo de estilo/texto originais.
+3. *Tratamento de Campos Indeterminate:*
+   - Modificar o manipulador de eventos de `prop-multi-ignorar-poligono` para explicitamente forçar `checkPoliEl.indeterminate = false` no momento da interação, propagando esse `checked` unificado nos payloads assíncronos que são enviados individualmente para a API.
+4. *Rastreabilidade (Nome Original):*
+   - Exploraremos os DTOs do Py pydantic (em `routes/levantamento/pontos.py`) e SQLite tables (em `database/models.py`) ou o model default renderizado na view (`p.nome_vertice` vs `p.nome_campo` ou equivalente) usando o terminal, e em seguida adicionaremos este campo readonly no painel HTML injetado.
 
----
+## FASE 2: Validação de Payload, Conversão e Regras no Backend
+1. *Conversão UTM ↔ Geodésica:*
+   - Em `business/levantamento_manager.py` função `atualizar_ponto_geodesico`, vamos assegurar que pontos tipo 'P' e 'V' passem pelo conversor pyproj. Utilizaremos o EPSG local dinâmico (`f"319{60 + zona}"`) para referenciar a projeção UTM, e extrairemos com total integridade de Float as tuplas de long/lat.
+2. *Unicidade de Nomes Oficiais:*
+   - Modificar `business/levantamento_manager.py` na validação de unicidade contida em `atualizar_ponto_geodesico`. Certificar-se que a query SQLite de verificação devolva false para tuplas iguais de nome sob o mesmo `matricula_id` e dispare um return dict formatado com erro, que o frontend mapeie para toast.
+3. *Integridade da Associação de Confrontantes:*
+   - Revisar `frontend/src/views/mesa_trabalho/painel_propriedades.ts` (linha 1024 a 1110) e checar os POST/PUT de confrontantes para ter uma rotina de Try/Catch unificada por linha salvada, evitando requests de segmento órfãs (caso falhe o confronto, pule a vinculação no segmento ou aborte). 
 
-## 🔎 Análise do Estado Atual
-
-### 1. Banco de Dados (`database/models.py`)
-- **Tabela `pontos`**: 
-  - Possui a constraint `UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)`.
-  - Contém campos de rastreabilidade geodésica avançada (`lat_corrigido`, `lon_corrigido`, `alt_corrigido`, `n_original`, `e_original`, `alt_original`).
-  - **Restrição identificada**: Ao adicionar `status_ponto` e `ponto_base_id`, a inicialização em `create_tables()` deve rodar um `ALTER TABLE` tolerando execuções recorrentes. Como o SQLite não possui suporte nativo simples a `IF NOT EXISTS` em `ALTER TABLE ADD COLUMN`, utilizaremos `PRAGMA table_info` para inspecionar de forma determinística a presença das colunas antes de executar os comandos.
-
-### 2. Motor de Translação (`business/txt_parser.py`)
-- **Funcionamento Atual**:
-  - `identificar_layout()` detecta se é `rtk` ou `topcon` (estático).
-  - Se for `rtk`, ele localiza a base bruta no arquivo usando a descrição exata `"set_base"`.
-  - O fuso UTM é inferido da base PPP do banco ou tem fallback para `31982` (UTM 22S).
-  - A translação geocêntrica 3D ECEF aplica-se a todos os rovers combinando as coordenadas e propagando sigmas quadraticamente.
-  - **Descoberta/Aperfeiçoamento**: Se o usuário fornecer um ID específico de base, extrairemos este vértice corrigido do banco para translação. A base de amarração no arquivo poderá ser encontrada não só pelo marcador `"set_base"`, mas também pelo nome do vértice condizente com a base (ex: `"M-100"`), removendo o acoplamento rígido de layout.
-
-### 3. Exposição de APIs (`api.py`)
-- O endpoint `@app.post("/levantamentos/{id}/importar-txt")` recebe parâmetros como `Form(...)` e `file`. Adicionaremos a `base_escolhida_id: int = Form(None)` para que ela flua perfeitamente do frontend para o núcleo de translação.
-- Atualmente, as poligonais de matrícula são reordenadas automaticamente pelo botão de sentido horário a partir do ponto mais ao norte.
-- **Nova lógica**: O reordenamento de perímetro manual do frontend necessita de uma API de reordenação customizada que atualize atomicamente o `ordem_caminhamento` e reconstrua os segmentos (fechamento de polígono) de forma limpa e sem órfãos.
-
----
-
-## ⚠️ Restrições e Invariantes
-1. **Tranca de Segurança Read-Only**: O middleware de auditoria bloqueia qualquer modificação de pontos ou segmentos se o levantamento estiver em status `'ARQUIVADO'`. Esta regra deve ser preservada.
-2. **Propagação de Incerteza**: Os desvios padrão (Sigmas) de base e rovers devem ser combinados de forma quadrática:
-   $$\sigma_{final} = \sqrt{\sigma_{rover}^2 + \sigma_{base}^2}$$
-3. **Fechamento de Polígono**: Toda topologia deve possuir um segmento ligando o último ponto de volta ao primeiro na cadeia de caminhamento.
+## FASE 3: Testes e Submission
+1. *Testes*:
+   - Executar os testes locais de backend instanciando validadores se necessário.
+   - Executar `npm run build` na pasta `frontend/` com obrigatoriedade de 0 warnings TS.
+2. *Pre Commit*:
+   - Complete pre commit steps to ensure proper testing, verification, review, and reflection are done.
+3. *Submit*:
+   - Submeter o Pull Request sob a branch `feat/auditoria-painel-propriedades`.
