@@ -575,6 +575,20 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   btnProcessar?.addEventListener('click', async () => {
     if (ctx.filesQueue.length === 0) return;
 
+    const btnProcessarOriginal = btnProcessar as HTMLButtonElement;
+    const btnProcessarModalEl = document.getElementById('btn-processar-lote-modal') as HTMLButtonElement;
+    const originalHtmlBtn = btnProcessarOriginal.innerHTML;
+    const originalHtmlModal = btnProcessarModalEl ? btnProcessarModalEl.innerHTML : '';
+
+    btnProcessarOriginal.disabled = true;
+    btnProcessarOriginal.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processando...`;
+
+    if (btnProcessarModalEl) {
+      btnProcessarModalEl.disabled = true;
+      btnProcessarModalEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processando...`;
+    }
+    initIcons();
+
     const chkInverter = document.getElementById('chk-inverter-ne-mesa') as HTMLInputElement;
     const inverterNE = chkInverter?.checked ? 'true' : 'false';
 
@@ -696,6 +710,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
     if (chkInverter) chkInverter.checked = false;
     ctx.filesQueue = [];
+
+    btnProcessarOriginal.disabled = false;
+    btnProcessarOriginal.innerHTML = originalHtmlBtn;
+    if (btnProcessarModalEl) {
+      btnProcessarModalEl.disabled = false;
+      btnProcessarModalEl.innerHTML = originalHtmlModal;
+    }
+    initIcons();
+
     ctx.renderFilaArquivos();
     ctx.loadLevantamentoDetails();
   });
@@ -813,6 +836,16 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
   document.getElementById('btn-consolidar-pontos-utm')?.addEventListener('click', async () => {
     if (!ctx.currentLevId) return;
+
+    const btnConsolidar = document.getElementById('btn-consolidar-pontos-utm') as HTMLButtonElement;
+    let originalHtmlConsolidar = '';
+    if (btnConsolidar) {
+      originalHtmlConsolidar = btnConsolidar.innerHTML;
+      btnConsolidar.disabled = true;
+      btnConsolidar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Consolidando...`;
+      initIcons();
+    }
+
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/consolidar-pontos`, { method: 'POST' });
       const data = await res.json();
@@ -827,6 +860,12 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       }
     } catch (e) {
       alert("Erro ao consolidar pontos.");
+    } finally {
+      if (btnConsolidar) {
+        btnConsolidar.disabled = false;
+        btnConsolidar.innerHTML = originalHtmlConsolidar;
+        initIcons();
+      }
     }
   });
 
@@ -886,6 +925,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
     if (!confirm(msgConfirm)) return;
 
+    const btnReordenar = document.getElementById('btn-reordenar-caminhamento') as HTMLButtonElement;
+    let originalHtmlReordenar = '';
+    if (btnReordenar) {
+      originalHtmlReordenar = btnReordenar.innerHTML;
+      btnReordenar.disabled = true;
+      btnReordenar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Reordenando...`;
+      initIcons();
+    }
+
     try {
       const url = ctx.etapaAtiva === 'geoprocessamento'
         ? `${API_BASE}/levantamentos/${ctx.currentLevId}/reordenar`
@@ -901,12 +949,27 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       }
     } catch (e) {
       alert("Erro ao reordenar Poligonal.");
+    } finally {
+      if (btnReordenar) {
+        btnReordenar.disabled = false;
+        btnReordenar.innerHTML = originalHtmlReordenar;
+        initIcons();
+      }
     }
   });
 
   document.getElementById('btn-arquivar-projeto-seguro')?.addEventListener('click', async () => {
     if (!ctx.currentLevId) return;
     if (!confirm("ATENÇÃO: Você tem certeza que deseja arquivar definitivamente este levantamento? As pastas físicas no Windows serão travadas como Somente Leitura (Read-Only) e a edição de dados no banco será bloqueada.")) return;
+
+    const btnArquivar = document.getElementById('btn-arquivar-projeto-seguro') as HTMLButtonElement;
+    let originalHtmlArquivar = '';
+    if (btnArquivar) {
+      originalHtmlArquivar = btnArquivar.innerHTML;
+      btnArquivar.disabled = true;
+      btnArquivar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Arquivando...`;
+      initIcons();
+    }
 
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivar`, { method: 'POST' });
@@ -915,25 +978,132 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       window.location.hash = '#levantamentos';
     } catch (e) {
       alert("Erro ao arquivar levantamento.");
+    } finally {
+      if (btnArquivar) {
+        btnArquivar.disabled = false;
+        btnArquivar.innerHTML = originalHtmlArquivar;
+        initIcons();
+      }
     }
   });
 
   document.getElementById('btn-toggle-coordenadas')?.addEventListener('click', () => {
     const btn = document.getElementById('btn-toggle-coordenadas');
     const lbl = document.getElementById('lbl-titulo-vertices');
+    const btnUtm = document.getElementById('btn-modo-utm');
+    const btnGeo = document.getElementById('btn-modo-geo');
 
     if (ctx.modoCoordenadas === 'geodesico') {
       ctx.modoCoordenadas = 'utm';
       if (btn) btn.innerText = 'Ver em Geodésico';
       if (lbl) lbl.innerText = 'Vértices UTM (SIRGAS 22S)';
+      if (btnUtm) btnUtm.classList.add('active');
+      if (btnGeo) btnGeo.classList.remove('active');
     } else {
       ctx.modoCoordenadas = 'geodesico';
       if (btn) btn.innerText = 'Ver em UTM';
       if (lbl) lbl.innerText = 'Vértices Geodésicos';
+      if (btnGeo) btnGeo.classList.add('active');
+      if (btnUtm) btnUtm.classList.remove('active');
     }
 
     ctx.renderMatriculaDados();
     ctx.atualizarPainelPropriedades?.();
+  });
+
+  document.getElementById('btn-modo-utm')?.addEventListener('click', () => {
+    if (ctx.modoCoordenadas !== 'utm') {
+      document.getElementById('btn-toggle-coordenadas')?.click();
+    }
+  });
+
+  document.getElementById('btn-modo-geo')?.addEventListener('click', () => {
+    if (ctx.modoCoordenadas !== 'geodesico') {
+      document.getElementById('btn-toggle-coordenadas')?.click();
+    }
+  });
+
+  document.getElementById('btn-unificar-sigef')?.addEventListener('click', () => {
+    const modalSigef = document.getElementById('modal-unificar-sigef');
+    if (modalSigef) modalSigef.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-fechar-modal-sigef')?.addEventListener('click', () => {
+    const modalSigef = document.getElementById('modal-unificar-sigef');
+    if (modalSigef) modalSigef.classList.add('hidden');
+  });
+
+  document.getElementById('btn-cancelar-sigef')?.addEventListener('click', () => {
+    const modalSigef = document.getElementById('modal-unificar-sigef');
+    if (modalSigef) modalSigef.classList.add('hidden');
+  });
+
+  document.getElementById('form-unificar-sigef')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!ctx.currentLevId) return;
+
+    const inputVert = document.getElementById('input-sigef-vertices') as HTMLInputElement;
+    const inputLim = document.getElementById('input-sigef-limites') as HTMLInputElement;
+
+    if (!inputVert.files || inputVert.files.length === 0 || !inputLim.files || inputLim.files.length === 0) {
+      alert("Por favor, selecione ambos os arquivos.");
+      return;
+    }
+
+    const btnSubmit = document.getElementById('btn-submit-sigef') as HTMLButtonElement;
+    let originalHtml = '';
+    if (btnSubmit) {
+      originalHtml = btnSubmit.innerHTML;
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Unificando...`;
+      initIcons();
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file_vertices', inputVert.files[0]);
+      formData.append('file_limites', inputLim.files[0]);
+      if (ctx.currentMatriculaId) {
+        formData.append('matricula_id', ctx.currentMatriculaId.toString());
+      }
+
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/unificar-sigef`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        alert(`Erro na unificação: ${data.detail || data.error || 'Falha desconhecida'}`);
+      } else {
+        showToast(data.message || "Arquivos unificados com sucesso!", "success");
+        document.getElementById('modal-unificar-sigef')?.classList.add('hidden');
+        ctx.loadLevantamentoDetails();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao unificar arquivos SIGEF.");
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = originalHtml;
+        initIcons();
+      }
+    }
+  });
+
+  document.getElementById('btn-ativar-reordenacao')?.addEventListener('click', () => {
+    if (typeof ctx.alternarModoReordenarManual === 'function') {
+      ctx.alternarModoReordenarManual(true);
+    } else {
+      showToast("Por favor, vá para a aba 'Org. de Perímetro' para reordenar.", "info");
+      const tabCartorio = document.getElementById('tab-perimetro');
+      if (tabCartorio) tabCartorio.click();
+    }
+  });
+
+  document.getElementById('btn-override-base-manual')?.addEventListener('click', () => {
+    alert("Para sobrescrever a base manualmente, clique com o botão direito sobre o vértice base na tabela e selecione 'Editar / Detalhes do Ponto'.");
   });
 
   document.getElementById('btn-toggle-ocultar-ignorados')?.addEventListener('click', () => {
@@ -1048,6 +1218,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const btnImportarCsvVizinhoEl = document.getElementById('btn-importar-csv-vizinho') as HTMLButtonElement;
+    let originalHtmlImportar = '';
+    if (btnImportarCsvVizinhoEl) {
+      originalHtmlImportar = btnImportarCsvVizinhoEl.innerHTML;
+      btnImportarCsvVizinhoEl.disabled = true;
+      btnImportarCsvVizinhoEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Importando...`;
+      initIcons();
+    }
+
     try {
       showToast(`Processando ${files.length} arquivo(s) de vizinho...`, "info");
       
@@ -1085,12 +1264,27 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       console.error(err);
       alert("Erro ao enviar arquivos de vizinho.");
       inputCsvVizinho.value = '';
+    } finally {
+      if (btnImportarCsvVizinhoEl) {
+        btnImportarCsvVizinhoEl.disabled = false;
+        btnImportarCsvVizinhoEl.innerHTML = originalHtmlImportar;
+        initIcons();
+      }
     }
   });
 
   const btnLimparVizinhos = document.getElementById('btn-limpar-vizinhos');
   btnLimparVizinhos?.addEventListener('click', async () => {
     if (!confirm("Tem certeza que deseja apagar todos os pontos de vizinhos importados no mapa?")) return;
+
+    const btnLimparEl = btnLimparVizinhos as HTMLButtonElement;
+    let originalHtmlLimpar = '';
+    if (btnLimparEl) {
+      originalHtmlLimpar = btnLimparEl.innerHTML;
+      btnLimparEl.disabled = true;
+      btnLimparEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Limpando...`;
+      initIcons();
+    }
 
     try {
       showToast("Removendo pontos de vizinhos...", "info");
@@ -1108,6 +1302,12 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     } catch (err) {
       console.error(err);
       alert("Erro ao remover pontos de vizinhos.");
+    } finally {
+      if (btnLimparEl) {
+        btnLimparEl.disabled = false;
+        btnLimparEl.innerHTML = originalHtmlLimpar;
+        initIcons();
+      }
     }
   });
 
