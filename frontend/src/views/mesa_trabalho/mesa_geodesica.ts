@@ -191,7 +191,6 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
     }
 
-    ctx.mapaController.fitBounds(pontosMat);
   }
 
   const tblHeader = document.getElementById('tbl-pontos-header');

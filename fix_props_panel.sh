@@ -1,0 +1,12 @@
+#!/bin/bash
+echo "Yes! It calls fitBounds(pontosMat) on EVERY RENDER of the table. So whenever loadLevantamentoDetails -> alternarEtapa -> renderMatriculaDados -> renderTabelaMesaGeodesica is called, the map's viewport resets."
+echo "If we remove fitBounds from renderTabelaMesaGeodesica, how will the map fit initially?"
+echo "In mesa_trabalho.ts, when ctx.switchMatriculaTab is called:"
+echo "          if (validCoords.length > 0) {"
+echo "            const bounds = L.latLngBounds(validCoords);"
+echo "            ctx.triagemMap!.fitBounds(bounds, { padding: [40, 40] });"
+echo "          }"
+echo "So it fits bounds on tab switch! We don't need it in renderTabelaMesaGeodesica on every filter or sort or edit."
+echo "AND in painel_propriedades.ts, ctx.loadLevantamentoDetails() fetches points again. However, if we do not await it, the painel proprieties will show the old data because updating it requires the new fetched data."
+echo "If we change painel_propriedades.ts to await loadLevantamentoDetails() and then call atualizarPainelPropriedades(ctx), it will show the fresh data."
+echo "Let's check if loadLevantamentoDetails returns a Promise."
