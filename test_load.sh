@@ -1,0 +1,7 @@
+echo "Ah, it's not awaited! ctx.loadLevantamentoDetails() is called synchronously (without await) in btnSalvar.onclick (which is async, but doesn't await it)."
+echo "Also, updating the property panel with the newly fetched data requires ctx.atualizarPainelPropriedades()."
+echo "We should:"
+echo "1. Await ctx.loadLevantamentoDetails()."
+echo "2. Call ctx.atualizarPainelPropriedades() so the panel shows the fresh values."
+echo "Actually, loadLevantamentoDetails calls alternarEtapa which calls renderMatriculaDados. Does any of these call atualizarPainelPropriedades?"
+echo "Let's check if loadLevantamentoDetails or anything it calls calls atualizarPainelPropriedades."

@@ -615,7 +615,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
           }
 
           showToast("Vértice salvo com sucesso!", "success");
-          ctx.loadLevantamentoDetails();
+          await ctx.loadLevantamentoDetails();
+          atualizarPainelPropriedades(ctx);
         } catch (err) {
           console.error(err);
           showToast("Erro ao salvar alterações no vértice.", "error");
@@ -1171,7 +1172,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
           } else {
             showToast("Alguns vértices não puderam ser atualizados.", "info");
           }
-          ctx.loadLevantamentoDetails();
+          await ctx.loadLevantamentoDetails();
+          atualizarPainelPropriedades(ctx);
         } catch (err) {
           console.error(err);
           showToast("Erro ao salvar alterações em lote.", "error");
