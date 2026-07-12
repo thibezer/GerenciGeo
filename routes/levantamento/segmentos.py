@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from database.connection import execute_query
+from database.connection import DatabaseManager, execute_query
 from routes.deps import verificar_levantamento_arquivado
 
 router = APIRouter(tags=["Confrontantes & Segmentos"])
@@ -148,9 +148,14 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                     nome_propriedade, codigo_incra_imovel
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (pessoa_id, id, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel))
+            confrontante_id = cursor.lastrowid
             conn.commit()
             
-        return {"message": "Confrontante adicionado com sucesso"}
+        return {
+            "message": "Confrontante adicionado com sucesso",
+            "id": confrontante_id,
+            "confrontante_id": confrontante_id
+        }
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         return {"error": str(e)}

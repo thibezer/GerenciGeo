@@ -301,7 +301,7 @@ export const renderMesaTrabalho = (): string => {
           </div>
           
           <div class="props-panel-footer hidden" id="props-panel-actions">
-            <button class="btn-primary text-xs w-full" id="btn-props-salvar" type="button">Alterações</button>
+            <button class="btn-primary text-xs w-full" id="btn-props-salvar" type="button">Salvar Alterações</button>
             <button class="btn-secondary text-xs w-full" id="btn-props-descartar" type="button">Descartar</button>
           </div>
           <!-- Alça de Redimensionamento Lateral (Resizer) -->

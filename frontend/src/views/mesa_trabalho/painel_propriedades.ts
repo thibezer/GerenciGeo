@@ -571,8 +571,23 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
           if (confrontanteAlterado) {
             if (seg) {
-              if (seg.confrontante_id) {
-                await fetch(`${API_BASE}/confrontantes/${seg.confrontante_id}`, {
+              if (confNomeVal.trim() === '') {
+                if (seg.confrontante_id) {
+                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      matricula_id: seg.matricula_id,
+                      ponto_inicio_id: seg.ponto_inicio_id,
+                      ponto_fim_id: seg.ponto_fim_id,
+                      confrontante_id: null,
+                      tipo_limite_sigef: seg.tipo_limite_sigef,
+                      metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
+                    })
+                  });
+                }
+              } else if (seg.confrontante_id) {
+                const resConf = await fetch(`${API_BASE}/confrontantes/${seg.confrontante_id}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -583,7 +598,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
                     tipo_relacao: confObj?.tipo_relacao || 'Divisa'
                   })
                 });
-              } else if (confNomeVal.trim() !== '') {
+                if (!resConf.ok) {
+                  throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
+                }
+                const resConfData = await resConf.json().catch(() => ({}));
+                if (resConfData.error) {
+                  throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
+                }
+              } else {
                 const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -594,10 +616,16 @@ export function atualizarPainelPropriedades(ctx: any): void {
                     tipo_relacao: 'Divisa'
                   })
                 });
-                const resConfData = await resConf.json();
+                if (!resConf.ok) {
+                  throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
+                }
+                const resConfData = await resConf.json().catch(() => ({}));
+                if (resConfData.error) {
+                  throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
+                }
                 const confId = resConfData.id || resConfData.confrontante_id;
                 if (confId) {
-                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                  const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -609,6 +637,13 @@ export function atualizarPainelPropriedades(ctx: any): void {
                       metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
                     })
                   });
+                  if (!resSeg.ok) {
+                    throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
+                  }
+                  const resSegData = await resSeg.json().catch(() => ({}));
+                  if (resSegData.error) {
+                    throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
+                  }
                 }
               }
             }
@@ -1106,9 +1141,12 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 const resConfText = await resConf.text();
                 console.log(`[SAVE-LOTE] Resposta PUT confrontante ${cId}: HTTP ${resConf.status} →`, resConfText);
 
-                if (!resConf.ok) {
+                let resConfData: any = {};
+                try { resConfData = JSON.parse(resConfText); } catch {}
+
+                if (!resConf.ok || resConfData.error) {
                   sucessoTotal = false;
-                  showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: HTTP ${resConf.status} — ${resConfText}`, 'error');
+                  showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
                   continue;
                 }
               } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && seg) {
@@ -1131,14 +1169,15 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 const resConfText = await resConf.text();
                 console.log(`[SAVE-LOTE] Resposta POST confrontante (ponto ${pid}): HTTP ${resConf.status} →`, resConfText);
 
-                if (!resConf.ok) {
+                let resConfData: any = {};
+                try { resConfData = JSON.parse(resConfText); } catch {}
+
+                if (!resConf.ok || resConfData.error) {
                   sucessoTotal = false;
-                  showToast(`❌ Erro ao criar confrontante do ponto ${pid}: HTTP ${resConf.status} — ${resConfText}`, 'error');
+                  showToast(`❌ Erro ao criar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
                   continue;
                 }
 
-                let resConfData: any;
-                try { resConfData = JSON.parse(resConfText); } catch { resConfData = {}; }
                 const confId = resConfData.id || resConfData.confrontante_id;
                 if (confId && seg) {
                   try {
@@ -1156,7 +1195,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(segPayload)
                     });
-                    if (!resSeg.ok) sucessoTotal = false;
+                    const resSegText = await resSeg.text();
+                    let resSegData: any = {};
+                    try { resSegData = JSON.parse(resSegText); } catch {}
+
+                    if (!resSeg.ok || resSegData.error) {
+                      sucessoTotal = false;
+                      showToast(`❌ Erro ao associar confrontante ao segmento do ponto ${pid}: ${resSegData.error || `HTTP ${resSeg.status}`}`, 'error');
+                    }
                   } catch (e) {
                     sucessoTotal = false;
                   }
