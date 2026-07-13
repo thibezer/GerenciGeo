@@ -33,14 +33,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
     const selectedCount = ctx.selectedPontoIds.length;
     const selectedVizinhoCount = ctx.selectedVizinhoPontoIds ? ctx.selectedVizinhoPontoIds.length : 0;
 
-  if (selectedCount === 0 && selectedVizinhoCount === 0) {
-    // Caso 1: Sem Seleção
-    const matObj = ctx.matriculasList.find((m: any) => m.id === ctx.currentMatriculaId);
-    const pontosMat = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
-    const pontosAtivosCount = pontosMat.filter((p: any) => p.ignorar_poligono !== 1).length;
-    const confrontantesCount = ctx.confrontantesList.length;
+    if (selectedCount === 0 && selectedVizinhoCount === 0) {
+      // Caso 1: Sem Seleção
+      const matObj = ctx.matriculasList.find((m: any) => m.id === ctx.currentMatriculaId);
+      const pontosMat = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+      const pontosAtivosCount = pontosMat.filter((p: any) => p.ignorar_poligono !== 1).length;
+      const confrontantesCount = ctx.confrontantesList.length;
 
-    panelContent.innerHTML = `
+      panelContent.innerHTML = `
       <div class="props-section">
         <div class="props-section-header" id="header-props-geral">
           <i data-lucide="chevron-down"></i> Geral
@@ -100,105 +100,105 @@ export function atualizarPainelPropriedades(ctx: any): void {
       </div>
     `;
 
-    setupCollapsibleSections(['geral', 'matricula']);
-    initIcons();
-    if (panelActions) panelActions.classList.add('hidden');
-  } 
-  else if (selectedCount === 1 || (selectedCount === 0 && selectedVizinhoCount === 1)) {
-    // Caso 2: Um Vértice Selecionado (Normal ou Vizinho)
-    let p: any = null;
-    let isPontoVizinho = false;
-
-    if (selectedCount === 1) {
-      const pId = ctx.selectedPontoIds[0];
-      p = ctx.pontosList.find((pt: any) => pt.id === pId);
-      isPontoVizinho = p ? p.ponto_vizinho === 1 : false;
-    } else {
-      const pId = ctx.selectedVizinhoPontoIds[0];
-      p = ctx.pontosVizinhosList.find((pt: any) => pt.id === pId);
-      isPontoVizinho = true;
-    }
-
-    const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
-    const isDisabled = isPontoVizinho || isArquivado;
-
-    if (!p) {
-      panelContent.innerHTML = `<div class="p-4 text-white/40 italic">Ponto não encontrado.</div>`;
+      setupCollapsibleSections(['geral', 'matricula']);
+      initIcons();
       if (panelActions) panelActions.classList.add('hidden');
-      return;
     }
+    else if (selectedCount === 1 || (selectedCount === 0 && selectedVizinhoCount === 1)) {
+      // Caso 2: Um Vértice Selecionado (Normal ou Vizinho)
+      let p: any = null;
+      let isPontoVizinho = false;
 
-    const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-
-    let latVal = 0;
-    let lonVal = 0;
-    let eVal = 0;
-    let nVal = 0;
-    let hVal = 0;
-
-    if (isCorrigido) {
-      latVal = parseNumber(p.lat_corrigido !== undefined && p.lat_corrigido !== null ? p.lat_corrigido : p.lat);
-      lonVal = parseNumber(p.lon_corrigido !== undefined && p.lon_corrigido !== null ? p.lon_corrigido : p.lon);
-      eVal = parseNumber(p.e_corrigido !== undefined && p.e_corrigido !== null ? p.e_corrigido : p.e_original);
-      nVal = parseNumber(p.n_corrigido !== undefined && p.n_corrigido !== null ? p.n_corrigido : p.n_original);
-      hVal = parseNumber(p.alt_corrigido !== undefined && p.alt_corrigido !== null ? p.alt_corrigido : (p.alt || p.alt_original));
-    } else {
-      latVal = parseNumber(p.lat);
-      lonVal = parseNumber(p.lon);
-      eVal = parseNumber(p.e_original || p.e_corrigido);
-      nVal = parseNumber(p.n_original || p.n_corrigido);
-      hVal = parseNumber(p.alt || p.alt_original);
-    }
-
-    const sigE = parseNumber(p.sigma_e);
-    const sigN = parseNumber(p.sigma_n);
-    const resultante = parseNumber(Math.sqrt(sigE * sigE + sigN * sigN) * 1000);
-
-    let corResultanteClass = 'text-emerald-400';
-    if (resultante > 30 && resultante <= 100) {
-      corResultanteClass = 'text-yellow-400';
-    } else if (resultante > 100) {
-      corResultanteClass = 'text-rose-400';
-    }
-
-    let seg: any = null;
-    if (ctx.segmentosList && Array.isArray(ctx.segmentosList)) {
-      seg = ctx.segmentosList.find((s: any) => s.ponto_inicio_id === p.id);
-    }
-    let confNome = '';
-    let confMatricula = '';
-    let confCartorio = '';
-    let confObj: any = null;
-
-    const confrontanteId = p.confrontante_id || (seg && seg.confrontante_id);
-    if (confrontanteId && ctx.confrontantesList && Array.isArray(ctx.confrontantesList)) {
-      confObj = ctx.confrontantesList.find((c: any) => c.id === confrontanteId);
-      if (confObj) {
-        confNome = confObj.nome || '';
-        confMatricula = confObj.matricula_imovel || '';
-        confCartorio = confObj.cns_confrontante || '';
+      if (selectedCount === 1) {
+        const pId = ctx.selectedPontoIds[0];
+        p = ctx.pontosList.find((pt: any) => pt.id === pId);
+        isPontoVizinho = p ? p.ponto_vizinho === 1 : false;
+      } else {
+        const pId = ctx.selectedVizinhoPontoIds[0];
+        p = ctx.pontosVizinhosList.find((pt: any) => pt.id === pId);
+        isPontoVizinho = true;
       }
-    }
 
-    const temCoordenadasBrutas = isCorrigido && (p.e_original || p.lat || p.lon);
+      const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
+      const isDisabled = isPontoVizinho || isArquivado;
 
-    let nomeBaseApoio = 'Nenhuma';
-    if (p.ponto_base_id && ctx.pontosList && Array.isArray(ctx.pontosList)) {
-      const basePt = ctx.pontosList.find((pt: any) => pt.id === p.ponto_base_id);
-      if (basePt) nomeBaseApoio = basePt.nome_vertice || `ID ${p.ponto_base_id}`;
-    }
+      if (!p) {
+        panelContent.innerHTML = `<div class="p-4 text-white/40 italic">Ponto não encontrado.</div>`;
+        if (panelActions) panelActions.classList.add('hidden');
+        return;
+      }
 
-    let origemTexto = 'Vértice de Campo (Medido)';
-    let badgeClass = 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20';
-    if (isPontoVizinho) {
-      origemTexto = 'Vértice de Vizinho (SIGEF - Não Integrado)';
-      badgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-    } else if (p.confrontante_id) {
-      origemTexto = 'Vértice Integrado de Vizinho';
-      badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
-    }
+      const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
 
-    panelContent.innerHTML = `
+      let latVal = 0;
+      let lonVal = 0;
+      let eVal = 0;
+      let nVal = 0;
+      let hVal = 0;
+
+      if (isCorrigido) {
+        latVal = parseNumber(p.lat_corrigido !== undefined && p.lat_corrigido !== null ? p.lat_corrigido : p.lat);
+        lonVal = parseNumber(p.lon_corrigido !== undefined && p.lon_corrigido !== null ? p.lon_corrigido : p.lon);
+        eVal = parseNumber(p.e_corrigido !== undefined && p.e_corrigido !== null ? p.e_corrigido : p.e_original);
+        nVal = parseNumber(p.n_corrigido !== undefined && p.n_corrigido !== null ? p.n_corrigido : p.n_original);
+        hVal = parseNumber(p.alt_corrigido !== undefined && p.alt_corrigido !== null ? p.alt_corrigido : (p.alt || p.alt_original));
+      } else {
+        latVal = parseNumber(p.lat);
+        lonVal = parseNumber(p.lon);
+        eVal = parseNumber(p.e_original || p.e_corrigido);
+        nVal = parseNumber(p.n_original || p.n_corrigido);
+        hVal = parseNumber(p.alt || p.alt_original);
+      }
+
+      const sigE = parseNumber(p.sigma_e);
+      const sigN = parseNumber(p.sigma_n);
+      const resultante = parseNumber(Math.sqrt(sigE * sigE + sigN * sigN) * 1000);
+
+      let corResultanteClass = 'text-emerald-400';
+      if (resultante > 30 && resultante <= 100) {
+        corResultanteClass = 'text-yellow-400';
+      } else if (resultante > 100) {
+        corResultanteClass = 'text-rose-400';
+      }
+
+      let seg: any = null;
+      if (ctx.segmentosList && Array.isArray(ctx.segmentosList)) {
+        seg = ctx.segmentosList.find((s: any) => s.ponto_inicio_id === p.id);
+      }
+      let confNome = '';
+      let confMatricula = '';
+      let confCartorio = '';
+      let confObj: any = null;
+
+      const confrontanteId = p.confrontante_id || (seg && seg.confrontante_id);
+      if (confrontanteId && ctx.confrontantesList && Array.isArray(ctx.confrontantesList)) {
+        confObj = ctx.confrontantesList.find((c: any) => c.id === confrontanteId);
+        if (confObj) {
+          confNome = confObj.nome || '';
+          confMatricula = confObj.matricula_imovel || '';
+          confCartorio = confObj.cns_confrontante || '';
+        }
+      }
+
+      const temCoordenadasBrutas = isCorrigido && (p.e_original || p.lat || p.lon);
+
+      let nomeBaseApoio = 'Nenhuma';
+      if (p.ponto_base_id && ctx.pontosList && Array.isArray(ctx.pontosList)) {
+        const basePt = ctx.pontosList.find((pt: any) => pt.id === p.ponto_base_id);
+        if (basePt) nomeBaseApoio = basePt.nome_vertice || `ID ${p.ponto_base_id}`;
+      }
+
+      let origemTexto = 'Vértice de Campo (Medido)';
+      let badgeClass = 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20';
+      if (isPontoVizinho) {
+        origemTexto = 'Vértice de Vizinho (SIGEF - Não Integrado)';
+        badgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      } else if (p.confrontante_id) {
+        origemTexto = 'Vértice Integrado de Vizinho';
+        badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+      }
+
+      panelContent.innerHTML = `
       <!-- GRUPO 1: GERAL -->
       <div class="props-section" id="sec-props-geral">
         <div class="props-section-header" id="header-props-geral">
@@ -401,403 +401,413 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ` : ''}
     `;
 
-    setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados']);
-    initIcons();
+      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados']);
+      initIcons();
 
-    if (isPontoVizinho || isArquivado) {
-      if (panelActions) panelActions.classList.add('hidden');
-      return;
-    }
+      if (isPontoVizinho || isArquivado) {
+        if (panelActions) panelActions.classList.add('hidden');
+        return;
+      }
 
-    // Registra os valores originais para detecção de alteração ("dirty")
-    const valoresOriginais = {
-      nome_vertice: p.nome_vertice || '',
-      tipo_ponto: p.tipo_ponto || p.tipo || '',
-      e_corrigido: eVal.toFixed(3),
-      n_corrigido: nVal.toFixed(3),
-      lat_corrigido: latVal.toFixed(9),
-      lon_corrigido: lonVal.toFixed(9),
-      alt_corrigido: hVal.toFixed(3),
-      confrontante: confNome,
-      confrontante_matricula: confMatricula,
-      confrontante_cartorio: confCartorio,
-      ignorar_poligono: p.ignorar_poligono === 1
-    };
-
-    const inputs = [
-      'prop-nome-vertice', 'prop-tipo-ponto', 'prop-alt-corrigido', 
-      'prop-confrontante', 'prop-confrontante-matricula', 'prop-confrontante-cartorio', 
-      'prop-ignorar-poligono'
-    ];
-
-    if (ctx.modoCoordenadas === 'utm') {
-      inputs.push('prop-e-corrigido', 'prop-n-corrigido');
-    } else {
-      inputs.push('prop-lat-corrigido', 'prop-lon-corrigido');
-    }
-    
-    const verificarAlteracoes = () => {
-      let modificado = false;
-      
-      const checkDirty = (id: string, originalVal: any, isCheckbox = false) => {
-        const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement;
-        if (el) {
-          const val = isCheckbox ? (el as HTMLInputElement).checked : el.value;
-          const d = isCheckbox ? val !== originalVal : val !== originalVal;
-          el.classList.toggle('dirty', d);
-          if (d) modificado = true;
-        }
+      // Registra os valores originais para detecção de alteração ("dirty")
+      const valoresOriginais = {
+        nome_vertice: p.nome_vertice || '',
+        tipo_ponto: p.tipo_ponto || p.tipo || '',
+        e_corrigido: eVal.toFixed(3),
+        n_corrigido: nVal.toFixed(3),
+        lat_corrigido: latVal.toFixed(9),
+        lon_corrigido: lonVal.toFixed(9),
+        alt_corrigido: hVal.toFixed(3),
+        confrontante: confNome,
+        confrontante_matricula: confMatricula,
+        confrontante_cartorio: confCartorio,
+        ignorar_poligono: p.ignorar_poligono === 1
       };
 
-      checkDirty('prop-nome-vertice', valoresOriginais.nome_vertice);
-      checkDirty('prop-tipo-ponto', valoresOriginais.tipo_ponto);
+      const inputs = [
+        'prop-nome-vertice', 'prop-tipo-ponto', 'prop-alt-corrigido',
+        'prop-confrontante', 'prop-confrontante-matricula', 'prop-confrontante-cartorio',
+        'prop-ignorar-poligono'
+      ];
 
       if (ctx.modoCoordenadas === 'utm') {
-        checkDirty('prop-e-corrigido', valoresOriginais.e_corrigido);
-        checkDirty('prop-n-corrigido', valoresOriginais.n_corrigido);
+        inputs.push('prop-e-corrigido', 'prop-n-corrigido');
       } else {
-        checkDirty('prop-lat-corrigido', valoresOriginais.lat_corrigido);
-        checkDirty('prop-lon-corrigido', valoresOriginais.lon_corrigido);
+        inputs.push('prop-lat-corrigido', 'prop-lon-corrigido');
       }
-      checkDirty('prop-alt-corrigido', valoresOriginais.alt_corrigido);
 
-      checkDirty('prop-confrontante', valoresOriginais.confrontante);
-      checkDirty('prop-confrontante-matricula', valoresOriginais.confrontante_matricula);
-      checkDirty('prop-confrontante-cartorio', valoresOriginais.confrontante_cartorio);
-      checkDirty('prop-ignorar-poligono', valoresOriginais.ignorar_poligono, true);
+      const verificarAlteracoes = () => {
+        let modificado = false;
 
-      if (panelActions) {
-        panelActions.classList.toggle('hidden', !modificado);
-      }
-    };
-
-    inputs.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('input', verificarAlteracoes);
-        el.addEventListener('change', verificarAlteracoes);
-      }
-    });
-
-    const btnSugerir = document.getElementById('btn-sugerir-nome');
-    if (btnSugerir) {
-      btnSugerir.onclick = async () => {
-        try {
-          const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
-          const tipo = tipoSelect ? tipoSelect.value : (p.tipo_ponto || p.tipo);
-          
-          if (!['M', 'P', 'V'].includes(tipo)) {
-            showToast("Sugestão de nome oficial apenas para Marcos (M), Pontos (P) ou Virtuais (V).", "info");
-            return;
+        const checkDirty = (id: string, originalVal: any, isCheckbox = false) => {
+          const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement;
+          if (el) {
+            const val = isCheckbox ? (el as HTMLInputElement).checked : el.value;
+            const d = isCheckbox ? val !== originalVal : val !== originalVal;
+            el.classList.toggle('dirty', d);
+            if (d) modificado = true;
           }
-
-          const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-sugeridos`);
-          if (!res.ok) throw new Error("Erro ao buscar sugestão de código");
-          
-          const data = await res.json();
-          const sug = data.sugestoes[tipo];
-          if (sug && sug.codigo_sugerido) {
-            const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
-            if (nomeInput) {
-              nomeInput.value = sug.codigo_sugerido;
-              nomeInput.classList.add('dirty');
-              verificarAlteracoes();
-              showToast(`Sugestão aplicada: ${sug.codigo_sugerido}`, "success");
-            }
-          }
-        } catch (err) {
-          console.error(err);
-          showToast("Erro ao sugerir código de ponto.", "error");
-        }
-      };
-    }
-
-    // Salvar Alterações
-    const btnSalvar = document.getElementById('btn-props-salvar');
-    if (btnSalvar) {
-      const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
-      btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
-      
-      novoBtn.onclick = async () => {
-        const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
-        const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
-        const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
-        const ignorarCheck = document.getElementById('prop-ignorar-poligono') as HTMLInputElement;
-
-        const payload: any = {
-          nome_vertice: nomeInput.value,
-          tipo_ponto: tipoSelect.value,
-          ignorar_poligono: ignorarCheck.checked ? 0 : 1
         };
 
+        checkDirty('prop-nome-vertice', valoresOriginais.nome_vertice);
+        checkDirty('prop-tipo-ponto', valoresOriginais.tipo_ponto);
+
         if (ctx.modoCoordenadas === 'utm') {
-          const eInput = document.getElementById('prop-e-corrigido') as HTMLInputElement;
-          const nInput = document.getElementById('prop-n-corrigido') as HTMLInputElement;
-          payload.e_corrigido = parseFloat(eInput.value);
-          payload.n_corrigido = parseFloat(nInput.value);
-          payload.alt_corrigido = parseFloat(altInput.value);
-          payload.alt = parseFloat(altInput.value);
-          payload.fuso = p.fuso || localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22S';
+          checkDirty('prop-e-corrigido', valoresOriginais.e_corrigido);
+          checkDirty('prop-n-corrigido', valoresOriginais.n_corrigido);
         } else {
-          const latInput = document.getElementById('prop-lat-corrigido') as HTMLInputElement;
-          const lonInput = document.getElementById('prop-lon-corrigido') as HTMLInputElement;
-          payload.lat = parseFloat(latInput.value);
-          payload.lon = parseFloat(lonInput.value);
-          payload.alt = parseFloat(altInput.value);
+          checkDirty('prop-lat-corrigido', valoresOriginais.lat_corrigido);
+          checkDirty('prop-lon-corrigido', valoresOriginais.lon_corrigido);
         }
+        checkDirty('prop-alt-corrigido', valoresOriginais.alt_corrigido);
 
-        try {
-          const res = await fetch(`${API_BASE}/pontos/${p.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (res.status === 403) {
-            throw new Error("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+        checkDirty('prop-confrontante', valoresOriginais.confrontante);
+        checkDirty('prop-confrontante-matricula', valoresOriginais.confrontante_matricula);
+        checkDirty('prop-confrontante-cartorio', valoresOriginais.confrontante_cartorio);
+        checkDirty('prop-ignorar-poligono', valoresOriginais.ignorar_poligono, true);
+
+        if (panelActions) {
+          panelActions.classList.toggle('hidden', !modificado);
+        }
+      };
+
+      inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', verificarAlteracoes);
+          el.addEventListener('change', verificarAlteracoes);
+        }
+      });
+
+      const btnSugerir = document.getElementById('btn-sugerir-nome');
+      if (btnSugerir) {
+        btnSugerir.onclick = async () => {
+          try {
+            const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
+            const tipo = tipoSelect ? tipoSelect.value : (p.tipo_ponto || p.tipo);
+
+            if (!['M', 'P', 'V'].includes(tipo)) {
+              showToast("Sugestão de nome oficial apenas para Marcos (M), Pontos (P) ou Virtuais (V).", "info");
+              return;
+            }
+
+            const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-sugeridos`);
+            if (!res.ok) throw new Error("Erro ao buscar sugestão de código");
+
+            const data = await res.json();
+            const sug = data.sugestoes[tipo];
+            if (sug && sug.codigo_sugerido) {
+              const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
+              if (nomeInput) {
+                nomeInput.value = sug.codigo_sugerido;
+                nomeInput.classList.add('dirty');
+                verificarAlteracoes();
+                showToast(`Sugestão aplicada: ${sug.codigo_sugerido}`, "success");
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            showToast("Erro ao sugerir código de ponto.", "error");
           }
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.detail || errData.error || "Falha ao salvar vértice");
+        };
+      }
+
+      // Salvar Alterações
+      const btnSalvar = document.getElementById('btn-props-salvar');
+      if (btnSalvar) {
+        const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
+        btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
+
+        novoBtn.onclick = async () => {
+          const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
+          const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
+          const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
+          const ignorarCheck = document.getElementById('prop-ignorar-poligono') as HTMLInputElement;
+
+          const payload: any = {
+            nome_vertice: nomeInput.value,
+            tipo_ponto: tipoSelect.value,
+            ignorar_poligono: ignorarCheck.checked ? 0 : 1
+          };
+
+          if (ctx.modoCoordenadas === 'utm') {
+            const eInput = document.getElementById('prop-e-corrigido') as HTMLInputElement;
+            const nInput = document.getElementById('prop-n-corrigido') as HTMLInputElement;
+            payload.e_corrigido = parseFloat(eInput.value);
+            payload.n_corrigido = parseFloat(nInput.value);
+            payload.alt_corrigido = parseFloat(altInput.value);
+            payload.alt = parseFloat(altInput.value);
+            payload.fuso = p.fuso || localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22S';
+          } else {
+            const latInput = document.getElementById('prop-lat-corrigido') as HTMLInputElement;
+            const lonInput = document.getElementById('prop-lon-corrigido') as HTMLInputElement;
+            payload.lat = parseFloat(latInput.value);
+            payload.lon = parseFloat(lonInput.value);
+            payload.alt = parseFloat(altInput.value);
           }
 
-          const confNomeVal = (document.getElementById('prop-confrontante') as HTMLInputElement).value;
-          const confMatriculaVal = (document.getElementById('prop-confrontante-matricula') as HTMLInputElement).value;
-          const confCartorioVal = (document.getElementById('prop-confrontante-cartorio') as HTMLInputElement).value;
+          try {
+            const res = await fetch(`${API_BASE}/pontos/${p.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (res.status === 403) {
+              throw new Error("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+            }
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.detail || errData.error || "Falha ao salvar vértice");
+            }
 
-          const confrontanteAlterado = 
-            confNomeVal !== valoresOriginais.confrontante || 
-            confMatriculaVal !== valoresOriginais.confrontante_matricula || 
-            confCartorioVal !== valoresOriginais.confrontante_cartorio;
+            const confNomeVal = (document.getElementById('prop-confrontante') as HTMLInputElement).value;
+            const confMatriculaVal = (document.getElementById('prop-confrontante-matricula') as HTMLInputElement).value;
+            const confCartorioVal = (document.getElementById('prop-confrontante-cartorio') as HTMLInputElement).value;
 
-          if (confrontanteAlterado) {
-            if (seg) {
-              if (confNomeVal.trim() === '') {
-                if (seg.confrontante_id) {
-                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      matricula_id: seg.matricula_id,
-                      ponto_inicio_id: seg.ponto_inicio_id,
-                      ponto_fim_id: seg.ponto_fim_id,
-                      confrontante_id: null,
-                      tipo_limite_sigef: seg.tipo_limite_sigef,
-                      metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                    })
-                  });
-                }
-              } else if (seg.confrontante_id) {
-                const resConf = await fetch(`${API_BASE}/confrontantes/${seg.confrontante_id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    ...confObj,
-                    nome: confNomeVal,
-                    matricula_imovel: confMatriculaVal,
-                    cns_confrontante: confCartorioVal,
-                    tipo_relacao: confObj?.tipo_relacao || 'Divisa'
-                  })
-                });
-                if (!resConf.ok) {
-                  throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
-                }
-                const resConfData = await resConf.json().catch(() => ({}));
-                if (resConfData.error) {
-                  throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
-                }
-              } else {
-                const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    nome: confNomeVal,
-                    matricula_imovel: confMatriculaVal,
-                    cns_confrontante: confCartorioVal,
-                    tipo_relacao: 'Divisa'
-                  })
-                });
-                if (!resConf.ok) {
-                  throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
-                }
-                const resConfData = await resConf.json().catch(() => ({}));
-                if (resConfData.error) {
-                  throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
-                }
-                const confId = resConfData.id || resConfData.confrontante_id;
-                if (confId) {
-                  const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      matricula_id: seg.matricula_id,
-                      ponto_inicio_id: seg.ponto_inicio_id,
-                      ponto_fim_id: seg.ponto_fim_id,
-                      confrontante_id: confId,
-                      tipo_limite_sigef: seg.tipo_limite_sigef,
-                      metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                    })
-                  });
-                  if (!resSeg.ok) {
-                    throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
+            const confrontanteAlterado =
+              confNomeVal !== valoresOriginais.confrontante ||
+              confMatriculaVal !== valoresOriginais.confrontante_matricula ||
+              confCartorioVal !== valoresOriginais.confrontante_cartorio;
+
+            if (confrontanteAlterado) {
+              if (!seg) {
+                // BUGFIX: antes, se não existisse um segmento (ponto_inicio_id === p.id)
+                // em ctx.segmentosList, as alterações de confrontante eram descartadas
+                // silenciosamente e o toast de sucesso do vértice aparecia mesmo assim.
+                throw new Error(
+                  "Não foi possível salvar o confrontante: este vértice não possui um " +
+                  "segmento de divisa associado em memória. Rode 'Reordenar Perimetral' " +
+                  "na matrícula para regenerar os segmentos e tente novamente."
+                );
+              }
+              {
+                if (confNomeVal.trim() === '') {
+                  if (seg.confrontante_id) {
+                    await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        matricula_id: seg.matricula_id,
+                        ponto_inicio_id: seg.ponto_inicio_id,
+                        ponto_fim_id: seg.ponto_fim_id,
+                        confrontante_id: null,
+                        tipo_limite_sigef: seg.tipo_limite_sigef,
+                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
+                      })
+                    });
                   }
-                  const resSegData = await resSeg.json().catch(() => ({}));
-                  if (resSegData.error) {
-                    throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
+                } else if (seg.confrontante_id) {
+                  const resConf = await fetch(`${API_BASE}/confrontantes/${seg.confrontante_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      ...confObj,
+                      nome: confNomeVal,
+                      matricula_imovel: confMatriculaVal,
+                      cns_confrontante: confCartorioVal,
+                      tipo_relacao: confObj?.tipo_relacao || 'Divisa'
+                    })
+                  });
+                  if (!resConf.ok) {
+                    throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
+                  }
+                  const resConfData = await resConf.json().catch(() => ({}));
+                  if (resConfData.error) {
+                    throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
+                  }
+                } else {
+                  const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      nome: confNomeVal,
+                      matricula_imovel: confMatriculaVal,
+                      cns_confrontante: confCartorioVal,
+                      tipo_relacao: 'Divisa'
+                    })
+                  });
+                  if (!resConf.ok) {
+                    throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
+                  }
+                  const resConfData = await resConf.json().catch(() => ({}));
+                  if (resConfData.error) {
+                    throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
+                  }
+                  const confId = resConfData.id || resConfData.confrontante_id;
+                  if (confId) {
+                    const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        matricula_id: seg.matricula_id,
+                        ponto_inicio_id: seg.ponto_inicio_id,
+                        ponto_fim_id: seg.ponto_fim_id,
+                        confrontante_id: confId,
+                        tipo_limite_sigef: seg.tipo_limite_sigef,
+                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
+                      })
+                    });
+                    if (!resSeg.ok) {
+                      throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
+                    }
+                    const resSegData = await resSeg.json().catch(() => ({}));
+                    if (resSegData.error) {
+                      throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
+                    }
                   }
                 }
               }
             }
+
+            showToast("Vértice salvo com sucesso!", "success");
+            await ctx.loadLevantamentoDetails();
+            atualizarPainelPropriedades(ctx);
+          } catch (err) {
+            console.error(err);
+            showToast("Erro ao salvar alterações no vértice.", "error");
           }
+        };
+      }
 
-          showToast("Vértice salvo com sucesso!", "success");
-          await ctx.loadLevantamentoDetails();
+      const btnDescartar = document.getElementById('btn-props-descartar');
+      if (btnDescartar) {
+        const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
+        btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
+        novoBtn.onclick = () => {
           atualizarPainelPropriedades(ctx);
-        } catch (err) {
-          console.error(err);
-          showToast("Erro ao salvar alterações no vértice.", "error");
+        };
+      }
+
+      // Oculta painel de ações para pontos do vizinho ou projeto arquivado (somente leitura)
+      if (panelActions) {
+        if (isPontoVizinho || isArquivado) {
+          panelActions.classList.add('hidden');
+        } else {
+          panelActions.classList.remove('hidden');
         }
-      };
-    }
-
-    const btnDescartar = document.getElementById('btn-props-descartar');
-    if (btnDescartar) {
-      const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
-      btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
-      novoBtn.onclick = () => {
-        atualizarPainelPropriedades(ctx);
-      };
-    }
-
-    // Oculta painel de ações para pontos do vizinho ou projeto arquivado (somente leitura)
-    if (panelActions) {
-      if (isPontoVizinho || isArquivado) {
-        panelActions.classList.add('hidden');
-      } else {
-        panelActions.classList.remove('hidden');
       }
     }
-  }  
-  else {
-    // Caso 3: Múltiplos Vértices Selecionados — Painel Unificado
-    const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
+    else {
+      // Caso 3: Múltiplos Vértices Selecionados — Painel Unificado
+      const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
 
-    // Coleta todos os pontos selecionados
-    const pontosMulti: any[] = ctx.selectedPontoIds
-      .map((id: number) => ctx.pontosList.find((pt: any) => pt.id === id))
-      .filter(Boolean);
+      // Coleta todos os pontos selecionados
+      const pontosMulti: any[] = ctx.selectedPontoIds
+        .map((id: number) => ctx.pontosList.find((pt: any) => pt.id === id))
+        .filter(Boolean);
 
-    // Resolve um campo: se todos iguais → valor; caso contrário → 'várias'
-    const resolveField = (extractor: (p: any) => string): string => {
-      const vals = pontosMulti.map(extractor);
-      const unique = [...new Set(vals)];
-      return unique.length === 1 ? unique[0] : 'várias';
-    };
-
-    // Resolve um campo numérico formatado
-    const resolveNum = (extractor: (p: any) => number, decimals: number): string => {
-      const vals = pontosMulti.map(extractor);
-      const unique = [...new Set(vals.map(v => v.toFixed(decimals)))];
-      return unique.length === 1 ? unique[0] : 'várias';
-    };
-
-    // Resolve tipo do ponto
-    const tipoResolvido = resolveField(p => p.tipo_ponto || p.tipo || '');
-
-    // Coordenadas (sempre readonly no modo multi)
-    const modUtm = ctx.modoCoordenadas === 'utm';
-    let coordDisplay: { label: string; value: string }[] = [];
-
-    if (modUtm) {
-      const resolveE = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.e_corrigido != null ? p.e_corrigido : p.e_original);
+      // Resolve um campo: se todos iguais → valor; caso contrário → 'várias'
+      const resolveField = (extractor: (p: any) => string): string => {
+        const vals = pontosMulti.map(extractor);
+        const unique = [...new Set(vals)];
+        return unique.length === 1 ? unique[0] : 'várias';
       };
-      const resolveN = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.n_corrigido != null ? p.n_corrigido : p.n_original);
+
+      // Resolve um campo numérico formatado
+      const resolveNum = (extractor: (p: any) => number, decimals: number): string => {
+        const vals = pontosMulti.map(extractor);
+        const unique = [...new Set(vals.map(v => v.toFixed(decimals)))];
+        return unique.length === 1 ? unique[0] : 'várias';
       };
-      const resolveH = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.alt_corrigido != null ? p.alt_corrigido : (p.alt || p.alt_original));
-      };
-      coordDisplay = [
-        { label: 'Este (E)', value: resolveNum(resolveE, 3) },
-        { label: 'Norte (N)', value: resolveNum(resolveN, 3) },
-        { label: 'Altitude (H)', value: resolveNum(resolveH, 3) },
-      ];
-    } else {
-      const resolveLat = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.lat_corrigido != null ? p.lat_corrigido : p.lat);
-      };
-      const resolveLon = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.lon_corrigido != null ? p.lon_corrigido : p.lon);
-      };
-      const resolveH = (p: any) => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return parseNumber(isC && p.alt_corrigido != null ? p.alt_corrigido : (p.alt || p.alt_original));
-      };
-      coordDisplay = [
-        { label: 'Latitude', value: resolveNum(resolveLat, 9) },
-        { label: 'Longitude', value: resolveNum(resolveLon, 9) },
-        { label: 'Altitude (h)', value: resolveNum(resolveH, 3) },
-      ];
-    }
 
-    // Confrontantes: busca via segmentosList
-    const resolveConf = (field: 'nome' | 'matricula_imovel' | 'cns_confrontante'): string => {
-      const vals = pontosMulti.map(p => {
-        const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === p.id);
-        const cId = p.confrontante_id || (seg && seg.confrontante_id);
-        if (!cId) return '';
-        const cObj = ctx.confrontantesList?.find((c: any) => c.id === cId);
-        return cObj ? (cObj[field] || '') : '';
-      });
-      const unique = [...new Set(vals)];
-      return unique.length === 1 ? unique[0] : 'várias';
-    };
+      // Resolve tipo do ponto
+      const tipoResolvido = resolveField(p => p.tipo_ponto || p.tipo || '');
 
-    const confNomeResolvido = resolveConf('nome');
-    const confMatResolvido = resolveConf('matricula_imovel');
-    const confCnsResolvido = resolveConf('cns_confrontante');
+      // Coordenadas (sempre readonly no modo multi)
+      const modUtm = ctx.modoCoordenadas === 'utm';
+      let coordDisplay: { label: string; value: string }[] = [];
 
-    // Polígono: verifica se todos iguais
-    const ignorarVals = pontosMulti.map(p => p.ignorar_poligono === 1);
-    const todosIgnorados = ignorarVals.every(v => v === true);
-    const todosIncluidos = ignorarVals.every(v => v === false);
-    const poligonoIndeterminate = !todosIgnorados && !todosIncluidos;
-
-    // Campos da seção Dados (readonly)
-    const origemResolvida = resolveField(p => p.arquivo_origem || '-');
-    const metodoResolvido = resolveField(p => p.metodo_posicionamento || '-');
-    const correcaoResolvida = resolveField(p => p.status_correcao || p.status_ponto || 'BRUTO');
-    const baseApoioResolvida = resolveField(p => {
-      if (!p.ponto_base_id) return 'Nenhuma';
-      const basePt = ctx.pontosList?.find((pt: any) => pt.id === p.ponto_base_id);
-      return basePt ? (basePt.nome_vertice || `ID ${p.ponto_base_id}`) : 'Nenhuma';
-    });
-
-    // Brutos: mostra seção se ALGUM ponto for corrigido e tiver coordenadas brutas
-    const algumTemBrutos = pontosMulti.some(p => {
-      const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-      return isC && (p.e_original || p.lat || p.lon);
-    });
-
-    // Resolve brutos (apenas pontos corrigidos contribuem; os sem brutos ficam como '-')
-    const resolveBruto = (extractor: (p: any) => string): string => {
-      const vals = pontosMulti.map(p => {
-        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
-        return isC ? extractor(p) : '-';
-      });
-      const unique = [...new Set(vals)];
-      return unique.length === 1 ? unique[0] : 'várias';
-    };
-
-    let brutosFieldsHTML = '';
-    if (algumTemBrutos) {
       if (modUtm) {
-        brutosFieldsHTML = `
+        const resolveE = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.e_corrigido != null ? p.e_corrigido : p.e_original);
+        };
+        const resolveN = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.n_corrigido != null ? p.n_corrigido : p.n_original);
+        };
+        const resolveH = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.alt_corrigido != null ? p.alt_corrigido : (p.alt || p.alt_original));
+        };
+        coordDisplay = [
+          { label: 'Este (E)', value: resolveNum(resolveE, 3) },
+          { label: 'Norte (N)', value: resolveNum(resolveN, 3) },
+          { label: 'Altitude (H)', value: resolveNum(resolveH, 3) },
+        ];
+      } else {
+        const resolveLat = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.lat_corrigido != null ? p.lat_corrigido : p.lat);
+        };
+        const resolveLon = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.lon_corrigido != null ? p.lon_corrigido : p.lon);
+        };
+        const resolveH = (p: any) => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return parseNumber(isC && p.alt_corrigido != null ? p.alt_corrigido : (p.alt || p.alt_original));
+        };
+        coordDisplay = [
+          { label: 'Latitude', value: resolveNum(resolveLat, 9) },
+          { label: 'Longitude', value: resolveNum(resolveLon, 9) },
+          { label: 'Altitude (h)', value: resolveNum(resolveH, 3) },
+        ];
+      }
+
+      // Confrontantes: busca via segmentosList
+      const resolveConf = (field: 'nome' | 'matricula_imovel' | 'cns_confrontante'): string => {
+        const vals = pontosMulti.map(p => {
+          const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === p.id);
+          const cId = p.confrontante_id || (seg && seg.confrontante_id);
+          if (!cId) return '';
+          const cObj = ctx.confrontantesList?.find((c: any) => c.id === cId);
+          return cObj ? (cObj[field] || '') : '';
+        });
+        const unique = [...new Set(vals)];
+        return unique.length === 1 ? unique[0] : 'várias';
+      };
+
+      const confNomeResolvido = resolveConf('nome');
+      const confMatResolvido = resolveConf('matricula_imovel');
+      const confCnsResolvido = resolveConf('cns_confrontante');
+
+      // Polígono: verifica se todos iguais
+      const ignorarVals = pontosMulti.map(p => p.ignorar_poligono === 1);
+      const todosIgnorados = ignorarVals.every(v => v === true);
+      const todosIncluidos = ignorarVals.every(v => v === false);
+      const poligonoIndeterminate = !todosIgnorados && !todosIncluidos;
+
+      // Campos da seção Dados (readonly)
+      const origemResolvida = resolveField(p => p.arquivo_origem || '-');
+      const metodoResolvido = resolveField(p => p.metodo_posicionamento || '-');
+      const correcaoResolvida = resolveField(p => p.status_correcao || p.status_ponto || 'BRUTO');
+      const baseApoioResolvida = resolveField(p => {
+        if (!p.ponto_base_id) return 'Nenhuma';
+        const basePt = ctx.pontosList?.find((pt: any) => pt.id === p.ponto_base_id);
+        return basePt ? (basePt.nome_vertice || `ID ${p.ponto_base_id}`) : 'Nenhuma';
+      });
+
+      // Brutos: mostra seção se ALGUM ponto for corrigido e tiver coordenadas brutas
+      const algumTemBrutos = pontosMulti.some(p => {
+        const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+        return isC && (p.e_original || p.lat || p.lon);
+      });
+
+      // Resolve brutos (apenas pontos corrigidos contribuem; os sem brutos ficam como '-')
+      const resolveBruto = (extractor: (p: any) => string): string => {
+        const vals = pontosMulti.map(p => {
+          const isC = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+          return isC ? extractor(p) : '-';
+        });
+        const unique = [...new Set(vals)];
+        return unique.length === 1 ? unique[0] : 'várias';
+      };
+
+      let brutosFieldsHTML = '';
+      if (algumTemBrutos) {
+        if (modUtm) {
+          brutosFieldsHTML = `
           <div class="props-field">
             <label class="props-field-label">Este Bruto</label>
             <input type="text" value="${resolveBruto(p => p.e_original != null ? parseNumber(p.e_original).toFixed(3) : '-')}" class="props-field-value font-mono" readonly />
@@ -810,8 +820,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <label class="props-field-label">Alt Bruta</label>
             <input type="text" value="${resolveBruto(p => p.alt_original != null ? parseNumber(p.alt_original).toFixed(3) : '-')}" class="props-field-value font-mono" readonly />
           </div>`;
-      } else {
-        brutosFieldsHTML = `
+        } else {
+          brutosFieldsHTML = `
           <div class="props-field">
             <label class="props-field-label">Lat Bruta</label>
             <input type="text" value="${resolveBruto(p => p.lat != null ? parseNumber(p.lat).toFixed(9) : '-')}" class="props-field-value font-mono" readonly />
@@ -824,17 +834,17 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <label class="props-field-label">Alt Bruta</label>
             <input type="text" value="${resolveBruto(p => p.alt != null ? parseNumber(p.alt).toFixed(3) : '-')}" class="props-field-value font-mono" readonly />
           </div>`;
+        }
       }
-    }
 
-    const coordFieldsHTML = coordDisplay.map(f => `
+      const coordFieldsHTML = coordDisplay.map(f => `
       <div class="props-field">
         <label class="props-field-label">${f.label}</label>
         <input type="text" value="${f.value}" class="props-field-value font-mono" readonly title="Edição de coordenadas não disponível em seleção múltipla" />
       </div>
     `).join('');
 
-    panelContent.innerHTML = `
+      panelContent.innerHTML = `
       <!-- GRUPO 1: GERAL -->
       <div class="props-section" id="sec-props-geral">
         <div class="props-section-header" id="header-props-geral">
@@ -951,302 +961,314 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ` : ''}
     `;
 
-    setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados']);
-    initIcons();
+      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados']);
+      initIcons();
 
-    // Aplica indeterminate no checkbox de polígono (não pode ser feito via HTML)
-    setTimeout(() => {
-      const checkPoli = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
-      if (checkPoli && poligonoIndeterminate) {
-        checkPoli.indeterminate = true;
-      }
-    }, 20);
+      // Aplica indeterminate no checkbox de polígono (não pode ser feito via HTML)
+      setTimeout(() => {
+        const checkPoli = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
+        if (checkPoli && poligonoIndeterminate) {
+          checkPoli.indeterminate = true;
+        }
+      }, 20);
 
-    if (panelActions) panelActions.classList.add('hidden');
+      if (panelActions) panelActions.classList.add('hidden');
 
-    if (isArquivado) {
-      // Apenas conecta os botões de ação
-      const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
-      if (btnBatchIgnorar) btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
-      const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
-      if (btnBatchDeletar) btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
-      return;
-    }
-
-    // Valores originais para dirty-check
-    const multiOriginais = {
-      tipo: tipoResolvido === 'várias' ? '' : tipoResolvido,
-      confrontante: confNomeResolvido === 'várias' ? '' : confNomeResolvido,
-      confrontante_matricula: confMatResolvido === 'várias' ? '' : confMatResolvido,
-      confrontante_cartorio: confCnsResolvido === 'várias' ? '' : confCnsResolvido,
-      ignorar_poligono: todosIncluidos,
-    };
-
-    const verificarAlteracoesMulti = () => {
-      let modificado = false;
-
-      const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
-      if (tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo) {
-        tipoEl.classList.add('dirty');
-        modificado = true;
-      } else if (tipoEl) {
-        tipoEl.classList.remove('dirty');
+      if (isArquivado) {
+        // Apenas conecta os botões de ação
+        const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
+        if (btnBatchIgnorar) btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
+        const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
+        if (btnBatchDeletar) btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
+        return;
       }
 
-      const confEl = document.getElementById('prop-multi-confrontante') as HTMLInputElement;
-      if (confEl && confEl.value !== multiOriginais.confrontante) {
-        confEl.classList.add('dirty');
-        modificado = true;
-      } else if (confEl) {
-        confEl.classList.remove('dirty');
-      }
+      // Valores originais para dirty-check
+      const multiOriginais = {
+        tipo: tipoResolvido === 'várias' ? '' : tipoResolvido,
+        confrontante: confNomeResolvido === 'várias' ? '' : confNomeResolvido,
+        confrontante_matricula: confMatResolvido === 'várias' ? '' : confMatResolvido,
+        confrontante_cartorio: confCnsResolvido === 'várias' ? '' : confCnsResolvido,
+        ignorar_poligono: todosIncluidos,
+      };
 
-      const confMatEl = document.getElementById('prop-multi-confrontante-matricula') as HTMLInputElement;
-      if (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) {
-        confMatEl.classList.add('dirty');
-        modificado = true;
-      } else if (confMatEl) {
-        confMatEl.classList.remove('dirty');
-      }
+      const verificarAlteracoesMulti = () => {
+        let modificado = false;
 
-      const confCnsEl = document.getElementById('prop-multi-confrontante-cartorio') as HTMLInputElement;
-      if (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio) {
-        confCnsEl.classList.add('dirty');
-        modificado = true;
-      } else if (confCnsEl) {
-        confCnsEl.classList.remove('dirty');
-      }
-
-      const poliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
-      if (poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono) {
-        modificado = true;
-      }
-
-      if (panelActions) panelActions.classList.toggle('hidden', !modificado);
-    };
-
-    ['prop-multi-tipo', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('input', verificarAlteracoesMulti);
-        el.addEventListener('change', verificarAlteracoesMulti);
-      }
-    });
-
-    // Quando clica no checkbox, remove o indeterminate e marca dirty
-    const checkPoliElOrig = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
-    if (checkPoliElOrig) {
-      const checkPoliEl = checkPoliElOrig.cloneNode(true) as HTMLInputElement;
-      checkPoliElOrig.parentNode?.replaceChild(checkPoliEl, checkPoliElOrig);
-
-      checkPoliEl.addEventListener('change', () => {
-        checkPoliEl.indeterminate = false;
-        verificarAlteracoesMulti();
-      });
-    }
-
-    // Botão Salvar em lote
-    const btnSalvar = document.getElementById('btn-props-salvar');
-    if (btnSalvar) {
-      const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
-      btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
-
-      novoBtn.onclick = async () => {
         const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
+        if (tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo) {
+          tipoEl.classList.add('dirty');
+          modificado = true;
+        } else if (tipoEl) {
+          tipoEl.classList.remove('dirty');
+        }
+
         const confEl = document.getElementById('prop-multi-confrontante') as HTMLInputElement;
+        if (confEl && confEl.value !== multiOriginais.confrontante) {
+          confEl.classList.add('dirty');
+          modificado = true;
+        } else if (confEl) {
+          confEl.classList.remove('dirty');
+        }
+
         const confMatEl = document.getElementById('prop-multi-confrontante-matricula') as HTMLInputElement;
+        if (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) {
+          confMatEl.classList.add('dirty');
+          modificado = true;
+        } else if (confMatEl) {
+          confMatEl.classList.remove('dirty');
+        }
+
         const confCnsEl = document.getElementById('prop-multi-confrontante-cartorio') as HTMLInputElement;
+        if (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio) {
+          confCnsEl.classList.add('dirty');
+          modificado = true;
+        } else if (confCnsEl) {
+          confCnsEl.classList.remove('dirty');
+        }
+
         const poliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
+        if (poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono) {
+          modificado = true;
+        }
 
-        const tipoAlterado = tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo;
-        const confAlterado = (confEl && confEl.value !== multiOriginais.confrontante) ||
-                             (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) ||
-                             (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio);
-        if (poliEl) poliEl.indeterminate = false;
-        const poliAlterado = poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono;
+        if (panelActions) panelActions.classList.toggle('hidden', !modificado);
+      };
 
-        try {
-          let sucessoTotal = true;
-          let processados = 0;
-          const totalCount = ctx.selectedPontoIds.length;
+      ['prop-multi-tipo', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', verificarAlteracoesMulti);
+          el.addEventListener('change', verificarAlteracoesMulti);
+        }
+      });
 
-          for (const pid of ctx.selectedPontoIds) {
-            novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando vértice ${++processados} de ${totalCount}...`;
-            initIcons();
-            const payload: any = {};
+      // Quando clica no checkbox, remove o indeterminate e marca dirty
+      const checkPoliElOrig = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
+      if (checkPoliElOrig) {
+        const checkPoliEl = checkPoliElOrig.cloneNode(true) as HTMLInputElement;
+        checkPoliElOrig.parentNode?.replaceChild(checkPoliEl, checkPoliElOrig);
 
-            if (tipoAlterado) payload.tipo_ponto = tipoEl.value;
-            if (poliAlterado) payload.ignorar_poligono = poliEl.checked ? 0 : 1;
+        checkPoliEl.addEventListener('change', () => {
+          checkPoliEl.indeterminate = false;
+          verificarAlteracoesMulti();
+        });
+      }
 
-            if (Object.keys(payload).length > 0) {
-              const res = await fetch(`${API_BASE}/pontos/${pid}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
-              if (res.status === 403) {
-                await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
-                return;
-              }
-              if (!res.ok) sucessoTotal = false;
-            }
+      // Botão Salvar em lote
+      const btnSalvar = document.getElementById('btn-props-salvar');
+      if (btnSalvar) {
+        const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
+        btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
 
-            if (confAlterado) {
-              const pObj = ctx.pontosList.find((pt: any) => pt.id === pid);
-              const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === pid);
-              const cId = pObj?.confrontante_id || (seg && seg.confrontante_id);
-              const cObj = cId ? ctx.confrontantesList?.find((c: any) => c.id === cId) : null;
+        novoBtn.onclick = async () => {
+          const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
+          const confEl = document.getElementById('prop-multi-confrontante') as HTMLInputElement;
+          const confMatEl = document.getElementById('prop-multi-confrontante-matricula') as HTMLInputElement;
+          const confCnsEl = document.getElementById('prop-multi-confrontante-cartorio') as HTMLInputElement;
+          const poliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
 
-              // Se o campo foi preenchido pelo usuário → usa o valor digitado
-              // Se ficou vazio (era "várias" e não foi editado) → preserva o valor individual do confrontante
-              const confNomeInput = confEl.value.trim();
-              const confMatInput = confMatEl.value.trim();
-              const confCnsInput = confCnsEl.value.trim();
+          const tipoAlterado = tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo;
+          const confAlterado = (confEl && confEl.value !== multiOriginais.confrontante) ||
+            (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) ||
+            (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio);
+          if (poliEl) poliEl.indeterminate = false;
+          const poliAlterado = poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono;
 
-              const finalNome = confNomeInput !== '' ? confNomeInput : (cObj?.nome || '');
-              const finalMat = confMatInput !== '' ? confMatInput : (cObj?.matricula_imovel || '');
-              const finalCns = confCnsInput !== '' ? confCnsInput : (cObj?.cns_confrontante || '');
+          try {
+            let sucessoTotal = true;
+            let processados = 0;
+            const totalCount = ctx.selectedPontoIds.length;
 
-              console.log(`[SAVE-LOTE] Ponto ${pid} | cId=${cId} | nome="${finalNome}" | mat="${finalMat}" | cns="${finalCns}"`);
+            for (const pid of ctx.selectedPontoIds) {
+              novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando vértice ${++processados} de ${totalCount}...`;
+              initIcons();
+              const payload: any = {};
 
-              if (cId && cObj) {
-                // Monta payload com todos os campos que o backend exige
-                const putPayload = {
-                  nome: finalNome || cObj.nome || 'Confrontante',
-                  cpf_cnpj: cObj.cpf_cnpj || null,
-                  tipo_relacao: cObj.tipo_relacao || 'Divisa',
-                  rg: cObj.rg || null,
-                  nacionalidade: cObj.nacionalidade || null,
-                  profissao: cObj.profissao || null,
-                  estado_civil: cObj.estado_civil || null,
-                  regime_bens: cObj.regime_bens || null,
-                  endereco_completo: cObj.endereco_completo || null,
-                  nome_conjuge: cObj.nome_conjuge || null,
-                  cpf_conjuge: cObj.cpf_conjuge || null,
-                  rg_conjuge: cObj.rg_conjuge || null,
-                  matricula_imovel: finalMat || null,
-                  cns_confrontante: finalCns || null,
-                  nome_propriedade: cObj.nome_propriedade || null,
-                  codigo_incra_imovel: cObj.codigo_incra_imovel || null,
-                };
+              if (tipoAlterado) payload.tipo_ponto = tipoEl.value;
+              if (poliAlterado) payload.ignorar_poligono = poliEl.checked ? 0 : 1;
 
-                console.log(`[SAVE-LOTE] PUT /confrontantes/${cId}`, putPayload);
-
-                const resConf = await fetch(`${API_BASE}/confrontantes/${cId}`, {
+              if (Object.keys(payload).length > 0) {
+                const res = await fetch(`${API_BASE}/pontos/${pid}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(putPayload)
+                  body: JSON.stringify(payload)
                 });
-
-                const resConfText = await resConf.text();
-                console.log(`[SAVE-LOTE] Resposta PUT confrontante ${cId}: HTTP ${resConf.status} →`, resConfText);
-
-                let resConfData: any = {};
-                try { resConfData = JSON.parse(resConfText); } catch {}
-
-                if (!resConf.ok || resConfData.error) {
-                  sucessoTotal = false;
-                  showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
-                  continue;
+                if (res.status === 403) {
+                  await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+                  return;
                 }
-              } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && seg) {
-                // Cria novo confrontante e associa ao segmento
-                const postPayload = {
-                  nome: finalNome || finalMat || 'Confrontante',
-                  tipo_relacao: 'Divisa',
-                  matricula_imovel: finalMat || null,
-                  cns_confrontante: finalCns || null,
-                };
+                if (!res.ok) sucessoTotal = false;
+              }
 
-                console.log(`[SAVE-LOTE] POST /confrontantes (ponto ${pid})`, postPayload);
+              if (confAlterado) {
+                const pObj = ctx.pontosList.find((pt: any) => pt.id === pid);
+                const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === pid);
+                const cId = pObj?.confrontante_id || (seg && seg.confrontante_id);
+                const cObj = cId ? ctx.confrontantesList?.find((c: any) => c.id === cId) : null;
 
-                const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(postPayload)
-                });
+                // Se o campo foi preenchido pelo usuário → usa o valor digitado
+                // Se ficou vazio (era "várias" e não foi editado) → preserva o valor individual do confrontante
+                const confNomeInput = confEl.value.trim();
+                const confMatInput = confMatEl.value.trim();
+                const confCnsInput = confCnsEl.value.trim();
 
-                const resConfText = await resConf.text();
-                console.log(`[SAVE-LOTE] Resposta POST confrontante (ponto ${pid}): HTTP ${resConf.status} →`, resConfText);
+                const finalNome = confNomeInput !== '' ? confNomeInput : (cObj?.nome || '');
+                const finalMat = confMatInput !== '' ? confMatInput : (cObj?.matricula_imovel || '');
+                const finalCns = confCnsInput !== '' ? confCnsInput : (cObj?.cns_confrontante || '');
 
-                let resConfData: any = {};
-                try { resConfData = JSON.parse(resConfText); } catch {}
+                console.log(`[SAVE-LOTE] Ponto ${pid} | cId=${cId} | nome="${finalNome}" | mat="${finalMat}" | cns="${finalCns}"`);
 
-                if (!resConf.ok || resConfData.error) {
-                  sucessoTotal = false;
-                  showToast(`❌ Erro ao criar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
-                  continue;
-                }
+                if (cId && cObj) {
+                  // Monta payload com todos os campos que o backend exige
+                  const putPayload = {
+                    nome: finalNome || cObj.nome || 'Confrontante',
+                    cpf_cnpj: cObj.cpf_cnpj || null,
+                    tipo_relacao: cObj.tipo_relacao || 'Divisa',
+                    rg: cObj.rg || null,
+                    nacionalidade: cObj.nacionalidade || null,
+                    profissao: cObj.profissao || null,
+                    estado_civil: cObj.estado_civil || null,
+                    regime_bens: cObj.regime_bens || null,
+                    endereco_completo: cObj.endereco_completo || null,
+                    nome_conjuge: cObj.nome_conjuge || null,
+                    cpf_conjuge: cObj.cpf_conjuge || null,
+                    rg_conjuge: cObj.rg_conjuge || null,
+                    matricula_imovel: finalMat || null,
+                    cns_confrontante: finalCns || null,
+                    nome_propriedade: cObj.nome_propriedade || null,
+                    codigo_incra_imovel: cObj.codigo_incra_imovel || null,
+                  };
 
-                const confId = resConfData.id || resConfData.confrontante_id;
-                if (confId && seg) {
-                  try {
-                    const segPayload = {
-                      matricula_id: seg.matricula_id,
-                      ponto_inicio_id: seg.ponto_inicio_id,
-                      ponto_fim_id: seg.ponto_fim_id,
-                      confrontante_id: confId,
-                      tipo_limite_sigef: seg.tipo_limite_sigef,
-                      metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                    };
-                    console.log(`[SAVE-LOTE] PUT /segmentos/${seg.id}`, segPayload);
-                    const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(segPayload)
-                    });
-                    const resSegText = await resSeg.text();
-                    let resSegData: any = {};
-                    try { resSegData = JSON.parse(resSegText); } catch {}
+                  console.log(`[SAVE-LOTE] PUT /confrontantes/${cId}`, putPayload);
 
-                    if (!resSeg.ok || resSegData.error) {
-                      sucessoTotal = false;
-                      showToast(`❌ Erro ao associar confrontante ao segmento do ponto ${pid}: ${resSegData.error || `HTTP ${resSeg.status}`}`, 'error');
-                    }
-                  } catch (e) {
+                  const resConf = await fetch(`${API_BASE}/confrontantes/${cId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(putPayload)
+                  });
+
+                  const resConfText = await resConf.text();
+                  console.log(`[SAVE-LOTE] Resposta PUT confrontante ${cId}: HTTP ${resConf.status} →`, resConfText);
+
+                  let resConfData: any = {};
+                  try { resConfData = JSON.parse(resConfText); } catch { }
+
+                  if (!resConf.ok || resConfData.error) {
                     sucessoTotal = false;
+                    showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
+                    continue;
                   }
+                } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && seg) {
+                  // Cria novo confrontante e associa ao segmento
+                  const postPayload = {
+                    nome: finalNome || finalMat || 'Confrontante',
+                    tipo_relacao: 'Divisa',
+                    matricula_imovel: finalMat || null,
+                    cns_confrontante: finalCns || null,
+                  };
+
+                  console.log(`[SAVE-LOTE] POST /confrontantes (ponto ${pid})`, postPayload);
+
+                  const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(postPayload)
+                  });
+
+                  const resConfText = await resConf.text();
+                  console.log(`[SAVE-LOTE] Resposta POST confrontante (ponto ${pid}): HTTP ${resConf.status} →`, resConfText);
+
+                  let resConfData: any = {};
+                  try { resConfData = JSON.parse(resConfText); } catch { }
+
+                  if (!resConf.ok || resConfData.error) {
+                    sucessoTotal = false;
+                    showToast(`❌ Erro ao criar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
+                    continue;
+                  }
+
+                  const confId = resConfData.id || resConfData.confrontante_id;
+                  if (confId && seg) {
+                    try {
+                      const segPayload = {
+                        matricula_id: seg.matricula_id,
+                        ponto_inicio_id: seg.ponto_inicio_id,
+                        ponto_fim_id: seg.ponto_fim_id,
+                        confrontante_id: confId,
+                        tipo_limite_sigef: seg.tipo_limite_sigef,
+                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
+                      };
+                      console.log(`[SAVE-LOTE] PUT /segmentos/${seg.id}`, segPayload);
+                      const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(segPayload)
+                      });
+                      const resSegText = await resSeg.text();
+                      let resSegData: any = {};
+                      try { resSegData = JSON.parse(resSegText); } catch { }
+
+                      if (!resSeg.ok || resSegData.error) {
+                        sucessoTotal = false;
+                        showToast(`❌ Erro ao associar confrontante ao segmento do ponto ${pid}: ${resSegData.error || `HTTP ${resSeg.status}`}`, 'error');
+                      }
+                    } catch (e) {
+                      sucessoTotal = false;
+                    }
+                  }
+                } else if (finalNome !== '' || finalMat !== '' || finalCns !== '') {
+                  // BUGFIX: antes, quando havia dados de confrontante para salvar mas nenhum
+                  // segmento (ponto_inicio_id === pid) era encontrado em ctx.segmentosList,
+                  // o ponto era "Ignorado" apenas com um console.log — sem nenhum aviso ao
+                  // usuário e sem marcar sucessoTotal como falso. Isso fazia o toast final
+                  // dizer "atualizados com sucesso" mesmo sem o confrontante ter sido salvo.
+                  sucessoTotal = false;
+                  showToast(
+                    `⚠️ Vértice ${pid}: sem segmento de divisa associado — não foi possível salvar o confrontante. Rode 'Reordenar Perimetral' na matrícula.`,
+                    'error'
+                  );
+                  console.warn(`[SAVE-LOTE] Ponto ${pid}: sem 'seg' (ponto_inicio_id) em ctx.segmentosList. Confrontante NÃO salvo.`);
+                } else {
+                  console.log(`[SAVE-LOTE] Ponto ${pid}: sem confrontante e sem dados suficientes para criar. Ignorado.`);
                 }
-              } else {
-                console.log(`[SAVE-LOTE] Ponto ${pid}: sem confrontante e sem dados suficientes para criar. Ignorado.`);
               }
             }
+
+            if (sucessoTotal) {
+              showToast(`${selectedCount} vértices atualizados com sucesso!`, "success");
+            } else {
+              showToast("Alguns vértices não puderam ser atualizados.", "info");
+            }
+            await ctx.loadLevantamentoDetails();
+            atualizarPainelPropriedades(ctx);
+          } catch (err) {
+            console.error(err);
+            showToast("Erro ao salvar alterações em lote.", "error");
+          } finally {
+            novoBtn.innerText = "Salvar Alterações em Lote";
           }
+        };
+      }
 
-          if (sucessoTotal) {
-            showToast(`${selectedCount} vértices atualizados com sucesso!`, "success");
-          } else {
-            showToast("Alguns vértices não puderam ser atualizados.", "info");
-          }
-          await ctx.loadLevantamentoDetails();
-          atualizarPainelPropriedades(ctx);
-        } catch (err) {
-          console.error(err);
-          showToast("Erro ao salvar alterações em lote.", "error");
-        } finally {
-          novoBtn.innerText = "Salvar Alterações em Lote";
-        }
-      };
-    }
+      const btnDescartar = document.getElementById('btn-props-descartar');
+      if (btnDescartar) {
+        const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
+        btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
+        novoBtn.onclick = () => atualizarPainelPropriedades(ctx);
+      }
 
-    const btnDescartar = document.getElementById('btn-props-descartar');
-    if (btnDescartar) {
-      const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
-      btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
-      novoBtn.onclick = () => atualizarPainelPropriedades(ctx);
-    }
+      const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
+      if (btnBatchIgnorar) {
+        btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
+      }
 
-    const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
-    if (btnBatchIgnorar) {
-      btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
+      const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
+      if (btnBatchDeletar) {
+        btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
+      }
     }
-
-    const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
-    if (btnBatchDeletar) {
-      btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
-    }
-  }
-} catch (err) {
+  } catch (err) {
     console.error("Erro ao atualizar painel de propriedades:", err);
     panelContent.innerHTML = `
       <div class="p-4 text-rose-400 text-xs italic select-none">
@@ -1276,7 +1298,7 @@ function setupCollapsibleSections(sections: string[]): void {
           const currentlyCollapsed = header.classList.toggle('collapsed');
           body.classList.toggle('hidden', currentlyCollapsed);
           localStorage.setItem(`props_collapsed_${sec}`, currentlyCollapsed ? 'true' : 'false');
-          
+
           const icon = header.querySelector('i, svg');
           if (icon) {
             (icon as HTMLElement).style.transform = currentlyCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';

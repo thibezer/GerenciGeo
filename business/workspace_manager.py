@@ -282,7 +282,9 @@ class WorkspaceManager:
             SELECT p.id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.ordem_caminhamento, p.matricula_id
             FROM pontos p
-            WHERE p.levantamento_id = ?
+            WHERE p.levantamento_id = ? 
+              AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
+              AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
             ORDER BY p.ordem_caminhamento ASC, p.id ASC
         """
         pontos = [dict(r) for r in execute_query(query_pontos, params=(levantamento_id,), fetch_all=True)]

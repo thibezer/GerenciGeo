@@ -86,6 +86,8 @@ class ShapefileExporter:
                    status_ponto, ordem_caminhamento
             FROM pontos
             WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+              AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
+              AND (origem_homologada IS NULL OR origem_homologada = 0)
             ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
         """
         rows_pontos = execute_query(query_pontos, params=(levantamento_id, matricula_id), fetch_all=True)
