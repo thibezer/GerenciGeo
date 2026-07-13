@@ -263,6 +263,25 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.loadWorkspaceArquivos();
         ctx.alternarEtapa(ctx.etapaAtiva);
         
+        // Centralização inicial do mapa nos pontos da propriedade
+        if (ctx.triagemMap) {
+          setTimeout(() => {
+            ctx.triagemMap!.invalidateSize();
+            const pontosParaCentralizar = ctx.currentMatriculaId 
+              ? ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId)
+              : ctx.pontosList;
+            
+            const validCoords = pontosParaCentralizar
+              .filter((p: any) => p.lat && p.lon && p.lat !== 0 && p.lon !== 0)
+              .map((p: any) => L.latLng(p.lat, p.lon));
+            
+            if (validCoords.length > 0) {
+              const bounds = L.latLngBounds(validCoords);
+              ctx.triagemMap!.fitBounds(bounds, { padding: [40, 40] });
+            }
+          }, 150);
+        }
+        
         ctx.carregarSugestoesNumeracao();
         if (levObj && levObj.profissional_id) {
           ctx.currentProfissionalId = levObj.profissional_id;
