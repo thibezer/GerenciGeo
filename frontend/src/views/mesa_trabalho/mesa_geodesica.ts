@@ -854,7 +854,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
         alert(data.error);
       } else {
         alert(data.message);
-        window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=Exportacoes&nome=PONTOS_CONSOLIDADOS_UTM.txt`, '_blank');
+        window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=Exportacoes&nome=PONTOS_CONSOLIDADOS_UTM.csv`, '_blank');
         ctx.loadWorkspaceArquivos();
       }
     } catch (e) {

@@ -162,8 +162,8 @@ export const renderMesaTrabalho = (): string => {
               <div class="rl3-group">
                 <div class="rl3-group-tools">
                   <button class="rl3-tool-btn" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
-                    <i data-lucide="upload"></i>
-                    <span>Importar CSV</span>
+                    <i data-lucide="download"></i>
+                    <span>Importar Vizinhos</span>
                   </button>
                   <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
                   <button class="rl3-tool-btn rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
@@ -204,8 +204,8 @@ export const renderMesaTrabalho = (): string => {
                     <span>Unificar SIGEF</span>
                   </button>
                   <button class="rl3-tool-btn" id="btn-consolidar-pontos-utm" type="button">
-                    <i data-lucide="download"></i>
-                    <span>Exportar CSV</span>
+                    <i data-lucide="upload"></i>
+                    <span>Exportar Dados</span>
                   </button>
                 </div>
                 <div class="rl3-group-label">Exportar</div>
@@ -290,7 +290,7 @@ export const renderMesaTrabalho = (): string => {
         <!-- PAINEL DE PROPRIEDADES LATERAL (AutoCAD Style) -->
         <aside class="props-panel" id="painel-propriedades">
           <div class="props-panel-header">
-            <span class="props-panel-title"><i data-lucide="sliders-horizontal" class="props-panel-title-icon"></i> Propriedades</span>
+            <span class="props-panel-title"> Propriedades</span>
             <button class="props-panel-toggle" id="btn-toggle-props" title="Recolher painel" type="button">
               <i data-lucide="chevron-left"></i>
             </button>

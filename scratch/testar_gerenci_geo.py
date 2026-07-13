@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.connection import DatabaseManager, execute_query
 from database.models import create_tables
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 
 def testar_tudo():
     print(">>> Iniciando Validação Física do Novo Escopo do GerenciGeo...")
@@ -93,7 +94,7 @@ def testar_tudo():
     execute_query("UPDATE levantamentos SET pasta_projeto = ? WHERE id = ?", params=(pasta_projeto, lev_id), commit=True)
     
     print("[WORKSPACE] Injetando metadados DADOS_GERAIS.json...")
-    wm.gerar_documento_cliente_workspace(lev_id)
+    ExportacaoService.gerar_documento_cliente_workspace(lev_id)
     
     caminho_json = Path(pasta_projeto) / "Documentos" / "DADOS_GERAIS.json"
     if caminho_json.exists():

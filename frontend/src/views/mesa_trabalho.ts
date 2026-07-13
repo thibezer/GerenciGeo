@@ -264,22 +264,25 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.alternarEtapa(ctx.etapaAtiva);
         
         // Centralização inicial do mapa nos pontos da propriedade
-        if (ctx.triagemMap) {
+        if (ctx.triagemMap && ctx.mapaController) {
           setTimeout(() => {
             ctx.triagemMap!.invalidateSize();
-            const pontosParaCentralizar = ctx.currentMatriculaId 
-              ? ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId)
-              : ctx.pontosList;
             
-            const validCoords = pontosParaCentralizar
-              .filter((p: any) => p.lat && p.lon && p.lat !== 0 && p.lon !== 0)
-              .map((p: any) => L.latLng(p.lat, p.lon));
+            let pontosParaCentralizar = [];
             
-            if (validCoords.length > 0) {
-              const bounds = L.latLngBounds(validCoords);
-              ctx.triagemMap!.fitBounds(bounds, { padding: [40, 40] });
+            // Na mesa geodésica o usuário vê os pontos brutos/ordenados, se tiver matrícula ele filtra.
+            if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
+              pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
+            } else if (ctx.currentMatriculaId) {
+              pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+            } else {
+              pontosParaCentralizar = ctx.pontosList;
             }
-          }, 150);
+            
+            if (pontosParaCentralizar.length > 0) {
+              ctx.mapaController.fitBounds(pontosParaCentralizar);
+            }
+          }, 600); // 600ms para garantir transição do SPA Vanilla e render da DOM Layout
         }
         
         ctx.carregarSugestoesNumeracao();

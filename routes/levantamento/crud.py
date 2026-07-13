@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from database.repository import HistoricoRinexRepo
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 from business.triagem_inteligente import ler_metadados_rinex
 from routes.deps import verificar_levantamento_arquivado
 from routes.processamento import _converter_gns_background
@@ -90,7 +91,7 @@ def create_levantamento(lev: LevantamentoCreate):
             execute_query("UPDATE levantamentos SET pasta_projeto = ? WHERE id = ?", params=(pasta, lev_id), commit=True)
             
             # Gera DADOS_GERAIS.json unificado
-            wm.gerar_documento_cliente_workspace(lev_id)
+            ExportacaoService.gerar_documento_cliente_workspace(lev_id)
             
             return {"id": lev_id, "pasta_projeto": pasta, "message": "Levantamento e workspace criados"}
     except Exception as e:
@@ -108,7 +109,7 @@ def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
         
         # Regenera o Workspace DADOS_GERAIS.json
         wm = WorkspaceManager()
-        wm.gerar_documento_cliente_workspace(lev_id)
+        ExportacaoService.gerar_documento_cliente_workspace(lev_id)
         
         return {"message": "Levantamento atualizado com sucesso"}
     except Exception as e:
@@ -192,7 +193,7 @@ async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTask
             conversao_agendada = True
                 
         # Sincroniza
-        wm.gerar_documento_cliente_workspace(lev_id)
+        ExportacaoService.gerar_documento_cliente_workspace(lev_id)
         
         msg = f"Arquivo '{file.filename}' carregado com sucesso na pasta '{categoria}'."
         if conversao_agendada:
@@ -305,7 +306,7 @@ async def testar_busca_rinex(lev_id: int):
                     erros.append(f"Erro ao registrar BD para {f}: {e_db}")
         
         # Regenera documentos
-        wm.gerar_documento_cliente_workspace(lev_id)
+        ExportacaoService.gerar_documento_cliente_workspace(lev_id)
         
         total_msg = (
             f"Busca finalizada. {len(encontrados)} arquivo(s) encontrado(s): "
@@ -421,7 +422,7 @@ def arquivar_levantamento(id: int):
         raise HTTPException(status_code=404, detail="Levantamento não localizado.")
     
     wm = WorkspaceManager()
-    snap_path = wm.gerar_snapshot_arquivamento(id)
+    snap_path = ExportacaoService.gerar_snapshot_arquivamento(id)
     
     execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
     wm.travar_workspace_inteiro_readonly(id)

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
 from config import EXPORT_BASE_FOLDER
 
@@ -223,7 +224,7 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
             wm = WorkspaceManager()
             pasta = wm.create_workspace(lev_id)
             execute_query("UPDATE levantamentos SET pasta_projeto = ? WHERE id = ?", params=(pasta, lev_id), commit=True)
-            wm.gerar_documento_cliente_workspace(lev_id)
+            ExportacaoService.gerar_documento_cliente_workspace(lev_id)
             logging.getLogger(__name__).info(f"[FRONTEIRA] Criado levantamento automático ID {lev_id} para a propriedade ID {prop_id}.")
 
         p = payload.propriedade
@@ -261,7 +262,7 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
         ativos = execute_query(query_ativos, params=(prop_id,), fetch_all=True)
         wm = WorkspaceManager()
         for at in ativos:
-            wm.gerar_documento_cliente_workspace(at['id'])
+            ExportacaoService.gerar_documento_cliente_workspace(at['id'])
             
         return {
             "sucesso": True, 
@@ -582,11 +583,11 @@ def endpoint_consolidar_pontos(id: int):
     verificar_levantamento_arquivado(id)
     try:
         wm = WorkspaceManager()
-        caminho_arquivo = wm.consolidar_pontos_levantamento(id)
+        caminho_arquivo = ExportacaoService.consolidar_pontos_levantamento(id)
         return {
             "success": True,
             "message": "Pontos consolidados com coordenadas UTM corrigidas e confrontantes mapeados com sucesso!",
-            "arquivo": "PONTOS_CONSOLIDADOS_UTM.txt",
+            "arquivo": "PONTOS_CONSOLIDADOS_UTM.csv",
             "caminho_completo": caminho_arquivo
         }
     except Exception as e:

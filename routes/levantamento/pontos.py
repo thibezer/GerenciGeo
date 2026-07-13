@@ -14,6 +14,7 @@ from pyproj import Transformer
 
 from database.connection import DatabaseManager, execute_query
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 from business.txt_parser import TxtGeodesicParser
 from business.levantamento_manager import salvar_ordem_caminhamento
 from routes.deps import verificar_levantamento_arquivado
@@ -168,7 +169,7 @@ def create_matricula(id: int, m: MatriculaCreate):
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
         wm = WorkspaceManager()
         for at in ativos:
-            wm.gerar_documento_cliente_workspace(at['id'])
+            ExportacaoService.gerar_documento_cliente_workspace(at['id'])
             
         return {"message": "Matrícula adicionada com sucesso"}
     except Exception as e:
@@ -233,7 +234,7 @@ def update_matricula(mid: int, m: MatriculaCreate):
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
         wm = WorkspaceManager()
         for at in ativos:
-            wm.gerar_documento_cliente_workspace(at['id'])
+            ExportacaoService.gerar_documento_cliente_workspace(at['id'])
             
         return {"message": "Matrícula atualizada e sincronizada com sucesso"}
     except Exception as e:
@@ -257,7 +258,7 @@ def delete_matricula(mid: int):
             ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
             wm = WorkspaceManager()
             for at in ativos:
-                wm.gerar_documento_cliente_workspace(at['id'])
+                ExportacaoService.gerar_documento_cliente_workspace(at['id'])
                 
         return {"message": "Matrícula removida"}
     except Exception as e:
@@ -463,7 +464,7 @@ async def importar_caderneta_txt(
             
         ids_pontos = parser.persistir_no_banco(pontos_processados)
         total_segmentos = parser.gerar_topologia_perimetral(ids_pontos, pontos_processados)
-        wm.gerar_documento_cliente_workspace(id)
+        ExportacaoService.gerar_documento_cliente_workspace(id)
         
         primeiro_pt = pontos_processados[0]
         layout = "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
@@ -522,7 +523,7 @@ def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
         from business.geoprocessamento import associar_base_ao_lote
         qtd = associar_base_ao_lote(payload.ponto_id_selecionado, payload.base_ppp_id)
         wm = WorkspaceManager()
-        wm.gerar_documento_cliente_workspace(id)
+        ExportacaoService.gerar_documento_cliente_workspace(id)
         return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Vínculo tardio e translação em bloco aplicados com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -540,7 +541,7 @@ def post_corrigir_manual_lote(id: int, payload: PayloadOverrideManual):
             payload.dados_corrigidos
         )
         wm = WorkspaceManager()
-        wm.gerar_documento_cliente_workspace(id)
+        ExportacaoService.gerar_documento_cliente_workspace(id)
         return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Override manual e translação ECEF 3D aplicados com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -564,7 +565,7 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
     wm = WorkspaceManager()
-    wm.gerar_documento_cliente_workspace(id)
+    ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/ordenar-vizinhos")
@@ -575,7 +576,7 @@ def post_ordenar_vizinhos_perimetro(id: int, matricula_id: int):
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
     wm = WorkspaceManager()
-    wm.gerar_documento_cliente_workspace(id)
+    ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
 @router.post("/levantamentos/{id}/salvar-ordem")
@@ -595,7 +596,7 @@ def post_reordenar_global(id: int):
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
     wm = WorkspaceManager()
-    wm.gerar_documento_cliente_workspace(id)
+    ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
 @router.post("/levantamentos/{id}/ordenar-vizinhos")
@@ -606,7 +607,7 @@ def post_ordenar_vizinhos_global(id: int):
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
     wm = WorkspaceManager()
-    wm.gerar_documento_cliente_workspace(id)
+    ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
 # ── Atualização Manual e Auditoria Topológica ──────────────────────────────────

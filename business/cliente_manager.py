@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from database.connection import execute_query
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 from database.repository import PendenciaRepo
 
 def validar_cpf_cnpj(documento: str) -> bool:
@@ -66,8 +67,7 @@ class ClienteManager:
     def gerar_documento_cliente_workspace(self, cliente_id: int, levantamento_id: int):
         """Redireciona para o WorkspaceManager que gera o DADOS_GERAIS.json unificado"""
         try:
-            wm = WorkspaceManager()
-            wm.gerar_documento_cliente_workspace(levantamento_id)
+            ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
         except Exception as e:
             print(f"Erro ao delegar geração de dados gerais no workspace: {e}")
 

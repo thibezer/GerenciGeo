@@ -4,6 +4,7 @@ import logging
 from database.connection import DatabaseManager, execute_query
 from business.cliente_manager import ClienteManager, validar_cpf_cnpj
 from business.workspace_manager import WorkspaceManager
+from services.exportacao_service import ExportacaoService
 from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
 from pyproj import Transformer
 
@@ -199,7 +200,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
         levs_vinculados = execute_query(query_ativos, params=(cliente_id,), fetch_all=True)
         wm = WorkspaceManager()
         for lev in levs_vinculados:
-            wm.gerar_documento_cliente_workspace(lev['id'])
+            ExportacaoService.gerar_documento_cliente_workspace(lev['id'])
         
         mgr.verificar_dados_conjuge(cliente_id)
             
@@ -362,7 +363,7 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
             
         # Sincroniza metadados no workspace físico
         wm = WorkspaceManager()
-        wm.gerar_documento_cliente_workspace(levantamento_id)
+        ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
         
         return {
             "sucesso": True, 

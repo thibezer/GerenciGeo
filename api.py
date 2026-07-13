@@ -11,6 +11,8 @@ from database.connection import DatabaseManager
 from database.models import create_tables
 from routes.deps import verificar_tranca_read_only
 from routes import router as api_router
+from utils.logger import tracer
+import time
 
 # Inicializa o Logger do sistema
 logging.basicConfig(level=logging.INFO)
@@ -48,9 +50,28 @@ async def add_no_cache_headers(request: Request, call_next):
         response.headers["Expires"] = "0"
     return response
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    
+    # Rastreia apenas chamadas dinâmicas (API), ignora arquivos estáticos do frontend
+    path = request.url.path
+    if not (path.startswith("/assets/") or path.endswith(".html") or path.endswith(".js") or path.endswith(".css")):
+        client_ip = request.client.host if request.client else "Unknown"
+        tracer.trace_request(
+            method=request.method,
+            url=str(request.url),
+            client_ip=client_ip,
+            duration_ms=process_time,
+            status_code=response.status_code
+        )
+    return response
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logging.getLogger(__name__).error(f"Erro inesperado no servidor: {exc}", exc_info=True)
+    tracer.get_logger().error(f"Erro inesperado no servidor: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={"error": f"Erro interno do servidor: {str(exc)}"}
