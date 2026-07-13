@@ -606,17 +606,27 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
+    let _previousSelectedIds = new Set<number>();
+    let _previousSelectedVizinhoIds = new Set<number>();
+
     ctx.atualizarDestaqueLinhasTabela = () => {
+      const currentSelectedIds = new Set(ctx.selectedPontoIds);
+      const currentSelectedVizinhoIds = new Set(ctx.selectedVizinhoPontoIds);
+
+      // Atualiza tabela: apenas as linhas cujo estado de seleção mudou
       document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
         const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
-        const isSelected = ctx.selectedPontoIds.includes(pId);
+        const isSelectedNow = currentSelectedIds.has(pId);
+        const wasSelected = _previousSelectedIds.has(pId);
 
-        if (isSelected) {
-          tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
-          tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
-        } else {
-          tr.classList.remove('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
-          tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
+        if (isSelectedNow !== wasSelected) {
+          if (isSelectedNow) {
+            tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
+            tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
+          } else {
+            tr.classList.remove('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
+            tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
+          }
         }
       });
       
@@ -644,32 +654,50 @@ export const mesaTrabalhoRoute: RouteDef = {
           bar.classList.add('hidden');
         }
       }
-      // 1. Limpa o destaque anterior dos marcadores normais
-      document.querySelectorAll('.coordinate-marker').forEach((el: any) => {
-        const bgClass = el.getAttribute('data-ponto-bg') || 'bg-mint-vibrant';
-        el.className = `w-2.5 h-2.5 ${bgClass} border border-[#0c1510] rounded-full flex items-center justify-center shadow-md transition-all duration-150`;
-      });
 
-      // 2. Limpa o destaque anterior dos marcadores de vizinhos
-      document.querySelectorAll('.neighbor-marker').forEach((el: any) => {
-        el.className = "w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] transition-all duration-150 neighbor-marker";
-      });
-
-      // 3. Aplica destaque amarelo neon apenas nos pontos selecionados no momento
-      ctx.selectedPontoIds.forEach((pId: number) => {
-        const markerEl = document.getElementById(`map-marker-${pId}`);
-        if (markerEl) {
-          markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full flex items-center justify-center shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] coordinate-marker";
+      // Marcadores normais: Limpa os que DEIXARAM de ser selecionados
+      _previousSelectedIds.forEach(pId => {
+        if (!currentSelectedIds.has(pId)) {
+          const markerEl = document.getElementById(`map-marker-${pId}`);
+          if (markerEl) {
+            const bgClass = markerEl.getAttribute('data-ponto-bg') || 'bg-mint-vibrant';
+            markerEl.className = `w-2.5 h-2.5 ${bgClass} border border-[#0c1510] rounded-full flex items-center justify-center shadow-md transition-all duration-150 coordinate-marker`;
+          }
         }
       });
 
-      // 4. Aplica destaque amarelo neon nos vizinhos selecionados
-      ctx.selectedVizinhoPontoIds.forEach((pId: number) => {
-        const markerEl = document.getElementById(`vizinho-marker-${pId}`);
-        if (markerEl) {
-          markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] neighbor-marker";
+      // Marcadores normais: Aplica destaque nos que PASSARAM a ser selecionados (ou continuam)
+      currentSelectedIds.forEach(pId => {
+        if (!_previousSelectedIds.has(pId)) {
+          const markerEl = document.getElementById(`map-marker-${pId}`);
+          if (markerEl) {
+            markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full flex items-center justify-center shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] coordinate-marker";
+          }
         }
       });
+
+      // Marcadores vizinhos: Limpa os que DEIXARAM de ser selecionados
+      _previousSelectedVizinhoIds.forEach(pId => {
+        if (!currentSelectedVizinhoIds.has(pId)) {
+          const markerEl = document.getElementById(`vizinho-marker-${pId}`);
+          if (markerEl) {
+            markerEl.className = "w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] transition-all duration-150 neighbor-marker";
+          }
+        }
+      });
+
+      // Marcadores vizinhos: Aplica destaque nos que PASSARAM a ser selecionados
+      currentSelectedVizinhoIds.forEach(pId => {
+        if (!_previousSelectedVizinhoIds.has(pId)) {
+          const markerEl = document.getElementById(`vizinho-marker-${pId}`);
+          if (markerEl) {
+            markerEl.className = "w-3.5 h-3.5 bg-yellow-400 border-2 border-white rounded-full shadow-[0_0_10px_#facc15] scale-125 transition-all duration-150 z-[1000] neighbor-marker";
+          }
+        }
+      });
+
+      _previousSelectedIds = currentSelectedIds;
+      _previousSelectedVizinhoIds = currentSelectedVizinhoIds;
 
       atualizarPainelPropriedades(ctx);
     };
