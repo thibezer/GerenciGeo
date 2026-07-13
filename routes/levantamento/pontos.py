@@ -343,7 +343,7 @@ def get_pontos(id: int):
             WHERE p.levantamento_id = ?
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
               AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
-            ORDER BY p.ordem_caminhamento ASC, p.id ASC
+            ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         
@@ -699,7 +699,7 @@ def auditar_perimetro_matricula(mid: int):
     mat = dict(mat_row)
     
     pontos_rows = execute_query(
-        "SELECT id, nome_vertice, lat, lon, alt, ordem_caminhamento FROM pontos WHERE matricula_id = ? ORDER BY ordem_caminhamento ASC, id ASC",
+        "SELECT id, nome_vertice, lat, lon, alt, ordem_caminhamento FROM pontos WHERE matricula_id = ? ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
         params=(mid,), fetch_all=True
     )
     if not pontos_rows:

@@ -779,7 +779,7 @@ class CartorioReportGenerator:
                 SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono
                 FROM pontos
                 WHERE levantamento_id = ? AND matricula_id = ?
-                ORDER BY ordem_caminhamento ASC
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
                 """,
                 params=(lev_id, matricula_id),
                 fetch_all=True
