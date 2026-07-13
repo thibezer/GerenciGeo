@@ -33,12 +33,12 @@ class PontoCreate(BaseModel):
     sigma_lat: float = 0.0
     sigma_lon: float = 0.0
     sigma_alt: float = 0.0
-    ordem_caminhamento: int = None
+    ordem_caminhamento: Optional[int] = None
 
 class MatriculaCreate(BaseModel):
     numero_matricula: str
-    ccir: str = None
-    itr: str = None
+    ccir: Optional[str] = None
+    itr: Optional[str] = None
     area_ha: float = 0.0
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None
@@ -627,23 +627,23 @@ class PontoBatchUpdatePayload(BaseModel):
     pontos: List[PontoUpdateBatchItem]
 
 class PontoUpdate(BaseModel):
-    nome_vertice: str = None
-    tipo_ponto: str = None
-    metodo_posicionamento: str = None
-    matricula_id: int = None
-    ponto_base_id: int = None
-    lat: float = None
-    lon: float = None
-    alt: float = None
-    sigma_lat: float = None
-    sigma_lon: float = None
-    sigma_alt: float = None
-    status_ponto: str = None
-    ignorar_poligono: int = None
-    n_corrigido: float = None
-    e_corrigido: float = None
-    alt_corrigido: float = None
-    fuso: str = None
+    nome_vertice: Optional[str] = None
+    tipo_ponto: Optional[str] = None
+    metodo_posicionamento: Optional[str] = None
+    matricula_id: Optional[int] = None
+    ponto_base_id: Optional[int] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    alt: Optional[float] = None
+    sigma_lat: Optional[float] = None
+    sigma_lon: Optional[float] = None
+    sigma_alt: Optional[float] = None
+    status_ponto: Optional[str] = None
+    ignorar_poligono: Optional[int] = None
+    n_corrigido: Optional[float] = None
+    e_corrigido: Optional[float] = None
+    alt_corrigido: Optional[float] = None
+    fuso: Optional[str] = None
     sequencia_travada_id: Optional[str] = None
 
 @router.put("/levantamentos/{id}/pontos/batch")

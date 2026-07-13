@@ -508,7 +508,7 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
     Atualiza múltiplos pontos em lote.
     """
     try:
-        from database.connection import get_db_connection
+        from database.connection import DatabaseManager
 
         pontos = data.get('pontos', [])
         if not pontos:
@@ -528,7 +528,7 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
         if not valid_ids:
             return {"success": True}
 
-        with get_db_connection() as conn:
+        with DatabaseManager() as conn:
             cursor = conn.cursor()
 
             # Para manter o controle se reordenar será necessário (se ignorar_poligono mudou)

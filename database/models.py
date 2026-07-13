@@ -28,7 +28,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS pessoas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            cpf_cnpj TEXT UNIQUE NOT NULL,
+            cpf_cnpj TEXT UNIQUE,
             rg TEXT,
             nacionalidade TEXT,
             profissao TEXT,
@@ -600,9 +600,75 @@ def create_tables(conn):
         migrar_status_arquivado_levantamentos(conn)
         # Executa migração de unicidade de banco_pontos por planilha se necessário
         migrar_restricao_unicidade_banco_pontos(conn)
+        # BUGFIX: remove NOT NULL de pessoas.cpf_cnpj (confrontantes sem CPF/CNPJ
+        # conhecido não conseguiam ser cadastrados — todo INSERT em pessoas falhava
+        # com "NOT NULL constraint failed: pessoas.cpf_cnpj")
+        migrar_cpf_cnpj_opcional_pessoas(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
+
+def migrar_cpf_cnpj_opcional_pessoas(conn):
+    """
+    BUGFIX: a tabela 'pessoas' foi criada com 'cpf_cnpj TEXT UNIQUE NOT NULL'.
+    Isso torna impossível cadastrar um confrontante sem CPF/CNPJ conhecido —
+    o INSERT INTO pessoas falha com 'NOT NULL constraint failed: pessoas.cpf_cnpj'
+    sempre que o formulário rápido de confrontantes (nome/matrícula/CNS) é usado
+    sem informar CPF. Esta migração recria a tabela sem o NOT NULL, preservando
+    todos os dados e o índice UNIQUE (SQLite permite múltiplos valores NULL em
+    colunas UNIQUE sem conflito).
+    """
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(pessoas)")
+    colunas = cursor.fetchall()
+    cpf_cnpj_not_null = False
+    for col in colunas:
+        # col: (cid, name, type, notnull, dflt_value, pk)
+        if col[1] == "cpf_cnpj" and col[3] == 1:
+            cpf_cnpj_not_null = True
+            break
+
+    if not cpf_cnpj_not_null:
+        return  # já migrado ou banco novo criado sem essa restrição
+
+    try:
+        cursor.execute("BEGIN TRANSACTION;")
+        cursor.execute("""
+            CREATE TABLE pessoas_backup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                cpf_cnpj TEXT UNIQUE,
+                rg TEXT,
+                nacionalidade TEXT,
+                profissao TEXT,
+                estado_civil TEXT,
+                regime_bens TEXT,
+                endereco_completo TEXT,
+                nome_conjuge TEXT,
+                cpf_conjuge TEXT,
+                rg_conjuge TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cursor.execute("""
+            INSERT INTO pessoas_backup (
+                id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil,
+                regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, created_at
+            )
+            SELECT id, nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil,
+                   regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, created_at
+            FROM pessoas;
+        """)
+        cursor.execute("DROP TABLE pessoas;")
+        cursor.execute("ALTER TABLE pessoas_backup RENAME TO pessoas;")
+        cursor.execute("COMMIT;")
+        logger.info("[MIGRAÇÃO] Tabela 'pessoas' migrada com sucesso (cpf_cnpj agora é opcional).")
+    except Exception as e:
+        try:
+            cursor.execute("ROLLBACK;")
+        except Exception:
+            pass
+        logger.warning(f"Aviso de migração automática para pessoas.cpf_cnpj: {e}")
 
 def migrar_restricao_unicidade_pontos(conn):
     """Garante a inserção da restrição UNIQUE composto na tabela pontos de forma segura e remove NOT NULL de matricula_id"""
@@ -877,4 +943,3 @@ def migrar_restricao_unicidade_banco_pontos(conn):
                 cursor.execute("PRAGMA foreign_keys = ON;")
             except Exception:
                 pass
-

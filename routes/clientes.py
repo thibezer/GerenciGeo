@@ -24,21 +24,21 @@ class PendenciaUpdate(BaseModel):
 class ClienteCreate(BaseModel):
     nome_completo: str
     cpf_cnpj: str
-    rg_ie: str = None
-    data_nascimento_fundacao: str = None
-    estado_civil: str = None
-    profissao: str = None
-    nacionalidade: str = None
-    nome_conjuge: str = None
-    cpf_conjuge: str = None
-    rg_conjuge: str = None
-    regime_bens: str = None
-    email: str = None
-    telefone: str = None
-    endereco_completo: str = None
-    cidade: str = None
-    estado: str = None
-    cep: str = None
+    rg_ie: Optional[str] = None
+    data_nascimento_fundacao: Optional[str] = None
+    estado_civil: Optional[str] = None
+    profissao: Optional[str] = None
+    nacionalidade: Optional[str] = None
+    nome_conjuge: Optional[str] = None
+    cpf_conjuge: Optional[str] = None
+    rg_conjuge: Optional[str] = None
+    regime_bens: Optional[str] = None
+    email: Optional[str] = None
+    telefone: Optional[str] = None
+    endereco_completo: Optional[str] = None
+    cidade: Optional[str] = None
+    estado: Optional[str] = None
+    cep: Optional[str] = None
     sexo: str = "M"
     metadados: dict = {}
 

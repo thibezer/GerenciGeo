@@ -19,10 +19,10 @@ router = APIRouter(tags=["Propriedades & Matrículas"])
 
 class PropriedadeCreate(BaseModel):
     nome_propriedade: str
-    codigo_car: str = None
-    codigo_ccir: str = None
-    caminho_arquivo_car: str = None
-    caminho_arquivo_ccir: str = None
+    codigo_car: Optional[str] = None
+    codigo_ccir: Optional[str] = None
+    caminho_arquivo_car: Optional[str] = None
+    caminho_arquivo_ccir: Optional[str] = None
     municipio: str
     uf: str
 
@@ -32,8 +32,8 @@ class PropriedadeClienteCreate(BaseModel):
 
 class MatriculaCreate(BaseModel):
     numero_matricula: str
-    ccir: str = None
-    itr: str = None
+    ccir: Optional[str] = None
+    itr: Optional[str] = None
     area_ha: float = 0.0
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None

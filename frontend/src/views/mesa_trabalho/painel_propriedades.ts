@@ -18,6 +18,52 @@
 import { API_BASE } from '../../config';
 import { initIcons, customAlert, showToast } from '../../utils';
 
+const METODOS_SIGEF = [
+  { codigo: 'PG1', nome: 'Relativo estático', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG2', nome: 'Relativo estático-rápido', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG3', nome: 'Relativo semicinemático', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG4', nome: 'Relativo cinemático', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG5', nome: 'Relativo a partir de códigos', aplicacao: 'Limite Natural' },
+  { codigo: 'PG6', nome: 'RTK convencional / RTPPP', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG7', nome: 'RTK em rede', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PG8', nome: 'Differential GPS (DGPS)', aplicacao: 'Limite Natural' },
+  { codigo: 'PG9', nome: 'Posicionamento por Ponto Preciso', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT1', nome: 'Poligonação', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT2', nome: 'Triangulação', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT3', nome: 'Trilateração', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT4', nome: 'Triangulateração', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT5', nome: 'Irradiação', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT6', nome: 'Interseção linear', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT7', nome: 'Interseção angular', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT8', nome: 'Alinhamento', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PT9', nome: 'Estação Livre', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PA1', nome: 'Paralela', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PA2', nome: 'Interseção de Retas', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PA3', nome: 'Projeção Técnica', aplicacao: 'Limite Artificial ou Natural' },
+  { codigo: 'PS1', nome: 'Aerofotogrametria', aplicacao: 'Limite Artificial, Natural ou Inacessível' },
+  { codigo: 'PS2', nome: 'Radar aerotransportado', aplicacao: 'Limite Artificial, Natural ou Inacessível' },
+  { codigo: 'PS3', nome: 'Laser scanner aerotransportado', aplicacao: 'Limite Artificial, Natural ou Inacessível' },
+  { codigo: 'PS4', nome: 'Sensores orbitais', aplicacao: 'Limite Artificial, Natural ou Inacessível' },
+  { codigo: 'PB1', nome: 'Base cartográfica com precisão conhecida', aplicacao: 'Limite Artificial, Natural ou Inacessível' },
+  { codigo: 'PB2', nome: 'Base cartográfica sem precisão conhecida', aplicacao: 'Limite Artificial, Natural ou Inacessível' }
+];
+
+const LIMITES_SIGEF = [
+  { codigo: 'LA1', nome: 'Cerca' },
+  { codigo: 'LA2', nome: 'Muro' },
+  { codigo: 'LA3', nome: 'Estrada' },
+  { codigo: 'LA4', nome: 'Vala' },
+  { codigo: 'LA5', nome: 'Canal' },
+  { codigo: 'LA6', nome: 'Linha ideal' },
+  { codigo: 'LA7', nome: 'Limite artificial não tipificado' },
+  { codigo: 'LN1', nome: 'Corpo d’água ou curso d’água' },
+  { codigo: 'LN2', nome: 'Linha de cumeada' },
+  { codigo: 'LN3', nome: 'Grota' },
+  { codigo: 'LN4', nome: 'Crista de encosta' },
+  { codigo: 'LN5', nome: 'Pé de encosta' },
+  { codigo: 'LN6', nome: 'Limite natural não tipificado' }
+];
+
 const parseNumber = (val: any): number => {
   if (val === undefined || val === null) return 0;
   const num = Number(val);
@@ -228,11 +274,37 @@ export function atualizarPainelPropriedades(ctx: any): void {
           <div class="props-field">
             <label class="props-field-label">Tipo</label>
             <select id="prop-tipo-ponto" class="props-field-value" ${isDisabled ? 'disabled' : ''}>
-              <option value="M" ${p.tipo_ponto === 'M' || p.tipo === 'M' ? 'selected' : ''}>M - Marco</option>
-              <option value="P" ${p.tipo_ponto === 'P' || p.tipo === 'P' ? 'selected' : ''}>P - Ponto</option>
-              <option value="V" ${p.tipo_ponto === 'V' || p.tipo === 'V' ? 'selected' : ''}>V - Virtual</option>
-              <option value="B" ${p.tipo_ponto === 'B' || p.tipo === 'B' ? 'selected' : ''}>B - Base</option>
+              <option class="bg-[#111113] text-white/90" value="M" ${p.tipo_ponto === 'M' || p.tipo === 'M' ? 'selected' : ''}>M - Marco</option>
+              <option class="bg-[#111113] text-white/90" value="P" ${p.tipo_ponto === 'P' || p.tipo === 'P' ? 'selected' : ''}>P - Ponto</option>
+              <option class="bg-[#111113] text-white/90" value="V" ${p.tipo_ponto === 'V' || p.tipo === 'V' ? 'selected' : ''}>V - Virtual</option>
+              <option class="bg-[#111113] text-white/90" value="B" ${p.tipo_ponto === 'B' || p.tipo === 'B' ? 'selected' : ''}>B - Base</option>
             </select>
+          </div>
+
+          <div class="props-field">
+            <label class="props-field-label">Método</label>
+            <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
+              <select id="prop-metodo" class="props-field-value flex-1 min-w-0" ${isDisabled ? 'disabled' : ''}>
+                <option class="bg-[#111113] text-white/90" value="">Selecione...</option>
+                ${METODOS_SIGEF.map(m => `<option class="bg-[#111113] text-white/90" value="${m.codigo}" ${p.metodo_posicionamento === m.codigo ? 'selected' : ''}>${m.codigo} - ${m.nome}</option>`).join('')}
+              </select>
+              <button type="button" id="btn-ajuda-metodo" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Métodos SIGEF">
+                <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="props-field">
+            <label class="props-field-label">Limite</label>
+            <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
+              <select id="prop-tipo-limite" class="props-field-value flex-1 min-w-0" ${isDisabled || !seg ? 'disabled' : ''} title="${!seg ? 'Sem segmento de divisa associado' : ''}">
+                <option class="bg-[#111113] text-white/90" value="">${seg ? 'Selecione...' : 'Sem Divisa'}</option>
+                ${LIMITES_SIGEF.map(l => `<option class="bg-[#111113] text-white/90" value="${l.codigo}" ${(seg && seg.tipo_limite_sigef === l.codigo) ? 'selected' : ''}>${l.codigo} - ${l.nome}</option>`).join('')}
+              </select>
+              <button type="button" id="btn-ajuda-limite" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Tipos de Limite">
+                <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
+              </button>
+            </div>
           </div>
 
           ${ctx.modoCoordenadas === 'utm' ? `
@@ -374,10 +446,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <input type="text" value="${p.arquivo_origem || '-'}" class="props-field-value font-mono text-[9px]" readonly title="${p.arquivo_origem || ''}" />
           </div>
           <div class="props-field">
-            <label class="props-field-label">Método</label>
-            <input type="text" value="${p.metodo_posicionamento || '-'}" class="props-field-value font-mono" readonly />
-          </div>
-          <div class="props-field">
             <label class="props-field-label">Correção</label>
             <input type="text" value="${p.status_correcao || p.status_ponto || 'BRUTO'}" class="props-field-value font-mono" readonly />
           </div>
@@ -404,6 +472,62 @@ export function atualizarPainelPropriedades(ctx: any): void {
       setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados']);
       initIcons();
 
+      const btnAjudaMetodo = document.getElementById('btn-ajuda-metodo');
+      if (btnAjudaMetodo) {
+        btnAjudaMetodo.onclick = () => {
+          const tableHtml = `
+            <div class="max-h-[60vh] overflow-y-auto mt-2">
+              <table class="w-full text-[10px] text-left border-collapse">
+                <thead class="sticky top-0 bg-[#111113] border-b border-white/10 text-white/60">
+                  <tr>
+                    <th class="py-1 px-2">Código</th>
+                    <th class="py-1 px-2">Método</th>
+                    <th class="py-1 px-2">Aplicação</th>
+                  </tr>
+                </thead>
+                <tbody class="text-white/80">
+                  ${METODOS_SIGEF.map(m => `
+                    <tr class="border-b border-white/5 hover:bg-white/5">
+                      <td class="py-1.5 px-2 font-mono text-mint-vibrant">${m.codigo}</td>
+                      <td class="py-1.5 px-2">${m.nome}</td>
+                      <td class="py-1.5 px-2">${m.aplicacao}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          customAlert(tableHtml, 'Catálogo: Métodos de Posicionamento');
+        };
+      }
+
+      const btnAjudaLimite = document.getElementById('btn-ajuda-limite');
+      if (btnAjudaLimite) {
+        btnAjudaLimite.onclick = () => {
+          const tableHtml = `
+            <div class="max-h-[60vh] overflow-y-auto mt-2">
+              <table class="w-full text-[10px] text-left border-collapse">
+                <thead class="sticky top-0 bg-[#111113] border-b border-white/10 text-white/60">
+                  <tr>
+                    <th class="py-1 px-2">Código</th>
+                    <th class="py-1 px-2">Tipo de Limite</th>
+                  </tr>
+                </thead>
+                <tbody class="text-white/80">
+                  ${LIMITES_SIGEF.map(l => `
+                    <tr class="border-b border-white/5 hover:bg-white/5">
+                      <td class="py-1.5 px-2 font-mono text-purple-400">${l.codigo}</td>
+                      <td class="py-1.5 px-2">${l.nome}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          customAlert(tableHtml, 'Catálogo: Tipos de Limite');
+        };
+      }
+
       if (isPontoVizinho || isArquivado) {
         if (panelActions) panelActions.classList.add('hidden');
         return;
@@ -413,6 +537,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const valoresOriginais = {
         nome_vertice: p.nome_vertice || '',
         tipo_ponto: p.tipo_ponto || p.tipo || '',
+        metodo: p.metodo_posicionamento || '',
+        limite: (seg && seg.tipo_limite_sigef) ? seg.tipo_limite_sigef : '',
         e_corrigido: eVal.toFixed(3),
         n_corrigido: nVal.toFixed(3),
         lat_corrigido: latVal.toFixed(9),
@@ -427,7 +553,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const inputs = [
         'prop-nome-vertice', 'prop-tipo-ponto', 'prop-alt-corrigido',
         'prop-confrontante', 'prop-confrontante-matricula', 'prop-confrontante-cartorio',
-        'prop-ignorar-poligono'
+        'prop-ignorar-poligono', 'prop-metodo', 'prop-tipo-limite'
       ];
 
       if (ctx.modoCoordenadas === 'utm') {
@@ -451,6 +577,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
         checkDirty('prop-nome-vertice', valoresOriginais.nome_vertice);
         checkDirty('prop-tipo-ponto', valoresOriginais.tipo_ponto);
+        checkDirty('prop-metodo', valoresOriginais.metodo);
+        checkDirty('prop-tipo-limite', valoresOriginais.limite);
 
         if (ctx.modoCoordenadas === 'utm') {
           checkDirty('prop-e-corrigido', valoresOriginais.e_corrigido);
@@ -523,11 +651,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
           const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
           const ignorarCheck = document.getElementById('prop-ignorar-poligono') as HTMLInputElement;
+          const metodoSelect = document.getElementById('prop-metodo') as HTMLSelectElement;
+          const limiteSelect = document.getElementById('prop-tipo-limite') as HTMLSelectElement;
 
           const payload: any = {
             nome_vertice: nomeInput.value,
             tipo_ponto: tipoSelect.value,
-            ignorar_poligono: ignorarCheck.checked ? 0 : 1
+            ignorar_poligono: ignorarCheck.checked ? 0 : 1,
+            metodo_posicionamento: metodoSelect.value
           };
 
           if (ctx.modoCoordenadas === 'utm') {
@@ -570,93 +701,125 @@ export function atualizarPainelPropriedades(ctx: any): void {
               confCartorioVal !== valoresOriginais.confrontante_cartorio;
 
             if (confrontanteAlterado) {
-              if (!seg) {
-                // BUGFIX: antes, se não existisse um segmento (ponto_inicio_id === p.id)
-                // em ctx.segmentosList, as alterações de confrontante eram descartadas
-                // silenciosamente e o toast de sucesso do vértice aparecia mesmo assim.
-                throw new Error(
-                  "Não foi possível salvar o confrontante: este vértice não possui um " +
-                  "segmento de divisa associado em memória. Rode 'Reordenar Perimetral' " +
-                  "na matrícula para regenerar os segmentos e tente novamente."
-                );
-              }
-              {
-                if (confNomeVal.trim() === '') {
-                  if (seg.confrontante_id) {
-                    await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        matricula_id: seg.matricula_id,
-                        ponto_inicio_id: seg.ponto_inicio_id,
-                        ponto_fim_id: seg.ponto_fim_id,
-                        confrontante_id: null,
-                        tipo_limite_sigef: seg.tipo_limite_sigef,
-                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                      })
-                    });
-                  }
-                } else if (seg.confrontante_id) {
-                  const resConf = await fetch(`${API_BASE}/confrontantes/${seg.confrontante_id}`, {
+              // ID do confrontante já vinculado a este vértice, seja diretamente
+              // (vértice integrado de vizinho, via ponto.confrontante_id) ou
+              // através do segmento de divisa que começa neste vértice.
+              const confrontanteIdAtual = p.confrontante_id || (seg && seg.confrontante_id);
+
+              if (confNomeVal.trim() === '') {
+                if (seg && seg.confrontante_id) {
+                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      ...confObj,
-                      nome: confNomeVal,
-                      matricula_imovel: confMatriculaVal,
-                      cns_confrontante: confCartorioVal,
-                      tipo_relacao: confObj?.tipo_relacao || 'Divisa'
+                      matricula_id: seg.matricula_id,
+                      ponto_inicio_id: seg.ponto_inicio_id,
+                      ponto_fim_id: seg.ponto_fim_id,
+                      confrontante_id: null,
+                      tipo_limite_sigef: limiteSelect.value,
+                      metodo_posicionamento_sigef: metodoSelect.value
                     })
                   });
-                  if (!resConf.ok) {
-                    throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
-                  }
-                  const resConfData = await resConf.json().catch(() => ({}));
-                  if (resConfData.error) {
-                    throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
-                  }
-                } else {
-                  const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
-                    method: 'POST',
+                } else if (p.confrontante_id) {
+                  // Vínculo gravado direto no ponto (vértice integrado de vizinho):
+                  // não existe hoje endpoint de API para desvincular esse campo por
+                  // aqui, então avisamos em vez de fingir que limpou.
+                  throw new Error(
+                    "Não é possível remover o confrontante deste vértice pelo painel: " +
+                    "o vínculo está gravado diretamente no ponto (vértice integrado de " +
+                    "vizinho) e não há endpoint de API para desvincular esse campo."
+                  );
+                }
+              } else if (confrontanteIdAtual) {
+                // BUGFIX: antes, esta atualização só rodava dentro de "if (seg)" — um
+                // vértice com vínculo direto (p.confrontante_id) mas sem segmento
+                // correspondente em ctx.segmentosList nunca conseguia ser atualizado,
+                // mesmo já tendo um confrontante_id válido para atualizar via PUT.
+                const resConf = await fetch(`${API_BASE}/confrontantes/${confrontanteIdAtual}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    ...confObj,
+                    nome: confNomeVal,
+                    matricula_imovel: confMatriculaVal,
+                    cns_confrontante: confCartorioVal,
+                    tipo_relacao: confObj?.tipo_relacao || 'Divisa'
+                  })
+                });
+                if (!resConf.ok) {
+                  throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
+                }
+                const resConfData = await resConf.json().catch(() => ({}));
+                if (resConfData.error) {
+                  throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
+                }
+              } else {
+                // Não há confrontante vinculado ainda: para CRIAR um novo é preciso
+                // gravar o vínculo em algum lugar, e hoje só o segmento tem um campo
+                // confrontante_id editável via API (o ponto não tem esse campo no
+                // PUT /pontos/{id}). Por isso, aqui sim é obrigatório ter um "seg".
+                if (!seg) {
+                  throw new Error(
+                    "Não foi possível salvar o confrontante: este vértice não possui um " +
+                    "segmento de divisa associado em memória. Rode 'Reordenar Perimetral' " +
+                    "na matrícula para regenerar os segmentos e tente novamente."
+                  );
+                }
+                const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    nome: confNomeVal,
+                    matricula_imovel: confMatriculaVal,
+                    cns_confrontante: confCartorioVal,
+                    tipo_relacao: 'Divisa'
+                  })
+                });
+                if (!resConf.ok) {
+                  throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
+                }
+                const resConfData = await resConf.json().catch(() => ({}));
+                if (resConfData.error) {
+                  throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
+                }
+                const confId = resConfData.id || resConfData.confrontante_id;
+                if (confId) {
+                  const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      nome: confNomeVal,
-                      matricula_imovel: confMatriculaVal,
-                      cns_confrontante: confCartorioVal,
-                      tipo_relacao: 'Divisa'
+                      matricula_id: seg.matricula_id,
+                      ponto_inicio_id: seg.ponto_inicio_id,
+                      ponto_fim_id: seg.ponto_fim_id,
+                      confrontante_id: confId,
+                      tipo_limite_sigef: limiteSelect.value,
+                      metodo_posicionamento_sigef: metodoSelect.value
                     })
                   });
-                  if (!resConf.ok) {
-                    throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
+                  if (!resSeg.ok) {
+                    throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
                   }
-                  const resConfData = await resConf.json().catch(() => ({}));
-                  if (resConfData.error) {
-                    throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
-                  }
-                  const confId = resConfData.id || resConfData.confrontante_id;
-                  if (confId) {
-                    const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        matricula_id: seg.matricula_id,
-                        ponto_inicio_id: seg.ponto_inicio_id,
-                        ponto_fim_id: seg.ponto_fim_id,
-                        confrontante_id: confId,
-                        tipo_limite_sigef: seg.tipo_limite_sigef,
-                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                      })
-                    });
-                    if (!resSeg.ok) {
-                      throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
-                    }
-                    const resSegData = await resSeg.json().catch(() => ({}));
-                    if (resSegData.error) {
-                      throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
-                    }
+                  const resSegData = await resSeg.json().catch(() => ({}));
+                  if (resSegData.error) {
+                    throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
                   }
                 }
               }
+            } else if (seg && (limiteSelect.value !== valoresOriginais.limite || metodoSelect.value !== valoresOriginais.metodo)) {
+              // Apenas limites e métodos foram alterados no segmento
+              const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  matricula_id: seg.matricula_id,
+                  ponto_inicio_id: seg.ponto_inicio_id,
+                  ponto_fim_id: seg.ponto_fim_id,
+                  confrontante_id: seg.confrontante_id,
+                  tipo_limite_sigef: limiteSelect.value,
+                  metodo_posicionamento_sigef: metodoSelect.value
+                })
+              });
+              if (!resSeg.ok) throw new Error(`Erro ao atualizar segmento: HTTP ${resSeg.status}`);
             }
 
             showToast("Vértice salvo com sucesso!", "success");
@@ -712,6 +875,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       // Resolve tipo do ponto
       const tipoResolvido = resolveField(p => p.tipo_ponto || p.tipo || '');
+      const metodoResolvidoMulti = resolveField(p => p.metodo_posicionamento || '');
+      const limiteResolvidoMulti = resolveField(p => {
+        const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === p.id);
+        return seg ? (seg.tipo_limite_sigef || '') : '';
+      });
 
       // Coordenadas (sempre readonly no modo multi)
       const modUtm = ctx.modoCoordenadas === 'utm';
@@ -780,7 +948,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       // Campos da seção Dados (readonly)
       const origemResolvida = resolveField(p => p.arquivo_origem || '-');
-      const metodoResolvido = resolveField(p => p.metodo_posicionamento || '-');
       const correcaoResolvida = resolveField(p => p.status_correcao || p.status_ponto || 'BRUTO');
       const baseApoioResolvida = resolveField(p => {
         if (!p.ponto_base_id) return 'Nenhuma';
@@ -861,12 +1028,38 @@ export function atualizarPainelPropriedades(ctx: any): void {
           <div class="props-field">
             <label class="props-field-label">Tipo</label>
             <select id="prop-multi-tipo" class="props-field-value" ${isArquivado ? 'disabled' : ''}>
-              ${tipoResolvido === 'várias' ? '<option value="">várias</option>' : ''}
-              <option value="M" ${tipoResolvido === 'M' ? 'selected' : ''}>M - Marco</option>
-              <option value="P" ${tipoResolvido === 'P' ? 'selected' : ''}>P - Ponto</option>
-              <option value="V" ${tipoResolvido === 'V' ? 'selected' : ''}>V - Virtual</option>
-              <option value="B" ${tipoResolvido === 'B' ? 'selected' : ''}>B - Base</option>
+              ${tipoResolvido === 'várias' ? '<option class="bg-[#111113] text-white/90" value="">várias</option>' : ''}
+              <option class="bg-[#111113] text-white/90" value="M" ${tipoResolvido === 'M' ? 'selected' : ''}>M - Marco</option>
+              <option class="bg-[#111113] text-white/90" value="P" ${tipoResolvido === 'P' ? 'selected' : ''}>P - Ponto</option>
+              <option class="bg-[#111113] text-white/90" value="V" ${tipoResolvido === 'V' ? 'selected' : ''}>V - Virtual</option>
+              <option class="bg-[#111113] text-white/90" value="B" ${tipoResolvido === 'B' ? 'selected' : ''}>B - Base</option>
             </select>
+          </div>
+
+          <div class="props-field">
+            <label class="props-field-label">Método</label>
+            <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
+              <select id="prop-multi-metodo" class="props-field-value flex-1 min-w-0" ${isArquivado ? 'disabled' : ''}>
+                ${metodoResolvidoMulti === 'várias' ? '<option class="bg-[#111113] text-white/90" value="">várias</option>' : '<option class="bg-[#111113] text-white/90" value="">Selecione...</option>'}
+                ${METODOS_SIGEF.map(m => `<option class="bg-[#111113] text-white/90" value="${m.codigo}" ${metodoResolvidoMulti === m.codigo ? 'selected' : ''}>${m.codigo} - ${m.nome}</option>`).join('')}
+              </select>
+              <button type="button" id="btn-ajuda-metodo-multi" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Métodos SIGEF">
+                <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="props-field">
+            <label class="props-field-label">Limite</label>
+            <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
+              <select id="prop-multi-tipo-limite" class="props-field-value flex-1 min-w-0" ${isArquivado ? 'disabled' : ''}>
+                ${limiteResolvidoMulti === 'várias' ? '<option class="bg-[#111113] text-white/90" value="">várias</option>' : '<option class="bg-[#111113] text-white/90" value="">Selecione...</option>'}
+                ${LIMITES_SIGEF.map(l => `<option class="bg-[#111113] text-white/90" value="${l.codigo}" ${limiteResolvidoMulti === l.codigo ? 'selected' : ''}>${l.codigo} - ${l.nome}</option>`).join('')}
+              </select>
+              <button type="button" id="btn-ajuda-limite-multi" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Tipos de Limite">
+                <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
+              </button>
+            </div>
           </div>
 
           ${coordFieldsHTML}
@@ -917,10 +1110,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <input type="text" value="${origemResolvida}" class="props-field-value font-mono text-[9px]" readonly />
           </div>
           <div class="props-field">
-            <label class="props-field-label">Método</label>
-            <input type="text" value="${metodoResolvido}" class="props-field-value font-mono" readonly />
-          </div>
-          <div class="props-field">
             <label class="props-field-label">Correção</label>
             <input type="text" value="${correcaoResolvida}" class="props-field-value font-mono" readonly />
           </div>
@@ -964,6 +1153,62 @@ export function atualizarPainelPropriedades(ctx: any): void {
       setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados']);
       initIcons();
 
+      const btnAjudaMetodoMulti = document.getElementById('btn-ajuda-metodo-multi');
+      if (btnAjudaMetodoMulti) {
+        btnAjudaMetodoMulti.onclick = () => {
+          const tableHtml = `
+            <div class="max-h-[60vh] overflow-y-auto mt-2">
+              <table class="w-full text-[10px] text-left border-collapse">
+                <thead class="sticky top-0 bg-[#111113] border-b border-white/10 text-white/60">
+                  <tr>
+                    <th class="py-1 px-2">Código</th>
+                    <th class="py-1 px-2">Método</th>
+                    <th class="py-1 px-2">Aplicação</th>
+                  </tr>
+                </thead>
+                <tbody class="text-white/80">
+                  ${METODOS_SIGEF.map(m => `
+                    <tr class="border-b border-white/5 hover:bg-white/5">
+                      <td class="py-1.5 px-2 font-mono text-mint-vibrant">${m.codigo}</td>
+                      <td class="py-1.5 px-2">${m.nome}</td>
+                      <td class="py-1.5 px-2">${m.aplicacao}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          customAlert(tableHtml, 'Catálogo: Métodos de Posicionamento');
+        };
+      }
+
+      const btnAjudaLimiteMulti = document.getElementById('btn-ajuda-limite-multi');
+      if (btnAjudaLimiteMulti) {
+        btnAjudaLimiteMulti.onclick = () => {
+          const tableHtml = `
+            <div class="max-h-[60vh] overflow-y-auto mt-2">
+              <table class="w-full text-[10px] text-left border-collapse">
+                <thead class="sticky top-0 bg-[#111113] border-b border-white/10 text-white/60">
+                  <tr>
+                    <th class="py-1 px-2">Código</th>
+                    <th class="py-1 px-2">Tipo de Limite</th>
+                  </tr>
+                </thead>
+                <tbody class="text-white/80">
+                  ${LIMITES_SIGEF.map(l => `
+                    <tr class="border-b border-white/5 hover:bg-white/5">
+                      <td class="py-1.5 px-2 font-mono text-mint-vibrant">${l.codigo}</td>
+                      <td class="py-1.5 px-2">${l.nome}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          customAlert(tableHtml, 'Catálogo: Tipos de Limite');
+        };
+      }
+
       // Aplica indeterminate no checkbox de polígono (não pode ser feito via HTML)
       setTimeout(() => {
         const checkPoli = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
@@ -986,6 +1231,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
       // Valores originais para dirty-check
       const multiOriginais = {
         tipo: tipoResolvido === 'várias' ? '' : tipoResolvido,
+        metodo: metodoResolvidoMulti === 'várias' ? '' : metodoResolvidoMulti,
+        limite: limiteResolvidoMulti === 'várias' ? '' : limiteResolvidoMulti,
         confrontante: confNomeResolvido === 'várias' ? '' : confNomeResolvido,
         confrontante_matricula: confMatResolvido === 'várias' ? '' : confMatResolvido,
         confrontante_cartorio: confCnsResolvido === 'várias' ? '' : confCnsResolvido,
@@ -1001,6 +1248,22 @@ export function atualizarPainelPropriedades(ctx: any): void {
           modificado = true;
         } else if (tipoEl) {
           tipoEl.classList.remove('dirty');
+        }
+
+        const metodoEl = document.getElementById('prop-multi-metodo') as HTMLSelectElement;
+        if (metodoEl && metodoEl.value && metodoEl.value !== multiOriginais.metodo) {
+          metodoEl.classList.add('dirty');
+          modificado = true;
+        } else if (metodoEl) {
+          metodoEl.classList.remove('dirty');
+        }
+
+        const limiteEl = document.getElementById('prop-multi-tipo-limite') as HTMLSelectElement;
+        if (limiteEl && limiteEl.value && limiteEl.value !== multiOriginais.limite) {
+          limiteEl.classList.add('dirty');
+          modificado = true;
+        } else if (limiteEl) {
+          limiteEl.classList.remove('dirty');
         }
 
         const confEl = document.getElementById('prop-multi-confrontante') as HTMLInputElement;
@@ -1035,7 +1298,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         if (panelActions) panelActions.classList.toggle('hidden', !modificado);
       };
 
-      ['prop-multi-tipo', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
+      ['prop-multi-tipo', 'prop-multi-metodo', 'prop-multi-tipo-limite', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener('input', verificarAlteracoesMulti);
@@ -1063,12 +1326,16 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
         novoBtn.onclick = async () => {
           const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
+          const metodoEl = document.getElementById('prop-multi-metodo') as HTMLSelectElement;
+          const limiteEl = document.getElementById('prop-multi-tipo-limite') as HTMLSelectElement;
           const confEl = document.getElementById('prop-multi-confrontante') as HTMLInputElement;
           const confMatEl = document.getElementById('prop-multi-confrontante-matricula') as HTMLInputElement;
           const confCnsEl = document.getElementById('prop-multi-confrontante-cartorio') as HTMLInputElement;
           const poliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
 
           const tipoAlterado = tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo;
+          const metodoAlterado = metodoEl && metodoEl.value && metodoEl.value !== multiOriginais.metodo;
+          const limiteAlterado = limiteEl && limiteEl.value && limiteEl.value !== multiOriginais.limite;
           const confAlterado = (confEl && confEl.value !== multiOriginais.confrontante) ||
             (confMatEl && confMatEl.value !== multiOriginais.confrontante_matricula) ||
             (confCnsEl && confCnsEl.value !== multiOriginais.confrontante_cartorio);
@@ -1085,7 +1352,26 @@ export function atualizarPainelPropriedades(ctx: any): void {
               const itemPayload: any = { id: pid };
 
               if (tipoAlterado) itemPayload.tipo_ponto = tipoEl.value;
+              if (metodoAlterado) itemPayload.metodo_posicionamento = metodoEl.value;
               if (poliAlterado) itemPayload.ignorar_poligono = poliEl.checked ? 0 : 1;
+
+              if (limiteAlterado || metodoAlterado) {
+                 const seg = ctx.segmentosList?.find((s: any) => s.ponto_inicio_id === pid);
+                 if (seg) {
+                    await fetch(`${API_BASE}/segmentos/${seg.id}`, {
+                       method: 'PUT',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({
+                          matricula_id: seg.matricula_id,
+                          ponto_inicio_id: seg.ponto_inicio_id,
+                          ponto_fim_id: seg.ponto_fim_id,
+                          confrontante_id: seg.confrontante_id,
+                          tipo_limite_sigef: limiteAlterado ? limiteEl.value : seg.tipo_limite_sigef,
+                          metodo_posicionamento_sigef: metodoAlterado ? metodoEl.value : seg.metodo_posicionamento_sigef
+                       })
+                    }).catch(console.error);
+                 }
+              }
 
               if (confAlterado) {
                 const pObj = ctx.pontosList.find((pt: any) => pt.id === pid);

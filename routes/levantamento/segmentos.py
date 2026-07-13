@@ -37,7 +37,7 @@ class SegmentoCreate(BaseModel):
     matricula_id: int
     ponto_inicio_id: int
     ponto_fim_id: int
-    confrontante_id: int = None
+    confrontante_id: Optional[int] = None
     tipo_limite_sigef: str
     metodo_posicionamento_sigef: str
 
@@ -144,10 +144,10 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                 
             cursor.execute("""
                 INSERT INTO confrontantes (
-                    pessoa_id, levantamento_id, tipo_relacao, matricula_imovel, cns_confrontante,
+                    pessoa_id, levantamento_id, nome, tipo_relacao, matricula_imovel, cns_confrontante,
                     nome_propriedade, codigo_incra_imovel
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (pessoa_id, id, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (pessoa_id, id, c.nome, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel))
             confrontante_id = cursor.lastrowid
             conn.commit()
             
