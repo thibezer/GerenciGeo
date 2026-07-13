@@ -1076,30 +1076,16 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const poliAlterado = poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono;
 
           try {
-            let sucessoTotal = true;
-            let processados = 0;
-            const totalCount = ctx.selectedPontoIds.length;
+            novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando ${ctx.selectedPontoIds.length} vértices...`;
+            initIcons();
+
+            const batchPayload: any = { pontos: [] };
 
             for (const pid of ctx.selectedPontoIds) {
-              novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando vértice ${++processados} de ${totalCount}...`;
-              initIcons();
-              const payload: any = {};
+              const itemPayload: any = { id: pid };
 
-              if (tipoAlterado) payload.tipo_ponto = tipoEl.value;
-              if (poliAlterado) payload.ignorar_poligono = poliEl.checked ? 0 : 1;
-
-              if (Object.keys(payload).length > 0) {
-                const res = await fetch(`${API_BASE}/pontos/${pid}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
-                });
-                if (res.status === 403) {
-                  await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
-                  return;
-                }
-                if (!res.ok) sucessoTotal = false;
-              }
+              if (tipoAlterado) itemPayload.tipo_ponto = tipoEl.value;
+              if (poliAlterado) itemPayload.ignorar_poligono = poliEl.checked ? 0 : 1;
 
               if (confAlterado) {
                 const pObj = ctx.pontosList.find((pt: any) => pt.id === pid);
@@ -1107,8 +1093,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 const cId = pObj?.confrontante_id || (seg && seg.confrontante_id);
                 const cObj = cId ? ctx.confrontantesList?.find((c: any) => c.id === cId) : null;
 
-                // Se o campo foi preenchido pelo usuário → usa o valor digitado
-                // Se ficou vazio (era "várias" e não foi editado) → preserva o valor individual do confrontante
                 const confNomeInput = confEl.value.trim();
                 const confMatInput = confMatEl.value.trim();
                 const confCnsInput = confCnsEl.value.trim();
@@ -1117,131 +1101,46 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 const finalMat = confMatInput !== '' ? confMatInput : (cObj?.matricula_imovel || '');
                 const finalCns = confCnsInput !== '' ? confCnsInput : (cObj?.cns_confrontante || '');
 
-                console.log(`[SAVE-LOTE] Ponto ${pid} | cId=${cId} | nome="${finalNome}" | mat="${finalMat}" | cns="${finalCns}"`);
-
-                if (cId && cObj) {
-                  // Monta payload com todos os campos que o backend exige
-                  const putPayload = {
-                    nome: finalNome || cObj.nome || 'Confrontante',
-                    cpf_cnpj: cObj.cpf_cnpj || null,
-                    tipo_relacao: cObj.tipo_relacao || 'Divisa',
-                    rg: cObj.rg || null,
-                    nacionalidade: cObj.nacionalidade || null,
-                    profissao: cObj.profissao || null,
-                    estado_civil: cObj.estado_civil || null,
-                    regime_bens: cObj.regime_bens || null,
-                    endereco_completo: cObj.endereco_completo || null,
-                    nome_conjuge: cObj.nome_conjuge || null,
-                    cpf_conjuge: cObj.cpf_conjuge || null,
-                    rg_conjuge: cObj.rg_conjuge || null,
-                    matricula_imovel: finalMat || null,
-                    cns_confrontante: finalCns || null,
-                    nome_propriedade: cObj.nome_propriedade || null,
-                    codigo_incra_imovel: cObj.codigo_incra_imovel || null,
-                  };
-
-                  console.log(`[SAVE-LOTE] PUT /confrontantes/${cId}`, putPayload);
-
-                  const resConf = await fetch(`${API_BASE}/confrontantes/${cId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(putPayload)
-                  });
-
-                  const resConfText = await resConf.text();
-                  console.log(`[SAVE-LOTE] Resposta PUT confrontante ${cId}: HTTP ${resConf.status} →`, resConfText);
-
-                  let resConfData: any = {};
-                  try { resConfData = JSON.parse(resConfText); } catch { }
-
-                  if (!resConf.ok || resConfData.error) {
-                    sucessoTotal = false;
-                    showToast(`❌ Erro ao salvar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
-                    continue;
-                  }
-                } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && seg) {
-                  // Cria novo confrontante e associa ao segmento
-                  const postPayload = {
+                if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && (cId || seg)) {
+                  itemPayload.confrontante = {
                     nome: finalNome || finalMat || 'Confrontante',
-                    tipo_relacao: 'Divisa',
                     matricula_imovel: finalMat || null,
                     cns_confrontante: finalCns || null,
                   };
-
-                  console.log(`[SAVE-LOTE] POST /confrontantes (ponto ${pid})`, postPayload);
-
-                  const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(postPayload)
-                  });
-
-                  const resConfText = await resConf.text();
-                  console.log(`[SAVE-LOTE] Resposta POST confrontante (ponto ${pid}): HTTP ${resConf.status} →`, resConfText);
-
-                  let resConfData: any = {};
-                  try { resConfData = JSON.parse(resConfText); } catch { }
-
-                  if (!resConf.ok || resConfData.error) {
-                    sucessoTotal = false;
-                    showToast(`❌ Erro ao criar confrontante do ponto ${pid}: ${resConfData.error || `HTTP ${resConf.status}`}`, 'error');
-                    continue;
-                  }
-
-                  const confId = resConfData.id || resConfData.confrontante_id;
-                  if (confId && seg) {
-                    try {
-                      const segPayload = {
-                        matricula_id: seg.matricula_id,
-                        ponto_inicio_id: seg.ponto_inicio_id,
-                        ponto_fim_id: seg.ponto_fim_id,
-                        confrontante_id: confId,
-                        tipo_limite_sigef: seg.tipo_limite_sigef,
-                        metodo_posicionamento_sigef: seg.metodo_posicionamento_sigef
-                      };
-                      console.log(`[SAVE-LOTE] PUT /segmentos/${seg.id}`, segPayload);
-                      const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(segPayload)
-                      });
-                      const resSegText = await resSeg.text();
-                      let resSegData: any = {};
-                      try { resSegData = JSON.parse(resSegText); } catch { }
-
-                      if (!resSeg.ok || resSegData.error) {
-                        sucessoTotal = false;
-                        showToast(`❌ Erro ao associar confrontante ao segmento do ponto ${pid}: ${resSegData.error || `HTTP ${resSeg.status}`}`, 'error');
-                      }
-                    } catch (e) {
-                      sucessoTotal = false;
-                    }
-                  }
-                } else if (finalNome !== '' || finalMat !== '' || finalCns !== '') {
-                  // BUGFIX: antes, quando havia dados de confrontante para salvar mas nenhum
-                  // segmento (ponto_inicio_id === pid) era encontrado em ctx.segmentosList,
-                  // o ponto era "Ignorado" apenas com um console.log — sem nenhum aviso ao
-                  // usuário e sem marcar sucessoTotal como falso. Isso fazia o toast final
-                  // dizer "atualizados com sucesso" mesmo sem o confrontante ter sido salvo.
-                  sucessoTotal = false;
-                  showToast(
-                    `⚠️ Vértice ${pid}: sem segmento de divisa associado — não foi possível salvar o confrontante. Rode 'Reordenar Perimetral' na matrícula.`,
-                    'error'
-                  );
+                } else if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && !seg) {
                   console.warn(`[SAVE-LOTE] Ponto ${pid}: sem 'seg' (ponto_inicio_id) em ctx.segmentosList. Confrontante NÃO salvo.`);
-                } else {
-                  console.log(`[SAVE-LOTE] Ponto ${pid}: sem confrontante e sem dados suficientes para criar. Ignorado.`);
                 }
+              }
+
+              // Só adiciona se houver algo para alterar
+              if (Object.keys(itemPayload).length > 1) {
+                  batchPayload.pontos.push(itemPayload);
               }
             }
 
-            if (sucessoTotal) {
-              showToast(`${selectedCount} vértices atualizados com sucesso!`, "success");
+            if (batchPayload.pontos.length > 0) {
+                const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/batch`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(batchPayload)
+                });
+
+                if (res.status === 403) {
+                  await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
+                  return;
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || errData.error || "Falha ao salvar lote de vértices");
+                }
+
+                showToast(`${batchPayload.pontos.length} vértices atualizados com sucesso!`, "success");
+                await ctx.loadLevantamentoDetails();
+                atualizarPainelPropriedades(ctx);
             } else {
-              showToast("Alguns vértices não puderam ser atualizados.", "info");
+                showToast("Nenhuma alteração detectada para salvar.", "info");
             }
-            await ctx.loadLevantamentoDetails();
-            atualizarPainelPropriedades(ctx);
           } catch (err) {
             console.error(err);
             showToast("Erro ao salvar alterações em lote.", "error");

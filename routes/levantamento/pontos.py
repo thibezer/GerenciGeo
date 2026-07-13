@@ -612,6 +612,20 @@ def post_ordenar_vizinhos_global(id: int):
 
 # ── Atualização Manual e Auditoria Topológica ──────────────────────────────────
 
+class ConfrontanteUpdateBatch(BaseModel):
+    nome: Optional[str] = None
+    matricula_imovel: Optional[str] = None
+    cns_confrontante: Optional[str] = None
+
+class PontoUpdateBatchItem(BaseModel):
+    id: int
+    tipo_ponto: Optional[str] = None
+    ignorar_poligono: Optional[int] = None
+    confrontante: Optional[ConfrontanteUpdateBatch] = None
+
+class PontoBatchUpdatePayload(BaseModel):
+    pontos: List[PontoUpdateBatchItem]
+
 class PontoUpdate(BaseModel):
     nome_vertice: str = None
     tipo_ponto: str = None
@@ -631,6 +645,24 @@ class PontoUpdate(BaseModel):
     alt_corrigido: float = None
     fuso: str = None
     sequencia_travada_id: Optional[str] = None
+
+@router.put("/levantamentos/{id}/pontos/batch")
+def update_pontos_batch(id: int, payload: PontoBatchUpdatePayload):
+    try:
+        verificar_levantamento_arquivado(id)
+        from business.levantamento_manager import atualizar_pontos_geodesicos_batch
+        res = atualizar_pontos_geodesicos_batch(id, payload.dict())
+        if "error" in res:
+            status = res.get("status_code", 400)
+            raise HTTPException(status_code=status, detail=res["error"])
+        return {"success": True}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Erro ao atualizar pontos em lote: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/pontos/{pid}")
 def update_ponto(pid: int, payload: PontoUpdate):
