@@ -166,7 +166,7 @@ class ExportacaoService:
             WHERE p.levantamento_id = ? 
               AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
-            ORDER BY p.ordem_caminhamento ASC, p.id ASC
+            ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         pontos = [dict(r) for r in execute_query(query_pontos, params=(levantamento_id,), fetch_all=True)]
         if not pontos:

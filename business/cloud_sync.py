@@ -46,7 +46,7 @@ async def sincronizar_imovel(matricula_id: int, levantamento_id: int) -> dict:
             SELECT lat, lon, lat_corrigido, lon_corrigido, status_ponto, e_original, n_original, ordem_caminhamento
             FROM pontos
             WHERE matricula_id = ? AND levantamento_id = ? AND ignorar_poligono = 0
-            ORDER BY ordem_caminhamento ASC, id ASC
+            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
         """
         ponto_rows = execute_query(query_pontos, params=(matricula_id, levantamento_id), fetch_all=True)
         if not ponto_rows:

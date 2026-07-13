@@ -1103,7 +1103,7 @@ def get_pontos_homologados_matricula(id: int, matricula_id: int):
             WHERE p.levantamento_id = ? 
               AND p.matricula_id = ? 
               AND p.origem_homologada = 1
-            ORDER BY p.ordem_caminhamento ASC
+            ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id, matricula_id), fetch_all=True)]
         return rows
@@ -1121,7 +1121,7 @@ def get_todos_pontos_homologados_levantamento(id: int):
             FROM pontos p
             WHERE p.levantamento_id = ? 
               AND p.origem_homologada = 1
-            ORDER BY p.matricula_id ASC, p.ordem_caminhamento ASC
+            ORDER BY p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         return rows
