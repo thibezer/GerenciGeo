@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.repository import CcirCadastroRepo
-from business.ccir_parser import sincronizar_pasta_ccir
+from services.parsers.ccir_parser import sincronizar_pasta_ccir
 
 print("Limpando banco de dados de CCIRs antigos...")
 conn = sqlite3.connect('gerencigeo.db')

@@ -9,8 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from converterrinex import converter_rinex
 from buscador_rinex import encontrar_rinex, copiar_rinex
 from database.repository import HistoricoRinexRepo
-from business.triagem_inteligente import ler_metadados_rinex
-from business.workspace_manager import WorkspaceManager
+from services.processamento.triagem_inteligente import ler_metadados_rinex
+from services.gestores.workspace_manager import WorkspaceManager
 
 logger = logging.getLogger(__name__)
 

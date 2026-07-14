@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.connection import DatabaseManager, execute_query
 from database.models import create_tables
-from business.geoprocessamento import corrigir_rovers_em_bloco
+from services.processamento.geoprocessamento import corrigir_rovers_em_bloco
 
 def format_status(success: bool) -> str:
     return "✅ [SUCESSO]" if success else "❌ [FALHA]"

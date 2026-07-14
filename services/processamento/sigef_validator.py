@@ -147,7 +147,7 @@ class SigefValidator:
             }
 
         from pyproj import Transformer
-        from business.geoprocessamento import calcular_zona_utm_segura
+        from services.processamento.geoprocessamento import calcular_zona_utm_segura
         
         # 1. Determinação dinâmica da Zona UTM e EPSG SIRGAS 2000 correspondente no Hemisfério Sul
         lon0 = pontos_validos[0]["lon"]

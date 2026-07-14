@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from pyproj import Transformer
 from database.connection import execute_query
-from business.workspace_manager import WorkspaceManager
+from services.gestores.workspace_manager import WorkspaceManager
 from utils.logger import tracer
 
 class ExportacaoService:
@@ -166,7 +166,8 @@ class ExportacaoService:
             WHERE p.levantamento_id = ? 
               AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
-            ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
+              AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
+            ORDER BY CASE WHEN p.matricula_id IS NULL THEN 1 ELSE 0 END ASC, p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         pontos = [dict(r) for r in execute_query(query_pontos, params=(levantamento_id,), fetch_all=True)]
         if not pontos:
@@ -219,13 +220,13 @@ class ExportacaoService:
                 if seg["nome_confrontante"]:
                     confrontante = seg["nome_confrontante"].upper()
                 else:
-                    confrontante = p.get("pt_nome_confrontante", "").upper() or "LIMITE NATURAL"
+                    confrontante = p.get("pt_nome_confrontante", "").upper()
                 met_pos = p.get("metodo_posicionamento") or seg.get("metodo_posicionamento_sigef") or ""
                 tip_lim = seg.get("tipo_limite_sigef") or ""
                 cns = seg.get("cns_confrontante") or p.get("pt_cns_confrontante") or ""
                 matr = seg.get("matricula_imovel") or p.get("pt_matricula_imovel") or ""
             else:
-                confrontante = p.get("pt_nome_confrontante", "").upper() or "LIMITE NATURAL"
+                confrontante = p.get("pt_nome_confrontante", "").upper()
                 met_pos = p.get("metodo_posicionamento") or ""
                 tip_lim = ""
                 cns = p.get("pt_cns_confrontante") or ""

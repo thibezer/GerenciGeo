@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
-from business.levantamento_manager import vincular_cliente_propriedade
+from services.gestores.levantamento_manager import vincular_cliente_propriedade
 from config import EXPORT_BASE_FOLDER
 from routes.deps import verificar_propriedade_arquivada
 

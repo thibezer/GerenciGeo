@@ -2,10 +2,10 @@ import re
 import math
 import logging
 from database.connection import DatabaseManager, execute_query
-from business.cliente_manager import ClienteManager, validar_cpf_cnpj
-from business.workspace_manager import WorkspaceManager
-from services.exportacao_service import ExportacaoService
-from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
+from services.gestores.cliente_manager import ClienteManager, validar_cpf_cnpj
+from services.gestores.workspace_manager import WorkspaceManager
+from services.documentacao.exportacao_service import ExportacaoService
+from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
 from pyproj import Transformer
 
 logger = logging.getLogger(__name__)
@@ -600,7 +600,7 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
 
         # Reflete nas malhas se poligono foi alterado
         if matriculas_afetadas:
-             from business.geoprocessamento import reordenar_perimetro_matricula
+             from services.processamento.geoprocessamento import reordenar_perimetro_matricula
              for mat_id in matriculas_afetadas:
                  reordenar_perimetro_matricula(mat_id)
 
@@ -618,8 +618,8 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
     ou recalculamento de divisas).
     """
     try:
-        from business.historico_campo import HistoricoCampoLogger
-        from business.geoprocessamento import corrigir_rovers_em_bloco, reordenar_perimetro_matricula
+        from services.processamento.historico_campo import HistoricoCampoLogger
+        from services.processamento.geoprocessamento import corrigir_rovers_em_bloco, reordenar_perimetro_matricula
 
         # 1. Recupera o ponto atual antes de alterar
         row = execute_query("SELECT * FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
@@ -704,7 +704,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
 
 
         if corrigir_lote_rtk:
-            from business.geoprocessamento import aplicar_correcao_manual_lote
+            from services.processamento.geoprocessamento import aplicar_correcao_manual_lote
             dados_brutos = {
                 "nome_base": pt_antigo["nome_vertice"],
                 "e_bruto": pt_antigo["e_original"] or e_corr,

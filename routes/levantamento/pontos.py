@@ -13,10 +13,10 @@ from pydantic import BaseModel
 from pyproj import Transformer
 
 from database.connection import DatabaseManager, execute_query
-from business.workspace_manager import WorkspaceManager
-from services.exportacao_service import ExportacaoService
-from business.txt_parser import TxtGeodesicParser
-from business.levantamento_manager import salvar_ordem_caminhamento
+from services.gestores.workspace_manager import WorkspaceManager
+from services.documentacao.exportacao_service import ExportacaoService
+from services.parsers.txt_parser import TxtGeodesicParser
+from services.gestores.levantamento_manager import salvar_ordem_caminhamento
 from routes.deps import verificar_levantamento_arquivado
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
@@ -343,7 +343,7 @@ def get_pontos(id: int):
             WHERE p.levantamento_id = ?
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
               AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
-            ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
+            ORDER BY CASE WHEN p.matricula_id IS NULL THEN 1 ELSE 0 END ASC, p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         
@@ -409,12 +409,12 @@ def delete_ponto(pid: int):
             eh_base_apoio = check_base_uso and check_base_uso["count"] > 0
             
             if p_data["tipo_ponto"] == "B" or eh_base_apoio:
-                from business.geoprocessamento import reverter_rovers_para_bruto
+                from services.processamento.geoprocessamento import reverter_rovers_para_bruto
                 reverter_rovers_para_bruto(p_data["levantamento_id"], pid)
             
             execute_query("DELETE FROM pontos WHERE id = ?", params=(pid,), commit=True)
             
-            from business.historico_campo import HistoricoCampoLogger
+            from services.processamento.historico_campo import HistoricoCampoLogger
             desc = f"Vértice {p_data['nome_vertice']} do Tipo '{p_data['tipo_ponto']}' foi excluído definitivamente pelo usuário."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=p_data["levantamento_id"],
@@ -469,7 +469,7 @@ async def importar_caderneta_txt(
         primeiro_pt = pontos_processados[0]
         layout = "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
         
-        from business.historico_campo import HistoricoCampoLogger
+        from services.processamento.historico_campo import HistoricoCampoLogger
         pontos_nomes = [pt["nome_vertice"] for pt in pontos_processados]
         desc = f"Importação de caderneta no layout '{layout}' do arquivo '{file.filename}' com {len(ids_pontos)} ponto(s)."
         if base_escolhida_id:
@@ -520,7 +520,7 @@ async def importar_caderneta_txt(
 def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
     verificar_levantamento_arquivado(id)
     try:
-        from business.geoprocessamento import associar_base_ao_lote
+        from services.processamento.geoprocessamento import associar_base_ao_lote
         qtd = associar_base_ao_lote(payload.ponto_id_selecionado, payload.base_ppp_id)
         wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(id)
@@ -532,7 +532,7 @@ def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
 def post_corrigir_manual_lote(id: int, payload: PayloadOverrideManual):
     verificar_levantamento_arquivado(id)
     try:
-        from business.geoprocessamento import aplicar_correcao_manual_lote
+        from services.processamento.geoprocessamento import aplicar_correcao_manual_lote
         qtd = aplicar_correcao_manual_lote(
             id, 
             None, 
@@ -560,7 +560,7 @@ def post_salvar_ordem_perimetro(id: int, matricula_id: int, payload: PayloadSalv
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/reordenar")
 def post_reordenar_perimetro(id: int, matricula_id: int):
     verificar_levantamento_arquivado(id)
-    from business.geoprocessamento import reordenar_perimetro_matricula
+    from services.processamento.geoprocessamento import reordenar_perimetro_matricula
     resultado = reordenar_perimetro_matricula(id, matricula_id)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
@@ -571,7 +571,7 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/ordenar-vizinhos")
 def post_ordenar_vizinhos_perimetro(id: int, matricula_id: int):
     verificar_levantamento_arquivado(id)
-    from business.levantamento_manager import ordenar_vizinho_mais_proximo
+    from services.gestores.levantamento_manager import ordenar_vizinho_mais_proximo
     resultado = ordenar_vizinho_mais_proximo(id, matricula_id)
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
@@ -591,7 +591,7 @@ def post_salvar_ordem_global(id: int, payload: PayloadSalvarOrdem):
 @router.post("/levantamentos/{id}/reordenar")
 def post_reordenar_global(id: int):
     verificar_levantamento_arquivado(id)
-    from business.geoprocessamento import reordenar_perimetro_matricula
+    from services.processamento.geoprocessamento import reordenar_perimetro_matricula
     resultado = reordenar_perimetro_matricula(id, None)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
@@ -602,7 +602,7 @@ def post_reordenar_global(id: int):
 @router.post("/levantamentos/{id}/ordenar-vizinhos")
 def post_ordenar_vizinhos_global(id: int):
     verificar_levantamento_arquivado(id)
-    from business.levantamento_manager import ordenar_vizinho_mais_proximo
+    from services.gestores.levantamento_manager import ordenar_vizinho_mais_proximo
     resultado = ordenar_vizinho_mais_proximo(id, None)
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
@@ -650,7 +650,7 @@ class PontoUpdate(BaseModel):
 def update_pontos_batch(id: int, payload: PontoBatchUpdatePayload):
     try:
         verificar_levantamento_arquivado(id)
-        from business.levantamento_manager import atualizar_pontos_geodesicos_batch
+        from services.gestores.levantamento_manager import atualizar_pontos_geodesicos_batch
         res = atualizar_pontos_geodesicos_batch(id, payload.dict())
         if "error" in res:
             status = res.get("status_code", 400)
@@ -676,7 +676,7 @@ def update_ponto(pid: int, payload: PontoUpdate):
             
         verificar_levantamento_arquivado(row["levantamento_id"])
         
-        from business.levantamento_manager import atualizar_ponto_geodesico
+        from services.gestores.levantamento_manager import atualizar_ponto_geodesico
         res = atualizar_ponto_geodesico(pid, payload.dict())
         if "error" in res:
             status = res.get("status_code", 400)
@@ -707,7 +707,7 @@ def auditar_perimetro_matricula(mid: int):
         
     pontos = [dict(p) for p in pontos_rows]
     
-    from business.sigef_validator import SigefValidator
+    from services.processamento.sigef_validator import SigefValidator
     res_auditoria = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=mat.get("area_ha") or 0.0)
     return res_auditoria
 

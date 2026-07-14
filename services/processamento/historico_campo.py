@@ -31,7 +31,7 @@ class HistoricoCampoLogger:
 
         # 2. Persiste fisicamente no arquivo do Workspace do Levantamento
         try:
-            from business.workspace_manager import WorkspaceManager
+            from services.gestores.workspace_manager import WorkspaceManager
             wm = WorkspaceManager()
             folder = wm.get_levantamento_folder(levantamento_id)
             folder_historico = folder / "Historico"

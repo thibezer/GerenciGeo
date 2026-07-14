@@ -3,8 +3,8 @@ import json
 import re
 from datetime import datetime
 from database.connection import execute_query
-from business.workspace_manager import WorkspaceManager
-from services.exportacao_service import ExportacaoService
+from services.gestores.workspace_manager import WorkspaceManager
+from services.documentacao.exportacao_service import ExportacaoService
 from database.repository import PendenciaRepo
 
 def validar_cpf_cnpj(documento: str) -> bool:

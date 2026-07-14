@@ -12,8 +12,8 @@ from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
-from business.workspace_manager import WorkspaceManager
-from services.exportacao_service import ExportacaoService
+from services.gestores.workspace_manager import WorkspaceManager
+from services.documentacao.exportacao_service import ExportacaoService
 from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
 from config import EXPORT_BASE_FOLDER
 
@@ -96,7 +96,7 @@ async def upload_shapefile_fronteira(prop_id: int, matricula_id: Optional[int] =
         with open(dest_path, "wb") as buffer:
             buffer.write(await file.read())
             
-        from business.report_generator import calcular_menor_distancia_fronteira
+        from services.documentacao.report_generator import calcular_menor_distancia_fronteira
         dist_km, lat, lon = calcular_menor_distancia_fronteira(prop_id, matricula_id)
         
         return {
@@ -114,7 +114,7 @@ async def upload_shapefile_fronteira(prop_id: int, matricula_id: Optional[int] =
 def get_laudo_fronteira_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = ""):
     """Gera o laudo de fronteira em HTML estruturado de forma independente"""
     try:
-        from business.report_generator import BorderAreaReportGenerator
+        from services.documentacao.report_generator import BorderAreaReportGenerator
         html = BorderAreaReportGenerator.gerar_laudo_fronteira_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -131,7 +131,7 @@ def get_laudo_fronteira_html(id: int, matricula_id: int, numero_trt: str, data_t
 def get_requerimento_ratificacao_html(id: int, matricula_id: int):
     """Gera o requerimento de ratificação de fronteira em HTML estruturado de forma independente"""
     try:
-        from business.report_generator import BorderAreaReportGenerator
+        from services.documentacao.report_generator import BorderAreaReportGenerator
         html = BorderAreaReportGenerator.gerar_requerimento_ratificacao_html(
             lev_id=id,
             matricula_id=matricula_id
@@ -177,7 +177,7 @@ def get_dados_fronteira(prop_id: int):
             m_dict["has_shapefile"] = bool(has_shp)
             
             try:
-                from business.report_generator import calcular_menor_distancia_fronteira
+                from services.documentacao.report_generator import calcular_menor_distancia_fronteira
                 dist_km, _, _ = calcular_menor_distancia_fronteira(prop_id, m_dict['id'])
                 m_dict["distancia_fronteira_km"] = round(dist_km, 3)
             except Exception:
@@ -278,7 +278,7 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/requerimento-cartorio-html", response_class=HTMLResponse)
 def get_requerimento_cartorio_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = ""):
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_requerimento_cartorio_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -294,7 +294,7 @@ def get_requerimento_cartorio_html(id: int, matricula_id: int, numero_trt: Optio
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-responsabilidade-html", response_class=HTMLResponse)
 def get_declaracao_responsabilidade_html(id: int, matricula_id: int):
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_declaracao_responsabilidade_html(
             lev_id=id,
             matricula_id=matricula_id
@@ -308,7 +308,7 @@ def get_declaracao_responsabilidade_html(id: int, matricula_id: int):
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/laudo-tecnico-html", response_class=HTMLResponse)
 def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = "", equipamento: Optional[str] = ""):
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_laudo_tecnico_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -326,7 +326,7 @@ def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: Optional[str]
 def get_termo_responsabilidade_sigef_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = ""):
     """Gera o termo de responsabilidade técnica SIGEF em HTML estruturado"""
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_termo_responsabilidade_sigef_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -343,7 +343,7 @@ def get_termo_responsabilidade_sigef_html(id: int, matricula_id: int, numero_trt
 def get_manual_proprietario_html(id: int, matricula_id: int):
     """Gera o manual do proprietário pós-georreferenciamento em HTML estruturado (público)"""
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_manual_proprietario_html(
             lev_id=id,
             matricula_id=matricula_id
@@ -357,7 +357,7 @@ def get_manual_proprietario_html(id: int, matricula_id: int):
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: int):
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_declaracao_anuencia_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -373,7 +373,7 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
 def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_ids: Optional[str] = Query(None)):
     """Gera as declarações de anuência de múltiplos confrontantes em lote em uma única página para impressão contínua"""
     try:
-        from business.cartorio_generator import CartorioReportGenerator
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_declaracao_anuencia_lote_html(
             lev_id=id,
             matricula_id=matricula_id,
@@ -389,7 +389,7 @@ def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_
 def gerar_requerimento(id: int, matricula_id: int):
     """Gera um requerimento em HTML formatado para retificação de registro"""
     try:
-        from business.levantamento_manager import gerar_requerimento_html
+        from services.gestores.levantamento_manager import gerar_requerimento_html
         html = gerar_requerimento_html(id, matricula_id)
         return HTMLResponse(content=html)
     except ValueError as ve:
@@ -401,7 +401,7 @@ def gerar_requerimento(id: int, matricula_id: int):
 def gerar_termo_anuencia_na_matricula(id: int, confrontante_id: int):
     """Gera Carta de Anuência preenchida com a ordenação perimetral dos segmentos lindeiros daquele confrontante"""
     try:
-        from business.levantamento_manager import gerar_termo_anuencia_html
+        from services.gestores.levantamento_manager import gerar_termo_anuencia_html
         html = gerar_termo_anuencia_html(id, confrontante_id)
         return HTMLResponse(content=html)
     except ValueError as ve:
@@ -646,7 +646,7 @@ def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
 def exportar_shapefile_endpoint(id: int, matricula_id: int):
     """Gera e retorna o Shapefile regulamentar (.ZIP) com as duas camadas perimetrais em UTM Zona 22S WKT Oficial"""
     try:
-        from business.shape_exporter import ShapefileExporter
+        from services.documentacao.shape_exporter import ShapefileExporter
         zip_bytes = ShapefileExporter.exportar_matricula_zip(id, matricula_id)
         
         headers = {

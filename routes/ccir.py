@@ -12,7 +12,7 @@ router = APIRouter(tags=["CCIR"])
 @router.get("/ccir/sync")
 def sync_ccir_folder():
     try:
-        from business.ccir_parser import sincronizar_pasta_ccir
+        from services.parsers.ccir_parser import sincronizar_pasta_ccir
         logs = sincronizar_pasta_ccir()
         return {"sucesso": True, "logs": logs}
     except Exception as e:

@@ -392,7 +392,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     import math
     import logging
     from database.connection import execute_query, DatabaseManager
-    from business.historico_campo import HistoricoCampoLogger
+    from services.processamento.historico_campo import HistoricoCampoLogger
     from pyproj import Transformer
     
     logger = logging.getLogger(__name__)
@@ -557,10 +557,10 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     import math
     import logging
     from database.connection import execute_query, DatabaseManager
-    from business.historico_campo import HistoricoCampoLogger
+    from services.processamento.historico_campo import HistoricoCampoLogger
     from pyproj import Transformer
-    from business.workspace_manager import WorkspaceManager
-    from business.txt_parser import TxtGeodesicParser
+    from services.gestores.workspace_manager import WorkspaceManager
+    from services.parsers.txt_parser import TxtGeodesicParser
     
     logger = logging.getLogger(__name__)
     
@@ -766,10 +766,10 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     import math
     import logging
     from database.connection import execute_query, DatabaseManager
-    from business.historico_campo import HistoricoCampoLogger
+    from services.processamento.historico_campo import HistoricoCampoLogger
     from pyproj import Transformer
-    from business.workspace_manager import WorkspaceManager
-    from business.txt_parser import TxtGeodesicParser
+    from services.gestores.workspace_manager import WorkspaceManager
+    from services.parsers.txt_parser import TxtGeodesicParser
     
     logger = logging.getLogger(__name__)
 
@@ -1000,7 +1000,7 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
     import logging
     from database.connection import execute_query, DatabaseManager
     from pyproj import Transformer
-    from business.historico_campo import HistoricoCampoLogger
+    from services.processamento.historico_campo import HistoricoCampoLogger
 
     logger = logging.getLogger(__name__)
     logger.info(f"[REVERSAO_ORFÃOS] Iniciando reversão para bruto de rovers órfãos da base ID={base_id}")

@@ -4,7 +4,7 @@ routes/dashboard.py — Status, logs, alertas e estatísticas gerais do sistema
 import logging
 from fastapi import APIRouter, HTTPException
 from database.repository import HistoricoRinexRepo, PendenciaRepo
-from business.triagem_inteligente import gerar_alertas_integridade
+from services.processamento.triagem_inteligente import gerar_alertas_integridade
 from database.connection import execute_query
 
 router = APIRouter(tags=["Dashboard & Status"])

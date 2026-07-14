@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
-from business.levantamento_manager import cadastrar_cliente, atualizar_cliente, vincular_cliente_propriedade
+from services.gestores.levantamento_manager import cadastrar_cliente, atualizar_cliente, vincular_cliente_propriedade
 from database.repository import PendenciaRepo
 
 router = APIRouter(tags=["Clientes & Profissionais"])

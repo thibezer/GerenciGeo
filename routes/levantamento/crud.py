@@ -16,9 +16,9 @@ from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
 from database.repository import HistoricoRinexRepo
-from business.workspace_manager import WorkspaceManager
-from services.exportacao_service import ExportacaoService
-from business.triagem_inteligente import ler_metadados_rinex
+from services.gestores.workspace_manager import WorkspaceManager
+from services.documentacao.exportacao_service import ExportacaoService
+from services.processamento.triagem_inteligente import ler_metadados_rinex
 from routes.deps import verificar_levantamento_arquivado
 from routes.processamento import _converter_gns_background
 

@@ -18,8 +18,8 @@ import requests
 from config import EXPORT_BASE_FOLDER
 from database.connection import execute_query
 from database.repository import HistoricoRinexRepo
-from business.workspace_manager import WorkspaceManager
-from business.triagem_inteligente import organizar_rastreios, ler_metadados_rinex
+from services.gestores.workspace_manager import WorkspaceManager
+from services.processamento.triagem_inteligente import organizar_rastreios, ler_metadados_rinex
 from routes.deps import verificar_levantamento_arquivado, verificar_ambiente_local
 from routes.dashboard import add_log
 
@@ -85,7 +85,7 @@ class DebouncedHGOConverter:
                         os.chmod(arq, os.stat(arq).st_mode | stat.S_IREAD)
                     except: pass
                 
-                from business.gnss_worker import GNSSPipelineWorker
+                from services.processamento.gnss_worker import GNSSPipelineWorker
                 # Executa o pipeline para a lista completa de arquivos agrupados
                 worker = GNSSPipelineWorker(
                     arquivos, 
@@ -151,8 +151,8 @@ def pick_folder():
     return {"path": ""}
 
 def run_hgo_task(pasta: str):
-    from business.gnss_worker import GNSSPipelineWorker
-    from business.triagem_inteligente import organizar_rastreios
+    from services.processamento.gnss_worker import GNSSPipelineWorker
+    from services.processamento.triagem_inteligente import organizar_rastreios
     
     add_log(f"Iniciando triagem HGO na pasta: {pasta}")
     arquivos = [os.path.join(pasta, a) for a in os.listdir(pasta) if a.upper().endswith(".GNS")]

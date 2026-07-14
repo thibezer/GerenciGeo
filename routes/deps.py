@@ -118,7 +118,7 @@ def extrair_nome_confrontante_limpo(descritivo: str):
     Extrai nome limpo do campo descritivo do confrontante (coluna L da planilha INCRA).
     Delegado para business/confrontante_manager.py
     """
-    from business.confrontante_manager import extrair_nome_confrontante_limpo as extrair_negocio
+    from services.gestores.confrontante_manager import extrair_nome_confrontante_limpo as extrair_negocio
     return extrair_negocio(descritivo)
 
 

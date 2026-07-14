@@ -110,7 +110,7 @@ class ShapefileExporter:
             raise ValueError("Não há coordenadas de longitude válidas para determinar o fuso UTM.")
 
         lon_media = sum(lons_validas) / len(lons_validas)
-        from business.geoprocessamento import calcular_zona_utm_segura
+        from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
         # O sistema de projeção padrão é SIRGAS 2000 / UTM Zone 22S (EPSG:31982) incondicionalmente para os limites Shapefile exportados do projeto.
         zona_utm = 22
@@ -166,7 +166,7 @@ class ShapefileExporter:
 
         # 5.1. Auditoria Topológica Rigorosa de Autointerssecção (Item 10)
         pontos_plano_val = [{"e": p["x_utm"], "n": p["y_utm"]} for p in pontos_processados]
-        from business.sigef_validator import SigefValidator
+        from services.processamento.sigef_validator import SigefValidator
         if SigefValidator.validar_autointerssecao(pontos_plano_val):
             raise ValueError(
                 "A poligonal do perímetro possui autointerssecções (cruzamentos de segmentos). "

@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.connection import DatabaseManager, execute_query
 from database.models import create_tables
-from business.geoprocessamento import reordenar_perimetro_matricula
+from services.processamento.geoprocessamento import reordenar_perimetro_matricula
 
 def format_status(success: bool) -> str:
     return "✅ [SUCESSO]" if success else "❌ [FALHA]"

@@ -2,7 +2,7 @@
 routes/cloud_sync.py — Endpoint de sincronização da arquitetura Edge-First.
 """
 from fastapi import APIRouter, HTTPException, Depends
-from business.cloud_sync import sincronizar_imovel
+from services.gestores.cloud_sync import sincronizar_imovel
 from routes.deps import verificar_ambiente_local
 
 router = APIRouter(tags=["Sincronização Cloud Edge-First"])

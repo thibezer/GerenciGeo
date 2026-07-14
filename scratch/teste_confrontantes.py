@@ -5,7 +5,7 @@ import os
 # Adiciona o diretório do projeto ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from business.confrontante_manager import resolver_confrontantes_planilha, vincular_confrontantes_pontos
+from services.gestores.confrontante_manager import resolver_confrontantes_planilha, vincular_confrontantes_pontos
 
 def inicializar_banco_teste():
     conn = sqlite3.connect(":memory:")
@@ -189,7 +189,7 @@ def test_vincular_confrontantes_pontos():
 
 def test_normalizacao_matricula():
     print("Executando test_normalizacao_matricula...")
-    from business.confrontante_manager import normalizar_matricula
+    from services.gestores.confrontante_manager import normalizar_matricula
     
     # Casos de igualdade esperada
     assert normalizar_matricula("6.000") == "6000"

@@ -10,8 +10,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.connection import DatabaseManager, execute_query
 from database.models import create_tables
-from business.cliente_manager import ClienteManager, validar_cpf_cnpj
-from business.levantamento_manager import (
+from services.gestores.cliente_manager import ClienteManager, validar_cpf_cnpj
+from services.gestores.levantamento_manager import (
     cadastrar_cliente,
     atualizar_cliente,
     vincular_cliente_propriedade

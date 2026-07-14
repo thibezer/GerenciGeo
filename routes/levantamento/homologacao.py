@@ -280,7 +280,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                         pontos_ordenados.sort(key=lambda x: x["index_original"])
                                         
                                         # Chamar o confrontante manager
-                                        from business.confrontante_manager import resolver_confrontantes_planilha
+                                        from services.gestores.confrontante_manager import resolver_confrontantes_planilha
                                         mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
                                         
                                         # Inserir no banco
@@ -394,7 +394,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                             pontos_ordenados = list(pontos_unicos.values())
                             pontos_ordenados.sort(key=lambda x: x["index_original"])
                             
-                            from business.confrontante_manager import resolver_confrontantes_planilha
+                            from services.gestores.confrontante_manager import resolver_confrontantes_planilha
                             mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
                             
                             pontos_inseridos = []
@@ -701,7 +701,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
             # ───────────────────────────────────────────────────────────────────
             # MOTOR DE RESOLUÇÃO DE CONFRONTANTES (DELEGADO AO CONFRONTANTE_MANAGER)
             # ───────────────────────────────────────────────────────────────────
-            from business.confrontante_manager import resolver_confrontantes_planilha
+            from services.gestores.confrontante_manager import resolver_confrontantes_planilha
             mapa_vertices_confrontante_id = resolver_confrontantes_planilha(id, pontos_ordenados, cursor)
 
             # ───────────────────────────────────────────────────────────────────
@@ -888,7 +888,7 @@ def associar_planilha_matricula(id: int, payload: AssociarPlanilhaPayload):
                 # Gerar segmentos se houver pelo menos 2 pontos
                 if len(pontos_inseridos) >= 2:
                     # Precisamos dos confrontantes associados para vincular nos segmentos (delegado ao confrontante_manager)
-                    from business.confrontante_manager import vincular_confrontantes_pontos
+                    from services.gestores.confrontante_manager import vincular_confrontantes_pontos
                     mapa_vertices_conf = vincular_confrontantes_pontos(id, pontos_inseridos, cursor)
                     
                     N = len(pontos_inseridos)

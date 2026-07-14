@@ -4,7 +4,7 @@ import csv
 import pandas as pd
 from pyproj import Transformer
 from database.connection import execute_query, DatabaseManager
-from business.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
+from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 
 logger = logging.getLogger(__name__)
 
