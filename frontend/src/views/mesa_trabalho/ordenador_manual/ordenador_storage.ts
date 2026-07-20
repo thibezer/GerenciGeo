@@ -4,7 +4,7 @@ export function setupOrdenadorStorage(ctx: MesaTrabalhoContext) {
   ctx.salvarRascunhoLocal = () => {
     if (!ctx.currentLevId) return;
     const pontosMat = ctx.obterPontosParaOrdenacao();
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const prefix = ctx.currentMatriculaId ? `mat_${ctx.currentMatriculaId}` : 'avulsos';
     const draft = pontosMat.map(p => ({
