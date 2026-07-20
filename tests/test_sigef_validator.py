@@ -44,5 +44,14 @@ class TestSigefValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             SigefValidator._formatar_azimute(float('-inf'))
 
+    def test_formatar_azimute_cascading_rounding(self):
+        """Test that rounding seconds does not produce 60.00"""
+        # 12° 59' 59.999" is approximately 12.999999722222222 degrees.
+        # This tests the cascade effect: 59.999 -> 60s -> 00s, 59m -> 60m -> 00m, 12deg -> 13deg.
+        self.assertEqual(SigefValidator._formatar_azimute(12.999999722222222), "13° 00' 00.00\"")
+        
+        # 359° 59' 59.999" -> Should cascade to 360° -> 0° 00' 00.00"
+        self.assertEqual(SigefValidator._formatar_azimute(359.999999), "0° 00' 00.00\"")
+
 if __name__ == '__main__':
     unittest.main()

@@ -247,12 +247,13 @@ class SigefValidator:
         if math.isnan(az_deg) or math.isinf(az_deg):
             raise ValueError("Azimute não pode ser NaN ou Infinito")
 
-        az_deg = az_deg % 360.0
-
-        graus = int(az_deg)
-        minutos_dec = (az_deg - graus) * 60.0
-        minutos = int(minutos_dec)
-        segundos = (minutos_dec - minutos) * 60.0
+        # Arredonda para 2 casas decimais nos segundos totais para evitar que o print de 59.996 vire 60.00
+        total_seconds = round((az_deg % 360.0) * 3600.0, 2)
+        
+        graus = int(total_seconds // 3600) % 360
+        minutos = int((total_seconds % 3600) // 60)
+        segundos = (total_seconds % 3600) % 60
+        
         return f"{graus}° {minutos:02d}' {segundos:05.2f}\""
 
 class VertexGenerator:

@@ -13,8 +13,8 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
       pontosMatCompleto.sort((a, b) => {
         const valA = a.ordem_caminhamento;
         const valB = b.ordem_caminhamento;
-        const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);
-        const numB = typeof valB === 'number' ? valB : (parseInt(valB) || 999999);
+        const numA = Number(valA ?? 999999);
+        const numB = Number(valB ?? 999999);
         return numA - numB;
       });
 
@@ -389,8 +389,8 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           pontosMat.sort((a, b) => {
             const valA = a.ordem_caminhamento;
             const valB = b.ordem_caminhamento;
-            const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);
-            const numB = typeof valB === 'number' ? valB : (parseInt(valB) || 999999);
+            const numA = Number(valA ?? 999999);
+            const numB = Number(valB ?? 999999);
             return numA - numB;
           });
 
