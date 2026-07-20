@@ -61,7 +61,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.subirPonto = (pontoId: number) => {
     const pontosMat = ctx.obterPontosParaOrdenacao();
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
     if (idx === -1) return;
@@ -118,7 +118,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.descerPonto = (pontoId: number) => {
     const pontosMat = ctx.obterPontosParaOrdenacao();
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
     if (idx === -1) return;
@@ -177,7 +177,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.moverPontoPosicao = (pontoId: number, novaPosicao: number) => {
     const pontosMat = ctx.obterPontosParaOrdenacao();
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const oldIdx = pontosMat.findIndex(p => p.id === pontoId);
     if (oldIdx === -1) return;
@@ -248,7 +248,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     const pontosMat = ctx.obterPontosParaOrdenacao();
     if (pontosMat.length < 2) return;
 
-    pontosMat.sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
     const total = pontosMat.length;
 
     pontosMat.forEach((p, idx) => {
