@@ -244,6 +244,11 @@ class SigefValidator:
     @staticmethod
     def _formatar_azimute(az_deg: float) -> str:
         """Formata azimute em graus, minutos e segundos decimais (ex: 125° 30' 45.2")"""
+        if math.isnan(az_deg) or math.isinf(az_deg):
+            raise ValueError("Azimute não pode ser NaN ou Infinito")
+
+        az_deg = az_deg % 360.0
+
         graus = int(az_deg)
         minutos_dec = (az_deg - graus) * 60.0
         minutos = int(minutos_dec)
