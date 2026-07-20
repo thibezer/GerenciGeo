@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCCIR } from '../utils';
+import { initIcons, formatarCCIR, showToast } from '../utils';
 import L from 'leaflet';
 
 
@@ -504,8 +504,18 @@ export const levantamentosRoute: RouteDef = {
             } else if (btn.classList.contains('btn-excluir-lev')) {
                (async () => {
                   if (confirm('Deseja apagar também a pasta física (Workspace) de arquivos associada a este levantamento?\n\nOK: Apagar registro + Pasta física\nCancelar: Cancelar exclusão')) {
-                     await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=true`, { method: 'DELETE' });
-                     loadLevantamentos();
+                     try {
+                        const res = await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=true`, { method: 'DELETE' });
+                        if (!res.ok) {
+                           const errData = await res.json().catch(() => ({}));
+                           showToast(errData.detail || 'Erro ao excluir levantamento.', 'error');
+                           return;
+                        }
+                        loadLevantamentos();
+                     } catch (err) {
+                        console.error('Erro ao excluir levantamento:', err);
+                        showToast('Erro de comunicação com o servidor ao tentar excluir.', 'error');
+                     }
                   }
                })();
             }
@@ -614,20 +624,30 @@ export const levantamentosRoute: RouteDef = {
             const url = editandoLevId ? `${API_BASE}/levantamentos/${editandoLevId}` : `${API_BASE}/levantamentos`;
             const method = editandoLevId ? 'PUT' : 'POST';
 
-            const res = await fetch(url, {
-               method: method,
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (data.error) {
-               alert(data.error);
-            } else {
-               document.getElementById('modal-levantamento')?.classList.add('hidden');
-               loadLevantamentos();
+            // Desabilita o botão submit para evitar double-submit durante a requisição
+            const btnSubmit = document.getElementById('btn-submit-lev') as HTMLButtonElement;
+            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Salvando...'; }
+
+            try {
+               const res = await fetch(url, {
+                  method: method,
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+               });
+               const data = await res.json();
+               if (data.error) {
+                  alert(data.error);
+               } else {
+                  document.getElementById('modal-levantamento')?.classList.add('hidden');
+                  loadLevantamentos();
+               }
+            } catch (e) {
+               alert("Erro ao salvar levantamento.");
+            } finally {
+               if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = editandoLevId ? 'Salvar Alterações' : 'Criar Levantamento'; }
             }
-         } catch (e) {
-            alert("Erro ao salvar levantamento.");
+         } catch (_outerErr) {
+            // noop - bloco interno já captura o erro
          }
       });
 
@@ -636,7 +656,10 @@ export const levantamentosRoute: RouteDef = {
          if (!selectProf) return;
 
          fetch(`${API_BASE}/profissionais`)
-            .then(res => res.json())
+            .then(res => {
+               if (!res.ok) throw new Error(`HTTP ${res.status}`);
+               return res.json();
+            })
             .then(data => {
                if (!data || data.length === 0) {
                   selectProf.innerHTML = '<option value="">Nenhum profissional cadastrado</option>';
@@ -871,7 +894,7 @@ export const levantamentosRoute: RouteDef = {
                if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
                if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
             } else {
-               alert('Apenas arquivos de extensão .txt são permitidos na triagem.');
+               showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
             }
          }
       });
@@ -888,7 +911,7 @@ export const levantamentosRoute: RouteDef = {
       // Enviar arquivo para processamento temporário
       btnProcessar?.addEventListener('click', async () => {
          if (!arquivoSelecionadoTriagem) {
-            alert('Por favor, selecione ou arraste um arquivo de pontos (.txt) primeiro.');
+            showToast('Por favor, selecione ou arraste um arquivo de pontos (.txt) primeiro.', 'error');
             return;
          }
 
@@ -1063,7 +1086,7 @@ export const levantamentosRoute: RouteDef = {
                throw new Error(data.error);
             }
 
-            alert(data.message || 'Pontos e topologia importados com sucesso no levantamento de destino!');
+            showToast(data.message || 'Pontos e topologia importados com sucesso no levantamento de destino!', 'success');
 
             // Fechar modal de triagem
             btnFecharTriagem?.click();

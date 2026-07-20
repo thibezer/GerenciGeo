@@ -1,4 +1,6 @@
 import math
+from pyproj import Transformer
+from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
 class SigefValidator:
     """Implementa cálculo de erro Sigma, validação a 95% de confiança da norma do INCRA e auditoria topológica de polígonos"""
@@ -134,8 +136,8 @@ class SigefValidator:
         for p in (pontos_ordenados or []):
             if p.get("lat") is not None and p.get("lon") is not None:
                 try:
-                    float(p["lat"])
-                    float(p["lon"])
+                    p["lat"] = float(p["lat"])
+                    p["lon"] = float(p["lon"])
                     pontos_validos.append(p)
                 except (ValueError, TypeError):
                     continue
@@ -146,9 +148,6 @@ class SigefValidator:
                 "erro": "Número insuficiente de vértices com coordenadas válidas para fechar polígono. São necessários pelo menos 3 pontos com latitude/longitude."
             }
 
-        from pyproj import Transformer
-        from services.processamento.geoprocessamento import calcular_zona_utm_segura
-        
         # 1. Determinação dinâmica da Zona UTM e EPSG SIRGAS 2000 correspondente no Hemisfério Sul
         lon0 = pontos_validos[0]["lon"]
         zona_utm = calcular_zona_utm_segura(lon0)

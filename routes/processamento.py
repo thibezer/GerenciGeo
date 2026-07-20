@@ -108,18 +108,21 @@ def _converter_gns_background(caminho_bruto: str, pasta_rinex: str, lev_id: int)
 
 @router.post("/upload", dependencies=[Depends(verificar_ambiente_local)])
 async def upload_files(files: List[UploadFile] = File(...)):
-    uploaded_paths = []
-    upload_dir = os.path.join(EXPORT_BASE_FOLDER, "Uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    
-    for file in files:
-        file_path = os.path.join(upload_dir, file.filename)
-        with open(file_path, "wb") as buffer:
-            buffer.write(await file.read())
-        uploaded_paths.append(file_path)
-        add_log(f"Arquivo recebido: {file.filename}")
+    try:
+        uploaded_paths = []
+        upload_dir = os.path.join(EXPORT_BASE_FOLDER, "Uploads")
+        os.makedirs(upload_dir, exist_ok=True)
         
-    return {"files": uploaded_paths}
+        for file in files:
+            file_path = os.path.join(upload_dir, file.filename)
+            with open(file_path, "wb") as buffer:
+                buffer.write(await file.read())
+            uploaded_paths.append(file_path)
+            add_log(f"Arquivo recebido: {file.filename}")
+            
+        return {"files": uploaded_paths}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/pick-folder")
 def pick_folder():
@@ -185,11 +188,16 @@ def run_hgo_task(pasta: str):
 
 @router.post("/process/hgo", dependencies=[Depends(verificar_ambiente_local)])
 async def start_hgo(payload: dict, background_tasks: BackgroundTasks):
-    pasta = payload.get("pasta")
-    if pasta:
-        background_tasks.add_task(run_hgo_task, pasta)
-        return {"message": "Triagem iniciada em segundo plano"}
-    return {"error": "Pasta não fornecida"}
+    try:
+        pasta = payload.get("pasta")
+        if pasta:
+            background_tasks.add_task(run_hgo_task, pasta)
+            return {"message": "Triagem iniciada em segundo plano"}
+        raise HTTPException(status_code=400, detail="Pasta não fornecida")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/proxy/sigef")
 async def proxy_sigef(url: str):
@@ -234,8 +242,8 @@ async def proxy_sigef(url: str):
             return {"error": "Resposta não é JSON nem Texto formatado", "raw": text[:500]}
             
     except Exception as e:
-        print(f"Erro na requisição proxy: {e}")
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro na requisição proxy: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/levantamentos/{lev_id}/importar-confrontante-sigef", dependencies=[Depends(verificar_ambiente_local)])
 def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):

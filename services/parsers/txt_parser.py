@@ -1,4 +1,7 @@
 import os
+import re
+import math
+import sqlite3
 import logging
 import csv
 import pandas as pd
@@ -370,7 +373,6 @@ class TxtGeodesicParser:
         ordem = ordem_inicial
         pontos_processados = []
         vertices_vistos = set()
-        import math
 
         # Incertezas da Base PPP para propagação
         sigma_base_lat = base_ppp.get("sigma_lat") or 0.0 if base_ppp else 0.0
@@ -413,7 +415,6 @@ class TxtGeodesicParser:
                 sigma_lon_prop = p["sigma_e"]
                 sigma_alt_prop = p["sigma_z"]
 
-            import re
             nome_upper = p["nome"].strip().upper()
             match_completo = re.search(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", nome_upper)
             match_simples = re.search(r"\b(M|P|V)-(\d+)\b", nome_upper)
@@ -474,7 +475,6 @@ class TxtGeodesicParser:
         Salva os pontos processados na tabela 'pontos' do SQLite de forma transacional e
         retorna uma lista com os IDs inseridos correspondentes.
         """
-        import sqlite3
         ids_inseridos = []
         query = """
             INSERT INTO pontos (

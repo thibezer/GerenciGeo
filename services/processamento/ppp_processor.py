@@ -134,7 +134,8 @@ class LotePPPManager:
                     if src and ("ppp" in src or "geodesia" in src):
                         driver.switch_to.frame(iframe)
                         break
-            except: pass
+            except Exception as e:
+                logger.debug(f"Falha ao trocar para iframe PPP: {e}")
             
             # 1. Upload arquivo
             upload_input = wait.until(EC.presence_of_element_located((By.ID, "arquivo")))
@@ -150,7 +151,8 @@ class LotePPPManager:
                 radio_estatico = driver.find_element(By.ID, "processo1")
                 if not radio_estatico.is_selected():
                     radio_estatico.click()
-            except: pass
+            except Exception as e:
+                logger.debug(f"Falha ao selecionar tipo estático: {e}")
 
             # 4. Antena (Opcional - Tentamos selecionar se existir na lista)
             try:
@@ -159,10 +161,10 @@ class LotePPPManager:
                 # Mas tentamos por texto visível se possível
                 try:
                     select_antena.select_by_visible_text(DEFAULT_ANTENNA)
-                except:
-                    # Fallback: seleciona a primeira se não achar a específica
-                    pass
-            except: pass
+                except Exception as e:
+                    logger.debug(f"Antena específica não encontrada, fallback natural do site: {e}")
+            except Exception as e:
+                logger.debug(f"Falha ao tentar interagir com select de antena: {e}")
 
             # 5. Aceitar termos (se houver checkbox)
             try:
@@ -170,7 +172,8 @@ class LotePPPManager:
                 for cb in checkboxes:
                     if not cb.is_selected():
                         cb.click()
-            except: pass
+            except Exception as e:
+                logger.debug(f"Falha ao aceitar termos: {e}")
 
             # 6. Botão Processar
             btn_processar = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input.botao[value='Processar']")))

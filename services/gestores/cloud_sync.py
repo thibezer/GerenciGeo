@@ -60,7 +60,7 @@ async def sincronizar_imovel(matricula_id: int, levantamento_id: int) -> dict:
         # 3. Resolve coordenadas geodésicas (com fallback de UTM para LatLon se necessário)
         # O motor assume WGS84 para o GeoJSON. SIRGAS 2000 (EPSG:4674) é o default geodésico local
         # Usamos Zona 22S (EPSG:31982) como UTM default do motor geodésico
-        transformer_to_latlon = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+        transformer_to_latlon = Transformer.from_crs("epsg:31982", "epsg:4326", always_xy=True)
 
         coords = []
         for p in pontos:

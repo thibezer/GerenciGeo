@@ -1,7 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCCIR } from '../utils';
-
+import { initIcons, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
 export const ccirRoute: RouteDef = {
   render: () => `
     <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -202,7 +201,10 @@ export const ccirRoute: RouteDef = {
     // Carrega a listagem de arquivos
     const loadFiles = () => {
       fetch(`${API_BASE}/ccir/files`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('Erro de requisição');
+          return res.json();
+        })
         .then(files => {
           const container = document.getElementById('ccir-imported-files');
           if (!container) return;
@@ -215,10 +217,10 @@ export const ccirRoute: RouteDef = {
           container.innerHTML = files.map((f: any) => `
             <div class="p-2 rounded bg-white/[0.01] border border-white/5 flex items-center justify-between group">
               <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-bold text-white truncate" title="${f.arquivo_origem}">${f.arquivo_origem}</p>
+                <p class="text-[11px] font-bold text-white truncate" title="${escapeHtml(f.arquivo_origem)}">${escapeHtml(f.arquivo_origem)}</p>
                 <p class="text-[9px] text-white/40 mt-0.5">${f.total_registros} reg • ${f.data_importacao.substring(8, 10)}/${f.data_importacao.substring(5, 7)} ${f.data_importacao.substring(11, 16)}</p>
               </div>
-              <button class="text-white/20 hover:text-red-400 p-1 rounded hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all btn-delete-ccir-file cursor-pointer" data-file="${f.arquivo_origem}">
+              <button class="text-white/20 hover:text-red-400 p-1 rounded hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all btn-delete-ccir-file cursor-pointer" data-file="${escapeHtml(f.arquivo_origem)}">
                 <i data-lucide="trash-2" class="w-3 h-3"></i>
               </button>
             </div>
@@ -230,16 +232,29 @@ export const ccirRoute: RouteDef = {
           document.querySelectorAll('.btn-delete-ccir-file').forEach(btn => {
             btn.addEventListener('click', () => {
               const filename = btn.getAttribute('data-file');
-              if (confirm(`Tem certeza de que deseja remover TODOS os registros importados da planilha "${filename}"?`)) {
-                fetch(`${API_BASE}/ccir/files/${filename}`, { method: 'DELETE' })
-                  .then(res => res.json())
-                  .then(() => {
-                    loadFiles();
-                    runSearch();
-                  });
+              if(filename) {
+                customConfirm(`Tem certeza de que deseja remover TODOS os registros importados da planilha "${filename}"?`).then(confirmed => {
+                  if (confirmed) {
+                    fetch(`${API_BASE}/ccir/files/${filename}`, { method: 'DELETE' })
+                      .then(res => {
+                        if(!res.ok) throw new Error('Erro ao remover arquivo');
+                        return res.json();
+                      })
+                      .then(() => {
+                        showToast('Planilha removida com sucesso!', 'success');
+                        loadFiles();
+                        runSearch();
+                      })
+                      .catch(err => showToast(err.message, 'error'));
+                  }
+                });
               }
             });
           });
+        })
+        .catch(err => {
+          const container = document.getElementById('ccir-imported-files');
+          if (container) container.innerHTML = `<p class="text-xs text-red-400 text-center py-4">Erro ao carregar arquivos: ${err.message}</p>`;
         });
     };
 
@@ -257,7 +272,10 @@ export const ccirRoute: RouteDef = {
       }
       
       fetch(`${API_BASE}/ccir/search?${params.toString()}`)
-        .then(res => res.json())
+        .then(res => {
+          if(!res.ok) throw new Error('Erro na busca');
+          return res.json();
+        })
         .then(data => {
           const body = document.getElementById('ccir-results-body');
           const count = document.getElementById('ccir-results-count');
@@ -279,24 +297,24 @@ export const ccirRoute: RouteDef = {
             const pctFmt = r.percentual_detencao !== null ? r.percentual_detencao.toFixed(2).replace('.', ',') + '%' : '';
             
             return `
-              <tr class="hover:bg-white/[0.01] transition-all cursor-pointer ccir-row" data-codigo="${r.codigo_imovel}">
+              <tr class="hover:bg-white/[0.01] transition-all cursor-pointer ccir-row" data-codigo="${escapeHtml(r.codigo_imovel)}">
                 <td class="p-3 font-mono font-bold text-white/80">${formatarCCIR(r.codigo_imovel)}</td>
-                <td class="p-3 font-bold text-white">${r.denominacao || ''}</td>
-                <td class="p-3 text-white/60">${r.municipio || ''}-${r.uf || ''}</td>
+                <td class="p-3 font-bold text-white">${escapeHtml(r.denominacao || '')}</td>
+                <td class="p-3 text-white/60">${escapeHtml(r.municipio || '')}-${escapeHtml(r.uf || '')}</td>
                 <td class="p-3 text-right font-mono text-white/80">${areaFmt}</td>
-                <td class="p-3 text-white/80">${r.titular || ''}</td>
+                <td class="p-3 text-white/80">${escapeHtml(r.titular || '')}</td>
                 <td class="p-3 text-right font-mono text-mint-vibrant font-bold">${pctFmt}</td>
                 <td class="p-3 text-center">
                   <div class="flex items-center justify-center gap-1.5">
-                    <button class="text-mint-vibrant hover:bg-mint-vibrant/10 p-1.5 rounded btn-view-ccir-detail cursor-pointer" data-codigo="${r.codigo_imovel}" title="Visualizar Coproprietários">
+                    <button class="text-mint-vibrant hover:bg-mint-vibrant/10 p-1.5 rounded btn-view-ccir-detail cursor-pointer" data-codigo="${escapeHtml(r.codigo_imovel)}" title="Visualizar Coproprietários">
                       <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                     </button>
                     <button class="text-blue-400 hover:bg-blue-500/10 p-1.5 rounded btn-emitir-ccir-incra cursor-pointer" 
-                            data-codigo="${r.codigo_imovel}" 
-                            data-uf="${r.uf || ''}" 
-                            data-municipio="${r.municipio || ''}" 
-                            data-titular="${r.titular || ''}"
-                            data-imovel="${r.denominacao || ''}"
+                            data-codigo="${escapeHtml(r.codigo_imovel)}" 
+                            data-uf="${escapeHtml(r.uf || '')}" 
+                            data-municipio="${escapeHtml(r.municipio || '')}" 
+                            data-titular="${escapeHtml(r.titular || '')}"
+                            data-imovel="${escapeHtml(r.denominacao || '')}"
                             title="Emitir CCIR no Portal do INCRA">
                       <i data-lucide="globe" class="w-3.5 h-3.5"></i>
                     </button>
@@ -340,13 +358,19 @@ export const ccirRoute: RouteDef = {
               }
             });
           });
+        })
+        .catch(err => {
+          showToast("Erro ao realizar busca: " + err.message, "error");
         });
     };
 
     // Abre modal de co-propriedade
     const showDetails = (codigo_imovel: string) => {
       fetch(`${API_BASE}/ccir/imovel/${codigo_imovel}`)
-        .then(res => res.json())
+        .then(res => {
+          if(!res.ok) throw new Error('Erro ao carregar detalhes');
+          return res.json();
+        })
         .then(data => {
           if (!data || data.length === 0) return;
           
@@ -369,7 +393,7 @@ export const ccirRoute: RouteDef = {
                   <i data-lucide="database" class="w-5 h-5 text-mint-vibrant"></i>
                   Ficha do Imóvel — CCIR ${formatarCCIR(codigo_imovel)}
                 </h3>
-                <button class="text-white/40 hover:text-white transition-colors" id="close-ccir-modal">
+                <button class="text-white/40 hover:text-white transition-colors cursor-pointer" id="close-ccir-modal">
                   <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
               </div>
@@ -379,11 +403,11 @@ export const ccirRoute: RouteDef = {
                 <div class="grid grid-cols-2 gap-4 bg-white/[0.02] p-4 rounded-technical border border-white/5 text-xs">
                   <div>
                     <p class="text-white/40 mb-0.5">Denominação</p>
-                    <p class="text-sm font-bold text-white">${regBase.denominacao || 'N/A'}</p>
+                    <p class="text-sm font-bold text-white">${escapeHtml(regBase.denominacao || 'N/A')}</p>
                   </div>
                   <div>
                     <p class="text-white/40 mb-0.5">Município/UF</p>
-                    <p class="text-sm font-bold text-white">${regBase.municipio || 'N/A'}-${regBase.uf || ''}</p>
+                    <p class="text-sm font-bold text-white">${escapeHtml(regBase.municipio || 'N/A')}-${escapeHtml(regBase.uf || '')}</p>
                   </div>
                   <div>
                     <p class="text-white/40 mb-0.5">Área Total</p>
@@ -391,7 +415,7 @@ export const ccirRoute: RouteDef = {
                   </div>
                   <div>
                     <p class="text-white/40 mb-0.5">Código IBGE</p>
-                    <p class="text-sm font-bold text-white">${regBase.codigo_municipio || 'N/A'}</p>
+                    <p class="text-sm font-bold text-white">${escapeHtml(regBase.codigo_municipio || 'N/A')}</p>
                   </div>
                 </div>
 
@@ -411,9 +435,9 @@ export const ccirRoute: RouteDef = {
                       <tbody class="divide-y divide-white/5">
                         ${data.map((r: any) => `
                           <tr class="hover:bg-white/[0.01]">
-                            <td class="p-2.5 font-bold text-white">${r.titular || ''}</td>
-                            <td class="p-2.5 text-white/80">${r.condicao_pessoa || 'N/A'}</td>
-                            <td class="p-2.5 text-white/60">${r.natureza_juridica || 'N/A'}</td>
+                            <td class="p-2.5 font-bold text-white">${escapeHtml(r.titular || '')}</td>
+                            <td class="p-2.5 text-white/80">${escapeHtml(r.condicao_pessoa || 'N/A')}</td>
+                            <td class="p-2.5 text-white/60">${escapeHtml(r.natureza_juridica || 'N/A')}</td>
                             <td class="p-2.5 text-right font-mono text-mint-vibrant font-bold">${r.percentual_detencao !== null ? r.percentual_detencao.toFixed(2).replace('.', ',') + '%' : 'N/A'}</td>
                           </tr>
                         `).join('')}
@@ -455,6 +479,9 @@ export const ccirRoute: RouteDef = {
                 regBase.titular || ''
              );
           });
+        })
+        .catch(err => {
+          showToast("Erro ao carregar detalhes: " + err.message, "error");
         });
     };
 
@@ -466,26 +493,33 @@ export const ccirRoute: RouteDef = {
         btnSync.setAttribute('disabled', 'true');
         
         fetch(`${API_BASE}/ccir/sync`)
-          .then(res => res.json())
+          .then(res => {
+            if(!res.ok) throw new Error('Erro ao sincronizar');
+            return res.json();
+          })
           .then(res => {
             if (icon) icon.classList.remove('animate-spin');
             btnSync.removeAttribute('disabled');
             
-            alert("Relatório de Sincronização:\n\n" + res.logs.join('\n'));
+            customAlert("Relatório de Sincronização:\n\n" + res.logs.join('\n'));
             loadFiles();
             runSearch();
           })
           .catch(err => {
             if (icon) icon.classList.remove('animate-spin');
             btnSync.removeAttribute('disabled');
-            alert("Erro ao sincronizar: " + err);
+            showToast("Erro ao sincronizar: " + err.message, "error");
           });
       });
     }
 
     if (btnOpenFolder) {
       btnOpenFolder.addEventListener('click', () => {
-        fetch(`${API_BASE}/ccir/abrir-pasta`, { method: 'POST' });
+        fetch(`${API_BASE}/ccir/abrir-pasta`, { method: 'POST' })
+          .then(res => {
+            if(!res.ok) showToast("Erro ao abrir pasta", "error");
+          })
+          .catch(() => showToast("Erro de conexão ao abrir pasta", "error"));
       });
     }
 
@@ -566,7 +600,10 @@ export const ccirRoute: RouteDef = {
        const nomeBase = (titular || '').replace(/\*+/g, '').trim();
        if (nomeBase.length >= 3) {
           fetch(`${API_BASE}/clientes`)
-             .then(res => res.json())
+             .then(res => {
+               if(!res.ok) throw new Error('Erro ao buscar clientes');
+               return res.json();
+             })
              .then(clientes => {
                 const correspondente = clientes.find((c: any) => 
                    c.nome_completo.toLowerCase().startsWith(nomeBase.toLowerCase()) ||
@@ -574,7 +611,7 @@ export const ccirRoute: RouteDef = {
                 );
                 if (correspondente && correspondente.cpf_cnpj) {
                    if (lblSugestao) {
-                      lblSugestao.innerText = `💡 Sugerir do cliente: ${correspondente.nome_completo} (${aplicarMascaraCpfCnpj(correspondente.cpf_cnpj)})`;
+                      lblSugestao.innerText = `💡 Sugerir do cliente: ${escapeHtml(correspondente.nome_completo)} (${aplicarMascaraCpfCnpj(correspondente.cpf_cnpj)})`;
                       lblSugestao.classList.remove('hidden');
                       lblSugestao.onclick = () => {
                          inputEmissaoCpf.value = aplicarMascaraCpfCnpj(correspondente.cpf_cnpj);
@@ -624,10 +661,10 @@ export const ccirRoute: RouteDef = {
              // Abre a página de emissão do INCRA em uma nova aba
              window.open('https://sncr.serpro.gov.br/ccir/emissao', '_blank');
              
-             alert("Dados de emissão copiados para a área de transferência!\n\nNo site do INCRA, basta clicar no seu favorito 'Preencher CCIR' para colar e autopreencher todos os campos de uma vez, restando apenas resolver o captcha.");
+             customAlert("Dados de emissão copiados para a área de transferência!\n\nNo site do INCRA, basta clicar no seu favorito 'Preencher CCIR' para colar e autopreencher todos os campos de uma vez, restando apenas resolver o captcha.");
           })
           .catch(err => {
-             alert("Erro ao copiar dados para a área de transferência: " + err);
+             showToast("Erro ao copiar dados para a área de transferência: " + err.message, "error");
           });
     });
 

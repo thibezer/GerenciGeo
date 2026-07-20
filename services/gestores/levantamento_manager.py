@@ -602,7 +602,7 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
         if matriculas_afetadas:
              from services.processamento.geoprocessamento import reordenar_perimetro_matricula
              for mat_id in matriculas_afetadas:
-                 reordenar_perimetro_matricula(mat_id)
+                 reordenar_perimetro_matricula(levantamento_id, mat_id)
 
         return {"success": True}
     except Exception as e:
@@ -725,7 +725,8 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 arquivo_origem=pt_antigo["arquivo_origem"],
                 dados_brutos=dados_brutos,
                 dados_corrigidos=dados_corrigidos,
-                base_id=pid
+                base_id=pid,
+                tipo_ponto_base=tipo_atual
             )
             return {"success": True, "message": "Coordenadas oficiais salvas e translação reativa aplicada com sucesso em todos os rovers do arquivo."}
 

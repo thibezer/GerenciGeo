@@ -188,9 +188,11 @@ const initApp = () => {
         sidebarOverlay.classList.add('active');
       } else {
         sidebar.classList.remove('sidebar-mobile-active');
-        sidebarOverlay.classList.add('opacity-0');
+        sidebarOverlay.classList.remove('active');
+        // Aguarda a transição CSS (opacity 0.3s) antes de remover pointer-events
         setTimeout(() => {
-          sidebarOverlay.classList.remove('active', 'opacity-0');
+          // Garante que não haja estado intermediário residual
+          sidebarOverlay.classList.remove('active');
         }, 300);
       }
     };

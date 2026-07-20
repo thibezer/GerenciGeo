@@ -4,7 +4,7 @@ routes/clientes.py — CRUD de Clientes, Profissionais e Pendências
 import logging
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from database.connection import DatabaseManager, execute_query
 from services.gestores.levantamento_manager import cadastrar_cliente, atualizar_cliente, vincular_cliente_propriedade
 from database.repository import PendenciaRepo
@@ -40,7 +40,7 @@ class ClienteCreate(BaseModel):
     estado: Optional[str] = None
     cep: Optional[str] = None
     sexo: str = "M"
-    metadados: dict = {}
+    metadados: dict = Field(default_factory=dict)
 
 class ProfissionalCreate(BaseModel):
     nome: str
@@ -81,7 +81,7 @@ def update_pendencia(item_id: int, payload: PendenciaUpdate):
 def create_cliente(cli: ClienteCreate):
     res = cadastrar_cliente(cli.dict())
     if "error" in res:
-        return {"error": res["error"]}
+        raise HTTPException(status_code=400, detail=res["error"])
     return res
 
 @router.get("/clientes")
@@ -112,35 +112,42 @@ def get_clientes():
             c['propriedades'] = [dict(r) for r in execute_query(props_detail_query, params=(c['id'],), fetch_all=True)]
         return clientes
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao listar clientes: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar lista de clientes.")
 
 @router.delete("/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int):
     try:
         levs = execute_query("SELECT count(l.id) as qtd FROM propriedade_clientes pc JOIN propriedades p ON pc.propriedade_id = p.id JOIN levantamentos l ON p.id = l.propriedade_id WHERE pc.cliente_id = ?", params=(cliente_id,), fetch_one=True)
         if levs and levs['qtd'] > 0:
-            return {"error": "Não é possível excluir cliente com levantamentos vinculados."}
+            raise HTTPException(
+                status_code=409,
+                detail="Não é possível excluir cliente com levantamentos vinculados."
+            )
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
             cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
-            
+
             # Limpa pessoas órfãs (não associadas a clientes nem confrontantes)
             cursor.execute("""
-                DELETE FROM pessoas 
+                DELETE FROM pessoas
                 WHERE id NOT IN (SELECT pessoa_id FROM clientes WHERE pessoa_id IS NOT NULL)
                   AND id NOT IN (SELECT pessoa_id FROM confrontantes WHERE pessoa_id IS NOT NULL);
             """)
             conn.commit()
         return {"message": "Cliente excluído com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao excluir cliente id={cliente_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao excluir cliente.")
 
 @router.put("/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
     res = atualizar_cliente(cliente_id, cli.dict())
     if "error" in res:
-        return {"error": res["error"]}
+        raise HTTPException(status_code=400, detail=res["error"])
     return res
 
 @router.get("/clientes/{cliente_id}/historico")
@@ -150,7 +157,8 @@ def get_cliente_historico(cliente_id: int):
         logs = [dict(r) for r in execute_query(query, params=(cliente_id,), fetch_all=True)]
         return logs
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao buscar histórico do cliente id={cliente_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar histórico do cliente.")
 
 # ── Profissionais ─────────────────────────────────────────────────────────────
 
@@ -185,9 +193,14 @@ def delete_profissional(prof_id: int):
     try:
         check = execute_query("SELECT COUNT(*) as count FROM levantamentos WHERE profissional_id = ?", params=(prof_id,), fetch_one=True)
         if check and check["count"] > 0:
-            return {"error": "Não é possível excluir um profissional que possui levantamentos técnicos vinculados."}
+            raise HTTPException(
+                status_code=409,
+                detail="Não é possível excluir um profissional que possui levantamentos técnicos vinculados."
+            )
         execute_query("DELETE FROM profissionais WHERE id = ?", params=(prof_id,), commit=True)
         return {"sucesso": True, "message": "Profissional removido com sucesso!"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

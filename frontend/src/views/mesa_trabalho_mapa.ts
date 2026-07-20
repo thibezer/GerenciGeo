@@ -1,6 +1,9 @@
 import L from 'leaflet';
 import { API_BASE } from '../config';
-
+import type { Ponto, Segmento, BancoPonto } from '../types';
+import { escapeHtml } from '../utils';
+import { MapaConfigManager } from './mapa_config';
+import type { MapaConfiguracoes } from './mapa_config';
 /** Chave usada para persistir o estado das camadas no localStorage do navegador */
 const LS_KEY_CAMADAS = 'gerenci_geo_camadas_ativas';
 
@@ -25,6 +28,8 @@ export class MesaTrabalhoMapa {
   public levantamentoId: number | null = null;
   private bancoPontosAtivo: boolean = false;
   public canvasInteracao: any = null;
+  private configManager = MapaConfigManager.getInstance();
+  public config: MapaConfiguracoes = this.configManager.getConfig();
 
   constructor() {}
 
@@ -44,8 +49,12 @@ export class MesaTrabalhoMapa {
     // Ativa scrollWheelZoom para permitir zoom aproximado com o scroll do mouse
     this.map = L.map(containerId, {
       maxZoom: 24,
-      scrollWheelZoom: true
+      scrollWheelZoom: true,
+      preferCanvas: this.config.preferCanvas
     }).setView([-23.7661, -53.3204], 14);
+    
+    this.listenConfigBroadcast();
+    this.applyMapStyles();
 
     // Adiciona escala métrica Leaflet
     L.control.scale({
@@ -53,6 +62,7 @@ export class MesaTrabalhoMapa {
       imperial: false,
       position: 'bottomleft'
     }).addTo(this.map);
+
 
     // Adiciona indicador de Norte Geográfico customizado
     const NorthArrowControl = L.Control.extend({
@@ -90,7 +100,8 @@ export class MesaTrabalhoMapa {
       keepBuffer: 16,       // Mantém 16 tiles vizinhos carregados na memória
       updateWhenZooming: false, // Sem flicker no meio do zoom
       updateWhenIdle: true, // Só carrega novos tiles quando o mapa parar
-      className: 'smooth-zoom-layer' // Transição suave de opacidade entre zooms
+      className: 'smooth-zoom-layer', // Transição suave de opacidade entre zooms
+      opacity: this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0
     }).addTo(this.map);
 
     this.satelliteLayer = googleSat;
@@ -194,9 +205,7 @@ export class MesaTrabalhoMapa {
           }
         });
 
-        console.log('[GerenciGeo] Camadas restauradas do localStorage:', ativas);
       } catch (e) {
-        console.warn('[GerenciGeo] Falha ao restaurar estado de camadas do localStorage:', e);
         localStorage.removeItem(LS_KEY_CAMADAS);
       }
     }
@@ -286,12 +295,12 @@ export class MesaTrabalhoMapa {
   /**
    * Centraliza a tela do mapa com base nas coordenadas de um conjunto de pontos
    */
-  public fitBounds(pontos: any[], padding: [number, number] = [40, 40]): void {
+  public fitBounds(pontos: Ponto[], padding: [number, number] = [40, 40]): void {
     if (!this.map) return;
 
     const validCoords = pontos
       .filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0)
-      .map(p => L.latLng(p.lat, p.lon));
+      .map(p => L.latLng(p.lat as number, p.lon as number));
 
     if (validCoords.length > 0) {
       const bounds = L.latLngBounds(validCoords);
@@ -305,11 +314,34 @@ export class MesaTrabalhoMapa {
     }
   }
 
+  private applyMapStyles() {
+    const container = document.getElementById('mapa-triagem');
+    if (container) {
+      if (this.config.crosshair) {
+        container.style.cursor = 'crosshair';
+      } else {
+        container.style.cursor = ''; // default leaflet grab
+      }
+    }
+  }
+
+  private listenConfigBroadcast() {
+    const bc = new BroadcastChannel('gerencigeo_map_config');
+    bc.onmessage = (event) => {
+      if (event.data === 'RELOAD_REQUIRED') {
+        // Recarrega as configs do localStorage
+        this.config = this.configManager.getConfig();
+        // Um refresh total resolve recriação de canvas e camadas base.
+        window.location.reload();
+      }
+    };
+  }
+
   /**
    * Plota os marcadores de vértices na tela do mapa
    */
   public plotPontos(
-    pontos: any[],
+    pontos: Ponto[],
     onMarkerClick: (pId: number) => void
   ): void {
     if (!this.map) return;
@@ -326,14 +358,16 @@ export class MesaTrabalhoMapa {
           markerBg = 'bg-rose-500';
         }
 
-        const opacityClass = this.bancoPontosAtivo ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
+        const animClass = this.config.enableAnimations ? 'transition-all duration-150' : '';
+        const markerSize = this.config.markerSizeBase;
+        const opacityClass = this.bancoPontosAtivo ? 'opacity-40 hover:opacity-100' : '';
         const markerHtml = `
-          <div class="w-2.5 h-2.5 ${markerBg} border border-[#0c1510] rounded-full shadow-md transition-all duration-150 coordinate-marker ${opacityClass}" data-ponto-bg="${markerBg}" id="map-marker-${p.id}"></div>
+          <div style="width: ${markerSize}px; height: ${markerSize}px;" class="${markerBg} border border-[#0c1510] rounded-full shadow-md coordinate-marker ${animClass} ${opacityClass}" data-ponto-bg="${markerBg}" id="map-marker-${p.id}"></div>
         `;
         const customIcon = L.divIcon({
           html: markerHtml,
           className: 'custom-leaflet-marker flex items-center justify-center',
-          iconSize: [16, 16]
+          iconSize: [markerSize + 6, markerSize + 6]
         });
 
         const popupRole = isBasePPP 
@@ -348,8 +382,8 @@ export class MesaTrabalhoMapa {
         if (!this.modoCliqueSequencialAtivo) {
           marker.bindPopup(`
             <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3;">
-              <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#ffffff;">${p.nome_vertice}</div>
-              <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">${popupRole} · ${p.tipo_ponto || p.tipo}</div>
+              <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#ffffff;">${escapeHtml(p.nome_vertice)}</div>
+              <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">${escapeHtml(popupRole)} · ${escapeHtml(p.tipo_ponto || p.tipo)}</div>
               <div style="font-size:11px; color:rgba(255, 255, 255, 0.45); font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
             </div>
           `, {
@@ -374,7 +408,7 @@ export class MesaTrabalhoMapa {
   /**
    * Plota as linhas de divisa oficiais
    */
-  public plotSegmentos(segmentos: any[], pontos: any[]): void {
+  public plotSegmentos(segmentos: Segmento[], pontos: Ponto[]): void {
     if (!this.map) return;
 
     segmentos.forEach(s => {
@@ -383,7 +417,7 @@ export class MesaTrabalhoMapa {
 
       if (pIni && pFim && pIni.lat && pIni.lon && pFim.lat && pFim.lon) {
         const color = this.bancoPontosAtivo ? '#94a3b8' : (s.tipo_limite_sigef === 'LA1' ? '#10b981' : '#3b82f6');
-        const weight = this.bancoPontosAtivo ? 2 : 4;
+        const weight = this.config.perimetroWeight;
         const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
         const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
           color: color,
@@ -393,8 +427,8 @@ export class MesaTrabalhoMapa {
           pane: 'perimetroPane'
         }).bindPopup(`
           <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3;">
-            <div style="font-weight:700; font-size:12px; margin-bottom:3px; color:#ffffff;">${pIni.nome_vertice} ↔ ${pFim.nome_vertice}</div>
-            <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">Limite: ${s.tipo_limite_sigef} · ${s.metodo_posicionamento_sigef}</div>
+            <div style="font-weight:700; font-size:12px; margin-bottom:3px; color:#ffffff;">${escapeHtml(pIni.nome_vertice)} ↔ ${escapeHtml(pFim.nome_vertice)}</div>
+            <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">Limite: ${escapeHtml(s.tipo_limite_sigef)} · ${escapeHtml(s.metodo_posicionamento_sigef)}</div>
           </div>
         `, {
           className: 'compact-popup',
@@ -410,7 +444,7 @@ export class MesaTrabalhoMapa {
   /**
    * Plota a polilinha temporária de fechamento perimetral em lote completo (Etapa 2)
    */
-  public plotPolilinhaTemporaria(pontos: any[]): void {
+  public plotPolilinhaTemporaria(pontos: Ponto[]): void {
     if (!this.map) return;
 
     const validPoints = pontos
@@ -420,14 +454,14 @@ export class MesaTrabalhoMapa {
     if (validPoints.length < 2) return;
 
     const color = this.bancoPontosAtivo ? '#94a3b8' : '#10b981';
-    const weight = this.bancoPontosAtivo ? 2 : 4;
+    const weight = this.config.fechamentoWeight;
     const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
 
     // Conecta sequencialmente 1 -> 2 -> ... -> N-1
     for (let i = 0; i < validPoints.length - 1; i++) {
       const pIni = validPoints[i];
       const pFim = validPoints[i + 1];
-      const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
+      const polyline = L.polyline([[pIni.lat as number, pIni.lon as number], [pFim.lat as number, pFim.lon as number]], {
         color: color,
         weight: weight,
         opacity: opacity,
@@ -440,7 +474,7 @@ export class MesaTrabalhoMapa {
     // Fechamento da malha de polígono N -> 1
     const pLast = validPoints[validPoints.length - 1];
     const pFirst = validPoints[0];
-    const polylineClose = L.polyline([[pLast.lat, pLast.lon], [pFirst.lat, pFirst.lon]], {
+    const polylineClose = L.polyline([[pLast.lat as number, pLast.lon as number], [pFirst.lat as number, pFirst.lon as number]], {
       color: color,
       weight: weight,
       opacity: opacity,
@@ -454,7 +488,7 @@ export class MesaTrabalhoMapa {
   /**
    * Plota a poligonal oficial homologada pelo INCRA (vinda do banco_pontos)
    */
-  public plotPoligonalHomologada(bancoPontos: any[]): void {
+  public plotPoligonalHomologada(bancoPontos: BancoPonto[]): void {
     if (!this.map || !this.bancoPontosGroup) return;
     this.bancoPontosGroup.clearLayers();
 
@@ -480,16 +514,16 @@ export class MesaTrabalhoMapa {
       const popupContent = `
         <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.35; min-width:180px;">
           <div style="font-weight:800; font-size:11px; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; border-b:1px solid rgba(255, 255, 255, 0.1); padding-bottom:3px; margin-bottom:5px;">Vértice Homologado SIGEF</div>
-          <div style="font-weight:700; font-size:13px; margin-bottom:3px; color:#ffffff;">${p.codigo_completo}</div>
+          <div style="font-weight:700; font-size:13px; margin-bottom:3px; color:#ffffff;">${escapeHtml(p.codigo_completo)}</div>
           <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); font-family:'JetBrains Mono',monospace;">Este (E): ${p.este ? p.este.toFixed(2) : 'N/A'} m</div>
           <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); font-family:'JetBrains Mono',monospace; margin-bottom:3px;">Norte (N): ${p.norte ? p.norte.toFixed(2) : 'N/A'} m</div>
           <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Alt (h): <strong>${p.altitude ? p.altitude.toFixed(2) : 'N/A'} m</strong></div>
-          <div style="font-size:10px; color:rgba(255, 255, 255, 0.45);">Método: ${p.metodo_posicionamento || 'N/A'} · Limite: ${p.tipo_limite || 'N/A'}</div>
-          ${p.confrontante_descritivo ? `<div style="font-size:10px; color:rgba(255, 255, 255, 0.65); border-top:1px solid rgba(255, 255, 255, 0.1); padding-top:4px; margin-top:4px; word-break:break-word;"><strong>Conf:</strong> ${p.confrontante_descritivo}</div>` : ''}
+          <div style="font-size:10px; color:rgba(255, 255, 255, 0.45);">Método: ${escapeHtml(p.metodo_posicionamento) || 'N/A'} · Limite: ${escapeHtml(p.tipo_limite) || 'N/A'}</div>
+          ${p.confrontante_descritivo ? `<div style="font-size:10px; color:rgba(255, 255, 255, 0.65); border-top:1px solid rgba(255, 255, 255, 0.1); padding-top:4px; margin-top:4px; word-break:break-word;"><strong>Conf:</strong> ${escapeHtml(p.confrontante_descritivo)}</div>` : ''}
         </div>
       `;
 
-      const marker = L.marker([p.lat, p.lon], { 
+      const marker = L.marker([p.lat as number, p.lon as number], { 
         icon: customIcon,
         pane: 'verticesPane'
       }).bindPopup(popupContent, { className: 'compact-popup', maxWidth: 220 });
@@ -498,7 +532,7 @@ export class MesaTrabalhoMapa {
     });
 
     // 2. Agrupar pontos por matricula_id (ou planilha_origem) e traçar a polilinha fechada para cada grupo de forma independente
-    const grupos: { [key: string]: any[] } = {};
+    const grupos: { [key: string]: BancoPonto[] } = {};
     validPoints.forEach(p => {
       const key = p.matricula_id ? `mat_${p.matricula_id}` : (p.planilha_origem || 'default');
       if (!grupos[key]) {
@@ -517,12 +551,12 @@ export class MesaTrabalhoMapa {
       });
 
       if (pontosGrupo.length >= 2) {
-        const coords = pontosGrupo.map(p => L.latLng(p.lat, p.lon));
-        coords.push(L.latLng(pontosGrupo[0].lat, pontosGrupo[0].lon));
+        const coords = pontosGrupo.map(p => L.latLng(p.lat as number, p.lon as number));
+        coords.push(L.latLng(pontosGrupo[0].lat as number, pontosGrupo[0].lon as number));
 
         const polyline = L.polyline(coords, {
           color: '#f59e0b', // Cor âmbar contrastante premium
-          weight: 3.5,
+          weight: this.config.bancoWeight,
           dashArray: '6, 8',
           pane: 'perimetroPane'
         }).addTo(this.bancoPontosGroup!);
@@ -545,15 +579,15 @@ export class MesaTrabalhoMapa {
   /**
    * Plota marcadores e polígonos dos confrontantes/vizinhos importados via ODS
    */
-  public plotPontosVizinhos(pontos: any[]): void {
+  public plotPontosVizinhos(pontos: Ponto[]): void {
     if (!this.map || !this.pontosVizinhosGroup) return;
 
     this.pontosVizinhosGroup.clearLayers();
     this.vizinhosMarkers = [];
 
-    const grupos = new Map<number, any[]>();
+    const grupos = new Map<number, Ponto[]>();
     pontos.forEach(p => {
-      if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0) {
+      if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0 && p.confrontante_id !== undefined) {
         const cId = p.confrontante_id;
         if (!grupos.has(cId)) grupos.set(cId, []);
         grupos.get(cId)!.push(p);
@@ -564,12 +598,12 @@ export class MesaTrabalhoMapa {
       if (pontosGrupo.length >= 2) {
         pontosGrupo.sort((a, b) => a.id - b.id);
 
-        const coords = pontosGrupo.map(p => L.latLng(p.lat, p.lon));
-        coords.push(L.latLng(pontosGrupo[0].lat, pontosGrupo[0].lon));
+        const coords = pontosGrupo.map(p => L.latLng(p.lat as number, p.lon as number));
+        coords.push(L.latLng(pontosGrupo[0].lat as number, pontosGrupo[0].lon as number));
 
         L.polyline(coords, {
           color: '#a855f7',
-          weight: 2.5,
+          weight: this.config.vizinhoWeight,
           dashArray: '4, 6',
           pane: 'overlayPane'
         }).addTo(this.pontosVizinhosGroup!);
@@ -579,10 +613,10 @@ export class MesaTrabalhoMapa {
         const popupContent = `
           <div class="p-2 font-sans text-xs bg-forest-deep text-white min-w-[200px]">
             <div class="font-bold text-purple-400 mb-1 border-b border-white/10 pb-1">Confrontante (Importado)</div>
-            <div class="mb-1"><strong>Vértice:</strong> <span class="font-mono">${p.nome_vertice}</span></div>
-            <div class="mb-1"><strong>Proprietário:</strong> ${p.nome_confrontante || 'Desconhecido'}</div>
-            <div class="mb-1"><strong>Propriedade:</strong> ${p.nome_propriedade || 'Desconhecida'}</div>
-            <div class="mb-1"><strong>Coordenadas:</strong> ${p.lat.toFixed(7)}, ${p.lon.toFixed(7)}</div>
+            <div class="mb-1"><strong>Vértice:</strong> <span class="font-mono">${escapeHtml(p.nome_vertice)}</span></div>
+            <div class="mb-1"><strong>Proprietário:</strong> ${escapeHtml(p.nome_confrontante) || 'Desconhecido'}</div>
+            <div class="mb-1"><strong>Propriedade:</strong> ${escapeHtml(p.nome_propriedade) || 'Desconhecida'}</div>
+            <div class="mb-1"><strong>Coordenadas:</strong> ${(p.lat as number).toFixed(7)}, ${(p.lon as number).toFixed(7)}</div>
             <div class="text-[10px] text-white/50 border-t border-white/5 pt-1 mt-1 font-mono uppercase tracking-wider mb-2">Pontos Imutáveis do Vizinho</div>
             <div class="flex gap-2 border-t border-white/10 pt-2">
               <button class="px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-forest-deep hover:bg-mint-vibrant/90 active:scale-95 transition-all btn-integrar-vizinho-mapa" data-ponto-id="${p.id}" type="button">
@@ -595,13 +629,15 @@ export class MesaTrabalhoMapa {
           </div>
         `;
 
+        const markerSize = this.config.markerSizeBase;
+        const animClass = this.config.enableAnimations ? 'transition-all duration-150' : '';
         const customIcon = L.divIcon({
           className: 'custom-div-icon flex items-center justify-center',
-          html: `<div class="w-2.5 h-2.5 bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] transition-all duration-150 neighbor-marker" data-ponto-bg="bg-purple-500" id="vizinho-marker-${p.id}"></div>`,
-          iconSize: [16, 16]
+          html: `<div style="width: ${markerSize}px; height: ${markerSize}px;" class="bg-purple-500 border border-white rounded-full shadow-[0_0_6px_rgba(168,85,247,0.6)] neighbor-marker ${animClass}" data-ponto-bg="bg-purple-500" id="vizinho-marker-${p.id}"></div>`,
+          iconSize: [markerSize + 6, markerSize + 6]
         });
 
-        const marker = L.marker([p.lat, p.lon], { icon: customIcon })
+        const marker = L.marker([p.lat as number, p.lon as number], { icon: customIcon })
           .bindPopup(popupContent, { className: 'custom-leaflet-popup' });
         
         (marker as any).pontoId = p.id;
@@ -654,8 +690,6 @@ export class MesaTrabalhoMapa {
         }
       }
     }
-
-    console.log(`[GerenciGeo] Warm-up: ${tileCount} tiles pré-carregados ao redor da propriedade (zoom ${minZoom}-${maxZoom})`);
   }
 
   /** Converte longitude para coordenada X de tile */
@@ -791,13 +825,13 @@ export class MesaTrabalhoMapa {
             <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.4; min-width:180px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid rgba(255, 255, 255, 0.1);">
                 <span style="font-weight:700; font-size:11px; color:#10b981; text-transform:uppercase; letter-spacing:0.5px;">SIGEF</span>
-                <span style="font-size:10px; color:rgba(255, 255, 255, 0.5);">${props.situacao_informada || props.status || 'Certificada'}</span>
+                <span style="font-size:10px; color:rgba(255, 255, 255, 0.5);">${escapeHtml(props.situacao_informada || props.status || 'Certificada')}</span>
               </div>
-              <div style="font-weight:700; font-size:12px; margin-bottom:4px; color:#ffffff; word-break:break-word;">${props.nome_area || props.nome_imovel || 'Imóvel Sem Nome'}</div>
-              <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Cód: <span style="font-family:'JetBrains Mono',monospace;">${props.codigo_imovel || 'N/A'}</span></div>
+              <div style="font-weight:700; font-size:12px; margin-bottom:4px; color:#ffffff; word-break:break-word;">${escapeHtml(props.nome_area || props.nome_imovel || 'Imóvel Sem Nome')}</div>
+              <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Cód: <span style="font-family:'JetBrains Mono',monospace;">${escapeHtml(props.codigo_imovel || 'N/A')}</span></div>
               <div style="display:flex; gap:12px; font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:6px;">
-                <span>Mat: <strong style="color:#ffffff;">${props.registro_matricula || props.matricula || 'N/A'}</strong></span>
-                <span>${props.data_submissao || ''}</span>
+                <span>Mat: <strong style="color:#ffffff;">${escapeHtml(props.registro_matricula || props.matricula || 'N/A')}</strong></span>
+                <span>${escapeHtml(props.data_submissao || '')}</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255, 255, 255, 0.1);">
                 <a href="${downloadUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 8px; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.3); color:#34d399; font-size:11px; font-weight:700; border-radius:5px; text-decoration:none; cursor:pointer;">

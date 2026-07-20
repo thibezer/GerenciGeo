@@ -4,6 +4,7 @@ routes/levantamento/crud.py — CRUD de Levantamentos e Gestão de Arquivos do P
 import os
 import io
 import re
+import json
 import stat
 import shutil
 import zipfile
@@ -69,7 +70,8 @@ def get_levantamentos():
             
         return levantamentos
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao listar levantamentos: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar levantamentos.")
 
 @router.post("/levantamentos")
 def create_levantamento(lev: LevantamentoCreate):
@@ -94,8 +96,11 @@ def create_levantamento(lev: LevantamentoCreate):
             ExportacaoService.gerar_documento_cliente_workspace(lev_id)
             
             return {"id": lev_id, "pasta_projeto": pasta, "message": "Levantamento e workspace criados"}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao criar levantamento: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno ao criar levantamento: {str(e)}")
 
 @router.put("/levantamentos/{lev_id}")
 def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
@@ -108,13 +113,14 @@ def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
         """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.status, lev.numero_trt, lev.data_trt, lev_id), commit=True)
         
         # Regenera o Workspace DADOS_GERAIS.json
-        wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(lev_id)
-        
+
         return {"message": "Levantamento atualizado com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao atualizar levantamento id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno ao atualizar levantamento: {str(e)}")
 
 @router.delete("/levantamentos/{lev_id}")
 def delete_levantamento(lev_id: int, apagar_arquivos: bool = False):
@@ -131,9 +137,11 @@ def delete_levantamento(lev_id: int, apagar_arquivos: bool = False):
                 wm.delete_workspace(lev_id)
                 
             return {"message": "Levantamento removido com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao deletar levantamento id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno ao remover levantamento: {str(e)}")
 
 @router.post("/levantamentos/{lev_id}/documentos")
 async def upload_documento_levantamento(lev_id: int, file: UploadFile = File(...)):
@@ -148,9 +156,11 @@ async def upload_documento_levantamento(lev_id: int, file: UploadFile = File(...
             buffer.write(await file.read())
             
         return {"message": "Documento anexado", "path": file_path}
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao fazer upload de documento para lev_id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar documento: {str(e)}")
 
 @router.post("/levantamentos/{lev_id}/upload-arquivo")
 async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTasks, categoria: str = Form(...), file: UploadFile = File(...)):
@@ -208,7 +218,7 @@ async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTask
 async def testar_busca_rinex(lev_id: int):
     verificar_levantamento_arquivado(lev_id)
     try:
-        import sys, re
+        import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         from buscador_rinex import encontrar_rinex
         
@@ -388,7 +398,8 @@ def get_arquivos_levantamento(lev_id: int):
                         
         return resultado
     except Exception as e:
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao listar arquivos do levantamento id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao listar arquivos do levantamento.")
 
 @router.get("/levantamentos/{lev_id}/arquivos/download")
 def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
@@ -405,9 +416,11 @@ def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
             raise HTTPException(status_code=404, detail="Arquivo não localizado no disco.")
             
         return FileResponse(file_path, filename=file_path.name)
+    except HTTPException:
+        raise
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        logging.getLogger(__name__).error(f"Erro ao fazer download de arquivo para lev_id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao baixar arquivo: {str(e)}")
 
 # ── Tranca de Segurança e Arquivamento ─────────────────────────────────────────
 
@@ -463,7 +476,6 @@ def obter_historico_campo(id: int):
         )
         logs = []
         for r in rows:
-            import json
             log_item = dict(r)
             try:
                 log_item["dados_detalhados"] = json.loads(log_item["dados_detalhados"]) if log_item["dados_detalhados"] else {}

@@ -13,19 +13,22 @@
 
 @layer components {
   .glass-card {
-    @apply bg-surface-glass border border-border-glass backdrop-blur-md rounded-technical;
+    @apply bg-surface-glass border border-border-glass backdrop-blur-xl rounded-technical shadow-lg transition-all duration-300;
+  }
+  .glass-card:hover {
+    @apply border-white/20 shadow-[0_8px_30px_rgb(0,0,0,0.12)];
   }
   
   .glass-input {
-    @apply bg-white/5 border border-white/10 rounded-technical px-3 py-2 outline-none focus:border-mint-vibrant/50 transition-all;
+    @apply bg-white/5 border border-white/10 rounded-technical px-3 py-2 outline-none focus:border-mint-vibrant/60 focus:bg-white/10 focus:shadow-[0_0_10px_rgba(0,224,138,0.2)] transition-all duration-300;
   }
 
   .btn-primary {
-    @apply bg-mint-vibrant text-forest-deep font-bold px-4 py-2 rounded-technical hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2;
+    @apply bg-gradient-to-r from-mint-vibrant to-[#00C97C] text-forest-deep font-bold px-4 py-2 rounded-technical shadow-[0_0_15px_rgba(0,224,138,0.3)] hover:shadow-[0_0_25px_rgba(0,224,138,0.5)] hover:brightness-110 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2;
   }
 
   .btn-secondary {
-    @apply bg-white/5 border border-white/10 text-white/80 font-medium px-4 py-2 rounded-technical hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-2;
+    @apply bg-white/5 border border-white/10 text-white/80 font-medium px-4 py-2 rounded-technical hover:bg-white/10 hover:border-white/20 active:scale-95 transition-all duration-300 flex items-center justify-center gap-2;
   }
 
   .terminal-line {
@@ -101,7 +104,7 @@
 
 .leaflet-bar a:hover {
     background: rgba(0, 245, 160, 0.2) !important;
-    color: #00f5a0 !important;
+    color: var(--geo-accent, #00f5a0) !important;
 }
 
 /* Classe para Tela Cheia customizada do Mapa */
@@ -111,7 +114,7 @@
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 1000 !important; /* Acima de tudo exceto modais */
+    z-index: var(--geo-z-overlay) !important; /* Acima de tudo exceto modais */
     border-radius: 0 !important;
     margin: 0 !important;
 }
@@ -231,7 +234,7 @@ select.glass-input option {
 .confrontante-label-text {
    display: inline-block;
    background-color: rgba(12, 21, 16, 0.9); /* Fundo Deep Forest escuro com opacidade */
-   color: #00f5a0; /* Verde menta vibrante do padrão de design */
+   color: var(--geo-accent, #00f5a0); /* Verde menta vibrante do padrão de design */
    font-family: var(--geo-font-sans), 'Fira Code', monospace;
    font-size: 9px;
    font-weight: 700;
@@ -247,7 +250,7 @@ select.glass-input option {
 .confrontante-tooltip-label {
     background-color: rgba(12, 21, 16, 0.9) !important;
     border: 1px solid rgba(0, 245, 160, 0.3) !important;
-    color: #00f5a0 !important;
+    color: var(--geo-accent, #00f5a0) !important;
     font-size: 8px !important;
     font-weight: 700 !important;
     font-family: 'JetBrains Mono', 'Consolas', monospace !important;
@@ -267,7 +270,7 @@ select.glass-input option {
    ========================================================================== */
 .menu-contexto-flutuante {
   position: absolute;
-  z-index: 9999;
+  z-index: var(--geo-z-tooltip);
   min-width: 160px;
   background-color: rgba(12, 21, 16, 0.95);
   backdrop-filter: blur(12px);
@@ -294,7 +297,7 @@ select.glass-input option {
 
 .menu-contexto-item:hover {
   background-color: rgba(0, 245, 160, 0.15);
-  color: #00f5a0;
+  color: var(--geo-accent, #00f5a0);
 }
 
 .menu-contexto-item.item-excluir:hover {
@@ -321,7 +324,7 @@ thead th,
 #tbl-pontos-header th {
    background-color: #0b130e !important; /* Fundo escuro totalmente opaco combinando com forest-deep */
    opacity: 1 !important;
-   z-index: 10;
+   z-index: var(--geo-z-elevated);
 }
 
 /* ==========================================================================
@@ -332,7 +335,7 @@ thead th,
 #mesa-trabalho-header {
   position: sticky;
   top: 0;
-  z-index: 45;
+  z-index: var(--geo-z-modal);
   background-color: rgba(12, 21, 16, 0.85);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -623,7 +626,7 @@ thead th,
     bottom: 0 !important;
     left: 0 !important;
     width: 224px !important;
-    z-index: 100000 !important;
+    z-index: var(--geo-z-max) !important;
     transform: translateX(-100%) !important;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
@@ -662,7 +665,7 @@ thead th,
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
-    z-index: 99999;
+    z-index: var(--geo-z-max);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;

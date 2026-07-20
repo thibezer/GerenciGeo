@@ -28,8 +28,9 @@ def corrigir_mojibake(texto):
                     break
             except Exception:
                 continue
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[CCIR] Falha na decodificação de mojibake, retornando original: {e}")
         
     # Contingência manual para Mojibakes persistentes do Excel/INCRA
     substituicoes = {
@@ -260,8 +261,9 @@ def sincronizar_pasta_ccir():
                 if local_info['mtime'] > db_ts + 2:
                     importar = True
                     reason = "planilha atualizada no disco"
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"[CCIR] Erro ao extrair data do banco ou tempo do arquivo: {e}")
                 
         if importar:
             if filename in arquivos_db_dict:

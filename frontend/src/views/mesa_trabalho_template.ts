@@ -143,13 +143,13 @@ export const renderMesaTrabalho = (): string => {
             <!-- PAINEL: Mesa Geodésica -->
             <div class="rl3-panel" id="panel-geoprocessamento" role="tabpanel">
               <!-- Grupo: Ingestão -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-ingestao">
                 <div class="rl3-group-tools">
                   <button class="rl3-tool-btn rl3-btn-lg" id="btn-drop-arquivos" title="Arraste ou selecione arquivos .GNS/.TXT" type="button">
                     <i data-lucide="upload-cloud"></i>
                     <span>Ingestão</span>
                   </button>
-                  <button class="rl3-tool-btn" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
                     <i data-lucide="play"></i>
                     <span>Processar Lote</span>
                   </button>
@@ -159,14 +159,14 @@ export const renderMesaTrabalho = (): string => {
               <div class="rl3-divider"></div>
 
               <!-- Grupo: Vizinhos (SIGEF) -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-vizinhos">
                 <div class="rl3-group-tools">
-                  <button class="rl3-tool-btn" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
                     <i data-lucide="download"></i>
                     <span>Importar Vizinhos</span>
                   </button>
                   <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
-                  <button class="rl3-tool-btn rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
                     <i data-lucide="trash-2"></i>
                     <span>Limpar Camada</span>
                   </button>
@@ -176,14 +176,14 @@ export const renderMesaTrabalho = (): string => {
               <div class="rl3-divider"></div>
 
               <!-- Grupo: Coordenadas -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-coordenadas">
                 <div class="rl3-group-tools">
                   <div class="rl3-toggle-row">
                     <span class="rl3-toggle-label">Modo:</span>
                     <button class="rl3-toggle-btn active" id="btn-modo-utm" data-mode="utm" type="button">UTM</button>
                     <button class="rl3-toggle-btn" id="btn-modo-geo" data-mode="geodesico" type="button">Geo</button>
                   </div>
-                  <button class="rl3-tool-btn" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
                     <i data-lucide="archive"></i>
                     <span>RINEX .ZIP</span>
                   </button>
@@ -193,33 +193,50 @@ export const renderMesaTrabalho = (): string => {
               <div class="rl3-divider"></div>
 
               <!-- Grupo: Exportar -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-exportar">
                 <div class="rl3-group-tools">
-                  <button class="rl3-tool-btn" id="btn-exportar-kml" type="button">
-                    <i data-lucide="map-pin"></i>
-                    <span>KML</span>
-                  </button>
-                  <button class="rl3-tool-btn" id="btn-unificar-sigef" type="button">
-                    <i data-lucide="file-spreadsheet"></i>
-                    <span>Unificar SIGEF</span>
-                  </button>
-                  <button class="rl3-tool-btn" id="btn-consolidar-pontos-utm" type="button">
+                  <!-- Coluna 1 (Botões pequenos) -->
+                  <div class="rl3-tool-col">
+                    <button class="rl3-tool-btn rl3-btn-small" id="btn-exportar-kml" type="button">
+                      <i data-lucide="map-pin"></i>
+                      <span>KML</span>
+                    </button>
+                    <button class="rl3-tool-btn rl3-btn-small" id="btn-unificar-sigef" type="button">
+                      <i data-lucide="file-spreadsheet"></i>
+                      <span>Unificar SIGEF</span>
+                    </button>
+                  </div>
+                  
+                  <!-- Botão Grande -->
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-consolidar-pontos-utm" type="button">
                     <i data-lucide="upload"></i>
                     <span>Exportar Dados</span>
                   </button>
+
+                  <!-- Coluna 2 (Botões pequenos) -->
+                  <div class="rl3-tool-col">
+                    <button class="rl3-tool-btn rl3-btn-small" id="btn-exportar-tabela-csv" title="Exportar tabela de vértices filtrados em CSV" type="button">
+                      <i data-lucide="download"></i>
+                      <span>Exportar CSV</span>
+                    </button>
+                    <button class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD" type="button">
+                      <i data-lucide="copy"></i>
+                      <span>Copiar CAD</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="rl3-group-label">Exportar</div>
               </div>
               <div class="rl3-divider"></div>
 
               <!-- Grupo: Edição -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-edicao">
                 <div class="rl3-group-tools">
-                  <button class="rl3-tool-btn" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
                     <i data-lucide="arrow-up-down"></i>
                     <span>Reordenar</span>
                   </button>
-                  <button class="rl3-tool-btn rl3-btn-warn" id="btn-override-base-manual" title="Sobrescrever ponto base manualmente" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg rl3-btn-warn" id="btn-override-base-manual" title="Sobrescrever ponto base manualmente" type="button">
                     <i data-lucide="shield-alert"></i>
                     <span>Base Manual</span>
                   </button>
@@ -229,13 +246,13 @@ export const renderMesaTrabalho = (): string => {
               <div class="rl3-divider"></div>
 
               <!-- Grupo: Projeto -->
-              <div class="rl3-group">
+              <div class="rl3-group" data-group-id="grp-projeto">
                 <div class="rl3-group-tools">
-                  <button class="rl3-tool-btn" id="btn-sincronizar-nuvem" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg" id="btn-sincronizar-nuvem" type="button">
                     <i data-lucide="cloud-lightning"></i>
                     <span>Nuvem</span>
                   </button>
-                  <button class="rl3-tool-btn rl3-btn-danger" id="btn-arquivar-projeto-seguro" title="Arquivar este levantamento" type="button">
+                  <button class="rl3-tool-btn rl3-btn-lg rl3-btn-danger" id="btn-arquivar-projeto-seguro" title="Arquivar este levantamento" type="button">
                     <i data-lucide="archive-x"></i>
                     <span>Arquivar</span>
                   </button>
@@ -315,7 +332,12 @@ export const renderMesaTrabalho = (): string => {
           <div class="map-container-wrapper" id="container-mapa-leaflet-parent">
              <div class="px-4 py-1.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
                <span class="text-[10px] font-medium uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
-               <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
+               <div class="flex items-center gap-4">
+                 <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
+                 <button id="btn-config-mapa-canvas" onclick="if(window.pywebview && window.pywebview.api) { window.pywebview.api.open_map_settings(); } else { alert('Configuração nativa indisponível. Abra via PyWebview.'); }" class="bg-[#0c1510]/95 border border-white/15 hover:border-mint-vibrant/50 hover:bg-[#121c16] p-1.5 rounded-lg text-white/50 hover:text-white transition-all group backdrop-blur-md cursor-pointer flex items-center justify-center" type="button" title="Opções de Visualização (Canvas)">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-90 transition-transform duration-500"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                 </button>
+               </div>
              </div>
              <!-- Banner de Numeração Sugerida INCRA -->
              <div id="banner-sugestao-numeracao" class="bg-forest-deep/40 border border-white/5 px-4 py-1.5 text-[10px] flex items-center justify-between text-xs hidden animate-in slide-in-from-top duration-300">
@@ -325,6 +347,7 @@ export const renderMesaTrabalho = (): string => {
                </div>
                <span class="text-[8px] font-mono text-white/20 uppercase tracking-widest">Baseado no Banco de Pontos</span>
              </div>
+             <!-- Botão flutuante removido e realocado no header superior -->
              <div id="mapa-triagem" class="mapa-leaflet-canvas"></div>
           </div>
 
@@ -358,7 +381,7 @@ export const renderMesaTrabalho = (): string => {
                       Filtrar por Arquivo
                     </button>
                     <!-- Popover flutuante absoluto -->
-                    <div class="absolute left-0 mt-1 w-56 bg-[#0e1b14] border border-mint-vibrant/20 rounded shadow-2xl p-3 z-[999] hidden flex flex-col space-y-2 max-h-60 overflow-y-auto" id="popover-filtro-arquivos">
+                    <div class="absolute left-0 mt-1 w-56 bg-[#0e1b14] border border-mint-vibrant/20 rounded shadow-2xl p-3 z-[var(--geo-z-dropdown)] hidden flex flex-col space-y-2 max-h-60 overflow-y-auto" id="popover-filtro-arquivos">
                       <!-- Checkboxes injetadas dinamicamente via JS -->
                     </div>
                   </div>
@@ -369,10 +392,6 @@ export const renderMesaTrabalho = (): string => {
                      <i data-lucide="search"></i>
                      <input type="text" id="input-search-ponto" placeholder="Filtrar ponto..." />
                   </div>
-                  
-                  <button class="p-1 bg-white/5 border border-white/10 hover:bg-mint-vibrant/10 hover:text-mint-vibrant hover:border-mint-vibrant/30 rounded text-white/75 transition-all flex items-center justify-center shrink-0 active:scale-95 ml-2" id="btn-exportar-tabela-csv" title="Exportar tabela para CSV" type="button">
-                    <i data-lucide="download" class="w-3 h-3"></i>
-                  </button>
                 </div>
 
                 <div class="vtx-table-container">
@@ -485,7 +504,7 @@ export const renderMesaTrabalho = (): string => {
                        </div>
 
                        <!-- MODAL DE INGESTÃO E TRIAGEM DE ARQUIVOS (Auto-Detect Drag & Drop) -->
-                       <div id="container-ingestao-arquivos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-4">
+                       <div id="container-ingestao-arquivos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
                          <div class="bg-[#0e1b14]/95 border border-mint-vibrant/20 w-full max-w-2xl rounded-technical shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
                            <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center shrink-0">
                              <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -555,7 +574,7 @@ export const renderMesaTrabalho = (): string => {
                    <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
                      <table class="w-full text-left border-collapse text-xs">
                        <thead>
-                         <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-10">
+                         <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-[var(--geo-z-sticky)]">
                            <th class="px-3 py-2">De ➔ Para</th>
                            <th class="px-2 py-2 text-right">Dist (m)</th>
                            <th class="px-2 py-2 text-right">Azimute</th>
@@ -778,7 +797,7 @@ export const renderMesaTrabalho = (): string => {
            ========================================================= -->
 
       <!-- MODAL IMPORTAR LIMITES -->
-      <div id="modal-importar-limites" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
+      <div id="modal-importar-limites" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
          <div class="glass-card w-full max-w-lg overflow-hidden flex flex-col">
             <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                <h3 class="text-base font-bold flex items-center gap-2">
@@ -809,7 +828,7 @@ export const renderMesaTrabalho = (): string => {
       </div>
 
       <!-- MODAL UNIFICAR SIGEF (1A) -->
-      <div id="modal-unificar-sigef" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] hidden flex items-center justify-center p-4">
+      <div id="modal-unificar-sigef" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
          <div class="glass-card w-full max-w-md overflow-hidden flex flex-col">
             <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                <h3 class="text-base font-bold flex items-center gap-2">
@@ -845,7 +864,7 @@ export const renderMesaTrabalho = (): string => {
       </div>
 
       <!-- BARRA DE AÇÕES EM LOTE FLUTUANTE DA MESA DE TRABALHO -->
-      <div id="batch-action-bar-mesa" style="z-index: 9999;" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
+      <div id="batch-action-bar-mesa" style="z-index: var(--geo-z-toast);" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
          <span class="text-xs text-white/80 font-mono"><strong id="batch-selection-count-mesa" class="text-mint-vibrant">0</strong> selecionados</span>
          <div class="h-4 w-px bg-white/10"></div>
          <div class="flex gap-2">
@@ -868,7 +887,7 @@ export const renderMesaTrabalho = (): string => {
       </div>
 
       <!-- MODAL DE FILTRO ESTILO REVIT -->
-      <div id="modal-filtro-revit-mesa" style="z-index: 10000;" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div id="modal-filtro-revit-mesa" style="z-index: var(--geo-z-modal);" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
          <div class="glass-card w-full max-w-sm overflow-hidden flex flex-col border border-indigo-500/20 shadow-2xl">
             <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                <h3 class="text-sm font-bold flex items-center gap-2 text-white">
@@ -900,6 +919,7 @@ export const renderMesaTrabalho = (): string => {
             </div>
          </div>
       </div>
+
 
 </div>
   `;

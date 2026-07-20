@@ -757,11 +757,12 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
         logger.error(f"[VINCULO_TARDE] Falha crítica de transação ao atualizar rovers: {e_db}")
         raise e_db
 
-def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquivo_origem: str, dados_brutos: dict, dados_corrigidos: dict, base_id: int = None) -> int:
+def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquivo_origem: str, dados_brutos: dict, dados_corrigidos: dict, base_id: int = None, tipo_ponto_base: str = 'M') -> int:
     """
     Aplica a correção manual por translação plana rigorosa em todo o lote de pontos
     pertencente ao arquivo_origem, usando dados brutos de campo e coordenadas oficiais homologadas.
-    Insere/atualiza o ponto base de campo como Tipo 'M' com coordenadas oficiais.
+    Insere/atualiza o ponto base de campo com coordenadas oficiais, respeitando o tipo
+    solicitado (tipo_ponto_base: 'M' para Base PPP ou 'B' para Base Física).
     """
     import math
     import logging
@@ -772,6 +773,13 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     from services.parsers.txt_parser import TxtGeodesicParser
     
     logger = logging.getLogger(__name__)
+
+    # BUGFIX: o tipo do ponto base ficava hardcoded como 'M' (Base PPP) tanto no
+    # UPDATE quanto no INSERT abaixo, mesmo quando o usuário pedia explicitamente
+    # tipo 'B' (Base Física). O ponto virava/permanecia 'M' silenciosamente, dando
+    # a impressão de que "marcar como base" não tinha feito efeito.
+    if tipo_ponto_base not in ('M', 'B'):
+        tipo_ponto_base = 'M'
 
     try:
         wm = WorkspaceManager()
@@ -848,9 +856,9 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     if base_id is None:
         query_check_base = """
             SELECT id FROM pontos
-            WHERE levantamento_id = ? AND nome_vertice = ? AND tipo_ponto = 'M'
+            WHERE levantamento_id = ? AND nome_vertice = ? AND tipo_ponto = ?
         """
-        row_base = execute_query(query_check_base, params=(levantamento_id, nome_base), fetch_one=True)
+        row_base = execute_query(query_check_base, params=(levantamento_id, nome_base, tipo_ponto_base), fetch_one=True)
         base_id = row_base["id"] if row_base else None
     
     if base_id:
@@ -863,7 +871,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 sigma_n = ?, sigma_e = ?, sigma_z = ?,
                 status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
                 arquivo_origem = ?, ignorar_poligono = 1, nome_vertice = ?,
-                tipo_ponto = 'M', ponto_base_id = NULL
+                tipo_ponto = ?, ponto_base_id = NULL
             WHERE id = ?
         """
         execute_query(query_upsert_base, params=(
@@ -872,7 +880,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
             n_bruto, e_bruto, alt_bruta,
             sig_base_lat, sig_base_lon, sig_base_alt,
             sig_base_lat, sig_base_lon, sig_base_alt,
-            arquivo_origem, nome_base, base_id
+            arquivo_origem, nome_base, tipo_ponto_base, base_id
         ), commit=True)
     else:
         query_upsert_base = """
@@ -883,12 +891,12 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 sigma_lat, sigma_lon, sigma_alt,
                 sigma_n, sigma_e, sigma_z,
                 status_ponto, status_correcao, arquivo_origem, ignorar_poligono
-            ) VALUES (?, ?, ?, 'M', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?, 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?, 1)
         """
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute(query_upsert_base, (
-                levantamento_id, matricula_id_efetiva, nome_base, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+                levantamento_id, matricula_id_efetiva, nome_base, tipo_ponto_base, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
                 lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
                 n_bruto, e_bruto, alt_bruta,
                 sig_base_lat, sig_base_lon, sig_base_alt,
@@ -1126,4 +1134,3 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
     except Exception as e:
         logger.error(f"[REVERSAO_ORFÃOS] Erro ao reverter rovers para bruto: {e}")
         raise e
-

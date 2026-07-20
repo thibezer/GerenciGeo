@@ -6,7 +6,8 @@ from datetime import datetime
 import json
 
 # Define the global trace log file path
-LOG_DIR = os.path.join(os.getcwd(), "logs")
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_DIR = os.path.join(root_dir, "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 TRACE_LOG_FILE = os.path.join(LOG_DIR, "gerencigeo_trace.log")
 

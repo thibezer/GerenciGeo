@@ -60,7 +60,10 @@ export const hgoRoute: RouteDef = {
     
     const pollLogs = () => {
       fetch(`${API_BASE}/logs`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('Erro na requisição');
+          return res.json();
+        })
         .then(data => {
           const logs = data.logs || [];
           if (logs.length > lastLogCount && term) {
@@ -110,14 +113,18 @@ export const hgoRoute: RouteDef = {
               if (progressBar) progressBar.style.width = `${percent}%`;
             }
           }
-        });
+        })
+        .catch(err => console.warn('Erro ao buscar logs HGO:', err));
     };
     const intervalId = window.setInterval(pollLogs, 1000);
     registerInterval(intervalId);
 
-    document.getElementById('btn-pick-folder')?.addEventListener('click', async () => {
+    document.getElementById('btn-pick-folder')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      btn.disabled = true;
       try {
         const res = await fetch(`${API_BASE}/pick-folder`);
+        if (!res.ok) throw new Error('Erro ao abrir pasta');
         const data = await res.json();
         if (data.path) {
           currentFolder = data.path;
@@ -131,24 +138,31 @@ export const hgoRoute: RouteDef = {
       } catch (e) {
         console.error(e);
         showToast("Erro ao abrir janela de diretório.", "error");
+      } finally {
+        btn.disabled = false;
       }
     });
 
-    document.getElementById('btn-start-hgo')?.addEventListener('click', async () => {
+    document.getElementById('btn-start-hgo')?.addEventListener('click', async (e) => {
       if (!currentFolder) {
         showToast("Selecione uma pasta de arquivos brutos primeiro!", "error");
         return;
       }
+      const btn = e.currentTarget as HTMLButtonElement;
+      btn.disabled = true;
       try {
         showToast("Iniciando esteira de processamento GNSS...", "info");
-        await fetch(`${API_BASE}/process/hgo`, {
+        const res = await fetch(`${API_BASE}/process/hgo`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pasta: currentFolder })
         });
+        if (!res.ok) throw new Error('Erro no processo');
       } catch (e) {
         console.error(e);
         showToast("Erro ao disparar processo HGO.", "error");
+      } finally {
+        btn.disabled = false;
       }
     });
   }

@@ -3,6 +3,9 @@ import shutil
 import time
 import math
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def xyz_to_llh(x, y, z):
     """Converte coordenadas XYZ (ECEF) para Latitude e Longitude (GRS80/SIRGAS 2000)"""
@@ -54,19 +57,22 @@ def ler_metadados_rinex(caminho_arquivo):
                         partes = conteudo.split()
                         x, y, z = float(partes[0]), float(partes[1]), float(partes[2])
                         metadados['lat'], metadados['lon'] = xyz_to_llh(x, y, z)
-                    except: pass
+                    except Exception as e:
+                        logger.debug(f"Erro ao ler APPROX POSITION XYZ: {e}")
                         
                 elif "TIME OF FIRST OBS" in rotulo:
                     try:
                         partes = conteudo.split()
                         metadados['inicio'] = datetime(int(partes[0]), int(partes[1]), int(partes[2]), int(partes[3]), int(partes[4]), int(float(partes[5])))
-                    except: pass
+                    except Exception as e:
+                        logger.debug(f"Erro ao ler TIME OF FIRST OBS: {e}")
                         
                 elif "TIME OF LAST OBS" in rotulo:
                     try:
                         partes = conteudo.split()
                         metadados['fim'] = datetime(int(partes[0]), int(partes[1]), int(partes[2]), int(partes[3]), int(partes[4]), int(float(partes[5])))
-                    except: pass
+                    except Exception as e:
+                        logger.debug(f"Erro ao ler TIME OF LAST OBS: {e}")
 
         # 2. Fallback rigoroso para buscar o FIM do rastreio
         if not metadados['fim'] and metadados['inicio']:
@@ -87,7 +93,8 @@ def ler_metadados_rinex(caminho_arquivo):
                                 try:
                                     metadados['fim'] = datetime(int(p[0]), int(p[1]), int(p[2]), int(p[3]), int(p[4]), int(float(p[5])))
                                     break
-                                except: pass
+                                except Exception as e:
+                                    logger.debug(f"Erro ao converter data fim fallback RINEX 3: {e}")
                         # Padrão RINEX 2: Busca garantida usando fatiamento da string
                         elif len(linha) >= 26:
                             ano_str = linha[0:3].strip()
@@ -106,7 +113,8 @@ def ler_metadados_rinex(caminho_arquivo):
                                     if 1 <= mes <= 12 and 1 <= dia <= 31:
                                         metadados['fim'] = datetime(ano, mes, dia, int(hr_str), int(min_str), int(float(seg_str)))
                                         break
-                                except: pass
+                                except Exception as e:
+                                    logger.debug(f"Erro ao converter data fim fallback RINEX 2: {e}")
             except Exception as e:
                 print(f"[TRIAGEM] Erro no Fallback: {e}")
                 
@@ -136,8 +144,8 @@ def copiar_original_gns(caminho_rinex, pasta_destino):
                 origem_gns = os.path.join(pasta_raiz, f)
                 shutil.copy2(origem_gns, pasta_destino)
                 return True
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"Erro ao copiar arquivo GNS original: {e}")
     return False
 
 def organizar_rastreios(pasta_origem, pasta_destino_hgo, msg_queue=None):
@@ -198,6 +206,8 @@ def organizar_rastreios(pasta_origem, pasta_destino_hgo, msg_queue=None):
             copiar_original_gns(base['arquivo'], caminho_pasta_hgo)
         except shutil.SameFileError:
             pass
+        except Exception as e:
+            logger.error(f"Erro ao copiar arquivos base para HGO: {e}")
             
         for rover in base['rovers']:
             try:
@@ -205,6 +215,8 @@ def organizar_rastreios(pasta_origem, pasta_destino_hgo, msg_queue=None):
                 copiar_original_gns(rover['arquivo'], caminho_pasta_hgo)
             except shutil.SameFileError:
                 pass
+            except Exception as e:
+                logger.error(f"Erro ao copiar arquivos rover para HGO: {e}")
                 
     if msg_queue:
         msg_queue.put({"tipo": "log", "mensagem": f"[TRIAGEM] Identificada(s) {len(bases)} Base(s) e alocados os Rovers."})
@@ -220,7 +232,8 @@ def gerar_alertas_integridade():
     criticos_query = "SELECT arquivo_nome, arquivo_tamanho, sucesso FROM historico_rinex WHERE sucesso = 0 OR arquivo_tamanho < 51200"
     try:
         criticos = [dict(r) for r in execute_query(criticos_query, fetch_all=True)]
-    except:
+    except Exception as e:
+        logger.error(f"Erro ao buscar alertas criticos: {e}")
         criticos = []
         
     for c in criticos:
@@ -235,7 +248,8 @@ def gerar_alertas_integridade():
     incompletos_query = "SELECT nome_vertice, arquivo_rinex FROM pontos WHERE arquivo_rinex IS NOT NULL AND arquivo_resultado_ppp IS NULL"
     try:
         incompletos = [dict(r) for r in execute_query(incompletos_query, fetch_all=True)]
-    except:
+    except Exception as e:
+        logger.error(f"Erro ao buscar alertas incompletos: {e}")
         incompletos = []
         
     for inc in incompletos:
@@ -269,7 +283,7 @@ def gerar_alertas_integridade():
                                 "mensagem": f"Base '{b['nome_vertice']}': Tempo de rastreio de {duracao/3600:.2f}h é menor que o mínimo de 2 horas exigido pelo INCRA."
                             })
     except Exception as e_rastreio:
-        pass
+        logger.error(f"Erro na validação de tempo mínimo de rastreio: {e_rastreio}")
         
     # 3. Segmentos sem confrontantes vinculados
     segmentos_sem_confrontante_query = """
@@ -281,7 +295,8 @@ def gerar_alertas_integridade():
     """
     try:
         seg_sem_conf = [dict(r) for r in execute_query(segmentos_sem_confrontante_query, fetch_all=True)]
-    except:
+    except Exception as e:
+        logger.error(f"Erro ao buscar segmentos sem confrontante: {e}")
         seg_sem_conf = []
         
     for seg in seg_sem_conf:
@@ -303,7 +318,8 @@ def gerar_alertas_integridade():
     """
     try:
         pts_orfaos = [dict(r) for r in execute_query(pontos_orfaos_query, fetch_all=True)]
-    except:
+    except Exception as e:
+        logger.error(f"Erro ao buscar pontos orfaos: {e}")
         pts_orfaos = []
 
     for pt in pts_orfaos:
@@ -348,7 +364,7 @@ def gerar_alertas_integridade():
                         "mensagem": f"Levantamento {lev['id']}: Arquivos brutos sem correspondente Rinex em /Brutos: {', '.join(brutos_nao_convertidos)}"
                     })
     except Exception as e:
-        pass
+        logger.error(f"Erro ao buscar arquivos brutos nao convertidos: {e}")
 
     # 6. Alerta dinâmico de fuso UTM (Meridiano Central)
     lev_ativos_query = "SELECT id FROM levantamentos WHERE status = 'EM_ANDAMENTO'"
@@ -376,6 +392,6 @@ def gerar_alertas_integridade():
                         "mensagem": f"Levantamento {lev['id']}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W)."
                     })
     except Exception as e:
-        pass
+        logger.error(f"Erro na checagem de fuso UTM: {e}")
 
     return alertas

@@ -65,12 +65,12 @@ def get_propriedades():
             p['total_levantamentos'] = levs['qtd'] if levs else 0
         return propriedades
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/propriedades")
 def create_propriedade(p: PropriedadeCreate):
     if len(p.uf) != 2:
-        return {"error": "UF deve conter exatamente 2 caracteres"}
+        raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
@@ -82,13 +82,13 @@ def create_propriedade(p: PropriedadeCreate):
             conn.commit()
         return {"id": prop_id, "message": "Propriedade cadastrada com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/propriedades/{prop_id}")
 def update_propriedade(prop_id: int, p: PropriedadeCreate):
     verificar_propriedade_arquivada(prop_id)
     if len(p.uf) != 2:
-        return {"error": "UF deve conter exatamente 2 caracteres"}
+        raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
     try:
         execute_query("""
             UPDATE propriedades
@@ -97,7 +97,7 @@ def update_propriedade(prop_id: int, p: PropriedadeCreate):
         """, params=(p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.caminho_arquivo_car, p.caminho_arquivo_ccir, p.municipio, p.uf.upper(), prop_id), commit=True)
         return {"message": "Propriedade atualizada com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/propriedades/{prop_id}")
 def delete_propriedade(prop_id: int):
@@ -106,7 +106,7 @@ def delete_propriedade(prop_id: int):
         execute_query("DELETE FROM propriedades WHERE id = ?", params=(prop_id,), commit=True)
         return {"message": "Propriedade excluída com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Upload / Download de Arquivos CAR e CCIR ───────────────────────────────────
 
@@ -134,8 +134,10 @@ async def upload_propriedade_car(prop_id: int, file: UploadFile = File(...)):
             commit=True
         )
         return {"message": "Arquivo do CAR enviado com sucesso", "caminho": str(dest_path)}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/propriedades/{prop_id}/upload-ccir")
 async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
@@ -160,8 +162,10 @@ async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
             commit=True
         )
         return {"message": "Arquivo do CCIR enviado com sucesso", "caminho": str(dest_path)}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/propriedades/{prop_id}/arquivo-car")
 def download_propriedade_car(prop_id: int):
@@ -195,7 +199,7 @@ def delete_propriedade_car(prop_id: int):
         execute_query("UPDATE propriedades SET caminho_arquivo_car = NULL WHERE id = ?", params=(prop_id,), commit=True)
         return {"message": "Arquivo do CAR excluído com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/propriedades/{prop_id}/arquivo-ccir")
 def delete_propriedade_ccir(prop_id: int):
@@ -209,7 +213,7 @@ def delete_propriedade_ccir(prop_id: int):
         execute_query("UPDATE propriedades SET caminho_arquivo_ccir = NULL WHERE id = ?", params=(prop_id,), commit=True)
         return {"message": "Arquivo do CCIR excluído com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Matrículas da Propriedade ──────────────────────────────────────────────────
 
@@ -219,7 +223,7 @@ def get_matriculas_da_propriedade(prop_id: int):
         rows = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ? ORDER BY numero_matricula ASC", params=(prop_id,), fetch_all=True)
         return [dict(r) for r in rows]
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/propriedades/{prop_id}/matriculas")
 def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
@@ -234,7 +238,7 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Vínculo de Clientes e Proprietários ──────────────────────────────────────────
 
@@ -243,7 +247,7 @@ def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
     verificar_propriedade_arquivada(prop_id)
     res = vincular_cliente_propriedade(prop_id, pc.cliente_id, pc.percentual_participacao)
     if "error" in res:
-        return {"error": res["error"]}
+        raise HTTPException(status_code=400, detail=res["error"])
     return res
 
 @router.delete("/propriedades/{prop_id}/clientes/{cliente_id}")
@@ -257,4 +261,4 @@ def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
         )
         return {"message": "Proprietário desvinculado com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

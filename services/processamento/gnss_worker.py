@@ -52,8 +52,8 @@ class GNSSPipelineWorker(threading.Thread):
                 )
                 try:
                     os.remove(arq)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning(f"Erro ao remover arquivo corrompido {arq}: {e}")
                 self.result_queue.put({"tipo": "log", "mensagem": f"[ERRO] {str(e)}: {nome_arq}"})
                 
         if corrompidos:

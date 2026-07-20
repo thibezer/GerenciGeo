@@ -112,45 +112,72 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
             except Exception as se:
                 logger.error(f"[FRONTEIRA] Erro ao processar Shapefile {shp_path.name}: {se}")
                 
-    # Caso não tenha Shapefile ou tenha ocorrido erro, busca os pontos geodésicos no banco (qualquer tipo)
-    # Prioriza pontos do levantamento ativo e da matrícula correspondente se matricula_id for fornecido
-    params = [propriedade_id]
-    query_base = """
-        SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.matricula_id, l.status
+    # Caso não tenha Shapefile ou tenha ocorrido erro, busca pontos geodésicos no banco.
+    # REGRA 8 gemini.md: A distância deve ser calculada a partir da base do levantamento
+    # (ponto tipo 'M' ativo, prioritariamente CORRIGIDO) usando pyproj.Geod(ellps="GRS80").
+    params_m = [propriedade_id]
+    query_base_m = """
+        SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
         FROM pontos p
         JOIN levantamentos l ON p.levantamento_id = l.id
-        WHERE l.propriedade_id = ?
+        WHERE l.propriedade_id = ? AND p.tipo_ponto = 'M'
+          AND p.lat IS NOT NULL AND p.lon IS NOT NULL
+          AND p.lat != 0.0 AND p.lon != 0.0
     """
     if matricula_id:
-        query_base += " ORDER BY (p.matricula_id = ?) DESC, l.status = 'EM_ANDAMENTO' DESC, p.status_ponto = 'CORRIGIDO' DESC, p.id ASC"
-        params.append(matricula_id)
+        query_base_m += " ORDER BY (p.matricula_id = ?) DESC, l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
+        params_m.append(matricula_id)
     else:
-        query_base += " ORDER BY l.status = 'EM_ANDAMENTO' DESC, p.status_ponto = 'CORRIGIDO' DESC, p.id ASC"
-        
-    rows = execute_query(query_base, params=tuple(params), fetch_all=True)
+        query_base_m += " ORDER BY l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
+
+    rows = execute_query(query_base_m, params=tuple(params_m), fetch_all=True)
+
+    # Se não houver pontos tipo 'M', fallback para qualquer ponto do levantamento com coordenadas válidas
+    if not rows:
+        logger.warning("[FRONTEIRA] Nenhum ponto tipo 'M' (base) encontrado. Usando fallback com todos os pontos válidos.")
+        params_fb = [propriedade_id]
+        query_fallback = """
+            SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
+            FROM pontos p
+            JOIN levantamentos l ON p.levantamento_id = l.id
+            WHERE l.propriedade_id = ?
+              AND p.lat IS NOT NULL AND p.lon IS NOT NULL
+              AND p.lat != 0.0 AND p.lon != 0.0
+        """
+        if matricula_id:
+            query_fallback += " ORDER BY (p.matricula_id = ?) DESC, l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
+            params_fb.append(matricula_id)
+        else:
+            query_fallback += " ORDER BY l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
+        rows = execute_query(query_fallback, params=tuple(params_fb), fetch_all=True)
+
     if rows:
         geod = Geod(ellps="GRS80")
         menor_dist = float('inf')
         coord_referencia = (0.0, 0.0)
-        
+
         for row in rows:
             base = dict(row)
             lat = base["lat_corrigido"] if base["lat_corrigido"] is not None else base["lat"]
             lon = base["lon_corrigido"] if base["lon_corrigido"] is not None else base["lon"]
             if lat and lon:
-                _, _, dist_m = geod.inv(lon, lat, BORDER_LON, BORDER_LAT)
-                dist_k = dist_m / 1000.0
-                if dist_k < menor_dist:
-                    menor_dist = dist_k
-                    coord_referencia = (lat, lon)
-                    
+                try:
+                    _, _, dist_m = geod.inv(float(lon), float(lat), BORDER_LON, BORDER_LAT)
+                    dist_k = dist_m / 1000.0
+                    if dist_k < menor_dist:
+                        menor_dist = dist_k
+                        coord_referencia = (lat, lon)
+                except Exception as e_geod:
+                    logger.warning(f"[FRONTEIRA] Erro ao calcular distância geodésica para ponto '{base.get('nome_vertice')}': {e_geod}")
+                    continue
+
         if menor_dist != float('inf'):
-            logger.info(f"[FRONTEIRA] Calculada menor distância a partir de ponto do Banco: {menor_dist:.3f} km")
+            logger.info(f"[FRONTEIRA] Calculada menor distância a partir de ponto tipo 'M' do Banco: {menor_dist:.3f} km")
             return menor_dist, coord_referencia[0], coord_referencia[1]
-            
+
     raise ValueError(
-        "A propriedade selecionada não possui arquivos Shapefile enviados nem bases geodésicas no banco de dados. "
-        "Por favor, envie o Shapefile da área para calcular a distância."
+        "A propriedade selecionada não possui arquivos Shapefile enviados nem bases geodésicas (pontos tipo 'M') "
+        "no banco de dados. Por favor, envie o Shapefile da área ou cadastre a base PPP para calcular a distância."
     )
 
 def carregar_template(nome_arquivo: str) -> str:

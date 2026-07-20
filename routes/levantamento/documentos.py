@@ -450,84 +450,89 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
             
         return {"message": "Anuência assinada arquivada e registrada com sucesso.", "caminho_fisico": str(caminho_salvo)}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/levantamentos/{id}/documentos/status-cartorio")
 def status_cartorio(id: int):
     """Consolida um relatório completo de pendências civis, de CRI e de confrontantes para dar entrada no cartório"""
-    lev_row = execute_query(
-        "SELECT l.*, p.nome_propriedade FROM levantamentos l JOIN propriedades p ON l.propriedade_id = p.id WHERE l.id = ?",
-        params=(id,), fetch_one=True
-    )
-    if not lev_row: 
-        raise HTTPException(status_code=404, detail="Levantamento não localizado.")
-    lev = dict(lev_row)
-    prop_id = lev["propriedade_id"]
-    
-    # Valida qualificação dos proprietários
-    clientes_prop = execute_query(
-        "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
-        params=(prop_id,), fetch_all=True
-    )
-    clientes_qualificados = True
-    proprietarios_pendencias = []
-    for c in clientes_prop:
-        civil = dict(c)
-        if not civil.get("cpf_cnpj") or not civil.get("endereco_completo") or not civil.get("rg_ie"):
-            clientes_qualificados = False
-            proprietarios_pendencias.append(f"Proprietário {civil.get('nome_completo')} com qualificação civil incompleta.")
-            
-    # Valida metadados de matrículas
-    matriculas_prop = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(prop_id,), fetch_all=True)
-    matriculas_qualificadas = True
-    matriculas_pendencias = []
-    for m in matriculas_prop:
-        mat = dict(m)
-        if not mat.get("cri_comarca") or not mat.get("cri_circunscricao") or not mat.get("livro_registro") or not mat.get("folha_registro"):
-            matriculas_qualificadas = False
-            matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
-            
-    # Valida anuências
-    query_confrontantes = """
-        SELECT c.*, p.nome
-        FROM confrontantes c
-        JOIN pessoas p ON c.pessoa_id = p.id
-        WHERE c.levantamento_id = ?
-    """
-    confrontantes = execute_query(query_confrontantes, params=(id,), fetch_all=True)
-    conf_total = len(confrontantes)
-    
-    anuencias_rows = execute_query("SELECT * FROM anuencias_confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
-    anuencias = {a["confrontante_id"]: dict(a) for a in anuencias_rows}
-    
-    conf_assinados = 0
-    conf_pendentes_nomes = []
-    
-    for c in confrontantes:
-        conf_id = c["id"]
-        status_anu = anuencias.get(conf_id, {}).get("status_anuencia", "PENDENTE")
-        if status_anu in ["ASSINADO", "DISPENSADO"]:
-            conf_assinados += 1
-        else:
-            conf_pendentes_nomes.append(c["nome"])
-            
-    pronto = clientes_qualificados and matriculas_qualificadas and (conf_assinados == conf_total)
-    
-    pendencias = proprietarios_pendencias + matriculas_pendencias
-    for nome in conf_pendentes_nomes:
-        pendencias.append(f"Falta assinatura do Termo de Anuência de {nome}.")
+    try:
+        lev_row = execute_query(
+            "SELECT l.*, p.nome_propriedade FROM levantamentos l JOIN propriedades p ON l.propriedade_id = p.id WHERE l.id = ?",
+            params=(id,), fetch_one=True
+        )
+        if not lev_row: 
+            raise HTTPException(status_code=404, detail="Levantamento não localizado.")
+        lev = dict(lev_row)
+        prop_id = lev["propriedade_id"]
         
-    return {
-        "levantamento_id": id,
-        "propriedade": lev["nome_propriedade"],
-        "proprietarios_qualificados": clientes_qualificados,
-        "matriculas_qualificadas": matriculas_qualificadas,
-        "confrontantes_totais": conf_total,
-        "confrontantes_assinados": conf_assinados,
-        "confrontantes_pendentes": conf_pendentes_nomes,
-        "pronto_para_registro": pronto,
-        "pendencias_cartorio": pendencias
-    }
+        # Valida qualificação dos proprietários
+        clientes_prop = execute_query(
+            "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+            params=(prop_id,), fetch_all=True
+        )
+        clientes_qualificados = True
+        proprietarios_pendencias = []
+        for c in clientes_prop:
+            civil = dict(c)
+            if not civil.get("cpf_cnpj") or not civil.get("endereco_completo") or not civil.get("rg_ie"):
+                clientes_qualificados = False
+                proprietarios_pendencias.append(f"Proprietário {civil.get('nome_completo')} com qualificação civil incompleta.")
+                
+        # Valida metadados de matrículas
+        matriculas_prop = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(prop_id,), fetch_all=True)
+        matriculas_qualificadas = True
+        matriculas_pendencias = []
+        for m in matriculas_prop:
+            mat = dict(m)
+            if not mat.get("cri_comarca") or not mat.get("cri_circunscricao") or not mat.get("livro_registro") or not mat.get("folha_registro"):
+                matriculas_qualificadas = False
+                matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
+                
+        # Valida anuências
+        query_confrontantes = """
+            SELECT c.*, p.nome
+            FROM confrontantes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE c.levantamento_id = ?
+        """
+        confrontantes = execute_query(query_confrontantes, params=(id,), fetch_all=True)
+        conf_total = len(confrontantes)
+        
+        anuencias_rows = execute_query("SELECT * FROM anuencias_confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
+        anuencias = {a["confrontante_id"]: dict(a) for a in anuencias_rows}
+        
+        conf_assinados = 0
+        conf_pendentes_nomes = []
+        
+        for c in confrontantes:
+            conf_id = c["id"]
+            status_anu = anuencias.get(conf_id, {}).get("status_anuencia", "PENDENTE")
+            if status_anu in ["ASSINADO", "DISPENSADO"]:
+                conf_assinados += 1
+            else:
+                conf_pendentes_nomes.append(c["nome"])
+                
+        pronto = clientes_qualificados and matriculas_qualificadas and (conf_assinados == conf_total)
+        
+        pendencias = proprietarios_pendencias + matriculas_pendencias
+        for nome in conf_pendentes_nomes:
+            pendencias.append(f"Falta assinatura do Termo de Anuência de {nome}.")
+            
+        return {
+            "levantamento_id": id,
+            "propriedade": lev["nome_propriedade"],
+            "proprietarios_qualificados": clientes_qualificados,
+            "matriculas_qualificadas": matriculas_qualificadas,
+            "confrontantes_totais": conf_total,
+            "confrontantes_assinados": conf_assinados,
+            "confrontantes_pendentes": conf_pendentes_nomes,
+            "pronto_para_registro": pronto,
+            "pendencias_cartorio": pendencias
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Arquivos e Consolidações da Propriedade ────────────────────────────────────
 

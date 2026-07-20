@@ -26,7 +26,9 @@ class WorkspaceManager:
         """
         try:
             res = execute_query(query, params=(levantamento_id,), fetch_one=True)
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao buscar levantamento: {e}")
             res = None
 
         if not res:
@@ -51,8 +53,9 @@ class WorkspaceManager:
                                 ano = parts[2]
                     else:
                         ano = str(data_inicio.year)
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao extrair ano: {e}")
 
         return self.base_folder / "Projetos" / nome_prop_limpo / f"Lev_{levantamento_id}_{ano}"
 
@@ -126,8 +129,9 @@ class WorkspaceManager:
                     try:
                         permissao = os.stat(path_f).st_mode
                         os.chmod(path_f, permissao & ~stat.S_IWRITE)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao travar arquivo {path_f}: {e}")
 
     def destravar_workspace_inteiro(self, levantamento_id: int):
         """Restabelece permissão de escrita em todos os arquivos da pasta do levantamento no Windows"""
@@ -140,6 +144,7 @@ class WorkspaceManager:
                     try:
                         permissao = os.stat(path_f).st_mode
                         os.chmod(path_f, permissao | stat.S_IWRITE)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao destravar arquivo {path_f}: {e}")
 

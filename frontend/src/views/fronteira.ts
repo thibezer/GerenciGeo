@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCCIR } from '../utils';
+import { initIcons, formatarCCIR, showToast, customAlert, escapeHtml } from '../utils';
 
 // Coordenada do Paraguai/Fronteira estabelecida
 const BORDER_LAT = -24.0671222;
@@ -384,7 +384,7 @@ export const fronteiraRoute: RouteDef = {
                 <div class="flex items-center gap-3">
                   <input type="checkbox" name="selected-matriculas" value="${m.id}" class="rounded border-white/10 text-mint-vibrant focus:ring-mint-vibrant/30 bg-black/40 w-4 h-4 cursor-pointer checkbox-matricula-item" />
                   <div>
-                    <span class="text-xs font-bold text-white">Mat. ${m.numero_matricula}</span>
+                    <span class="text-xs font-bold text-white">Mat. ${escapeHtml(String(m.numero_matricula))}</span>
                     <span class="text-[10px] text-white/40 ml-2">(${(m.area_ha || 0).toFixed(4)} ha)</span>
                     <div class="flex items-center gap-2 mt-1">
                       ${hasShp 
@@ -568,8 +568,8 @@ export const fronteiraRoute: RouteDef = {
       container.innerHTML = matriculas.map((m: any) => `
         <div class="p-3 bg-white/[0.01] border border-white/5 hover:border-mint-vibrant/20 rounded-xl space-y-3 transition-all select-none">
           <div class="border-b border-white/5 pb-2">
-            <p class="text-xs font-bold text-white/80">Matrícula nº ${m.numero_matricula || 'N/A'}</p>
-            <p class="text-[9px] text-white/30 font-mono mt-0.5">${(m.area_ha || 0).toFixed(4)} ha • ${m.cri_comarca || 'Comarca não definida'}</p>
+            <p class="text-xs font-bold text-white/80">Matrícula nº ${escapeHtml(String(m.numero_matricula || 'N/A'))}</p>
+            <p class="text-[9px] text-white/30 font-mono mt-0.5">${(m.area_ha || 0).toFixed(4)} ha • ${escapeHtml(m.cri_comarca) || 'Comarca não definida'}</p>
           </div>
           
           <div class="flex flex-col gap-2">
@@ -596,7 +596,7 @@ export const fronteiraRoute: RouteDef = {
     // Expõe atalhos rápidos globais no window
     (window as any).abrirLaudoFronteiraHTML = (mId: number) => {
       if (!currentLevantamentoId) {
-        alert("Não foi localizado nenhum levantamento ativo para esta propriedade.");
+        customAlert("Não foi localizado nenhum levantamento ativo para esta propriedade.");
         return;
       }
       const trtInput = (document.getElementById('input-fronteira-trt') as HTMLInputElement)?.value.trim() || "RT-PROVISORIO";
@@ -608,7 +608,7 @@ export const fronteiraRoute: RouteDef = {
 
     (window as any).abrirRequerimentoFronteiraHTML = (mId: number) => {
       if (!currentLevantamentoId) {
-        alert("Não foi localizado nenhum levantamento ativo para esta propriedade.");
+        customAlert("Não foi localizado nenhum levantamento ativo para esta propriedade.");
         return;
       }
       const url = `${API_BASE}/levantamentos/${currentLevantamentoId}/matriculas/${mId}/requerimento-ratificacao-html`;
@@ -643,14 +643,14 @@ export const fronteiraRoute: RouteDef = {
         const data = await res.json();
         
         if (data.error || (data.detail && typeof data.detail === 'string')) {
-          alert(`Erro ao processar Shapefile: ${data.error || data.detail}`);
+          customAlert(`Erro ao processar Shapefile: ${data.error || data.detail}`);
         } else {
-          alert(`Shapefile associado com sucesso à matrícula!\n\nMenor distância calculada até a fronteira: ${data.distancia_fronteira_km.toFixed(3)} km.`);
+          customAlert(`Shapefile associado com sucesso à matrícula!\n\nMenor distância calculada até a fronteira: ${data.distancia_fronteira_km.toFixed(3)} km.`);
           loadDadosFronteira(currentPropId);
         }
       } catch (err) {
         console.error("Erro no upload do shapefile da matrícula:", err);
-        alert("Erro de comunicação com o servidor.");
+        showToast("Erro de comunicação com o servidor.", "error");
       } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -693,7 +693,7 @@ export const fronteiraRoute: RouteDef = {
         if (file.name.endsWith('.zip')) {
           lidarComArquivoShapefileGeral(file);
         } else {
-          alert("Por favor, envie o Shapefile no formato .ZIP contendo os arquivos .shp, .shx, .dbf e .prj.");
+          customAlert("Por favor, envie o Shapefile no formato .ZIP contendo os arquivos .shp, .shx, .dbf e .prj.");
         }
       }
     });
@@ -707,7 +707,7 @@ export const fronteiraRoute: RouteDef = {
 
     const lidarComArquivoShapefileGeral = async (file: File) => {
       if (!currentPropId) {
-        alert("Por favor, selecione a propriedade rural antes de subir o Shapefile.");
+        customAlert("Por favor, selecione a propriedade rural antes de subir o Shapefile.");
         inputUploadShp.value = '';
         return;
       }
@@ -726,14 +726,14 @@ export const fronteiraRoute: RouteDef = {
         const data = await res.json();
         
         if (data.error || (data.detail && typeof data.detail === 'string')) {
-          alert(`Erro ao processar Shapefile: ${data.error || data.detail}`);
+          customAlert(`Erro ao processar Shapefile: ${data.error || data.detail}`);
           resetarEstadoUploadGeral();
         } else {
           fallbackDistanciaKm = data.distancia_fronteira_km;
           fallbackLat = data.lat;
           fallbackLon = data.lon;
 
-          if (textUploadShp) textUploadShp.innerHTML = `<span class="text-mint-vibrant font-bold">✓ Shapefile Geral Processado: ${file.name}</span>`;
+          if (textUploadShp) textUploadShp.innerHTML = `<span class="text-mint-vibrant font-bold">✓ Shapefile Geral Processado: ${escapeHtml(file.name)}</span>`;
           if (iconUploadShp) {
             iconUploadShp.className = "w-6 h-6 text-mint-vibrant";
             iconUploadShp.setAttribute("data-lucide", "check-circle");
@@ -741,13 +741,13 @@ export const fronteiraRoute: RouteDef = {
           initIcons();
           
           atualizarMonitorGeodesicoLote();
-          alert(`Shapefile Geral lido com sucesso!\n\nMenor distância calculada até a divisa: ${data.distancia_fronteira_km.toFixed(3)} km.`);
+          customAlert(`Shapefile Geral lido com sucesso!\n\nMenor distância calculada até a divisa: ${data.distancia_fronteira_km.toFixed(3)} km.`);
           
           loadDadosFronteira(currentPropId);
         }
       } catch (err) {
         console.error("Erro no upload do shapefile geral:", err);
-        alert("Erro ao enviar Shapefile para o servidor.");
+        showToast("Erro ao enviar Shapefile para o servidor.", "error");
         resetarEstadoUploadGeral();
       } finally {
         if (dropzoneShp) dropzoneShp.classList.remove('animate-pulse', 'border-mint-vibrant/40');
@@ -811,7 +811,7 @@ export const fronteiraRoute: RouteDef = {
         mContainer.innerHTML = activeMats.map((m: any) => `
           <div class="p-4 bg-white/[0.005] border border-white/10 rounded-xl space-y-3 relative group" data-modal-matricula-id="${m.id}">
             <div class="flex justify-between items-center border-b border-white/5 pb-2">
-              <span class="font-bold text-white text-[11px]">Matrícula Registro nº ${m.numero_matricula}</span>
+              <span class="font-bold text-white text-[11px]">Matrícula Registro nº ${escapeHtml(String(m.numero_matricula))}</span>
               <span class="text-[9px] text-white/30 font-mono">ID: ${m.id} • Área: ${(m.area_ha || 0).toFixed(4)} ha</span>
             </div>
             
@@ -1008,7 +1008,7 @@ export const fronteiraRoute: RouteDef = {
       });
 
       if (!formValido) {
-        alert("Atenção: Por favor, preencha todos os campos obrigatórios sinalizados antes de continuar.");
+        customAlert("Atenção: Por favor, preencha todos os campos obrigatórios sinalizados antes de continuar.");
         return;
       }
 
@@ -1076,7 +1076,7 @@ export const fronteiraRoute: RouteDef = {
         const dataUpdate = await resUpdate.json();
 
         if (dataUpdate.error || (dataUpdate.detail && typeof dataUpdate.detail === 'string')) {
-          alert(`Falha ao salvar as alterações dos dados: ${dataUpdate.error || dataUpdate.detail}`);
+          customAlert(`Falha ao salvar as alterações dos dados: ${dataUpdate.error || dataUpdate.detail}`);
           btnSaveAndGenerate.disabled = false;
           btnSaveAndGenerate.innerHTML = originalText;
           initIcons();
@@ -1089,7 +1089,7 @@ export const fronteiraRoute: RouteDef = {
         }
 
         if (!currentLevantamentoId) {
-          alert("Não foi localizado nem criado nenhum levantamento de apoio para esta propriedade.");
+          customAlert("Não foi localizado nem criado nenhum levantamento de apoio para esta propriedade.");
           btnSaveAndGenerate.disabled = false;
           btnSaveAndGenerate.innerHTML = originalText;
           initIcons();
@@ -1138,13 +1138,13 @@ export const fronteiraRoute: RouteDef = {
         }
         
         fecharModalFronteira();
-        alert("Metadados atualizados com sucesso no banco de dados! As abas de visualização/impressão dos Laudos e Requerimentos foram abertas.");
+        customAlert("Metadados atualizados com sucesso no banco de dados! As abas de visualização/impressão dos Laudos e Requerimentos foram abertas.");
         
         // Recarrega listagem e documentos na view
         loadDadosFronteira(currentPropId);
       } catch (err) {
         console.error("Erro no processamento transacional de fronteira:", err);
-        alert("Erro crítico de comunicação com o servidor API.");
+        showToast("Erro crítico de comunicação com o servidor API.", "error");
       } finally {
         btnSaveAndGenerate.disabled = false;
         btnSaveAndGenerate.innerHTML = originalText;

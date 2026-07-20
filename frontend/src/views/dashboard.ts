@@ -5,6 +5,17 @@ import { initIcons, showToast } from '../utils';
 
 let mapInstance: L.Map | null = null;
 
+/** Sanitiza texto para uso seguro em innerHTML (previne XSS) */
+const sanitizeHtml = (str: string): string => {
+  if (typeof str !== 'string') return String(str ?? '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 export const dashboardRoute: RouteDef = {
   render: () => `
     <div class="space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col">
@@ -96,7 +107,10 @@ export const dashboardRoute: RouteDef = {
 
     // API Stats
     fetch(`${API_BASE}/stats`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         const cli = document.getElementById('stat-clientes');
         const prop = document.getElementById('stat-prop');
@@ -116,15 +130,21 @@ export const dashboardRoute: RouteDef = {
           container.innerHTML = `<div class="text-center text-white/40 text-sm py-4">Nenhum alerta pendente.</div>`;
           return;
         }
-        container.innerHTML = data.alerts.map((alert: any) => `
+        container.innerHTML = data.alerts.map((alert: any) => {
+          // Sanitiza campos vindos da API para evitar XSS (DB-02)
+          const icone = sanitizeHtml(alert.icone || 'alert-circle');
+          const tipo = sanitizeHtml(alert.tipo || '');
+          const mensagem = sanitizeHtml(alert.mensagem || '');
+          return `
            <div class="p-2.5 sm:p-3 bg-white/[0.02] border border-white/5 rounded-lg flex items-start gap-2.5 sm:gap-3 hover:bg-white/[0.05] transition-colors">
-              <i data-lucide="${alert.icone || 'alert-circle'}" class="w-4 h-4 mt-0.5 shrink-0 ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-mint-vibrant'}"></i>
+              <i data-lucide="${icone}" class="w-4 h-4 mt-0.5 shrink-0 ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-mint-vibrant'}"></i>
               <div class="min-w-0">
-                 <p class="text-[10px] sm:text-xs font-bold ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-white/80'}">${alert.tipo}</p>
-                 <p class="text-xs sm:text-sm text-white/60 leading-relaxed break-words">${alert.mensagem}</p>
+                 <p class="text-[10px] sm:text-xs font-bold ${alert.tipo === 'CRITICO' ? 'text-red-400' : 'text-white/80'}">${tipo}</p>
+                 <p class="text-xs sm:text-sm text-white/60 leading-relaxed break-words">${mensagem}</p>
               </div>
            </div>
-        `).join('');
+        `;
+        }).join('');
         initIcons();
       }).catch(() => {
         const container = document.getElementById('alerts-container');
@@ -378,7 +398,7 @@ export const dashboardRoute: RouteDef = {
           openParcelModal();
           initIcons();
         } else {
-          console.log("Clique fora de parcela: Nenhum dado retornado pelo INCRA.");
+          // Clique fora de parcela
         }
       } catch (err) {
         showToast("Erro ao consultar o servidor do INCRA ou clique fora dos limites.", "error");
@@ -444,16 +464,22 @@ export const dashboardRoute: RouteDef = {
         });
 
         // Popup interativo estilizado em CSS vanilla dark-mode/glassmorphism
+        // Sanitiza campos da API antes de injetar em HTML (DB-03)
+        const nomePropriedade = sanitizeHtml(item.nome_propriedade || '');
+        const numeroMatricula = sanitizeHtml(String(item.numero_matricula || ''));
+        const areaHa = parseFloat(item.area_ha || 0).toFixed(4);
+        const municipio = sanitizeHtml(item.municipio || '');
+        const uf = sanitizeHtml(item.uf || '');
         const popupHtml = `
           <div class="p-3 font-sans min-w-[220px] text-white">
-            <h4 class="text-xs font-mono uppercase tracking-widest text-mint-vibrant font-bold mb-1">${item.nome_propriedade}</h4>
+            <h4 class="text-xs font-mono uppercase tracking-widest text-mint-vibrant font-bold mb-1">${nomePropriedade}</h4>
             <div class="space-y-1 my-2 py-2 border-t border-b border-white/5 text-[11px]">
-              <p class="text-white/60">Matrícula: <strong class="text-white font-mono font-medium">${item.numero_matricula}</strong></p>
-              <p class="text-white/60">Área CCIR: <strong class="text-white font-mono font-medium">${(item.area_ha || 0).toFixed(4)} ha</strong></p>
-              <p class="text-white/60">Local: <strong class="text-white font-medium">${item.municipio}/${item.uf}</strong></p>
+              <p class="text-white/60">Matrícula: <strong class="text-white font-mono font-medium">${numeroMatricula}</strong></p>
+              <p class="text-white/60">Área CCIR: <strong class="text-white font-mono font-medium">${areaHa} ha</strong></p>
+              <p class="text-white/60">Local: <strong class="text-white font-medium">${municipio}/${uf}</strong></p>
             </div>
             <button 
-              onclick="window.downloadLocalShapefile(${item.levantamento_id}, ${item.id}, '${item.numero_matricula}')"
+              onclick="window.downloadLocalShapefile(${item.levantamento_id}, ${item.id}, '${numeroMatricula}')"
               class="w-full bg-mint-vibrant/20 hover:bg-mint-vibrant/40 border border-mint-vibrant/40 text-mint-vibrant hover:text-white text-[10px] font-mono uppercase tracking-wider font-bold py-2 px-3 rounded shadow transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="inline" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>

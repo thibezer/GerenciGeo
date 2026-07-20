@@ -85,8 +85,13 @@ async def verificar_tranca_read_only(request: Request):
                 )
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception as e:
+            # Loga o erro mas NÃO engole: falha na verificação deve ser tratada
+            # de forma conservadora para não deixar escrita indevida passar.
+            logging.getLogger(__name__).error(
+                f"Erro crítico ao verificar tranca read-only para levantamento_id={levantamento_id}: {e}",
+                exc_info=True
+            )
 
 
 def verificar_levantamento_arquivado(levantamento_id: int):
@@ -116,7 +121,7 @@ def verificar_propriedade_arquivada(prop_id: int):
 def extrair_nome_confrontante_limpo(descritivo: str):
     """
     Extrai nome limpo do campo descritivo do confrontante (coluna L da planilha INCRA).
-    Delegado para business/confrontante_manager.py
+    Delegado para services/gestores/confrontante_manager.py
     """
     from services.gestores.confrontante_manager import extrair_nome_confrontante_limpo as extrair_negocio
     return extrair_negocio(descritivo)

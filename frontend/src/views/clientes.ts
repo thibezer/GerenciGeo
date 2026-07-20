@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, escapeHtml } from '../utils';
 
 export const clientesRoute: RouteDef = {
   render: () => `
@@ -800,9 +800,9 @@ export const clientesRoute: RouteDef = {
                  </td>
                  <td class="py-2.5 px-4 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72" onclick="window.abrirDetalhesCliente(${cli.id})">
                     <div class="w-7 h-7 rounded-full bg-mint-vibrant/10 flex items-center justify-center text-[10px] font-bold text-mint-vibrant shrink-0">
-                       ${(cli.nome_completo || '??').substring(0,2).toUpperCase()}
+                       ${escapeHtml((cli.nome_completo || '??').substring(0,2).toUpperCase())}
                     </div>
-                    <span class="truncate font-semibold">${cli.nome_completo}</span>
+                    <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
                  </td>
                  <td class="py-2.5 px-4 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
                  <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>

@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCAR, formatarCCIR } from '../utils';
+import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
 
@@ -589,7 +589,7 @@ export const propriedadesRoute: RouteDef = {
 
     document.getElementById('btn-batch-delete')?.addEventListener('click', async () => {
        const count = propriedadesSelecionadas.size;
-       if (!confirm(`ATENÇÃO: A exclusão destas ${count} propriedades selecionadas removerá todos os seus vínculos de proprietários, matrículas, levantamentos e histórico físico no Windows Explorer de forma definitiva. Deseja continuar?`)) return;
+       if (!(await customConfirm(`ATENÇÃO: A exclusão destas ${count} propriedades selecionadas removerá todos os seus vínculos de proprietários, matrículas, levantamentos e histórico físico no Windows Explorer de forma definitiva. Deseja continuar?`))) return;
        
        const bar = document.getElementById('batch-action-bar');
        if (bar) bar.style.cursor = 'wait';
@@ -602,14 +602,16 @@ export const propriedadesRoute: RouteDef = {
           
           const errors = results.filter(r => r.error);
           if (errors.length > 0) {
-             alert(`Algumas exclusões falharam: ${errors.map(e => e.error).join(', ')}`);
+             customAlert(`Algumas exclusões falharam: ${errors.map(e => e.error).join(', ')}`);
+          } else {
+             showToast("Propriedades selecionadas excluídas com sucesso.", "success");
           }
           
           propriedadesSelecionadas.clear();
           updateBatchActionBar();
           loadPropriedades();
        } catch (e) {
-          alert("Erro ao excluir propriedades selecionadas.");
+          showToast("Erro ao excluir propriedades selecionadas.", "error");
        } finally {
           if (bar) bar.style.cursor = '';
        }
@@ -756,9 +758,9 @@ export const propriedadesRoute: RouteDef = {
                    <div class="w-7 h-7 rounded-full bg-mint-vibrant/10 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
                       <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                    </div>
-                   <span class="truncate font-semibold">${p.nome_propriedade}</span>
+                   <span class="truncate font-semibold">${escapeHtml(p.nome_propriedade)}</span>
                 </td>
-                <td class="py-2.5 px-4 text-white/70">${p.municipio} / ${p.uf}</td>
+                <td class="py-2.5 px-4 text-white/70">${escapeHtml(p.municipio)} / ${escapeHtml(p.uf)}</td>
                 <td class="py-2.5 px-4">${obterProprietarioPrincipalTexto(p.clientes)}</td>
                 <td class="py-2.5 px-4 text-center font-mono font-medium text-white/70">${p.total_matriculas || 0}</td>
                 <td class="py-2.5 px-4 text-center font-mono font-medium text-white/70">${p.total_levantamentos || 0}</td>
@@ -923,8 +925,8 @@ export const propriedadesRoute: RouteDef = {
           } else {
              listaFlutuante.innerHTML = filtrados.map(c => `
                 <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${c.nome_completo}">
-                   <span class="font-bold text-white">${c.nome_completo}</span>
-                   <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${c.cpf_cnpj}</span>
+                   <span class="font-bold text-white">${escapeHtml(c.nome_completo)}</span>
+                   <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${escapeHtml(c.cpf_cnpj)}</span>
                 </div>
              `).join('');
 
@@ -998,7 +1000,7 @@ export const propriedadesRoute: RouteDef = {
     // --- DELEÇÃO DE ANEXO DE PROPRIEDADE ---
     const excluirArquivoPropriedade = async (tipo: 'car' | 'ccir') => {
        if (!propriedadeSelecionadaId) return;
-       if (!confirm(`Deseja realmente excluir o arquivo de certidão do ${tipo.toUpperCase()} anexado?`)) return;
+       if (!(await customConfirm(`Deseja realmente excluir o arquivo de certidão do ${tipo.toUpperCase()} anexado?`))) return;
 
        try {
           const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/arquivo-${tipo}`, {
@@ -1006,8 +1008,9 @@ export const propriedadesRoute: RouteDef = {
           });
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
+             showToast("Arquivo removido com sucesso.", "success");
              // Recarrega propriedade
              const propRes = await fetch(`${API_BASE}/propriedades`);
              todasPropriedades = await propRes.json();
@@ -1016,7 +1019,7 @@ export const propriedadesRoute: RouteDef = {
              renderTabela();
           }
        } catch (err) {
-          alert("Erro de conexão ao remover o arquivo.");
+          showToast("Erro de conexão ao remover o arquivo.", "error");
        }
     };
 
@@ -1068,8 +1071,8 @@ export const propriedadesRoute: RouteDef = {
              somaParticipacao += c.percentual_participacao || 0;
              return `
                 <tr class="hover:bg-white/[0.01] border-b border-white/5 text-xs text-white/80">
-                   <td class="px-3 py-2 font-bold text-white">${c.nome_completo}</td>
-                   <td class="px-3 py-2 font-mono text-white/60">${c.cpf_cnpj}</td>
+                   <td class="px-3 py-2 font-bold text-white">${escapeHtml(c.nome_completo)}</td>
+                   <td class="px-3 py-2 font-mono text-white/60">${escapeHtml(c.cpf_cnpj)}</td>
                    <td class="px-3 py-2 text-right font-mono text-mint-vibrant font-bold">${(c.percentual_participacao || 0).toFixed(2)}%</td>
                    <td class="px-3 py-2 text-center">
                       <button class="text-white/40 hover:text-red-400 p-1 btn-remover-vinculo cursor-pointer" data-cli-id="${c.id}" title="Desvincular Proprietário">
@@ -1085,13 +1088,14 @@ export const propriedadesRoute: RouteDef = {
           corpo.querySelectorAll('.btn-remover-vinculo').forEach(btn => {
              btn.addEventListener('click', async () => {
                 const cliId = btn.getAttribute('data-cli-id');
-                if (confirm("Tem certeza que deseja remover a vinculação de copropriedade deste cliente?")) {
+                if (await customConfirm("Tem certeza que deseja remover a vinculação de copropriedade deste cliente?")) {
                    try {
                       const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/clientes/${cliId}`, { method: 'DELETE' });
                       const data = await res.json();
                       if (data.error) {
-                         alert(data.error);
+                         customAlert(data.error);
                       } else {
+                         showToast("Vínculo removido com sucesso.", "success");
                          const propRes = await fetch(`${API_BASE}/propriedades`);
                          todasPropriedades = await propRes.json();
                          const pAtual = todasPropriedades.find(x => x.id === propriedadeSelecionadaId);
@@ -1099,7 +1103,7 @@ export const propriedadesRoute: RouteDef = {
                          renderTabela();
                       }
                    } catch (err) {
-                      alert("Erro ao remover proprietário.");
+                      showToast("Erro ao remover proprietário.", "error");
                    }
                 }
              });
@@ -1173,14 +1177,14 @@ export const propriedadesRoute: RouteDef = {
              return `
                 <tr class="hover:bg-white/[0.01] border-b border-white/5 text-xs text-white/80">
                    <td class="px-3 py-2 text-white">
-                      <span class="block font-bold">Matrícula nº ${m.numero_matricula}</span>
-                      <span class="block text-[9px] text-white/40">${m.denominacao || 'Lote sem nome'}</span>
+                      <span class="block font-bold">Matrícula nº ${escapeHtml(String(m.numero_matricula))}</span>
+                      <span class="block text-[9px] text-white/40">${escapeHtml(m.denominacao) || 'Lote sem nome'}</span>
                    </td>
                    <td class="px-3 py-2 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
                    <td class="px-3 py-2 text-white/60 leading-tight">
-                      <span class="block">CCIR: ${m.ccir ? formatarCCIR(m.ccir) : 'N/A'}</span>
-                      <span class="block">ITR/NIRF: ${m.itr || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
-                      <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${m.georreferenciamento || ''}">SIGEF: ${m.georreferenciamento || 'N/A'}</span>
+                      <span class="block">CCIR: ${m.ccir ? escapeHtml(formatarCCIR(m.ccir)) : 'N/A'}</span>
+                      <span class="block">ITR/NIRF: ${escapeHtml(m.itr) || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
+                      <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${escapeHtml(m.georreferenciamento) || 'N/A'}</span>
                    </td>
                    <td class="px-3 py-2 text-center">${pdfHtml}</td>
                    <td class="px-3 py-2 text-right">
@@ -1222,18 +1226,18 @@ export const propriedadesRoute: RouteDef = {
           });
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
-             alert("Certidão em PDF anexada à matrícula com sucesso!");
+             showToast("Certidão em PDF anexada à matrícula com sucesso!", "success");
              loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
           }
        } catch (err) {
-          alert("Erro de conexão ao enviar o PDF da matrícula.");
+          showToast("Erro de conexão ao enviar o PDF da matrícula.", "error");
        }
     };
 
     (window as any).excluirPdfMatricula = async (mid: number) => {
-       if (!confirm("Deseja realmente remover o arquivo PDF da certidão desta matrícula?")) return;
+       if (!(await customConfirm("Deseja realmente remover o arquivo PDF da certidão desta matrícula?"))) return;
 
        try {
           const res = await fetch(`${API_BASE}/matriculas/${mid}/pdf`, {
@@ -1241,12 +1245,13 @@ export const propriedadesRoute: RouteDef = {
           });
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
+             showToast("PDF removido com sucesso.", "success");
              loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
           }
        } catch (err) {
-          alert("Erro de conexão ao remover o PDF.");
+          showToast("Erro de conexão ao remover o PDF.", "error");
        }
     };
 
@@ -1339,13 +1344,14 @@ export const propriedadesRoute: RouteDef = {
     };
 
     (window as any).excluirMatriculaIndividual = async (mid: number) => {
-       if (confirm("ATENÇÃO: A exclusão da matrícula removerá em cascata todos os vértices e limites vinculados. Deseja prosseguir com a exclusão jurídica?")) {
+       if (await customConfirm("ATENÇÃO: A exclusão da matrícula removerá em cascata todos os vértices e limites vinculados. Deseja prosseguir com a exclusão jurídica?")) {
           try {
              const deleteRes = await fetch(`${API_BASE}/matriculas/${mid}`, { method: 'DELETE' });
              const deleteData = await deleteRes.json();
              if (deleteData.error) {
-                alert(deleteData.error);
+                customAlert(deleteData.error);
              } else {
+                showToast("Matrícula excluída com sucesso.", "success");
                 if (matriculaSendoEditadaId === mid) {
                    resetaFormularioMatricula();
                 }
@@ -1355,7 +1361,7 @@ export const propriedadesRoute: RouteDef = {
                 renderTabela();
              }
           } catch (err) {
-             alert("Erro ao excluir matrícula.");
+             showToast("Erro ao excluir matrícula.", "error");
           }
        }
     };
@@ -1388,8 +1394,9 @@ export const propriedadesRoute: RouteDef = {
           });
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
+             showToast("Dados da matrícula salvos com sucesso.", "success");
              resetaFormularioMatricula();
              loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
              
@@ -1402,7 +1409,7 @@ export const propriedadesRoute: RouteDef = {
                 });
           }
        } catch (err) {
-          alert("Erro ao salvar dados da matrícula.");
+          showToast("Erro ao salvar dados da matrícula.", "error");
        }
     });
 
@@ -1422,8 +1429,9 @@ export const propriedadesRoute: RouteDef = {
           });
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
+             showToast("Proprietário vinculado com sucesso.", "success");
              (document.getElementById('busca-proprietario-cliente') as HTMLInputElement).value = '';
              (document.getElementById('vinc-cliente-id') as HTMLInputElement).value = '';
              (document.getElementById('vinc-participacao') as HTMLInputElement).value = '';
@@ -1436,7 +1444,7 @@ export const propriedadesRoute: RouteDef = {
              renderTabela();
           }
        } catch (err) {
-          alert("Erro de conexão ao vincular proprietário.");
+          showToast("Erro de conexão ao vincular proprietário.", "error");
        }
     });
 
@@ -1458,8 +1466,9 @@ export const propriedadesRoute: RouteDef = {
 
           const data = await res.json();
           if (data.error) {
-             alert(data.error);
+             customAlert(data.error);
           } else {
+             showToast("Propriedade salva com sucesso.", "success");
              modalCadastro?.classList.add('hidden');
              formProp.reset();
              loadPropriedades().then(() => {
@@ -1469,7 +1478,7 @@ export const propriedadesRoute: RouteDef = {
              });
           }
        } catch (err) {
-          alert("Erro de conexão ao salvar propriedade.");
+          showToast("Erro de conexão ao salvar propriedade.", "error");
        }
     });
 
@@ -1503,20 +1512,21 @@ export const propriedadesRoute: RouteDef = {
 
     (window as any).excluirPropriedadeIndividual = async (id: number) => {
        const p = todasPropriedades.find(x => x.id === id);
-       if (!p || !confirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas, levantamentos e vínculos correspondentes de forma definitiva.`)) return;
+       if (!p || !(await customConfirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas, levantamentos e vínculos correspondentes de forma definitiva.`))) return;
 
        try {
           const res = await fetch(`${API_BASE}/propriedades/${id}`, { method: 'DELETE' });
           const data = await res.json();
-          if (data.error) alert(data.error);
+          if (data.error) customAlert(data.error);
           else {
+             showToast("Propriedade excluída com sucesso.", "success");
              modalDetalhes?.classList.add('hidden');
              propriedadesSelecionadas.delete(id);
              updateBatchActionBar();
              loadPropriedades();
           }
        } catch (err) {
-          alert("Erro ao excluir propriedade.");
+          showToast("Erro ao excluir propriedade.", "error");
        }
     };
 
@@ -1555,9 +1565,9 @@ export const propriedadesRoute: RouteDef = {
              });
              const data = await res.json();
              if (data.error) {
-                alert(`Erro ao fazer upload do ${tipo.toUpperCase()}: ${data.error}`);
+                customAlert(`Erro ao fazer upload do ${tipo.toUpperCase()}: ${data.error}`);
              } else {
-                alert(`Documento do ${tipo.toUpperCase()} enviado física e logicamente com sucesso no Windows Workspace!`);
+                showToast(`Documento do ${tipo.toUpperCase()} enviado com sucesso!`, "success");
                 const propRes = await fetch(`${API_BASE}/propriedades`);
                 todasPropriedades = await propRes.json();
                 
@@ -1565,7 +1575,7 @@ export const propriedadesRoute: RouteDef = {
                 configurarExibicaoArquivo(tipo, pAtual ? pAtual[`caminho_arquivo_${tipo}`] : null);
              }
           } catch (err) {
-             alert("Erro de conexão com o servidor no upload.");
+             showToast("Erro de conexão com o servidor no upload.", "error");
           } finally {
              dropzone.style.cursor = '';
              dropzone.classList.remove('animate-pulse');

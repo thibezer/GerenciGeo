@@ -28,6 +28,7 @@ class HistoricoCampoLogger:
                 inserted_id = row["last_id"]
         except Exception as e:
             logger.error(f"[HISTORICO] Erro ao registrar evento no SQLite: {e}")
+            raise
 
         # 2. Persiste fisicamente no arquivo do Workspace do Levantamento
         try:

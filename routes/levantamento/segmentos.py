@@ -102,7 +102,7 @@ def get_confrontantes(id: int):
         """
         return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/levantamentos/{id}/confrontantes")
 def create_confrontante(id: int, c: ConfrontanteCreate):
@@ -158,7 +158,7 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
         }
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/confrontantes/{cid}")
 def update_confrontante(cid: int, c: ConfrontanteCreate):
@@ -195,7 +195,7 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
         return {"message": "Confrontante atualizado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/confrontantes/{cid}")
 def delete_confrontante(cid: int):
@@ -220,7 +220,7 @@ def delete_confrontante(cid: int):
         return {"message": "Confrontante removido com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/confrontantes/{cid}/upload-matricula")
 async def upload_confrontante_matricula(cid: int, file: UploadFile = File(...)):
@@ -275,7 +275,7 @@ async def upload_confrontante_matricula(cid: int, file: UploadFile = File(...)):
         return {"message": "Matrícula do confrontante anexada com sucesso", "caminho": filepath}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/confrontantes/{cid}/visualizar-matricula")
 def visualizar_confrontante_matricula(cid: int):
@@ -313,7 +313,7 @@ def deletar_confrontante_matricula(cid: int):
         return {"message": "Matrícula do confrontante excluída com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Rotas de Segmentos ─────────────────────────────────────────────────────────
 
@@ -352,7 +352,7 @@ def create_segmento(id: int, s: SegmentoCreate):
         return {"message": "Segmento criado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/segmentos/{sid}")
 def update_segmento(sid: int, s: SegmentoCreate):
@@ -370,7 +370,7 @@ def update_segmento(sid: int, s: SegmentoCreate):
         return {"message": "Segmento atualizado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/segmentos/{sid}")
 def delete_segmento(sid: int):
@@ -383,7 +383,7 @@ def delete_segmento(sid: int):
         return {"message": "Segmento removido com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes-ativos")
 def get_confrontantes_ativos_matricula(id: int, matricula_id: int):

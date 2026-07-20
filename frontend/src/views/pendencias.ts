@@ -1,7 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
-
+import { initIcons, showToast, escapeHtml } from '../utils';
 export const pendenciasRoute: RouteDef = {
   render: () => `
     <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -46,7 +45,10 @@ export const pendenciasRoute: RouteDef = {
   setup: () => {
      const loadPendencias = () => {
         fetch(`${API_BASE}/pendencias`)
-          .then(res => res.json())
+          .then(res => {
+            if(!res.ok) throw new Error('Erro ao carregar pendências');
+            return res.json();
+          })
           .then(data => {
              const container = document.getElementById('lista-pendencias');
              if(!container) return;
@@ -66,8 +68,8 @@ export const pendenciasRoute: RouteDef = {
                          class="w-5 h-5 ${p.status === 'CONCLUIDO' ? 'text-mint-vibrant' : (p.prioridade === 'ALTA' ? 'text-red-400' : 'text-white/20')}"></i>
                     </div>
                     <div>
-                      <h5 class="text-sm font-bold ${p.status === 'CONCLUIDO' ? 'text-white/40 line-through' : 'text-white'}">${p.titulo}</h5>
-                      <p class="text-xs text-white/40 mt-0.5">${p.descricao || 'Sem descrição'}</p>
+                      <h5 class="text-sm font-bold ${p.status === 'CONCLUIDO' ? 'text-white/40 line-through' : 'text-white'}">${escapeHtml(p.titulo)}</h5>
+                      <p class="text-xs text-white/40 mt-0.5">${escapeHtml(p.descricao || 'Sem descrição')}</p>
                     </div>
                   </div>
                   <div class="flex items-center gap-3">
@@ -80,13 +82,29 @@ export const pendenciasRoute: RouteDef = {
 
              document.querySelectorAll('.btn-check').forEach(b => b.addEventListener('click', () => {
                 const id = b.getAttribute('data-id');
-                fetch(`${API_BASE}/pendencias/${id}/concluir`, { method: 'POST' }).then(() => loadPendencias());
+                fetch(`${API_BASE}/pendencias/${id}/concluir`, { method: 'POST' })
+                  .then(res => {
+                    if (!res.ok) throw new Error('Erro ao concluir tarefa');
+                    showToast('Tarefa concluída!', 'success');
+                    loadPendencias();
+                  })
+                  .catch(err => showToast(err.message, 'error'));
              }));
 
              document.querySelectorAll('.btn-delete-pendencia').forEach(b => b.addEventListener('click', () => {
                 const id = b.getAttribute('data-id');
-                fetch(`${API_BASE}/pendencias/${id}`, { method: 'DELETE' }).then(() => loadPendencias());
+                fetch(`${API_BASE}/pendencias/${id}`, { method: 'DELETE' })
+                  .then(res => {
+                    if (!res.ok) throw new Error('Erro ao deletar tarefa');
+                    showToast('Tarefa removida!', 'success');
+                    loadPendencias();
+                  })
+                  .catch(err => showToast(err.message, 'error'));
              }));
+          })
+          .catch(err => {
+            const container = document.getElementById('lista-pendencias');
+            if(container) container.innerHTML = `<div class="p-12 text-center text-red-400">Erro ao carregar pendências: ${err.message}</div>`;
           });
      };
 
@@ -94,14 +112,25 @@ export const pendenciasRoute: RouteDef = {
 
      document.getElementById('form-pendencia')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target as HTMLFormElement);
+        const form = e.target as HTMLFormElement;
+        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const formData = new FormData(form);
+        
+        if (btn) btn.disabled = true;
         fetch(`${API_BASE}/pendencias`, {
            method: 'POST',
            headers: {'Content-Type': 'application/json'},
            body: JSON.stringify(Object.fromEntries(formData.entries()))
-        }).then(() => {
-           (e.target as HTMLFormElement).reset();
+        })
+        .then(res => {
+           if (!res.ok) throw new Error('Erro ao criar pendência');
+           form.reset();
+           showToast('Nova tarefa adicionada!', 'success');
            loadPendencias();
+        })
+        .catch(err => showToast(err.message, 'error'))
+        .finally(() => {
+           if (btn) btn.disabled = false;
         });
      });
   }

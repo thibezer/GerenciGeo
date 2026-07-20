@@ -324,7 +324,6 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                 </button>
              </div>
-             ${badgeArquivoHtml}
           </td>
           <td class="px-2 py-2.5 text-center">
              ${badgeHtml}
@@ -339,6 +338,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
             <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
           </td>
           <td class="px-4 py-2.5 text-center">${statusText}</td>
+          <td class="px-3 py-2.5">${badgeArquivoHtml}</td>
         </tr>
       `;
   } else {
@@ -352,7 +352,6 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
                   <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                </button>
             </div>
-            ${badgeArquivoHtml}
          </td>
          <td class="px-2 py-2.5 text-center">
             ${badgeHtml}
@@ -368,6 +367,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
          </td>
          <td class="px-4 py-2.5 text-center">${statusText}</td>
+         <td class="px-3 py-2.5">${badgeArquivoHtml}</td>
        </tr>
      `;
   }

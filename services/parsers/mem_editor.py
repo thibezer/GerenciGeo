@@ -11,8 +11,12 @@ class MemEditorEngine:
         if not self.filepath or not os.path.exists(self.filepath):
             raise FileNotFoundError("Arquivo .MEM não encontrado.")
             
-        with open(self.filepath, 'r', encoding='latin-1') as f:
-            self.lines = f.readlines()
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as f:
+                self.lines = f.readlines()
+        except UnicodeDecodeError:
+            with open(self.filepath, 'r', encoding='latin-1') as f:
+                self.lines = f.readlines()
             
         self.parse_pontos()
 
@@ -73,6 +77,6 @@ class MemEditorEngine:
         
     def save(self, output_path=None):
         save_path = output_path if output_path else self.filepath
-        with open(save_path, 'w', encoding='latin-1') as f:
+        with open(save_path, 'w', encoding='utf-8') as f:
             f.writelines(self.lines)
         return save_path

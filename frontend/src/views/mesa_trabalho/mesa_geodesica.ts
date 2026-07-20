@@ -1,6 +1,7 @@
 import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
 import { renderLinhaPontoGeoprocessamentoHtml, renderAuditoriaTranslacaoHtml } from './mesa_trabalho_tabela';
+import { registrarEventosExportacao } from './exportacao_cad';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
@@ -1123,72 +1124,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     ctx.renderMatriculaDados();
   });
 
-  document.getElementById('btn-exportar-tabela-csv')?.addEventListener('click', () => {
-    let pontosExport = [...ctx.pontosList];
-
-    if (ctx.ocultarForaPoligono) {
-      pontosExport = pontosExport.filter(p => p.ignorar_poligono !== 1);
-    }
-
-    if (ctx.filtroRapidoAtivo !== 'todos') {
-      if (ctx.filtroRapidoAtivo === 'bases') {
-        pontosExport = pontosExport.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
-      } else if (ctx.filtroRapidoAtivo === 'rovers') {
-        pontosExport = pontosExport.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-      } else if (ctx.filtroRapidoAtivo === 'brutos') {
-        pontosExport = pontosExport.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
-      } else if (ctx.filtroRapidoAtivo === 'corrigidos') {
-        pontosExport = pontosExport.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO');
-      }
-    }
-
-    if (ctx.searchFilterValue) {
-      pontosExport = pontosExport.filter(p =>
-        (p.nome_vertice && p.nome_vertice.toLowerCase().includes(ctx.searchFilterValue)) ||
-        (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(ctx.searchFilterValue)) ||
-        (p.tipo && p.tipo.toLowerCase().includes(ctx.searchFilterValue)) ||
-        (p.arquivo_origem && p.arquivo_origem.toLowerCase().includes(ctx.searchFilterValue)) ||
-        (p.ordem_caminhamento && String(p.ordem_caminhamento).includes(ctx.searchFilterValue))
-      );
-    }
-
-    if (pontosExport.length === 0) {
-      alert("Nenhum dado para exportar!");
-      return;
-    }
-
-    const headers = ["Ordem", "Vertice", "Tipo", "Status", "Latitude", "Longitude", "Altitude", "Este_Corr", "Norte_Corr", "Este_Orig", "Norte_Orig", "Arquivo_Origem"];
-    let seqValida = 1;
-    const rows = pontosExport.map((p) => {
-      const isIgn = p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
-      const ordem = isIgn ? '-' : seqValida++;
-      return [
-        ordem,
-        p.nome_vertice,
-        p.tipo_ponto || p.tipo || '-',
-        p.status_ponto || p.status_correcao || 'BRUTO',
-        p.lat || '',
-        p.lon || '',
-        p.alt || p.alt_original || '',
-        p.e_corrigido || '',
-        p.n_corrigido || '',
-        p.e_original || '',
-        p.n_original || '',
-        p.arquivo_origem || ''
-      ];
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `vertices_levantamento_${ctx.currentLevId}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  });
+  // Exportação CSV e CAD delegada ao módulo SRP dedicado (exportacao_cad.ts)
+  registrarEventosExportacao(ctx);
 
   // Ouvintes de filtros rápidos de tabela
   document.querySelectorAll('.vtx-filter-chip').forEach(btn => {

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options</title>
+    <link href="/src/style.css" rel="stylesheet">
+    <style>
+      /* Estilos baseados no AutoCAD clássico para a janela de opções */
+      body {
+        background-color: #f0f0f0; /* Windows System Default Light */
+        color: #000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 12px;
+        overflow: hidden;
+        user-select: none;
+      }
+      .autocad-window {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      /* Abas superiores */
+      .tabs-header {
+        display: flex;
+        border-bottom: 1px solid #a0a0a0;
+        margin-bottom: 8px;
+        margin-top: 4px;
+        background-color: #f0f0f0;
+        padding-left: 2px;
+      }
+      .tab-btn {
+        padding: 4px 10px;
+        border: 1px solid transparent;
+        border-bottom: none;
+        background: transparent;
+        cursor: default;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 11px;
+        margin-right: 1px;
+        position: relative;
+        top: 1px;
+      }
+      .tab-btn:hover {
+        background-color: #e5f3fb;
+        border: 1px solid #70c0e7;
+        border-bottom-color: #e5f3fb;
+      }
+      .tab-btn.active {
+        background-color: #fff;
+        border: 1px solid #a0a0a0;
+        border-bottom-color: #fff;
+        z-index: 10;
+      }
+      
+      /* Corpo do painel */
+      .tab-content-area {
+        flex-grow: 1;
+        background-color: #fff;
+        border: 1px solid #a0a0a0;
+        padding: 12px;
+        overflow-y: auto;
+      }
+      .tab-pane {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .tab-pane.active {
+        display: flex;
+      }
+      
+      /* Group Boxes (Fieldsets) */
+      .cad-fieldset {
+        border: 1px solid #d0d0d0;
+        padding: 10px 12px;
+        margin: 0;
+      }
+      .cad-legend {
+        font-size: 11px;
+        color: #000;
+        padding: 0 4px;
+      }
+      
+      /* Controles */
+      .cad-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .cad-row label {
+        margin-left: 6px;
+        font-size: 11px;
+      }
+      input[type="checkbox"] {
+        margin: 0;
+        width: 13px;
+        height: 13px;
+      }
+      input[type="range"] {
+        flex-grow: 1;
+        margin-left: 10px;
+      }
+      .cad-value-box {
+        width: 40px;
+        height: 20px;
+        border: 1px solid #8e8f8f;
+        text-align: center;
+        font-size: 11px;
+        line-height: 18px;
+        margin-right: 6px;
+      }
+      
+      /* Botões de Ação Inferiores */
+      .action-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 4px;
+      }
+      .cad-btn {
+        min-width: 75px;
+        height: 24px;
+        border: 1px solid #8e8f8f;
+        background-color: #e1e1e1;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 11px;
+      }
+      .cad-btn:hover {
+        background-color: #e5f3fb;
+        border-color: #0078d7;
+      }
+      .cad-btn:active {
+        background-color: #cce4f7;
+      }
+      
+      /* Preview visual AutoCAD */
+      .preview-box {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #a0a0a0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #fff;
+      }
+      .preview-marker {
+        border: 1px solid #000;
+      }
+    </style>
+</head>
+<body>
+    <div class="autocad-window">
+        <!-- Cabeçalho (Profile/Drawing info) simulado -->
+        <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 0 4px;">
+            <div>Perfil atual: <span style="margin-left:20px">&lt;&lt;Perfil Não Nomeado&gt;&gt;</span></div>
+            <div>Projeto atual: <span style="margin-left:20px; margin-right:4px;">Mesa de Trabalho.dwg</span></div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs-header">
+            <button class="tab-btn active" data-target="tab-display">Exibição</button>
+            <button class="tab-btn" data-target="tab-drafting">Desenho</button>
+            <button class="tab-btn" data-target="tab-selection">Seleção</button>
+            <button class="tab-btn" data-target="tab-system">Sistema</button>
+        </div>
+        
+        <!-- Content -->
+        <div class="tab-content-area">
+            
+            <!-- DISPLAY TAB -->
+            <div class="tab-pane active" id="tab-display">
+                <div style="display: flex; gap: 12px;">
+                    <div style="flex: 1;">
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Elementos da Janela</legend>
+                            <div class="cad-row">
+                                <span style="font-size: 11px; margin-right: 10px;">Tema de cor:</span>
+                                <select disabled style="font-size: 11px; width: 100px;">
+                                    <option>Escuro</option>
+                                    <option>Claro</option>
+                                </select>
+                            </div>
+                            <div class="cad-row" style="margin-top: 8px;">
+                                <input type="checkbox" id="chk-crosshair">
+                                <label for="chk-crosshair">Usar Cursor de Mira (Crosshair) no Canvas</label>
+                            </div>
+                            <div class="cad-row">
+                                <input type="checkbox" id="chk-tooltips" checked>
+                                <label for="chk-tooltips">Mostrar Dicas de Ferramentas (ToolTips)</label>
+                            </div>
+                        </fieldset>
+                    </div>
+                    <div style="flex: 1;">
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Controle de Esmaecimento (Fade)</legend>
+                            <div class="cad-row" style="margin-top: 8px;">
+                                <div style="display: flex; flex-direction: column; width: 100%;">
+                                    <span style="font-size: 11px; margin-bottom: 4px;">Exibição Xref (Opacidade do Satélite)</span>
+                                    <div style="display: flex; align-items: center;">
+                                        <div class="cad-value-box" id="val-sat-opacity">100</div>
+                                        <input type="range" id="sld-sat-opacity" min="10" max="100" value="100">
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- DRAFTING TAB -->
+            <div class="tab-pane" id="tab-drafting">
+                <div style="display: flex; gap: 12px; height: 100%;">
+                    <!-- Coluna Esq -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Configurações AutoSnap</legend>
+                            <div class="cad-row">
+                                <input type="checkbox" checked disabled>
+                                <label>Marcador</label>
+                            </div>
+                            <div class="cad-row">
+                                <input type="checkbox" id="chk-magnet">
+                                <label for="chk-magnet">Imã (Atrair para o Vértice)</label>
+                            </div>
+                            <div class="cad-row" style="margin-top:8px;">
+                                <button class="cad-btn" style="width: 80px;" disabled>Cores...</button>
+                            </div>
+                        </fieldset>
+                        <fieldset class="cad-fieldset" style="flex-grow: 1;">
+                            <legend class="cad-legend">Tamanho do Marcador AutoSnap</legend>
+                            <div style="display: flex; align-items: center; padding: 10px 0;">
+                                <div class="preview-box">
+                                    <div class="preview-marker" id="preview-marker" style="width: 10px; height: 10px; border-color: green;"></div>
+                                </div>
+                                <input type="range" id="sld-marker-size" min="4" max="24" value="10" style="margin-left: 20px;">
+                            </div>
+                        </fieldset>
+                    </div>
+                    <!-- Coluna Dir -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                        <fieldset class="cad-fieldset" style="flex-grow: 1;">
+                            <legend class="cad-legend">Espessura de Linha (Lineweight)</legend>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 4px;">
+                                <div>
+                                    <span style="font-size: 11px;">Linhas de Perímetro/Fronteira:</span>
+                                    <div style="display: flex; align-items: center; margin-top: 4px;">
+                                        <div class="cad-value-box" id="val-perimetro-weight">1.0</div>
+                                        <input type="range" id="sld-perimetro-weight" min="0.5" max="5.0" step="0.5" value="1.0">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <span style="font-size: 11px;">Linhas Importadas/Vizinhos:</span>
+                                    <div style="display: flex; align-items: center; margin-top: 4px;">
+                                        <div class="cad-value-box" id="val-vizinho-weight">1.0</div>
+                                        <input type="range" id="sld-vizinho-weight" min="0.5" max="5.0" step="0.5" value="1.0">
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SELECTION TAB -->
+            <div class="tab-pane" id="tab-selection">
+                 <fieldset class="cad-fieldset">
+                    <legend class="cad-legend">Efeitos Visuais</legend>
+                    <div class="cad-row">
+                        <input type="checkbox" id="chk-animations">
+                        <label for="chk-animations">Habilitar transições suaves de cor ao passar o mouse (Animação CSS)</label>
+                    </div>
+                </fieldset>
+            </div>
+            
+            <!-- SYSTEM TAB -->
+            <div class="tab-pane" id="tab-system">
+                 <fieldset class="cad-fieldset">
+                    <legend class="cad-legend">Aceleração de Hardware</legend>
+                    <div class="cad-row">
+                        <input type="checkbox" id="chk-canvas" checked>
+                        <label for="chk-canvas">Ativar Renderização HTML5 Canvas para o Mapa (Desativar reduz a performance)</label>
+                    </div>
+                </fieldset>
+            </div>
+            
+        </div>
+        
+        <!-- Botões -->
+        <div class="action-bar">
+            <button class="cad-btn" id="btn-ok">OK</button>
+            <button class="cad-btn" id="btn-cancel">Cancelar</button>
+            <button class="cad-btn" id="btn-apply">Aplicar</button>
+            <button class="cad-btn" disabled>Ajuda</button>
+        </div>
+    </div>
+    <script type="module" src="/src/config_app.ts"></script>
+</body>
+</html>

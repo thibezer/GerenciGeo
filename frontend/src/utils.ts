@@ -18,11 +18,12 @@ export const formatarCAR = (v: string): string => {
 };
 
 export const formatarCCIR = (v: string): string => {
-   const d = v.replace(/\D/g, '').slice(0, 13);
-   if (d.length === 13) {
-      return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{3})(\d{1})$/, "$1.$2.$3.$4-$5");
-   }
-   return v;
+   let d = v.replace(/\D/g, '').slice(0, 13);
+   d = d.replace(/^(\d{3})(\d)/, "$1.$2");
+   d = d.replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3");
+   d = d.replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3.$4");
+   d = d.replace(/^(\d{3})\.(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3.$4-$5");
+   return d;
 };
 
 /**
@@ -68,14 +69,21 @@ export const initIcons = () => {
 
 // --- CONTROLE DE TIMERS E INTERVALOS ---
 let activeIntervals: number[] = [];
+let activeTimeouts: number[] = [];
 
 export const registerInterval = (id: number) => {
   activeIntervals.push(id);
 };
 
+export const registerTimeout = (id: number) => {
+  activeTimeouts.push(id);
+};
+
 export const clearTimeoutsAndIntervals = () => {
   activeIntervals.forEach(id => clearInterval(id));
+  activeTimeouts.forEach(id => clearTimeout(id));
   activeIntervals = [];
+  activeTimeouts = [];
 };
 
 
@@ -189,7 +197,7 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
-    container.className = 'fixed bottom-5 right-5 z-200 flex flex-col gap-2 pointer-events-none';
+    container.className = 'fixed bottom-5 right-5 flex flex-col gap-2 pointer-events-none';
     container.style.zIndex = '9999999';
     document.body.appendChild(container);
   }
@@ -235,4 +243,12 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
   toast.addEventListener('click', removeToast);
 };
 
-
+export const escapeHtml = (unsafe: string | null | undefined): string => {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};

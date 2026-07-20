@@ -13,6 +13,7 @@ import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
+import { RibbonManager } from '../ui/ribbon_manager';
 
 // Interceptadores globais de erros para depuração do pywebview
 window.addEventListener('error', (event) => {
@@ -160,6 +161,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       try {
         const resLev = await fetch(`${API_BASE}/levantamentos`);
+        if (!resLev.ok) throw new Error(`HTTP ${resLev.status} ao carregar levantamentos`);
         const allLevs = await resLev.json();
         const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
         ctx.currentLevantamento = levObj;
@@ -293,6 +295,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       } catch (e) {
         console.error("Erro ao carregar detalhes do levantamento:", e);
+        showToast("Erro ao carregar dados do levantamento. Verifique a conexão com a API.", 'error');
       }
     };
 
@@ -1075,6 +1078,11 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
       }
 
+      // Desabilita botão submit para evitar double-submit
+      const btnSubmitPt = document.getElementById('btn-salvar-pt') as HTMLButtonElement ||
+        document.querySelector('#form-editar-ponto [type="submit"]') as HTMLButtonElement;
+      if (btnSubmitPt) { btnSubmitPt.disabled = true; btnSubmitPt.textContent = 'Salvando...'; }
+
       try {
         const res = await fetch(`${API_BASE}/pontos/${pId}`, {
           method: 'PUT',
@@ -1094,6 +1102,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       } catch (err) {
         console.error("Erro ao salvar alterações no ponto:", err);
         showToast("Erro de comunicação com o servidor.", 'error');
+      } finally {
+        if (btnSubmitPt) { btnSubmitPt.disabled = false; btnSubmitPt.textContent = 'Salvar Alterações'; }
       }
     };
 
@@ -1269,6 +1279,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     };
 
+    let _filtroArquivosClickHandler: ((e: MouseEvent) => void) | null = null;
+
     const inicializarFiltroArquivos = () => {
       const btnFiltro = document.getElementById('btn-filtro-arquivos');
       const popover = document.getElementById('popover-filtro-arquivos');
@@ -1280,12 +1292,14 @@ export const mesaTrabalhoRoute: RouteDef = {
         popover.classList.toggle('hidden');
       });
 
-      document.addEventListener('click', (e) => {
+      // Registrado com referência para remoção no cleanup (previne memory leak)
+      _filtroArquivosClickHandler = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
         if (!popover.classList.contains('hidden') && !popover.contains(target) && target !== btnFiltro) {
           popover.classList.add('hidden');
         }
-      });
+      };
+      document.addEventListener('click', _filtroArquivosClickHandler);
     };
 
     const inicializarRedimensionamentoColunas = () => {
@@ -2009,6 +2023,11 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (ctxScrollHandler) {
         document.removeEventListener('scroll', ctxScrollHandler, true);
       }
+      // Remove listener do filtro de arquivos (previne memory leak — MT-09)
+      if (_filtroArquivosClickHandler) {
+        document.removeEventListener('click', _filtroArquivosClickHandler);
+        _filtroArquivosClickHandler = null;
+      }
       if (activeDragCleanup) {
         activeDragCleanup();
         activeDragCleanup = null;
@@ -2066,6 +2085,10 @@ function setupRibbonInteractions(ctx: any): void {
       }
     });
   });
+
+  // Inicializa o Gerenciador de Responsividade do Ribbon para o painel principal
+  const geoprocessamentoRibbon = new RibbonManager('panel-geoprocessamento');
+  geoprocessamentoRibbon.init().catch(console.error);
 
   const btnVoltar = document.getElementById('btn-voltar-lista');
   if (btnVoltar) {

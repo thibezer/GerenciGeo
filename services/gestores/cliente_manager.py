@@ -69,7 +69,8 @@ class ClienteManager:
         try:
             ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
         except Exception as e:
-            print(f"Erro ao delegar geração de dados gerais no workspace: {e}")
+            import logging
+            logging.getLogger(__name__).error(f"Erro ao delegar geração de dados gerais no workspace: {e}")
 
     def registrar_historico(self, cliente_id: int, campo: str, valor_antigo: str, valor_novo: str):
         query = "INSERT INTO cliente_historico_logs (id_cliente, campo_alterado, valor_antigo, valor_novo) VALUES (?, ?, ?, ?)"

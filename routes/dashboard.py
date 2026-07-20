@@ -27,8 +27,12 @@ def get_logs():
 
 @router.get("/history")
 def get_history():
-    repo = HistoricoRinexRepo()
-    return repo.get_all_ordered()
+    try:
+        repo = HistoricoRinexRepo()
+        return repo.get_all_ordered()
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar histórico RINEX: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro ao buscar histórico de arquivos RINEX.")
 
 @router.get("/stats")
 def get_stats():
@@ -46,33 +50,43 @@ def get_stats():
 
 @router.delete("/history/{item_id}")
 def delete_history_item(item_id: int):
-    repo = HistoricoRinexRepo()
-    repo.delete(item_id)
-    return {"message": "Registro removido"}
+    try:
+        repo = HistoricoRinexRepo()
+        repo.delete(item_id)
+        return {"message": "Registro removido"}
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao deletar item do histórico id={item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro ao remover registro do histórico.")
 
 @router.get("/dashboard/alerts")
 def get_alerts():
-    repo = PendenciaRepo()
-    pendencias_alta = repo.get_pendentes_alta(limit=3)
-    
-    manuais = []
-    for p in pendencias_alta:
-        manuais.append({
-            "id": p['id'],
-            "tipo": "MANUAL",
-            "icone": "alert-circle",
-            "mensagem": f"Urgent: {p['titulo']}",
-            "original": p
-        })
-        
-    automaticos = gerar_alertas_integridade()
-    return {"alerts": manuais + automaticos}
+    try:
+        repo = PendenciaRepo()
+        pendencias_alta = repo.get_pendentes_alta(limit=3)
+
+        manuais = []
+        for p in pendencias_alta:
+            manuais.append({
+                "id": p['id'],
+                "tipo": "MANUAL",
+                "icone": "alert-circle",
+                "mensagem": f"Urgent: {p['titulo']}",
+                "original": p
+            })
+
+        automaticos = gerar_alertas_integridade()
+        return {"alerts": manuais + automaticos}
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar alertas do dashboard: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro ao gerar alertas do dashboard.")
 
 @router.get("/dashboard/matriculas-geometrias")
 def get_dashboard_matriculas_geometrias():
     """Retorna os polígonos perimetrais ordenados das matrículas para renderização dinâmica no mapa Leaflet"""
     try:
         # Busca todas as matrículas ativas
+        # Usa subquery para pegar apenas o levantamento mais recente NÃO ARQUIVADO
+        # evitando duplicatas quando uma propriedade tem múltiplos levantamentos ativos.
         query_mats = """
             SELECT m.id, m.numero_matricula, m.area_ha, m.propriedade_id,
                    p.nome_propriedade, p.municipio, p.uf,
@@ -81,6 +95,11 @@ def get_dashboard_matriculas_geometrias():
             JOIN propriedades p ON m.propriedade_id = p.id
             JOIN levantamentos l ON l.propriedade_id = p.id
             WHERE l.status != 'ARQUIVADO'
+              AND l.id = (
+                  SELECT id FROM levantamentos
+                  WHERE propriedade_id = p.id AND status != 'ARQUIVADO'
+                  ORDER BY id DESC LIMIT 1
+              )
         """
         rows_mats = execute_query(query_mats, fetch_all=True)
         

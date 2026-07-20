@@ -34,6 +34,8 @@ class PontoCreate(BaseModel):
     sigma_lon: float = 0.0
     sigma_alt: float = 0.0
     ordem_caminhamento: Optional[int] = None
+    status_ponto: str = "BRUTO"
+    ponto_base_id: Optional[int] = None
 
 class MatriculaCreate(BaseModel):
     numero_matricula: str
@@ -151,7 +153,7 @@ def get_matriculas_do_levantamento(id: int):
         """
         return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/levantamentos/{id}/matriculas")
 def create_matricula(id: int, m: MatriculaCreate):
@@ -159,7 +161,7 @@ def create_matricula(id: int, m: MatriculaCreate):
     try:
         row = execute_query("SELECT propriedade_id FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
         if not row:
-            return {"error": "Levantamento não encontrado"}
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado")
         propriedade_id = row['propriedade_id']
         
         query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -174,14 +176,14 @@ def create_matricula(id: int, m: MatriculaCreate):
         return {"message": "Matrícula adicionada com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/matriculas/{mid}")
 def update_matricula(mid: int, m: MatriculaCreate):
     try:
         antigo = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
         if not antigo:
-            return {"error": "Matrícula não encontrada"}
+            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
         propriedade_id = antigo["propriedade_id"]
         
         rows_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(propriedade_id,), fetch_all=True)
@@ -239,7 +241,7 @@ def update_matricula(mid: int, m: MatriculaCreate):
         return {"message": "Matrícula atualizada e sincronizada com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/matriculas/{mid}")
 def delete_matricula(mid: int):
@@ -263,7 +265,7 @@ def delete_matricula(mid: int):
         return {"message": "Matrícula removida"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/matriculas/{mid}/upload-pdf")
 async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
@@ -291,7 +293,8 @@ async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
         execute_query("UPDATE matriculas SET caminho_arquivo_pdf = ? WHERE id = ?", params=(filepath, mid), commit=True)
         return {"message": "PDF da matrícula anexado com sucesso", "caminho": filepath}
     except Exception as e:
-        return {"error": str(e)}
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/matriculas/{mid}/download-pdf")
 def download_matricula_pdf(mid: int):
@@ -319,7 +322,7 @@ def delete_matricula_pdf(mid: int):
         execute_query("UPDATE matriculas SET caminho_arquivo_pdf = NULL WHERE id = ?", params=(mid,), commit=True)
         return {"message": "PDF da matrícula excluído com sucesso"}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/matriculas/{mid}/historico")
 def get_matricula_historico(mid: int):
@@ -328,7 +331,7 @@ def get_matricula_historico(mid: int):
         logs = [dict(r) for r in execute_query(query, params=(mid,), fetch_all=True)]
         return logs
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Rotas de Pontos ────────────────────────────────────────────────────────────
 
@@ -381,19 +384,19 @@ def create_ponto(id: int, p: PontoCreate):
             ordem = (max_ord + 1) if max_ord is not None else 1
 
         query = """
-            INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, ponto_base_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         execute_query(query, params=(
             id, p.matricula_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
-            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem
+            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem, p.status_ponto, p.ponto_base_id
         ), commit=True)
         
         sanitizar_ordens_duplicadas(id)
         return {"message": "Ponto cadastrado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/pontos/{pid}")
 def delete_ponto(pid: int):
@@ -429,10 +432,10 @@ def delete_ponto(pid: int):
             )
             return {"message": "Ponto removido com sucesso"}
         else:
-            return {"error": "Ponto não encontrado"}
+            raise HTTPException(status_code=404, detail="Ponto não encontrado")
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Importação de TXT/RTK ──────────────────────────────────────────────────────
 
@@ -460,7 +463,7 @@ async def importar_caderneta_txt(
         pontos_processados = parser.processar_arquivo(str(caminho_salvo))
         
         if not pontos_processados:
-            return {"error": "Nenhum vértice válido encontrado ou processado no arquivo."}
+            raise HTTPException(status_code=400, detail="Nenhum vértice válido encontrado ou processado no arquivo.")
             
         ids_pontos = parser.persistir_no_banco(pontos_processados)
         total_segmentos = parser.gerar_topologia_perimetral(ids_pontos, pontos_processados)
@@ -796,7 +799,7 @@ async def analisar_arquivo_txt_temporario(
                 continue
 
         if not pontos_brutos:
-            return {"error": "Nenhum ponto válido encontrado no arquivo."}
+            raise HTTPException(status_code=400, detail="Nenhum ponto válido encontrado no arquivo.")
 
         # Converter de UTM para Geodésica Lat/Lon
         crs_geodesica = "epsg:4674"

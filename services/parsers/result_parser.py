@@ -48,8 +48,8 @@ class ResultParser:
                         linha = linha.lower()
                         if "sirgas2000" in linha and "época" in linha:
                             # Acha as vars e splita
-                            pass
-                        
+                            raise ValueError("Dados corrompidos no arquivo do IBGE: Formato dinâmico de coordenadas não implementado para este relatório.")
+
                     # Simulando extração de dados reais:
                     resultado["lat"] = "-24.1234567"
                     resultado["lon"] = "-47.1234567"
