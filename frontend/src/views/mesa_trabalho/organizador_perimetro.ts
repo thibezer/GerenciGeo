@@ -5,8 +5,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { latLonToUTM } from './mesa_geodesica';
 
 export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
-  if (!ctx.currentMatriculaId) return;
-
+  // Removido o early return para permitir que pontos avulsos ([Sem Matrícula]) sejam carregados
   const isIgnoradoOuBase = (p: any) => p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
 
   let pontosMat = ctx.obterPontosParaOrdenacao();
@@ -16,7 +15,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
     const isIgnB = isIgnoradoOuBase(b) ? 1 : 0;
     if (isIgnA !== isIgnB) return isIgnB - isIgnA;
-    if (isIgnA === 1) return a.nome_vertice.localeCompare(b.nome_vertice);
+    if (isIgnA === 1) return (a.nome_vertice || '').localeCompare(b.nome_vertice || '');
     const valA = a.ordem_caminhamento;
     const valB = b.ordem_caminhamento;
     const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);

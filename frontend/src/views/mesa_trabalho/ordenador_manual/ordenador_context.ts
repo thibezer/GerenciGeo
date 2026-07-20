@@ -4,24 +4,24 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
   ctx.obterPontosParaOrdenacao = () => {
     const todosPontos = ctx.pontosList || [];
 
-    // Ignora bases (tipo B)
-    const filtrarBases = (p: any) => p && p.tipo_ponto !== 'B' && p.tipo !== 'B';
+    // O usuário solicitou que TODO E QUALQUER tipo de ponto apareça (inclusive bases), exceto os fora do polígono
+    const filtroValidos = (p: any) => p && p.ignorar_poligono !== 1;
 
     let pontosFiltrados: any[] = [];
     if (ctx.currentMatriculaId) {
       pontosFiltrados = todosPontos.filter(
-        p => p && p.matricula_id === ctx.currentMatriculaId && filtrarBases(p)
+        p => p && p.matricula_id === ctx.currentMatriculaId && filtroValidos(p)
       );
 
       // FALLBACK: Se a matrícula ativa não possuir nenhum ponto, mostra os avulsos (sem matrícula)
       if (pontosFiltrados.length === 0) {
         pontosFiltrados = todosPontos.filter(
-          p => p && (p.matricula_id === null || p.matricula_id === undefined) && filtrarBases(p)
+          p => p && (!p.matricula_id) && filtroValidos(p)
         );
       }
     } else {
       pontosFiltrados = todosPontos.filter(
-        p => p && (p.matricula_id === null || p.matricula_id === undefined) && filtrarBases(p)
+        p => p && (!p.matricula_id) && filtroValidos(p)
       );
     }
 
@@ -34,7 +34,13 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     const dedupMap = new Map<string, any>();
     pontosFiltrados.forEach((p) => {
       if (!p) return;
-      const key = `${p.nome_vertice || ''}_${p.tipo_ponto || p.tipo || ''}`;
+      
+      // Se o ponto não tiver nome, não podemos deduplicá-lo cegamente com outros pontos sem nome, 
+      // caso contrário todos os pontos brutos sumirão da tela e virarão 1 só (bug da Fazenda Serra dos Dourados).
+      const nome = p.nome_vertice || '';
+      const tipo = p.tipo_ponto || p.tipo || '';
+      const key = nome ? `${nome}_${tipo}` : `UNNAMED_${p.id}`;
+      
       if (!dedupMap.has(key)) {
         dedupMap.set(key, p);
       } else {
