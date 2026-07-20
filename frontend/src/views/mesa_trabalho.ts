@@ -616,23 +616,32 @@ export const mesaTrabalhoRoute: RouteDef = {
       const currentSelectedIds = new Set(ctx.selectedPontoIds);
       const currentSelectedVizinhoIds = new Set(ctx.selectedVizinhoPontoIds);
 
-      // Atualiza tabela: apenas as linhas cujo estado de seleção mudou
-      document.querySelectorAll('.linha-ponto-tbl').forEach(tr => {
-        const pId = parseInt(tr.getAttribute('data-ponto-id') || '0');
-        const isSelectedNow = currentSelectedIds.has(pId);
-        const wasSelected = _previousSelectedIds.has(pId);
+      // ⚡ Bolt: Replace O(N) DOM query with O(K) specific updates for row selection
+      // Instead of querying all rows in the table with querySelectorAll (which is slow for large datasets),
+      // we only update the rows whose selection status changed by comparing previous and current state.
 
-        if (isSelectedNow !== wasSelected) {
-          if (isSelectedNow) {
-            tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
-            tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
-          } else {
+      // 1. Remove highlight from rows that are NO LONGER selected
+      _previousSelectedIds.forEach(pId => {
+        if (!currentSelectedIds.has(pId)) {
+          // Using querySelectorAll to handle potential edge cases where multiple views show the same ID
+          document.querySelectorAll(`.linha-ponto-tbl[data-ponto-id="${pId}"]`).forEach(tr => {
             tr.classList.remove('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
             tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
-          }
+          });
         }
       });
-      
+
+      // 2. Add highlight to rows that are NEWLY selected
+      currentSelectedIds.forEach(pId => {
+        if (!_previousSelectedIds.has(pId)) {
+          // Using querySelectorAll to handle potential edge cases where multiple views show the same ID
+          document.querySelectorAll(`.linha-ponto-tbl[data-ponto-id="${pId}"]`).forEach(tr => {
+            tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
+            tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
+          });
+        }
+      });
+
       const bar = document.getElementById('batch-action-bar-mesa');
       const countEl = document.getElementById('batch-selection-count-mesa');
       const btnIntegrar = document.getElementById('btn-batch-integrate-mesa');
