@@ -78,6 +78,21 @@ function resolverBlocoCAD(tipoPonto: string): string {
   return MAPA_BLOCOS_CAD[tipoPonto.toUpperCase()] || BLOCO_PADRAO;
 }
 
+/**
+ * Sanitiza strings para evitar quebra do parser AutoLISP durante a injeção via GCOLA.
+ * Remove ou substitui caracteres que podem interferir no parse dos atributos.
+ */
+function sanitizarParaCAD(texto: string): string {
+  if (!texto) return '';
+  return texto
+    .replace(/;/g, ' ')
+    .replace(/,/g, ' ')
+    .replace(/\(/g, '[')
+    .replace(/\)/g, ']')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Exportação para AutoCAD (Clipboard → comando GCOLA)
 // ─────────────────────────────────────────────────────────────────
@@ -108,7 +123,7 @@ export function gerarPayloadCAD(pontos: any[], ctx: MesaTrabalhoContext): string
     const z = p.alt || p.alt_original || 0.0;
     const tipo = (p.tipo_ponto || p.tipo || 'P').toUpperCase();
     const bloco = resolverBlocoCAD(tipo);
-    const nome = p.nome_vertice || '';
+    const nome = sanitizarParaCAD(p.nome_vertice || '');
     const sigma = p.sigma_lat || p.sigma_e || 0.0;
     
     // Recupera dados do segmento para método e limite
@@ -141,6 +156,12 @@ export function gerarPayloadCAD(pontos: any[], ctx: MesaTrabalhoContext): string
       if (p.confrontante_matricula) matricula = p.confrontante_matricula;
       if (p.confrontante_cartorio) cns = p.confrontante_cartorio;
     }
+
+    metodo = sanitizarParaCAD(metodo);
+    limite = sanitizarParaCAD(limite);
+    cns = sanitizarParaCAD(cns);
+    matricula = sanitizarParaCAD(matricula);
+    confrontante_nome = sanitizarParaCAD(confrontante_nome);
 
     return `ACAO=NOVO;BLOCO=${bloco};X=${Number(x).toFixed(4)};Y=${Number(y).toFixed(4)};Z=${Number(z).toFixed(4)};ATRIB(ID:${nome},TIPO:${tipo},SIGMA:${Number(sigma).toFixed(3)},METPOS:${metodo},TIPLIM:${limite},CNS:${cns},MATR:${matricula},CONFRO:${confrontante_nome})`;
   }).filter((l): l is string => l !== null);
