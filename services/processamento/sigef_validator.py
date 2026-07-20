@@ -243,12 +243,34 @@ class SigefValidator:
 
     @staticmethod
     def _formatar_azimute(az_deg: float) -> str:
-        """Formata azimute em graus, minutos e segundos decimais (ex: 125° 30' 45.2")"""
+        """Formata azimute em graus, minutos e segundos decimais (ex: 125° 30' 45.20")"""
+        if az_deg is None or math.isnan(az_deg):
+            raise ValueError("Azimute inválido")
+
+        # Normaliza o azimute para o intervalo [0, 360)
+        az_deg = az_deg % 360.0
+
         graus = int(az_deg)
         minutos_dec = (az_deg - graus) * 60.0
         minutos = int(minutos_dec)
         segundos = (minutos_dec - minutos) * 60.0
-        return f"{graus}° {minutos:02d}' {segundos:05.2f}\""
+
+        # Arredondamento explícito dos segundos para 2 casas decimais
+        segundos_arredondados = round(segundos, 2)
+
+        # Cascata de arredondamento
+        if segundos_arredondados >= 60.0:
+            segundos_arredondados -= 60.0
+            minutos += 1
+
+        if minutos >= 60:
+            minutos -= 60
+            graus += 1
+
+        if graus >= 360:
+            graus -= 360
+
+        return f"{graus}° {minutos:02d}' {segundos_arredondados:05.2f}\""
 
 class VertexGenerator:
     """Gerador e Sequenciador de nomes de vértice (Ex: ABCD-M-0001)"""
