@@ -1,4 +1,5 @@
 import math
+import pyproj
 from pyproj import Transformer
 from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
@@ -163,6 +164,8 @@ class SigefValidator:
                 "nome": p["nome_vertice"],
                 "e": e,
                 "n": n,
+                "lat": p["lat"],
+                "lon": p["lon"],
                 "alt": p["alt"] or 0.0
             })
             
@@ -170,6 +173,9 @@ class SigefValidator:
         segmentos_analise = []
         perimetro_total = 0.0
         
+        # Geodesic calculator for rigorous ellipsoidal distance and azimuth
+        geod = pyproj.Geod(ellps="GRS80")
+
         # 2. Caminhamento geométrico ao longo do perímetro da divisa
         for i in range(n):
             curr = pontos_plano[i]
@@ -179,11 +185,12 @@ class SigefValidator:
             dn = next_pt["n"] - curr["n"]
             dh = next_pt["alt"] - curr["alt"]
             
-            d_horizontal = math.sqrt(de**2 + dn**2)
+            # Use strict ellipsoidal geometry (pyproj.Geod with GRS80) instead of planar Euclidean
+            az_forward, _, d_horizontal = geod.inv(curr["lon"], curr["lat"], next_pt["lon"], next_pt["lat"])
+
             perimetro_total += d_horizontal
             
-            az_rad = math.atan2(de, dn)
-            az_deg = math.degrees(az_rad) % 360.0
+            az_deg = az_forward % 360.0
             
             segmentos_analise.append({
                 "do_ponto": curr["nome"],
