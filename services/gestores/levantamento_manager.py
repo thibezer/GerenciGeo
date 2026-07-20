@@ -543,8 +543,28 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                 update_values = []
 
                 if 'tipo_ponto' in p_update and p_update['tipo_ponto'] is not None:
+                    tipo_ponto = p_update['tipo_ponto']
+                    if tipo_ponto not in ['M', 'P', 'V', 'B']:
+                        return {"error": f"Tipo de ponto inválido '{tipo_ponto}' no ponto ID {pid}. Deve ser 'M', 'P', 'V' ou 'B'.", "status_code": 400}
+
+                    # Uniqueness constraint check
+                    # We need the current vertex name to check uniqueness if only tipo_ponto is updated
+                    cursor.execute("SELECT nome_vertice, matricula_id FROM pontos WHERE id = ?", (pid,))
+                    pt_current = cursor.fetchone()
+                    if pt_current:
+                        pt_nome = pt_current['nome_vertice']
+                        pt_mat = valid_ids[pid]['matricula_id']
+
+                        cursor.execute(
+                            "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                            (levantamento_id, pt_mat, pt_nome, tipo_ponto, pid)
+                        )
+                        exists = cursor.fetchone()
+                        if exists:
+                             return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_nome}' do tipo '{tipo_ponto}' nesta matrícula.", "status_code": 400}
+
                     update_fields.append("tipo_ponto = ?")
-                    update_values.append(p_update['tipo_ponto'])
+                    update_values.append(tipo_ponto)
 
                 if 'ignorar_poligono' in p_update and p_update['ignorar_poligono'] is not None:
                     update_fields.append("ignorar_poligono = ?")
