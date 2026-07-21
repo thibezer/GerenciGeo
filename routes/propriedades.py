@@ -44,25 +44,45 @@ class MatriculaCreate(BaseModel):
 @router.get("/propriedades")
 def get_propriedades():
     try:
-        propriedades = [dict(r) for r in execute_query("SELECT * FROM propriedades", fetch_all=True)]
+        # Fetch properties with their related counts in a single query to avoid N+1 issue
+        prop_query = """
+            SELECT
+                p.*,
+                (SELECT count(*) FROM matriculas m WHERE m.propriedade_id = p.id) as total_matriculas,
+                (SELECT count(*) FROM levantamentos l WHERE l.propriedade_id = p.id) as total_levantamentos
+            FROM propriedades p
+        """
+        propriedades = [dict(r) for r in execute_query(prop_query, fetch_all=True)]
+
+        if not propriedades:
+            return []
+
+        # Fetch all clients related to these properties in a single query
+        prop_ids = [p['id'] for p in propriedades]
+        placeholders = ', '.join(['?'] * len(prop_ids))
+
+        clients_query = f"""
+            SELECT pc.propriedade_id, c.id, pe.nome as nome_completo, pe.cpf_cnpj, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas pe ON c.pessoa_id = pe.id
+            WHERE pc.propriedade_id IN ({placeholders})
+        """
+        all_clients = execute_query(clients_query, params=tuple(prop_ids), fetch_all=True)
+
+        # Group clients by property ID
+        from collections import defaultdict
+        clients_by_prop = defaultdict(list)
+        if all_clients:
+            for c in all_clients:
+                client_dict = dict(c)
+                prop_id = client_dict.pop('propriedade_id')
+                clients_by_prop[prop_id].append(client_dict)
+            
+        # Attach clients to properties
         for p in propriedades:
-            # Busca clientes vinculados
-            clients_query = """
-                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
-                FROM propriedade_clientes pc
-                JOIN clientes c ON pc.cliente_id = c.id
-                JOIN pessoas p ON c.pessoa_id = p.id
-                WHERE pc.propriedade_id = ?
-            """
-            p['clientes'] = [dict(r) for r in execute_query(clients_query, params=(p['id'],), fetch_all=True)]
+            p['clientes'] = clients_by_prop.get(p['id'], [])
             
-            # Conta as matrículas associadas
-            mats = execute_query("SELECT count(*) as qtd FROM matriculas WHERE propriedade_id = ?", params=(p['id'],), fetch_one=True)
-            p['total_matriculas'] = mats['qtd'] if mats else 0
-            
-            # Conta os levantamentos associados
-            levs = execute_query("SELECT count(*) as qtd FROM levantamentos WHERE propriedade_id = ?", params=(p['id'],), fetch_one=True)
-            p['total_levantamentos'] = levs['qtd'] if levs else 0
         return propriedades
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
