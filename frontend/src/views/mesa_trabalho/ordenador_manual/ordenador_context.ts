@@ -7,23 +7,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     // O usuário solicitou que TODO E QUALQUER tipo de ponto apareça (inclusive bases), exceto os fora do polígono
     const filtroValidos = (p: any) => p && p.ignorar_poligono !== 1;
 
-    let pontosFiltrados: any[] = [];
-    if (ctx.currentMatriculaId) {
-      pontosFiltrados = todosPontos.filter(
-        p => p && p.matricula_id === ctx.currentMatriculaId && filtroValidos(p)
-      );
-
-      // FALLBACK: Se a matrícula ativa não possuir nenhum ponto, mostra os avulsos (sem matrícula)
-      if (pontosFiltrados.length === 0) {
-        pontosFiltrados = todosPontos.filter(
-          p => p && (!p.matricula_id) && filtroValidos(p)
-        );
-      }
-    } else {
-      pontosFiltrados = todosPontos.filter(
-        p => p && (!p.matricula_id) && filtroValidos(p)
-      );
-    }
+    let pontosFiltrados: any[] = todosPontos.filter(p => filtroValidos(p));
 
     if (ctx.arquivosDesativadosList && ctx.arquivosDesativadosList.length > 0) {
       pontosFiltrados = pontosFiltrados.filter(p => p && !ctx.arquivosDesativadosList!.includes(p.arquivo_origem));
