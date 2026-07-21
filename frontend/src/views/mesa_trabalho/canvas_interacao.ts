@@ -333,9 +333,7 @@ export class CanvasInteracao {
   private zoomExtents(): void {
     if (!this.ctx.pontosList || this.ctx.pontosList.length === 0) return;
     
-    const pontosMat = this.ctx.etapaAtiva === 'geoprocessamento'
-      ? this.ctx.pontosList.filter((p: any) => p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B')
-      : this.ctx.pontosList.filter((p: any) => p.matricula_id === this.ctx.currentMatriculaId);
+    const pontosMat = this.ctx.pontosList.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B');
 
     if (pontosMat.length > 0) {
       this.ctx.mapaController.fitBounds(pontosMat);

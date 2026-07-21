@@ -7,7 +7,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     // O usuário solicitou que TODO E QUALQUER tipo de ponto apareça (inclusive bases), exceto os fora do polígono
     const filtroValidos = (p: any) => p && p.ignorar_poligono !== 1;
 
-    let pontosFiltrados: any[] = todosPontos.filter(p => filtroValidos(p));
+    let pontosFiltrados: any[] = todosPontos.filter(p => p && filtroValidos(p));
 
     if (ctx.arquivosDesativadosList && ctx.arquivosDesativadosList.length > 0) {
       pontosFiltrados = pontosFiltrados.filter(p => p && !ctx.arquivosDesativadosList!.includes(p.arquivo_origem));

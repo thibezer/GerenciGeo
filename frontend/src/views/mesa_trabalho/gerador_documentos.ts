@@ -69,7 +69,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           }
         }
 
-        const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
+        const pontosMat = ctx.pontosList;
         const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0);
         if (validCoords.length === 0 && ctx.triagemMap) {
           const validHomologadosCoords = pontosDoProjeto.filter((p: any) => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map((p: any) => L.latLng(p.lat, p.lon));
