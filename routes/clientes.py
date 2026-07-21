@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel, Field
+from collections import defaultdict
 from database.connection import DatabaseManager, execute_query
 from services.gestores.levantamento_manager import cadastrar_cliente, atualizar_cliente, vincular_cliente_propriedade
 from database.repository import PendenciaRepo
@@ -96,20 +97,65 @@ def get_clientes():
             JOIN pessoas p ON c.pessoa_id = p.id
         """
         clientes = [dict(r) for r in execute_query(query, fetch_all=True)]
+        if not clientes:
+            return clientes
+
+        client_ids = [c['id'] for c in clientes]
+        placeholders = ",".join(["?"] * len(client_ids))
+
+        # 1. Metadados
+        metas_query = f"SELECT id_cliente, chave, valor FROM cliente_metadados WHERE id_cliente IN ({placeholders})"
+        metas_rows = execute_query(metas_query, params=tuple(client_ids), fetch_all=True)
+        metadados_map = defaultdict(dict)
+        for row in metas_rows:
+            metadados_map[row['id_cliente']][row['chave']] = row['valor']
+
+        # 2. Total de levantamentos
+        levs_query = f"""
+            SELECT pc.cliente_id, count(l.id) as qtd
+            FROM propriedade_clientes pc
+            JOIN propriedades p ON pc.propriedade_id = p.id
+            JOIN levantamentos l ON p.id = l.propriedade_id
+            WHERE pc.cliente_id IN ({placeholders})
+            GROUP BY pc.cliente_id
+        """
+        levs_rows = execute_query(levs_query, params=tuple(client_ids), fetch_all=True)
+        levs_map = {row['cliente_id']: row['qtd'] for row in levs_rows}
+
+        # 3. Total de propriedades
+        props_count_query = f"""
+            SELECT cliente_id, COUNT(*) as qtd
+            FROM propriedade_clientes
+            WHERE cliente_id IN ({placeholders})
+            GROUP BY cliente_id
+        """
+        props_count_rows = execute_query(props_count_query, params=tuple(client_ids), fetch_all=True)
+        props_count_map = {row['cliente_id']: row['qtd'] for row in props_count_rows}
+
+        # 4. Detalhes das propriedades
+        props_detail_query = f"""
+            SELECT pc.cliente_id, p.id, p.nome_propriedade, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN propriedades p ON pc.propriedade_id = p.id
+            WHERE pc.cliente_id IN ({placeholders})
+        """
+        props_detail_rows = execute_query(props_detail_query, params=tuple(client_ids), fetch_all=True)
+        props_detail_map = defaultdict(list)
+        for row in props_detail_rows:
+            props_detail_map[row['cliente_id']].append({
+                'id': row['id'],
+                'nome_propriedade': row['nome_propriedade'],
+                'percentual_participacao': row['percentual_participacao']
+            })
+
+        # Atribuir os valores mapeados aos clientes
         for c in clientes:
-            metas = execute_query("SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?", params=(c['id'],), fetch_all=True)
-            c['metadados'] = {m['chave']: m['valor'] for m in metas}
-            levs = execute_query("SELECT count(l.id) as qtd FROM propriedade_clientes pc JOIN propriedades p ON pc.propriedade_id = p.id JOIN levantamentos l ON p.id = l.propriedade_id WHERE pc.cliente_id = ?", params=(c['id'],), fetch_one=True)
-            c['total_levantamentos'] = levs['qtd'] if levs else 0
-            props_count = execute_query("SELECT COUNT(*) as qtd FROM propriedade_clientes WHERE cliente_id = ?", params=(c['id'],), fetch_one=True)
-            c['total_propriedades'] = props_count['qtd'] if props_count else 0
-            props_detail_query = """
-                SELECT p.id, p.nome_propriedade, pc.percentual_participacao
-                FROM propriedade_clientes pc
-                JOIN propriedades p ON pc.propriedade_id = p.id
-                WHERE pc.cliente_id = ?
-            """
-            c['propriedades'] = [dict(r) for r in execute_query(props_detail_query, params=(c['id'],), fetch_all=True)]
+            c_id = c['id']
+            c['metadados'] = dict(metadados_map.get(c_id, {}))
+            c['total_levantamentos'] = levs_map.get(c_id, 0)
+            c['total_propriedades'] = props_count_map.get(c_id, 0)
+            c['propriedades'] = list(props_detail_map.get(c_id, []))
+
         return clientes
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao listar clientes: {e}", exc_info=True)
