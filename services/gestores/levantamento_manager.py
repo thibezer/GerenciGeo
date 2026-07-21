@@ -270,8 +270,8 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                     query_update = "UPDATE pontos SET ordem_caminhamento = ?, matricula_id = ? WHERE id = ? AND levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)"
                     params_base = lambda o, pid: (o, matricula_id, pid, levantamento_id, matricula_id)
 
-                for item in pontos_ordem:
-                    cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
+                params_list = [params_base(item.get("ordem"), item.get("id")) for item in pontos_ordem]
+                cursor.executemany(query_update, params_list)
 
                 if matricula_id is None or matricula_id == 0:
                     conn.commit()

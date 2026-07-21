@@ -449,7 +449,7 @@ export class MesaTrabalhoMapa {
 
     const validPoints = pontos
       .filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0 && p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.ignorar_poligono !== 1)
-      .sort((a, b) => (a.ordem_caminhamento || 0) - (b.ordem_caminhamento || 0));
+      .sort((a, b) => Number(a.ordem_caminhamento ?? 999999) - Number(b.ordem_caminhamento ?? 999999));
 
     if (validPoints.length < 2) return;
 
