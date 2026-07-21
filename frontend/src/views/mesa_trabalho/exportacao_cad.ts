@@ -82,9 +82,9 @@ function resolverBlocoCAD(tipoPonto: string): string {
  * Sanitiza strings para evitar quebra do parser AutoLISP durante a injeção via GCOLA.
  * Remove ou substitui caracteres que podem interferir no parse dos atributos.
  */
-function sanitizarParaCAD(texto: string): string {
-  if (!texto) return '';
-  return texto
+function sanitizarParaCAD(texto: string | number | boolean | null | undefined): string {
+  if (texto === null || texto === undefined) return '';
+  return String(texto)
     .replace(/;/g, ' ')
     .replace(/,/g, ' ')
     .replace(/\(/g, '[')
