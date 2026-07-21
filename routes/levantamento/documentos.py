@@ -245,7 +245,7 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
                     SET nome = ?, cpf_cnpj = ?, rg = ?, estado_civil = ?, regime_bens = ?,
                         nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
                     WHERE id = ?
-                """, params=(o.nome_completo, o.cpf_cnpj, o.rg_ie, o.estado_civil, o.regime_bens,
+                """, params=(o.nome_completo, o.cpf_cnpj if (o.cpf_cnpj and str(o.cpf_cnpj).strip()) else None, o.rg_ie, o.estado_civil, o.regime_bens,
                              o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, pessoa_id), commit=True)
             
         for m in payload.matriculas:

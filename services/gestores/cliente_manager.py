@@ -8,7 +8,9 @@ from services.documentacao.exportacao_service import ExportacaoService
 from database.repository import PendenciaRepo
 
 def validar_cpf_cnpj(documento: str) -> bool:
-    doc = re.sub(r'\D', '', documento)
+    if not documento or not str(documento).strip():
+        return True
+    doc = re.sub(r'\D', '', str(documento))
     if len(doc) == 11:
         # Validação CPF
         if doc == doc[0] * 11: return False

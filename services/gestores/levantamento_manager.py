@@ -37,7 +37,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if cpf_cnpj else ""
+    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', cpf_conjuge)
 
@@ -119,7 +119,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if cpf_cnpj else ""
+    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', cpf_conjuge)
 
@@ -270,8 +270,8 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                     query_update = "UPDATE pontos SET ordem_caminhamento = ?, matricula_id = ? WHERE id = ? AND levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)"
                     params_base = lambda o, pid: (o, matricula_id, pid, levantamento_id, matricula_id)
 
-                for item in pontos_ordem:
-                    cursor.execute(query_update, params_base(item.get("ordem"), item.get("id")))
+                params_list = [params_base(item.get("ordem"), item.get("id")) for item in pontos_ordem]
+                cursor.executemany(query_update, params_list)
 
                 if matricula_id is None or matricula_id == 0:
                     conn.commit()

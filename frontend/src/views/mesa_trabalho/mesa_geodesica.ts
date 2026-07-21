@@ -65,8 +65,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     if (isIgnA === 1) return a.nome_vertice.localeCompare(b.nome_vertice);
     const valA = a.ordem_caminhamento;
     const valB = b.ordem_caminhamento;
-    const numA = typeof valA === 'number' ? valA : (parseInt(valA) || 999999);
-    const numB = typeof valB === 'number' ? valB : (parseInt(valB) || 999999);
+    const numA = Number(valA ?? 999999);
+    const numB = Number(valB ?? 999999);
     return numA - numB;
   });
 
@@ -284,8 +284,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
           }
           const valAOrdem = a.ordem_caminhamento;
           const valBOrdem = b.ordem_caminhamento;
-          const numA = typeof valAOrdem === 'number' ? valAOrdem : (parseInt(valAOrdem) || 999999);
-          const numB = typeof valBOrdem === 'number' ? valBOrdem : (parseInt(valBOrdem) || 999999);
+          const numA = Number(valAOrdem ?? 999999);
+          const numB = Number(valBOrdem ?? 999999);
           return ctx.currentSortDirection === 'asc' ? numA - numB : numB - numA;
         } else if (ctx.currentSortColumn === 'nome') {
           valA = a.nome_vertice;
