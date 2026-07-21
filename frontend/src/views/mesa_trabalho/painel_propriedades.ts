@@ -82,7 +82,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
     if (selectedCount === 0 && selectedVizinhoCount === 0) {
       // Caso 1: Sem Seleção
       const matObj = ctx.matriculasList.find((m: any) => m.id === ctx.currentMatriculaId);
-      const pontosMat = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+      const pontosMat = ctx.pontosList;
       const pontosAtivosCount = pontosMat.filter((p: any) => p.ignorar_poligono !== 1).length;
       const confrontantesCount = ctx.confrontantesList.length;
 

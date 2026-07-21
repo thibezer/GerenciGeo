@@ -75,7 +75,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     );
   }
 
-  const segmentosMat = ctx.segmentosList.filter(s => s.matricula_id === ctx.currentMatriculaId);
+  const segmentosMat = ctx.segmentosList;
 
   const containerTabelaDivisas = document.getElementById('container-tabela-divisas');
   const splitterInf = document.getElementById('splitter-inferior');

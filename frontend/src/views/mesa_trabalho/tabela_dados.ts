@@ -60,9 +60,7 @@ export function inicializarEventosTabela(
           }
         } else if (mouseEvent.shiftKey && ctx.lastSelectedPontoId !== null) {
           // Seleção sequencial por intervalo (Shift + Click)
-          const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
-            ? [...ctx.pontosList]
-            : ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+          const pontosMat = ctx.etapaAtiva === 'geoprocessamento' ? [...ctx.pontosList] : ctx.pontosList.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B');
           
           const index1 = pontosMat.findIndex((pt: any) => pt.id === ctx.lastSelectedPontoId);
           const index2 = pontosMat.findIndex((pt: any) => pt.id === pId);
