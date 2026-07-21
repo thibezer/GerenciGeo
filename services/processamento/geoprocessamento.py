@@ -537,7 +537,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                 dados_detalhados={
                     "base_id": base_id,
                     "base_nome": base["nome_vertice"],
-                    "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
+                    "vetor_delta_utm": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
                     "rovers_corrigidos": detalhamento_logs
                 }
             )
@@ -744,7 +744,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                 "arquivo_origem": arquivo_origem,
                 "base_id": base_ppp_id,
                 "base_nome": base_corr["nome_vertice"],
-                "vetor_delta_ecef": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
+                "vetor_delta_utm": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
                 "total_pontos_vinculados": total_atualizados,
                 "detalhes": detalhamento_logs
             }
@@ -833,12 +833,23 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
         logger.error(f"[OVERRIDE_MANUAL] Dados de entrada da correção manual mal-formatados ou incompletos: {e_conv}")
         raise ValueError(f"Dados numéricos da base inválidos ou ausentes para a correção manual: {e_conv}")
         
-    # 3. Determina o Vetor Delta UTM plano e altitude
-    delta_e = e_corr - e_bruto
-    delta_n = n_corr - n_bruto
-    delta_h = alt_corr_oficial - alt_bruta
+    # 3. Determina o Vetor Delta ECEF 3D a partir das coordenadas
+    # Converte coordenadas UTM da base bruta para Geodésica original
+    lon_base_orig, lat_base_orig = transformer_to_latlon.transform(e_bruto, n_bruto)
+    alt_base_orig = alt_bruta if alt_bruta is not None else 0.0
+
+    # Converte Geodésica original da Base para ECEF original
+    x_base_orig, y_base_orig, z_base_orig = geodesic_to_ecef(lat_base_orig, lon_base_orig, alt_base_orig)
+
+    # Converte Geodésica corrigida da Base (IBGE-PPP / Oficial) para ECEF corrigida
+    x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(lat_corr_oficial, lon_corr_oficial, alt_corr_oficial)
+
+    # Vetor Delta 3D ECEF
+    delta_x = x_base_corr - x_base_orig
+    delta_y = y_base_corr - y_base_orig
+    delta_z = z_base_corr - z_base_orig
     
-    logger.info(f"[OVERRIDE_MANUAL] Delta UTM gerado: dE={delta_e:.4f}m, dN={delta_n:.4f}m, dH={delta_h:.4f}m")
+    logger.info(f"[OVERRIDE_MANUAL] Vetor Delta ECEF 3D gerado: dX={delta_x:.4f}m, dY={delta_y:.4f}m, dZ={delta_z:.4f}m")
     
     # A. Recupera a matrícula id e pontos do lote
     query_mat = """
@@ -933,12 +944,19 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                     n_orig = float(r["n_original"])
                     alt_orig = float(r["alt_original"]) if r.get("alt_original") is not None else 0.0
                     
-                    e_rover_corr = e_orig + delta_e
-                    n_rover_corr = n_orig + delta_n
-                    alt_rover_corr = alt_orig + delta_h
+                    # A. Converte UTM original do Rover para Geodésica original
+                    lon_orig, lat_orig = transformer_to_latlon.transform(e_orig, n_orig)
+
+                    # B. Converte Geodésica original do Rover para ECEF original
+                    x_orig, y_orig, z_orig = geodesic_to_ecef(lat_orig, lon_orig, alt_orig)
+
+                    # C. Aplica translação 3D ECEF
+                    x_corr = x_orig + delta_x
+                    y_corr = y_orig + delta_y
+                    z_corr = z_orig + delta_z
                     
-                    lon_corr, lat_corr = transformer_to_latlon.transform(e_rover_corr, n_rover_corr)
-                    alt_corr = alt_rover_corr
+                    # D. Converte ECEF corrigido para Geodésico corrigido
+                    lat_corr, lon_corr, alt_corr = ecef_to_geodesic(x_corr, y_corr, z_corr)
                     
                     sig_n_val = float(r["sigma_n"]) if r.get("sigma_n") is not None else 0.0
                     sig_e_val = float(r["sigma_e"]) if r.get("sigma_e") is not None else 0.0
@@ -985,7 +1003,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 "arquivo_origem": arquivo_origem,
                 "dados_brutos_base": dados_brutos,
                 "dados_corrigidos_base": dados_corrigidos,
-                "vetor_delta_utm": {"dE": delta_e, "dN": delta_n, "dH": delta_h},
+                "vetor_delta_utm": {"dX": delta_x, "dY": delta_y, "dZ": delta_z},
                 "total_pontos_corrigidos": total_corrigidos,
                 "detalhes": detalhamento_logs
             }
