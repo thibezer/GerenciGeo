@@ -1,6 +1,6 @@
 import unittest
 import math
-from services.processamento.sigef_validator import SigefValidator
+from services.processamento.sigef_validator import SigefValidator, VertexGenerator
 
 class TestSigefValidator(unittest.TestCase):
     def test_formatar_azimute_happy_path(self):
@@ -171,6 +171,66 @@ class TestSigefValidator(unittest.TestCase):
         conforme, msg = SigefValidator.validar_conformidade_vertical(1.00, "desconhecido")
         self.assertFalse(conforme)
         self.assertIn("desconhecido", msg)
+
+    # calcular_sigma_p Tests
+    def test_calcular_sigma_p_normal(self):
+        """Test normal values (Pythagorean triple 3, 4 -> 5)"""
+        resultado = SigefValidator.calcular_sigma_p(3.0, 4.0)
+        self.assertAlmostEqual(resultado, 5.0, places=4)
+
+        resultado = SigefValidator.calcular_sigma_p(0.3, 0.4)
+        self.assertAlmostEqual(resultado, 0.5, places=4)
+
+    def test_calcular_sigma_p_none(self):
+        """Test that sending None returns None"""
+        self.assertIsNone(SigefValidator.calcular_sigma_p(None, 4.0))
+        self.assertIsNone(SigefValidator.calcular_sigma_p(3.0, None))
+        self.assertIsNone(SigefValidator.calcular_sigma_p(None, None))
+
+    def test_calcular_sigma_p_zeros(self):
+        """Test with zeros"""
+        resultado = SigefValidator.calcular_sigma_p(0.0, 0.0)
+        self.assertAlmostEqual(resultado, 0.0, places=4)
+
+    def test_calcular_sigma_p_negatives(self):
+        """Test with negative values (squares should handle it)"""
+        resultado = SigefValidator.calcular_sigma_p(-3.0, 4.0)
+        self.assertAlmostEqual(resultado, 5.0, places=4)
+
+        resultado = SigefValidator.calcular_sigma_p(3.0, -4.0)
+        self.assertAlmostEqual(resultado, 5.0, places=4)
+
+        resultado = SigefValidator.calcular_sigma_p(-3.0, -4.0)
+        self.assertAlmostEqual(resultado, 5.0, places=4)
+
+    def test_calcular_sigma_p_nan_inf(self):
+        """Test with special floats NaN and Inf"""
+        # math.sqrt with inf or nan doesn't raise, it returns inf or nan.
+        # But let's assert their nature.
+        res_nan = SigefValidator.calcular_sigma_p(float('nan'), 4.0)
+        self.assertTrue(math.isnan(res_nan))
+
+        res_inf = SigefValidator.calcular_sigma_p(float('inf'), 4.0)
+        self.assertTrue(math.isinf(res_inf))
+
+class TestVertexGenerator(unittest.TestCase):
+    def test_gerar_nome_vertice_invalid_type(self):
+        """Test that an invalid vertex type raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            VertexGenerator.gerar_nome_vertice("ABCD", "X", 1)
+        self.assertIn("Tipo de vértice X inválido. Deve ser M, P ou V.", str(context.exception))
+
+    def test_gerar_nome_vertice_invalid_credenciado_length(self):
+        """Test that an invalid credenciado code length raises ValueError"""
+        # Test with 3 characters
+        with self.assertRaises(ValueError) as context:
+            VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
+        self.assertIn("O código do credenciado deve ter 4 dígitos.", str(context.exception))
+
+        # Test with 5 characters
+        with self.assertRaises(ValueError) as context:
+            VertexGenerator.gerar_nome_vertice("ABCDE", "M", 1)
+        self.assertIn("O código do credenciado deve ter 4 dígitos.", str(context.exception))
 
 if __name__ == '__main__':
     unittest.main()
