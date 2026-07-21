@@ -88,7 +88,7 @@ def main():
             frameless=False,
             js_api=api
         )
-        webview.start(debug=True)
+        webview.start(debug=False, private_mode=False)
 
     except Exception as e:
         error_msg = traceback.format_exc()

@@ -329,16 +329,11 @@ export const renderMesaTrabalho = (): string => {
         <div class="workspace-main-content">
 
           <!-- Superior: Mapa Leaflet (Comum a Geoprocessamento e Cartório) -->
-          <div class="map-container-wrapper" id="container-mapa-leaflet-parent">
-             <div class="px-4 py-1.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-               <span class="text-[10px] font-medium uppercase tracking-widest text-white/40">Visualização Espacial e Auditoria</span>
-               <div class="flex items-center gap-4">
-                 <span class="text-[9px] font-mono text-mint-vibrant uppercase" id="txt-mapa-status">SIGEF WMS ATIVO</span>
-                 <button id="btn-config-mapa-canvas" onclick="if(window.pywebview && window.pywebview.api) { window.pywebview.api.open_map_settings(); } else { alert('Configuração nativa indisponível. Abra via PyWebview.'); }" class="bg-[#0c1510]/95 border border-white/15 hover:border-mint-vibrant/50 hover:bg-[#121c16] p-1.5 rounded-lg text-white/50 hover:text-white transition-all group backdrop-blur-md cursor-pointer flex items-center justify-center" type="button" title="Opções de Visualização (Canvas)">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-90 transition-transform duration-500"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                 </button>
-               </div>
-             </div>
+          <div class="map-container-wrapper relative" id="container-mapa-leaflet-parent">
+             <!-- Botão flutuante de configurações do mapa -->
+             <button id="btn-config-mapa-canvas" onclick="if(window.pywebview && window.pywebview.api) { window.pywebview.api.open_map_settings(); } else { alert('Configuração nativa indisponível. Abra via PyWebview.'); }" class="absolute top-4 right-4 z-[1000] bg-[#0c1510]/95 border border-white/15 hover:border-mint-vibrant/50 hover:bg-[#121c16] p-1.5 rounded-lg text-white/50 hover:text-white transition-all group backdrop-blur-md cursor-pointer flex items-center justify-center shadow-lg" type="button" title="Opções de Visualização (Canvas)">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-90 transition-transform duration-500"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+             </button>
              <!-- Banner de Numeração Sugerida INCRA -->
              <div id="banner-sugestao-numeracao" class="bg-forest-deep/40 border border-white/5 px-4 py-1.5 text-[10px] flex items-center justify-between text-xs hidden animate-in slide-in-from-top duration-300">
                <div class="flex items-center gap-2 text-white/80">
@@ -864,23 +859,23 @@ export const renderMesaTrabalho = (): string => {
       </div>
 
       <!-- BARRA DE AÇÕES EM LOTE FLUTUANTE DA MESA DE TRABALHO -->
-      <div id="batch-action-bar-mesa" style="z-index: var(--geo-z-toast);" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
-         <span class="text-xs text-white/80 font-mono"><strong id="batch-selection-count-mesa" class="text-mint-vibrant">0</strong> selecionados</span>
-         <div class="h-4 w-px bg-white/10"></div>
-         <div class="flex gap-2">
-            <button id="btn-batch-filter-mesa" class="bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/30 hover:border-transparent text-indigo-300 hover:text-white px-3 py-1.5 rounded-technical text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer" type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-              Filtrar Seleção
+      <div id="batch-action-bar-mesa" style="z-index: var(--geo-z-toast);" class="fixed bottom-4 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-3 py-1.5 shadow-2xl flex items-center gap-3 hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+         <span class="text-[10px] text-white/80 font-mono"><strong id="batch-selection-count-mesa" class="text-mint-vibrant">0</strong> selecionados</span>
+         <div class="h-3 w-px bg-white/10"></div>
+         <div class="flex gap-1.5">
+            <button id="btn-batch-filter-mesa" class="bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/30 hover:border-transparent text-indigo-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Filtrar
             </button>
-            <button id="btn-batch-integrate-mesa" class="bg-purple-500/10 hover:bg-purple-500 border border-purple-500/30 hover:border-transparent text-purple-300 hover:text-white px-3 py-1.5 rounded-technical text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer hidden" type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
-              Integrar Vizinhos
+            <button id="btn-batch-integrate-mesa" class="bg-purple-500/10 hover:bg-purple-500 border border-purple-500/30 hover:border-transparent text-purple-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer hidden" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+              Integrar
             </button>
-            <button id="btn-batch-delete-mesa" class="bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-transparent text-red-400 hover:text-white px-3 py-1.5 rounded-technical text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer" type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-              Excluir Vértices
+            <button id="btn-batch-delete-mesa" class="bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-transparent text-red-400 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              Excluir
             </button>
-            <button id="btn-batch-cancel-mesa" class="btn-secondary py-1.5 px-3 text-xs" type="button">
+            <button id="btn-batch-cancel-mesa" class="btn-secondary py-1 px-2 text-[10px]" type="button">
               Cancelar
             </button>
          </div>

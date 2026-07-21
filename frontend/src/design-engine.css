@@ -1417,11 +1417,11 @@ td[colspan][class*="text-center"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 4px 10px;
   border-bottom: 0.5px solid var(--geo-border-faint);
   background: var(--geo-bg-elevated);
   flex-shrink: 0;
-  height: 32px;
+  height: 24px;
   box-sizing: border-box;
 }
 

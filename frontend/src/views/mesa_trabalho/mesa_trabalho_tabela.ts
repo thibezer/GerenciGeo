@@ -319,7 +319,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
           <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">${colAcoesHtml}</td>
           <td class="px-4 py-2.5">
              <div class="flex items-center gap-1.5">
-                <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
+                <div class="text-xs text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
                 <button class="btn-focar-ponto-mapa p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-95" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                 </button>
@@ -328,12 +328,12 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
           <td class="px-2 py-2.5 text-center">
              ${badgeHtml}
           </td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col1}</td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col2}</td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col3}</td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col4}</td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/80 tabular-nums">${col5}</td>
-          <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col6}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-white/80 tabular-nums">${col1}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-white/80 tabular-nums">${col2}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-mint-vibrant tabular-nums">${col3}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-mint-vibrant tabular-nums">${col4}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-white/80 tabular-nums">${col5}</td>
+          <td class="px-4 py-2.5 text-right text-xs text-mint-vibrant tabular-nums">${col6}</td>
           <td class="px-2 py-2.5 text-center">
             <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
           </td>
@@ -347,7 +347,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
          <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">${colAcoesHtml}</td>
          <td class="px-4 py-2.5">
             <div class="flex items-center gap-1.5">
-               <div class="font-bold text-[13px] text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
+               <div class="text-xs text-white ${isBasePPP ? 'text-indigo-400' : (isBaseFisica ? 'text-rose-400' : '')}">${p.nome_vertice}</div>
                <button class="btn-focar-ponto-mapa p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100 active:scale-95" data-ponto-id="${p.id}" title="Focar no Mapa" type="button">
                   <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                </button>
@@ -356,13 +356,13 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
          <td class="px-2 py-2.5 text-center">
             ${badgeHtml}
          </td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/40 tabular-nums">${col1}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-white/40 tabular-nums">${col2}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col3}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs text-mint-vibrant tabular-nums">${col4}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaN)}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaE)}</td>
-         <td class="px-4 py-2.5 text-right font-mono font-medium text-xs tabular-nums">${formatarDeltaHtml(deltaH)}</td>
+         <td class="px-4 py-2.5 text-right text-xs text-white/40 tabular-nums">${col1}</td>
+         <td class="px-4 py-2.5 text-right text-xs text-white/40 tabular-nums">${col2}</td>
+         <td class="px-4 py-2.5 text-right text-xs text-mint-vibrant tabular-nums">${col3}</td>
+         <td class="px-4 py-2.5 text-right text-xs text-mint-vibrant tabular-nums">${col4}</td>
+         <td class="px-4 py-2.5 text-right text-xs tabular-nums">${formatarDeltaHtml(deltaN)}</td>
+         <td class="px-4 py-2.5 text-right text-xs tabular-nums">${formatarDeltaHtml(deltaE)}</td>
+         <td class="px-4 py-2.5 text-right text-xs tabular-nums">${formatarDeltaHtml(deltaH)}</td>
          <td class="px-2 py-2.5 text-center">
            <input type="checkbox" class="chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-5 h-5 md:w-3.5 md:h-3.5" data-ponto-id="${p.id}" ${p.ignorar_poligono === 1 ? '' : 'checked'} />
          </td>
@@ -426,12 +426,12 @@ export const renderAuditoriaTranslacaoHtml = (
 
   return `
     <tr class="hover:bg-white/[0.02] border-b border-white/5 font-sans text-xs">
-      <td class="px-4 py-2.5 font-bold text-white text-[13px]">${p.nome_vertice}</td>
-      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/40 tabular-nums">${originalE}<br/><span class="text-[10px]">${originalN}</span></td>
-      <td class="px-2 py-2.5 text-right font-mono text-xs text-mint-vibrant/90 tabular-nums">${corrE}<br/><span class="text-[10px] text-mint-vibrant/70">${corrN}</span></td>
-      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devE}mm</td>
-      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devN) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devN}mm</td>
-      <td class="px-2 py-2.5 text-right font-mono font-semibold text-xs ${parseFloat(devH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devH}mm</td>
+      <td class="px-4 py-2.5 text-white text-xs">${p.nome_vertice}</td>
+      <td class="px-2 py-2.5 text-right text-xs text-white/40 tabular-nums">${originalE}<br/><span class="text-[10px]">${originalN}</span></td>
+      <td class="px-2 py-2.5 text-right text-xs text-mint-vibrant/90 tabular-nums">${corrE}<br/><span class="text-[10px] text-mint-vibrant/70">${corrN}</span></td>
+      <td class="px-2 py-2.5 text-right text-xs ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devE}mm</td>
+      <td class="px-2 py-2.5 text-right text-xs ${parseFloat(devN) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devN}mm</td>
+      <td class="px-2 py-2.5 text-right text-xs ${parseFloat(devH) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devH}mm</td>
     </tr>
   `;
 };
@@ -518,12 +518,12 @@ export const renderLinhaSegmentoHtml = (
 
   return `
     <tr class="linha-segmento-tbl hover:bg-white/[0.02] border-b border-white/5" data-seg-id="${s.id}">
-      <td class="px-3 py-2.5 font-bold font-sans text-xs text-white">
+      <td class="px-3 py-2.5 font-sans text-xs text-white">
         <span class="text-white/40 block text-[9px] uppercase">De ➔ Para</span>
         ${pIni ? pIni.nome_vertice : '??'} ➔ ${pFim ? pFim.nome_vertice : '??'}
       </td>
-      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/90 tabular-nums">${distStr}</td>
-      <td class="px-2 py-2.5 text-right font-mono text-xs text-white/90 tabular-nums">${azimuteStr}</td>
+      <td class="px-2 py-2.5 text-right text-xs text-white/90 tabular-nums">${distStr}</td>
+      <td class="px-2 py-2.5 text-right text-xs text-white/90 tabular-nums">${azimuteStr}</td>
       <td class="px-3 py-2.5">
         <div class="space-y-1.5 py-1">
           <select class="glass-input text-xs py-1 px-1.5 select-segmento-confrontante w-full" data-segmento-id="${s.id}">
