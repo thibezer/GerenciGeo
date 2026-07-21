@@ -3,7 +3,7 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
-import { MesaTrabalhoMapa } from './mesa_trabalho_mapa';
+import { MesaTrabalhoMapa } from './mesa_trabalho/mapa/mapa_controller';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
