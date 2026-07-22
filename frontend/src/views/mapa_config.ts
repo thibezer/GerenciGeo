@@ -4,6 +4,12 @@ export interface MapaConfiguracoes {
   vizinhoWeight: number;
   bancoWeight: number;
   markerSizeBase: number;
+  markerStyleM?: string;
+  markerSizeM?: number;
+  markerStyleP?: string;
+  markerSizeP?: number;
+  markerStyleV?: string;
+  markerSizeV?: number;
   enableAnimations: boolean;
   preferCanvas: boolean;
   crosshair?: boolean;
@@ -17,6 +23,12 @@ const DEFAULT_CONFIG: MapaConfiguracoes = {
   vizinhoWeight: 1,
   bancoWeight: 1,
   markerSizeBase: 10,
+  markerStyleM: 'circle-dot',
+  markerSizeM: 14,
+  markerStyleP: 'circle',
+  markerSizeP: 10,
+  markerStyleV: 'cross',
+  markerSizeV: 8,
   enableAnimations: false,
   preferCanvas: true,
   crosshair: false,
@@ -57,6 +69,7 @@ export class MapaConfigManager {
   }
 
   public getConfig(): MapaConfiguracoes {
+    this.config = this.loadConfig();
     return { ...this.config };
   }
 }

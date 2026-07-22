@@ -164,6 +164,7 @@
         <div class="tabs-header">
             <button class="tab-btn active" data-target="tab-display">Exibição</button>
             <button class="tab-btn" data-target="tab-drafting">Desenho</button>
+            <button class="tab-btn" data-target="tab-pontos">Vértices</button>
             <button class="tab-btn" data-target="tab-selection">Seleção</button>
             <button class="tab-btn" data-target="tab-system">Sistema</button>
         </div>
@@ -263,6 +264,86 @@
                                 </div>
                             </div>
                         </fieldset>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PONTOS TAB -->
+            <div class="tab-pane" id="tab-pontos">
+                <div style="display: flex; gap: 12px; height: 100%;">
+                    <!-- M e P -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Estilo do Marco (M, B)</legend>
+                            <div class="cad-row">
+                                <span style="font-size: 11px; margin-right: 10px;">Formato:</span>
+                                <select id="sel-style-m" style="font-size: 11px; width: 120px;">
+                                    <option value="circle">Círculo</option>
+                                    <option value="circle-dot">Círculo + Ponto</option>
+                                    <option value="circle-cross">Círculo + X</option>
+                                    <option value="circle-plus">Círculo + Cruz</option>
+                                    <option value="cross">X</option>
+                                    <option value="plus">Cruz</option>
+                                    <option value="square">Quadrado</option>
+                                    <option value="triangle">Triângulo</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; margin-top: 12px;">
+                                <span style="font-size: 11px; width: 60px;">Tamanho:</span>
+                                <input type="range" id="sld-size-m" min="4" max="24" value="14">
+                                <div class="cad-value-box" id="val-size-m" style="margin-left: 8px;">14</div>
+                            </div>
+                        </fieldset>
+                        
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Estilo do Ponto (P, O)</legend>
+                            <div class="cad-row">
+                                <span style="font-size: 11px; margin-right: 10px;">Formato:</span>
+                                <select id="sel-style-p" style="font-size: 11px; width: 120px;">
+                                    <option value="circle">Círculo</option>
+                                    <option value="circle-dot">Círculo + Ponto</option>
+                                    <option value="circle-cross">Círculo + X</option>
+                                    <option value="circle-plus">Círculo + Cruz</option>
+                                    <option value="cross">X</option>
+                                    <option value="plus">Cruz</option>
+                                    <option value="square">Quadrado</option>
+                                    <option value="triangle">Triângulo</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; margin-top: 12px;">
+                                <span style="font-size: 11px; width: 60px;">Tamanho:</span>
+                                <input type="range" id="sld-size-p" min="4" max="24" value="10">
+                                <div class="cad-value-box" id="val-size-p" style="margin-left: 8px;">10</div>
+                            </div>
+                        </fieldset>
+                    </div>
+                    <!-- V e Preview -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                        <fieldset class="cad-fieldset">
+                            <legend class="cad-legend">Virtual / Vizinho (V)</legend>
+                            <div class="cad-row">
+                                <span style="font-size: 11px; margin-right: 10px;">Formato:</span>
+                                <select id="sel-style-v" style="font-size: 11px; width: 120px;">
+                                    <option value="circle">Círculo</option>
+                                    <option value="circle-dot">Círculo + Ponto</option>
+                                    <option value="circle-cross">Círculo + X</option>
+                                    <option value="circle-plus">Círculo + Cruz</option>
+                                    <option value="cross">X</option>
+                                    <option value="plus">Cruz</option>
+                                    <option value="square">Quadrado</option>
+                                    <option value="triangle">Triângulo</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; margin-top: 12px;">
+                                <span style="font-size: 11px; width: 60px;">Tamanho:</span>
+                                <input type="range" id="sld-size-v" min="4" max="24" value="8">
+                                <div class="cad-value-box" id="val-size-v" style="margin-left: 8px;">8</div>
+                            </div>
+                        </fieldset>
+                        <div style="font-size: 10px; color: #888; margin-top: auto; padding: 4px;">
+                            * Semelhante ao comando PDMODE do AutoCAD.<br/>
+                            Estilos serão aplicados de acordo com o tipo de vértice.
+                        </div>
                     </div>
                 </div>
             </div>

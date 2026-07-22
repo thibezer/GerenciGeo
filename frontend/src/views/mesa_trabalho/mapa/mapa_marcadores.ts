@@ -4,6 +4,7 @@ import { escapeHtml } from '../../../utils';
 import type { MapaCore } from './mapa_core';
 
 import type { MesaTrabalhoMapa } from './mapa_controller';
+import { getPointShapeHtml } from './mapa_pontos_shapes';
 
 export class MapaMarcadores {
   public markers: L.Marker[] = [];
@@ -24,20 +25,27 @@ export class MapaMarcadores {
         const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
         const isBasePPP = p.tipo_ponto === 'M' || p.tipo === 'M';
         let markerBg = 'bg-mint-vibrant';
+        
+        let shapeStyle = this.core.config.markerStyleV || 'cross';
+        let markerSize = this.core.config.markerSizeV || 8;
 
         if (isBasePPP) {
           markerBg = 'bg-indigo-500';
+          shapeStyle = this.core.config.markerStyleM || 'circle-dot';
+          markerSize = this.core.config.markerSizeM || 14;
         } else if (isBaseFisica) {
           markerBg = 'bg-rose-500';
+          shapeStyle = this.core.config.markerStyleM || 'circle-dot';
+          markerSize = this.core.config.markerSizeM || 14;
+        } else if (p.tipo_ponto === 'P' || p.tipo === 'P' || p.tipo === 'O') {
+          shapeStyle = this.core.config.markerStyleP || 'circle';
+          markerSize = this.core.config.markerSizeP || 10;
         }
 
         const animClass = this.core.config.enableAnimations ? 'transition-all duration-150' : '';
-        const markerSize = this.core.config.markerSizeBase;
-        // Check bancoPontosAtivo on the linhas instance of the controller (which manages its state)
         const opacityClass = (this.controller as any).linhas.bancoPontosAtivo ? 'opacity-40 hover:opacity-100' : '';
-        const markerHtml = `
-          <div style="width: ${markerSize}px; height: ${markerSize}px;" class="${markerBg} border border-[#0c1510] rounded-full shadow-md coordinate-marker ${animClass} ${opacityClass}" data-ponto-bg="${markerBg}" id="map-marker-${p.id}"></div>
-        `;
+        const markerHtml = getPointShapeHtml(shapeStyle, markerSize, markerBg, `${animClass} ${opacityClass}`, `map-marker-${p.id}`);
+        
         const customIcon = L.divIcon({
           html: markerHtml,
           className: 'custom-leaflet-marker flex items-center justify-center',
@@ -132,11 +140,18 @@ export class MapaMarcadores {
           </div>
         `;
 
-        const markerSize = this.core.config.markerSizeBase;
+        let shapeStyle = this.core.config.markerStyleV || 'cross';
+        let markerSize = this.core.config.markerSizeV || 8;
+        if (p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo === 'B') {
+           shapeStyle = this.core.config.markerStyleM || 'circle-dot';
+           markerSize = this.core.config.markerSizeM || 14;
+        } else if (p.tipo_ponto === 'P' || p.tipo === 'P' || p.tipo === 'O') {
+           shapeStyle = this.core.config.markerStyleP || 'circle';
+           markerSize = this.core.config.markerSizeP || 10;
+        }
+        
         const animClass = this.core.config.enableAnimations ? 'transition-all duration-150' : '';
-        const markerHtml = `
-          <div style="width: ${markerSize - 2}px; height: ${markerSize - 2}px;" class="bg-[#a855f7] border border-[#0c1510] rounded-full shadow-md coordinate-marker ${animClass}" data-ponto-bg="bg-[#a855f7]" id="map-marker-vizinho-${p.id}"></div>
-        `;
+        const markerHtml = getPointShapeHtml(shapeStyle, markerSize, 'bg-[#a855f7]', animClass, `map-marker-vizinho-${p.id}`);
 
         const groupCustomIcon = L.divIcon({
           html: markerHtml,

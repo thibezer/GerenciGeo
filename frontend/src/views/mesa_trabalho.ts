@@ -2106,6 +2106,17 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
+  // Recarrega os marcadores e a geometria ao mudar as opções visuais
+  const bcConfig = new BroadcastChannel('gerencigeo_map_config');
+  bcConfig.onmessage = (event) => {
+    if (event.data === 'RELOAD_REQUIRED' && typeof ctx.renderMatriculaDados === 'function') {
+      setTimeout(() => {
+        ctx.renderMatriculaDados();
+      }, 50);
+    }
+  };
+
+
   // Listeners para os botões de navegação global transferidos da barra lateral
   const navButtons = [
     { id: 'nav-btn-dashboard', hash: '#dashboard' },

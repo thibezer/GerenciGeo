@@ -75,7 +75,8 @@ def main():
                     "http://127.0.0.1:8000/config_mapa.html",
                     width=660,
                     height=520,
-                    resizable=False
+                    resizable=False,
+                    js_api=api
                 )
 
         api = WindowAPI()
