@@ -8,3 +8,6 @@
 ## 2024-05-24 - N+1 Bottleneck Fixed in GET /clientes
 **Learning:** Replaced 4N looped queries inside get_clientes with batch queries using IN (...) and memory grouping (defaultdict).
 **Action:** Confirmed that N+1 bottlenecks in SQLite wrappers should be solved with IN batched parameters combined with Python's dictionary mapping, removing database latency on iterating elements.
+## 2024-07-23 - N+1 Bottleneck in API Endpoints using execute_query loops
+**Learning:** This codebase frequently relies on an `execute_query` utility function which returns lists of dictionaries. Due to this wrapper's simple synchronous nature without an ORM, relations (like fetching property clients or counts) are sometimes built using tight Python `for` loops containing multiple inner `execute_query` calls, creating severe N+1 latency bottlenecks. Identified one such loop in `routes/levantamento/crud.py` inside `get_levantamentos`.
+**Action:** When optimizing data fetch operations, look for loops containing `execute_query`. Convert the logic to fetch all base items in one query and fetch related items via a single batch query using an `IN (...)` clause. Then, perform the grouping/mapping entirely in Python using `collections.defaultdict`.
