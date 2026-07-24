@@ -48,6 +48,7 @@ export class RibbonManager {
     // Aguarda um pequeno ciclo para garantir que o DOM e ícones iniciais renderizaram
     await new Promise(r => setTimeout(r, 100));
 
+    this.destroy(); // Limpa instâncias ou popovers anteriores antes de reconstruir
     this.buildCache();
     this.setupResizeObserver();
     
@@ -56,6 +57,26 @@ export class RibbonManager {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.closeAllPopovers();
     });
+  }
+
+  public destroy() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+    for (const g of this.groups) {
+      // Se ferramentas estavam no popover, devolve ao elemento do grupo antes de remover
+      if (g.state === 'collapsed' && g.toolsContainer && g.el) {
+        g.el.insertBefore(g.toolsContainer, g.el.firstChild);
+      }
+      if (g.popover && g.popover.parentNode) {
+        g.popover.parentNode.removeChild(g.popover);
+      }
+      if (g.collapsedBtn && g.collapsedBtn.parentNode) {
+        g.collapsedBtn.parentNode.removeChild(g.collapsedBtn);
+      }
+    }
+    this.groups = [];
   }
 
   private buildCache() {
@@ -75,16 +96,17 @@ export class RibbonManager {
       const labelEl = group.querySelector('.rl3-group-label') as HTMLElement;
       const label = labelEl ? labelEl.textContent || '' : id;
 
-      // Cria botão colapsado
+      // Cria botão colapsado exclusivo
       const colBtn = document.createElement('div');
       colBtn.className = 'rl3-collapsed-btn';
       colBtn.style.display = 'none';
       colBtn.innerHTML = `<i data-lucide="chevron-down"></i><span>${label}</span>`;
       group.appendChild(colBtn);
 
-      // Popover global
+      // Popover global com ID único para fácil rastreio e remoção
       const popover = document.createElement('div');
       popover.className = 'rl3-group-popover';
+      popover.setAttribute('data-popover-for', id);
       document.body.appendChild(popover);
 
       // Clone para medição
@@ -137,7 +159,7 @@ export class RibbonManager {
 
   private setupResizeObserver() {
     let ticking = false;
-    this.resizeObserver = new ResizeObserver(() => {
+    const triggerAdjust = () => {
       if (!ticking) {
         requestAnimationFrame(() => {
           this.adjustLayout();
@@ -145,8 +167,11 @@ export class RibbonManager {
         });
         ticking = true;
       }
-    });
+    };
+
+    this.resizeObserver = new ResizeObserver(triggerAdjust);
     this.resizeObserver.observe(this.panel);
+    window.addEventListener('resize', triggerAdjust);
   }
 
   private calculateRequiredWidth(): number {
@@ -173,9 +198,13 @@ export class RibbonManager {
     return total;
   }
 
-  private adjustLayout() {
+  public adjustLayout() {
     if (this.groups.length === 0) return;
     const availableWidth = this.panel.clientWidth;
+    
+    // FIX ERRO 2: Se o painel estiver oculto (display: none / clientWidth <= 0 ao alternar de aba),
+    // aborta o recálculo IMEDIATAMENTE para não colapsar os grupos em segundo plano!
+    if (availableWidth <= 0) return;
     
     let changed = false;
     let safeLoop = 0;

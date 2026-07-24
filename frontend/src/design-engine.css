@@ -632,7 +632,7 @@ td[colspan][class*="text-center"] {
 /* Redimensionamento automático do Canvas inferior */
 .workspace-body {
     flex-grow: 1;
-    height: calc(100vh - 149px); /* Ajuste exato para as 3 camadas da Ribbon */
+    height: calc(100vh - 186px); /* Ajuste exato para as 3 camadas da Ribbon (30px + 32px + 32px + 92px) */
     overflow: hidden;
     position: relative;
 }
@@ -649,7 +649,7 @@ td[colspan][class*="text-center"] {
     color: #e0e0e0;
     user-select: none;
     width: 100%;
-    height: 149px; /* Altura fixa controlada (30px + 32px + 87px) */
+    height: 186px; /* Altura fixa controlada (30px + 32px + 32px + 92px) */
     box-sizing: border-box;
 }
 
@@ -887,14 +887,14 @@ td[colspan][class*="text-center"] {
 
 /* Sub-camada 3b: Painéis */
 .rl3-panels {
-  height: 55px;
+  height: 92px;
   overflow: hidden;
 }
 
 .rl3-panel {
   display: flex;
   align-items: stretch;
-  height: 55px;
+  height: 92px;
   padding: 4px 8px;
   gap: 0;
   overflow-x: auto;
@@ -909,39 +909,45 @@ td[colspan][class*="text-center"] {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
   min-width: fit-content;
-  padding: 0 4px;
+  padding: 0 5px;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .rl3-group-tools {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 1;
+  height: 68px;
 }
 
-/* Coluna flex para empilhar botões pequenos (Grid Helper) */
+/* Coluna flex para empilhar até 3 botões pequenos (Grid Helper de 3 Linhas) */
 .rl3-tool-col {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  height: 100%;
+  justify-content: flex-start;
+  gap: 2.5px;
+  height: 68px;
 }
 
 .rl3-group-label {
-  font-size: 9px;
-  color: rgba(255,255,255,0.22);
+  font-size: 9.5px;
+  color: rgba(255,255,255,0.35);
   text-transform: uppercase;
   letter-spacing: 0.07em;
+  line-height: 14px;
+  height: 14px;
   margin-top: 2px;
   white-space: nowrap;
-  font-weight: 400;
+  font-weight: 500;
+  text-align: center;
 }
 
 .rl3-divider {
   width: 1px;
-  height: 44px;
+  height: 76px;
   background: rgba(255,255,255,0.06);
   margin: 0 6px;
   align-self: center;
@@ -956,10 +962,10 @@ td[colspan][class*="text-center"] {
   justify-content: center;
   gap: 2px;
   min-width: 48px;
-  height: 38px !important;
-  padding: 2px 6px !important;
-  font-size: 9px;
-  color: rgba(255,255,255,0.65) !important;
+  height: 68px !important;
+  padding: 4px 6px !important;
+  font-size: 9.5px;
+  color: rgba(255,255,255,0.7) !important;
   background: rgba(255,255,255,0.02) !important;
   border: 0.5px solid rgba(255,255,255,0.08) !important;
   border-radius: 4px !important;
@@ -971,11 +977,11 @@ td[colspan][class*="text-center"] {
 }
 .rl3-tool-btn i,
 .rl3-tool-btn svg {
-  width: 14px !important;
-  height: 14px !important;
-  min-width: 14px !important;
-  min-height: 14px !important;
-  margin-bottom: 1px !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  margin-bottom: 2px !important;
   flex-shrink: 0 !important;
 }
 .rl3-tool-btn:hover {
@@ -985,32 +991,46 @@ td[colspan][class*="text-center"] {
 }
 .rl3-tool-btn:active { transform: scale(0.96); }
 
-/* Botão grande (ação principal do grupo) */
-.rl3-tool-btn.rl3-btn-lg {
-  min-width: 54px;
-  height: 44px !important;
-  font-size: 9px;
+/* Botão grande (ação principal do grupo - ocupa as 3 linhas) */
+.rl3-group-tools .rl3-tool-btn.rl3-btn-lg {
+  min-width: 58px;
+  height: 68px !important;
+  font-size: 10px;
   font-weight: 500;
   color: var(--geo-accent) !important;
   border-color: rgba(0,245,160,0.25) !important;
   background: rgba(0,245,160,0.05) !important;
 }
-.rl3-tool-btn.rl3-btn-lg:hover { 
+.rl3-group-tools .rl3-tool-btn.rl3-btn-lg i,
+.rl3-group-tools .rl3-tool-btn.rl3-btn-lg svg,
+.rl3-group-tools .rl3-tool-btn.rl3-btn-lg [data-lucide] {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  margin-bottom: 4px !important;
+}
+.rl3-group-tools .rl3-tool-btn.rl3-btn-lg:hover { 
   background: rgba(0,245,160,0.12) !important;
   color: var(--geo-accent) !important;
   border-color: rgba(0,245,160,0.4) !important;
 }
 
-/* Botão pequeno (empilhável em rl3-tool-col) */
-.rl3-tool-btn.rl3-btn-small {
+/* Botão pequeno (empilhável em 3 linhas na rl3-tool-col) */
+.rl3-group-tools .rl3-tool-btn.rl3-btn-small {
   flex-direction: row;
   justify-content: flex-start;
   height: 21px !important;
+  min-height: 21px !important;
+  max-height: 21px !important;
   padding: 0 6px !important;
   min-width: 0;
+  font-size: 9px;
+  box-sizing: border-box !important;
 }
-.rl3-tool-btn.rl3-btn-small i,
-.rl3-tool-btn.rl3-btn-small svg {
+.rl3-group-tools .rl3-tool-btn.rl3-btn-small i,
+.rl3-group-tools .rl3-tool-btn.rl3-btn-small svg,
+.rl3-group-tools .rl3-tool-btn.rl3-btn-small [data-lucide] {
   margin-bottom: 0 !important;
   margin-right: 4px;
   width: 12px !important;
@@ -1050,30 +1070,33 @@ td[colspan][class*="text-center"] {
   border: 0.5px solid rgba(255,255,255,0.08);
   border-radius: 4px;
   padding: 2px;
-  height: 38px;
+  height: 68px;
   box-sizing: border-box;
+  flex-direction: column;
+  justify-content: center;
 }
 .rl3-toggle-label {
   font-size: 9px;
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.4);
   padding: 0 4px;
-  font-weight: 400;
+  font-weight: 500;
 }
 .rl3-toggle-btn {
-  padding: 4px 8px;
-  font-size: 10px;
+  padding: 3px 8px;
+  font-size: 9.5px;
   font-weight: 400;
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: rgba(255,255,255,0.4);
+  color: rgba(255,255,255,0.5);
   cursor: pointer;
   transition: all 100ms;
+  width: 100%;
 }
 .rl3-toggle-btn.active {
-  background: rgba(0,245,160,0.08);
+  background: rgba(0,245,160,0.12);
   color: var(--geo-accent);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* --------------------------------------------------- */
@@ -1086,7 +1109,7 @@ td[colspan][class*="text-center"] {
 }
 .ribbon-state-compact .rl3-tool-btn {
   min-width: 0 !important;
-  width: 32px !important;
+  width: 36px !important;
 }
 .ribbon-state-compact .rl3-tool-btn.rl3-btn-small {
   width: 28px !important;
@@ -1097,21 +1120,20 @@ td[colspan][class*="text-center"] {
   margin-right: 0 !important;
 }
 .ribbon-state-compact .rl3-toggle-row {
-  flex-direction: column;
-  height: 44px;
-  gap: 0;
-  padding: 1px;
+  height: 68px;
+  gap: 2px;
+  padding: 2px;
 }
 .ribbon-state-compact .rl3-toggle-label {
   display: none;
 }
 .ribbon-state-compact .rl3-toggle-btn {
   font-size: 8px;
-  padding: 2px 4px;
+  padding: 4px 2px;
   width: 100%;
 }
 
-/* Estado Colapsado: O grupo inteiro some, e mostra um botão Dropdown */
+/* Estado Colapsado: O grupo inteiro some, e mostra um botão Dropdown de 3 linhas */
 .ribbon-state-collapsed > .rl3-group-tools,
 .ribbon-state-collapsed > .rl3-group-label {
   display: none !important;
@@ -1127,42 +1149,44 @@ td[colspan][class*="text-center"] {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 44px;
-  padding: 0 8px;
+  height: 68px;
+  padding: 0 10px;
   background: rgba(255,255,255,0.03);
   border: 0.5px solid rgba(255,255,255,0.1);
   border-radius: 4px;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.75);
   cursor: pointer;
   transition: all 150ms;
 }
 .rl3-collapsed-btn:hover {
   background: rgba(255,255,255,0.08);
   color: #fff;
+  border-color: rgba(0,245,160,0.3);
 }
 .rl3-collapsed-btn span {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 500;
 }
 .rl3-collapsed-btn i {
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
 }
 
 /* Popover do Grupo Colapsado */
 .rl3-group-popover {
   position: absolute;
-  top: 90px; /* Logo abaixo da ribbon */
-  background: #1a221f;
-  border: 1px solid rgba(255,255,255,0.1);
+  top: 130px; /* Logo abaixo da ribbon mestre */
+  background: #141b17;
+  border: 1px solid rgba(0,245,160,0.25);
   border-radius: 6px;
-  padding: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  padding: 8px 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.7);
   z-index: 9999;
-  display: none; /* Controlado via JS */
-  flex-direction: row;
-  align-items: stretch;
-  gap: 8px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 .rl3-group-popover.is-open {
   display: flex;

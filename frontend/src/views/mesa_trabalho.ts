@@ -591,9 +591,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (!ctx.triagemMap) return;
       if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
-      const pontosMat = ctx.etapaAtiva === 'geoprocessamento'
-        ? ctx.pontosList.filter(p => p && p.matricula_id === null && p.tipo_ponto !== 'B' && p.tipo !== 'B' && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)))
-        : ctx.obterPontosParaOrdenacao();
+      const pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
+        ? ctx.obterPontosParaOrdenacao()
+        : (ctx.pontosList || []).filter(p => p && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)));
 
       ctx.mapaController.clearOverlays();
       ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
@@ -2087,6 +2087,9 @@ function setupRibbonInteractions(ctx: any): void {
       const targetPanel = document.getElementById(panelId);
       if (targetPanel) {
         targetPanel.classList.remove('hidden');
+        if (panelId === 'panel-geoprocessamento' && geoprocessamentoRibbon) {
+          requestAnimationFrame(() => geoprocessamentoRibbon.adjustLayout());
+        }
       }
 
       if (ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
