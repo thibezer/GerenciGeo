@@ -460,19 +460,21 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
             conn.commit()
             
         # 5. Recalcular os contadores de profissionais
-        for t in ['M', 'P', 'V']:
-            row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
-                params=(profissional_id, t, f"{codigo_credenciado}-%"),
-                fetch_one=True
-            )
-            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
-            col_name = f"contador_{t.lower()}"
-            execute_query(
-                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
-                params=(max_num, profissional_id),
-                commit=True
-            )
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for t in ['M', 'P', 'V']:
+                cursor.execute(
+                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                    (profissional_id, t, f"{codigo_credenciado}-%")
+                )
+                row_max = cursor.fetchone()
+                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+                col_name = f"contador_{t.lower()}"
+                cursor.execute(
+                    f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                    (max_num, profissional_id)
+                )
+            conn.commit()
             
         return {
             "sucesso": True,
@@ -776,19 +778,21 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
             conn.commit()
             
         # 5. Recalcular os contadores de profissionais
-        for t in ['M', 'P', 'V']:
-            row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
-                params=(profissional_id, t, f"{codigo_credenciado}-%"),
-                fetch_one=True
-            )
-            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
-            col_name = f"contador_{t.lower()}"
-            execute_query(
-                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
-                params=(max_num, profissional_id),
-                commit=True
-            )
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for t in ['M', 'P', 'V']:
+                cursor.execute(
+                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                    (profissional_id, t, f"{codigo_credenciado}-%")
+                )
+                row_max = cursor.fetchone()
+                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+                col_name = f"contador_{t.lower()}"
+                cursor.execute(
+                    f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                    (max_num, profissional_id)
+                )
+            conn.commit()
             
         return {
             "sucesso": True,
@@ -955,27 +959,30 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
             params=(id, planilha_origem),
             commit=True
         )
-        for mid_afetado in matriculas_afetadas:
+        if matriculas_afetadas:
+            placeholders = ",".join(["?"] * len(matriculas_afetadas))
             execute_query(
-                "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
-                params=(id, mid_afetado),
+                f"DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({placeholders})",
+                params=tuple([id] + list(matriculas_afetadas)),
                 commit=True
             )
         
         # Recalcular contadores do profissional
-        for t in ['M', 'P', 'V']:
-            row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
-                params=(profissional_id, t, f"{codigo_credenciado}-%"),
-                fetch_one=True
-            )
-            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
-            col_name = f"contador_{t.lower()}"
-            execute_query(
-                f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
-                params=(max_num, profissional_id),
-                commit=True
-            )
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for t in ['M', 'P', 'V']:
+                cursor.execute(
+                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
+                    (profissional_id, t, f"{codigo_credenciado}-%")
+                )
+                row_max = cursor.fetchone()
+                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+                col_name = f"contador_{t.lower()}"
+                cursor.execute(
+                    f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
+                    (max_num, profissional_id)
+                )
+            conn.commit()
             
         return {"sucesso": True, "mensagem": f"Planilha '{planilha_origem}' e seus pontos foram excluídos com sucesso."}
     except Exception as e:
@@ -1003,18 +1010,20 @@ def get_pontos_sugeridos_levantamento(id: int):
         codigo_cred = prof["codigo_credenciado"] if prof else ""
         
         sugestoes = {}
-        for t in ['M', 'P', 'V']:
-            row_max = execute_query(
-                "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
-                params=(prof_id, t),
-                fetch_one=True
-            )
-            max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
-            proximo = max_num + 1
-            sugestoes[t] = {
-                "proximo_numero": proximo,
-                "codigo_sugerido": f"{codigo_cred}-{t}-{proximo:04d}" if codigo_cred else f"{t}-{proximo}"
-            }
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for t in ['M', 'P', 'V']:
+                cursor.execute(
+                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
+                    (prof_id, t)
+                )
+                row_max = cursor.fetchone()
+                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+                proximo = max_num + 1
+                sugestoes[t] = {
+                    "proximo_numero": proximo,
+                    "codigo_sugerido": f"{codigo_cred}-{t}-{proximo:04d}" if codigo_cred else f"{t}-{proximo}"
+                }
             
         return {
             "profissional_id": prof_id,

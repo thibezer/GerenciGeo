@@ -262,16 +262,15 @@ def gerar_alertas_integridade():
     # 2.1. Validação de Tempo Mínimo de Rastreio da Base (Item 12 - INCRA exige min 2h / 7200s)
     try:
         query_bases_duracao = """
-            SELECT nome_vertice, arquivo_rinex, levantamento_id 
-            FROM pontos 
-            WHERE (tipo_ponto = 'M' OR tipo_ponto = 'B') AND arquivo_rinex IS NOT NULL AND levantamento_id IN (SELECT id FROM levantamentos WHERE status = 'EM_ANDAMENTO')
+            SELECT p.nome_vertice, p.arquivo_rinex, p.levantamento_id, l.pasta_projeto
+            FROM pontos p
+            JOIN levantamentos l ON p.levantamento_id = l.id
+            WHERE (p.tipo_ponto = 'M' OR p.tipo_ponto = 'B') AND p.arquivo_rinex IS NOT NULL AND l.status = 'EM_ANDAMENTO'
         """
         bases_ativas = [dict(r) for r in execute_query(query_bases_duracao, fetch_all=True)]
         for b in bases_ativas:
-            query_proj = "SELECT pasta_projeto FROM levantamentos WHERE id = ?"
-            row_proj = execute_query(query_proj, params=(b['levantamento_id'],), fetch_one=True)
-            if row_proj and row_proj['pasta_projeto']:
-                caminho_rinex = os.path.join(row_proj['pasta_projeto'], "Rinex", b['arquivo_rinex'])
+            if b['pasta_projeto']:
+                caminho_rinex = os.path.join(b['pasta_projeto'], "Rinex", b['arquivo_rinex'])
                 if os.path.exists(caminho_rinex):
                     meta = ler_metadados_rinex(caminho_rinex)
                     if meta and meta['inicio'] and meta['fim']:
@@ -370,27 +369,36 @@ def gerar_alertas_integridade():
     lev_ativos_query = "SELECT id FROM levantamentos WHERE status = 'EM_ANDAMENTO'"
     try:
         lev_ativos = [dict(r) for r in execute_query(lev_ativos_query, fetch_all=True)]
-        for lev in lev_ativos:
-            pontos_query = "SELECT lat, lon FROM pontos WHERE levantamento_id = ? AND lat IS NOT NULL AND lon IS NOT NULL"
-            pts = [dict(r) for r in execute_query(pontos_query, params=(lev['id'],), fetch_all=True)]
-            if pts:
-                lons = [p['lon'] for p in pts]
-                lon_media = sum(lons) / len(lons)
+        if lev_ativos:
+            lev_ids = [str(lev['id']) for lev in lev_ativos]
+            placeholders = ", ".join(["?"] * len(lev_ids))
+            pontos_query = f"SELECT levantamento_id, lon FROM pontos WHERE levantamento_id IN ({placeholders}) AND lon IS NOT NULL"
+            pts = execute_query(pontos_query, params=tuple(lev_ids), fetch_all=True)
+
+            from collections import defaultdict
+            pts_by_lev = defaultdict(list)
+            for p in pts:
+                pts_by_lev[str(p['levantamento_id'])].append(p['lon'])
                 
-                # Derivação do fuso UTM a partir da longitude média dos pontos importados
-                fuso_derivado = int((lon_media + 180) / 6) + 1
-                mc_derivado = fuso_derivado * 6 - 183
-                
-                # Fuso geográfico padrão configurado na esteira do HGO / Levantamento (Zone 22S -> Fuso 22, MC 51 W)
-                fuso_configurado = 22
-                
-                if fuso_derivado != fuso_configurado:
-                    mc_derivado_str = f"{abs(mc_derivado)} W" if mc_derivado < 0 else f"{mc_derivado} E"
-                    alertas.append({
-                        "tipo": "ALERTA",
-                        "icone": "compass",
-                        "mensagem": f"Levantamento {lev['id']}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W)."
-                    })
+            for lev_id in lev_ids:
+                lons = pts_by_lev.get(lev_id)
+                if lons:
+                    lon_media = sum(lons) / len(lons)
+
+                    # Derivação do fuso UTM a partir da longitude média dos pontos importados
+                    fuso_derivado = int((lon_media + 180) / 6) + 1
+                    mc_derivado = fuso_derivado * 6 - 183
+
+                    # Fuso geográfico padrão configurado na esteira do HGO / Levantamento (Zone 22S -> Fuso 22, MC 51 W)
+                    fuso_configurado = 22
+
+                    if fuso_derivado != fuso_configurado:
+                        mc_derivado_str = f"{abs(mc_derivado)} W" if mc_derivado < 0 else f"{mc_derivado} E"
+                        alertas.append({
+                            "tipo": "ALERTA",
+                            "icone": "compass",
+                            "mensagem": f"Levantamento {lev_id}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W)."
+                        })
     except Exception as e:
         logger.error(f"Erro na checagem de fuso UTM: {e}")
 
