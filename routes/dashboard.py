@@ -104,29 +104,44 @@ def get_dashboard_matriculas_geometrias():
         rows_mats = execute_query(query_mats, fetch_all=True)
         
         result = []
-        for row in rows_mats:
-            mat = dict(row)
-            # Busca os pontos perimetrais ordenados da matrícula
-            query_pts = """
-                SELECT lat, lon, lat_corrigido, lon_corrigido, nome_vertice
+        if rows_mats:
+            from collections import defaultdict
+
+            # The combination of (levantamento_id, matricula_id) is what defines the active point set.
+            # However, since we're using SQLite, IN with tuples `(levantamento_id, matricula_id) IN (...)` is less standard.
+            # Since matricula_id is unique enough, we filter by matricula_id and then in Python we ensure it belongs to the right levantamento_id.
+
+            matricula_ids = [str(r["id"]) for r in rows_mats]
+            placeholders = ", ".join(["?"] * len(matricula_ids))
+
+            # Busca todos os pontos de todas as matrículas ativas em uma única query
+            query_pts = f"""
+                SELECT levantamento_id, matricula_id, lat, lon, lat_corrigido, lon_corrigido, nome_vertice
                 FROM pontos
-                WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                WHERE matricula_id IN ({placeholders}) AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
                 ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
             """
-            rows_pts = execute_query(query_pts, params=(mat["levantamento_id"], mat["id"]), fetch_all=True)
+            all_pts = execute_query(query_pts, params=tuple(matricula_ids), fetch_all=True)
             
-            coords = []
-            for r in rows_pts:
-                pt = dict(r)
-                lat = pt["lat_corrigido"] if pt["lat_corrigido"] is not None else pt["lat"]
-                lon = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
-                if lat and lon:
-                    coords.append({"lat": lat, "lon": lon, "nome": pt["nome_vertice"]})
-            
-            # Uma matrícula só é elegível se possuir uma poligonal fechável (pelo menos 3 pontos com coordenadas válidas)
-            if len(coords) >= 3:
-                mat["coordenadas"] = coords
-                result.append(mat)
+            pts_by_mat_lev = defaultdict(list)
+            if all_pts:
+                for r in all_pts:
+                    pt = dict(r)
+                    lat = pt["lat_corrigido"] if pt["lat_corrigido"] is not None else pt["lat"]
+                    lon = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
+                    if lat and lon:
+                        key = (pt["levantamento_id"], pt["matricula_id"])
+                        pts_by_mat_lev[key].append({"lat": lat, "lon": lon, "nome": pt["nome_vertice"]})
+
+            for row in rows_mats:
+                mat = dict(row)
+                key = (mat["levantamento_id"], mat["id"])
+                coords = pts_by_mat_lev.get(key, [])
+
+                # Uma matrícula só é elegível se possuir uma poligonal fechável (pelo menos 3 pontos com coordenadas válidas)
+                if len(coords) >= 3:
+                    mat["coordenadas"] = coords
+                    result.append(mat)
                 
         return result
     except Exception as e:
