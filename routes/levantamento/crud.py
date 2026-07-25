@@ -57,16 +57,31 @@ def get_levantamentos():
         """
         levantamentos = [dict(r) for r in execute_query(query, fetch_all=True)]
         
+        if not levantamentos:
+            return []
+
+        prop_ids = list(set([l['propriedade_id'] for l in levantamentos]))
+        placeholders = ', '.join(['?'] * len(prop_ids))
+
+        clients_query = f"""
+            SELECT pc.propriedade_id, c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id IN ({placeholders})
+        """
+
+        from collections import defaultdict
+        clients_by_prop = defaultdict(list)
+
+        for row in execute_query(clients_query, params=tuple(prop_ids), fetch_all=True):
+            r_dict = dict(row)
+            prop_id = r_dict.pop('propriedade_id')
+            clients_by_prop[prop_id].append(r_dict)
+
         # Busca proprietários vinculados para cada levantamento
         for l in levantamentos:
-            clients_query = """
-                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
-                FROM propriedade_clientes pc
-                JOIN clientes c ON pc.cliente_id = c.id
-                JOIN pessoas p ON c.pessoa_id = p.id
-                WHERE pc.propriedade_id = ?
-            """
-            l['clientes'] = [dict(r) for r in execute_query(clients_query, params=(l['propriedade_id'],), fetch_all=True)]
+            l['clientes'] = clients_by_prop.get(l['propriedade_id'], [])
             
         return levantamentos
     except Exception as e:
