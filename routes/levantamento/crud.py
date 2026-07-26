@@ -10,6 +10,7 @@ import shutil
 import zipfile
 import logging
 import datetime
+from collections import defaultdict
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import FileResponse, StreamingResponse
@@ -60,29 +61,31 @@ def get_levantamentos():
         if not levantamentos:
             return []
 
-        prop_ids = list(set([l['propriedade_id'] for l in levantamentos]))
-        placeholders = ', '.join(['?'] * len(prop_ids))
-
-        clients_query = f"""
-            SELECT pc.propriedade_id, c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
-            FROM propriedade_clientes pc
-            JOIN clientes c ON pc.cliente_id = c.id
-            JOIN pessoas p ON c.pessoa_id = p.id
-            WHERE pc.propriedade_id IN ({placeholders})
-        """
-
         from collections import defaultdict
+
+        prop_ids = list(set(l['propriedade_id'] for l in levantamentos if l.get('propriedade_id') is not None))
         clients_by_prop = defaultdict(list)
 
-        for row in execute_query(clients_query, params=tuple(prop_ids), fetch_all=True):
-            r_dict = dict(row)
-            prop_id = r_dict.pop('propriedade_id')
-            clients_by_prop[prop_id].append(r_dict)
+        if prop_ids:
+            placeholders = ', '.join(['?'] * len(prop_ids))
+            clients_query = f"""
+                SELECT pc.propriedade_id, c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
+                FROM propriedade_clientes pc
+                JOIN clientes c ON pc.cliente_id = c.id
+                JOIN pessoas p ON c.pessoa_id = p.id
+                WHERE pc.propriedade_id IN ({placeholders})
+            """
+            for row in execute_query(clients_query, params=tuple(prop_ids), fetch_all=True):
+                r_dict = dict(row)
+                prop_id = r_dict.pop('propriedade_id')
+                clients_by_prop[prop_id].append(r_dict)
 
-        # Busca proprietários vinculados para cada levantamento
         for l in levantamentos:
             l['clientes'] = clients_by_prop.get(l['propriedade_id'], [])
-            
+        else:
+            for l in levantamentos:
+                l['clientes'] = []
+
         return levantamentos
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao listar levantamentos: {e}", exc_info=True)
