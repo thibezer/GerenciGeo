@@ -127,7 +127,7 @@ export class FluentRibbonManager {
 
       const colBtn = document.createElement('fluent-button');
       colBtn.className = 'rl3-collapsed-btn fluent-ribbon-btn';
-      colBtn.setAttribute('appearance', 'stealth');
+      colBtn.setAttribute('appearance', 'transparent');
       colBtn.style.display = 'none';
       colBtn.innerHTML = `<i data-lucide="chevron-down"></i><span>${label}</span>`;
       group.appendChild(colBtn);

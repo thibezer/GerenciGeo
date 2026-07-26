@@ -1308,12 +1308,6 @@ fluent-badge.rl2-badge {
   align-items: flex-end;
 }
 
-/* Ocultar o active-indicator interno do FAST */
-fluent-tablist::part(active-indicator),
-.fluent-ribbon-theme fluent-tablist::part(active-indicator) {
-  display: none !important;
-}
-
 fluent-tab,
 fluent-tab.rl3-tab,
 .fluent-ribbon-theme fluent-tab.rl3-tab {
