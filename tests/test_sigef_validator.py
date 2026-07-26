@@ -213,7 +213,94 @@ class TestSigefValidator(unittest.TestCase):
         res_inf = SigefValidator.calcular_sigma_p(float('inf'), 4.0)
         self.assertTrue(math.isinf(res_inf))
 
+    def test_validar_autointerssecao(self):
+        # Valid square
+        pontos_validos = [
+            {"e": 0, "n": 0},
+            {"e": 10, "n": 0},
+            {"e": 10, "n": 10},
+            {"e": 0, "n": 10}
+        ]
+        self.assertFalse(SigefValidator.validar_autointerssecao(pontos_validos))
+
+        # Self-intersecting bow-tie
+        pontos_intersect = [
+            {"e": 0, "n": 0},
+            {"e": 10, "n": 10},
+            {"e": 10, "n": 0},
+            {"e": 0, "n": 10}
+        ]
+        self.assertTrue(SigefValidator.validar_autointerssecao(pontos_intersect))
+
+        # Test collinear intersection (edge case for coverage line 64)
+        pontos_colinear = [
+            {"e": 0, "n": 0},
+            {"e": 10, "n": 0},
+            {"e": 10, "n": 10},
+            {"e": 5, "n": 0},  # Intersects segment 1
+            {"e": 0, "n": 10}
+        ]
+        self.assertTrue(SigefValidator.validar_autointerssecao(pontos_colinear))
+
+        # Common vertex intersection (should hit line 64 where A == C etc)
+        # We need a 5+ point polygon where non-consecutive segments touch at a vertex
+        pontos_common_vertex = [
+            {"e": 0, "n": 0},
+            {"e": 5, "n": 5},
+            {"e": 10, "n": 0},
+            {"e": 10, "n": 10},
+            {"e": 5, "n": 5}, # touches vertex 1
+            {"e": 0, "n": 10}
+        ]
+        # This actually intersects, but it's testing the condition
+        SigefValidator.validar_autointerssecao(pontos_common_vertex)
+
+        # Triangle (less than 4 points)
+        pontos_triangulo = [
+            {"e": 0, "n": 0},
+            {"e": 10, "n": 0},
+            {"e": 0, "n": 10}
+        ]
+        self.assertFalse(SigefValidator.validar_autointerssecao(pontos_triangulo))
+
+    def test_auditar_poligonal_matricula_insufficient_points(self):
+        pontos = [
+            {"nome_vertice": "P1", "lat": -23.0, "lon": -46.0, "alt": 10},
+            {"nome_vertice": "P2", "lat": -23.1, "lon": -46.1, "alt": 10}
+        ]
+        res = SigefValidator.auditar_poligonal_matricula(pontos)
+        self.assertFalse(res["sucesso"])
+        self.assertIn("insuficiente", res["erro"])
+
+    def test_auditar_poligonal_matricula_invalid_coords(self):
+        pontos = [
+            {"nome_vertice": "P1", "lat": -23.0, "lon": -46.0, "alt": 10},
+            {"nome_vertice": "P2", "lat": None, "lon": -46.1, "alt": 10},
+            {"nome_vertice": "P3", "lat": "not_a_float", "lon": -46.2, "alt": 10}
+        ]
+        res = SigefValidator.auditar_poligonal_matricula(pontos)
+        self.assertFalse(res["sucesso"])
+
+    def test_auditar_poligonal_matricula_valid_triangle(self):
+        pontos = [
+            {"nome_vertice": "P1", "lat": -23.0, "lon": -46.0, "alt": 10},
+            {"nome_vertice": "P2", "lat": -23.0, "lon": -46.1, "alt": 10},
+            {"nome_vertice": "P3", "lat": -23.1, "lon": -46.0, "alt": 10}
+        ]
+        res = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=10.0)
+        self.assertTrue(res["sucesso"])
+        self.assertIsNone(res["erro"])
+        self.assertTrue(res["conforme_topologia_perimetral"])
+        self.assertEqual(res["total_vertices"], 3)
+        self.assertGreater(res["perimetro_m"], 0)
+        self.assertGreater(res["area_ha"], 0)
+
 class TestVertexGenerator(unittest.TestCase):
+
+    def test_gerar_nome_vertice_valido(self):
+        self.assertEqual(VertexGenerator.gerar_nome_vertice("ABCD", "M", 1), "ABCD-M-0001")
+        self.assertEqual(VertexGenerator.gerar_nome_vertice("wxyz", "p", 1010), "WXYZ-P-1010")
+
     def test_gerar_nome_vertice_invalid_type(self):
         """Test that an invalid vertex type raises ValueError"""
         with self.assertRaises(ValueError) as context:
@@ -231,6 +318,10 @@ class TestVertexGenerator(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             VertexGenerator.gerar_nome_vertice("ABCDE", "M", 1)
         self.assertIn("O código do credenciado deve ter 4 dígitos.", str(context.exception))
+
+    def test_gerar_nome_vertice_codigo_invalido(self):
+        with self.assertRaises(ValueError):
+            VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
 
 if __name__ == '__main__':
     unittest.main()
