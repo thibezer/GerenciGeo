@@ -340,7 +340,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.switchMatriculaTab = (matriculaId: number) => {
       ctx.currentMatriculaId = matriculaId;
 
-      const selectMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
+      const selectMat = document.getElementById('select-matricula-ribbon') as HTMLElement & { value: string };
       if (selectMat) {
         selectMat.value = matriculaId.toString();
       }
@@ -2196,10 +2196,10 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
-  const selectUtm = document.getElementById('select-fuso-ribbon') as HTMLSelectElement;
+  const selectUtm = document.getElementById('select-fuso-ribbon') as HTMLElement;
   if (selectUtm) {
     selectUtm.addEventListener('change', (e: Event) => {
-      const targetSelect = e.target as HTMLSelectElement;
+      const targetSelect = e.target as HTMLElement & { value: string };
       const novaZona = targetSelect.value;
       localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
       showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");

@@ -1201,9 +1201,9 @@ td[colspan][class*="text-center"] {
   border-color: rgba(255,255,255,0.08);
 }
 
-/* Override global dos Shadow DOM controls do fluent-button */
-.fluent-ribbon-theme fluent-button::part(control),
-fluent-button::part(control) {
+/* Override global do fluent-button */
+.fluent-ribbon-theme fluent-button,
+fluent-button {
   border-radius: 4px !important;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
   box-sizing: border-box !important;
@@ -1211,7 +1211,7 @@ fluent-button::part(control) {
 }
 
 /* Camada 1: Botões do App Bar / QAT / Navegação Global */
-.rl1-btn::part(control) {
+.rl1-btn {
   display: inline-flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -1226,11 +1226,11 @@ fluent-button::part(control) {
   background: transparent !important;
   border: none !important;
 }
-.rl1-btn::part(control):hover {
+.rl1-btn:hover {
   background: rgba(255,255,255,0.08) !important;
   color: rgba(255,255,255,0.95) !important;
 }
-.rl1-btn.active::part(control) {
+.rl1-btn.active {
   background: rgba(0, 245, 160, 0.12) !important;
   color: var(--geo-accent) !important;
   font-weight: 500 !important;
@@ -1242,7 +1242,7 @@ fluent-button::part(control) {
 }
 
 /* Camada 1: Botões de Controle de Janela */
-.rl1-win-btn::part(control) {
+.rl1-win-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1253,11 +1253,11 @@ fluent-button::part(control) {
   border: none !important;
   color: rgba(255,255,255,0.6) !important;
 }
-.rl1-win-btn::part(control):hover {
+.rl1-win-btn:hover {
   background: rgba(255,255,255,0.1) !important;
   color: #fff !important;
 }
-.rl1-win-btn-close::part(control):hover {
+.rl1-win-btn-close:hover {
   background: #e81123 !important;
   color: #fff !important;
 }
@@ -1338,21 +1338,6 @@ fluent-tab.rl3-tab,
   overflow: hidden !important;
 }
 
-fluent-tab::part(control),
-fluent-tab.rl3-tab::part(control),
-.fluent-ribbon-theme fluent-tab.rl3-tab::part(control) {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 5px !important;
-  padding: 0 12px !important;
-  height: 28px !important;
-  background: transparent !important;
-  border: none !important;
-  box-sizing: border-box !important;
-}
-
 .fluent-ribbon-theme fluent-tab.rl3-tab:hover {
   color: rgba(255,255,255,0.85) !important;
   background: rgba(255,255,255,0.04) !important;
@@ -1387,7 +1372,7 @@ fluent-tab.rl3-tab::part(control),
 }
 
 /* Camada 3: Botões de Ferramentas (Ribbon Tool Buttons) */
-fluent-button.rl3-tool-btn::part(control) {
+fluent-button.rl3-tool-btn {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -1406,58 +1391,58 @@ fluent-button.rl3-tool-btn::part(control) {
   box-sizing: border-box !important;
 }
 
-fluent-button.rl3-tool-btn::part(control):hover {
+fluent-button.rl3-tool-btn:hover {
   background: rgba(255,255,255,0.09) !important;
   color: #ffffff !important;
   border-color: rgba(255,255,255,0.2) !important;
 }
 
-/* Botões Grandes Destacados (Accent) */
-fluent-button.rl3-tool-btn.rl3-btn-lg::part(control),
-fluent-button[appearance="accent"].rl3-tool-btn::part(control) {
+/* Botões Grandes Destacados (Primary) */
+fluent-button.rl3-tool-btn.rl3-btn-lg,
+fluent-button[appearance="primary"].rl3-tool-btn {
   background: rgba(0, 245, 160, 0.08) !important;
   color: var(--geo-accent) !important;
   border: 1px solid rgba(0, 245, 160, 0.3) !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
 }
-fluent-button.rl3-tool-btn.rl3-btn-lg::part(control):hover,
-fluent-button[appearance="accent"].rl3-tool-btn::part(control):hover {
+fluent-button.rl3-tool-btn.rl3-btn-lg:hover,
+fluent-button[appearance="primary"].rl3-tool-btn:hover {
   background: rgba(0, 245, 160, 0.16) !important;
   border-color: rgba(0, 245, 160, 0.5) !important;
   color: var(--geo-accent) !important;
 }
 
 /* Botão de Aviso (Warn - Amarelo) */
-fluent-button.rl3-tool-btn.rl3-btn-warn::part(control),
-fluent-button.rl3-btn-warn::part(control) {
+fluent-button.rl3-tool-btn.rl3-btn-warn,
+fluent-button.rl3-btn-warn {
   background: rgba(255, 214, 10, 0.08) !important;
   color: #ffd60a !important;
   border: 1px solid rgba(255, 214, 10, 0.3) !important;
   border-radius: 4px !important;
 }
-fluent-button.rl3-tool-btn.rl3-btn-warn::part(control):hover,
-fluent-button.rl3-btn-warn::part(control):hover {
+fluent-button.rl3-tool-btn.rl3-btn-warn:hover,
+fluent-button.rl3-btn-warn:hover {
   background: rgba(255, 214, 10, 0.16) !important;
   border-color: rgba(255, 214, 10, 0.5) !important;
 }
 
 /* Botão Destrutivo (Danger - Vermelho) */
-fluent-button.rl3-tool-btn.rl3-btn-danger::part(control),
-fluent-button.rl3-btn-danger::part(control) {
+fluent-button.rl3-tool-btn.rl3-btn-danger,
+fluent-button.rl3-btn-danger {
   background: rgba(255, 69, 58, 0.08) !important;
   color: #ff453a !important;
   border: 1px solid rgba(255, 69, 58, 0.3) !important;
   border-radius: 4px !important;
 }
-fluent-button.rl3-tool-btn.rl3-btn-danger::part(control):hover,
-fluent-button.rl3-btn-danger::part(control):hover {
+fluent-button.rl3-tool-btn.rl3-btn-danger:hover,
+fluent-button.rl3-btn-danger:hover {
   background: rgba(255, 69, 58, 0.16) !important;
   border-color: rgba(255, 69, 58, 0.5) !important;
 }
 
 /* Botões Pequenos de 3 Linhas (Small Tool Buttons) */
-fluent-button.rl3-tool-btn.rl3-btn-small::part(control) {
+fluent-button.rl3-tool-btn.rl3-btn-small {
   flex-direction: row !important;
   justify-content: flex-start !important;
   align-items: center !important;
@@ -1499,7 +1484,7 @@ fluent-button.rl3-tool-btn.rl3-btn-small::part(control) {
   text-align: center !important;
 }
 
-fluent-button.rl3-toggle-btn::part(control) {
+fluent-button.rl3-toggle-btn {
   padding: 0 8px !important;
   font-size: 9px !important;
   border-radius: 3px !important;
@@ -1512,7 +1497,7 @@ fluent-button.rl3-toggle-btn::part(control) {
   line-height: 22px !important;
   width: 100% !important;
 }
-fluent-button.rl3-toggle-btn.active::part(control) {
+fluent-button.rl3-toggle-btn.active {
   background: rgba(0, 245, 160, 0.12) !important;
   color: var(--geo-accent) !important;
   font-weight: 600 !important;
@@ -1532,39 +1517,32 @@ fluent-button.rl3-btn-small i, fluent-button.rl3-btn-small svg {
   margin-right: 4px !important;
 }
 
-/* Estilização para <fluent-select> e <fluent-option> na Camada 1 */
-fluent-select.rl1-select {
+/* Estilização para <fluent-dropdown> e <fluent-option> na Camada 1 */
+fluent-dropdown.rl1-select {
   height: 22px;
+  min-height: 22px;
   background: rgba(255,255,255,0.06);
   border: 0.5px solid rgba(255,255,255,0.12);
   border-radius: 4px;
   color: rgba(255,255,255,0.9);
   font-family: monospace;
   font-size: 10px;
-}
-fluent-select.rl1-select::part(control) {
-  height: 22px !important;
-  min-height: 22px !important;
-  padding: 0 6px !important;
-  background: transparent !important;
-  border: none !important;
-  font-size: 10px !important;
-  color: rgba(255,255,255,0.9) !important;
+  padding: 0 6px;
 }
 
 /* Anilhas de Foco Acessível (Focus Rings - :focus-visible) */
-.fluent-ribbon-theme fluent-button:focus-visible::part(control),
-.fluent-ribbon-theme fluent-tab:focus-visible::part(control),
-.fluent-ribbon-theme fluent-select:focus-visible::part(control) {
+.fluent-ribbon-theme fluent-button:focus-visible,
+.fluent-ribbon-theme fluent-tab:focus-visible,
+.fluent-ribbon-theme fluent-dropdown:focus-visible {
   outline: 2px solid var(--geo-accent) !important;
   outline-offset: 1px !important;
 }
 
 /* Suporte ao Modo de Alto Contraste do Windows (Windows High Contrast Mode) */
 @media (forced-colors: active) {
-  .fluent-ribbon-theme fluent-button::part(control),
-  .fluent-ribbon-theme fluent-tab.rl3-tab::part(control),
-  .fluent-ribbon-theme fluent-select::part(control),
+  .fluent-ribbon-theme fluent-button,
+  .fluent-ribbon-theme fluent-tab.rl3-tab,
+  .fluent-ribbon-theme fluent-dropdown,
   fluent-badge.rl2-badge {
     border: 1px solid ButtonText !important;
     forced-color-adjust: none;

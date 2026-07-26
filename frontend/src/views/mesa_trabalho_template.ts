@@ -29,64 +29,64 @@ export const renderMesaTrabalho = (): string => {
           </div>
           <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
           <div class="rl1-qat">
-            <fluent-button appearance="stealth" class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
               <i data-lucide="chevron-left"></i><span>Voltar</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="btn-salvar-rascunho" title="Salvar rascunho (Ctrl+S)" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="btn-salvar-rascunho" title="Salvar rascunho (Ctrl+S)" type="button">
               <i data-lucide="save"></i><span>Salvar</span>
             </fluent-button>
             
             <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
             
             <!-- Botões de Navegação Global Fluent UI -->
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-dashboard" title="Dashboard" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-dashboard" title="Dashboard" type="button">
               <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-clientes" title="Clientes" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-clientes" title="Clientes" type="button">
               <i data-lucide="users"></i><span>Clientes</span>
             </fluent-button>
-            <fluent-button appearance="accent" class="rl1-btn active" id="nav-btn-levantamentos" title="Levantamentos" type="button">
+            <fluent-button appearance="primary" class="rl1-btn active" id="nav-btn-levantamentos" title="Levantamentos" type="button">
               <i data-lucide="map-pin"></i><span>Levantamentos</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-propriedades" title="Propriedades" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-propriedades" title="Propriedades" type="button">
               <i data-lucide="home"></i><span>Propriedades</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-hgo" title="Organizador HGO" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-hgo" title="Organizador HGO" type="button">
               <i data-lucide="folder-tree"></i><span>HGO</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-fronteira" title="Área de Fronteira" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-fronteira" title="Área de Fronteira" type="button">
               <i data-lucide="file-check"></i><span>Fronteira</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-ccir" title="Banco CCIR" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-ccir" title="Banco CCIR" type="button">
               <i data-lucide="database"></i><span>CCIR</span>
             </fluent-button>
-            <fluent-button appearance="stealth" class="rl1-btn" id="nav-btn-configuracoes" title="Configurações" type="button">
+            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-configuracoes" title="Configurações" type="button">
               <i data-lucide="settings"></i><span>Configurações</span>
             </fluent-button>
           </div>
           <div class="rl1-spacer"></div>
           <div class="rl1-context">
             <label class="rl1-select-label">Fuso</label>
-            <fluent-select id="select-fuso-ribbon" class="rl1-select">
+            <fluent-dropdown id="select-fuso-ribbon" class="rl1-select">
               <fluent-option value="21">21S</fluent-option>
               <fluent-option value="22" selected>22S</fluent-option>
               <fluent-option value="23">23S</fluent-option>
-            </fluent-select>
+            </fluent-dropdown>
             <label class="rl1-select-label">Matrícula</label>
-            <fluent-select id="select-matricula-ribbon" class="rl1-select" style="min-width:130px">
+            <fluent-dropdown id="select-matricula-ribbon" class="rl1-select" style="min-width:130px">
               <!-- Preenchido dinamicamente no JS com fluent-option -->
-            </fluent-select>
+            </fluent-dropdown>
           </div>
           <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
           <div class="rl1-user">
-            <fluent-avatar class="rl1-avatar" id="avatar-user" name="Administrador" initials="AD" appearance="colorful" title="Administrador"></fluent-avatar>
+            <fluent-avatar class="rl1-avatar" id="avatar-user" name="Administrador" initials="AD" color="colorful" title="Administrador"></fluent-avatar>
           </div>
         </div>
 
         <!-- Camada 2 — Metadados do Projeto com Fluent UI Badge -->
         <div id="ribbon-layer2" class="ribbon-layer2">
           <span class="rl2-prop-name" id="txt-nome-propriedade">Carregando...</span>
-          <fluent-badge appearance="filled" fill="success" class="rl2-badge status-ativo" id="badge-status-lev">—</fluent-badge>
+          <fluent-badge appearance="filled" color="success" class="rl2-badge status-ativo" id="badge-status-lev">—</fluent-badge>
           <fluent-divider orientation="vertical" class="rl2-sep"></fluent-divider>
           <span class="rl2-meta-item">
             <span class="rl2-meta-label">Cliente:</span>
@@ -129,11 +129,11 @@ export const renderMesaTrabalho = (): string => {
               <!-- Grupo: Ingestão -->
               <div class="rl3-group" data-group-id="grp-ingestao">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="neutral" class="rl3-tool-btn rl3-btn-lg" id="btn-drop-arquivos" title="Arraste ou selecione arquivos .GNS/.TXT" type="button">
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-drop-arquivos" title="Arraste ou selecione arquivos .GNS/.TXT" type="button">
                     <i data-lucide="upload-cloud"></i>
                     <span>Ingestão</span>
                   </fluent-button>
-                  <fluent-button appearance="accent" class="rl3-tool-btn rl3-btn-lg" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
                     <i data-lucide="play"></i>
                     <span>Processar Lote</span>
                   </fluent-button>
@@ -145,7 +145,7 @@ export const renderMesaTrabalho = (): string => {
               <!-- Grupo: Vizinhos (SIGEF) -->
               <div class="rl3-group" data-group-id="grp-vizinhos">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="neutral" class="rl3-tool-btn rl3-btn-lg" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
                     <i data-lucide="download"></i>
                     <span>Importar Vizinhos</span>
                   </fluent-button>
@@ -164,10 +164,10 @@ export const renderMesaTrabalho = (): string => {
                 <div class="rl3-group-tools">
                   <div class="rl3-toggle-row">
                     <span class="rl3-toggle-label">Modo:</span>
-                    <fluent-button appearance="accent" class="rl3-toggle-btn active" id="btn-modo-utm" data-mode="utm" type="button">UTM</fluent-button>
-                    <fluent-button appearance="stealth" class="rl3-toggle-btn" id="btn-modo-geo" data-mode="geodesico" type="button">Geo</fluent-button>
+                    <fluent-button appearance="primary" class="rl3-toggle-btn active" id="btn-modo-utm" data-mode="utm" type="button">UTM</fluent-button>
+                    <fluent-button appearance="transparent" class="rl3-toggle-btn" id="btn-modo-geo" data-mode="geodesico" type="button">Geo</fluent-button>
                   </div>
-                  <fluent-button appearance="neutral" class="rl3-tool-btn rl3-btn-lg" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
                     <i data-lucide="archive"></i>
                     <span>RINEX .ZIP</span>
                   </fluent-button>
@@ -181,29 +181,29 @@ export const renderMesaTrabalho = (): string => {
                 <div class="rl3-group-tools">
                   <!-- Coluna 1 (Botões pequenos) -->
                   <div class="rl3-tool-col">
-                    <fluent-button appearance="stealth" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-kml" type="button">
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-kml" type="button">
                       <i data-lucide="map-pin"></i>
                       <span>KML</span>
                     </fluent-button>
-                    <fluent-button appearance="stealth" class="rl3-tool-btn rl3-btn-small" id="btn-unificar-sigef" type="button">
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-unificar-sigef" type="button">
                       <i data-lucide="file-spreadsheet"></i>
                       <span>Unificar SIGEF</span>
                     </fluent-button>
                   </div>
                   
                   <!-- Botão Grande -->
-                  <fluent-button appearance="accent" class="rl3-tool-btn rl3-btn-lg" id="btn-consolidar-pontos-utm" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-consolidar-pontos-utm" type="button">
                     <i data-lucide="upload"></i>
                     <span>Exportar Dados</span>
                   </fluent-button>
 
                   <!-- Coluna 2 (Botões pequenos) -->
                   <div class="rl3-tool-col">
-                    <fluent-button appearance="stealth" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-tabela-csv" title="Exportar tabela de vértices filtrados em CSV" type="button">
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-tabela-csv" title="Exportar tabela de vértices filtrados em CSV" type="button">
                       <i data-lucide="download"></i>
                       <span>Exportar CSV</span>
                     </fluent-button>
-                    <fluent-button appearance="stealth" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD" type="button">
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD" type="button">
                       <i data-lucide="copy"></i>
                       <span>Copiar CAD</span>
                     </fluent-button>
@@ -216,7 +216,7 @@ export const renderMesaTrabalho = (): string => {
               <!-- Grupo: Edição -->
               <div class="rl3-group" data-group-id="grp-edicao">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="neutral" class="rl3-tool-btn rl3-btn-lg" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
                     <i data-lucide="arrow-up-down"></i>
                     <span>Reordenar</span>
                   </fluent-button>
@@ -232,7 +232,7 @@ export const renderMesaTrabalho = (): string => {
               <!-- Grupo: Projeto -->
               <div class="rl3-group" data-group-id="grp-projeto">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="neutral" class="rl3-tool-btn rl3-btn-lg" id="btn-sincronizar-nuvem" type="button">
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-sincronizar-nuvem" type="button">
                     <i data-lucide="cloud-lightning"></i>
                     <span>Nuvem</span>
                   </fluent-button>
@@ -249,7 +249,7 @@ export const renderMesaTrabalho = (): string => {
             <div class="rl3-panel hidden" id="panel-perimetro" role="tabpanel">
               <div class="rl3-group" data-group-id="grp-topografia">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="accent" class="rl3-tool-btn rl3-btn-lg" id="btn-calcular-confrontantes" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-calcular-confrontantes" type="button">
                     <i data-lucide="cpu"></i>
                     <span>Calcular Lados</span>
                   </fluent-button>
@@ -262,7 +262,7 @@ export const renderMesaTrabalho = (): string => {
             <div class="rl3-panel hidden" id="panel-cartorio" role="tabpanel">
               <div class="rl3-group" data-group-id="grp-documentos">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="accent" class="rl3-tool-btn" id="btn-gerar-requerimento-cri" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn" id="btn-gerar-requerimento-cri" type="button">
                     <i data-lucide="file-text"></i>
                     <span>Requerimento</span>
                   </fluent-button>
@@ -275,7 +275,7 @@ export const renderMesaTrabalho = (): string => {
             <div class="rl3-panel hidden" id="panel-auditoria" role="tabpanel">
               <div class="rl3-group" data-group-id="grp-auditoria">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="accent" class="rl3-tool-btn rl3-btn-lg" id="btn-verificar-sigmas" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-verificar-sigmas" type="button">
                     <i data-lucide="shield-check"></i>
                     <span>Validar INCRA</span>
                   </fluent-button>
