@@ -13,7 +13,8 @@ import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
-import { RibbonManager } from '../ui/ribbon_manager';
+import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
+import { registerFluentComponents } from '../ui/fluent_setup';
 
 // Interceptadores globais de erros para depuração do pywebview
 window.addEventListener('error', (event) => {
@@ -226,37 +227,27 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.pontosVizinhosList = Array.isArray(vizData) ? vizData : [];
 
         ctx.carregarConfrontantesAtivosSelect();
-
-        const abasContainer = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
+        const abasContainer = document.getElementById('select-matricula-ribbon') as HTMLElement;
         if (abasContainer) {
           if (ctx.matriculasList.length === 0) {
             abasContainer.innerHTML = `
-              <option value="">[Sem Matrícula]</option>
+              <fluent-option value="">[Sem Matrícula]</fluent-option>
             `;
           } else {
             let abasHtml = ctx.matriculasList.map((m: any) => `
-              <option value="${m.id}" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
+              <fluent-option value="${m.id}" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
                 Matrícula ${m.numero_matricula} (${m.area_ha || m.area || '0'}ha)
-              </option>
+              </fluent-option>
             `).join('');
 
             abasContainer.innerHTML = abasHtml;
 
-            const novoSelect = abasContainer.cloneNode(true) as HTMLSelectElement;
-            abasContainer.parentNode?.replaceChild(novoSelect, abasContainer);
-
-            novoSelect.addEventListener('change', () => {
-              const mId = parseInt(novoSelect.value || '0');
-              if (mId) {
+            abasContainer.addEventListener('change', (e: Event) => {
+              const mId = parseInt((e.target as any).value || (abasContainer as any).value || '0');
+              if (mId && typeof ctx.switchMatriculaTab === 'function') {
                 ctx.switchMatriculaTab(mId);
               }
             });
-
-            if (ctx.currentMatriculaId === null && ctx.matriculasList.length > 0) {
-              ctx.switchMatriculaTab(ctx.matriculasList[0].id);
-            } else if (ctx.currentMatriculaId !== null) {
-              novoSelect.value = ctx.currentMatriculaId.toString();
-            }
           }
         }
 
@@ -2037,6 +2028,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         document.removeEventListener('click', _filtroArquivosClickHandler);
         _filtroArquivosClickHandler = null;
       }
+      // Limpa todas as instâncias ativas do RibbonManager para evitar vazamento de memória e listeners duplicados
+      Object.values(activeRibbonManagers).forEach(rm => rm.destroy());
+      activeRibbonManagers = {};
+
       if (activeDragCleanup) {
         activeDragCleanup();
         activeDragCleanup = null;
@@ -2061,9 +2056,61 @@ export const mesaTrabalhoRoute: RouteDef = {
   }
 };
 
+let activeRibbonManagers: Record<string, RibbonManager> = {};
+
 function setupRibbonInteractions(ctx: any): void {
+  registerFluentComponents();
   const tabButtons = document.querySelectorAll('.rl3-tab');
   const panelRows = document.querySelectorAll('.rl3-panel');
+
+  // Inicializa o Gerenciador de Responsividade do Ribbon para todos os painéis de abas
+  const ribbonPanelIds = ['panel-geoprocessamento', 'panel-perimetro', 'panel-cartorio', 'panel-auditoria'];
+  
+  // Limpa instâncias anteriores caso já existam
+  Object.values(activeRibbonManagers).forEach(rm => rm.destroy());
+  activeRibbonManagers = {};
+
+  ribbonPanelIds.forEach(panelId => {
+    try {
+      const rm = new RibbonManager(panelId);
+      rm.init().catch(console.error);
+      activeRibbonManagers[panelId] = rm;
+    } catch (err) {
+      console.warn(`[RibbonManager] Painel ${panelId} não inicializado:`, err);
+    }
+  });
+
+  // Suporte a navegabilidade nativa por teclado no <fluent-tablist> (Setas Esquerda/Direita)
+  const tablist = document.querySelector('fluent-tablist');
+  if (tablist) {
+    tablist.addEventListener('change', (e: Event) => {
+      const target = e.target as any;
+      const activeTab = target?.activeTab || target;
+      const tabTarget = activeTab?.getAttribute('data-tab');
+      if (tabTarget) {
+        tabButtons.forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === tabTarget);
+        });
+        panelRows.forEach(row => row.classList.add('hidden'));
+
+        let panelId = 'panel-geoprocessamento';
+        if (tabTarget === 'cartorio') panelId = 'panel-perimetro';
+        else if (tabTarget === 'documentos') panelId = 'panel-cartorio';
+        else if (tabTarget === 'auditoria') panelId = 'panel-auditoria';
+
+        const targetPanel = document.getElementById(panelId);
+        if (targetPanel) {
+          targetPanel.classList.remove('hidden');
+          const rm = activeRibbonManagers[panelId];
+          if (rm) requestAnimationFrame(() => rm.adjustLayout());
+        }
+
+        if (ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
+          ctx.alternarEtapa(tabTarget);
+        }
+      }
+    });
+  }
 
   tabButtons.forEach(button => {
     button.addEventListener('click', (e: Event) => {
@@ -2087,8 +2134,9 @@ function setupRibbonInteractions(ctx: any): void {
       const targetPanel = document.getElementById(panelId);
       if (targetPanel) {
         targetPanel.classList.remove('hidden');
-        if (panelId === 'panel-geoprocessamento' && geoprocessamentoRibbon) {
-          requestAnimationFrame(() => geoprocessamentoRibbon.adjustLayout());
+        const rm = activeRibbonManagers[panelId];
+        if (rm) {
+          requestAnimationFrame(() => rm.adjustLayout());
         }
       }
 
@@ -2097,10 +2145,6 @@ function setupRibbonInteractions(ctx: any): void {
       }
     });
   });
-
-  // Inicializa o Gerenciador de Responsividade do Ribbon para o painel principal
-  const geoprocessamentoRibbon = new RibbonManager('panel-geoprocessamento');
-  geoprocessamentoRibbon.init().catch(console.error);
 
   const btnVoltar = document.getElementById('btn-voltar-lista');
   if (btnVoltar) {

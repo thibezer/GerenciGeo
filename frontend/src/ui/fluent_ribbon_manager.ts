@@ -1,8 +1,9 @@
 import { createIcons, ChevronDown } from 'lucide';
+import { registerFluentComponents } from './fluent_setup';
 
-type RibbonState = 'expanded' | 'compact' | 'collapsed';
+export type RibbonState = 'expanded' | 'compact' | 'collapsed';
 
-interface GroupCache {
+export interface GroupCache {
   id: string;
   el: HTMLElement;
   label: string;
@@ -18,18 +19,16 @@ interface GroupCache {
   popover: HTMLElement | null;
 }
 
-export class RibbonManager {
+export class FluentRibbonManager {
   private panel: HTMLElement;
   private groups: GroupCache[] = [];
   private readonly HYSTERESIS = 25; // pixels
 
-  // Constantes de layout sincronizadas com o CSS (.rl3-panel padding 4px 8px e .rl3-divider 1px + 6px margins)
-  private static readonly PANEL_PADDING_X = 16; // 8px de cada lado em .rl3-panel
-  private static readonly DIVIDER_WIDTH_WITH_MARGINS = 13; // 1px border + 6px cada lado em .rl3-divider
+  private static readonly PANEL_PADDING_X = 16;
+  private static readonly DIVIDER_WIDTH_WITH_MARGINS = 13;
 
   private resizeObserver: ResizeObserver | null = null;
   
-  // Referências fixas salvas para remoção segura de listeners no destroy()
   private boundOutsideClick = this.handleOutsideClick.bind(this);
   private boundKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') this.closeAllPopovers();
@@ -59,41 +58,36 @@ export class RibbonManager {
   };
 
   constructor(panelId: string) {
+    registerFluentComponents();
     const el = document.getElementById(panelId);
     if (!el) throw new Error(`Painel ${panelId} não encontrado`);
     this.panel = el;
   }
 
   public async init() {
-    // Aguarda as fontes carregarem para evitar cálculos incorretos de layout
     if (document.fonts && document.fonts.ready) {
       await document.fonts.ready;
     }
-    // Aguarda um pequeno ciclo para garantir que o DOM e ícones iniciais renderizaram
     await new Promise(r => setTimeout(r, 100));
 
-    this.destroy(); // Limpa instâncias ou popovers anteriores antes de reconstruir
+    this.destroy();
     this.buildCache();
     this.setupResizeObserver();
     
-    // Configura fechamento de popovers ao clicar fora ou apertar ESC com listeners salvos
     document.addEventListener('mousedown', this.boundOutsideClick);
     document.addEventListener('keydown', this.boundKeydown);
   }
 
   public destroy() {
-    // 1. Remove listeners globais
     document.removeEventListener('mousedown', this.boundOutsideClick);
     document.removeEventListener('keydown', this.boundKeydown);
     window.removeEventListener('resize', this.boundTriggerAdjust);
 
-    // 2. Desconecta ResizeObserver
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
     }
 
-    // 3. Limpa elementos do DOM (popovers e botões colapsados)
     for (const g of this.groups) {
       if (g.state === 'collapsed' && g.toolsContainer && g.el) {
         g.el.insertBefore(g.toolsContainer, g.el.firstChild);
@@ -111,7 +105,6 @@ export class RibbonManager {
   private buildCache() {
     const groupEls = Array.from(this.panel.querySelectorAll('.rl3-group')) as HTMLElement[];
     
-    // Contêiner off-screen para medição segura sem layout thrashing
     const offscreen = document.createElement('div');
     offscreen.className = 'rl3-panel';
     offscreen.style.position = 'absolute';
@@ -125,39 +118,33 @@ export class RibbonManager {
       const labelEl = group.querySelector('.rl3-group-label') as HTMLElement;
       const label = labelEl ? labelEl.textContent || '' : id;
 
-      // Alerta dev-time caso uma coluna ultrapasse o limite de 3 itens
       const cols = group.querySelectorAll('.rl3-tool-col');
       cols.forEach(col => {
         if (col.children.length > 3) {
-          console.warn(`[RibbonManager] Grupo "${id}" possui ${col.children.length} botões em uma única coluna — limite máximo recomendado é 3.`);
+          console.warn(`[FluentRibbonManager] Grupo "${id}" possui ${col.children.length} botões em uma única coluna — limite máximo recomendado é 3.`);
         }
       });
 
-      // Cria botão colapsado exclusivo
-      const colBtn = document.createElement('div');
-      colBtn.className = 'rl3-collapsed-btn';
+      const colBtn = document.createElement('fluent-button');
+      colBtn.className = 'rl3-collapsed-btn fluent-ribbon-btn';
+      colBtn.setAttribute('appearance', 'stealth');
       colBtn.style.display = 'none';
       colBtn.innerHTML = `<i data-lucide="chevron-down"></i><span>${label}</span>`;
       group.appendChild(colBtn);
 
-      // Popover global com ID único para rastreamento
       const popover = document.createElement('div');
-      popover.className = 'rl3-group-popover';
+      popover.className = 'rl3-group-popover fluent-popover';
       popover.setAttribute('data-popover-for', id);
       document.body.appendChild(popover);
 
-      // Clone para medição
       const clone = group.cloneNode(true) as HTMLElement;
       offscreen.appendChild(clone);
 
-      // Mede Expanded
       const expandedWidth = clone.offsetWidth;
 
-      // Mede Compact
       clone.classList.add('ribbon-state-compact');
       const compactWidth = clone.offsetWidth;
 
-      // Mede Collapsed
       clone.classList.remove('ribbon-state-compact');
       clone.classList.add('ribbon-state-collapsed');
       const colBtnClone = clone.querySelector('.rl3-collapsed-btn') as HTMLElement;
@@ -182,7 +169,6 @@ export class RibbonManager {
         popover: popover
       });
       
-      // Evento para abrir o popover
       colBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.togglePopover(id);
@@ -191,7 +177,6 @@ export class RibbonManager {
 
     document.body.removeChild(offscreen);
     
-    // Renderiza o ícone do botão colapsado de forma estritamente escopada ao painel atual (evita re-scan global no document)
     createIcons({
       icons: { ChevronDown },
       nameAttr: 'data-lucide',
@@ -210,7 +195,7 @@ export class RibbonManager {
   private calculateRequiredWidth(): number {
     let total = 0;
     const dividers = this.panel.querySelectorAll('.rl3-divider').length;
-    total += RibbonManager.PANEL_PADDING_X + (dividers * RibbonManager.DIVIDER_WIDTH_WITH_MARGINS);
+    total += FluentRibbonManager.PANEL_PADDING_X + (dividers * FluentRibbonManager.DIVIDER_WIDTH_WITH_MARGINS);
     
     for (const g of this.groups) {
       total += g.widths[g.state];
@@ -219,7 +204,7 @@ export class RibbonManager {
   }
 
   private calculateWidthWithState(groupId: string, proposedState: RibbonState): number {
-    let total = RibbonManager.PANEL_PADDING_X + (this.panel.querySelectorAll('.rl3-divider').length * RibbonManager.DIVIDER_WIDTH_WITH_MARGINS);
+    let total = FluentRibbonManager.PANEL_PADDING_X + (this.panel.querySelectorAll('.rl3-divider').length * FluentRibbonManager.DIVIDER_WIDTH_WITH_MARGINS);
     for (const g of this.groups) {
       if (g.id === groupId) {
         total += g.widths[proposedState];
@@ -234,7 +219,6 @@ export class RibbonManager {
     if (this.groups.length === 0) return;
     const availableWidth = this.panel.clientWidth;
     
-    // Se o painel estiver oculto (display: none / clientWidth <= 0 ao alternar de aba), aborta o recálculo
     if (availableWidth <= 0) return;
     
     let changed = false;
@@ -248,7 +232,6 @@ export class RibbonManager {
       const reqWidth = this.calculateRequiredWidth();
       
       if (availableWidth < reqWidth) {
-        // Precisa encolher: busca candidato com MENOR prioridade
         const candidates = this.groups.filter(g => g.state !== 'collapsed').sort((a, b) => a.priority - b.priority);
         if (candidates.length > 0) {
           const c = candidates[0];
@@ -256,7 +239,6 @@ export class RibbonManager {
           changed = true;
         }
       } else if (availableWidth > reqWidth + this.HYSTERESIS) {
-        // Sobra espaço: busca candidato para expandir com MAIOR prioridade
         const candidates = this.groups.filter(g => g.state !== 'expanded').sort((a, b) => b.priority - a.priority);
         for (const c of candidates) {
           const nextState = c.state === 'collapsed' ? 'compact' : 'expanded';
