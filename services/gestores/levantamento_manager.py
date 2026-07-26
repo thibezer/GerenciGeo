@@ -522,11 +522,20 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
         # Monta placeholders ?, ?, ? ...
         placeholders = ', '.join(['?'] * len(pontos_ids))
 
-        rows = execute_query(f"SELECT id, ponto_vizinho, matricula_id FROM pontos WHERE levantamento_id = ? AND id IN ({placeholders})", params=(levantamento_id, *pontos_ids), fetch_all=True)
+        rows = execute_query(f"SELECT id, ponto_vizinho, matricula_id, nome_vertice FROM pontos WHERE levantamento_id = ? AND id IN ({placeholders})", params=(levantamento_id, *pontos_ids), fetch_all=True)
         valid_ids = {row['id']: dict(row) for row in rows if row['ponto_vizinho'] != 1}
 
         if not valid_ids:
             return {"success": True}
+
+        segmentos_map = {}
+        # Pre-fetch segmentos for points that have confrontante updates
+        confrontante_pids = [p['id'] for p in pontos if p.get('confrontante') and p['id'] in valid_ids]
+        if confrontante_pids:
+            conf_placeholders = ', '.join(['?'] * len(confrontante_pids))
+            seg_rows = execute_query(f"SELECT id, confrontante_id, matricula_id, ponto_fim_id, tipo_limite_sigef, metodo_posicionamento_sigef, ponto_inicio_id FROM segmentos WHERE ponto_inicio_id IN ({conf_placeholders})", params=tuple(confrontante_pids), fetch_all=True)
+            for seg in seg_rows:
+                segmentos_map[seg['ponto_inicio_id']] = dict(seg)
 
         with DatabaseManager() as conn:
             cursor = conn.cursor()
@@ -549,11 +558,10 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
 
                     # Uniqueness constraint check
                     # We need the current vertex name to check uniqueness if only tipo_ponto is updated
-                    cursor.execute("SELECT nome_vertice, matricula_id FROM pontos WHERE id = ?", (pid,))
-                    pt_current = cursor.fetchone()
+                    pt_current = valid_ids[pid]
                     if pt_current:
                         pt_nome = pt_current['nome_vertice']
-                        pt_mat = valid_ids[pid]['matricula_id']
+                        pt_mat = pt_current['matricula_id']
 
                         cursor.execute(
                             "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
@@ -581,8 +589,7 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                 conf_data = p_update.get('confrontante')
                 if conf_data:
                     # Encontrar segmentos que iniciam com esse ponto
-                    cursor.execute("SELECT id, confrontante_id, matricula_id, ponto_fim_id, tipo_limite_sigef, metodo_posicionamento_sigef FROM segmentos WHERE ponto_inicio_id = ?", (pid,))
-                    segmento = cursor.fetchone()
+                    segmento = segmentos_map.get(pid)
 
                     if segmento:
                         conf_id = segmento['confrontante_id']
