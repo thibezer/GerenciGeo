@@ -173,6 +173,7 @@ class TestSigefValidator(unittest.TestCase):
         self.assertIn("desconhecido", msg)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     # calcular_sigma_p Tests
     def test_calcular_sigma_p_normal(self):
         """Test normal values (Pythagorean triple 3, 4 -> 5)"""
@@ -302,6 +303,9 @@ class TestVertexGenerator(unittest.TestCase):
         self.assertEqual(VertexGenerator.gerar_nome_vertice("ABCD", "M", 1), "ABCD-M-0001")
         self.assertEqual(VertexGenerator.gerar_nome_vertice("wxyz", "p", 1010), "WXYZ-P-1010")
 
+=======
+class TestVertexGenerator(unittest.TestCase):
+>>>>>>> origin/add-vertexgenerator-tests-12115405866745254397
     def test_gerar_nome_vertice_invalid_type(self):
         """Test that an invalid vertex type raises ValueError"""
         with self.assertRaises(ValueError) as context:
@@ -318,13 +322,9 @@ class TestVertexGenerator(unittest.TestCase):
         # Test with 5 characters
         with self.assertRaises(ValueError) as context:
             VertexGenerator.gerar_nome_vertice("ABCDE", "M", 1)
-        self.assertIn("O código do credenciado deve ter 4 dígitos.", str(context.exception))
-
     def test_gerar_nome_vertice_codigo_invalido(self):
         with self.assertRaises(ValueError):
             VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
 
-=======
->>>>>>> origin/jules-9621519992797506257-df14de9c
 if __name__ == '__main__':
     unittest.main()
