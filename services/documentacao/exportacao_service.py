@@ -43,15 +43,24 @@ class ExportacaoService:
             cli_rows = execute_query(query_cli, params=(propriedade_id,), fetch_all=True)
             clientes_list = []
             
-            for r in cli_rows:
-                c_dict = dict(r)
-                c_id = c_dict['id']
-                c_dict.pop('created_at', None)
+            if cli_rows:
+                c_ids = [str(r['id']) for r in cli_rows]
+                placeholders = ','.join(['?'] * len(c_ids))
+                meta_query = f"SELECT id_cliente, chave, valor FROM cliente_metadados WHERE id_cliente IN ({placeholders})"
+                meta_rows = execute_query(meta_query, params=tuple(c_ids), fetch_all=True)
                 
-                # Coleta os metadados do cliente
-                meta_rows = execute_query("SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?", params=(c_id,), fetch_all=True)
-                c_dict['metadados'] = {m['chave']: m['valor'] for m in meta_rows}
-                clientes_list.append(c_dict)
+                from collections import defaultdict
+                meta_dict = defaultdict(dict)
+                if meta_rows:
+                    for m in meta_rows:
+                        meta_dict[m['id_cliente']][m['chave']] = m['valor']
+
+                for r in cli_rows:
+                    c_dict = dict(r)
+                    c_id = c_dict['id']
+                    c_dict.pop('created_at', None)
+                    c_dict['metadados'] = meta_dict.get(c_id, {})
+                    clientes_list.append(c_dict)
 
             # 3. Compila dados estruturados do Levantamento
             dados_gerais = {
