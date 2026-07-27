@@ -49,7 +49,7 @@ class TestSigefValidator(unittest.TestCase):
         # 12° 59' 59.999" is approximately 12.999999722222222 degrees.
         # This tests the cascade effect: 59.999 -> 60s -> 00s, 59m -> 60m -> 00m, 12deg -> 13deg.
         self.assertEqual(SigefValidator._formatar_azimute(12.999999722222222), "13° 00' 00.00\"")
-        
+
         # 359° 59' 59.999" -> Should cascade to 360° -> 0° 00' 00.00"
         self.assertEqual(SigefValidator._formatar_azimute(359.999999), "0° 00' 00.00\"")
     def test_validar_conformidade_boundary(self):
@@ -172,6 +172,7 @@ class TestSigefValidator(unittest.TestCase):
         self.assertFalse(conforme)
         self.assertIn("desconhecido", msg)
 
+<<<<<<< HEAD
     # calcular_sigma_p Tests
     def test_calcular_sigma_p_normal(self):
         """Test normal values (Pythagorean triple 3, 4 -> 5)"""
@@ -323,5 +324,7 @@ class TestVertexGenerator(unittest.TestCase):
         with self.assertRaises(ValueError):
             VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
 
+=======
+>>>>>>> origin/jules-9621519992797506257-df14de9c
 if __name__ == '__main__':
     unittest.main()

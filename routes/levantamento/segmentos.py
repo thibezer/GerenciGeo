@@ -108,7 +108,7 @@ def get_confrontantes(id: int):
 def create_confrontante(id: int, c: ConfrontanteCreate):
     verificar_levantamento_arquivado(id)
     try:
-        cpf_cnpj = c.cpf_cnpj
+        cpf_cnpj = c.cpf_cnpj if (c.cpf_cnpj and str(c.cpf_cnpj).strip()) else None
         cpf_limpo = "".join(char for char in cpf_cnpj if char.isdigit()) if cpf_cnpj else ""
         
         with DatabaseManager() as conn:
@@ -139,7 +139,7 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                         nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens,
                         endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (c.nome, c.cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge))
+                """, (c.nome, cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge))
                 pessoa_id = cursor.lastrowid
                 
             cursor.execute("""
@@ -174,13 +174,14 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
             cursor = conn.cursor()
             
             # Atualiza os dados civis na tabela única pessoas
+            cpf_cnpj_norm = c.cpf_cnpj if (c.cpf_cnpj and str(c.cpf_cnpj).strip()) else None
             cursor.execute("""
                 UPDATE pessoas
                 SET nome = ?, cpf_cnpj = ?, rg = ?, nacionalidade = ?, profissao = ?,
                     estado_civil = ?, regime_bens = ?, endereco_completo = ?,
                     nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
                 WHERE id = ?
-            """, (c.nome, c.cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
+            """, (c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
             
             # Atualiza metadados específicos da divisa na tabela confrontantes
             cursor.execute("""

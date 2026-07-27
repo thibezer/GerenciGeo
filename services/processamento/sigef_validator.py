@@ -249,11 +249,9 @@ class SigefValidator:
 
         # Arredonda para 2 casas decimais nos segundos totais para evitar que o print de 59.996 vire 60.00
         total_seconds = round((az_deg % 360.0) * 3600.0, 2)
-        
         graus = int(total_seconds // 3600) % 360
         minutos = int((total_seconds % 3600) // 60)
         segundos = (total_seconds % 3600) % 60
-        
         return f"{graus}° {minutos:02d}' {segundos:05.2f}\""
 
 class VertexGenerator:

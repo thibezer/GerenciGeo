@@ -38,7 +38,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if cpf_cnpj else ""
+    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', cpf_conjuge)
 
@@ -121,7 +121,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if cpf_cnpj else ""
+    cpf_cnpj = re.sub(r'\D', '', cpf_cnpj) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', cpf_conjuge)
 
