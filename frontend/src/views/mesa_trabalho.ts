@@ -229,25 +229,32 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.carregarConfrontantesAtivosSelect();
         const abasContainer = document.getElementById('select-matricula-ribbon') as HTMLElement;
         if (abasContainer) {
+          abasContainer.replaceChildren();
           if (ctx.matriculasList.length === 0) {
-            abasContainer.innerHTML = `
-              <fluent-option value="">[Sem Matrícula]</fluent-option>
-            `;
+            const opt = document.createElement('fluent-option');
+            opt.setAttribute('value', '');
+            opt.textContent = '[Sem Matrícula]';
+            abasContainer.appendChild(opt);
           } else {
-            let abasHtml = ctx.matriculasList.map((m: any) => `
-              <fluent-option value="${m.id}" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
-                Matrícula ${m.numero_matricula} (${m.area_ha || m.area || '0'}ha)
-              </fluent-option>
-            `).join('');
-
-            abasContainer.innerHTML = abasHtml;
-
-            abasContainer.addEventListener('change', (e: Event) => {
-              const mId = parseInt((e.target as any).value || (abasContainer as any).value || '0');
-              if (mId && typeof ctx.switchMatriculaTab === 'function') {
-                ctx.switchMatriculaTab(mId);
+            ctx.matriculasList.forEach((m: any) => {
+              const opt = document.createElement('fluent-option');
+              opt.setAttribute('value', m.id.toString());
+              if (ctx.currentMatriculaId === m.id) {
+                opt.setAttribute('selected', 'true');
               }
+              opt.textContent = `Matrícula ${m.numero_matricula} (${m.area_ha || m.area || '0'}ha)`;
+              abasContainer.appendChild(opt);
             });
+
+            if (!(abasContainer as any)._hasChangeListener) {
+              (abasContainer as any)._hasChangeListener = true;
+              abasContainer.addEventListener('change', (e: Event) => {
+                const mId = parseInt((e.target as any).value || (abasContainer as any).value || '0');
+                if (mId && typeof ctx.switchMatriculaTab === 'function') {
+                  ctx.switchMatriculaTab(mId);
+                }
+              });
+            }
           }
         }
 
