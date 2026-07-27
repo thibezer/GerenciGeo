@@ -52,6 +52,7 @@ def create_tables(conn):
             estado TEXT,
             cep TEXT,
             sexo TEXT DEFAULT 'M',
+            senha_gov TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
         );
@@ -483,6 +484,20 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em levantamentos: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em levantamentos: {ex_mig}")
+
+        # Migração dinâmica para a tabela clientes
+        colunas_clientes = [
+            ("senha_gov", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(clientes)")
+        colunas_clientes_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_clientes:
+            if col not in colunas_clientes_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em clientes: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em clientes: {ex_mig}")
 
         # Migração dinâmica para a tabela confrontantes
 

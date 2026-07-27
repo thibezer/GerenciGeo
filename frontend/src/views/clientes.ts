@@ -84,6 +84,7 @@ export const clientesRoute: RouteDef = {
                 </th>
                 <th class="py-3 px-4">Nome Completo</th>
                 <th class="py-3 px-4">CPF / CNPJ</th>
+                <th class="py-3 px-4">Senha GOV</th>
                 <th class="py-3 px-4 text-center">Propriedades</th>
                 <th class="py-3 px-4 text-center">Projetos</th>
                 <th class="py-3 px-4 text-right">Ações</th>
@@ -224,7 +225,7 @@ export const clientesRoute: RouteDef = {
              <!-- Seção: Contato e Endereço -->
              <div class="border-t border-white/5 pt-3.5 space-y-2.5">
                 <h5 class="text-[9px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-3">
                    <div>
                       <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Telefone</label>
                       <input type="text" name="telefone" class="glass-input w-full text-xs h-8 font-mono" placeholder="(99) 99999-9999">
@@ -232,6 +233,10 @@ export const clientesRoute: RouteDef = {
                    <div>
                       <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Email</label>
                       <input type="email" name="email" class="glass-input w-full text-xs h-8">
+                   </div>
+                   <div>
+                      <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Senha GOV</label>
+                      <input type="text" name="senha_gov" class="glass-input w-full text-xs h-8 font-mono" placeholder="Senha GOV">
                    </div>
                 </div>
                 <div class="grid grid-cols-4 gap-3">
@@ -375,7 +380,7 @@ export const clientesRoute: RouteDef = {
                    </div>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
+                <div class="grid grid-cols-3 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
                    <div>
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Telefone</p>
                       <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-telefone">-</p>
@@ -384,7 +389,11 @@ export const clientesRoute: RouteDef = {
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">E-mail</p>
                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-email">-</p>
                    </div>
-                   <div class="col-span-2 border-t border-white/5 pt-2 mt-1">
+                   <div>
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Senha GOV</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-senhagov">-</p>
+                   </div>
+                   <div class="col-span-3 border-t border-white/5 pt-2 mt-1">
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Endereço Completo</p>
                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-endereco">-</p>
                    </div>
@@ -805,6 +814,7 @@ export const clientesRoute: RouteDef = {
                     <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
                  </td>
                  <td class="py-2.5 px-4 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
+                 <td class="py-2.5 px-4 font-mono text-white/75 font-medium">${cli.senha_gov ? escapeHtml(cli.senha_gov) : '-'}</td>
                  <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>
                  <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_levantamentos || 0}</td>
                  <td class="py-2.5 px-4 text-right">
@@ -931,6 +941,7 @@ export const clientesRoute: RouteDef = {
         setDetVal('det-cli-nacionalidade', cli.nacionalidade);
         setDetVal('det-cli-telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '-');
         setDetVal('det-cli-email', cli.email);
+        setDetVal('det-cli-senhagov', cli.senha_gov);
         setDetVal('det-cli-endereco', `${cli.endereco_completo || ''} ${cli.cep ? ' · CEP: ' + aplicarMascaraCep(cli.cep) : ''} - ${cli.cidade || ''}/${cli.estado || ''}`);
         setDetVal('det-cli-total-levs', cli.total_levantamentos || 0);
         setDetVal('det-cli-total-props', cli.total_propriedades || 0);
@@ -1052,6 +1063,7 @@ export const clientesRoute: RouteDef = {
            regime_bens: cli.regime_bens,
            telefone: cli.telefone,
            email: cli.email,
+           senha_gov: cli.senha_gov,
            endereco_completo: cli.endereco_completo,
            cidade: cli.cidade,
            estado: cli.estado,
@@ -1109,6 +1121,7 @@ export const clientesRoute: RouteDef = {
            regime_bens: cli.regime_bens,
            telefone: cli.telefone,
            email: cli.email,
+           senha_gov: cli.senha_gov,
            endereco_completo: cli.endereco_completo,
            cidade: cli.cidade,
            estado: cli.estado,
@@ -1172,6 +1185,7 @@ export const clientesRoute: RouteDef = {
          setFormVal('regime_bens', cli.regime_bens);
          setFormVal('telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '');
          setFormVal('email', cli.email);
+         setFormVal('senha_gov', cli.senha_gov);
          setFormVal('cep', cli.cep ? aplicarMascaraCep(cli.cep) : '');
          setFormVal('endereco_sem_numero', enderecoSemNumero);
          setFormVal('numero_endereco', numero);

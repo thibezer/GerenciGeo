@@ -41,6 +41,7 @@ class ClienteCreate(BaseModel):
     estado: Optional[str] = None
     cep: Optional[str] = None
     sexo: str = "M"
+    senha_gov: Optional[str] = None
     metadados: dict = Field(default_factory=dict)
 
 class ProfissionalCreate(BaseModel):
@@ -92,7 +93,7 @@ def get_clientes():
             SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
                    p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
                    p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
-                   c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.created_at
+                   c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at
             FROM clientes c
             JOIN pessoas p ON c.pessoa_id = p.id
         """
