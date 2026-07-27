@@ -174,6 +174,9 @@ class TestSigefValidator(unittest.TestCase):
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/fix/test-sigef-validator-calcular-sigma-p-15516967109512420649
     # calcular_sigma_p Tests
     def test_calcular_sigma_p_normal(self):
         """Test normal values (Pythagorean triple 3, 4 -> 5)"""
@@ -215,6 +218,7 @@ class TestSigefValidator(unittest.TestCase):
         res_inf = SigefValidator.calcular_sigma_p(float('inf'), 4.0)
         self.assertTrue(math.isinf(res_inf))
 
+<<<<<<< HEAD
     def test_validar_autointerssecao(self):
         # Valid square
         pontos_validos = [
@@ -303,9 +307,7 @@ class TestVertexGenerator(unittest.TestCase):
         self.assertEqual(VertexGenerator.gerar_nome_vertice("ABCD", "M", 1), "ABCD-M-0001")
         self.assertEqual(VertexGenerator.gerar_nome_vertice("wxyz", "p", 1010), "WXYZ-P-1010")
 
-=======
 class TestVertexGenerator(unittest.TestCase):
->>>>>>> origin/add-vertexgenerator-tests-12115405866745254397
     def test_gerar_nome_vertice_invalid_type(self):
         """Test that an invalid vertex type raises ValueError"""
         with self.assertRaises(ValueError) as context:
@@ -314,14 +316,13 @@ class TestVertexGenerator(unittest.TestCase):
 
     def test_gerar_nome_vertice_invalid_credenciado_length(self):
         """Test that an invalid credenciado code length raises ValueError"""
-        # Test with 3 characters
         with self.assertRaises(ValueError) as context:
             VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
         self.assertIn("O código do credenciado deve ter 4 dígitos.", str(context.exception))
 
-        # Test with 5 characters
         with self.assertRaises(ValueError) as context:
             VertexGenerator.gerar_nome_vertice("ABCDE", "M", 1)
+
     def test_gerar_nome_vertice_codigo_invalido(self):
         with self.assertRaises(ValueError):
             VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
