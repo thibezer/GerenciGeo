@@ -3,7 +3,6 @@ import math
 from services.processamento.sigef_validator import SigefValidator, VertexGenerator
 
 class TestSigefValidator(unittest.TestCase):
->>>>>>> origin/test-improve-sigef-validator-edge-cases-16526130896100960309
     def test_validar_conformidade_boundary(self):
         # 1-Sigma: limits are 0.50, 3.00, 7.50
 
