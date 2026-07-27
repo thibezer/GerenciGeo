@@ -243,24 +243,34 @@ class SigefValidator:
 
     @staticmethod
     def _formatar_azimute(az_deg: float) -> str:
-        """Formata azimute em graus, minutos e segundos decimais (ex: 125° 30' 45.2")"""
-        if math.isnan(az_deg) or math.isinf(az_deg):
-            raise ValueError("Azimute não pode ser NaN ou Infinito")
+        """Formata azimute em graus, minutos e segundos decimais (ex: 125° 30' 45.20")"""
+        if az_deg is None or math.isnan(az_deg) or math.isinf(az_deg):
+            raise ValueError("Azimute inválido")
 
-        # Arredonda para 2 casas decimais nos segundos totais para evitar que o print de 59.996 vire 60.00
-        total_seconds = round((az_deg % 360.0) * 3600.0, 2)
-<<<<<<< HEAD
-        graus = int(total_seconds // 3600) % 360
-        minutos = int((total_seconds % 3600) // 60)
-        segundos = (total_seconds % 3600) % 60
-=======
+        # Normaliza o azimute para o intervalo [0, 360)
+        az_deg = az_deg % 360.0
 
-        graus = int(total_seconds // 3600) % 360
-        minutos = int((total_seconds % 3600) // 60)
-        segundos = (total_seconds % 3600) % 60
+        graus = int(az_deg)
+        minutos_dec = (az_deg - graus) * 60.0
+        minutos = int(minutos_dec)
+        segundos = (minutos_dec - minutos) * 60.0
 
->>>>>>> origin/add-vertexgenerator-tests-12115405866745254397
-        return f"{graus}° {minutos:02d}' {segundos:05.2f}\""
+        # Arredondamento explícito dos segundos para 2 casas decimais
+        segundos_arredondados = round(segundos, 2)
+
+        # Cascata de arredondamento
+        if segundos_arredondados >= 60.0:
+            segundos_arredondados -= 60.0
+            minutos += 1
+
+        if minutos >= 60:
+            minutos -= 60
+            graus += 1
+
+        if graus >= 360:
+            graus -= 360
+
+        return f"{graus}° {minutos:02d}' {segundos_arredondados:05.2f}\""
 
 class VertexGenerator:
     """Gerador e Sequenciador de nomes de vértice (Ex: ABCD-M-0001)"""
