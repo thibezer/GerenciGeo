@@ -16,3 +16,13 @@
 3. **Arquivos e Scripts de Código Fonte do Backend**:
    - Os arquivos Python de execução na raiz (`api.py`, `buscador_rinex.py`, `config.py`, `converterrinex.py`, `main.py`, `requirements.txt`) e configurações globais (`tsconfig.json`, `.gitignore`) não devem ser movidos ou reestruturados sem o devido ajuste nas diretivas de importação (`sys.path` ou imports do backend), pois o backend depende de sua presença na raiz.
    - O banco de dados SQLite (`gerencigeo.db` e backups) deve permanecer na raiz conforme configurado no `config.py`.
+
+## Automações de Workflow
+
+4. **Comando/Gatilho "PR do jules"**:
+   - Sempre que o usuário mencionar ou disser "PR do jules", o agente deve automaticamente:
+     1. Executar `git fetch --all` para obter todas as branches remotas do repositório.
+     2. Identificar e importar/fazer merge de todas as branches pendentes contendo alterações ou testes criados pelo Jules (branches que iniciam ou contêm `jules`, `fix/`, `feat/`, `test-` não unificadas na `main`).
+     3. Resolver quaisquer conflitos promovendo as implementações mais recentes e robustas.
+     4. Executar a suíte de testes unitários (`python -m unittest discover -s tests -p "test_*.py"`) para validar a integridade.
+     5. Apresentar um resumo detalhado e organizado de todas as branches unificadas e validações realizadas.
