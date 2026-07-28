@@ -135,7 +135,7 @@ def run_tests():
     # 2. V-03_C
     # 3. V-04_D
     # 4. V-01_A
-    pontos_ordenados = execute_query("SELECT nome_vertice, ordem_caminhamento FROM pontos ORDER BY ordem_caminhamento ASC", fetch_all=True)
+    pontos_ordenados = execute_query("SELECT nome_vertice, ordem_caminhamento FROM pontos ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC", fetch_all=True)
     ordem_esperada = ["V-02_B", "V-03_C", "V-04_D", "V-01_A"]
     print("\n[Ordem de Caminhamento Gravada no Banco]:")
     for i, pt in enumerate(pontos_ordenados):
