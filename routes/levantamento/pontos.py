@@ -373,6 +373,8 @@ def get_pontos(id: int):
 @router.post("/levantamentos/{id}/pontos")
 def create_ponto(id: int, p: PontoCreate):
     verificar_levantamento_arquivado(id)
+    if p.tipo_ponto not in ['M', 'P', 'V', 'B']:
+        raise HTTPException(status_code=400, detail=f"Tipo de ponto inválido '{p.tipo_ponto}'. Deve ser 'M', 'P', 'V' ou 'B'.")
     try:
         ordem = p.ordem_caminhamento
         if not ordem and p.tipo_ponto != 'B':
