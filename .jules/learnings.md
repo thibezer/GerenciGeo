@@ -52,3 +52,12 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. O estado de exibição deve ser controlado centralmente por `ctx.bancoPontosExibido`.
   2. Ao ativar a visualização da planilha homologada, a lista `ctx.bancoPontosList` deve ser convertida para a estrutura de `Ponto` no frontend, mapeando `codigo_completo` para `nome_vertice` e marcando `status_correcao: 'CORRIGIDO'`.
   3. Ao desativar, o sistema deve restaurar instantaneamente a exibição dos pontos brutos/corrigidos do levantamento de campo.
+  4. Ao alternar a fonte para `planilha`, o backend busca os dados em `obter_tabela_pontos_homologados(id)`, calculando os azimutes e distâncias a partir dos vértices homologados da planilha.
+
+---
+
+## 7. Restrição de Sintaxe do SQLite em Migrações (`ALTER TABLE ADD COLUMN`)
+- **Problema**: A tentativa de executar `ALTER TABLE levantamentos ADD COLUMN codigo_compartilhamento TEXT UNIQUE` falha silenciosamente ou gera `OperationalError` no SQLite, pois o SQLite não permite adicionar restrições `UNIQUE` ou `PRIMARY KEY` diretamente através do `ALTER TABLE ADD COLUMN`.
+- **Regra Obrigatória**:
+  1. Ao adicionar novas colunas que necessitem de unicidade em tabelas SQLite existentes, adicione a coluna apenas com seu tipo básico (ex: `ALTER TABLE ... ADD COLUMN codigo_compartilhamento TEXT`).
+  2. Crie a unicidade separadamente através de um índice único: `CREATE UNIQUE INDEX IF NOT EXISTS idx_... ON tabela(coluna) WHERE coluna IS NOT NULL`.
