@@ -400,7 +400,15 @@ export class MapaCore {
       .openOn(this.map);
 
     try {
-      const res = await fetch(`${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`);
+      const isLocal = window.location.origin.includes('localhost') || 
+                      window.location.origin.includes('127.0.0.1') || 
+                      window.location.origin.includes('[::1]');
+
+      const proxyFetchUrl = isLocal 
+        ? `${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`
+        : `${window.location.origin}/api.php?action=proxy_sigef&url=${encodeURIComponent(targetUrl)}`;
+
+      const res = await fetch(proxyFetchUrl);
       let data: any = null;
       if (res.ok) {
         const text = await res.text();
