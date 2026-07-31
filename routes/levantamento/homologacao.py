@@ -281,15 +281,17 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                 if mat_id:
                     matriculas_afetadas.add(int(mat_id))
                     
-            for mat_id in matriculas_afetadas:
-                # Deletar pontos anteriores da tabela pontos e segmentos correspondentes
+            if matriculas_afetadas:
+                placeholders = ','.join(['?'] * len(matriculas_afetadas))
+                params = [id] + list(matriculas_afetadas)
+                # Deletar pontos anteriores da tabela pontos e segmentos correspondentes em lote
                 cursor.execute(
-                    "DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1",
-                    (id, mat_id)
+                    f"DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id IN ({placeholders}) AND origem_homologada = 1",
+                    params
                 )
                 cursor.execute(
-                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
-                    (id, mat_id)
+                    f"DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({placeholders})",
+                    params
                 )
                 
             # Processar cada arquivo
@@ -913,6 +915,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
             # Geração de polilinhas perimetrais ultra-veloz via Cache O(1) em memória
             if matricula_id and len(pontos_ordenados) >= 2:
                 N = len(pontos_ordenados)
+                segmentos_data = []
                 for i in range(N):
                     p_ini = pontos_ordenados[i]
                     p_fim = pontos_ordenados[(i + 1) % N]
@@ -922,17 +925,20 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                         
                     confrontante_id = mapa_vertices_confrontante_id.get(p_ini["codigo_completo"])
                                 
-                    cursor.execute(
+                    segmentos_data.append((
+                        id, matricula_id, p_ini["db_ponto_id"], p_fim["db_ponto_id"], confrontante_id,
+                        p_ini["tipo_limite"] or "Limite Não Definido", p_ini["metodo_posicionamento"] or "PG1"
+                    ))
+
+                if segmentos_data:
+                    cursor.executemany(
                         """
                         INSERT INTO segmentos
                         (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id,
                          tipo_limite_sigef, metodo_posicionamento_sigef, origem_homologada)
                         VALUES (?, ?, ?, ?, ?, ?, ?, 1)
                         """,
-                        (
-                            id, matricula_id, p_ini["db_ponto_id"], p_fim["db_ponto_id"], confrontante_id,
-                            p_ini["tipo_limite"] or "Limite Não Definido", p_ini["metodo_posicionamento"] or "PG1"
-                        )
+                        segmentos_data
                     )
             
             conn.commit()
@@ -1130,18 +1136,25 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
         # Recalcular contadores do profissional
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            for t in ['M', 'P', 'V']:
-                cursor.execute(
-                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?",
-                    (profissional_id, t, f"{codigo_credenciado}-%")
-                )
-                row_max = cursor.fetchone()
-                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
-                col_name = f"contador_{t.lower()}"
-                cursor.execute(
-                    f"UPDATE profissionais SET {col_name} = ? WHERE id = ?",
-                    (max_num, profissional_id)
-                )
+
+            # Buscamos o MAX(numero) para todos os tipos (M, P, V) em uma única query
+            cursor.execute(
+                "SELECT tipo_ponto, MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto IN ('M', 'P', 'V') AND codigo_completo LIKE ? GROUP BY tipo_ponto",
+                (profissional_id, f"{codigo_credenciado}-%")
+            )
+            rows = cursor.fetchall()
+
+            max_nums = {'M': 0, 'P': 0, 'V': 0}
+            for row in rows:
+                if row["tipo_ponto"] in max_nums:
+                    max_nums[row["tipo_ponto"]] = row["max_num"] if row["max_num"] is not None else 0
+
+            # Atualizamos os contadores de uma vez
+            cursor.execute(
+                "UPDATE profissionais SET contador_m = ?, contador_p = ?, contador_v = ? WHERE id = ?",
+                (max_nums['M'], max_nums['P'], max_nums['V'], profissional_id)
+            )
+
             conn.commit()
             
         return {"sucesso": True, "mensagem": f"Planilha '{planilha_origem}' e seus pontos foram excluídos com sucesso."}
@@ -1172,13 +1185,21 @@ def get_pontos_sugeridos_levantamento(id: int):
         sugestoes = {}
         with DatabaseManager() as conn:
             cursor = conn.cursor()
+
+            # Buscamos o MAX(numero) para todos os tipos de uma vez
+            cursor.execute(
+                "SELECT tipo_ponto, MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto IN ('M', 'P', 'V') GROUP BY tipo_ponto",
+                (prof_id,)
+            )
+            rows = cursor.fetchall()
+
+            max_nums = {'M': 0, 'P': 0, 'V': 0}
+            for row in rows:
+                if row["tipo_ponto"] in max_nums:
+                    max_nums[row["tipo_ponto"]] = row["max_num"] if row["max_num"] is not None else 0
+
             for t in ['M', 'P', 'V']:
-                cursor.execute(
-                    "SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ?",
-                    (prof_id, t)
-                )
-                row_max = cursor.fetchone()
-                max_num = row_max["max_num"] if row_max and row_max["max_num"] is not None else 0
+                max_num = max_nums[t]
                 proximo = max_num + 1
                 sugestoes[t] = {
                     "proximo_numero": proximo,

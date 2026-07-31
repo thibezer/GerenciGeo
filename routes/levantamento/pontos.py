@@ -101,13 +101,12 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
 
                 if tem_duplicidade or tem_nulo:
                     logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, matricula={mid}")
+                    update_data = []
                     nova_ordem = 1
                     for r in rows:
-                        cursor.execute(
-                            "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                            (nova_ordem, r["id"])
-                        )
+                        update_data.append((nova_ordem, r["id"]))
                         nova_ordem += 1
+                    cursor.executemany("UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?", update_data)
 
             # 2. Sanitizar pontos sem matrícula (avulsos)
             cursor.execute(
@@ -127,13 +126,12 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
 
             if tem_duplicidade_avulsa or tem_nulo_avulso:
                 logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens avulsas para levantamento={levantamento_id}")
+                update_data = []
                 nova_ordem = 1
                 for r in rows_avulsos:
-                    cursor.execute(
-                        "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                        (nova_ordem, r["id"])
-                    )
+                    update_data.append((nova_ordem, r["id"]))
                     nova_ordem += 1
+                cursor.executemany("UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?", update_data)
 
             conn.commit()
     except Exception as e:
