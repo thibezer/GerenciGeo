@@ -69,16 +69,22 @@ export const renderCompartilhado = (): string => {
                      <button class="px-3 py-1 text-xs font-bold uppercase tracking-wider border-b-2 border-transparent text-white/40 hover:text-white tab-btn-publico transition-all" data-target="tab-content-todos-pontos">Todos os Vértices</button>
                  </div>
                  
-                 <!-- LOCALIZADOR DE PONTO (PESQUISA EM TEMPO REAL) -->
+                 <!-- LOCALIZADOR DE PONTO E BOTÃO DE DOWNLOAD -->
                  <div class="flex items-center gap-2">
                     <div class="relative flex items-center">
                         <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 text-white/40 pointer-events-none"></i>
                         <input id="input-busca-ponto-publico" type="text" placeholder="Localizar vértice (ex: XRXR-V-0036)..." 
-                               class="bg-black/40 border border-white/15 rounded-md pl-8 pr-7 py-1 text-xs text-white placeholder-white/30 focus:outline-none focus:border-mint-vibrant focus:ring-1 focus:ring-mint-vibrant/50 transition-all w-64 font-mono" />
+                               class="bg-black/40 border border-white/15 rounded-md pl-8 pr-7 py-1 text-xs text-white placeholder-white/30 focus:outline-none focus:border-mint-vibrant focus:ring-1 focus:ring-mint-vibrant/50 transition-all w-60 font-mono" />
                         <button id="btn-limpar-busca-publico" class="absolute right-2 text-white/30 hover:text-white hidden">
                             <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
+
+                    <button id="btn-exportar-csv-publico" title="Baixar planilha de vértices em CSV" 
+                            class="px-2.5 py-1 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30 hover:border-mint-vibrant/60 rounded text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Baixar CSV</span>
+                    </button>
                  </div>
              </div>
              

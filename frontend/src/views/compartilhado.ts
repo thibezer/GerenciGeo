@@ -374,6 +374,54 @@ const setupLocalizadorPontos = () => {
             inputSearch.focus();
         });
     }
+
+    const btnExportCSV = document.getElementById('btn-exportar-csv-publico');
+    if (btnExportCSV) {
+        btnExportCSV.addEventListener('click', exportarPontosCSV);
+    }
+};
+
+/**
+ * Exporta a lista de vértices do imóvel em um arquivo CSV (Excel compatível com UTF-8 BOM)
+ */
+const exportarPontosCSV = () => {
+    if (!currentPublicData || !currentPublicData.pontos || currentPublicData.pontos.length === 0) {
+        showToast("Não há vértices disponíveis para exportar.", "info");
+        return;
+    }
+
+    const pontos = currentPublicData.pontos;
+    const imovelNome = (currentPublicData.nome_propriedade || 'Imovel').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // UTF-8 BOM para garantir acentuação no Microsoft Excel
+    let csvContent = "\uFEFF";
+    csvContent += "Ordem;Vértice;Tipo;Norte (Y);Este (X);Latitude;Longitude;Altitude (m);Confrontante\n";
+
+    pontos.forEach((p: any) => {
+        const ord = p.ordem_caminhamento != null ? p.ordem_caminhamento : '';
+        const vertice = p.nome_vertice || `P-${p.id}`;
+        const tipo = p.tipo || p.tipo_ponto || '';
+        const norte = p.norte != null ? Number(p.norte).toFixed(3).replace('.', ',') : '';
+        const este = p.este != null ? Number(p.este).toFixed(3).replace('.', ',') : '';
+        const lat = p.lat != null ? Number(p.lat).toFixed(6).replace('.', ',') : '';
+        const lon = p.lon != null ? Number(p.lon).toFixed(6).replace('.', ',') : '';
+        const alt = p.altitude != null ? Number(p.altitude).toFixed(3).replace('.', ',') : '';
+        const conf = (p.nome_confrontante || '').replace(/;/g, ',');
+
+        csvContent += `${ord};"${vertice}";"${tipo}";${norte};${este};${lat};${lon};${alt};"${conf}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${imovelNome}_vertices.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast("Planilha CSV dos vértices baixada com sucesso!", "success");
 };
 
 /**

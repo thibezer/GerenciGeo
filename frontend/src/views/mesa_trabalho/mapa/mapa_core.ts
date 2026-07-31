@@ -401,9 +401,17 @@ export class MapaCore {
 
     try {
       const res = await fetch(`${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`);
-      const data = await res.json();
+      let data: any = null;
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
 
-      if (data.features && data.features.length > 0) {
+      if (data && data.features && data.features.length > 0) {
         const feature = data.features[0];
         const props = feature.properties;
         const uuid = feature.id || props.parcela_codigo || props.co_parcela || props.id_parcela;
@@ -450,13 +458,17 @@ export class MapaCore {
           `);
         }
       } else {
-        this.map.closePopup(loadingPopup);
+        loadingPopup.setContent(`
+          <div style="font-family:var(--geo-font-sans),sans-serif; font-size:12px; color:rgba(255, 255, 255, 0.7); padding:2px 0;">
+            Nenhum imóvel SIGEF certificado neste ponto.
+          </div>
+        `);
       }
     } catch (err) {
       console.warn("Erro ao consultar SIGEF:", err);
       loadingPopup.setContent(`
-        <div style="font-family:var(--geo-font-sans),sans-serif; font-size:12px; color:#dc2626; padding:2px 0;">
-          Erro ao comunicar com o proxy do SIGEF.
+        <div style="font-family:var(--geo-font-sans),sans-serif; font-size:12px; color:#f59e0b; padding:2px 0;">
+          Serviço de consulta SIGEF indisponível nesta área.
         </div>
       `);
     } finally {
