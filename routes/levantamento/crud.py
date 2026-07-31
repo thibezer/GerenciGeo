@@ -507,15 +507,42 @@ def get_levantamento_publico(codigo: str):
         query_mat = "SELECT * FROM matriculas WHERE propriedade_id = ?"
         lev_obj['matriculas'] = [dict(r) for r in execute_query(query_mat, params=(prop_id,), fetch_all=True)]
 
-        # Busca apenas os pontos válidos do imóvel (exclui vizinhos e ignorados)
-        query_pts = """
-            SELECT * FROM pontos 
-            WHERE levantamento_id = ? 
-              AND (ponto_vizinho IS NULL OR ponto_vizinho = 0) 
-              AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
-            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+        # Verifica se existem pontos homologados na tabela banco_pontos (Peças de Cartório)
+        query_bp = """
+            SELECT id, tipo_ponto as tipo, codigo_completo as nome_vertice, norte, este, altitude, lat, lon,
+                   confrontante_descritivo as nome_confrontante, matricula_id
+            FROM banco_pontos
+            WHERE levantamento_id = ?
+            ORDER BY id ASC
         """
-        lev_obj['pontos'] = [dict(r) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
+        bp_rows = execute_query(query_bp, params=(lev_id,), fetch_all=True)
+
+        if bp_rows and len(bp_rows) > 0:
+            # Se a planilha de cartório foi enviada, envia EXCLUSIVAMENTE estes pontos homologados
+            pontos = []
+            for idx, r in enumerate(bp_rows, 1):
+                p = dict(r)
+                p['ordem_caminhamento'] = idx
+                if (p.get('lat') is None or p.get('lon') is None or p.get('lat') == 0 or p.get('lon') == 0) and (p.get('norte') and p.get('este')):
+                    try:
+                        from pyproj import Transformer
+                        tr = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+                        lon_calc, lat_calc = tr.transform(p['este'], p['norte'])
+                        p['lon'], p['lat'] = lon_calc, lat_calc
+                    except Exception:
+                        pass
+                pontos.append(p)
+            lev_obj['pontos'] = pontos
+        else:
+            # Caso contrário (sem planilha de cartório), envia os pontos de campo válidos (exclui vizinhos e ignorados)
+            query_pts = """
+                SELECT * FROM pontos 
+                WHERE levantamento_id = ? 
+                  AND (ponto_vizinho IS NULL OR ponto_vizinho = 0) 
+                  AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            """
+            lev_obj['pontos'] = [dict(r) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
 
         # Busca segmentos
         query_seg = "SELECT * FROM segmentos WHERE levantamento_id = ?"
