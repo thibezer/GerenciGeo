@@ -485,10 +485,10 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                     """,
                                     (
                                         profissional_id, id, mat_id, p["tipo_ponto"], p["numero"], p["codigo_completo"],
-                                        None, None, None, None, None,
-                                        None, None, None,
-                                        None, None,
-                                        None, None, None,
+                                        p["norte"], p["este"], p["altitude"], p["lat"], p["lon"],
+                                        p["sigma_n"], p["sigma_e"], p["sigma_z"],
+                                        p["metodo_posicionamento"], p["tipo_limite"],
+                                        p["cns_confrontante"], p["matricula_confrontante"], p["confrontante_descritivo"],
                                         nome_planilha_salvar
                                     )
                                 )
@@ -503,8 +503,8 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                                     """,
                                     (
-                                        id, mat_id, p["codigo_completo"], p["tipo_ponto"], None, None, None,
-                                        None, None, None, idx_ordem, 'BRUTO', None, nome_planilha_salvar
+                                        id, mat_id, p["codigo_completo"], p["tipo_ponto"], p["lat"], p["lon"], p["altitude"],
+                                        p["sigma_e"], p["sigma_n"], p["sigma_z"], idx_ordem, 'CORRIGIDO', p["metodo_posicionamento"], nome_planilha_salvar
                                     )
                                 )
                                 p["db_ponto_id"] = cursor.lastrowid
