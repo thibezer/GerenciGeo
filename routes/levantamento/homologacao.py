@@ -59,7 +59,7 @@ async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
                                     cell_text = "".join([p.text for p in p_elements if p.text]).strip()
                                     if cell_text:
                                         # Regex clássica de marco do SIGEF
-                                        if re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", cell_text, re.IGNORECASE) or re.match(r"^(M|P|V)-(\d+)$", cell_text, re.IGNORECASE):
+                                        if re.match(r"^([A-Z0-9]{3,5})-(M|P|V)-(\d+)$", cell_text, re.IGNORECASE) or re.match(r"^(M|P|V)-(\d+)$", cell_text, re.IGNORECASE):
                                             pontos_count += 1
                                             
                             if pontos_count > 0:
@@ -74,7 +74,7 @@ async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
         if not is_ods or (is_ods and not abas_detectadas):
             text = content.decode("utf-8", errors="ignore")
             # Buscar marcos por regex no texto completo
-            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+            pattern = re.compile(r"\b([A-Z0-9]{3,5})-(M|P|V)-(\d+)\b", re.IGNORECASE)
             matches = pattern.findall(text)
             
             pattern_sem_prefixo = re.compile(r"\b(M|P|V)-(\d+)\b", re.IGNORECASE)
@@ -136,7 +136,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
         def extract_ponto_from_cells(cell_texts):
             if not cell_texts or len(cell_texts) < 7: return None
             vertice = str(cell_texts[0]).strip()
-            match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+            match = re.match(r"^([A-Z0-9]{3,5})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
             if not match: return None
             
             tipo = match.group(2).upper()
@@ -395,7 +395,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                     return ""
                                 
                                 vertice = get_val('CODIGO')
-                                match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                match = re.match(r"^([A-Z0-9]{3,5})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
                                 if not match: continue
                                 
                                 tipo = match.group(2).upper()
@@ -438,7 +438,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                     
                         # Se não encontrar nada pelo delimitador padrão (ou for um TXT maluco), fallback pro regex (sem coordenadas)
                         if not pontos_detetados:
-                            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+                            pattern = re.compile(r"\b([A-Z0-9]{3,5})-(M|P|V)-(\d+)\b", re.IGNORECASE)
                             matches = pattern.findall(text)
                             for m in matches:
                                 cod_det = m[0].upper()
@@ -651,7 +651,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                             
                                     if len(cell_texts) >= 7:
                                         vertice = cell_texts[0].strip()
-                                        match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                        match = re.match(r"^([A-Z0-9]{3,5})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
                                         if match:
                                             tipo = match.group(2).upper()
                                             num = int(match.group(3))
@@ -714,7 +714,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                 text = content.decode("utf-8", errors="ignore")
                 
             # Fallback regex tradicional
-            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+            pattern = re.compile(r"\b([A-Z0-9]{3,5})-(M|P|V)-(\d+)\b", re.IGNORECASE)
             matches = pattern.findall(text)
             for m in matches:
                 cod_det = m[0].upper()
