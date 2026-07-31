@@ -229,9 +229,17 @@ export const compartilhadoRoute: RouteDef = {
     
     setTimeout(() => mapController?.invalidateSize(), 100);
 
-    fetch(`${API_BASE}/levantamentos/publico/${codigo}`)
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+
+    const fetchUrl = isLocal 
+      ? `${API_BASE}/levantamentos/publico/${codigo}`
+      : `${window.location.origin}/api.php?codigo=${codigo}`;
+
+    fetch(fetchUrl)
       .then(res => {
-          if (!res.ok) throw new Error("Link inválido ou expirado.");
+          if (!res.ok) throw new Error("Link inválido ou projeto não localizado na nuvem.");
           return res.json();
       })
       .then(data => {

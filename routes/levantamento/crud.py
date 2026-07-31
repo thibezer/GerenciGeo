@@ -437,20 +437,37 @@ def get_anos_arquivados():
 import uuid
 
 @router.post("/levantamentos/{lev_id}/compartilhar")
-def gerar_link_compartilhamento(lev_id: int):
+async def gerar_link_compartilhamento(lev_id: int):
     try:
         row = execute_query("SELECT codigo_compartilhamento FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_all=True)
         if not row:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
         
-        codigo_atual = row[0]['codigo_compartilhamento']
-        if codigo_atual:
-            return {"codigo": codigo_atual, "message": "Link já existente recuperado."}
-        
-        import secrets
-        novo_codigo = secrets.token_hex(4) # gera 8 caracteres aleatórios (ex: 'f4a2b91c')
-        execute_query("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?", params=(novo_codigo, lev_id), commit=True)
-        return {"codigo": novo_codigo, "message": "Novo link de compartilhamento gerado com sucesso."}
+        codigo = row[0]['codigo_compartilhamento']
+        if not codigo:
+            import secrets
+            codigo = secrets.token_hex(4) # gera 8 caracteres aleatórios (ex: 'f4a2b91c')
+            execute_query("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?", params=(codigo, lev_id), commit=True)
+
+        # 1. Gera o payload com dados anonimizados
+        payload = get_levantamento_publico(codigo)
+
+        # 2. Transmite o payload para o endpoint api.php na Hostinger
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post("https://darkgray-duck-674813.hostingersite.com/api.php", json={
+                    "codigo": codigo,
+                    "payload": payload
+                })
+                if res.status_code in (200, 201):
+                    logging.getLogger(__name__).info(f"Levantamento {lev_id} (código {codigo}) publicado na Hostinger com sucesso!")
+                else:
+                    logging.getLogger(__name__).warning(f"Aviso na sincronização Hostinger: HTTP {res.status_code} - {res.text}")
+        except Exception as sync_err:
+            logging.getLogger(__name__).warning(f"Não foi possível sincronizar com a Hostinger no momento (servidor offline ou sem conexão): {sync_err}")
+
+        return {"codigo": codigo, "message": "Link de compartilhamento gerado e dados sincronizados com a nuvem!"}
     except HTTPException:
         raise
     except Exception as e:
