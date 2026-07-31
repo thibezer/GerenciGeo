@@ -35,3 +35,11 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. Todos os IDs originais do Ordenador Manual (`input-search-ordenador`, `btn-inverter-sentido-ordenador`, `btn-auto-ordenar-vizinho`, `btn-travar-sequencia-pontos`, `btn-destravar-sequencia-pontos`, `lista-reordenar-simplificada`, `btn-salvar-ordem-simplificada`) devem ser rigorosamente preservados na estrutura `#props-panel-ordenador`.
   2. O container `#props-panel-ordenador` deve ser configurado com `style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding: 8px;"` no HTML template.
   3. Ao alternar para a etapa `cartorio` em `ctx.alternarEtapa`, a visibilidade deve ser alternada ativando explicitamente `propsPanelOrdenador.style.display = 'flex'`, e a renderização da lista (`ctx.renderListaReordenarSimplificada()`) acionada dentro de um `setTimeout` de 30ms para garantir a distribuição prévia das dimensões calculadas da DOM.
+
+---
+
+## 5. Resolução de Pessoas e Invariante de Chave Estrangeira em Confrontantes (`pessoa_id`)
+- **Problema**: A importação de planilhas ODS/INCRA/SIGEF pela rotina `resolver_confrontantes_planilha` ou `levantamento_manager` tentava inserir novos confrontantes diretamente na tabela `confrontantes` sem criar previamente o registro cadastral na tabela `pessoas`. Como a coluna `confrontantes.pessoa_id` possui restrição de chave estrangeira com obrigatoriedade, a instrução falhava no SQLite com `IntegrityError: NOT NULL constraint failed: confrontantes.pessoa_id`.
+- **Regra Obrigatória**:
+  1. Qualquer rotina do backend que crie um confrontante novo deve sempre inserir a pessoa primeiro na tabela `pessoas` (`INSERT INTO pessoas (nome) VALUES (?)`), capturar o `pessoa_id = cursor.lastrowid` e então registrar o confrontante passando `pessoa_id`.
+  2. Nenhuma query de inserção em `confrontantes` deve omitir a chave estrangeira `pessoa_id`.

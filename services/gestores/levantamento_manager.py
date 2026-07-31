@@ -618,10 +618,14 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                             nome = conf_data.get('nome') or conf_data.get('matricula_imovel') or 'Confrontante'
                             mat = conf_data.get('matricula_imovel')
                             cns = conf_data.get('cns_confrontante')
+                            
+                            cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome,))
+                            pessoa_id = cursor.lastrowid
+
                             cursor.execute("""
-                                INSERT INTO confrontantes (levantamento_id, tipo_relacao, nome, matricula_imovel, cns_confrontante)
-                                VALUES (?, 'Divisa', ?, ?, ?)
-                            """, (levantamento_id, nome, mat, cns))
+                                INSERT INTO confrontantes (pessoa_id, levantamento_id, tipo_relacao, nome, matricula_imovel, cns_confrontante)
+                                VALUES (?, ?, 'Divisa', ?, ?, ?)
+                            """, (pessoa_id, levantamento_id, nome, mat, cns))
                             new_conf_id = cursor.lastrowid
 
                             cursor.execute("UPDATE segmentos SET confrontante_id = ? WHERE id = ?", (new_conf_id, segmento['id']))

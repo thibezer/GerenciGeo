@@ -192,8 +192,14 @@ def resolver_confrontantes_planilha(levantamento_id: int, pontos_ordenados: list
         if not confrontante_id_resolvido:
             final_nome = nome_conf if nome_conf else f"Confrontante da Matrícula {matricula_conf}"
             cursor.execute(
-                "INSERT INTO confrontantes (levantamento_id, nome, matricula_imovel, cns_confrontante) VALUES (?, ?, ?, ?)",
-                (levantamento_id, final_nome, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
+                "INSERT INTO pessoas (nome) VALUES (?)",
+                (final_nome,)
+            )
+            pessoa_id = cursor.lastrowid
+
+            cursor.execute(
+                "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome, matricula_imovel, cns_confrontante) VALUES (?, ?, ?, ?, ?)",
+                (pessoa_id, levantamento_id, final_nome, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
             )
             confrontante_id_resolvido = cursor.lastrowid
             

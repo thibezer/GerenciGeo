@@ -200,8 +200,9 @@ def create_tables(conn):
         """
         CREATE TABLE IF NOT EXISTS confrontantes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pessoa_id INTEGER,
             levantamento_id INTEGER NOT NULL,
-            nome TEXT NOT NULL,
+            nome TEXT,
             cpf_cnpj TEXT,
             tipo_relacao TEXT,
             rg TEXT,
@@ -219,6 +220,7 @@ def create_tables(conn):
             nome_propriedade TEXT,
             codigo_incra_imovel TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         );
         """,
