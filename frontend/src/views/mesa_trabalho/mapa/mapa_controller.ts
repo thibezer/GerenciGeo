@@ -5,7 +5,7 @@ import { MapaMarcadores } from './mapa_marcadores';
 import { MapaLinhas } from './mapa_linhas';
 
 export class MesaTrabalhoMapa {
-  private core: MapaCore;
+  public core: MapaCore;
   private marcadores: MapaMarcadores;
   private linhas: MapaLinhas;
 
