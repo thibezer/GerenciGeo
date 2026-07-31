@@ -231,7 +231,11 @@ export class MapaCore {
 
   public invalidateSize(): void {
     if (this.map) {
-      this.map.invalidateSize();
+      try {
+        this.map.invalidateSize();
+      } catch (err) {
+        // Ignora erros caso o container DOM tenha sido desmontado antes do callback
+      }
     }
   }
 

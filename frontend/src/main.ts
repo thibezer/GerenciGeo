@@ -16,6 +16,7 @@ import { pendenciasRoute } from './views/pendencias';
 import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
 import { ccirRoute } from './views/ccir';
+import { compartilhadoRoute } from './views/compartilhado';
 
 // Detecção se o app está executando no desktop local ou na nuvem Hostinger
 const isLocal = window.location.origin.includes('localhost') || 
@@ -34,13 +35,14 @@ const routes: Record<string, RouteDef> = {
   pendencias: pendenciasRoute,
   configuracoes: configuracoesRoute,
   fronteira: fronteiraRoute,
-  ccir: ccirRoute
+  ccir: ccirRoute,
+  compartilhado: compartilhadoRoute
 };
 
 
 let activeRoute: RouteDef | null = null;
 
-const navigate = (route: string) => {
+const navigate = (route: string, param: string | null = null) => {
   // Se for ambiente Web (nuvem) e for uma rota local-only, bloqueia o acesso
   if (!isLocal && localOnlyRoutes.includes(route)) {
     showToast("Operação restrita ao Software Desktop Local.", "error");
@@ -51,7 +53,7 @@ const navigate = (route: string) => {
   // Exibição condicional da barra lateral (Sidebar)
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-    if (route === 'mesa_trabalho') {
+    if (route === 'mesa_trabalho' || route === 'compartilhado') {
       sidebar.classList.add('hidden');
     } else {
       sidebar.classList.remove('hidden');
@@ -63,7 +65,7 @@ const navigate = (route: string) => {
   if (!container) return;
 
   // Ajusta padding e overflow do view-container quando entra na mesa_trabalho para evitar scroll na Ribbon
-  if (route === 'mesa_trabalho') {
+  if (route === 'mesa_trabalho' || route === 'compartilhado') {
     container.className = 'flex-1 overflow-hidden p-0 min-w-0';
   } else {
     container.className = 'flex-1 overflow-y-auto p-6 min-w-0';
@@ -87,7 +89,7 @@ const navigate = (route: string) => {
   if (currentRoute) {
     container.innerHTML = currentRoute.render();
     initIcons();
-    if (currentRoute.setup) currentRoute.setup();
+    if (currentRoute.setup) currentRoute.setup(param);
   } else {
     container.innerHTML = `<div class="p-12 text-center text-white/20">Módulo em desenvolvimento...</div>`;
   }
@@ -101,8 +103,11 @@ const navigate = (route: string) => {
 };
 
 window.addEventListener('hashchange', () => {
-  const route = window.location.hash.replace('#', '') || 'dashboard';
-  navigate(route);
+  const hashPath = window.location.hash.replace('#', '') || 'dashboard';
+  const parts = hashPath.split('/');
+  const baseRoute = parts[0];
+  const param = parts.length > 1 ? parts[1] : null;
+  navigate(baseRoute, param);
 });
 
 const initApp = () => {
@@ -122,8 +127,11 @@ const initApp = () => {
     }
   }
 
-  const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
-  navigate(initialRoute);
+  const hashPath = window.location.hash.replace('#', '') || 'dashboard';
+  const parts = hashPath.split('/');
+  const baseRoute = parts[0];
+  const param = parts.length > 1 ? parts[1] : null;
+  navigate(baseRoute, param);
   initIcons();
 
   // Redirecionamento do botão de Configurações do menu lateral

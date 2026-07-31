@@ -24,7 +24,11 @@ export class MesaTrabalhoMapa {
   }
 
   public invalidateSize(): void {
-    this.core.invalidateSize();
+    try {
+      this.core?.invalidateSize();
+    } catch (err) {
+      // Ignora chamadas se desinicializado
+    }
   }
 
   public plotPontos(pontos: Ponto[], onMarkerClick: (id: number) => void): void {

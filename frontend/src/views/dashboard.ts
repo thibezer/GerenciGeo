@@ -272,7 +272,9 @@ export const dashboardRoute: RouteDef = {
           if (container) {
             container.classList.toggle('map-fullscreen');
             // Leaflet precisa de um pequeno delay para entender a nova dimensão
-            setTimeout(() => map.invalidateSize(), 100);
+            setTimeout(() => {
+              try { map?.invalidateSize?.(); } catch (e) {}
+            }, 100);
 
             // Altera o ícone do botão baseando no estado
             if (container.classList.contains('map-fullscreen')) {

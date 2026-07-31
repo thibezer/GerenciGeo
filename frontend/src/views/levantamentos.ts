@@ -1,5 +1,5 @@
 import type { RouteDef } from '../types';
-import { API_BASE } from '../config';
+import { API_BASE, PUBLIC_HOST_URL } from '../config';
 import { initIcons, formatarCCIR, showToast } from '../utils';
 import L from 'leaflet';
 
@@ -355,6 +355,9 @@ export const levantamentosRoute: RouteDef = {
                     <button class="btn-secondary text-white/40 hover:text-mint-vibrant p-3.5 md:px-2 md:py-1.5 btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar Levantamento">
                       <i data-lucide="edit" class="w-4 h-4"></i>
                     </button>
+                    <button class="btn-secondary text-blue-400 hover:bg-blue-500/10 p-3.5 md:px-2 md:py-1.5 btn-compartilhar-lev active:scale-95 transition-all" data-id="${l.id}" title="Gerar link público de compartilhamento">
+                      <i data-lucide="share-2" class="w-4 h-4"></i>
+                    </button>
                     <button class="btn-secondary text-red-400 hover:bg-red-500/10 p-3.5 md:px-2 md:py-1.5 btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -412,6 +415,9 @@ export const levantamentosRoute: RouteDef = {
                                     <button class="text-white/40 hover:text-mint-vibrant p-3 md:p-1.5 rounded btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar">
                                        <i data-lucide="edit" class="w-3.5 h-3.5"></i>
                                     </button>
+                                    <button class="text-blue-400 hover:bg-blue-500/10 p-3 md:p-1.5 rounded btn-compartilhar-lev active:scale-95 transition-all" data-id="${l.id}" title="Compartilhar Link Público">
+                                       <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                                    </button>
                                     <button class="text-red-400 hover:bg-red-500/10 p-3 md:p-1.5 rounded btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}" title="Excluir">
                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                     </button>
@@ -431,7 +437,7 @@ export const levantamentosRoute: RouteDef = {
          // Delegação de eventos no grid-projetos
          grid.onclick = (e) => {
             const target = e.target as HTMLElement;
-            const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev') as HTMLElement;
+            const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev, .btn-compartilhar-lev') as HTMLElement;
             if (!btn) return;
 
             const id = parseInt(btn.getAttribute('data-id') || '0');
@@ -439,6 +445,27 @@ export const levantamentosRoute: RouteDef = {
             if (btn.classList.contains('btn-auditar') || btn.classList.contains('btn-auditar-icon') || btn.classList.contains('btn-auditar-link')) {
                localStorage.setItem('active_levantamento_id', id.toString());
                window.location.hash = '#mesa_trabalho';
+            } else if (btn.classList.contains('btn-compartilhar-lev')) {
+               (async () => {
+                  try {
+                     const res = await fetch(`${API_BASE}/levantamentos/${id}/compartilhar`, { method: 'POST' });
+                     const data = await res.json();
+                     if (res.ok) {
+                        const link = `${PUBLIC_HOST_URL}#compartilhado/${data.codigo}`;
+                        try {
+                           await navigator.clipboard.writeText(link);
+                           showToast("Link público copiado para a área de transferência!", "success");
+                        } catch(e) {
+                           prompt("Copie o link público abaixo:", link);
+                        }
+                     } else {
+                        showToast(data.detail || "Erro ao gerar link de compartilhamento", "error");
+                     }
+                  } catch(e) {
+                     console.error("Erro comunicação:", e);
+                     showToast("Erro na comunicação com o servidor", "error");
+                  }
+               })();
             } else if (btn.classList.contains('btn-desarquivar-lev')) {
                (async () => {
                   const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");
@@ -827,7 +854,9 @@ export const levantamentosRoute: RouteDef = {
          setTimeout(() => {
             initMapaTriagem();
             if (mapaTriagem) {
-               mapaTriagem.invalidateSize();
+               try {
+                  mapaTriagem.invalidateSize?.();
+               } catch (e) {}
             }
          }, 100);
 

@@ -142,6 +142,7 @@ def create_tables(conn):
             status TEXT DEFAULT 'EM_ANDAMENTO' CHECK(status IN ('EM_ANDAMENTO', 'CONCLUIDO', 'ARQUIVADO')),
             numero_trt TEXT,
             data_trt TEXT,
+            codigo_compartilhamento TEXT UNIQUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
             FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE CASCADE
@@ -475,7 +476,8 @@ def create_tables(conn):
         # Migração dinâmica para a tabela levantamentos
         colunas_levantamentos = [
             ("numero_trt", "TEXT"),
-            ("data_trt", "TEXT")
+            ("data_trt", "TEXT"),
+            ("codigo_compartilhamento", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(levantamentos)")
         colunas_levantamentos_existentes = {row[1] for row in cursor.fetchall()}
@@ -486,6 +488,11 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em levantamentos: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em levantamentos: {ex_mig}")
+
+        try:
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_levantamentos_codigo_comp ON levantamentos (codigo_compartilhamento) WHERE codigo_compartilhamento IS NOT NULL")
+        except Exception as ex_idx:
+            logger.warning(f"Aviso ao criar índice único em codigo_compartilhamento: {ex_idx}")
 
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [

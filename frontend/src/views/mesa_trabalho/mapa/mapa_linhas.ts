@@ -20,30 +20,30 @@ export class MapaLinhas {
     if (!this.core.map) return;
 
     segmentos.forEach(s => {
-      const pIni = pontos.find(p => p.id === s.ponto_inicio_id);
-      const pFim = pontos.find(p => p.id === s.ponto_fim_id);
+      const pIni = pontos.find(p => String(p.id) === String(s.ponto_inicio_id));
+      const pFim = pontos.find(p => String(p.id) === String(s.ponto_fim_id));
 
       if (pIni && pFim && pIni.lat && pIni.lon && pFim.lat && pFim.lon) {
-        const color = this.bancoPontosAtivo ? '#94a3b8' : (s.tipo_limite_sigef === 'LA1' ? '#10b981' : '#3b82f6');
+        const tipoLim = s.tipo_limite_sigef || (s as any).tipo_limite || '';
+        const metodoPos = s.metodo_posicionamento_sigef || (s as any).metodo_posicionamento || '';
+        const color = this.bancoPontosAtivo ? '#94a3b8' : (tipoLim === 'LA1' ? '#10b981' : '#3b82f6');
         const weight = this.core.config.perimetroWeight;
         const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
         const polyline = L.polyline([[pIni.lat, pIni.lon], [pFim.lat, pFim.lon]], {
           color: color,
           weight: weight,
           opacity: opacity,
-          dashArray: s.tipo_limite_sigef === 'LN1' ? '6, 6' : undefined,
+          dashArray: tipoLim === 'LN1' ? '6, 6' : undefined,
           pane: 'perimetroPane'
         }).bindPopup(`
           <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3;">
             <div style="font-weight:700; font-size:12px; margin-bottom:3px; color:#ffffff;">${escapeHtml(pIni.nome_vertice)} ↔ ${escapeHtml(pFim.nome_vertice)}</div>
-            <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">Limite: ${escapeHtml(s.tipo_limite_sigef)} · ${escapeHtml(s.metodo_posicionamento_sigef)}</div>
+            <div style="font-size:11px; color:rgba(255, 255, 255, 0.65);">Limite: ${escapeHtml(tipoLim)} · ${escapeHtml(metodoPos)}</div>
           </div>
         `, {
           className: 'compact-popup',
           maxWidth: 220
         }).addTo(this.core.map!);
-
-        // Removed bringToBack to prevent rendering issues with custom panes and Canvas renderer
 
         this.polylines.push(polyline);
       }

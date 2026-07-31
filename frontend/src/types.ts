@@ -1,6 +1,6 @@
 export interface RouteDef {
   render: () => string;
-  setup?: () => void;
+  setup?: (param?: string | null) => void;
   cleanup?: () => void;
 }
 

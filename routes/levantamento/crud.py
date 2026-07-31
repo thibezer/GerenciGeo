@@ -419,6 +419,92 @@ def get_arquivos_levantamento(lev_id: int):
         logging.getLogger(__name__).error(f"Erro ao listar arquivos do levantamento id={lev_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao listar arquivos do levantamento.")
 
+@router.get("/levantamentos/arquivados/anos")
+def get_anos_arquivados():
+    try:
+        query = """
+            SELECT DISTINCT strftime('%Y', data_inicio) as ano
+            FROM levantamentos
+            WHERE status = 'ARQUIVADO' AND data_inicio IS NOT NULL
+            ORDER BY ano DESC
+        """
+        anos = [r['ano'] for r in execute_query(query, fetch_all=True) if r['ano']]
+        return {"anos": anos}
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar anos de projetos arquivados: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro ao buscar anos arquivados")
+
+import uuid
+
+@router.post("/levantamentos/{lev_id}/compartilhar")
+def gerar_link_compartilhamento(lev_id: int):
+    try:
+        row = execute_query("SELECT codigo_compartilhamento FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_all=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        
+        codigo_atual = row[0]['codigo_compartilhamento']
+        if codigo_atual:
+            return {"codigo": codigo_atual, "message": "Link já existente recuperado."}
+        
+        import secrets
+        novo_codigo = secrets.token_hex(4) # gera 8 caracteres aleatórios (ex: 'f4a2b91c')
+        execute_query("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?", params=(novo_codigo, lev_id), commit=True)
+        return {"codigo": novo_codigo, "message": "Novo link de compartilhamento gerado com sucesso."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao gerar link de compartilhamento para lev_id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+@router.get("/levantamentos/publico/{codigo}")
+def get_levantamento_publico(codigo: str):
+    try:
+        # Busca o levantamento
+        query_lev = """
+            SELECT l.id, l.propriedade_id, l.data_inicio, l.status, l.numero_trt, l.data_trt, l.codigo_compartilhamento,
+                   p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf
+            FROM levantamentos l
+            JOIN propriedades p ON l.propriedade_id = p.id
+            WHERE l.codigo_compartilhamento = ?
+        """
+        rows_lev = execute_query(query_lev, params=(codigo,), fetch_all=True)
+        if not rows_lev:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado ou link inválido.")
+        
+        lev_obj = dict(rows_lev[0])
+        lev_id = lev_obj['id']
+        prop_id = lev_obj['propriedade_id']
+
+        # Busca proprietários de forma anônima (sem CPF, RG, endereços)
+        query_proprietarios = """
+            SELECT p.nome as nome_completo, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id = ?
+        """
+        lev_obj['clientes'] = [dict(r) for r in execute_query(query_proprietarios, params=(prop_id,), fetch_all=True)]
+
+        # Busca matrículas
+        query_mat = "SELECT * FROM matriculas WHERE propriedade_id = ?"
+        lev_obj['matriculas'] = [dict(r) for r in execute_query(query_mat, params=(prop_id,), fetch_all=True)]
+
+        # Busca pontos
+        query_pts = "SELECT * FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento"
+        lev_obj['pontos'] = [dict(r) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
+
+        # Busca segmentos
+        query_seg = "SELECT * FROM segmentos WHERE levantamento_id = ?"
+        lev_obj['segmentos'] = [dict(r) for r in execute_query(query_seg, params=(lev_id,), fetch_all=True)]
+
+        return lev_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar levantamento público {codigo}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao carregar projeto público.")
+
 @router.get("/levantamentos/{lev_id}/arquivos/download")
 def download_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
     try:

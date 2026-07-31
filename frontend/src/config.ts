@@ -7,4 +7,6 @@ export const API_BASE = (origin.includes(':5173') || origin.includes(':3000'))
   ? 'http://127.0.0.1:8000'
   : origin;
 
+export const PUBLIC_HOST_URL = 'https://darkgray-duck-674813.hostingersite.com/principal.html';
+
 
