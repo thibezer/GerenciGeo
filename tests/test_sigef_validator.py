@@ -123,12 +123,6 @@ class TestSigefValidator(unittest.TestCase):
         self.assertFalse(conforme)
         self.assertIn("desconhecido", msg)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/fix/test-sigef-validator-calcular-sigma-p-15516967109512420649
     # calcular_sigma_p Tests
     def test_calcular_sigma_p_normal(self):
         """Test normal values (Pythagorean triple 3, 4 -> 5)"""
@@ -170,7 +164,6 @@ class TestSigefValidator(unittest.TestCase):
         res_inf = SigefValidator.calcular_sigma_p(float('inf'), 4.0)
         self.assertTrue(math.isinf(res_inf))
 
-<<<<<<< HEAD
     def test_validar_autointerssecao(self):
         # Valid square
         pontos_validos = [
@@ -254,12 +247,10 @@ class TestSigefValidator(unittest.TestCase):
         self.assertGreater(res["area_ha"], 0)
 
 class TestVertexGenerator(unittest.TestCase):
-
     def test_gerar_nome_vertice_valido(self):
         self.assertEqual(VertexGenerator.gerar_nome_vertice("ABCD", "M", 1), "ABCD-M-0001")
         self.assertEqual(VertexGenerator.gerar_nome_vertice("wxyz", "p", 1010), "WXYZ-P-1010")
 
-class TestVertexGenerator(unittest.TestCase):
     def test_gerar_nome_vertice_invalid_type(self):
         """Test that an invalid vertex type raises ValueError"""
         with self.assertRaises(ValueError) as context:
@@ -279,7 +270,6 @@ class TestVertexGenerator(unittest.TestCase):
         with self.assertRaises(ValueError):
             VertexGenerator.gerar_nome_vertice("ABC", "M", 1)
 
-=======
->>>>>>> origin/test-improve-sigef-validator-edge-cases-16526130896100960309
+
 if __name__ == '__main__':
     unittest.main()

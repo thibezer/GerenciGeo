@@ -227,34 +227,32 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.pontosVizinhosList = Array.isArray(vizData) ? vizData : [];
 
         ctx.carregarConfrontantesAtivosSelect();
-        const abasContainer = document.getElementById('select-matricula-ribbon') as HTMLElement;
-        if (abasContainer) {
-          abasContainer.replaceChildren();
-          if (ctx.matriculasList.length === 0) {
-            const opt = document.createElement('fluent-option');
-            opt.setAttribute('value', '');
-            opt.textContent = '[Sem Matrícula]';
-            abasContainer.appendChild(opt);
-          } else {
-            ctx.matriculasList.forEach((m: any) => {
-              const opt = document.createElement('fluent-option');
-              opt.setAttribute('value', m.id.toString());
-              if (ctx.currentMatriculaId === m.id) {
-                opt.setAttribute('selected', 'true');
-              }
-              opt.textContent = `Matrícula ${m.numero_matricula} (${m.area_ha || m.area || '0'}ha)`;
-              abasContainer.appendChild(opt);
-            });
+        const dropdownMat = document.getElementById('select-matricula-ribbon') as any;
+        if (dropdownMat) {
+          const formatAreaHa = (val: any) => {
+            const num = parseFloat(val);
+            return isNaN(num) ? '0.00' : num.toFixed(2);
+          };
 
-            if (!(abasContainer as any)._hasChangeListener) {
-              (abasContainer as any)._hasChangeListener = true;
-              abasContainer.addEventListener('change', (e: Event) => {
-                const mId = parseInt((e.target as any).value || (abasContainer as any).value || '0');
-                if (mId && typeof ctx.switchMatriculaTab === 'function') {
-                  ctx.switchMatriculaTab(mId);
-                }
-              });
-            }
+          const itensMat = ctx.matriculasList.length === 0
+            ? [{ id: '', label: '[Sem Matrícula]' }]
+            : ctx.matriculasList.map((m: any) => ({
+                id: m.id.toString(),
+                label: `${m.numero_matricula || m.num_matricula || m.id} (${formatAreaHa(m.area_ha || m.area)}ha)`
+              }));
+          dropdownMat.itens = itensMat;
+          if (ctx.currentMatriculaId) {
+            dropdownMat.value = ctx.currentMatriculaId.toString();
+          }
+
+          if (!dropdownMat._hasChangeListener) {
+            dropdownMat._hasChangeListener = true;
+            dropdownMat.addEventListener('gg-selecionar', (e: CustomEvent) => {
+              const mId = parseInt(e.detail?.id || '0');
+              if (mId && typeof ctx.switchMatriculaTab === 'function') {
+                ctx.switchMatriculaTab(mId);
+              }
+            });
           }
         }
 
@@ -355,7 +353,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       const matObj = ctx.matriculasList.find(m => m.id === ctx.currentMatriculaId);
       const txtMat = document.getElementById('txt-nome-matricula-ativa');
       if (txtMat && matObj) {
-        txtMat.textContent = `Nº ${matObj.numero_matricula} (${matObj.area_ha || matObj.area || '0'}ha)`;
+        const areaNum = parseFloat(matObj.area_ha || matObj.area || '0');
+        const areaFormatada = isNaN(areaNum) ? '0.00' : areaNum.toFixed(2);
+        txtMat.textContent = `Nº ${matObj.numero_matricula} (${areaFormatada}ha)`;
       }
 
       ctx.renderMatriculaDados();
@@ -2203,15 +2203,27 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
-  const selectUtm = document.getElementById('select-fuso-ribbon') as HTMLElement;
+  const selectUtm = document.getElementById('select-fuso-ribbon') as any;
   if (selectUtm) {
-    selectUtm.addEventListener('change', (e: Event) => {
-      const targetSelect = e.target as HTMLElement & { value: string };
-      const novaZona = targetSelect.value;
-      localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
-      showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");
-      ctx.loadLevantamentoDetails();
-    });
+    selectUtm.itens = [
+      { id: '21', label: '21S' },
+      { id: '22', label: '22S' },
+      { id: '23', label: '23S' }
+    ];
+    const savedZone = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22';
+    selectUtm.value = savedZone;
+
+    if (!selectUtm._hasChangeListener) {
+      selectUtm._hasChangeListener = true;
+      selectUtm.addEventListener('gg-selecionar', (e: CustomEvent) => {
+        const novaZona = e.detail?.id || selectUtm.value;
+        if (novaZona) {
+          localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
+          showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");
+          ctx.loadLevantamentoDetails();
+        }
+      });
+    }
   }
 
   // AutoCAD Titlebar Window Actions via pywebview js_api

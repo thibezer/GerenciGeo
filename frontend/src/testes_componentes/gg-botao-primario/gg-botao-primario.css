@@ -1,0 +1,34 @@
+:host {
+  display: inline-block;
+}
+
+.gg-botao-primario {
+  background: var(--gg-cor-primaria, #00E08A);
+  color: var(--gg-cor-texto-sobre-primaria, #000000);
+  padding: var(--gg-espaco-sm, 8px) var(--gg-espaco-md, 16px);
+  border: none;
+  border-radius: var(--gg-raio-borda, 4px);
+  font-family: var(--gg-fonte-base, 'Inter', sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.gg-botao-primario:hover {
+  filter: brightness(1.1);
+}
+
+.gg-botao-primario:active {
+  transform: scale(0.98);
+}
+
+.gg-botao-primario:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.gg-botao-primario--destaque {
+  background: var(--gg-cor-destaque, var(--gg-cor-primaria, #00E08A));
+}

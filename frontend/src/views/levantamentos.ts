@@ -118,8 +118,8 @@ export const levantamentosRoute: RouteDef = {
                      <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">1. Carregar Arquivo de Pontos (.TXT) *</label>
                      <div id="drop-zone-triagem" class="border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-lg p-4 text-center cursor-pointer transition-colors bg-white/[0.01]">
                         <i data-lucide="upload-cloud" class="w-6 h-6 text-white/20 mx-auto mb-1" id="icon-upload-triagem"></i>
-                        <span class="text-[10px] block text-white/60 font-medium" id="label-upload-triagem">Arraste ou clique para selecionar arquivo .txt</span>
-                        <input type="file" id="input-file-triagem" accept=".txt" class="hidden" />
+                        <span class="text-[10px] block text-white/60 font-medium" id="label-upload-triagem">Arraste ou clique para selecionar arquivos .txt</span>
+                        <input type="file" id="input-file-triagem" accept=".txt" multiple class="hidden" />
                      </div>
                   </div>
                   <div class="flex gap-2">
@@ -681,7 +681,7 @@ export const levantamentosRoute: RouteDef = {
       let mapaTriagem: L.Map | null = null;
       let mapaTriagemMarkers: L.Marker[] = [];
       let mapaTriagemPolyline: L.Polyline | null = null;
-      let arquivoSelecionadoTriagem: File | null = null;
+      let arquivosSelecionadosTriagem: File[] = [];
       let pontosProcessadosTriagem: any[] = [];
       let layoutDetectadoTriagem: string = '';
 
@@ -863,9 +863,9 @@ export const levantamentosRoute: RouteDef = {
             mapaTriagem = null;
          }
          // Resetar estado
-         arquivoSelecionadoTriagem = null;
+         arquivosSelecionadosTriagem = [];
          pontosProcessadosTriagem = [];
-         if (labelUpload) labelUpload.innerText = 'Arraste ou clique para selecionar arquivo .txt';
+         if (labelUpload) labelUpload.innerText = 'Arraste ou clique para selecionar arquivos .txt';
          if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-white/20 mx-auto mb-1');
          if (countPontos) countPontos.innerText = '0';
          if (tagLayout) tagLayout.classList.add('hidden');
@@ -888,10 +888,14 @@ export const levantamentosRoute: RouteDef = {
          dropZone.classList.remove('border-mint-vibrant/60', 'bg-mint-vibrant/5');
 
          if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-            const file = e.dataTransfer.files[0];
-            if (file.name.endsWith('.txt')) {
-               arquivoSelecionadoTriagem = file;
-               if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
+            const txtFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.txt'));
+            if (txtFiles.length > 0) {
+               arquivosSelecionadosTriagem = txtFiles;
+               if (labelUpload) {
+                  labelUpload.innerText = txtFiles.length === 1
+                     ? `Selecionado: ${txtFiles[0].name}`
+                     : `${txtFiles.length} arquivos selecionados: ${txtFiles.map(f => f.name).join(', ')}`;
+               }
                if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
             } else {
                showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
@@ -901,47 +905,67 @@ export const levantamentosRoute: RouteDef = {
 
       inputFile?.addEventListener('change', () => {
          if (inputFile.files && inputFile.files.length > 0) {
-            const file = inputFile.files[0];
-            arquivoSelecionadoTriagem = file;
-            if (labelUpload) labelUpload.innerText = `Selecionado: ${file.name}`;
-            if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
+            const txtFiles = Array.from(inputFile.files).filter(f => f.name.toLowerCase().endsWith('.txt'));
+            if (txtFiles.length > 0) {
+               arquivosSelecionadosTriagem = txtFiles;
+               if (labelUpload) {
+                  labelUpload.innerText = txtFiles.length === 1
+                     ? `Selecionado: ${txtFiles[0].name}`
+                     : `${txtFiles.length} arquivos selecionados: ${txtFiles.map(f => f.name).join(', ')}`;
+               }
+               if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
+            } else {
+               showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
+            }
          }
       });
 
-      // Enviar arquivo para processamento temporário
+      // Enviar arquivos para processamento temporário em lote
       btnProcessar?.addEventListener('click', async () => {
-         if (!arquivoSelecionadoTriagem) {
-            showToast('Por favor, selecione ou arraste um arquivo de pontos (.txt) primeiro.', 'error');
+         if (arquivosSelecionadosTriagem.length === 0) {
+            showToast('Por favor, selecione ou arraste um ou mais arquivos de pontos (.txt) primeiro.', 'error');
             return;
          }
 
          const fuso = selectFuso.value;
          const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
-         const formData = new FormData();
-         formData.append('file', arquivoSelecionadoTriagem);
-         formData.append('fuso_utm', fuso);
-         formData.append('inverter_ne', inverterNE);
 
          try {
-            btnProcessar.innerHTML = '<i class="animate-spin mr-1">🔄</i> Processando...';
+            btnProcessar.innerHTML = `<i class="animate-spin mr-1">🔄</i> Analisando (${arquivosSelecionadosTriagem.length})...`;
             (btnProcessar as HTMLButtonElement).disabled = true;
 
-            const res = await fetch(`${API_BASE}/pontos/analisar-txt`, {
-               method: 'POST',
-               body: formData
-            });
+            let todosPontos: any[] = [];
+            let layoutsDetectados: Set<string> = new Set();
 
-            const data = await res.json();
-            if (!res.ok) {
-               throw new Error(data.detail || 'Erro ao processar arquivo.');
+            for (let i = 0; i < arquivosSelecionadosTriagem.length; i++) {
+               const file = arquivosSelecionadosTriagem[i];
+               const formData = new FormData();
+               formData.append('file', file);
+               formData.append('fuso_utm', fuso);
+               formData.append('inverter_ne', inverterNE);
+
+               const res = await fetch(`${API_BASE}/pontos/analisar-txt`, {
+                  method: 'POST',
+                  body: formData
+               });
+
+               const data = await res.json();
+               if (!res.ok) {
+                  throw new Error(data.detail || `Erro ao processar arquivo ${file.name}.`);
+               }
+               if (data.error) {
+                  throw new Error(`Erro em ${file.name}: ${data.error}`);
+               }
+
+               const pts = data.pontos || [];
+               todosPontos.push(...pts);
+               if (data.layout_detectado) {
+                  layoutsDetectados.add(data.layout_detectado);
+               }
             }
 
-            if (data.error) {
-               throw new Error(data.error);
-            }
-
-            pontosProcessadosTriagem = data.pontos || [];
-            layoutDetectadoTriagem = data.layout_detectado || 'DESCONHECIDO';
+            pontosProcessadosTriagem = todosPontos;
+            layoutDetectadoTriagem = Array.from(layoutsDetectados).join(' + ') || 'DESCONHECIDO';
 
             if (countPontos) countPontos.innerText = pontosProcessadosTriagem.length.toString();
             if (tagLayout) {
@@ -1045,48 +1069,57 @@ export const levantamentosRoute: RouteDef = {
       // Confirmar Associação e Importar Oficialmente no Levantamento de Destino
       btnSalvarAssociacao?.addEventListener('click', async () => {
          const levId = selectDestino.value;
-         if (!levId || !arquivoSelecionadoTriagem) return;
+         if (!levId || arquivosSelecionadosTriagem.length === 0) return;
 
-         if (!confirm('Confirmar importação oficial deste arquivo no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.')) {
+         const totalArquivos = arquivosSelecionadosTriagem.length;
+         const msgConfirm = totalArquivos === 1
+            ? 'Confirmar importação oficial deste arquivo no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.'
+            : `Confirmar importação oficial dos ${totalArquivos} arquivos no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.`;
+
+         if (!confirm(msgConfirm)) {
             return;
          }
 
-         const formData = new FormData();
-         formData.append('file', arquivoSelecionadoTriagem);
-
-         const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
-         formData.append('inverter_ne', inverterNE);
-
-         const matriculaVal = selectMatricula.value;
-         if (matriculaVal) {
-            formData.append('matricula_id', matriculaVal);
-         }
-
-         const baseVal = selectBase.value;
-         if (baseVal && !selectBase.disabled) {
-            formData.append('base_escolhida_id', baseVal);
-         }
-
          try {
-            btnSalvarAssociacao.innerHTML = '<i class="animate-spin mr-1">🔄</i> Importando...';
             btnSalvarAssociacao.disabled = true;
 
-            const res = await fetch(`${API_BASE}/levantamentos/${levId}/importar-txt`, {
-               method: 'POST',
-               body: formData
-            });
+            for (let i = 0; i < totalArquivos; i++) {
+               const file = arquivosSelecionadosTriagem[i];
+               btnSalvarAssociacao.innerHTML = `<i class="animate-spin mr-1">🔄</i> Importando (${i + 1}/${totalArquivos})...`;
 
-            const data = await res.json();
-            if (!res.ok) {
-               const errorMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || 'Erro na importação.');
-               throw new Error(errorMsg);
+               const formData = new FormData();
+               formData.append('file', file);
+
+               const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
+               formData.append('inverter_ne', inverterNE);
+
+               const matriculaVal = selectMatricula.value;
+               if (matriculaVal) {
+                  formData.append('matricula_id', matriculaVal);
+               }
+
+               const baseVal = selectBase.value;
+               if (baseVal && !selectBase.disabled) {
+                  formData.append('base_escolhida_id', baseVal);
+               }
+
+               const res = await fetch(`${API_BASE}/levantamentos/${levId}/importar-txt`, {
+                  method: 'POST',
+                  body: formData
+               });
+
+               const data = await res.json();
+               if (!res.ok) {
+                  const errorMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || `Erro na importação do arquivo ${file.name}.`);
+                  throw new Error(errorMsg);
+               }
+
+               if (data.error) {
+                  throw new Error(`Erro em ${file.name}: ${data.error}`);
+               }
             }
 
-            if (data.error) {
-               throw new Error(data.error);
-            }
-
-            showToast(data.message || 'Pontos e topologia importados com sucesso no levantamento de destino!', 'success');
+            showToast(`${totalArquivos} arquivo(s) importado(s) com sucesso no levantamento de destino!`, 'success');
 
             // Fechar modal de triagem
             btnFecharTriagem?.click();

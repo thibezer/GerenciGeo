@@ -107,6 +107,21 @@
   /* --- Transições --- */
   --geo-transition-fast: 120ms ease;
   --geo-transition-base: 180ms ease;
+
+  /* --- Tokens GG (Web Components UI Kit — GUIA_COMPONENTES_UI.md) --- */
+  --gg-fonte-base:       var(--geo-font-sans, 'Inter', sans-serif);
+  --gg-cor-fundo:        var(--geo-bg-elevated, #1A1A1D);
+  --gg-cor-fundo-menu:   var(--geo-bg-surface, #111113);
+  --gg-cor-hover-menu:   var(--geo-bg-overlay, #252528);
+  --gg-cor-borda:        var(--geo-border-default, rgba(255, 255, 255, 0.11));
+  --gg-cor-texto:        var(--geo-text-primary, rgba(255, 255, 255, 0.92));
+  --gg-cor-primaria:     var(--geo-accent, #00E08A);
+  --gg-cor-texto-sobre-primaria: #000000;
+  --gg-espaco-xs:        var(--geo-sp-1, 4px);
+  --gg-espaco-sm:        var(--geo-sp-2, 8px);
+  --gg-espaco-md:        var(--geo-sp-4, 16px);
+  --gg-espaco-lg:        var(--geo-sp-6, 24px);
+  --gg-raio-borda:       var(--geo-radius-input, 7px);
 }
 
 
@@ -228,17 +243,6 @@ button {
 .btn-primary:hover { filter: brightness(1.08) !important; }
 .btn-primary:active { transform: scale(0.97) !important; }
 
-/* Baixar RINEX .ZIP — primário do workspace */
-#btn-download-rinex-zip {
-  background: var(--geo-accent) !important;
-  color: #0A0A0B !important;
-  border-radius: var(--geo-radius-chip) !important;
-  font-size: 12px !important;
-  padding: 5px 14px !important;
-  font-weight: 700 !important;
-  border: none !important;
-}
-#btn-download-rinex-zip:hover { filter: brightness(1.08) !important; }
 
 /* Nível 2 — Secundário (outline neutro) */
 .btn-secondary {
@@ -664,6 +668,10 @@ td[colspan][class*="text-center"] {
   gap: 0;
   user-select: none;
   flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 
 .rl1-brand {
@@ -689,6 +697,9 @@ td[colspan][class*="text-center"] {
   align-items: center;
   gap: 2px;
   padding: 0 4px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .rl1-btn {
@@ -705,17 +716,30 @@ td[colspan][class*="text-center"] {
   cursor: pointer;
   transition: background 100ms, color 100ms;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .rl1-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
 .rl1-btn i { width: 12px; height: 12px; }
 
-.rl1-spacer { flex: 1; }
+.rl1-spacer {
+  flex: 1 1 8px;
+  min-width: 4px;
+}
 
 .rl1-context {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.rl1-user {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .rl1-select-label {
@@ -724,6 +748,28 @@ td[colspan][class*="text-center"] {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 400;
+}
+
+#select-fuso-ribbon {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+}
+
+@media (max-width: 1450px) {
+  .rl1-btn {
+    padding: 3px 4px !important;
+    gap: 3px !important;
+  }
+}
+
+@media (max-width: 1350px) {
+  .rl1-btn:not(.active):not(#btn-voltar-lista):not(#btn-salvar-rascunho) span {
+    display: none !important;
+  }
+  .rl1-select-label {
+    display: none !important;
+  }
 }
 
 .rl1-select {
@@ -1511,17 +1557,21 @@ fluent-button.rl3-btn-small i, fluent-button.rl3-btn-small svg {
   margin-right: 4px !important;
 }
 
-/* Estilização para <fluent-dropdown> e <fluent-option> na Camada 1 */
-fluent-dropdown.rl1-select {
+/* Estilização para <gg-lista-flutuante> na Camada 1 */
+gg-lista-flutuante.rl1-select {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
   height: 22px;
-  min-height: 22px;
-  background: rgba(255,255,255,0.06);
-  border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 4px;
-  color: rgba(255,255,255,0.9);
-  font-family: monospace;
-  font-size: 10px;
-  padding: 0 6px;
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 11px;
+}
+
+fluent-dropdown.rl1-select {
+  display: inline-block;
+  font-size: 11px;
+  vertical-align: middle;
 }
 
 /* Anilhas de Foco Acessível (Focus Rings - :focus-visible) */
@@ -2226,4 +2276,37 @@ fluent-dropdown.rl1-select {
   height: 12px;
   margin: 0 2px;
 }
+
+/* ===========================================================
+   GARANTIA DE SELEÇÃO E CÓPIA DE TEXTO (UX NAVEGADOR)
+   =========================================================== */
+.vtx-table tbody td,
+.props-field-value,
+.props-panel-body,
+.glass-card,
+.terminal-line,
+p, span, code, pre,
+input, textarea,
+[contenteditable="true"],
+.selectable-text {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Proteção contra seleção acidental apenas em elementos interativos de UI */
+button,
+.btn-primary,
+.btn-secondary,
+.ribbon-tab,
+.rl1-btn,
+.props-section-header,
+.vtx-col-resizer,
+.props-panel-resizer,
+.col-resizer,
+.gg-lista-flutuante__gatilho,
+.leaflet-container {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 

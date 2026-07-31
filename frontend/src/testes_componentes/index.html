@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GerenciGeo — Playground de Testes Isolados de Componentes UI</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      background-color: #0b0b0d;
+      color: #e1e1e6;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }
+    header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+      color: #00E08A;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header p {
+      margin: 0;
+      font-size: 13px;
+      color: #a0a0b0;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    .card-componente {
+      background: #141417;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card-componente h2 {
+      margin: 0;
+      font-size: 15px;
+      color: #ffffff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 8px;
+    }
+    .component-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+      background: #1a1a1e;
+      padding: 16px;
+      border-radius: 6px;
+    }
+    .demo-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+    .demo-label {
+      font-size: 12px;
+      color: #888899;
+      width: 120px;
+      flex-shrink: 0;
+    }
+    .console-card {
+      grid-column: 1 / -1;
+      background: #0d0d10;
+      border: 1px solid rgba(0, 224, 138, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .console-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      color: #00E08A;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    pre#log-console {
+      background: #050507;
+      color: #33ff99;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      height: 140px;
+      overflow-y: auto;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    .badge {
+      font-size: 10px;
+      background: rgba(0, 224, 138, 0.15);
+      color: #00E08A;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🧪 Playground de Testes Isolados <span class="badge">GUIA_COMPONENTES_UI</span></h1>
+    <p>Ambiente isolado para testes e aprimoramento contínuo dos Custom Elements nativos do GerenciGeo.</p>
+  </header>
+
+  <main class="grid-container">
+
+    <!-- Card 1: gg-lista-flutuante -->
+    <article class="card-componente">
+      <h2>1. &lt;gg-lista-flutuante&gt;</h2>
+      <div class="component-demo">
+        <div class="demo-row">
+          <span class="demo-label">Seleção de Lote:</span>
+          <gg-lista-flutuante id="demo-lista-lotes" texto-padrao="Selecione um lote..." style="width: 220px;"></gg-lista-flutuante>
+        </div>
+        <div class="demo-row">
+          <span class="demo-label">Sistema CRS:</span>
+          <gg-lista-flutuante id="demo-lista-crs" texto-padrao="Selecione o CRS..." style="width: 220px;"></gg-lista-flutuante>
+        </div>
+        <div class="demo-row">
+          <span class="demo-label">Desabilitado:</span>
+          <gg-lista-flutuante texto-padrao="Bloqueado" disabled style="width: 220px;"></gg-lista-flutuante>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 2: gg-botao-primario -->
+    <article class="card-componente">
+      <h2>2. &lt;gg-botao-primario&gt;</h2>
+      <div class="component-demo">
+        <div class="demo-row">
+          <span class="demo-label">Padrão:</span>
+          <gg-botao-primario id="btn-salvar">Salvar Alterações</gg-botao-primario>
+        </div>
+        <div class="demo-row">
+          <span class="demo-label">Variante Destaque:</span>
+          <gg-botao-primario id="btn-destaque" variante="destaque">Processar RTK</gg-botao-primario>
+        </div>
+        <div class="demo-row">
+          <span class="demo-label">Desabilitado:</span>
+          <gg-botao-primario id="btn-desabilitado" disabled>Ação Bloqueada</gg-botao-primario>
+        </div>
+      </div>
+    </article>
+
+    <!-- Console de Eventos em Tempo Real -->
+    <section class="console-card">
+      <h3>Console de Eventos Customizados em Tempo Real</h3>
+      <pre id="log-console">Aguardando eventos...</pre>
+    </section>
+
+  </main>
+
+  <script type="module" src="./pagina_testes.ts"></script>
+</body>
+</html>

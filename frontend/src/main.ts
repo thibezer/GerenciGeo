@@ -1,6 +1,9 @@
 import './style.css';
 import './design-engine.css';
 
+// Componentes globais de UI
+import './components/gg-lista-flutuante/gg-lista-flutuante.ts';
+
 import type { RouteDef } from './types';
 import { initIcons, clearTimeoutsAndIntervals, showToast } from './utils';
 import { dashboardRoute } from './views/dashboard';

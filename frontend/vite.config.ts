@@ -7,7 +7,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         principal: resolve(__dirname, 'principal.html'),
-        config: resolve(__dirname, 'config_mapa.html')
+        config: resolve(__dirname, 'config_mapa.html'),
+        testes: resolve(__dirname, 'src/testes_componentes/index.html')
       }
     }
   }

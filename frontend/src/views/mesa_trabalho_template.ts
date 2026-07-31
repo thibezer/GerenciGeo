@@ -24,10 +24,7 @@ export const renderMesaTrabalho = (): string => {
       <header class="ribbon-master-container fluent-ribbon-theme">
         <!-- Camada 1 — App Bar (Application Menu Bar) com Fluent UI -->
         <div id="ribbon-layer1" class="ribbon-layer1">
-          <div class="rl1-brand">
-            <span class="rl1-logo-text">Gerenci<span class="accent">Geo</span></span>
-          </div>
-          <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
+
           <div class="rl1-qat">
             <fluent-button appearance="transparent" class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
               <i data-lucide="chevron-left"></i><span>Voltar</span>
@@ -67,15 +64,9 @@ export const renderMesaTrabalho = (): string => {
           <div class="rl1-spacer"></div>
           <div class="rl1-context">
             <label class="rl1-select-label">Fuso</label>
-            <fluent-dropdown id="select-fuso-ribbon" class="rl1-select">
-              <fluent-option value="21">21S</fluent-option>
-              <fluent-option value="22" selected>22S</fluent-option>
-              <fluent-option value="23">23S</fluent-option>
-            </fluent-dropdown>
+            <gg-lista-flutuante id="select-fuso-ribbon" class="rl1-select" texto-padrao="22S" value="22"></gg-lista-flutuante>
             <label class="rl1-select-label">Matrícula</label>
-            <fluent-dropdown id="select-matricula-ribbon" class="rl1-select" style="min-width:130px">
-              <!-- Preenchido dinamicamente no JS com fluent-option -->
-            </fluent-dropdown>
+            <gg-lista-flutuante id="select-matricula-ribbon" class="rl1-select" texto-padrao="Selecione..." style="min-width:140px"></gg-lista-flutuante>
           </div>
           <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
           <div class="rl1-user">
@@ -109,16 +100,16 @@ export const renderMesaTrabalho = (): string => {
           <!-- Sub-camada 3a: Abas de navegação Fluent Tablist -->
           <fluent-tablist class="rl3-tabs" role="tablist">
             <fluent-tab class="rl3-tab active" id="tab-geoprocessamento" role="tab" aria-selected="true" aria-controls="panel-geoprocessamento" data-tab="geoprocessamento">
-              <i data-lucide="cpu" aria-hidden="true"></i><span>Mesa Geodésica</span>
+              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="cpu" aria-hidden="true"></i><span>Mesa Geodésica</span></div>
             </fluent-tab>
             <fluent-tab class="rl3-tab" id="tab-perimetro" role="tab" aria-selected="false" aria-controls="panel-perimetro" data-tab="cartorio">
-              <i data-lucide="pentagon" aria-hidden="true"></i><span>Org. de Perímetro</span>
+              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="pentagon" aria-hidden="true"></i><span>Org. de Perímetro</span></div>
             </fluent-tab>
             <fluent-tab class="rl3-tab" id="tab-cartorio" role="tab" aria-selected="false" aria-controls="panel-cartorio" data-tab="documentos">
-              <i data-lucide="file-text" aria-hidden="true"></i><span>Peças de Cartório</span>
+              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="file-text" aria-hidden="true"></i><span>Peças de Cartório</span></div>
             </fluent-tab>
             <fluent-tab class="rl3-tab" id="tab-auditoria" role="tab" aria-selected="false" aria-controls="panel-auditoria" data-tab="auditoria">
-              <i data-lucide="history" aria-hidden="true"></i><span>Histórico de Auditoria</span>
+              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="history" aria-hidden="true"></i><span>Histórico de Auditoria</span></div>
             </fluent-tab>
           </fluent-tablist>
 
@@ -687,33 +678,112 @@ export const renderMesaTrabalho = (): string => {
                  <div id="container-form-confrontante" class="bg-forest-deep/20 border border-white/5 rounded-xl p-4 space-y-4 hidden animate-in fade-in slide-in-from-top-4 duration-300">
                     <div class="flex justify-between items-center border-b border-white/5 pb-2.5">
                        <h6 class="font-bold text-xs text-white/50 uppercase tracking-wider">
-                          Qualificação do Confrontante Selecionado
+                          Qualificação Completa do Confrontante
                        </h6>
                        <span class="text-[9px] font-mono text-white/20" id="txt-conf-id-edicao">ID: -</span>
                     </div>
                     
-                    <form id="form-edicao-confrontante" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                    <form id="form-edicao-confrontante" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs" onsubmit="event.preventDefault();">
+                       <!-- Bloco 1: Dados Básicos -->
                        <div>
-                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome do Proprietário / Detentor</label>
-                          <input type="text" id="conf-proprietario" class="glass-input w-full" placeholder="Ex: João da Silva" />
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">CPF / CNPJ</label>
+                          <input type="text" id="input-conf-cpf" class="glass-input w-full" placeholder="000.000.000-00" />
+                       </div>
+                       <div class="lg:col-span-2">
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome Completo / Razão Social *</label>
+                          <input type="text" id="input-conf-nome" class="glass-input w-full" placeholder="Nome completo do confrontante" required />
                        </div>
                        <div>
-                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome do Imóvel Rural</label>
-                          <input type="text" id="conf-imovel" class="glass-input w-full" placeholder="Ex: Fazenda Boa Vista" />
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">RG / Inscrição Estadual</label>
+                          <input type="text" id="input-conf-rg" class="glass-input w-full" placeholder="RG ou I.E." />
+                       </div>
+                       
+                       <!-- Bloco 2: Dados Pessoais -->
+                       <div>
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nacionalidade</label>
+                          <input type="text" id="input-conf-nacionalidade" class="glass-input w-full" placeholder="brasileiro(a)" value="brasileiro(a)" />
                        </div>
                        <div>
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Profissão</label>
+                          <input type="text" id="input-conf-profissao" class="glass-input w-full" placeholder="Ex: Pecuarista" />
+                       </div>
+                       <div>
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Estado Civil</label>
+                          <select id="conf-estado-civil" class="glass-input w-full appearance-none">
+                             <option value="solteiro">Solteiro(a)</option>
+                             <option value="casado">Casado(a)</option>
+                             <option value="divorciado">Divorciado(a)</option>
+                             <option value="viuvo">Viúvo(a)</option>
+                             <option value="uniao_estavel">União Estável</option>
+                          </select>
+                       </div>
+                       <div>
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Regime de Bens</label>
+                          <select id="conf-regime-bens" class="glass-input w-full appearance-none">
+                             <option value="">Não se aplica</option>
+                             <option value="comunhao_parcial">Comunhão Parcial</option>
+                             <option value="comunhao_universal">Comunhão Universal</option>
+                             <option value="separacao_total">Separação Total</option>
+                             <option value="participacao_final">Participação Final nos Aquestos</option>
+                          </select>
+                       </div>
+                       
+                       <!-- Bloco 3: Dados do Cônjuge (Reativo) -->
+                       <div class="col-span-1 lg:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-white/5 border border-white/10 rounded-lg hidden" id="box-conjuge">
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome do Cônjuge</label>
+                             <input type="text" id="input-conf-conjuge-nome" class="glass-input w-full" placeholder="Nome completo" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">CPF do Cônjuge</label>
+                             <input type="text" id="input-conf-conjuge-cpf" class="glass-input w-full" placeholder="000.000.000-00" />
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">RG do Cônjuge</label>
+                             <input type="text" id="input-conf-conjuge-rg" class="glass-input w-full" placeholder="RG" />
+                          </div>
+                       </div>
+                       
+                       <!-- Bloco 4: Endereço e Imóvel -->
+                       <div class="col-span-1 lg:col-span-2">
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Endereço de Correspondência</label>
+                          <input type="text" id="input-conf-endereco" class="glass-input w-full" placeholder="Rua, Número, Bairro, Cidade - UF" />
+                       </div>
+                       <div class="col-span-1 lg:col-span-2">
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Matrícula (Nº / CRI / Comarca)</label>
-                          <input type="text" id="conf-matricula" class="glass-input w-full" placeholder="Ex: Mat. 12.345 - CRI Ponta Porã" />
+                          <input type="text" id="input-conf-matricula-imovel" class="glass-input w-full" placeholder="Ex: Mat. 12.345 - CRI Ponta Porã" />
                        </div>
-                       <div>
-                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Cadastro CAR / INCRA</label>
-                          <input type="text" id="conf-car-incra" class="glass-input w-full" placeholder="Ex: CAR: BR-MS-... / CCIR: ..." />
+                       
+                       <!-- Upload de Matrícula PDF -->
+                       <div class="col-span-1 lg:col-span-4 p-3 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between gap-4">
+                          <div class="flex-grow">
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Matrícula Anexada (PDF/IMG)</label>
+                             <div id="status-matricula-anexo" class="text-xs text-white/50">Nenhum arquivo anexado.</div>
+                          </div>
+                          <div class="shrink-0 flex gap-2">
+                             <label for="file-matricula-conf" class="cursor-pointer bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1">
+                                <i data-lucide="upload" class="w-3 h-3"></i>
+                                Anexar Arquivo
+                             </label>
+                             <input type="file" id="file-matricula-conf" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
+                             <button type="button" id="btn-ver-matricula-conf" class="hidden bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/30 px-3 py-1.5 rounded text-xs transition-colors flex items-center gap-1">
+                                <i data-lucide="eye" class="w-3 h-3"></i>
+                                Visualizar
+                             </button>
+                             <button type="button" id="btn-remover-matricula-conf" class="hidden bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 px-3 py-1.5 rounded text-xs transition-colors flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                Remover
+                             </button>
+                          </div>
                        </div>
                        
                        <div class="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2">
-                          <button type="submit" class="btn-primary py-2 px-5 font-bold flex items-center gap-1" id="btn-confrontante-salvar">
+                          <button type="button" class="btn-secondary py-2 px-5 font-bold flex items-center gap-1" id="btn-cancelar-confrontante-qualificacao">
+                             Cancelar
+                          </button>
+                          <button type="button" class="btn-primary py-2 px-5 font-bold flex items-center gap-1" id="btn-salvar-confrontante-qualificacao">
                              <i data-lucide="save" class="w-4 h-4"></i>
-                             Salvar Informações do Confrontante
+                             Salvar Qualificação
                           </button>
                        </div>
                     </form>
