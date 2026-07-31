@@ -130,8 +130,64 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                 detail="O Responsável Técnico deste levantamento não possui um Código Credenciado cadastrado no INCRA."
             )
             
-        transformer = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+        transformer_utm_to_ll = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+        transformer_ll_to_utm = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
         
+        def extract_ponto_from_cells(cell_texts):
+            if not cell_texts or len(cell_texts) < 7: return None
+            vertice = str(cell_texts[0]).strip()
+            match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+            if not match: return None
+            
+            tipo = match.group(2).upper()
+            num = int(match.group(3))
+            
+            def parse_num(val):
+                if not val: return None
+                try:
+                    return float(str(val).replace(",", ".").strip())
+                except:
+                    return None
+                    
+            v1 = parse_num(cell_texts[1])
+            sigma_e = parse_num(cell_texts[2])
+            v2 = parse_num(cell_texts[3])
+            sigma_n = parse_num(cell_texts[4])
+            altitude = parse_num(cell_texts[5])
+            sigma_z = parse_num(cell_texts[6])
+            
+            metodo = str(cell_texts[7]).strip() if len(cell_texts) > 7 else ""
+            tipo_limite = str(cell_texts[8]).strip() if len(cell_texts) > 8 else ""
+            cns = str(cell_texts[9]).strip() if len(cell_texts) > 9 else ""
+            matricula_conf = str(cell_texts[10]).strip() if len(cell_texts) > 10 else ""
+            descritivo = str(cell_texts[11]).strip() if len(cell_texts) > 11 else ""
+            
+            lat, lon, este, norte = None, None, None, None
+            if v1 is not None and v2 is not None:
+                if -180 <= v1 <= 180 and -90 <= v2 <= 90:
+                    lon, lat = v1, v2
+                    try:
+                        este, norte = transformer_ll_to_utm.transform(lon, lat)
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(f"Erro ll_to_utm {vertice}: {e}")
+                else:
+                    este, norte = v1, v2
+                    try:
+                        lon, lat = transformer_utm_to_ll.transform(este, norte)
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(f"Erro utm_to_ll {vertice}: {e}")
+                        
+            return {
+                "tipo_ponto": tipo,
+                "numero": num,
+                "codigo_completo": vertice.upper(),
+                "norte": norte, "este": este, "altitude": altitude,
+                "lat": lat, "lon": lon,
+                "sigma_n": sigma_n, "sigma_e": sigma_e, "sigma_z": sigma_z,
+                "metodo_posicionamento": metodo, "tipo_limite": tipo_limite,
+                "cns_confrontante": cns, "matricula_confrontante": matricula_conf,
+                "confrontante_descritivo": descritivo
+            }
         total_importados = 0
         total_adicionados = 0
         mensagens = []
@@ -211,58 +267,9 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                             for _ in range(count):
                                                 cell_texts.append(cell_text)
                                                 
-                                        if len(cell_texts) >= 7:
-                                            vertice = cell_texts[0].strip()
-                                            match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
-                                            if match:
-                                                tipo = match.group(2).upper()
-                                                num = int(match.group(3))
-                                                
-                                                def parse_num(val):
-                                                    if not val: return None
-                                                    try:
-                                                        return float(val.replace(",", ".").strip())
-                                                    except:
-                                                        return None
-                                                        
-                                                este = parse_num(cell_texts[1])
-                                                sigma_e = parse_num(cell_texts[2])
-                                                norte = parse_num(cell_texts[3])
-                                                sigma_n = parse_num(cell_texts[4])
-                                                altitude = parse_num(cell_texts[5])
-                                                sigma_z = parse_num(cell_texts[6])
-                                                
-                                                metodo = cell_texts[7].strip() if len(cell_texts) > 7 else ""
-                                                tipo_limite = cell_texts[8].strip() if len(cell_texts) > 8 else ""
-                                                cns = cell_texts[9].strip() if len(cell_texts) > 9 else ""
-                                                matricula_conf = cell_texts[10].strip() if len(cell_texts) > 10 else ""
-                                                descritivo = cell_texts[11].strip() if len(cell_texts) > 11 else ""
-                                                
-                                                lat, lon = None, None
-                                                if este and norte:
-                                                    try:
-                                                        lon, lat = transformer.transform(este, norte)
-                                                    except Exception as e_trans:
-                                                        logging.getLogger(__name__).warning(f"Erro na conversão UTM de {vertice}: {e_trans}")
-                                                        
-                                                pontos_detetados.append({
-                                                    "tipo_ponto": tipo,
-                                                    "numero": num,
-                                                    "codigo_completo": vertice,
-                                                    "norte": norte,
-                                                    "este": este,
-                                                    "altitude": altitude,
-                                                    "lat": lat,
-                                                    "lon": lon,
-                                                    "sigma_n": sigma_n,
-                                                    "sigma_e": sigma_e,
-                                                    "sigma_z": sigma_z,
-                                                    "metodo_posicionamento": metodo,
-                                                    "tipo_limite": tipo_limite,
-                                                    "cns_confrontante": cns,
-                                                    "matricula_confrontante": matricula_conf,
-                                                    "confrontante_descritivo": descritivo
-                                                })
+                                        p_data = extract_ponto_from_cells(cell_texts)
+                                        if p_data:
+                                            pontos_detetados.append(p_data)
                                     
                                     if pontos_detetados:
                                         # Processar desduplicação e gravação dos pontos para essa aba/matrícula
@@ -362,25 +369,38 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                         )
                         
                         text = content.decode("utf-8", errors="ignore")
-                        pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
-                        matches = pattern.findall(text)
-                        
                         pontos_detetados = []
-                        for m in matches:
-                            cod_det = m[0].upper()
-                            tipo = m[1].upper()
-                            num = int(m[2])
-                            pontos_detetados.append({
-                                "tipo_ponto": tipo,
-                                "numero": num,
-                                "codigo_completo": f"{cod_det}-{tipo}-{num:04d}",
-                                "norte": None, "este": None, "altitude": None,
-                                "lat": None, "lon": None,
-                                "sigma_n": None, "sigma_e": None, "sigma_z": None,
-                                "metodo_posicionamento": None, "tipo_limite": None,
-                                "cns_confrontante": None, "matricula_confrontante": None,
-                                "confrontante_descritivo": None
-                            })
+                        import csv
+                        
+                        # Tentar tabular via CSV (comum no SIGEF)
+                        # Verifica o provável delimitador (vírgula ou ponto e vírgula)
+                        delimiter = ';' if ';' in text.split('\\n')[0] else ','
+                        reader = csv.reader(text.splitlines(), delimiter=delimiter)
+                        for row in reader:
+                            if not row: continue
+                            p_data = extract_ponto_from_cells(row)
+                            if p_data:
+                                pontos_detetados.append(p_data)
+                                
+                        # Se não encontrar nada pelo delimitador padrão (ou for um TXT maluco), fallback pro regex (sem coordenadas)
+                        if not pontos_detetados:
+                            pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
+                            matches = pattern.findall(text)
+                            for m in matches:
+                                cod_det = m[0].upper()
+                                tipo = m[1].upper()
+                                num = int(m[2])
+                                pontos_detetados.append({
+                                    "tipo_ponto": tipo,
+                                    "numero": num,
+                                    "codigo_completo": f"{cod_det}-{tipo}-{num:04d}",
+                                    "norte": None, "este": None, "altitude": None,
+                                    "lat": None, "lon": None,
+                                    "sigma_n": None, "sigma_e": None, "sigma_z": None,
+                                    "metodo_posicionamento": None, "tipo_limite": None,
+                                    "cns_confrontante": None, "matricula_confrontante": None,
+                                    "confrontante_descritivo": None
+                                })
                             
                         if pontos_detetados:
                             # Desduplicar
