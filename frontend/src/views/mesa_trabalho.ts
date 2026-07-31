@@ -1714,6 +1714,56 @@ export const mesaTrabalhoRoute: RouteDef = {
       renderHistoricoCampo(ctx);
     });
 
+    const alternarFontePontosHandler = async () => {
+      if (!ctx.currentLevId) return;
+
+      if (!ctx.bancoPontosExibido) {
+        if (!ctx.bancoPontosList || ctx.bancoPontosList.length === 0) {
+          try {
+            const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/banco-pontos`);
+            if (res.ok) {
+              const data = await res.json();
+              ctx.bancoPontosList = data || [];
+            }
+          } catch (err) {
+            console.error("Erro ao buscar banco de pontos:", err);
+          }
+        }
+
+        if (!ctx.bancoPontosList || ctx.bancoPontosList.length === 0) {
+          alert("Nenhum ponto homologado foi importado da planilha ainda. Envie uma planilha ODS/CSV na aba 'Peças de Cartório' para visualizar os pontos finais do SIGEF.");
+          return;
+        }
+
+        ctx.bancoPontosExibido = true;
+      } else {
+        ctx.bancoPontosExibido = false;
+      }
+
+      const btnToggle = document.getElementById('btn-toggle-fonte-pontos');
+      const txtToggle = document.getElementById('txt-fonte-pontos');
+      const iconToggle = document.getElementById('icon-fonte-pontos');
+
+      if (ctx.bancoPontosExibido) {
+        if (txtToggle) txtToggle.innerHTML = `Planilha SIGEF <span class="font-bold">(${ctx.bancoPontosList.length} pts)</span>`;
+        if (iconToggle) iconToggle.setAttribute('data-lucide', 'file-check');
+        if (btnToggle) {
+          btnToggle.className = "rl3-tool-btn rl3-btn-lg border border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all";
+        }
+      } else {
+        if (txtToggle) txtToggle.innerText = 'Fonte: Campo';
+        if (iconToggle) iconToggle.setAttribute('data-lucide', 'layers');
+        if (btnToggle) {
+          btnToggle.className = "rl3-tool-btn rl3-btn-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 text-amber-300 transition-all";
+        }
+      }
+
+      initIcons();
+      ctx.renderMatriculaDados();
+    };
+
+    document.getElementById('btn-toggle-fonte-pontos')?.addEventListener('click', alternarFontePontosHandler);
+
     // Eventos da barra flutuante de ações em lote da mesa
     document.getElementById('btn-batch-cancel-mesa')?.addEventListener('click', () => {
        ctx.selectedPontoIds = [];

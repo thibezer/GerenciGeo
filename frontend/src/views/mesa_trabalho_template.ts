@@ -162,6 +162,10 @@ export const renderMesaTrabalho = (): string => {
                     <i data-lucide="archive"></i>
                     <span>RINEX .ZIP</span>
                   </fluent-button>
+                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10" id="btn-toggle-fonte-pontos" title="Alternar entre Pontos de Campo (Processamento) e Pontos Homologados da Planilha (SIGEF/INCRA)" type="button">
+                    <i data-lucide="layers" class="text-amber-400" id="icon-fonte-pontos"></i>
+                    <span id="txt-fonte-pontos" class="text-amber-300 font-semibold">Fonte: Campo</span>
+                  </fluent-button>
                 </div>
                 <div class="rl3-group-label">Coordenadas</div>
               </div>

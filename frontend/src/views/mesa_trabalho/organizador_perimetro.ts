@@ -10,6 +10,31 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
 
   let pontosMat = ctx.obterPontosParaOrdenacao();
 
+  if (ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0) {
+    pontosMat = ctx.bancoPontosList.map((bp: any) => ({
+      id: bp.id,
+      nome_vertice: bp.codigo_completo || bp.nome_vertice || `VRT-${bp.numero || bp.id}`,
+      nome_original: bp.nome_original || bp.codigo_completo,
+      tipo_ponto: bp.tipo_ponto || 'V',
+      tipo: bp.tipo_ponto || 'V',
+      lat: bp.lat,
+      lon: bp.lon,
+      alt: bp.altitude !== undefined && bp.altitude !== null ? bp.altitude : bp.alt,
+      alt_original: bp.altitude !== undefined && bp.altitude !== null ? bp.altitude : bp.alt,
+      e_corrigido: bp.este !== undefined && bp.este !== null ? bp.este : bp.e_corrigido,
+      n_corrigido: bp.norte !== undefined && bp.norte !== null ? bp.norte : bp.n_corrigido,
+      lat_corrigido: bp.lat,
+      lon_corrigido: bp.lon,
+      alt_corrigido: bp.altitude !== undefined && bp.altitude !== null ? bp.altitude : bp.alt,
+      sigma_e: bp.sigma_e || 0.05,
+      sigma_n: bp.sigma_n || 0.05,
+      sigma_z: bp.sigma_z || 0.08,
+      status_correcao: 'CORRIGIDO',
+      status_ponto: 'CORRIGIDO',
+      arquivo_origem: bp.planilha_origem || 'Planilha SIGEF / INCRA'
+    }));
+  }
+
   // Calcula o mapa de ordem real estável de caminhamento antes de qualquer filtro
   const pontosOrdenadosOriginal = [...pontosMat].sort((a, b) => {
     const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
@@ -75,7 +100,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     );
   }
 
-  const segmentosMat = ctx.segmentosList;
+  let segmentosMat = ctx.currentMatriculaId
+    ? ctx.segmentosList.filter((s: any) => String(s.matricula_id) === String(ctx.currentMatriculaId))
+    : ctx.segmentosList;
 
   const containerTabelaDivisas = document.getElementById('container-tabela-divisas');
   const splitterInf = document.getElementById('splitter-inferior');
@@ -88,7 +115,13 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
       ctx.selectPontoFromTabela(pId);
     });
-    ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+
+    if (segmentosMat && segmentosMat.length > 0) {
+      ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+    } else {
+      ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+    }
+
     if (bpAtivo) {
       ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
     }

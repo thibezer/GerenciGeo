@@ -43,3 +43,12 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. Qualquer rotina do backend que crie um confrontante novo deve sempre inserir a pessoa primeiro na tabela `pessoas` (`INSERT INTO pessoas (nome) VALUES (?)`), capturar o `pessoa_id = cursor.lastrowid` e então registrar o confrontante passando `pessoa_id`.
   2. Nenhuma query de inserção em `confrontantes` deve omitir a chave estrangeira `pessoa_id`.
+
+---
+
+## 6. Alternância de Fonte de Dados de Pontos (Campo ⇆ Planilha Homologada SIGEF)
+- **Problema**: O usuário precisava visualizar e comparar a tabela e a poligonal no mapa entre os pontos em processamento no campo (brutos/corrigidos) e os vértices homologados definitivos da planilha ODS/CSV importada na aba **Peças de Cartório**.
+- **Regra Obrigatória**:
+  1. O estado de exibição deve ser controlado centralmente por `ctx.bancoPontosExibido`.
+  2. Ao ativar a visualização da planilha homologada, a lista `ctx.bancoPontosList` deve ser convertida para a estrutura de `Ponto` no frontend, mapeando `codigo_completo` para `nome_vertice` e marcando `status_correcao: 'CORRIGIDO'`.
+  3. Ao desativar, o sistema deve restaurar instantaneamente a exibição dos pontos brutos/corrigidos do levantamento de campo.
