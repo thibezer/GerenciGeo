@@ -353,6 +353,7 @@ def get_pontos(id: int):
         """
         rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
         
+        transformers_cache = {}
         for p in rows:
             p["e_corrigido"] = None
             p["n_corrigido"] = None
@@ -362,8 +363,9 @@ def get_pontos(id: int):
                 try:
                     zona_utm = int((lon_c + 180) / 6) + 1
                     epsg_code = f"319{60 + zona_utm}"
-                    transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
-                    e_corr, n_corr = transformer.transform(lon_c, lat_c)
+                    if epsg_code not in transformers_cache:
+                        transformers_cache[epsg_code] = Transformer.from_crs("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
+                    e_corr, n_corr = transformers_cache[epsg_code].transform(lon_c, lat_c)
                     p["e_corrigido"] = round(e_corr, 3)
                     p["n_corrigido"] = round(n_corr, 3)
                 except Exception:

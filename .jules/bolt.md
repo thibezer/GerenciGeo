@@ -21,3 +21,8 @@
 ## 2024-05-24 - Fixed N+1 Bottlenecks in Batch operations
 **Learning:** This codebase frequently performs repeated `execute_query` calls inside loops for operations that process lists of items (e.g. `routes/levantamento/pontos.py`, `routes/levantamento/documentos.py`, `database/repository.py`, etc). This creates severe N+1 bottlenecks.
 **Action:** Replaced these loops with optimized `cursor.executemany` operations for updates/inserts and combined `execute_query` with `IN (...)` parameters for reads, properly mapped to the entities using python `defaultdict`. This reduced operation times significantly and adheres to optimal SQLite connection patterns.
+
+## 2024-07-28 - pyproj.Transformer bottleneck in backend loops
+**Learning:** Initializing `pyproj.Transformer.from_crs` inside a `for` loop over points causes severe backend processing slowdowns, as creating a transformer involves loading and compiling coordinate reference systems.
+**Action:** Always instantiate `pyproj.Transformer` objects before iterating over points or use a caching dictionary (e.g., `transformers_cache = {}`) inside the loop to reuse instances when dealing with variable EPSG codes based on UTM zones.
+
