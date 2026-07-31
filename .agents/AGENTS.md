@@ -26,3 +26,9 @@
      3. Resolver quaisquer conflitos promovendo as implementações mais recentes e robustas.
      4. Executar a suíte de testes unitários (`python -m unittest discover -s tests -p "test_*.py"`) para validar a integridade.
      5. Apresentar um resumo detalhado e organizado de todas as branches unificadas e validações realizadas.
+
+## Memória de Aprendizado e Estabilidade (Jules & Antigravity)
+
+5. **Registro Obrigatório e Consulta de Aprendizados (.jules/)**:
+   - Toda e qualquer correção de bugs críticos ou regressões de estabilidade (como erros de navegação SPA por desanexação de DOM/`invalidateSize`, comparações de IDs `String(id) === String(id)` e fallbacks de polilhas nos mapas) deve ser **obrigatoriamente documentada e mantida** nos arquivos da pasta `.jules/` ([.jules/bolt.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/.jules/bolt.md) e [.jules/learnings.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/.jules/learnings.md)).
+   - Os agentes de IA (Antigravity e Jules) **devem obrigatoriamente consultar e respeitar essas diretrizes de aprendizado** antes e durante qualquer alteração ou integração de código, assegurando que funcionalidades básicas e fundamentais não parem de funcionar.
