@@ -22,6 +22,78 @@ class AssociarPlanilhaPayload(BaseModel):
     planilha_origem: str
     matricula_id: Optional[int] = None
 
+# ── Funções Auxiliares de Parsing de Coordenadas e Números ──────────────────────
+
+def parse_num_robust(val):
+    """
+    Converte uma string numérica formatada (BR ou US, com ou sem separadores de milhar) para float.
+    Suporta: '7.344.988,720', '208.822,470', '-24,102244', '7344988.72', '7.344.988.720', etc.
+    """
+    if val is None:
+        return None
+    s = str(val).strip().replace('\xa0', '').replace(' ', '')
+    if not s:
+        return None
+    
+    # Tentativa direta se for float padrão (ex: "7344988.72" ou "-24.102244")
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    
+    # Se contém ambos vírgula e ponto:
+    if ',' in s and '.' in s:
+        # Formato BR/PT: "7.344.988,720" -> ponto é milhar, vírgula é decimal
+        if s.rfind(',') > s.rfind('.'):
+            s = s.replace('.', '').replace(',', '.')
+        # Formato US/EN: "7,344,988.720" -> vírgula é milhar, ponto é decimal
+        else:
+            s = s.replace(',', '')
+    elif ',' in s:
+        # Apenas vírgula: "7344988,720" ou "-24,102244" -> substitui vírgula por ponto
+        s = s.replace(',', '.')
+    elif s.count('.') > 1:
+        # Múltiplos pontos sem vírgula: "7.344.988.720" -> último ponto é decimal
+        parts = s.split('.')
+        s = "".join(parts[:-1]) + "." + parts[-1]
+        
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def parse_dms_robust(val):
+    """
+    Converte coordenada GMS (Graus, Minutos, Segundos) para Graus Decimais.
+    Formatos aceitos:
+    - 24°10'22.440"S ou 24º10'22,440" S
+    - -24°10'22.440 ou 24 10 22.44 S
+    - 53°51'41.600"W
+    """
+    if not val:
+        return None
+    s = str(val).strip().replace('\xa0', ' ')
+    if not s:
+        return None
+    
+    # Regex flexível para capturar GMS
+    m = re.search(r'([+-]?)\s*(\d+)[°º\s]+(\d+)[\'′\s]+([\d.,]+)[\"″]?\s*([NSEW]?)', s, re.IGNORECASE)
+    if m:
+        try:
+            sinal = -1 if m.group(1) == '-' else 1
+            deg = float(m.group(2))
+            mins = float(m.group(3))
+            secs = parse_num_robust(m.group(4)) or 0.0
+            decimal = (deg + mins / 60.0 + secs / 3600.0) * sinal
+            hemisferio = m.group(5).upper()
+            if hemisferio in ('S', 'W'):
+                decimal = -abs(decimal)
+            return decimal
+        except Exception:
+            pass
+    return None
+
 # ── Rotas ──────────────────────────────────────────────────────────────────────
 
 @router.post("/levantamentos/{id}/analisar-planilha-abas")
@@ -142,19 +214,25 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
             tipo = match.group(2).upper()
             num = int(match.group(3))
             
-            def parse_num(val):
-                if not val: return None
-                try:
-                    return float(str(val).replace(",", ".").strip())
-                except:
-                    return None
-                    
-            v1 = parse_num(cell_texts[1])
-            sigma_e = parse_num(cell_texts[2])
-            v2 = parse_num(cell_texts[3])
-            sigma_n = parse_num(cell_texts[4])
-            altitude = parse_num(cell_texts[5])
-            sigma_z = parse_num(cell_texts[6])
+            v1 = parse_num_robust(cell_texts[1])
+            sigma_e = parse_num_robust(cell_texts[2])
+            v2 = parse_num_robust(cell_texts[3])
+            sigma_n = parse_num_robust(cell_texts[4])
+            altitude = parse_num_robust(cell_texts[5])
+            sigma_z = parse_num_robust(cell_texts[6])
+            
+            # Fallback GMS: se v1 ou v2 falharam como número, tenta DMS
+            if v1 is None:
+                v1 = parse_dms_robust(cell_texts[1])
+            if v2 is None:
+                v2 = parse_dms_robust(cell_texts[3])
+            
+            # Log de debug se ainda sem coordenadas
+            if v1 is None and v2 is None:
+                logging.getLogger(__name__).warning(
+                    f"[PARSE DEBUG] Vértice {vertice}: v1='{cell_texts[1]}', v2='{cell_texts[3]}' "
+                    f"(raw cells: {cell_texts[:7]})"
+                )
             
             metodo = str(cell_texts[7]).strip() if len(cell_texts) > 7 else ""
             tipo_limite = str(cell_texts[8]).strip() if len(cell_texts) > 8 else ""
@@ -407,20 +485,18 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                 tipo = match.group(2).upper()
                                 num = int(match.group(3))
                                 
-                                def parse_num(val):
-                                    if not val: return None
-                                    try:
-                                        return float(str(val).replace(",", ".").strip())
-                                    except:
-                                        return None
-                                        
-                                este = parse_num(get_val('X'))
-                                norte = parse_num(get_val('Y'))
-                                altitude = parse_num(get_val('Z'))
-                                sigma_e = parse_num(get_val('SIGMA_X'))
-                                sigma_n = parse_num(get_val('SIGMA_Y'))
-                                sigma_z = parse_num(get_val('SIGMA_Z'))
+                                este = parse_num_robust(get_val('X'))
+                                norte = parse_num_robust(get_val('Y'))
+                                altitude = parse_num_robust(get_val('Z'))
+                                sigma_e = parse_num_robust(get_val('SIGMA_X'))
+                                sigma_n = parse_num_robust(get_val('SIGMA_Y'))
+                                sigma_z = parse_num_robust(get_val('SIGMA_Z'))
                                 metodo = get_val('METODO_POSICIONAMENTO')
+                                
+                                if este is None:
+                                    este = parse_dms_robust(get_val('X'))
+                                if norte is None:
+                                    norte = parse_dms_robust(get_val('Y'))
                                 
                                 lat, lon = None, None
                                 if este is not None and norte is not None:
@@ -668,19 +744,17 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                             tipo = match.group(2).upper()
                                             num = int(match.group(3))
                                             
-                                            def parse_num(val):
-                                                if not val: return None
-                                                try:
-                                                    return float(val.replace(",", ".").strip())
-                                                except:
-                                                    return None
-                                                    
-                                            este = parse_num(cell_texts[1])
-                                            sigma_e = parse_num(cell_texts[2])
-                                            norte = parse_num(cell_texts[3])
-                                            sigma_n = parse_num(cell_texts[4])
-                                            altitude = parse_num(cell_texts[5])
-                                            sigma_z = parse_num(cell_texts[6])
+                                            este = parse_num_robust(cell_texts[1])
+                                            sigma_e = parse_num_robust(cell_texts[2])
+                                            norte = parse_num_robust(cell_texts[3])
+                                            sigma_n = parse_num_robust(cell_texts[4])
+                                            altitude = parse_num_robust(cell_texts[5])
+                                            sigma_z = parse_num_robust(cell_texts[6])
+                                            
+                                            if este is None:
+                                                este = parse_dms_robust(cell_texts[1])
+                                            if norte is None:
+                                                norte = parse_dms_robust(cell_texts[3])
                                             
                                             metodo = cell_texts[7].strip() if len(cell_texts) > 7 else ""
                                             tipo_limite = cell_texts[8].strip() if len(cell_texts) > 8 else ""
