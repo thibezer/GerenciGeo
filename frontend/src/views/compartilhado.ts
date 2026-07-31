@@ -96,20 +96,23 @@ const renderTabelas = () => {
     
     const pontos = currentPublicData.pontos || [];
     
-    tbodyAll.innerHTML = pontos.map((p: any) => `
-        <tr class="hover:bg-white/[0.02] cursor-pointer" onclick="window.selecionarPontoPublico(${p.id})">
+    tbodyAll.innerHTML = pontos.map((p: any) => {
+        const norte = p.norte != null ? Number(p.norte).toFixed(3) : (p.lat != null ? Number(p.lat).toFixed(6) : '-');
+        const este = p.este != null ? Number(p.este).toFixed(3) : (p.lon != null ? Number(p.lon).toFixed(6) : '-');
+        return `
+        <tr class="hover:bg-white/[0.02] cursor-pointer border-b border-white/5" onclick="window.selecionarPontoPublico(${p.id})">
             <td class="px-3 py-2 font-mono text-white font-bold">${p.nome_vertice || `P-${p.id}`}</td>
             <td class="px-3 py-2 text-center text-white/60">${p.tipo || '-'}</td>
-            <td class="px-3 py-2 font-mono text-white/80">${p.lat ? p.lat.toFixed(6) : '-'}</td>
-            <td class="px-3 py-2 font-mono text-white/80">${p.lon ? p.lon.toFixed(6) : '-'}</td>
-            <td class="px-3 py-2 font-mono text-white/60">${p.altitude || '-'}</td>
-        </tr>
-    `).join('');
+            <td class="px-3 py-2 font-mono text-white/80">${norte}</td>
+            <td class="px-3 py-2 font-mono text-white/80">${este}</td>
+            <td class="px-3 py-2 font-mono text-white/60">${p.altitude != null ? Number(p.altitude).toFixed(2) : '-'}</td>
+        </tr>`;
+    }).join('');
     
     const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
     
     if (orgPontos.length === 0) {
-        tbodyOrg.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-white/40 italic">O caminhamento não foi ordenado.</td></tr>';
+        tbodyOrg.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-white/40 italic">O caminhamento não foi ordenado.</td></tr>';
         return;
     }
     
@@ -130,14 +133,16 @@ const renderTabelas = () => {
         const p = orgPontos[i];
         const pNext = orgPontos[(i + 1) % orgPontos.length];
         const distance = dist(p, pNext);
+        const norte = p.norte != null ? Number(p.norte).toFixed(3) : (p.lat != null ? Number(p.lat).toFixed(6) : '-');
+        const este = p.este != null ? Number(p.este).toFixed(3) : (p.lon != null ? Number(p.lon).toFixed(6) : '-');
+
         orgHtml += `
         <tr class="hover:bg-white/[0.02] cursor-pointer border-b border-white/5" onclick="window.selecionarPontoPublico(${p.id})">
             <td class="px-3 py-2 text-center text-mint-vibrant font-bold">${p.ordem_caminhamento}</td>
             <td class="px-3 py-2 font-mono text-white font-bold">${p.nome_vertice || `P-${p.id}`}</td>
-            <td class="px-3 py-2 font-mono text-white/60">${p.lat ? p.lat.toFixed(6) : '-'}</td>
-            <td class="px-3 py-2 font-mono text-white/60">${p.lon ? p.lon.toFixed(6) : '-'}</td>
-            <td class="px-3 py-2 text-white/80 truncate max-w-[120px]" title="${p.nome_confrontante || ''}">${p.nome_confrontante || '-'}</td>
-            <td class="px-3 py-2 text-center font-mono text-white/60">-</td>
+            <td class="px-3 py-2 font-mono text-white/80">${norte}</td>
+            <td class="px-3 py-2 font-mono text-white/80">${este}</td>
+            <td class="px-3 py-2 text-white/80 truncate max-w-[140px]" title="${p.nome_confrontante || ''}">${p.nome_confrontante || '-'}</td>
             <td class="px-3 py-2 text-center font-mono text-mint-vibrant/80">${distance > 0 ? distance.toFixed(2) : '-'}</td>
         </tr>`;
     }
