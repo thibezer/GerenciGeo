@@ -507,8 +507,14 @@ def get_levantamento_publico(codigo: str):
         query_mat = "SELECT * FROM matriculas WHERE propriedade_id = ?"
         lev_obj['matriculas'] = [dict(r) for r in execute_query(query_mat, params=(prop_id,), fetch_all=True)]
 
-        # Busca pontos
-        query_pts = "SELECT * FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento"
+        # Busca apenas os pontos válidos do imóvel (exclui vizinhos e ignorados)
+        query_pts = """
+            SELECT * FROM pontos 
+            WHERE levantamento_id = ? 
+              AND (ponto_vizinho IS NULL OR ponto_vizinho = 0) 
+              AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+        """
         lev_obj['pontos'] = [dict(r) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
 
         # Busca segmentos
