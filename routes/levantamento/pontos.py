@@ -6,7 +6,7 @@ import stat
 import shutil
 import logging
 import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
 class PontoCreate(BaseModel):
     matricula_id: int
     nome_vertice: str
-    tipo_ponto: str
+    tipo_ponto: Literal['M', 'P', 'V', 'B']
     lat: float
     lon: float
     alt: float
@@ -622,7 +622,7 @@ class ConfrontanteUpdateBatch(BaseModel):
 
 class PontoUpdateBatchItem(BaseModel):
     id: int
-    tipo_ponto: Optional[str] = None
+    tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
     ignorar_poligono: Optional[int] = None
     confrontante: Optional[ConfrontanteUpdateBatch] = None
 
@@ -631,7 +631,7 @@ class PontoBatchUpdatePayload(BaseModel):
 
 class PontoUpdate(BaseModel):
     nome_vertice: Optional[str] = None
-    tipo_ponto: Optional[str] = None
+    tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
     metodo_posicionamento: Optional[str] = None
     matricula_id: Optional[int] = None
     ponto_base_id: Optional[int] = None
