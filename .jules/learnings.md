@@ -61,3 +61,11 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. Ao adicionar novas colunas que necessitem de unicidade em tabelas SQLite existentes, adicione a coluna apenas com seu tipo básico (ex: `ALTER TABLE ... ADD COLUMN codigo_compartilhamento TEXT`).
   2. Crie a unicidade separadamente através de um índice único: `CREATE UNIQUE INDEX IF NOT EXISTS idx_... ON tabela(coluna) WHERE coluna IS NOT NULL`.
+
+---
+
+## 8. Parsing de Valores Numéricos em Planilhas ODS (`office:value` vs `text:p`)
+- **Problema**: Ao importar planilhas ODS (LibreOffice Calc) no módulo de "Peças de Cartório" (`homologacao.py`), as coordenadas UTM (Norte/Este) ficavam `None` no `banco_pontos`, fazendo com que os pontos não aparecessem no mapa nem nas tabelas. A causa raiz era que o parser XML extraía o texto apenas dos elementos `<text:p>` dentro de `<table:table-cell>`. Porém, em planilhas ODS, células numéricas frequentemente armazenam o valor real no **atributo** `office:value` da tag `<table:table-cell>`, e o `<text:p>` pode conter apenas a representação visual formatada (ou estar vazio).
+- **Regra Obrigatória**:
+  1. Todo parsing de células ODS no GerenciGeo deve incluir um fallback para ler o atributo `{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value` quando o conteúdo textual de `<text:p>` está vazio.
+  2. Aplicar esse fallback em **todos** os blocos de extração de células ODS em `homologacao.py` (existem múltiplos blocos de parsing para diferentes fluxos de importação).

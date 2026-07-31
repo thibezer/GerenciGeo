@@ -262,6 +262,12 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                             p_elements = cell.findall('.//text:p', ns)
                                             cell_text = "".join([p.text for p in p_elements if p.text])
                                             
+                                            # Fallback: ODS armazena valores numéricos no atributo office:value
+                                            if not cell_text:
+                                                office_val = cell.get('{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value')
+                                                if office_val:
+                                                    cell_text = office_val
+                                            
                                             count = int(repeated) if repeated else 1
                                             if count > 30: count = 1
                                             for _ in range(count):
@@ -642,6 +648,12 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                         repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
                                         p_elements = cell.findall('.//text:p', ns)
                                         cell_text = "".join([p.text for p in p_elements if p.text])
+                                        
+                                        # Fallback: ODS armazena valores numéricos no atributo office:value
+                                        if not cell_text:
+                                            office_val = cell.get('{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value')
+                                            if office_val:
+                                                cell_text = office_val
                                         
                                         count = int(repeated) if repeated else 1
                                         if count > 30: # Limita colunas vazias
