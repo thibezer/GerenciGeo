@@ -232,7 +232,13 @@ export const compartilhadoRoute: RouteDef = {
     mapController = new MesaTrabalhoMapa();
     mapController.init('map-container');
     
-    setTimeout(() => mapController?.invalidateSize(), 100);
+    setTimeout(() => {
+        const gearBtn = document.querySelector('.unified-toolbar button');
+        if (gearBtn) (gearBtn as HTMLElement).style.display = 'none';
+        const sep = document.querySelector('.unified-toolbar div');
+        if (sep) (sep as HTMLElement).style.display = 'none';
+        mapController?.invalidateSize();
+    }, 100);
 
     const isLocal = window.location.origin.includes('localhost') || 
                     window.location.origin.includes('127.0.0.1') || 

@@ -1,41 +1,40 @@
 export const renderCompartilhado = (): string => {
   return `
     <div class="workspace-wrapper animate-in fade-in duration-300 h-screen w-full flex flex-col bg-[#0a100d] text-white overflow-hidden">
-      <header class="ribbon-master-container fluent-ribbon-theme shrink-0">
-        <div id="ribbon-layer1" class="ribbon-layer1 flex items-center px-4 py-2 bg-black/40 border-b border-white/10" style="height: 38px;">
-           <div class="rl1-qat flex items-center gap-3">
-               <i data-lucide="share-2" class="text-mint-vibrant"></i>
-               <span class="font-bold text-sm tracking-wider uppercase">GerenciGeo Online <span class="text-white/40 text-xs ml-2 normal-case">Visualização Pública</span></span>
+      <!-- HEADER COMPACTO SEM RIBBON -->
+      <header class="bg-[#121c16] border-b border-white/10 shrink-0 px-4 py-2 flex flex-col justify-center gap-1.5" style="height: 56px; min-height: 56px;">
+        <div class="flex items-center justify-between">
+           <div class="flex items-center gap-3">
+               <i data-lucide="share-2" class="text-mint-vibrant w-4 h-4"></i>
+               <span class="font-bold text-xs tracking-wider uppercase">GerenciGeo Online <span class="text-white/40 text-[10px] ml-1.5 normal-case font-normal">| Visualização Pública</span></span>
            </div>
-           <div class="rl1-spacer flex-1"></div>
-           <div class="rl1-context flex items-center gap-3">
-             <label class="text-[10px] text-white/40 uppercase font-bold">Matrícula</label>
-             <select id="select-matricula-publico" class="glass-input text-xs py-1 px-2 pr-8 border border-white/10 rounded bg-[#0a100d] text-white" style="min-width:140px">
+           <div class="flex items-center gap-2">
+             <label class="text-[10px] text-white/40 uppercase font-bold">Matrícula:</label>
+             <select id="select-matricula-publico" class="glass-input text-xs py-0.5 px-2 pr-6 border border-white/10 rounded bg-[#0a100d] text-white" style="min-width:130px; height: 26px;">
                 <option value="">Carregando...</option>
              </select>
            </div>
         </div>
-        <div id="ribbon-layer2" class="ribbon-layer2 flex items-center px-4 py-1.5 bg-black/20 border-b border-white/5 text-xs" style="height: 32px;">
-           <span class="font-bold text-mint-vibrant truncate max-w-[300px]" id="txt-nome-propriedade-publico">Carregando...</span>
-           <div class="h-4 w-px bg-white/20 mx-3"></div>
-           <span class="text-white/40 flex items-center gap-1">
-             <i data-lucide="users" class="w-3.5 h-3.5"></i> Proprietário(s):
-             <span class="text-white ml-1 truncate max-w-[250px]" id="txt-nome-cliente-publico">—</span>
+        
+        <div class="flex items-center gap-2 text-[11px] text-white/60 truncate">
+           <span class="font-bold text-mint-vibrant truncate max-w-[280px]" id="txt-nome-propriedade-publico">Carregando...</span>
+           <span class="text-white/20">•</span>
+           <span class="flex items-center gap-1 truncate max-w-[250px]">
+             Proprietário(s): <span class="text-white font-medium" id="txt-nome-cliente-publico">—</span>
            </span>
-           <div class="h-4 w-px bg-white/20 mx-3"></div>
-           <span class="text-white/40 flex items-center gap-1">
-             CAR:
-             <span class="text-white font-mono ml-1" id="txt-codigo-car-publico">—</span>
+           <span class="text-white/20">•</span>
+           <span class="flex items-center gap-1 shrink-0">
+             CAR: <span class="text-white font-mono" id="txt-codigo-car-publico">—</span>
            </span>
-           <div class="h-4 w-px bg-white/20 mx-3"></div>
-           <span class="text-white/40 flex items-center gap-1">
-             Município:
-             <span class="text-white ml-1" id="txt-municipio-publico">—</span>
+           <span class="text-white/20">•</span>
+           <span class="flex items-center gap-1 shrink-0">
+             Município: <span class="text-white" id="txt-municipio-publico">—</span>
            </span>
         </div>
       </header>
 
-      <main class="workspace-body" style="height: calc(100vh - 70px) !important; display: grid !important; grid-template-columns: 280px 1fr !important;">
+      <!-- ÁREA PRINCIPAL -->
+      <main class="workspace-body" style="height: calc(100vh - 56px) !important; display: grid !important; grid-template-columns: 280px 1fr !important;">
         <!-- PAINEL DE PROPRIEDADES LATERAL (Esquerda) -->
         <aside class="props-panel flex flex-col bg-[#0a100d]/90 border-r border-white/10" id="painel-lateral-propriedades" style="width: 280px;">
           <div class="props-panel-header p-3 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
