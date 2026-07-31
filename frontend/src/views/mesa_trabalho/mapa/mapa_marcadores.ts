@@ -25,21 +25,15 @@ export class MapaMarcadores {
         const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
         const isBasePPP = p.tipo_ponto === 'M' || p.tipo === 'M';
         let markerBg = 'bg-mint-vibrant';
-        
-        let shapeStyle = this.core.config.markerStyleV || 'cross';
-        let markerSize = this.core.config.markerSizeV || 8;
+        let shapeStyle = 'x';
+        let markerSize = 7;
 
         if (isBasePPP) {
           markerBg = 'bg-indigo-500';
-          shapeStyle = this.core.config.markerStyleM || 'circle-dot';
-          markerSize = this.core.config.markerSizeM || 14;
+          markerSize = 9;
         } else if (isBaseFisica) {
           markerBg = 'bg-rose-500';
-          shapeStyle = this.core.config.markerStyleM || 'circle-dot';
-          markerSize = this.core.config.markerSizeM || 14;
-        } else if (p.tipo_ponto === 'P' || p.tipo === 'P' || p.tipo === 'O') {
-          shapeStyle = this.core.config.markerStyleP || 'circle';
-          markerSize = this.core.config.markerSizeP || 10;
+          markerSize = 9;
         }
 
         const animClass = this.core.config.enableAnimations ? 'transition-all duration-150' : '';

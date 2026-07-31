@@ -21,12 +21,14 @@ export function getPointShapeHtml(
           <div class="absolute bg-white rounded-full" style="width:${Math.max(3, Math.floor(innerSize / 3))}px; height:${Math.max(3, Math.floor(innerSize / 3))}px;"></div>
         </div>
       `;
+    case 'x':
     case 'cross':
       return `
         <div id="${id}" class="relative flex items-center justify-center ${extraClasses}" style="${containerStyle}">
-          <div class="${bgClass} rounded-full" style="width:${Math.max(4, innerSize - 2)}px; height:${Math.max(4, innerSize - 2)}px; opacity:0.8;"></div>
-          <div class="absolute bg-white" style="width:2px; height:${innerSize + 4}px;"></div>
-          <div class="absolute bg-white" style="width:${innerSize + 4}px; height:2px;"></div>
+          <svg width="${size + 2}" height="${size + 2}" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+            <path d="M 2,2 L 8,8 M 8,2 L 2,8" stroke="#000000" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M 2,2 L 8,8 M 8,2 L 2,8" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
         </div>
       `;
     case 'triangle':
