@@ -374,14 +374,68 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                         
                         # Tentar tabular via CSV (comum no SIGEF)
                         # Verifica o provável delimitador (vírgula ou ponto e vírgula)
-                        delimiter = ';' if ';' in text.split('\\n')[0] else ','
-                        reader = csv.reader(text.splitlines(), delimiter=delimiter)
+                        lines = text.splitlines()
+                        delimiter = ';' if lines and ';' in lines[0] else ','
+                        reader = csv.reader(lines, delimiter=delimiter)
+                        
+                        headers = []
                         for row in reader:
                             if not row: continue
-                            p_data = extract_ponto_from_cells(row)
-                            if p_data:
-                                pontos_detetados.append(p_data)
+                            
+                            # Verifica se é o cabeçalho do SIGEF CSV (ex: QRCODE;CODIGO;...;X;Y;Z)
+                            if not headers and any(h.strip().upper() == 'CODIGO' for h in row):
+                                headers = [h.strip().upper() for h in row]
+                                continue
                                 
+                            if headers and 'CODIGO' in headers:
+                                def get_val(col_name):
+                                    if col_name in headers:
+                                        idx = headers.index(col_name)
+                                        if idx < len(row): return str(row[idx]).strip()
+                                    return ""
+                                
+                                vertice = get_val('CODIGO')
+                                match = re.match(r"^([A-Z]{3,4})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
+                                if not match: continue
+                                
+                                tipo = match.group(2).upper()
+                                num = int(match.group(3))
+                                
+                                def parse_num(val):
+                                    if not val: return None
+                                    try:
+                                        return float(str(val).replace(",", ".").strip())
+                                    except:
+                                        return None
+                                        
+                                este = parse_num(get_val('X'))
+                                norte = parse_num(get_val('Y'))
+                                altitude = parse_num(get_val('Z'))
+                                sigma_e = parse_num(get_val('SIGMA_X'))
+                                sigma_n = parse_num(get_val('SIGMA_Y'))
+                                sigma_z = parse_num(get_val('SIGMA_Z'))
+                                metodo = get_val('METODO_POSICIONAMENTO')
+                                
+                                lat, lon = None, None
+                                if este is not None and norte is not None:
+                                    try:
+                                        lon, lat = transformer_utm_to_ll.transform(este, norte)
+                                    except:
+                                        pass
+                                        
+                                pontos_detetados.append({
+                                    "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice.upper(),
+                                    "norte": norte, "este": este, "altitude": altitude,
+                                    "lat": lat, "lon": lon,
+                                    "sigma_n": sigma_n, "sigma_e": sigma_e, "sigma_z": sigma_z,
+                                    "metodo_posicionamento": metodo, "tipo_limite": get_val('LADO'),
+                                    "cns_confrontante": "", "matricula_confrontante": "", "confrontante_descritivo": ""
+                                })
+                            else:
+                                p_data = extract_ponto_from_cells(row)
+                                if p_data:
+                                    pontos_detetados.append(p_data)
+                                    
                         # Se não encontrar nada pelo delimitador padrão (ou for um TXT maluco), fallback pro regex (sem coordenadas)
                         if not pontos_detetados:
                             pattern = re.compile(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", re.IGNORECASE)
