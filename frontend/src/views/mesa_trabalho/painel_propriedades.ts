@@ -75,6 +75,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
   const panelActions = document.getElementById('props-panel-actions');
   if (!panelContent) return;
 
+  if (ctx.etapaAtiva === 'cartorio') {
+    if (panelActions) panelActions.classList.add('hidden');
+    return;
+  }
+
   try {
     const selectedCount = ctx.selectedPontoIds.length;
     const selectedVizinhoCount = ctx.selectedVizinhoPontoIds ? ctx.selectedVizinhoPontoIds.length : 0;

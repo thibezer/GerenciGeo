@@ -264,7 +264,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         // Centralização inicial do mapa nos pontos da propriedade
         if (ctx.triagemMap && ctx.mapaController) {
           setTimeout(() => {
-            ctx.triagemMap!.invalidateSize();
+            if (!ctx.triagemMap) return;
+            try {
+              ctx.triagemMap.invalidateSize();
+            } catch (e) {}
             
             let pontosParaCentralizar = [];
             
@@ -277,7 +280,7 @@ export const mesaTrabalhoRoute: RouteDef = {
               pontosParaCentralizar = ctx.pontosList;
             }
             
-            if (pontosParaCentralizar.length > 0) {
+            if (pontosParaCentralizar.length > 0 && ctx.mapaController) {
               ctx.mapaController.fitBounds(pontosParaCentralizar);
             }
           }, 600); // 600ms para garantir transição do SPA Vanilla e render da DOM Layout
@@ -366,12 +369,17 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       if (ctx.triagemMap) {
         setTimeout(() => {
-          ctx.triagemMap!.invalidateSize();
+          if (!ctx.triagemMap) return;
+          try {
+            ctx.triagemMap.invalidateSize();
+          } catch (e) {}
           const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
           const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map(p => L.latLng(p.lat, p.lon));
-          if (validCoords.length > 0) {
+          if (validCoords.length > 0 && ctx.triagemMap) {
             const bounds = L.latLngBounds(validCoords);
-            ctx.triagemMap!.fitBounds(bounds, { padding: [40, 40] });
+            try {
+              ctx.triagemMap.fitBounds(bounds, { padding: [40, 40] });
+            } catch (e) {}
           }
         }, 100);
       }
@@ -401,12 +409,35 @@ export const mesaTrabalhoRoute: RouteDef = {
       const containerMapa = document.getElementById('container-mapa-leaflet-parent');
       const splitterMapa = document.getElementById('splitter-mapa-tabela');
 
+      const propsPanelTitle = document.querySelector('#painel-propriedades .props-panel-title');
+      const propsPanelContent = document.getElementById('props-panel-content');
+      const propsPanelOrdenador = document.getElementById('props-panel-ordenador');
+      const propsPanelActions = document.getElementById('props-panel-actions');
+      const painelPropriedades = document.getElementById('painel-propriedades');
+
+      if (etapa === 'cartorio') {
+        if (propsPanelTitle) propsPanelTitle.innerHTML = '<i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-mint-vibrant inline-block mr-1"></i> Ordenador Manual';
+        if (propsPanelContent) propsPanelContent.classList.add('hidden');
+        if (propsPanelActions) propsPanelActions.classList.add('hidden');
+        if (propsPanelOrdenador) propsPanelOrdenador.classList.remove('hidden');
+        if (painelPropriedades) painelPropriedades.classList.remove('hidden');
+        if (typeof ctx.renderListaReordenarSimplificada === 'function') {
+          ctx.renderListaReordenarSimplificada();
+        }
+      } else {
+        if (propsPanelTitle) propsPanelTitle.innerHTML = ' Propriedades';
+        if (propsPanelOrdenador) propsPanelOrdenador.classList.add('hidden');
+        if (propsPanelContent) propsPanelContent.classList.remove('hidden');
+      }
+
       if (etapa === 'geoprocessamento' || etapa === 'cartorio') {
         containerMapa?.classList.remove('hidden');
         splitterMapa?.classList.remove('hidden');
         if (ctx.triagemMap) {
           setTimeout(() => {
-            ctx.triagemMap?.invalidateSize();
+            try {
+              ctx.triagemMap?.invalidateSize?.();
+            } catch (e) {}
           }, 50);
         }
       } else {
@@ -568,7 +599,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       ctx.aplicarLargurasSplitters();
       if (ctx.triagemMap && etapa !== 'auditoria') {
         setTimeout(() => {
-          ctx.triagemMap!.invalidateSize();
+          ctx.triagemMap?.invalidateSize?.();
         }, 50);
       }
 
@@ -1272,14 +1303,14 @@ export const mesaTrabalhoRoute: RouteDef = {
           if (!header.classList.contains('header-condensed')) {
             header.classList.add('header-condensed');
             if (ctx.triagemMap) {
-              setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
+              setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 310);
             }
           }
         } else {
           if (header.classList.contains('header-condensed')) {
             header.classList.remove('header-condensed');
             if (ctx.triagemMap) {
-              setTimeout(() => ctx.triagemMap!.invalidateSize(), 310);
+              setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 310);
             }
           }
         }
@@ -1470,7 +1501,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             localStorage.setItem('gerencigeo_split_sup_width', `${newWidthRight}`);
           }
 
-          if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
         };
 
         const onMouseUpSup = () => {
@@ -1479,7 +1510,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.removeEventListener('mouseup', onMouseUpSup);
           document.body.classList.remove('cursor-col-resize', 'select-none');
           if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap!.invalidateSize(), 50);
+            setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 50);
           }
         };
 
@@ -1611,7 +1642,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           panelProps.style.width = `${newWidth}px`;
           localStorage.setItem('gerencigeo_props_panel_width', `${newWidth}px`);
 
-          if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
         };
 
         const onMouseUpProps = () => {
@@ -1621,7 +1652,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           document.removeEventListener('mouseup', onMouseUpProps);
           document.body.classList.remove('cursor-col-resize', 'select-none');
           if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap!.invalidateSize(), 50);
+            setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 50);
           }
         };
 
@@ -2278,7 +2309,7 @@ function setupRibbonInteractions(ctx: any): void {
       // Remove a transição e invalida mapa para o redimensionamento fluir
       setTimeout(() => {
         panel.classList.remove('transition-width');
-        if (ctx.triagemMap) ctx.triagemMap.invalidateSize();
+        if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
       }, 190);
     });
   }

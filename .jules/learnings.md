@@ -26,3 +26,11 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. Todo visualizador de mapa perimetral deve possuir um mecanismo de fallback visual.
   2. Se a lista de segmentos estiver vazia ou indisponível (`!segmentos || segmentos.length === 0`), a view deve invocar imediatamente a renderização temporária (`plotPolilinhaTemporaria(pontosMat)`), garantindo que os vértices do imóvel rural fiquem visíveis sob qualquer condição.
+
+---
+
+## 4. Reorganização do Painel Lateral e Integridade dos IDs de Eventos
+- **Problema**: Ao deslocar o **Ordenador Manual** para a barra lateral de propriedades (`#painel-propriedades`) durante a etapa `cartorio` (Organizador de Perímetro), remover elementos ou alterar IDs causaria exceções de `null` em manipuladores de eventos e scripts dependentes.
+- **Regra Obrigatória**:
+  1. Todos os IDs originais do Ordenador Manual (`input-search-ordenador`, `btn-inverter-sentido-ordenador`, `btn-auto-ordenar-vizinho`, `btn-travar-sequencia-pontos`, `btn-destravar-sequencia-pontos`, `lista-reordenar-simplificada`, `btn-salvar-ordem-simplificada`) devem ser rigorosamente preservados na estrutura `#props-panel-ordenador`.
+  2. A alternância de visibilidade entre as views deve ser feita via classes CSS (`hidden`), chaveando o conteúdo de `#props-panel-content` e `#props-panel-ordenador` na função `ctx.alternarEtapa`, liberando 100% do espaço da Aba 2 para a Tabela de Divisas/Segmentos.
