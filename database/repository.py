@@ -84,9 +84,11 @@ class PropriedadeClienteRepo(GenericRepo):
         super().__init__("propriedade_clientes")
         
     def associar_socios(self, propriedade_id, cliente_list):
-        for cli in cliente_list:
-            query = "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?,?,?)"
-            execute_query(query, params=(propriedade_id, cli['id'], cli['percentual']), fetch_all=False, commit=True)
+        query = "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?,?,?)"
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(query, [(propriedade_id, cli['id'], cli['percentual']) for cli in cliente_list])
+            conn.commit()
 
     def get_by_propriedade(self, propriedade_id):
         query = """

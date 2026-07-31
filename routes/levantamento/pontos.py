@@ -207,6 +207,7 @@ def update_matricula(mid: int, m: MatriculaCreate):
             ("georreferenciamento", m.georreferenciamento, str)
         ]
         
+        logs_historico = []
         for campo, novo_valor, tipo in campos_monitorados:
             val_antigo = antigo[campo]
             if val_antigo is not None:
@@ -226,11 +227,13 @@ def update_matricula(mid: int, m: MatriculaCreate):
                 novo_valor_cmp = None
                 
             if val_antigo_cmp != novo_valor_cmp:
-                execute_query(
-                    "INSERT INTO matricula_historico_logs (id_matricula, campo_alterado, valor_antigo, valor_novo) VALUES (?, ?, ?, ?)",
-                    params=(mid, campo, str(val_antigo) if val_antigo is not None else None, str(novo_valor) if novo_valor is not None else None),
-                    commit=True
-                )
+                logs_historico.append((mid, campo, str(val_antigo) if val_antigo is not None else None, str(novo_valor) if novo_valor is not None else None))
+
+        if logs_historico:
+            with DatabaseManager() as conn:
+                cursor = conn.cursor()
+                cursor.executemany("INSERT INTO matricula_historico_logs (id_matricula, campo_alterado, valor_antigo, valor_novo) VALUES (?, ?, ?, ?)", logs_historico)
+                conn.commit()
 
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)

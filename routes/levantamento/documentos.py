@@ -248,15 +248,16 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
                 """, params=(o.nome_completo, o.cpf_cnpj if (o.cpf_cnpj and str(o.cpf_cnpj).strip()) else None, o.rg_ie, o.estado_civil, o.regime_bens,
                              o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, pessoa_id), commit=True)
             
-        for m in payload.matriculas:
-            # Como a coluna ccir foi normalizada e removida de matriculas, atualizamos apenas as colunas válidas
-            execute_query("""
+        # Como a coluna ccir foi normalizada e removida de matriculas, atualizamos apenas as colunas válidas
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.executemany("""
                 UPDATE matriculas 
                 SET numero_matricula = ?, itr = ?, area_ha = ?, cri_comarca = ?, 
                     cri_circunscricao = ?, livro_registro = ?, folha_registro = ?
                 WHERE id = ? AND propriedade_id = ?
-            """, params=(m.numero_matricula, m.itr, m.area_ha, m.cri_comarca,
-                         m.cri_circunscricao, m.livro_registro, m.folha_registro, m.id, prop_id), commit=True)
+            """, [(m.numero_matricula, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro, m.id, prop_id) for m in payload.matriculas])
+            conn.commit()
             
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(prop_id,), fetch_all=True)

@@ -88,11 +88,13 @@ def run_tests():
         {"nome": "V-04_D", "lat": -25.0, "lon": -47.0, "ordem": 4}
     ]
 
-    for pt in pts_bruto:
-        execute_query("""
+    with DatabaseManager() as conn:
+        cursor = conn.cursor()
+        cursor.executemany("""
             INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, ordem_caminhamento)
             VALUES (?, ?, ?, 'V', ?, ?, 800.0, ?)
-        """, params=(lev_id, mat_id, pt["nome"], pt["lat"], pt["lon"], pt["ordem"]), commit=True)
+        """, [(lev_id, mat_id, pt["nome"], pt["lat"], pt["lon"], pt["ordem"]) for pt in pts_bruto])
+        conn.commit()
 
     # Pegamos os IDs dos pontos para o log
     pt_ids = {}
