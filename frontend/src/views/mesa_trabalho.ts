@@ -417,17 +417,21 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       if (etapa === 'cartorio') {
         if (propsPanelTitle) propsPanelTitle.innerHTML = '<i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-mint-vibrant inline-block mr-1"></i> Ordenador Manual';
-        if (propsPanelContent) propsPanelContent.classList.add('hidden');
-        if (propsPanelActions) propsPanelActions.classList.add('hidden');
-        if (propsPanelOrdenador) propsPanelOrdenador.classList.remove('hidden');
+        if (propsPanelContent) propsPanelContent.style.display = 'none';
+        if (propsPanelActions) propsPanelActions.style.display = 'none';
+        if (propsPanelOrdenador) propsPanelOrdenador.style.display = 'flex';
         if (painelPropriedades) painelPropriedades.classList.remove('hidden');
-        if (typeof ctx.renderListaReordenarSimplificada === 'function') {
-          ctx.renderListaReordenarSimplificada();
-        }
+
+        setTimeout(() => {
+          if (typeof ctx.renderListaReordenarSimplificada === 'function') {
+            ctx.renderListaReordenarSimplificada();
+          }
+          initIcons();
+        }, 30);
       } else {
         if (propsPanelTitle) propsPanelTitle.innerHTML = ' Propriedades';
-        if (propsPanelOrdenador) propsPanelOrdenador.classList.add('hidden');
-        if (propsPanelContent) propsPanelContent.classList.remove('hidden');
+        if (propsPanelOrdenador) propsPanelOrdenador.style.display = 'none';
+        if (propsPanelContent) propsPanelContent.style.display = '';
       }
 
       if (etapa === 'geoprocessamento' || etapa === 'cartorio') {

@@ -30,7 +30,8 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 ---
 
 ## 4. Reorganização do Painel Lateral e Integridade dos IDs de Eventos
-- **Problema**: Ao deslocar o **Ordenador Manual** para a barra lateral de propriedades (`#painel-propriedades`) durante a etapa `cartorio` (Organizador de Perímetro), remover elementos ou alterar IDs causaria exceções de `null` em manipuladores de eventos e scripts dependentes.
+- **Problema**: Ao deslocar o **Ordenador Manual** para a barra lateral de propriedades (`#painel-propriedades`) durante a etapa `cartorio` (Organizador de Perímetro), a ocultação via classe utilitária `hidden` conflitou com a distribuição vertical de altura do Flexbox (`flex: 1; min-height: 0`), fazendo com que o container interno colapsasse e a lista de pontos/botões não aparecessem (ficando com altura 0px).
 - **Regra Obrigatória**:
   1. Todos os IDs originais do Ordenador Manual (`input-search-ordenador`, `btn-inverter-sentido-ordenador`, `btn-auto-ordenar-vizinho`, `btn-travar-sequencia-pontos`, `btn-destravar-sequencia-pontos`, `lista-reordenar-simplificada`, `btn-salvar-ordem-simplificada`) devem ser rigorosamente preservados na estrutura `#props-panel-ordenador`.
-  2. A alternância de visibilidade entre as views deve ser feita via classes CSS (`hidden`), chaveando o conteúdo de `#props-panel-content` e `#props-panel-ordenador` na função `ctx.alternarEtapa`, liberando 100% do espaço da Aba 2 para a Tabela de Divisas/Segmentos.
+  2. O container `#props-panel-ordenador` deve ser configurado com `style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding: 8px;"` no HTML template.
+  3. Ao alternar para a etapa `cartorio` em `ctx.alternarEtapa`, a visibilidade deve ser alternada ativando explicitamente `propsPanelOrdenador.style.display = 'flex'`, e a renderização da lista (`ctx.renderListaReordenarSimplificada()`) acionada dentro de um `setTimeout` de 30ms para garantir a distribuição prévia das dimensões calculadas da DOM.

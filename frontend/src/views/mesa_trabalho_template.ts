@@ -291,6 +291,58 @@ export const renderMesaTrabalho = (): string => {
           <div class="props-panel-body" id="props-panel-content">
             <!-- Renderizado dinamicamente via JS de acordo com a seleção -->
           </div>
+
+          <!-- ORDENADOR MANUAL (Exibido na barra lateral durante a etapa Organizador de Perímetro) -->
+          <div class="props-panel-body" id="props-panel-ordenador" style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding: 8px;">
+            <div class="flex flex-col flex-1 min-h-0" id="container-reordenar-manual" style="display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;">
+              <div class="relative w-full mb-1.5 shrink-0">
+                <input type="text" id="input-search-ordenador" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2 py-0.5 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search-ordenador" title="Limpar pesquisa">×</span>
+              </div>
+
+              <div class="flex items-center justify-between gap-1.5 mb-1.5 shrink-0 text-[9px]">
+                <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-2 py-0.5 rounded transition-all font-bold border border-white/10" id="btn-toggle-clique-sequencial" type="button" title="Ativar clique sequencial no mapa para enfileirar pontos">
+                  <i data-lucide="play" class="w-3 h-3 text-mint-vibrant" id="icon-clique-sequencial"></i>
+                  <span id="txt-clique-sequencial" class="font-mono text-[8.5px]">Caminhar Clique</span>
+                </button>
+                <div class="flex items-center gap-1 text-white/50 font-mono text-[8.5px]">
+                  <span>Travados:</span>
+                  <span id="txt-faixa-travada" class="text-mint-vibrant font-bold">Nenhum</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-1.5 mb-1.5 shrink-0 text-[9px]">
+                <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-bold border border-white/10 w-1/2 justify-center" id="btn-inverter-sentido-ordenador" type="button" title="Inverter a ordem de caminhamento do perímetro inteiro">
+                  <i data-lucide="rotate-cw" class="w-3 h-3 text-mint-vibrant"></i>
+                  <span class="font-mono text-[8.5px]">Inverter Sentido</span>
+                </button>
+                <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-bold border border-white/10 w-1/2 justify-center" id="btn-auto-ordenar-vizinho" type="button" title="Sugerir ordem automática baseada em distância (Nearest Neighbor)">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-mint-vibrant"></i>
+                  <span class="font-mono text-[8.5px]">Sugerir Ordem</span>
+                </button>
+              </div>
+              
+              <div class="flex items-center justify-between gap-1.5 mb-1.5 shrink-0 text-[9px]" id="painel-acoes-travamento">
+                <button class="flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 hover:text-amber-100 px-1.5 py-0.5 rounded transition-all font-bold border border-amber-500/20 w-1/2 justify-center" id="btn-travar-sequencia-pontos" type="button" title="Travar os pontos selecionados em uma sequência fixa contígua">
+                  <i data-lucide="lock" class="w-3 h-3 text-amber-400"></i>
+                  <span class="font-mono text-[8.5px]">Travar Sequência</span>
+                </button>
+                <button class="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white px-1.5 py-0.5 rounded transition-all font-bold border border-white/10 w-1/2 justify-center" id="btn-destravar-sequencia-pontos" type="button" title="Destravar pontos selecionados de suas sequências">
+                  <i data-lucide="unlock" class="w-3 h-3 text-white/50"></i>
+                  <span class="font-mono text-[8.5px]">Destravar</span>
+                </button>
+              </div>
+              
+              <div class="overflow-y-auto space-y-0.5 pr-1 border border-white/5 bg-[#0c1510]/20 rounded p-1 flex-1 min-h-0" id="lista-reordenar-simplificada" style="flex: 1; overflow-y: auto; min-height: 120px;">
+                <div class="text-white/20 p-4 text-center text-xs">Carregando pontos...</div>
+              </div>
+
+              <button class="btn-primary w-full py-1 mt-1.5 text-[11px] font-bold flex items-center justify-center gap-1 shrink-0" id="btn-salvar-ordem-simplificada" type="button">
+                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                Salvar Ordem
+              </button>
+            </div>
+          </div>
           
           <div class="props-panel-footer hidden" id="props-panel-actions">
             <button class="btn-primary text-xs w-full" id="btn-props-salvar" type="button">Salvar Alterações</button>
