@@ -53,42 +53,58 @@ export class MapaLinhas {
   public plotPolilinhaTemporaria(pontos: Ponto[]): void {
     if (!this.core.map) return;
 
-    const validPoints = pontos
-      .filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0 && p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.ignorar_poligono !== 1)
-      .sort((a, b) => Number(a.ordem_caminhamento ?? 999999) - Number(b.ordem_caminhamento ?? 999999));
+    const validPoints = pontos.filter(
+      p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0 && p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.ignorar_poligono !== 1
+    );
 
     if (validPoints.length < 2) return;
 
+    // Agrupar pontos por matricula_id ou planilha_origem para traçar perímetros independentes (evita linhas cruzadas em imóveis multigeridos)
+    const grupos: { [key: string]: Ponto[] } = {};
+    validPoints.forEach(p => {
+      const key = p.matricula_id != null 
+        ? `mat_${p.matricula_id}` 
+        : ((p as any).planilha_origem || 'default');
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(p);
+    });
+
     const color = this.bancoPontosAtivo ? '#94a3b8' : '#10b981';
-    const weight = this.core.config.fechamentoWeight;
+    const weight = this.core.config.fechamentoWeight || 2;
     const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
 
-    for (let i = 0; i < validPoints.length - 1; i++) {
-      const pIni = validPoints[i];
-      const pFim = validPoints[i + 1];
-      const polyline = L.polyline([[pIni.lat as number, pIni.lon as number], [pFim.lat as number, pFim.lon as number]], {
+    Object.values(grupos).forEach(grupoPontos => {
+      // Ordena os pontos dentro de cada perímetro/matrícula individualmente
+      grupoPontos.sort((a, b) => Number(a.ordem_caminhamento ?? 999999) - Number(b.ordem_caminhamento ?? 999999));
+      if (grupoPontos.length < 2) return;
+
+      // Traça segmentos i -> i+1 do grupo
+      for (let i = 0; i < grupoPontos.length - 1; i++) {
+        const pIni = grupoPontos[i];
+        const pFim = grupoPontos[i + 1];
+        const polyline = L.polyline([[pIni.lat as number, pIni.lon as number], [pFim.lat as number, pFim.lon as number]], {
+          color: color,
+          weight: weight,
+          opacity: opacity,
+          pane: 'perimetroPane'
+        }).addTo(this.core.map!);
+
+        this.polylines.push(polyline);
+      }
+
+      // Fecha o perímetro do grupo: pLast -> pFirst
+      const pLast = grupoPontos[grupoPontos.length - 1];
+      const pFirst = grupoPontos[0];
+      const polylineClose = L.polyline([[pLast.lat as number, pLast.lon as number], [pFirst.lat as number, pFirst.lon as number]], {
         color: color,
         weight: weight,
         opacity: opacity,
+        dashArray: '4, 4',
         pane: 'perimetroPane'
       }).addTo(this.core.map!);
 
-      // Removed bringToBack
-      this.polylines.push(polyline);
-    }
-
-    const pLast = validPoints[validPoints.length - 1];
-    const pFirst = validPoints[0];
-    const polylineClose = L.polyline([[pLast.lat as number, pLast.lon as number], [pFirst.lat as number, pFirst.lon as number]], {
-      color: color,
-      weight: weight,
-      opacity: opacity,
-      dashArray: '4, 4',
-      pane: 'perimetroPane'
-    }).addTo(this.core.map!);
-
-    // Removed bringToBack
-    this.polylines.push(polylineClose);
+      this.polylines.push(polylineClose);
+    });
   }
 
   public plotPoligonalHomologada(bancoPontos: BancoPonto[]): void {

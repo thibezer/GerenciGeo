@@ -69,3 +69,12 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. Todo parsing de células ODS no GerenciGeo deve incluir um fallback para ler o atributo `{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value` quando o conteúdo textual de `<text:p>` está vazio.
   2. Aplicar esse fallback em **todos** os blocos de extração de células ODS em `homologacao.py` (existem múltiplos blocos de parsing para diferentes fluxos de importação).
+
+---
+
+## 9. Agrupamento Independente de Vértices em Imóveis Multiperimetrais (`plotPolilinhaTemporaria`)
+- **Problema**: Imóveis rurais contendo múltiplas matrículas, glebas ou ilhas perimetrais apresentavam duas linhas retas indesejadas cortando o mapa de ponta a ponta. Isso ocorria porque a função `plotPolilinhaTemporaria` ordenava todos os vértices do levantamento em um único array sequencial e ligava o último ponto de uma gleba ao primeiro ponto da gleba seguinte, além de criar o fechamento ($P_{last} \to P_1$) conectando a última gleba de volta à primeira.
+- **Regra Obrigatória**:
+  1. Em toda renderização de polilinha temporária de percursos (`plotPolilinhaTemporaria` em [mapa_linhas.ts](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_linhas.ts)), os pontos **devem ser previamente agrupados** pela chave do perímetro (`p.matricula_id` ou `p.planilha_origem`).
+  2. Cada grupo/perímetro deve ser ordenado por `ordem_caminhamento` e ter sua polilinha desenhada e fechada de forma **100% independente**, impedindo a criação de linhas espúrias entre polígonos distintos.
+

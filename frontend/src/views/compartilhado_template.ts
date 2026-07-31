@@ -1,48 +1,22 @@
 export const renderCompartilhado = (): string => {
   return `
     <div class="workspace-wrapper animate-in fade-in duration-300 h-screen w-full flex flex-col bg-[#080d0a] text-white overflow-hidden font-sans">
-      <!-- HEADER COMPACTO E ELEGANTE DA VISUALIZAÇÃO PÚBLICA -->
-      <header class="bg-[#101713] border-b border-white/10 shrink-0 px-4 py-2 flex flex-col justify-center gap-1.5 shadow-lg relative z-20" style="height: 60px; min-height: 60px;">
-        <div class="flex items-center justify-between">
-           <div class="flex items-center gap-3">
-               <div class="w-7 h-7 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/30 flex items-center justify-center text-mint-vibrant shadow-inner">
-                  <i data-lucide="share-2" class="w-4 h-4"></i>
-               </div>
-               <div>
-                  <h1 class="font-bold text-xs tracking-wider uppercase flex items-center gap-2">
-                     <span class="text-white">GerenciGeo</span>
-                     <span class="text-mint-vibrant text-[10px] bg-mint-vibrant/10 border border-mint-vibrant/20 px-1.5 py-0.5 rounded font-mono font-semibold">ONLINE</span>
-                     <span class="text-white/40 text-[10px] normal-case font-normal hidden sm:inline">| Visualização Pública Oficial</span>
-                  </h1>
-               </div>
-           </div>
-           
-           <div class="flex items-center gap-3">
-             <div class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2.5 py-1">
-                <i data-lucide="file-text" class="w-3.5 h-3.5 text-white/40"></i>
-                <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider">Matrícula:</label>
-                <select id="select-matricula-publico" class="bg-transparent text-xs text-mint-vibrant font-bold focus:outline-none cursor-pointer pr-1" style="min-width:110px;">
-                   <option value="" class="bg-[#101713] text-white">Carregando...</option>
-                </select>
-             </div>
-           </div>
-        </div>
-        
-        <!-- BARRA DE METADADOS DO IMÓVEL -->
-        <div class="flex items-center gap-3 text-[11px] text-white/60 truncate">
-           <div class="flex items-center gap-1.5 text-mint-vibrant font-bold truncate max-w-[300px]" id="txt-nome-propriedade-publico">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0"></i>
+      <!-- HEADER COMPACTO E CLEAN (SEM MATRÍCULA E SEM TEXTOS DESNECESSÁRIOS) -->
+      <header class="bg-[#101713] border-b border-white/10 shrink-0 px-4 flex items-center justify-between shadow-md relative z-20" style="height: 46px; min-height: 46px;">
+        <div class="flex items-center gap-3 text-xs text-white/70 truncate w-full">
+           <div class="flex items-center gap-1.5 text-mint-vibrant font-bold shrink-0 text-sm" id="txt-nome-propriedade-publico">
+              <i data-lucide="map-pin" class="w-4 h-4 shrink-0 text-mint-vibrant"></i>
               <span class="truncate">Carregando imóvel...</span>
            </div>
            <span class="text-white/20">•</span>
-           <div class="flex items-center gap-1 truncate max-w-[280px]">
+           <div class="flex items-center gap-1 truncate max-w-[320px]">
              <span class="text-white/40">Proprietário(s):</span>
              <span class="text-white font-medium truncate" id="txt-nome-cliente-publico">—</span>
            </div>
            <span class="text-white/20">•</span>
            <div class="flex items-center gap-1 shrink-0">
              <span class="text-white/40">CAR:</span>
-             <span class="text-white/90 font-mono text-[10px]" id="txt-codigo-car-publico">—</span>
+             <span class="text-white/90 font-mono text-[11px]" id="txt-codigo-car-publico">—</span>
            </div>
            <span class="text-white/20">•</span>
            <div class="flex items-center gap-1 shrink-0">
@@ -53,7 +27,7 @@ export const renderCompartilhado = (): string => {
       </header>
 
       <!-- ÁREA PRINCIPAL DA MESA DE TRABALHO -->
-      <main class="workspace-body flex-1 relative overflow-hidden" style="height: calc(100vh - 60px) !important; display: grid !important; grid-template-columns: 290px 1fr !important;">
+      <main class="workspace-body flex-1 relative overflow-hidden" style="height: calc(100vh - 46px) !important; display: grid !important; grid-template-columns: 290px 1fr !important;">
         <!-- PAINEL DE PROPRIEDADES LATERAL (Esquerda) -->
         <aside class="props-panel flex flex-col bg-[#0a100d]/95 border-r border-white/10 shadow-2xl z-10" id="painel-lateral-propriedades" style="width: 290px;">
           <div class="props-panel-header p-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">

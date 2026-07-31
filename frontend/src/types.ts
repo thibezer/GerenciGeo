@@ -16,6 +16,8 @@ export interface Ponto {
   confrontante_id?: number;
   nome_confrontante?: string;
   nome_propriedade?: string;
+  matricula_id?: number;
+  planilha_origem?: string;
 }
 
 export interface Segmento {

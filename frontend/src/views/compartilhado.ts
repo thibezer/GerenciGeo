@@ -399,18 +399,15 @@ const plotMapData = () => {
 };
 
 /**
- * Limpa as camadas de vizinhos e SIGEF WMS para manter o mapa público limpo
+ * Mantém o controle de camadas ativo para o usuário alternar entre Satélite e SIGEF,
+ * mas oculta as opções de camadas desnecessárias (Homologada e Vizinhos).
  */
 const cleanPublicMapLayers = () => {
     if (!mapController?.core?.map) return;
     const map = mapController.core.map;
     const core = mapController.core;
 
-    // Remove camada WMS SIGEF se existir no mapa
-    if (core.sigefLayer && map.hasLayer(core.sigefLayer)) {
-        map.removeLayer(core.sigefLayer);
-    }
-    // Remove grupos de banco de pontos e vizinhos
+    // Remove grupos de banco de pontos e vizinhos do mapa público
     if (core.bancoPontosGroup && map.hasLayer(core.bancoPontosGroup)) {
         map.removeLayer(core.bancoPontosGroup);
     }
@@ -418,18 +415,34 @@ const cleanPublicMapLayers = () => {
         map.removeLayer(core.pontosVizinhosGroup);
     }
 
-    // Oculta/Remove o controle de camadas da direita se presente
+    // Por padrão na abertura, mantém a camada SIGEF desativada para a área abrir limpa
+    if (core.sigefLayer && map.hasLayer(core.sigefLayer)) {
+        map.removeLayer(core.sigefLayer);
+    }
+
+    // Exibe o controle de camadas da direita (Satélite + SIGEF)
     const layerControl = document.querySelector('.leaflet-control-layers');
     if (layerControl) {
-        (layerControl as HTMLElement).style.display = 'none';
+        (layerControl as HTMLElement).style.display = 'block';
     }
+
+    // Oculta do controle apenas as opções "Poligonal Homologada" e "Imóveis Vizinhos"
+    const layerLabels = document.querySelectorAll('.leaflet-control-layers-overlays label');
+    layerLabels.forEach(label => {
+        const text = (label as HTMLElement).innerText || '';
+        if (text.includes('Homologada') || text.includes('Vizinhos')) {
+            (label as HTMLElement).style.display = 'none';
+        } else {
+            (label as HTMLElement).style.display = 'flex';
+        }
+    });
 };
 
 const updateUI = () => {
     if (!currentPublicData) return;
     
     const pNome = document.getElementById('txt-nome-propriedade-publico');
-    if (pNome) pNome.innerHTML = `<i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">${currentPublicData.nome_propriedade || `Levantamento #${currentPublicData.id}`}</span>`;
+    if (pNome) pNome.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4 shrink-0 text-mint-vibrant"></i><span class="truncate">${currentPublicData.nome_propriedade || `Levantamento #${currentPublicData.id}`}</span>`;
     
     const pCli = document.getElementById('txt-nome-cliente-publico');
     if (pCli) {
@@ -444,16 +457,6 @@ const updateUI = () => {
     
     const pMun = document.getElementById('txt-municipio-publico');
     if (pMun) pMun.innerText = `${currentPublicData.municipio || 'N/I'}/${currentPublicData.uf || 'N/I'}`;
-    
-    const selMat = document.getElementById('select-matricula-publico') as HTMLSelectElement;
-    if (selMat) {
-        selMat.innerHTML = '<option value="" class="bg-[#101713] text-white">Todas (Área Total)</option>';
-        if (currentPublicData.matriculas) {
-            currentPublicData.matriculas.forEach((m: any) => {
-                selMat.innerHTML += `<option value="${m.id}" class="bg-[#101713] text-white">Matrícula ${m.numero_matricula || m.num_matricula || m.id}</option>`;
-            });
-        }
-    }
     
     renderTabelas();
     plotMapData();
