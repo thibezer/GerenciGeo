@@ -6,7 +6,7 @@ from services.gestores.cliente_manager import ClienteManager, validar_cpf_cnpj
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
 from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
-from pyproj import Transformer
+
 
 logger = logging.getLogger(__name__)
 

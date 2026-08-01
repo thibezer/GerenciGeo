@@ -5,7 +5,8 @@ import re
 import zipfile
 import shapefile
 from pathlib import Path
-from pyproj import Geod, Transformer
+from pyproj import Geod
+from utils.transformer_cache import get_transformer
 from docx import Document
 from database.connection import execute_query
 from config import EXPORT_BASE_FOLDER
@@ -84,7 +85,7 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
                     ponto_mais_proximo = (0.0, 0.0)
                     
                     # Instancia transformador UTM Zone 22S (EPSG:31982) -> SIRGAS 2000 (EPSG:4674)
-                    transformer = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+                    transformer = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
                     geod = Geod(ellps="GRS80")
                     pontos_lidos = 0
                     

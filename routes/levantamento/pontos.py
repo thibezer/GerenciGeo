@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
@@ -359,7 +359,7 @@ def get_pontos(id: int):
                 try:
                     zona_utm = int((lon_c + 180) / 6) + 1
                     epsg_code = f"319{60 + zona_utm}"
-                    transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
+                    transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
                     e_corr, n_corr = transformer.transform(lon_c, lat_c)
                     p["e_corrigido"] = round(e_corr, 3)
                     p["n_corrigido"] = round(n_corr, 3)
@@ -804,7 +804,7 @@ async def analisar_arquivo_txt_temporario(
         # Converter de UTM para Geodésica Lat/Lon
         crs_geodesica = "epsg:4674"
         crs_plana = f"epsg:319{60 + fuso_utm}"
-        transformer_to_latlon = Transformer.from_crs(crs_plana, crs_geodesica, always_xy=True)
+        transformer_to_latlon = get_transformer(crs_plana, crs_geodesica, always_xy=True)
 
         pontos_convertidos = []
         for p in pontos_brutos:

@@ -1,5 +1,6 @@
+from utils.transformer_cache import get_transformer
 import os
-from pyproj import Transformer
+
 import subprocess
 
 def latlon_to_utm22s(lat, lon):
@@ -8,7 +9,7 @@ def latlon_to_utm22s(lat, lon):
     EPSG:4674 -> EPSG:31982
     """
     # Alterado de epsg:4326 para epsg:4674 para garantir consistência matemática absoluta
-    transformer = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
+    transformer = get_transformer("epsg:4674", "epsg:31982", always_xy=True)
     easting, northing = transformer.transform(float(lon), float(lat))
     return easting, northing
 
@@ -166,7 +167,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
     """
     import math
     import logging
-    from pyproj import Transformer
+
     from database.connection import DatabaseManager, execute_query
     
     logger = logging.getLogger(__name__)
@@ -237,7 +238,7 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
         zona_utm = calcular_zona_utm_segura(lon_referencia)
         epsg_utm = f"319{60 + zona_utm}"  # EPSG para Hemisfério Sul
         
-        transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        transformer = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         
         pontos_planos = []
         for pt in pontos:
@@ -393,7 +394,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     import logging
     from database.connection import execute_query, DatabaseManager
     from services.processamento.historico_campo import HistoricoCampoLogger
-    from pyproj import Transformer
+
     
     logger = logging.getLogger(__name__)
     
@@ -423,7 +424,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         epsg_utm = f"319{60 + zona_utm}"
         
         # B. Converte a coordenada original UTM de campo da Base para Geodésica original
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
         lon_base_orig, lat_base_orig = transformer_to_latlon.transform(base["e_original"], base["n_original"])
         alt_base_orig = base["alt_original"] if base["alt_original"] is not None else 0.0
         
@@ -558,7 +559,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     import logging
     from database.connection import execute_query, DatabaseManager
     from services.processamento.historico_campo import HistoricoCampoLogger
-    from pyproj import Transformer
+
     from services.gestores.workspace_manager import WorkspaceManager
     from services.parsers.txt_parser import TxtGeodesicParser
     
@@ -618,7 +619,7 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     zona_utm = int((longitude_base + 180) / 6) + 1
     epsg_utm = f"319{60 + zona_utm}"
     
-    transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+    transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
     
     # Converte coordenadas brutas de campo (UTM) do ponto selecionado (amarração) para Geodésica original
     lon_base_orig, lat_base_orig = transformer_to_latlon.transform(ponto_sel["e_original"], ponto_sel["n_original"])
@@ -768,7 +769,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     import logging
     from database.connection import execute_query, DatabaseManager
     from services.processamento.historico_campo import HistoricoCampoLogger
-    from pyproj import Transformer
+
     from services.gestores.workspace_manager import WorkspaceManager
     from services.parsers.txt_parser import TxtGeodesicParser
     
@@ -806,7 +807,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
         zona = int(fuso_limpo) if fuso_limpo else 22
         epsg_utm = f"319{60 + zona}"
         
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+        transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
         
         lat_corr_oficial = 0.0
         lon_corr_oficial = 0.0
@@ -820,7 +821,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
             lat_corr_oficial = float(dados_corrigidos["lat_corrigida"])
             lon_corr_oficial = float(dados_corrigidos["lon_corrigida"])
             
-            transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+            transformer_to_utm = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
             e_corr, n_corr = transformer_to_utm.transform(lon_corr_oficial, lat_corr_oficial)
         
         # 2. Dados brutos
@@ -1025,7 +1026,7 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
     """
     import logging
     from database.connection import execute_query, DatabaseManager
-    from pyproj import Transformer
+
     from services.processamento.historico_campo import HistoricoCampoLogger
 
     logger = logging.getLogger(__name__)
@@ -1070,7 +1071,7 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
         except Exception as e_fuso_orf:
             logger.warning(f"[REVERSAO_ORFÃOS] Falha ao recuperar fuso dinâmico para órfãos: {e_fuso_orf}")
 
-        transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_dinamico}", "epsg:4674", always_xy=True)
+        transformer_to_latlon = get_transformer(f"epsg:{epsg_dinamico}", "epsg:4674", always_xy=True)
 
         with DatabaseManager() as conn:
             cursor = conn.cursor()
