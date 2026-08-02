@@ -1,8 +1,8 @@
 import './style.css';
 import './design-engine.css';
+import 'ui-components-kit';
 
-// Componentes globais de UI
-import './components/gg-lista-flutuante/gg-lista-flutuante.ts';
+// Componentes globais de UI são carregados via ui-components-kit
 
 import type { RouteDef } from './types';
 import { initIcons, clearTimeoutsAndIntervals, showToast } from './utils';

@@ -40,10 +40,14 @@ class PontoCreate(BaseModel):
 class MatriculaCreate(BaseModel):
     numero_matricula: str
     ccir: Optional[str] = None
+    codigo_ccir: Optional[str] = None
     itr: Optional[str] = None
-    area_ha: float = 0.0
+    codigo_itr: Optional[str] = None
+    area_ha: Optional[float] = None
+    area_registrada_ha: Optional[float] = None
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None
+    denominacao_gleba: Optional[str] = None
     georreferenciamento: Optional[str] = None
 
 class PayloadAssociarBase(BaseModel):
@@ -188,20 +192,24 @@ def update_matricula(mid: int, m: MatriculaCreate):
         if rows_lev:
             raise HTTPException(status_code=403, detail="Operação bloqueada: A matrícula pertence a um levantamento arquivado (Tranca Read-Only ativa).")
             
+        area = m.area_registrada_ha if m.area_registrada_ha is not None and m.area_registrada_ha > 0 else (m.area_ha or 0.0)
+        ccir_val = m.codigo_ccir or m.ccir
+        itr_val = m.codigo_itr or m.itr
+        denominacao_val = m.denominacao_gleba or m.denominacao
+
         query = """
             UPDATE matriculas 
-            SET numero_matricula = ?, ccir = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?
+            SET numero_matricula = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?
             WHERE id = ?
         """
-        execute_query(query, params=(m.numero_matricula, m.ccir, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento, mid), commit=True)
+        execute_query(query, params=(m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, mid), commit=True)
         
         campos_monitorados = [
             ("numero_matricula", m.numero_matricula, str),
-            ("ccir", m.ccir, str),
-            ("itr", m.itr, str),
-            ("area_ha", m.area_ha, float),
+            ("itr", itr_val, str),
+            ("area_ha", area, float),
             ("valor_itr", m.valor_itr, float),
-            ("denominacao", m.denominacao, str),
+            ("denominacao", denominacao_val, str),
             ("georreferenciamento", m.georreferenciamento, str)
         ]
         

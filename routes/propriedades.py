@@ -33,10 +33,14 @@ class PropriedadeClienteCreate(BaseModel):
 class MatriculaCreate(BaseModel):
     numero_matricula: str
     ccir: Optional[str] = None
+    codigo_ccir: Optional[str] = None
     itr: Optional[str] = None
-    area_ha: float = 0.0
+    codigo_itr: Optional[str] = None
+    area_ha: Optional[float] = None
+    area_registrada_ha: Optional[float] = None
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None
+    denominacao_gleba: Optional[str] = None
     georreferenciamento: Optional[str] = None
 
 # ── Rotas de Propriedades ───────────────────────────────────────────────────────
@@ -252,8 +256,13 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
         if exists:
             raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
             
+        area = m.area_registrada_ha if m.area_registrada_ha is not None and m.area_registrada_ha > 0 else (m.area_ha or 0.0)
+        ccir_val = m.codigo_ccir or m.ccir
+        itr_val = m.codigo_itr or m.itr
+        denominacao_val = m.denominacao_gleba or m.denominacao
+
         query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(prop_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
+        execute_query(query, params=(prop_id, m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento), commit=True)
         return {"message": "Matrícula cadastrada com sucesso na propriedade."}
     except HTTPException:
         raise
@@ -263,6 +272,7 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
 # ── Vínculo de Clientes e Proprietários ──────────────────────────────────────────
 
 @router.post("/propriedades/{prop_id}/clientes")
+@router.post("/propriedades/{prop_id}/proprietarios")
 def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
     verificar_propriedade_arquivada(prop_id)
     res = vincular_cliente_propriedade(prop_id, pc.cliente_id, pc.percentual_participacao)
@@ -271,6 +281,7 @@ def link_cliente_propriedade(prop_id: int, pc: PropriedadeClienteCreate):
     return res
 
 @router.delete("/propriedades/{prop_id}/clientes/{cliente_id}")
+@router.delete("/propriedades/{prop_id}/proprietarios/{cliente_id}")
 def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
     verificar_propriedade_arquivada(prop_id)
     try:

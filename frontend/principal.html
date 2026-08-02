@@ -99,34 +99,25 @@
       <div class="absolute bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-mint-vibrant/5 blur-[100px] rounded-full -z-10"></div>
 
       <!-- Scrollable Container -->
-      <div id="view-container" class="flex-1 overflow-y-auto p-6 min-w-0">
+      <div id="view-container" class="flex-1 overflow-y-auto p-3 sm:p-4 min-w-0">
         <!-- Views will be injected here -->
       </div>
     </main>
 
     <!-- Modal Parcel Details -->
-    <div id="parcel-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center hidden transition-all duration-300" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="glass-card w-full max-w-md p-0 overflow-hidden border-mint-vibrant/20 shadow-2xl">
-        <div class="bg-mint-vibrant/10 px-6 py-4 border-b border-white/10 flex justify-between items-center">
-          <h3 id="modal-title" class="text-lg font-bold flex items-center gap-2 text-white">
-            <i data-lucide="map-icon" class="w-5 h-5 text-mint-vibrant"></i>
-            Detalhes da Parcela
-          </h3>
-          <button class="text-white/40 hover:text-white transition-colors" id="close-modal" aria-label="Fechar Modal">
-            <i data-lucide="x" class="w-5 h-5"></i>
-          </button>
-        </div>
-        <div class="p-6 space-y-6" id="modal-content">
-          <!-- Content injected via JS -->
-        </div>
-        <div class="p-6 pt-0 hidden" id="modal-footer">
-          <a id="sigef-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-primary w-full flex items-center justify-center gap-2 py-3">
-            <i data-lucide="external-link" class="w-4 h-4"></i>
-            VER NO SIGEF COMPLETO
-          </a>
-        </div>
+    <ui-modal id="parcel-modal" titulo="Detalhes da Parcela">
+      <div id="modal-content" class="space-y-4">
+        <!-- Content injected via JS -->
       </div>
-    </div>
+      <div slot="rodape" id="modal-footer" class="w-full hidden">
+        <a id="sigef-link" href="#" target="_blank" rel="noopener noreferrer" class="w-full block">
+          <ui-botao variante="primario" class="w-full">
+            <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+            VER NO SIGEF COMPLETO
+          </ui-botao>
+        </a>
+      </div>
+    </ui-modal>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

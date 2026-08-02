@@ -72,9 +72,11 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 
 ---
 
-## 9. Agrupamento Independente de Vértices em Imóveis Multiperimetrais (`plotPolilinhaTemporaria`)
-- **Problema**: Imóveis rurais contendo múltiplas matrículas, glebas ou ilhas perimetrais apresentavam duas linhas retas indesejadas cortando o mapa de ponta a ponta. Isso ocorria porque a função `plotPolilinhaTemporaria` ordenava todos os vértices do levantamento em um único array sequencial e ligava o último ponto de uma gleba ao primeiro ponto da gleba seguinte, além de criar o fechamento ($P_{last} \to P_1$) conectando a última gleba de volta à primeira.
+## 9. Submissão de Formulários com Web Components (`<ui-botao>` e `<ui-campo-texto>`)
+- **Problema**: 
+  1. Componentes customizados `<ui-botao tipo-submit>` já possuem lógica interna para disparar `form.requestSubmit()`. Adicionar ouvintes extras de `click` e `ui-click` no botão que também chamam `form.requestSubmit()` gera tripla submissão simultânea (executando 3 inserções no backend).
+  2. Incompatibilidade nos nomes dos campos entre frontend (`area_registrada_ha`, `codigo_ccir`, `codigo_itr`, `denominacao_gleba`) e backend (`area_ha`, `ccir`, `itr`, `denominacao`), fazendo com que o Pydantic utilizasse os valores default (0.0/None), salvando os registros zerados no banco de dados.
 - **Regra Obrigatória**:
-  1. Em toda renderização de polilinha temporária de percursos (`plotPolilinhaTemporaria` em [mapa_linhas.ts](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_linhas.ts)), os pontos **devem ser previamente agrupados** pela chave do perímetro (`p.matricula_id` ou `p.planilha_origem`).
-  2. Cada grupo/perímetro deve ser ordenado por `ordem_caminhamento` e ter sua polilinha desenhada e fechada de forma **100% independente**, impedindo a criação de linhas espúrias entre polígonos distintos.
-
+  1. O componente `<ui-botao>` dispara `form.requestSubmit()` automaticamente via atributo `tipo-submit` ou `type="submit"`. Não registre ouvintes manuais de `click` ou `ui-click` chamando `form.requestSubmit()` em botões que já estejam dentro do `<form>`.
+  2. Toda Pydantic model (`MatriculaCreate`) e rotas de banco devem aceitar ambos os nomes de propriedades (tanto os nomes abreviados quanto os completos), e os utilitários de exibição no frontend (`renderMatriculasTabelaHtml`) devem verificar fallbacks (`m.area_registrada_ha ?? m.area_ha`).
+  3. Toda rota REST deve possuir alias quando o frontend invoca caminhos com diferentes nomenclaturas (ex: `@router.post("/propriedades/{id}/clientes")` e `@router.post("/propriedades/{id}/proprietarios")`).
