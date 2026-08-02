@@ -30,3 +30,7 @@
 ## 2024-07-29 - Fixed N+1 queries in homologacao
 **Learning:** In routes/levantamento/homologacao.py, there were N+1 queries during the deletion of `planilhas-homologadas` which recalculated the professional's counter individually per point type (`M`, `P`, `V`) instead of batching. A similar pattern was present when suggesting point codes. Another issue involved looping updates for `ordem_caminhamento` when sanitizing duplicate points in `routes/levantamento/pontos.py` instead of executing a batch update.
 **Action:** Use `IN` clauses for grouping types inside query conditions, aggregate data in memory, and use `executemany` for batch update procedures instead of looping individual `execute` statements.
+
+## 2024-08-02 - pyproj.Transformer caching implemented centrally
+**Learning:** Initializing `pyproj.Transformer.from_crs` is CPU/memory intensive and when placed inside loops (like coordinate transformation for sets of points) creates severe backend performance bottlenecks. Prior codebase contained several repeated calls to this and ad-hoc loop caching.
+**Action:** Created `utils/transformer_cache.py` with `@functools.lru_cache` wrapping `Transformer.from_crs` and refactored all backend code to use this globally. This guarantees memory consistency and massive speed boosts during points manipulation or export loops. Always ensure cache keys are resilient (like handling string vs int for EPSG codes).

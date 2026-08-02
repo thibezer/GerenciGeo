@@ -5,7 +5,7 @@ import sqlite3
 import logging
 import csv
 import pandas as pd
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 from database.connection import execute_query, DatabaseManager
 from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 
@@ -274,8 +274,8 @@ class TxtGeodesicParser:
         crs_geodesica = "epsg:4674"
         crs_plana = f"epsg:{epsg_dinamico}"
 
-        transformer_to_utm = Transformer.from_crs(crs_geodesica, crs_plana, always_xy=True)
-        transformer_to_latlon = Transformer.from_crs(crs_plana, crs_geodesica, always_xy=True)
+        transformer_to_utm = get_transformer(crs_geodesica, crs_plana, always_xy=True)
+        transformer_to_latlon = get_transformer(crs_plana, crs_geodesica, always_xy=True)
 
         # 3. Algoritmo de Translação Computacional Rigorosa Plana UTM (Exclusivo RTK)
         aplicar_translace_plana = False
