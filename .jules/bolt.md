@@ -26,3 +26,7 @@
 **Learning:** Initializing `pyproj.Transformer.from_crs` inside a `for` loop over points causes severe backend processing slowdowns, as creating a transformer involves loading and compiling coordinate reference systems.
 **Action:** Always instantiate `pyproj.Transformer` objects before iterating over points or use a caching dictionary (e.g., `transformers_cache = {}`) inside the loop to reuse instances when dealing with variable EPSG codes based on UTM zones.
 
+
+## 2024-08-02 - pyproj.Transformer caching implemented centrally
+**Learning:** Initializing `pyproj.Transformer.from_crs` is CPU/memory intensive and when placed inside loops (like coordinate transformation for sets of points) creates severe backend performance bottlenecks. Prior codebase contained several repeated calls to this and ad-hoc loop caching.
+**Action:** Created `utils/transformer_cache.py` with `@functools.lru_cache` wrapping `Transformer.from_crs` and refactored all backend code to use this globally. This guarantees memory consistency and massive speed boosts during points manipulation or export loops. Always ensure cache keys are resilient (like handling string vs int for EPSG codes).

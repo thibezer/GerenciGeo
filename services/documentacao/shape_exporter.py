@@ -117,8 +117,8 @@ class ShapefileExporter:
         epsg_utm = 31982
         wkt_prj_dinamico = obter_wkt_epsg_sirgas2000_south(22)
 
-        from pyproj import Transformer
-        transformer_dinamico = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        from utils.transformer_cache import get_transformer
+        transformer_dinamico = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
 
         pontos_processados = []
         coordenadas_utm_poligono = []

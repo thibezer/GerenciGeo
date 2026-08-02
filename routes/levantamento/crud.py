@@ -525,8 +525,8 @@ def get_levantamento_publico(codigo: str):
                 p['ordem_caminhamento'] = idx
                 if (p.get('lat') is None or p.get('lon') is None or p.get('lat') == 0 or p.get('lon') == 0) and (p.get('norte') and p.get('este')):
                     try:
-                        from pyproj import Transformer
-                        tr = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+                        from utils.transformer_cache import get_transformer
+                        tr = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
                         lon_calc, lat_calc = tr.transform(p['este'], p['norte'])
                         p['lon'], p['lat'] = lon_calc, lat_calc
                     except Exception:

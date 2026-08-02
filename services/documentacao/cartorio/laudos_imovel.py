@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 from config import EXPORT_BASE_FOLDER
 from services.documentacao.cartorio.utils import carregar_template, obter_data_extenso, formatar_cpf, formatar_rg
 from services.documentacao.cartorio.data_fetcher import obter_dados_comuns

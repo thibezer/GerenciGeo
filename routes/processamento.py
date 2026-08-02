@@ -12,7 +12,7 @@ import threading
 import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Depends
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 import requests
 
 from config import EXPORT_BASE_FOLDER
@@ -371,7 +371,7 @@ def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):
 
 def processar_arquivos_sigef(vertices_content: str, limites_content: str) -> str:
     wkt_point_re = re.compile(r"POINT\s*\(\s*([\-\d\.]+)\s+([\-\d\.]+)\s*\)", re.IGNORECASE)
-    transformer_utm = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
+    transformer_utm = get_transformer("epsg:4674", "epsg:31982", always_xy=True)
 
     # 1. Parse do arquivo de limites
     limites_reader = csv.reader(io.StringIO(limites_content), delimiter=';')

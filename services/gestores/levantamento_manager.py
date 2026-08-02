@@ -6,7 +6,7 @@ from services.gestores.cliente_manager import ClienteManager, validar_cpf_cnpj
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
 from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic, calcular_zona_utm_segura
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 
 logger = logging.getLogger(__name__)
 
@@ -393,8 +393,8 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             zona_utm = calcular_zona_utm_segura(base["lon"])
             epsg_utm = f"319{60 + zona_utm}"
             
-            transformer_to_utm = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
-            transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+            transformer_to_utm = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+            transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
             
             # Conversão para ECEF requer geodesic_to_ecef / ecef_to_geodesic
             
@@ -458,7 +458,7 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             )
         else:
             zona_utm = 22 # Fallback
-            transformer_to_latlon = Transformer.from_crs(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
+            transformer_to_latlon = get_transformer(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
             e_orig = pt_antigo["e_original"]
             n_orig = pt_antigo["n_original"]
             if e_orig is None or n_orig is None:
@@ -482,7 +482,7 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             )
     else:
         zona_utm = 22 # Fallback
-        transformer_to_latlon = Transformer.from_crs(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
+        transformer_to_latlon = get_transformer(f"epsg:319{60 + zona_utm}", "epsg:4674", always_xy=True)
         e_orig = pt_antigo["e_original"]
         n_orig = pt_antigo["n_original"]
         if e_orig is None or n_orig is None:
@@ -715,7 +715,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
                 epsg_utm = f"319{60 + zona}"
                 
-                transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+                transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
                 lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
                 
                 data["lat"] = lat_val
@@ -728,7 +728,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             # Para pontos de detalhe (P/V): converte UTM → Geodésico e salva lat/lon
             zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
             epsg_utm = f"319{60 + zona}"
-            transformer_to_latlon = Transformer.from_crs(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
+            transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
             lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
             data["lat"] = float(lat_val)
             data["lon"] = float(lon_val)
@@ -1065,7 +1065,7 @@ def gerar_termo_anuencia_html(levantamento_id: int, confrontante_id: int) -> str
     lon0 = segmentos[0]["lon_ini"]
     zona_utm = int((lon0 + 180) / 6) + 1
     
-    transformer = Transformer.from_crs("epsg:4674", f"epsg:319{60 + zona_utm}", always_xy=True)
+    transformer = get_transformer("epsg:4674", f"epsg:319{60 + zona_utm}", always_xy=True)
     
     for s in segmentos:
         e_ini, n_ini = transformer.transform(s["lon_ini"], s["lat_ini"])

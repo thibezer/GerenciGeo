@@ -1,6 +1,6 @@
 import math
 import pyproj
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
 class SigefValidator:
@@ -154,7 +154,7 @@ class SigefValidator:
         zona_utm = calcular_zona_utm_segura(lon0)
         epsg_utm = f"319{60 + zona_utm}"
         
-        transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        transformer = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
         
         # Projetar coordenadas geodésicas para o plano plano-altimétrico UTM
         pontos_plano = []

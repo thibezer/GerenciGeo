@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 from database.connection import execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from utils.logger import tracer
@@ -158,7 +158,7 @@ class ExportacaoService:
         na pasta /Exportacoes do levantamento.
         """
         import math
-        from pyproj import Transformer
+        from utils.transformer_cache import get_transformer
 
         # 1. Recupera todos os pontos cadastrados do levantamento ordenados
         query_pontos = """
@@ -202,7 +202,7 @@ class ExportacaoService:
         epsg_utm = f"319{60 + zona_utm}"  # Família SIRGAS 2000 UTM Sul
 
         # Instancia o conversor geodésico -> plano UTM
-        transformer = Transformer.from_crs("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+        transformer = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
 
         wm = WorkspaceManager()
         folder = wm.get_levantamento_folder(levantamento_id)

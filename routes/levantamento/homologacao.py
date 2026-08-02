@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
-from pyproj import Transformer
+from utils.transformer_cache import get_transformer
 
 from database.connection import DatabaseManager, execute_query
 from routes.deps import verificar_levantamento_arquivado, extrair_nome_confrontante_limpo
@@ -202,8 +202,8 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                 detail="O Responsável Técnico deste levantamento não possui um Código Credenciado cadastrado no INCRA."
             )
             
-        transformer_utm_to_ll = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
-        transformer_ll_to_utm = Transformer.from_crs("epsg:4674", "epsg:31982", always_xy=True)
+        transformer_utm_to_ll = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
+        transformer_ll_to_utm = get_transformer("epsg:4674", "epsg:31982", always_xy=True)
         
         def extract_ponto_from_cells(cell_texts):
             if not cell_texts or len(cell_texts) < 7: return None
@@ -698,7 +698,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
         
         if is_ods:
             # Instancia o transformador UTM Zone 22S (EPSG:31982) -> SIRGAS 2000 (EPSG:4674)
-            transformer = Transformer.from_crs("epsg:31982", "epsg:4674", always_xy=True)
+            transformer = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
             
             try:
                 with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
