@@ -960,7 +960,7 @@ export const propriedadesRoute: RouteDef = {
 
     // --- DETALHES DE PROPRIEDADE ---
     (window as any).abrirDetalhesPropriedade = (id: number) => {
-       const p = todasPropriedades.find(x => x.id === id);
+       const p = todasPropriedades.find(x => String(x.id) === String(id));
        if (!p) return;
 
        propriedadeSelecionadaId = id;
@@ -1014,7 +1014,7 @@ export const propriedadesRoute: RouteDef = {
              // Recarrega propriedade
              const propRes = await fetch(`${API_BASE}/propriedades`);
              todasPropriedades = await propRes.json();
-             const pAtual = todasPropriedades.find(x => x.id === propriedadeSelecionadaId);
+             const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
              configurarExibicaoArquivo(tipo, pAtual ? pAtual[`caminho_arquivo_${tipo}`] : null);
              renderTabela();
           }
@@ -1098,7 +1098,7 @@ export const propriedadesRoute: RouteDef = {
                          showToast("Vínculo removido com sucesso.", "success");
                          const propRes = await fetch(`${API_BASE}/propriedades`);
                          todasPropriedades = await propRes.json();
-                         const pAtual = todasPropriedades.find(x => x.id === propriedadeSelecionadaId);
+                         const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
                          renderProprietariosTabela(pAtual ? pAtual.clientes || [] : []);
                          renderTabela();
                       }
@@ -1174,6 +1174,10 @@ export const propriedadesRoute: RouteDef = {
                 `;
              }
 
+             const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
+             const fallbackCcir = pAtual ? pAtual.codigo_ccir : null;
+             const displayCcir = m.ccir ? escapeHtml(formatarCCIR(m.ccir)) : (fallbackCcir ? escapeHtml(formatarCCIR(fallbackCcir)) : 'N/A');
+
              return `
                 <tr class="hover:bg-white/[0.01] border-b border-white/5 text-xs text-white/80">
                    <td class="px-3 py-2 text-white">
@@ -1182,9 +1186,9 @@ export const propriedadesRoute: RouteDef = {
                    </td>
                    <td class="px-3 py-2 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
                    <td class="px-3 py-2 text-white/60 leading-tight">
-                      <span class="block">CCIR: ${m.ccir ? escapeHtml(formatarCCIR(m.ccir)) : 'N/A'}</span>
+                      <span class="block">CCIR: ${displayCcir}</span>
                       <span class="block">ITR/NIRF: ${escapeHtml(m.itr) || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
-                      <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${escapeHtml(m.georreferenciamento) || 'N/A'}</span>
+                      <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${m.georreferenciamento ? 'Sim' : 'Não'}</span>
                    </td>
                    <td class="px-3 py-2 text-center">${pdfHtml}</td>
                    <td class="px-3 py-2 text-right">
@@ -1257,7 +1261,7 @@ export const propriedadesRoute: RouteDef = {
 
     // --- HISTÓRICO DE AUDITORIA DA MATRÍCULA ---
     (window as any).abrirHistoricoMatricula = async (mid: number) => {
-       const m = matriculasCache.find(x => x.id === mid);
+       const m = matriculasCache.find(x => String(x.id) === String(mid));
        if (!m) return;
 
        const tit = document.getElementById('modal-hist-mat-titulo');
@@ -1315,10 +1319,14 @@ export const propriedadesRoute: RouteDef = {
        document.getElementById('btn-cancelar-edicao-mat')?.classList.add('hidden');
     };
 
-    document.getElementById('btn-cancelar-edicao-mat')?.addEventListener('click', resetaFormularioMatricula);
+    const btnCancel = document.getElementById('btn-cancelar-edicao-mat');
+    if (btnCancel) {
+       btnCancel.removeEventListener('click', resetaFormularioMatricula);
+       btnCancel.addEventListener('click', resetaFormularioMatricula);
+    }
 
     (window as any).abrirEdicaoMatricula = (mid: number) => {
-       const m = matriculasCache.find(x => x.id === mid);
+       const m = matriculasCache.find(x => String(x.id) === String(mid));
        if (!m) return;
 
        matriculaSendoEditadaId = mid;
@@ -1439,7 +1447,7 @@ export const propriedadesRoute: RouteDef = {
              // Recarrega
              const propRes = await fetch(`${API_BASE}/propriedades`);
              todasPropriedades = await propRes.json();
-             const pAtual = todasPropriedades.find(x => x.id === propriedadeSelecionadaId);
+             const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
              renderProprietariosTabela(pAtual ? pAtual.clientes || [] : []);
              renderTabela();
           }
@@ -1484,7 +1492,7 @@ export const propriedadesRoute: RouteDef = {
 
     // --- AÇÕES INDIVIDUAIS DA TABELA ---
     (window as any).abrirEdicaoPropriedade = (id: number) => {
-       const p = todasPropriedades.find(x => x.id === id);
+       const p = todasPropriedades.find(x => String(x.id) === String(id));
        if (!p) return;
 
        propriedadeSelecionadaId = id;
@@ -1511,7 +1519,7 @@ export const propriedadesRoute: RouteDef = {
     };
 
     (window as any).excluirPropriedadeIndividual = async (id: number) => {
-       const p = todasPropriedades.find(x => x.id === id);
+       const p = todasPropriedades.find(x => String(x.id) === String(id));
        if (!p || !(await customConfirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas, levantamentos e vínculos correspondentes de forma definitiva.`))) return;
 
        try {
@@ -1571,7 +1579,7 @@ export const propriedadesRoute: RouteDef = {
                 const propRes = await fetch(`${API_BASE}/propriedades`);
                 todasPropriedades = await propRes.json();
                 
-                const pAtual = todasPropriedades.find(x => x.id === propriedadeSelecionadaId);
+                const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
                 configurarExibicaoArquivo(tipo, pAtual ? pAtual[`caminho_arquivo_${tipo}`] : null);
              }
           } catch (err) {
