@@ -1,6 +1,4 @@
-import os
 import logging
-from config import EXPORT_BASE_FOLDER
 from services.documentacao.cartorio.utils import carregar_template, obter_data_extenso, formatar_cpf, formatar_rg
 from services.documentacao.cartorio.data_fetcher import obter_dados_comuns, gerar_tabela_divisas_html
 from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
@@ -280,7 +278,7 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
             return "", {}
             
         lon_medio = sum(lons) / len(lons)
-        zona_utm = int((lon_medio + 180) / 6) + 1
+        zona_utm = calcular_zona_utm_segura(lon_medio)
         
         pts_coords = {pt["id"]: (pt["_lat"], pt["_lon"], pt["nome_vertice"]) for pt in pts_validos}
         

@@ -20,7 +20,7 @@ class TestDeclaracaoDesmembramento(unittest.TestCase):
             cursor = conn.cursor()
 
             # Limpar dados residuais do teste se existirem
-            cursor.execute("DELETE FROM pessoas WHERE cpf_cnpj = '99988877766'")
+            cursor.execute("DELETE FROM pessoas WHERE cpf_cnpj IN ('99988877766', '11122233344')")
 
             # Criar profissional de teste
             cursor.execute("""
