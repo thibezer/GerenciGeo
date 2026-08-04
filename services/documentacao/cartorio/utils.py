@@ -53,3 +53,56 @@ def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon) -> tuple[st
     except Exception as e:
         logger.warning(f"Erro ao calcular azimute/distância geodésica do segmento: {e}")
         return "-", "-"
+
+
+def carregar_template(nome_arquivo: str) -> str:
+    """Carrega o conteúdo de um template HTML a partir da pasta templates.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    caminho = os.path.join(base_dir, "templates", nome_arquivo)
+    try:
+        with open(caminho, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        logger.error(f"Template not found: {caminho}")
+        raise
+
+
+def obter_data_extenso() -> str:
+    """Retorna a data atual por extenso, por exemplo '4 de agosto de 2026'."""
+    from datetime import datetime
+    meses = {
+        1: "janeiro",
+        2: "fevereiro",
+        3: "março",
+        4: "abril",
+        5: "maio",
+        6: "junho",
+        7: "julho",
+        8: "agosto",
+        9: "setembro",
+        10: "outubro",
+        11: "novembro",
+        12: "dezembro",
+    }
+    agora = datetime.now()
+    return f"{agora.day} de {meses[agora.month]} de {agora.year}"
+
+
+def formatar_cpf(valor) -> str:
+    """Aplica a máscara ###.###.###-## em números puros de CPF ou CNPJ."""
+    if not valor:
+        return ""
+    nums = "".join(filter(str.isdigit, str(valor)))
+    if len(nums) == 11:
+        return f"{nums[:3]}.{nums[3:6]}.{nums[6:9]}-{nums[9:]}"
+    elif len(nums) == 14:
+        return f"{nums[:2]}.{nums[2:5]}.{nums[5:8]}/{nums[8:12]}-{nums[12:]}"
+    return str(valor)
+
+
+def formatar_rg(valor) -> str:
+    """Formata e limpa o campo de RG/Inscrição Estadual."""
+    if not valor:
+        return ""
+    return str(valor).strip()
