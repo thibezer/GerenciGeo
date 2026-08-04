@@ -1075,6 +1075,8 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
 
+            update_data = []
+
             for r in rovers:
                 if not r["e_original"] or not r["n_original"]:
                     continue
@@ -1107,20 +1109,12 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
                     else:
                         novo_tipo = "P"
 
-                cursor.execute(
-                    """
-                    UPDATE pontos
-                    SET lat = ?, lon = ?, alt = ?,
-                        lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
-                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                        status_ponto = 'BRUTO', status_correcao = 'BRUTO',
-                        ponto_base_id = NULL, tipo_ponto = ?
-                    WHERE id = ?
-                    """,
-                    (lat_bruta, lon_bruta, alt_bruta,
-                     sig_lat, sig_lon, sig_alt,
-                     novo_tipo, r["id"])
-                )
+                update_data.append((
+                    lat_bruta, lon_bruta, alt_bruta,
+                    sig_lat, sig_lon, sig_alt,
+                    novo_tipo, r["id"]
+                ))
+
                 total_revertidos += 1
                 detalhamento_logs.append({
                     "id": r["id"],
@@ -1131,7 +1125,22 @@ def reverter_rovers_para_bruto(levantamento_id: int, base_id: int) -> int:
                     "lon_bruta": lon_bruta
                 })
 
-            conn.commit()
+            if update_data:
+                # ⚡ Bolt Optimization: Batches the UPDATE statements using executemany
+                # to prevent N+1 query bottlenecks during mass operations.
+                cursor.executemany(
+                    """
+                    UPDATE pontos
+                    SET lat = ?, lon = ?, alt = ?,
+                        lat_corrigido = NULL, lon_corrigido = NULL, alt_corrigido = NULL,
+                        sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
+                        status_ponto = 'BRUTO', status_correcao = 'BRUTO',
+                        ponto_base_id = NULL, tipo_ponto = ?
+                    WHERE id = ?
+                    """,
+                    update_data
+                )
+                conn.commit()
 
         # Registrar no histórico de campo
         desc_auditoria = f"Reversão para BRUTO executada com sucesso. {total_revertidos} rovers órfãos da base ID={base_id} perderam o vínculo de correção."
