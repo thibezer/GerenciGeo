@@ -29,9 +29,17 @@ class CartorioReportGenerator:
         return gerar_js_inicializacao_mapas(lista_mapas_data)
 
     @staticmethod
-    def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_id: int, apenas_corpo: bool = False) -> str:
+    def gerar_declaracao_anuencia_html(
+        lev_id: int, 
+        matricula_id: int, 
+        confrontante_id: int, 
+        apenas_corpo: bool = False, 
+        dados_comuns: dict = None, 
+        retornar_map_data: bool = False
+    ) -> str | tuple[str, dict]:
         from services.documentacao.cartorio.anuencias import gerar_declaracao_anuencia_html
-        return gerar_declaracao_anuencia_html(lev_id, matricula_id, confrontante_id, apenas_corpo)
+        return gerar_declaracao_anuencia_html(lev_id, matricula_id, confrontante_id, apenas_corpo, dados_comuns, retornar_map_data)
+
 
     @staticmethod
     def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:

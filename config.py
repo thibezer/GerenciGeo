@@ -27,8 +27,13 @@ IBGE_SIGEF_LIMITES = {
     'inacessivel': 7.50
 }
 
+# Dados Institucionais da Empresa
+EMPRESA_NOME_FANTASIA = "COMPLETA"
+EMPRESA_RAZAO_SOCIAL = "Agrimensura e Projetos Agropecuários LTDA"
+
 # ── Arquitetura Edge-First v2.4 ──────────────────────────────────────────────
 RUNNING_LOCAL = True  # Setado como False exclusivamente no servidor da Hostinger
 CLOUD_SYNC_URL = "https://gerencigeo-seu-site.com.br/api/v1/sync/imovel"
 CLOUD_API_KEY = "G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C"
+
 

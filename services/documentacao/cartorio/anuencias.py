@@ -7,18 +7,25 @@ from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
 logger = logging.getLogger(__name__)
 
-def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_id: int, apenas_corpo: bool = False) -> str:
-    dados = obter_dados_comuns(lev_id, matricula_id)
+def gerar_declaracao_anuencia_html(
+    lev_id: int, 
+    matricula_id: int, 
+    confrontante_id: int, 
+    apenas_corpo: bool = False, 
+    dados_comuns: dict = None, 
+    retornar_map_data: bool = False
+) -> str | tuple[str, dict]:
+    dados = dados_comuns if dados_comuns is not None else obter_dados_comuns(lev_id, matricula_id)
     nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
     proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
     proprietarios_str = " e ".join(proprietarios_list)
     
     # Dados do Profissional para a Cláusula de Homologação
-    nome_prof = dados["lev"]["nome_profissional"]
-    registro_prof = dados["lev"]["registro_profissional"]
-    conselho_prof = dados["lev"]["conselho_profissional"] or "CFTA"
-    credencial_incra = dados["lev"]["codigo_credenciado"] or "Não Informado"
+    nome_prof = dados["lev"].get("nome_profissional") or "Não Informado"
+    registro_prof = dados["lev"].get("registro_profissional") or "Não Informado"
+    conselho_prof = dados["lev"].get("conselho_profissional") or "CFTA"
+    credencial_incra = dados["lev"].get("codigo_credenciado") or "Não Informado"
     final_trt = dados["lev"].get("lev_numero_trt") or "____________________"
 
     row_conf = execute_query(
@@ -115,36 +122,50 @@ def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_
 
     html_content = carregar_template("declaracao_anuencia.html")
 
-    # Substituições lineares por .replace() para proteger as chaves do Tailwind CSS
-    html_content = html_content.replace("{c_nome}", c_nome)
-    html_content = html_content.replace("{municipio}", dados["prop"]["municipio"])
-    html_content = html_content.replace("{data_extenso}", data_extenso)
-    html_content = html_content.replace("{qualificacao_confrontante}", qualificacao_confrontante)
-    html_content = html_content.replace("{c_matricula}", c_matricula)
-    html_content = html_content.replace("{nome_lote}", nome_lote)
-    html_content = html_content.replace("{proprietarios_str}", proprietarios_str)
-    html_content = html_content.replace("{numero_matricula}", dados["mat"]["numero_matricula"])
-    html_content = html_content.replace("{comarca}", comarca)
-    html_content = html_content.replace("{tabela_divisas_html}", tabela_divisas_html)
-    html_content = html_content.replace("{mapa_divisa_leaflet}", mapa_divisa_leaflet)
-    html_content = html_content.replace("{script_inicializacao_mapas}", script_inicializacao_mapas)
-    html_content = html_content.replace("{bloco_assinaturas}", bloco_assinaturas)
-    
-    # Injeção das chaves do Responsável Técnico
-    html_content = html_content.replace("{nome_profissional}", nome_prof)
-    html_content = html_content.replace("{conselho_profissional}", conselho_prof)
-    html_content = html_content.replace("{registro_profissional}", registro_prof)
-    html_content = html_content.replace("{credencial_incra}", credencial_incra)
-    html_content = html_content.replace("{final_trt}", final_trt)
+    # Substituições lineares por .replace() com proteção contra valores None
+    replacements = {
+        "{c_nome}": str(c_nome or ""),
+        "{municipio}": str(dados["prop"].get("municipio") or ""),
+        "{data_extenso}": str(data_extenso or ""),
+        "{qualificacao_confrontante}": str(qualificacao_confrontante or ""),
+        "{c_matricula}": str(c_matricula or ""),
+        "{nome_lote}": str(nome_lote or ""),
+        "{proprietarios_str}": str(proprietarios_str or ""),
+        "{numero_matricula}": str(dados["mat"].get("numero_matricula") or ""),
+        "{comarca}": str(comarca or ""),
+        "{tabela_divisas_html}": str(tabela_divisas_html or ""),
+        "{mapa_divisa_leaflet}": str(mapa_divisa_leaflet or ""),
+        "{script_inicializacao_mapas}": str(script_inicializacao_mapas or ""),
+        "{bloco_assinaturas}": str(bloco_assinaturas or ""),
+        "{nome_profissional}": str(nome_prof or ""),
+        "{conselho_profissional}": str(conselho_prof or ""),
+        "{registro_profissional}": str(registro_prof or ""),
+        "{credencial_incra}": str(credencial_incra or ""),
+        "{final_trt}": str(final_trt or "")
+    }
 
+    for key, val in replacements.items():
+        html_content = html_content.replace(key, val)
+
+    res_html = html_content
     if apenas_corpo:
         import re
-        match = re.search(r'(<!-- FOLHA A4.*?<!-- FIM DE FOLHAS CONSOLIDADAS -->)', html_content, re.DOTALL)
+        match = re.search(r'(<!-- INICIO CORPO CONSOLIDADO -->.*?<!-- FIM CORPO CONSOLIDADO -->)', html_content, re.DOTALL)
         if match:
-            return match.group(1)
-        return html_content
+            res_html = match.group(1)
+        else:
+            # Fallback robusto se os marcadores dedicados não forem encontrados
+            match_fallback = re.search(r'(<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->.*)', html_content, re.DOTALL)
+            if match_fallback:
+                corpo_html = match_fallback.group(1)
+                corpo_html = re.sub(r'<!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->.*', '', corpo_html, flags=re.DOTALL)
+                corpo_html = re.sub(r'<script.*', '', corpo_html, flags=re.DOTALL)
+                corpo_html = re.sub(r'</body>.*', '', corpo_html, flags=re.DOTALL)
+                res_html = corpo_html.strip()
 
-    return html_content
+    if retornar_map_data:
+        return res_html, map_data
+    return res_html
 
 def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:
     if confrontantes_ids:
@@ -164,7 +185,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
         raise ValueError("Nenhum confrontante com limites definidos encontrado para esta matrícula.")
         
     dados = obter_dados_comuns(lev_id, matricula_id)
-    num_mat = dados["mat"]["numero_matricula"] or "SEM_MATRICULA"
+    num_mat = dados["mat"].get("numero_matricula") or "SEM_MATRICULA"
     
     template_base = carregar_template("declaracao_anuencia.html")
     
@@ -172,23 +193,12 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     lista_mapas_data = []
     for c_id in ids:
         try:
-            corpo = gerar_declaracao_anuencia_html(lev_id, matricula_id, c_id, apenas_corpo=True)
+            corpo, map_data = gerar_declaracao_anuencia_html(
+                lev_id, matricula_id, c_id, apenas_corpo=True, dados_comuns=dados, retornar_map_data=True
+            )
             corpos_paginas.append(corpo)
-            
-            # Resgata metadados para construir mapa Leaflet correspondente
-            query_c = """
-                SELECT p.nome, c.matricula_imovel 
-                FROM confrontantes c
-                JOIN pessoas p ON c.pessoa_id = p.id
-                WHERE c.id = ?
-            """
-            row_conf = execute_query(query_c, params=(c_id,), fetch_one=True)
-            if row_conf:
-                c_nome = row_conf["nome"] or ""
-                c_mat = row_conf["matricula_imovel"] or ""
-                _, map_data = gerar_anexo_grafico_html(lev_id, matricula_id, c_id, c_nome, c_mat)
-                if map_data:
-                    lista_mapas_data.append(map_data)
+            if map_data:
+                lista_mapas_data.append(map_data)
         except Exception as e:
             logger.warning(f"Ignorado confrontante {c_id} no lote de anuências devido a erro: {e}")
             
@@ -228,7 +238,11 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     template_base = re.sub(r'<!-- BARRA_ACOES_INICIO -->.*?<!-- BARRA_ACOES_FIM -->', barra_lote_html, template_base, flags=re.DOTALL)
     template_base = template_base.replace("{numero_matricula}", num_mat)
     
-    idx_corpo_ini = template_base.find("<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->")
+    idx_corpo_ini = template_base.find("<!-- INICIO CORPO CONSOLIDADO -->")
+    if idx_corpo_ini == -1:
+        idx_corpo_ini = template_base.find("<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->")
+    if idx_corpo_ini == -1:
+        idx_corpo_ini = template_base.find("<div\n        class=\"page")
     if idx_corpo_ini == -1:
         idx_corpo_ini = template_base.find("<div\n        class=\"page")
         
@@ -401,5 +415,6 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
         
         return html, map_data
     except Exception as e:
+        logger.warning(f"Falha ao gerar anexo gráfico para confrontante {confrontante_id}: {e}")
         return "", {}
 
