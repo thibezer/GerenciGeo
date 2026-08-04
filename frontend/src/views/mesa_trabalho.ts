@@ -227,33 +227,47 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.pontosVizinhosList = Array.isArray(vizData) ? vizData : [];
 
         ctx.carregarConfrontantesAtivosSelect();
-        const dropdownMat = document.getElementById('select-matricula-ribbon') as any;
+        const dropdownMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
         if (dropdownMat) {
           const formatAreaHa = (val: any) => {
             const num = parseFloat(val);
             return isNaN(num) ? '0.00' : num.toFixed(2);
           };
 
-          const itensMat = ctx.matriculasList.length === 0
-            ? [{ id: '', label: '[Sem Matrícula]' }]
-            : ctx.matriculasList.map((m: any) => ({
-                id: m.id.toString(),
-                label: `${m.numero_matricula || m.num_matricula || m.id} (${formatAreaHa(m.area_ha || m.area)}ha)`
-              }));
-          dropdownMat.itens = itensMat;
+          dropdownMat.innerHTML = ctx.matriculasList.length === 0
+            ? `<option value="" class="bg-[#0c1510]">[Sem Matrícula]</option>`
+            : ctx.matriculasList.map((m: any) => `
+                <option value="${m.id}" class="bg-[#0c1510]" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
+                  Matrícula ${m.numero_matricula || m.num_matricula || m.id} (${formatAreaHa(m.area_ha || m.area)}ha)
+                </option>
+              `).join('');
+
           if (ctx.currentMatriculaId) {
             dropdownMat.value = ctx.currentMatriculaId.toString();
           }
 
-          if (!dropdownMat._hasChangeListener) {
-            dropdownMat._hasChangeListener = true;
-            dropdownMat.addEventListener('gg-selecionar', (e: CustomEvent) => {
-              const mId = parseInt(e.detail?.id || '0');
+          if (!dropdownMat.getAttribute('data-has-listener')) {
+            dropdownMat.setAttribute('data-has-listener', 'true');
+            dropdownMat.addEventListener('change', (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              const mId = parseInt(target.value || '0');
               if (mId && typeof ctx.switchMatriculaTab === 'function') {
                 ctx.switchMatriculaTab(mId);
               }
             });
           }
+        }
+
+        const dropdownFuso = document.getElementById('select-fuso-ribbon') as HTMLSelectElement;
+        if (dropdownFuso && !dropdownFuso.getAttribute('data-has-listener')) {
+          dropdownFuso.setAttribute('data-has-listener', 'true');
+          dropdownFuso.addEventListener('change', (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            const fusoVal = parseInt(target.value || '22');
+            if (ctx.mapaController) {
+              ctx.mapaController.fusoUtm = fusoVal;
+            }
+          });
         }
 
         inicializarMapOnce();

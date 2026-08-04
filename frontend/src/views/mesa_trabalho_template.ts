@@ -63,10 +63,18 @@ export const renderMesaTrabalho = (): string => {
           </div>
           <div class="rl1-spacer"></div>
           <div class="rl1-context">
-            <label class="rl1-select-label">Fuso</label>
-            <gg-lista-flutuante id="select-fuso-ribbon" class="rl1-select" texto-padrao="22S" value="22"></gg-lista-flutuante>
-            <label class="rl1-select-label">Matrícula</label>
-            <gg-lista-flutuante id="select-matricula-ribbon" class="rl1-select" texto-padrao="Selecione..." style="min-width:140px"></gg-lista-flutuante>
+            <label class="rl1-select-label" for="select-fuso-ribbon">Fuso</label>
+            <select id="select-fuso-ribbon" class="rl1-select bg-[#0c1510] text-white" title="Fuso UTM">
+              <option value="21" class="bg-[#0c1510]">21S</option>
+              <option value="22" class="bg-[#0c1510]" selected>22S</option>
+              <option value="23" class="bg-[#0c1510]">23S</option>
+              <option value="24" class="bg-[#0c1510]">24S</option>
+              <option value="25" class="bg-[#0c1510]">25S</option>
+            </select>
+            <label class="rl1-select-label" for="select-matricula-ribbon">Matrícula</label>
+            <select id="select-matricula-ribbon" class="rl1-select bg-[#0c1510] text-white" style="min-width:140px" title="Matrícula Ativa">
+              <option value="" class="bg-[#0c1510]">Selecione...</option>
+            </select>
           </div>
           <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
           <div class="rl1-user">
@@ -643,7 +651,7 @@ export const renderMesaTrabalho = (): string => {
                  </div>
 
                  <!-- Grid de Botões de Emissão -->
-                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                    <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-req-cartorio" type="button">
                      <i data-lucide="file-edit" class="w-4 h-4 text-mint-vibrant"></i>
                      Requerimento de Retificação
@@ -664,7 +672,11 @@ export const renderMesaTrabalho = (): string => {
                      <i data-lucide="book-open" class="w-4 h-4 text-mint-vibrant"></i>
                      Manual Proprietário
                    </button>
-                   <div class="flex gap-2">
+                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-anuencia-desmembramento" type="button">
+                     <i data-lucide="scissors" class="w-4 h-4 text-mint-vibrant"></i>
+                     Anuência Desmembramento
+                   </button>
+                   <div class="flex gap-2 sm:col-span-2 lg:col-span-1">
                      <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 text-xs text-white focus:outline-none transition-all font-medium">
                        <option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>
                      </select>

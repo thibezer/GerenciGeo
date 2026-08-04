@@ -47,3 +47,9 @@ class CartorioReportGenerator:
     def gerar_manual_proprietario_html(lev_id: int, matricula_id: int) -> str:
         from services.documentacao.cartorio.laudos_imovel import gerar_manual_proprietario_html
         return gerar_manual_proprietario_html(lev_id, matricula_id)
+
+    @staticmethod
+    def gerar_declaracao_anuencia_desmembramento_html(lev_id: int, matricula_id: int, codigo_cns: str = None, qtd_parcelas: int = 3) -> str:
+        from services.documentacao.cartorio.laudos_imovel import gerar_declaracao_anuencia_desmembramento_html
+        return gerar_declaracao_anuencia_desmembramento_html(lev_id, matricula_id, codigo_cns, qtd_parcelas)
+

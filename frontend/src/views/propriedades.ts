@@ -1,30 +1,7 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
-import { renderPropriedadesTemplate } from './propriedades/propriedades_template';
-import {
-   fetchTodasPropriedades,
-   fetchTodosClientesList,
-   salvarPropriedade as apiSalvarPropriedade,
-   excluirPropriedadeIndividual as apiExcluirPropriedade,
-   excluirPropriedadesEmLote as apiExcluirLotePropriedades,
-   vincularProprietario as apiVincularProprietario,
-   removerProprietario as apiRemoverProprietario,
-   uploadAnexoDocumento,
-   deletarAnexoDocumento,
-   fetchMatriculasPropriedade,
-   salvarMatricula as apiSalvarMatricula,
-   excluirMatriculaService,
-   fetchMatriculaHistorico
-} from './propriedades/propriedades_service';
-import {
-   aplicarMascaraCCIRMat,
-   aplicarMascaraITRMat,
-   aplicarMascaraUUIDMat,
-   renderLinhasPropriedadesHtml,
-   renderProprietariosTabelaHtml,
-   renderMatriculasTabelaHtml
-} from './propriedades/propriedades_helpers';
+
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
 

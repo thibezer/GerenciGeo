@@ -141,6 +141,120 @@ def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_
     if apenas_corpo:
         import re
         match = re.search(r'(<!-- FOLHA A4.*?<!-- FIM DE FOLHAS CONSOLIDADAS -->)', html_content, re.DOTALL)
+        if match:
+            return match.group(1)
+        return html_content
+
+    return html_content
+
+@staticmethod
+
+def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:
+    if confrontantes_ids:
+        try:
+            ids = [int(x.strip()) for x in confrontantes_ids.split(",") if x.strip().isdigit()]
+        except Exception:
+            raise ValueError("Lista de confrontantes_ids em formato inválido.")
+    else:
+        rows = execute_query(
+            "SELECT DISTINCT confrontante_id FROM segmentos WHERE matricula_id = ? AND confrontante_id IS NOT NULL",
+            params=(matricula_id,),
+            fetch_all=True
+        )
+        ids = [r["confrontante_id"] for r in rows]
+        
+    if not ids:
+        raise ValueError("Nenhum confrontante com limites definidos encontrado para esta matrícula.")
+        
+    dados = obter_dados_comuns(lev_id, matricula_id)
+    num_mat = dados["mat"]["numero_matricula"] or "SEM_MATRICULA"
+    
+    template_base = carregar_template("declaracao_anuencia.html")
+    
+    corpos_paginas = []
+    lista_mapas_data = []
+    for c_id in ids:
+        try:
+            corpo = CartorioReportGenerator.gerar_declaracao_anuencia_html(lev_id, matricula_id, c_id, apenas_corpo=True)
+            corpos_paginas.append(corpo)
+            
+            # Resgata metadados para construir mapa Leaflet correspondente
+            query_c = """
+                SELECT p.nome, c.matricula_imovel 
+                FROM confrontantes c
+                JOIN pessoas p ON c.pessoa_id = p.id
+                WHERE c.id = ?
+            """
+            row_conf = execute_query(query_c, params=(c_id,), fetch_one=True)
+            if row_conf:
+                c_nome = row_conf["nome"] or ""
+                c_mat = row_conf["matricula_imovel"] or ""
+                _, map_data = CartorioReportGenerator.gerar_anexo_grafico_html(lev_id, matricula_id, c_id, c_nome, c_mat)
+                if map_data:
+                    lista_mapas_data.append(map_data)
+        except Exception as e:
+            logger.warning(f"Ignorado confrontante {c_id} no lote de anuências devido a erro: {e}")
+            
+    if not corpos_paginas:
+        raise ValueError("Não foi possível gerar nenhuma anuência para as confrontações indicadas.")
+        
+    # Ajusta título e barra de ações
+    template_base = template_base.replace(
+        "<title>Declaração de Anuência do Confrontante - {c_nome}</title>",
+        f"<title>Lote de Anuências - Matrícula {num_mat}</title>"
+    )
+    
+    barra_lote_html = """<!-- BARRA_ACOES_INICIO -->
+<div
+    class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+    <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+            </svg>
+        </div>
+        <div>
+            <h4 class="text-sm font-bold text-white uppercase tracking-wider">Lote de Anuências do Confrontante</h4>
+            <p class="text-[10px] text-white/40 mt-0.5">Múltiplos Termos de Respeito de Divisas (Matrícula {numero_matricula})</p>
+        </div>
+    </div>
+    <button onclick="window.print()"
+        class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+        Imprimir Todos em Lote
+    </button>
+</div>
+<!-- BARRA_ACOES_FIM -->"""
+    
+    import re
+    template_base = re.sub(r'<!-- BARRA_ACOES_INICIO -->.*?<!-- BARRA_ACOES_FIM -->', barra_lote_html, template_base, flags=re.DOTALL)
+    template_base = template_base.replace("{numero_matricula}", num_mat)
+    
+    idx_corpo_ini = template_base.find("<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->")
+    if idx_corpo_ini == -1:
+        idx_corpo_ini = template_base.find("<div\n        class=\"page")
+        
+    header_html = template_base[:idx_corpo_ini]
+    lote_corpos = "\n    <!-- FIM DE FOLHA / QUEBRA DE PÁGINA -->\n".join(corpos_paginas)
+    
+    # Gerar o JS de inicialização de todos os mapas consolidado
+    script_inicializacao_mapas = ""
+    if lista_mapas_data:
+        script_inicializacao_mapas = CartorioReportGenerator.gerar_js_inicializacao_mapas(lista_mapas_data)
+        
+    footer_html = f"\n{script_inicializacao_mapas}\n</body>\n</html>"
+    
+    return header_html + lote_corpos + footer_html
+    
+@staticmethod
+
+def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: int, c_nome: str, c_matricula: str) -> tuple[str, dict]:
+    """Gera o HTML da Página 2 (Anexo Gráfico) e os dados de coordenadas do Leaflet"""
+    try:
+        # 1. Carregar todos os pontos da matrícula
+        todos_pontos = execute_query(
+            """
             SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono
             FROM pontos
             WHERE levantamento_id = ? AND matricula_id = ?
@@ -292,8 +406,5 @@ def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_
         
         return html, map_data
     except Exception as e:
-        logger.error(f"Erro ao gerar anexo gráfico da confrontação: {e}", exc_info=True)
         return "", {}
-
-@staticmethod
 

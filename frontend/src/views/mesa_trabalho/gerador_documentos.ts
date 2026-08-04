@@ -653,6 +653,23 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
     
+    const btnAnuenciaDesmembramento = document.getElementById('btn-emitir-anuencia-desmembramento');
+    if (btnAnuenciaDesmembramento) {
+      btnAnuenciaDesmembramento.onclick = () => {
+        if (!ctx.currentMatriculaId) return;
+        const cnsVal = prompt("Informe o Código CNS do Cartório de Registro de Imóveis (opcional):", "");
+        if (cnsVal === null) return;
+        const qtdVal = prompt("Informe a quantidade de novas parcelas resultantes do desmembramento:", "3");
+        if (qtdVal === null) return;
+        
+        let url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/declaracao-anuencia-desmembramento-html?qtd_parcelas=${encodeURIComponent(qtdVal || "3")}`;
+        if (cnsVal.trim()) {
+          url += `&codigo_cns=${encodeURIComponent(cnsVal.trim())}`;
+        }
+        window.open(url, '_blank');
+      };
+    }
+
     const btnAnuencia = document.getElementById('btn-emitir-anuencia');
     if (btnAnuencia) {
       btnAnuencia.onclick = () => {

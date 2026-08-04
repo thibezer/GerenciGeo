@@ -165,7 +165,8 @@ export const renderClientesTemplate = (): string => `
              <div class="grid grid-cols-2 gap-3 items-end">
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Estado Civil</label>
-                   <ui-select name="estado_civil">
+                   <ui-select name="estado_civil" texto-padrao="Selecione o Estado Civil...">
+                      <option value="">Não informado / Solteiro(a)</option>
                       <option value="Solteiro(a)">Solteiro(a)</option>
                       <option value="Casado(a)">Casado(a)</option>
                       <option value="Divorciado(a)">Divorciado(a)</option>

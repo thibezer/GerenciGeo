@@ -252,3 +252,5 @@ export const escapeHtml = (unsafe: string | null | undefined): string => {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 };
+
+

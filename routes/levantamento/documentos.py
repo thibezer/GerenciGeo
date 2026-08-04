@@ -355,6 +355,24 @@ def get_manual_proprietario_html(id: int, matricula_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-anuencia-desmembramento-html", response_class=HTMLResponse)
+def get_declaracao_anuencia_desmembramento_html(id: int, matricula_id: int, codigo_cns: Optional[str] = Query(None), qtd_parcelas: int = Query(3)):
+    """Gera a Declaração de Anuência para Desmembramento de Parcela Certificada em HTML estruturado"""
+    try:
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
+        html = CartorioReportGenerator.gerar_declaracao_anuencia_desmembramento_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            codigo_cns=codigo_cns,
+            qtd_parcelas=qtd_parcelas
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: int):
     try:
