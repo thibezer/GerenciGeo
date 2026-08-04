@@ -3,6 +3,7 @@ import logging
 from config import EXPORT_BASE_FOLDER
 from services.documentacao.cartorio.utils import carregar_template, obter_data_extenso, formatar_cpf, formatar_rg
 from services.documentacao.cartorio.data_fetcher import obter_dados_comuns, gerar_tabela_divisas_html
+from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
 from database.connection import execute_query
 from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
@@ -106,13 +107,13 @@ def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_
     data_extenso = obter_data_extenso()
 
     # Gerar o anexo gráfico (Página 2) e mapa Leaflet
-    mapa_divisa_leaflet, map_data = CartorioReportGenerator.gerar_anexo_grafico_html(
+    mapa_divisa_leaflet, map_data = gerar_anexo_grafico_html(
         lev_id, matricula_id, confrontante_id, c_nome, c_matricula
     )
     
     script_inicializacao_mapas = ""
     if map_data:
-        script_inicializacao_mapas = CartorioReportGenerator.gerar_js_inicializacao_mapas([map_data])
+        script_inicializacao_mapas = gerar_js_inicializacao_mapas([map_data])
 
     html_content = carregar_template("declaracao_anuencia.html")
 
@@ -147,8 +148,6 @@ def gerar_declaracao_anuencia_html(lev_id: int, matricula_id: int, confrontante_
 
     return html_content
 
-@staticmethod
-
 def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:
     if confrontantes_ids:
         try:
@@ -175,7 +174,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     lista_mapas_data = []
     for c_id in ids:
         try:
-            corpo = CartorioReportGenerator.gerar_declaracao_anuencia_html(lev_id, matricula_id, c_id, apenas_corpo=True)
+            corpo = gerar_declaracao_anuencia_html(lev_id, matricula_id, c_id, apenas_corpo=True)
             corpos_paginas.append(corpo)
             
             # Resgata metadados para construir mapa Leaflet correspondente
@@ -189,7 +188,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
             if row_conf:
                 c_nome = row_conf["nome"] or ""
                 c_mat = row_conf["matricula_imovel"] or ""
-                _, map_data = CartorioReportGenerator.gerar_anexo_grafico_html(lev_id, matricula_id, c_id, c_nome, c_mat)
+                _, map_data = gerar_anexo_grafico_html(lev_id, matricula_id, c_id, c_nome, c_mat)
                 if map_data:
                     lista_mapas_data.append(map_data)
         except Exception as e:
@@ -241,13 +240,11 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     # Gerar o JS de inicialização de todos os mapas consolidado
     script_inicializacao_mapas = ""
     if lista_mapas_data:
-        script_inicializacao_mapas = CartorioReportGenerator.gerar_js_inicializacao_mapas(lista_mapas_data)
+        script_inicializacao_mapas = gerar_js_inicializacao_mapas(lista_mapas_data)
         
     footer_html = f"\n{script_inicializacao_mapas}\n</body>\n</html>"
     
     return header_html + lote_corpos + footer_html
-    
-@staticmethod
 
 def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: int, c_nome: str, c_matricula: str) -> tuple[str, dict]:
     """Gera o HTML da Página 2 (Anexo Gráfico) e os dados de coordenadas do Leaflet"""

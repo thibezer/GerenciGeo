@@ -68,6 +68,41 @@ class TestDeclaracaoDesmembramento(unittest.TestCase):
             """, (cls.prop_id, cls.prof_id))
             cls.lev_id = cursor.lastrowid
 
+            # Criar confrontante de teste
+            cursor.execute("""
+                INSERT INTO pessoas (nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, endereco_completo)
+                VALUES ('José Confrontante', '11122233344', '123456', 'brasileiro', 'agricultor', 'solteiro', 'Linha 1, Zona Rural')
+            """)
+            conf_pessoa_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO confrontantes (levantamento_id, pessoa_id, matricula_imovel)
+                VALUES (?, ?, '9999')
+            """, (cls.lev_id, conf_pessoa_id))
+            cls.conf_id = cursor.lastrowid
+
+            # Criar pontos de teste
+            cursor.execute("""
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
+                VALUES (?, ?, 'P1', -24.1, -53.1, 'P', 1)
+            """, (cls.lev_id, cls.mat_id))
+            p1_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
+                VALUES (?, ?, 'P2', -24.2, -53.2, 'P', 2)
+            """, (cls.lev_id, cls.mat_id))
+            p2_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
+                VALUES (?, ?, 'P3', -24.3, -53.3, 'P', 3)
+            """, (cls.lev_id, cls.mat_id))
+            p3_id = cursor.lastrowid
+
+            # Criar segmento
+            cursor.execute("""
+                INSERT INTO segmentos (levantamento_id, matricula_id, confrontante_id, ponto_inicio_id, ponto_fim_id, tipo_limite_sigef, metodo_posicionamento_sigef)
+                VALUES (?, ?, ?, ?, ?, 'LA', 'PG1')
+            """, (cls.lev_id, cls.mat_id, cls.conf_id, p1_id, p2_id))
+
             conn.commit()
 
     def test_gerar_declaracao_anuencia_desmembramento_html(self):
@@ -103,6 +138,15 @@ class TestDeclaracaoDesmembramento(unittest.TestCase):
 
         html_req = CartorioReportGenerator.gerar_requerimento_cartorio_html(self.lev_id, self.mat_id)
         self.assertIn("Requerimento", html_req)
+
+    def test_gerar_declaracao_anuencia_individual_e_lote_html(self):
+        html_indiv = CartorioReportGenerator.gerar_declaracao_anuencia_html(self.lev_id, self.mat_id, self.conf_id)
+        self.assertIn("José Confrontante", html_indiv)
+        self.assertIn("ANEXO GRÁFICO", html_indiv)
+
+        html_lote = CartorioReportGenerator.gerar_declaracao_anuencia_lote_html(self.lev_id, self.mat_id)
+        self.assertIn("Lote de Anuências", html_lote)
+        self.assertIn("José Confrontante", html_lote)
 
 if __name__ == "__main__":
     unittest.main()
