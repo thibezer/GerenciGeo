@@ -148,7 +148,7 @@ export const renderMesaTrabalho = (): string => {
                     <i data-lucide="download"></i>
                     <span>Importar Vizinhos</span>
                   </fluent-button>
-                  <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV" multiple />
+                  <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV,.ods,.ODS" multiple />
                   <fluent-button appearance="outline" class="rl3-tool-btn rl3-btn-lg rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
                     <i data-lucide="trash-2"></i>
                     <span>Limpar Camada</span>

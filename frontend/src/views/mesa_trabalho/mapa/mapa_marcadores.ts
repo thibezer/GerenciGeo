@@ -84,13 +84,23 @@ export class MapaMarcadores {
 
   public plotPontosVizinhos(pontos: Ponto[]): void {
     if (!this.core.map || !this.core.pontosVizinhosGroup) return;
+    
+    if (!this.core.map.hasLayer(this.core.pontosVizinhosGroup)) {
+      this.core.pontosVizinhosGroup.addTo(this.core.map);
+    }
+    
     this.core.pontosVizinhosGroup.clearLayers();
     this.vizinhosMarkers = [];
 
     const grupos = new Map<number, Ponto[]>();
     pontos.forEach(p => {
-      if (p.lat && p.lon && p.lat !== 0 && p.lon !== 0 && p.confrontante_id !== undefined) {
-        const cId = p.confrontante_id;
+      const lat = typeof p.lat === 'string' ? parseFloat(p.lat) : p.lat;
+      const lon = typeof p.lon === 'string' ? parseFloat(p.lon) : p.lon;
+
+      if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+        p.lat = lat;
+        p.lon = lon;
+        const cId = p.confrontante_id !== undefined && p.confrontante_id !== null ? p.confrontante_id : 0;
         if (!grupos.has(cId)) grupos.set(cId, []);
         grupos.get(cId)!.push(p);
       }

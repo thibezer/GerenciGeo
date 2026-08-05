@@ -217,13 +217,17 @@ export const renderClientesTemplate = (): string => `
           <div class="border-t border-white/5 pt-3.5 space-y-2.5">
              <h5 class="text-[9px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
              <div class="grid grid-cols-3 gap-3 items-end">
-                <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Telefone</label>
-                   <ui-campo-texto name="telefone" placeholder="(99) 99999-9999"></ui-campo-texto>
+                <div class="col-span-2">
+                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Telefone</label>
+                    <ui-campo-texto name="telefone" placeholder="(99) 99999-9999"></ui-campo-texto>
                 </div>
-                <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Email</label>
-                   <ui-campo-texto name="email" tipo="email"></ui-campo-texto>
+                <div class="col-span-2">
+                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Email</label>
+                    <ui-campo-texto name="email" tipo="email"></ui-campo-texto>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Profissão</label>
+                    <ui-campo-texto name="profissao"></ui-campo-texto>
                 </div>
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Senha GOV</label>
@@ -337,9 +341,13 @@ export const renderClientesTemplate = (): string => `
                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-estcivil">-</p>
                    </div>
                    <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Nacionalidade</p>
-                      <p class="text-xs text-white/80 mt-0.5" id="det-cli-nacionalidade">-</p>
-                   </div>
+                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Nacionalidade</p>
+                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-nacionalidade"></p>
+                    </div>
+                    <div>
+                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Profissão</p>
+                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-profissao"></p>
+                    </div>
                 </div>
                 
                 <div id="det-conjuge-bloco" class="space-y-2 bg-white/[0.01] p-3 border border-white/5 rounded-technical">

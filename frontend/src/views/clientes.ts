@@ -376,6 +376,7 @@ export const clientesRoute: RouteDef = {
          setDetVal('det-cli-rg', cli.rg_ie);
          setDetVal('det-cli-estcivil', cli.estado_civil);
          setDetVal('det-cli-nacionalidade', cli.nacionalidade);
+         setDetVal('det-cli-profissao', cli.profissao || '-');
          setDetVal('det-cli-telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '-');
          setDetVal('det-cli-email', cli.email);
          setDetVal('det-cli-senhagov', cli.senha_gov);
@@ -515,6 +516,7 @@ export const clientesRoute: RouteDef = {
          setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
          setFormVal('rg_conjuge', cli.rg_conjuge);
          setFormVal('regime_bens', cli.regime_bens);
+         setFormVal('profissao', cli.profissao);
          setFormVal('telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '');
          setFormVal('email', cli.email);
          setFormVal('senha_gov', cli.senha_gov);
