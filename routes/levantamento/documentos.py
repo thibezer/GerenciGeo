@@ -3,6 +3,7 @@ routes/levantamento/documentos.py — Laudos, Requerimentos, Termos de Anuência
 """
 import re
 import os
+import stat
 import logging
 import datetime
 from pathlib import Path
@@ -161,7 +162,6 @@ def get_dados_fronteira(prop_id: int):
             LIMIT 1
         """, params=(prop_id,), fetch_one=True)
         
-        # O CCIR agora reside estritamente na tabela propriedades, de onde o herdamos
         matriculas = execute_query("""
             SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro
             FROM matriculas m
@@ -199,7 +199,6 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
     """Atualiza dados de propriedade, do proprietário principal e das matrículas em lote"""
     verificar_propriedade_arquivada(prop_id)
     try:
-        # Verifica se já existe um levantamento cadastrado para a propriedade
         row_lev = execute_query(
             "SELECT id FROM levantamentos WHERE propriedade_id = ? ORDER BY status = 'EM_ANDAMENTO' DESC, id DESC LIMIT 1",
             params=(prop_id,),
@@ -207,7 +206,6 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
         )
         lev_id = row_lev["id"] if row_lev else None
         
-        # Se não houver levantamento e profissional_id estiver disponível, criamos automaticamente!
         if not lev_id and payload.profissional_id:
             from datetime import date
             data_atual = date.today().strftime("%Y-%m-%d")
@@ -239,7 +237,6 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
             row_cli = execute_query("SELECT pessoa_id FROM clientes WHERE id = ?", params=(o.id,), fetch_one=True)
             if row_cli:
                 pessoa_id = row_cli["pessoa_id"]
-                # Atualiza os dados civis na tabela única pessoas
                 execute_query("""
                     UPDATE pessoas
                     SET nome = ?, cpf_cnpj = ?, rg = ?, estado_civil = ?, regime_bens = ?,
@@ -248,7 +245,6 @@ def post_atualizar_dados_fronteira(prop_id: int, payload: PayloadAtualizarDadosF
                 """, params=(o.nome_completo, o.cpf_cnpj if (o.cpf_cnpj and str(o.cpf_cnpj).strip()) else None, o.rg_ie, o.estado_civil, o.regime_bens,
                              o.nome_conjuge, o.cpf_conjuge, o.rg_conjuge, pessoa_id), commit=True)
             
-        # Como a coluna ccir foi normalizada e removida de matriculas, atualizamos apenas as colunas válidas
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.executemany("""
@@ -325,7 +321,6 @@ def get_laudo_tecnico_html(id: int, matricula_id: int, numero_trt: Optional[str]
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/termo-responsabilidade-sigef-html", response_class=HTMLResponse)
 def get_termo_responsabilidade_sigef_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = ""):
-    """Gera o termo de responsabilidade técnica SIGEF em HTML estruturado"""
     try:
         from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_termo_responsabilidade_sigef_html(
@@ -342,7 +337,6 @@ def get_termo_responsabilidade_sigef_html(id: int, matricula_id: int, numero_trt
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/manual-proprietario-html", response_class=HTMLResponse)
 def get_manual_proprietario_html(id: int, matricula_id: int):
-    """Gera o manual do proprietário pós-georreferenciamento em HTML estruturado (público)"""
     try:
         from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_manual_proprietario_html(
@@ -357,7 +351,6 @@ def get_manual_proprietario_html(id: int, matricula_id: int):
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-anuencia-desmembramento-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_desmembramento_html(id: int, matricula_id: int, codigo_cns: Optional[str] = Query(None), qtd_parcelas: int = Query(3)):
-    """Gera a Declaração de Anuência para Desmembramento de Parcela Certificada em HTML estruturado"""
     try:
         from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_declaracao_anuencia_desmembramento_html(
@@ -390,7 +383,6 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/anuencia-lote-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_ids: Optional[str] = Query(None)):
-    """Gera as declarações de anuência de múltiplos confrontantes em lote em uma única página para impressão contínua"""
     try:
         from services.documentacao.cartorio_generator import CartorioReportGenerator
         html = CartorioReportGenerator.gerar_declaracao_anuencia_lote_html(
@@ -406,7 +398,6 @@ def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_
 
 @router.get("/levantamentos/{id}/documentos/gerar-requerimento", response_class=HTMLResponse)
 def gerar_requerimento(id: int, matricula_id: int):
-    """Gera um requerimento em HTML formatado para retificação de registro"""
     try:
         from services.gestores.levantamento_manager import gerar_requerimento_html
         html = gerar_requerimento_html(id, matricula_id)
@@ -418,7 +409,6 @@ def gerar_requerimento(id: int, matricula_id: int):
 
 @router.get("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/pdf", response_class=HTMLResponse)
 def gerar_termo_anuencia_na_matricula(id: int, confrontante_id: int):
-    """Gera Carta de Anuência preenchida com a ordenação perimetral dos segmentos lindeiros daquele confrontante"""
     try:
         from services.gestores.levantamento_manager import gerar_termo_anuencia_html
         html = gerar_termo_anuencia_html(id, confrontante_id)
@@ -437,7 +427,6 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
         pasta_anuencias = folder / "Documentos" / "Anuancias"
         pasta_anuencias.mkdir(parents=True, exist_ok=True)
         
-        # Recupera o número da matrícula correspondente a este confrontante no levantamento
         row_mat = execute_query(
             """
             SELECT m.numero_matricula 
@@ -451,7 +440,10 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
         )
         matricula_num = row_mat["numero_matricula"] if (row_mat and row_mat["numero_matricula"]) else "SEM_MATRICULA"
         
-        caminho_salvo = pasta_anuencias / f"anuencia_matricula_{matricula_num}_{confrontante_id}_assinado.pdf"
+        # Correção: Captura a extensão real do arquivo
+        extensao = Path(file.filename).suffix if file.filename else ".pdf"
+        
+        caminho_salvo = pasta_anuencias / f"anuencia_matricula_{matricula_num}_{confrontante_id}_assinado{extensao}"
         with open(caminho_salvo, "wb") as buffer:
             buffer.write(await file.read())
             
@@ -484,7 +476,6 @@ def status_cartorio(id: int):
         lev = dict(lev_row)
         prop_id = lev["propriedade_id"]
         
-        # Valida qualificação dos proprietários
         clientes_prop = execute_query(
             "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
             params=(prop_id,), fetch_all=True
@@ -497,7 +488,6 @@ def status_cartorio(id: int):
                 clientes_qualificados = False
                 proprietarios_pendencias.append(f"Proprietário {civil.get('nome_completo')} com qualificação civil incompleta.")
                 
-        # Valida metadados de matrículas
         matriculas_prop = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(prop_id,), fetch_all=True)
         matriculas_qualificadas = True
         matriculas_pendencias = []
@@ -507,7 +497,6 @@ def status_cartorio(id: int):
                 matriculas_qualificadas = False
                 matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
                 
-        # Valida anuências
         query_confrontantes = """
             SELECT c.*, p.nome
             FROM confrontantes c
@@ -557,7 +546,6 @@ def status_cartorio(id: int):
 
 @router.get("/propriedades/{prop_id}/arquivos")
 def get_arquivos_propriedade(prop_id: int):
-    """Lista todos os arquivos contidos na pasta de Documentos da propriedade"""
     try:
         docs_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Documentos"
         if not docs_dir.exists():
@@ -580,7 +568,6 @@ def get_arquivos_propriedade(prop_id: int):
 
 @router.get("/propriedades/{prop_id}/arquivos/download")
 def download_arquivo_propriedade(prop_id: int, nome: str):
-    """Efetua o download seguro de um arquivo na pasta de Documentos da propriedade"""
     try:
         safe_name = re.sub(r'[\\/*?:"<>|]', "", nome)
         file_path = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Documentos" / safe_name
@@ -600,10 +587,6 @@ def download_arquivo_propriedade(prop_id: int, nome: str):
 
 @router.post("/levantamentos/{id}/consolidar-pontos")
 def endpoint_consolidar_pontos(id: int):
-    """
-    Executa a consolidação espacial de todos os pontos do levantamento,
-    gravando o arquivo TXT na pasta física de exportações.
-    """
     verificar_levantamento_arquivado(id)
     try:
         wm = WorkspaceManager()
@@ -629,11 +612,15 @@ def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
         if categoria not in categorias:
             raise HTTPException(status_code=400, detail="Categoria de pasta de arquivos inválida.")
             
-        file_path = folder / categoria / nome
+        # Correção 1: Limpeza de Path Traversal
+        safe_nome = Path(nome).name
+        file_path = folder / categoria / safe_nome
+        
         if not file_path.exists() or not file_path.is_file():
             raise HTTPException(status_code=404, detail="Arquivo não localizado no disco.")
             
         try:
+            # Correção 2: Import stat adicionado no topo
             os.chmod(file_path, stat.S_IWRITE)
         except Exception:
             pass
@@ -641,23 +628,23 @@ def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
         os.remove(file_path)
 
         pontos_removidos = 0
-        if categoria == "Processados" and nome.lower().endswith(".txt"):
+        if categoria == "Processados" and safe_nome.lower().endswith(".txt"):
             count_row = execute_query(
                 "SELECT COUNT(*) as qtd FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
-                params=(lev_id, nome),
+                params=(lev_id, safe_nome),
                 fetch_one=True
             )
             pontos_removidos = count_row["qtd"] if count_row else 0
             execute_query(
                 "DELETE FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
-                params=(lev_id, nome),
+                params=(lev_id, safe_nome),
                 commit=True
             )
-            logging.getLogger(__name__).info(f"[WORKSPACE] Purgados {pontos_removidos} pontos pertencentes ao lote/arquivo deletado: {nome}")
+            logging.getLogger(__name__).info(f"[WORKSPACE] Purgados {pontos_removidos} pontos pertencentes ao lote/arquivo deletado: {safe_nome}")
             
         return {
             "success": True, 
-            "message": f"Arquivo '{nome}' excluído com sucesso do repositório físico.",
+            "message": f"Arquivo '{safe_nome}' excluído com sucesso do repositório físico.",
             "pontos_removidos": pontos_removidos
         }
     except Exception as e:
@@ -668,7 +655,6 @@ def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/exportar-shapefile")
 def exportar_shapefile_endpoint(id: int, matricula_id: int):
-    """Gera e retorna o Shapefile regulamentar (.ZIP) com as duas camadas perimetrais em UTM Zona 22S WKT Oficial"""
     try:
         from services.documentacao.shape_exporter import ShapefileExporter
         zip_bytes = ShapefileExporter.exportar_matricula_zip(id, matricula_id)

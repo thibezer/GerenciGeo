@@ -1319,6 +1319,13 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
             const map = ctx.mapaController.getMap();
             map?.closePopup();
           }
+          const numericPId = parseInt(pId);
+          if (Array.isArray(ctx.pontosVizinhosList)) {
+            ctx.pontosVizinhosList = ctx.pontosVizinhosList.filter((pt: any) => pt.id !== numericPId);
+          }
+          if (Array.isArray(ctx.selectedVizinhoPontoIds)) {
+            ctx.selectedVizinhoPontoIds = ctx.selectedVizinhoPontoIds.filter((id: number) => id !== numericPId);
+          }
           ctx.loadLevantamentoDetails();
         }
       } catch (err) {

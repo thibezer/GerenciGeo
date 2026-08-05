@@ -89,8 +89,14 @@ export class MapaMarcadores {
       this.core.pontosVizinhosGroup.addTo(this.core.map);
     }
     
+    if (this.vizinhosMarkers && this.vizinhosMarkers.length > 0) {
+      this.vizinhosMarkers.forEach(m => {
+        m.off();
+        m.unbindPopup();
+      });
+      this.vizinhosMarkers = [];
+    }
     this.core.pontosVizinhosGroup.clearLayers();
-    this.vizinhosMarkers = [];
 
     const grupos = new Map<number, Ponto[]>();
     pontos.forEach(p => {
@@ -125,19 +131,20 @@ export class MapaMarcadores {
       }
 
       pontosGrupo.forEach(p => {
+        const safePId = escapeHtml(String(p.id));
         const popupContent = `
           <div class="p-2 font-sans text-xs bg-forest-deep text-white min-w-[200px]">
             <div class="font-bold text-purple-400 mb-1 border-b border-white/10 pb-1">Confrontante (Importado)</div>
-            <div class="mb-1"><strong>Vértice:</strong> <span class="font-mono">${escapeHtml(p.nome_vertice)}</span></div>
-            <div class="mb-1"><strong>Proprietário:</strong> ${escapeHtml(p.nome_confrontante) || 'Desconhecido'}</div>
-            <div class="mb-1"><strong>Propriedade:</strong> ${escapeHtml(p.nome_propriedade) || 'Desconhecida'}</div>
+            <div class="mb-1"><strong>Vértice:</strong> <span class="font-mono">${escapeHtml(p.nome_vertice || '')}</span></div>
+            <div class="mb-1"><strong>Proprietário:</strong> ${escapeHtml(p.nome_confrontante || '') || 'Desconhecido'}</div>
+            <div class="mb-1"><strong>Propriedade:</strong> ${escapeHtml(p.nome_propriedade || '') || 'Desconhecida'}</div>
             <div class="mb-1"><strong>Coordenadas:</strong> ${(p.lat as number).toFixed(7)}, ${(p.lon as number).toFixed(7)}</div>
             <div class="text-[10px] text-white/50 border-t border-white/5 pt-1 mt-1 font-mono uppercase tracking-wider mb-2">Pontos Imutáveis do Vizinho</div>
             <div class="flex gap-2 border-t border-white/10 pt-2">
-              <button class="px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-forest-deep hover:bg-mint-vibrant/90 active:scale-95 transition-all btn-integrar-vizinho-mapa" data-ponto-id="${p.id}" type="button">
+              <button class="px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-forest-deep hover:bg-mint-vibrant/90 active:scale-95 transition-all btn-integrar-vizinho-mapa" data-ponto-id="${safePId}" type="button">
                 Integrar
               </button>
-              <button class="px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-white/70 border border-white/10 hover:bg-white/10 active:scale-95 transition-all btn-ocultar-vizinho-mapa" data-ponto-id="${p.id}" type="button">
+              <button class="px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-white/70 border border-white/10 hover:bg-white/10 active:scale-95 transition-all btn-ocultar-vizinho-mapa" data-ponto-id="${safePId}" type="button">
                 Ocultar
               </button>
             </div>
@@ -179,13 +186,23 @@ export class MapaMarcadores {
   }
 
   public clearMarkers(): void {
-    if (this.core.map) {
-      this.markers.forEach(m => this.core.map!.removeLayer(m));
+    if (this.markers) {
+      this.markers.forEach(m => {
+        m.off();
+        m.unbindPopup();
+        if (this.core.map) this.core.map.removeLayer(m);
+      });
+      this.markers = [];
+    }
+    if (this.vizinhosMarkers) {
+      this.vizinhosMarkers.forEach(m => {
+        m.off();
+        m.unbindPopup();
+      });
+      this.vizinhosMarkers = [];
     }
     if (this.core.pontosVizinhosGroup) {
       this.core.pontosVizinhosGroup.clearLayers();
     }
-    this.markers = [];
-    this.vizinhosMarkers = [];
   }
 }

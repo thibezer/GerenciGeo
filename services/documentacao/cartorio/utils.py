@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from config import EXPORT_BASE_FOLDER, EMPRESA_NOME_FANTASIA, EMPRESA_RAZAO_SOCIAL
 from pyproj import Geod
-
+from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
@@ -58,13 +58,12 @@ def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon) -> tuple[st
 def carregar_template(nome_arquivo: str) -> str:
     """Carrega o conteúdo de um template HTML a partir da pasta templates.
     """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-    caminho = os.path.join(base_dir, "templates", nome_arquivo)
+    PROJECT_ROOT = Path(__file__).resolve().parents[3]
+    caminho_template = PROJECT_ROOT / "templates" / nome_arquivo
     try:
-        with open(caminho, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError as e:
-        logger.error(f"Template not found: {caminho}")
+        return caminho_template.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error(f"Template not found: {caminho_template}")
         raise
 
 

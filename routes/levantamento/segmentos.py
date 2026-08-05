@@ -1,8 +1,10 @@
-"""
-routes/levantamento/segmentos.py — Gestão de Confrontantes e Segmentos Perimetrais
-"""
 import os
+import io
+import csv
+import json
 import logging
+import zipfile
+import xml.etree.ElementTree as ET
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -10,6 +12,14 @@ from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
 from routes.deps import verificar_levantamento_arquivado
+from utils.geodesia_parser import (
+    extract_codigo_parts,
+    parse_num_robust,
+    parse_dms_robust,
+    parse_wkt_point,
+    resolver_coordenadas_robust,
+    detect_csv_delimiter,
+)
 
 router = APIRouter(tags=["Confrontantes & Segmentos"])
 
@@ -408,286 +418,190 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
 
 @router.post("/levantamentos/{id}/importar-vizinho-csv")
 async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
-    import re
-    import json
-    from database.connection import DatabaseManager
-
     verificar_levantamento_arquivado(id)
     content_bytes = await file.read()
     filename = file.filename or "vizinho.csv"
+    is_ods = filename.lower().endswith(".ods") or content_bytes.startswith(b"PK\x03\x04")
 
-    try:
-        content_text = content_bytes.decode('utf-8')
-    except UnicodeDecodeError:
-        content_text = content_bytes.decode('latin-1')
+    pontos_detetados = []
+    qrcode_imovel = None
+    nome_propriedade = None
+    is_poligono_only = False
 
-    content_text = content_text.replace('\ufeff', '')
-    lines = [line.strip() for line in content_text.splitlines() if line.strip()]
-
-    if not lines:
-        raise HTTPException(status_code=400, detail="O arquivo CSV enviado está vazio.")
-
-    cabecalho = lines[0].upper().split(';')
-    
-    # 1. CASO DE VÉRTICES (CVS vertices.csv)
-    if 'CODIGO' in cabecalho and 'GEOMETRIA_WKT' in cabecalho and 'TIPO_VERTICE' in cabecalho:
+    if is_ods:
         try:
-            idx_qrcode = cabecalho.index('QRCODE')
-            idx_codigo = cabecalho.index('CODIGO')
-            idx_metodo = cabecalho.index('METODO_POSICIONAMENTO')
-            idx_tipo = cabecalho.index('TIPO_VERTICE')
-            idx_x = cabecalho.index('X')
-            idx_y = cabecalho.index('Y')
-            idx_z = cabecalho.index('Z')
-            idx_wkt = cabecalho.index('GEOMETRIA_WKT')
-            
-            idx_sigma_x = cabecalho.index('SIGMA_X') if 'SIGMA_X' in cabecalho else -1
-            idx_sigma_y = cabecalho.index('SIGMA_Y') if 'SIGMA_Y' in cabecalho else -1
-            idx_sigma_z = cabecalho.index('SIGMA_Z') if 'SIGMA_Z' in cabecalho else -1
-        except ValueError as ve:
-            raise HTTPException(status_code=400, detail=f"Colunas obrigatórias ausentes no CSV: {ve}")
+            with zipfile.ZipFile(io.BytesIO(content_bytes)) as zip_ref:
+                if 'content.xml' in zip_ref.namelist():
+                    xml_data = zip_ref.read('content.xml')
+                    ns = {
+                        'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+                        'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+                        'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
+                    }
+                    root = ET.fromstring(xml_data)
+                    for table in root.findall('.//table:table', ns):
+                        for row in table.findall('.//table:table-row', ns):
+                            cells = row.findall('.//table:table-cell', ns)
+                            cell_texts = []
+                            for cell in cells:
+                                repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
+                                p_elements = cell.findall('.//text:p', ns)
+                                cell_text = "".join([p.text for p in p_elements if p.text])
+                                if not cell_text:
+                                    cell_text = cell.get('{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value') or ""
+                                count = int(repeated) if repeated else 1
+                                if count > 30: count = 1
+                                cell_texts.extend([cell_text] * count)
 
-        pontos_detetados = []
-        qrcode_imovel = None
-
-        wkt_regex = re.compile(r"POINT\s*\(\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s*\)", re.IGNORECASE)
-
-        for line in lines[1:]:
-            parts = line.split(';')
-            if len(parts) <= max(idx_codigo, idx_wkt):
-                continue
-            
-            qrcode = parts[idx_qrcode].strip()
-            if not qrcode_imovel and qrcode:
-                qrcode_imovel = qrcode
-                
-            vertice = parts[idx_codigo].strip()
-            match = re.match(r"^([A-Z0-9_]{3,10})-(M|P|V)-(\d+)$", vertice, re.IGNORECASE)
-            if not match:
-                continue
-                
-            tipo = match.group(2).upper()
-            num = int(match.group(3))
-
-            def parse_float(val):
-                if not val: return 0.0
-                try:
-                    return float(val.replace(',', '.').strip())
-                except:
-                    return 0.0
-
-            este = parse_float(parts[idx_x])
-            norte = parse_float(parts[idx_y])
-            altitude = parse_float(parts[idx_z])
-            
-            sigma_e = parse_float(parts[idx_sigma_x]) if idx_sigma_x != -1 else 0.0
-            sigma_n = parse_float(parts[idx_sigma_y]) if idx_sigma_y != -1 else 0.0
-            sigma_z = parse_float(parts[idx_sigma_z]) if idx_sigma_z != -1 else 0.0
-            
-            metodo = parts[idx_metodo].strip()
-            
-            wkt_str = parts[idx_wkt].strip()
-            wkt_match = wkt_regex.search(wkt_str)
-            lat, lon = None, None
-            if wkt_match:
-                lon = float(wkt_match.group(1))
-                lat = float(wkt_match.group(2))
-
-            pontos_detetados.append({
-                "tipo_ponto": tipo,
-                "numero": num,
-                "codigo_completo": vertice,
-                "norte": norte,
-                "este": este,
-                "altitude": altitude,
-                "lat": lat,
-                "lon": lon,
-                "sigma_n": sigma_n,
-                "sigma_e": sigma_e,
-                "sigma_z": sigma_z,
-                "metodo_posicionamento": metodo
-            })
-
-        if not qrcode_imovel:
-            qrcode_imovel = f"CSV_{os.path.splitext(filename)[0]}"
-
-        if not pontos_detetados:
-            raise HTTPException(status_code=400, detail="Nenhum ponto válido no formato 'AAA-T-NNNN' encontrado no arquivo CSV de vértices.")
-
+                            if len(cell_texts) >= 4:
+                                tipo, num, vertice = extract_codigo_parts(cell_texts[0])
+                                if vertice:
+                                    lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3])
+                                    pontos_detetados.append({
+                                        "tipo_ponto": tipo,
+                                        "numero": num,
+                                        "codigo_completo": vertice,
+                                        "norte": norte,
+                                        "este": este,
+                                        "altitude": parse_num_robust(cell_texts[5]) if len(cell_texts) > 5 else 0.0,
+                                        "lat": lat,
+                                        "lon": lon,
+                                        "sigma_n": parse_num_robust(cell_texts[4]) if len(cell_texts) > 4 else 0.0,
+                                        "sigma_e": parse_num_robust(cell_texts[2]) if len(cell_texts) > 2 else 0.0,
+                                        "sigma_z": parse_num_robust(cell_texts[6]) if len(cell_texts) > 6 else 0.0,
+                                        "metodo_posicionamento": str(cell_texts[7]).strip() if len(cell_texts) > 7 else "PG1"
+                                    })
+        except Exception as e_ods:
+            logging.getLogger(__name__).error(f"Erro ao processar ODS do vizinho: {e_ods}")
+            raise HTTPException(status_code=400, detail=f"Erro ao processar planilha ODS do vizinho: {str(e_ods)}")
+    else:
         try:
-            with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT c.id, p.nome, c.nome_propriedade FROM confrontantes c
-                    JOIN pessoas p ON c.pessoa_id = p.id
-                    WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
-                """, (id, qrcode_imovel))
-                row_conf = cursor.fetchone()
-                
-                if row_conf:
-                    confrontante_id = row_conf["id"]
-                    nome_propriedade = row_conf["nome_propriedade"]
-                    nome_detentor = row_conf["nome"]
-                else:
-                    nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}"
-                    nome_propriedade = "Propriedade Vizinha"
-                    
-                    # 1. Cria a pessoa correspondente
-                    cursor.execute("""
-                        INSERT INTO pessoas (nome) VALUES (?)
-                    """, (nome_detentor,))
-                    pessoa_id = cursor.lastrowid
-                    
-                    # 2. Cria o confrontante
-                    cursor.execute(
-                        """
-                        INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        (pessoa_id, id, nome_propriedade, qrcode_imovel)
-                    )
-                    confrontante_id = cursor.lastrowid
+            content_text = content_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            content_text = content_bytes.decode('latin-1')
 
-                cursor.execute(
-                    "DELETE FROM pontos WHERE levantamento_id = ? AND confrontante_id = ? AND ponto_vizinho = 1",
-                    (id, confrontante_id)
-                )
+        content_text = content_text.replace('\ufeff', '')
+        lines = [line.strip() for line in content_text.splitlines() if line.strip()]
 
-                for pt in pontos_detetados:
-                    dados_json = json.dumps({
-                        "tipo_limite": "Limite de Propriedade",
-                        "origem": "CSV SIGEF"
-                    })
-                    
-                    cursor.execute(
-                        """
-                        INSERT INTO pontos (
-                            levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
-                            n_original, e_original, alt_original, sigma_n, sigma_e, sigma_z,
-                            sigma_lat, sigma_lon, sigma_alt, status_ponto, metodo_posicionamento,
-                            arquivo_origem, origem_homologada, confrontante_id, ponto_vizinho, dados_vizinho_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            id, None, pt["codigo_completo"], pt["tipo_ponto"], pt["lat"], pt["lon"], pt["altitude"],
-                            pt["norte"], pt["este"], pt["altitude"], pt["sigma_n"], pt["sigma_e"], pt["sigma_z"],
-                            pt["sigma_n"], pt["sigma_e"], pt["sigma_z"], "CORRIGIDO", pt["metodo_posicionamento"],
-                            filename, 0, confrontante_id, 1, dados_json
-                        )
-                    )
+        if not lines:
+            raise HTTPException(status_code=400, detail="O arquivo CSV enviado está vazio.")
 
-                cursor.execute(
-                    "SELECT id, nome_vertice, lat, lon FROM pontos WHERE levantamento_id = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)",
-                    (id,)
-                )
-                nossos_pontos = cursor.fetchall()
-                
-                pontos_vizinho_coincidentes = []
-                for n_pt in nossos_pontos:
-                    pt_viz_match = next((v for v in pontos_detetados if v["codigo_completo"].upper() == n_pt["nome_vertice"].upper()), None)
-                    if pt_viz_match:
-                        pontos_vizinho_coincidentes.append(n_pt["id"])
-                        continue
-                    
-                    for v in pontos_detetados:
-                        if v["lat"] is not None and v["lon"] is not None and n_pt["lat"] is not None and n_pt["lon"] is not None:
-                            d_lat = abs(v["lat"] - n_pt["lat"])
-                            d_lon = abs(v["lon"] - n_pt["lon"])
-                            if d_lat < 0.0000005 and d_lon < 0.0000005:
-                                pontos_vizinho_coincidentes.append(n_pt["id"])
-                                break
+        delimiter = detect_csv_delimiter(lines[0])
+        reader = csv.reader(lines, delimiter=delimiter)
+        rows = list(reader)
 
-                if pontos_vizinho_coincidentes:
-                    valores_in = ",".join(str(pid) for pid in pontos_vizinho_coincidentes)
-                    query_update_seg = f"""
-                        UPDATE segmentos
-                        SET confrontante_id = ?
-                        WHERE levantamento_id = ? 
-                          AND (ponto_inicio_id IN ({valores_in}) OR ponto_fim_id IN ({valores_in}))
-                    """
-                    cursor.execute(query_update_seg, (confrontante_id, id))
+        if not rows:
+            raise HTTPException(status_code=400, detail="Nenhum dado legível no CSV.")
 
-                conn.commit()
+        headers = [str(h).strip().upper() for h in rows[0]]
 
-            prop_exibida = f"{nome_propriedade} ({nome_detentor})" if nome_propriedade else nome_detentor
-            return {
-                "success": True,
-                "confrontante": {
-                    "id": confrontante_id,
-                    "nome": nome_detentor,
-                    "propriedade": nome_propriedade
-                },
-                "pontos_importados": len(pontos_detetados),
-                "mensagem": f"Importação concluída: {len(pontos_detetados)} pontos do vizinho '{prop_exibida}' importados."
-            }
-        except Exception as e_db:
-            logging.getLogger(__name__).error(f"Erro ao salvar pontos CSV no banco: {e_db}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Erro ao persistir informações no banco: {str(e_db)}")
+        # Caso A: Polígono
+        if 'QRCODE' in headers and 'NOME' in headers and 'GEOMETRIA_WKT' in headers and 'CODIGO' not in headers:
+            is_poligono_only = True
+            idx_qrcode = headers.index('QRCODE')
+            idx_nome = headers.index('NOME')
 
-    # 2. CASO DE POLÍGONO (CVS poligono.csv)
-    elif 'QRCODE' in cabecalho and 'NOME' in cabecalho and 'GEOMETRIA_WKT' in cabecalho:
-        try:
-            idx_qrcode = cabecalho.index('QRCODE')
-            idx_nome = cabecalho.index('NOME')
-        except ValueError as ve:
-            raise HTTPException(status_code=400, detail=f"Estrutura de arquivo de polígono inválida: {ve}")
+            if len(rows) < 2 or len(rows[1]) <= max(idx_qrcode, idx_nome):
+                raise HTTPException(status_code=400, detail="Linha de dados do polígono truncada ou inválida.")
 
-        if len(lines) < 2:
-            raise HTTPException(status_code=400, detail="Arquivo de polígono sem linhas de dados.")
+            qrcode_imovel = str(rows[1][idx_qrcode]).strip()
+            nome_propriedade = str(rows[1][idx_nome]).strip()
+            if not qrcode_imovel or not nome_propriedade:
+                raise HTTPException(status_code=400, detail="Dados de QRCODE ou NOME ausentes no CSV do polígono.")
 
-        parts = lines[1].split(';')
-        if len(parts) <= max(idx_qrcode, idx_nome):
-            raise HTTPException(status_code=400, detail="Linha de dados de polígono truncada ou inválida.")
+        # Caso B: Vértices (ou fallback)
+        else:
+            def get_col_idx(col_names):
+                for name in col_names:
+                    if name in headers:
+                        return headers.index(name)
+                return -1
 
-        qrcode_imovel = parts[idx_qrcode].strip()
-        nome_propriedade = parts[idx_nome].strip()
+            idx_qrcode = get_col_idx(['QRCODE'])
+            idx_codigo = get_col_idx(['CODIGO', 'VERTICE', 'DO_VERTICE'])
+            idx_tipo = get_col_idx(['TIPO_VERTICE', 'TIPO'])
+            idx_x = get_col_idx(['X', 'LONGITUDE', 'ESTE'])
+            idx_y = get_col_idx(['Y', 'LATITUDE', 'NORTE'])
+            idx_z = get_col_idx(['Z', 'ALTITUDE', 'ALT'])
+            idx_wkt = get_col_idx(['GEOMETRIA_WKT', 'WKT'])
+            idx_metodo = get_col_idx(['METODO_POSICIONAMENTO', 'METODO'])
+            idx_sigma_x = get_col_idx(['SIGMA_X', 'SIGMA_E'])
+            idx_sigma_y = get_col_idx(['SIGMA_Y', 'SIGMA_N'])
+            idx_sigma_z = get_col_idx(['SIGMA_Z', 'SIGMA_ALT'])
 
-        if not qrcode_imovel or not nome_propriedade:
-            raise HTTPException(status_code=400, detail="Dados de QRCODE ou NOME ausentes no CSV do polígono.")
+            for row in rows[1:]:
+                if not row:
+                    continue
 
+                def get_row_val(idx):
+                    return str(row[idx]).strip() if 0 <= idx < len(row) else ""
+
+                if idx_qrcode >= 0 and not qrcode_imovel:
+                    q_val = get_row_val(idx_qrcode)
+                    if q_val:
+                        qrcode_imovel = q_val
+
+                raw_vertice = get_row_val(idx_codigo)
+                tipo, num, vertice = extract_codigo_parts(raw_vertice)
+                if not vertice:
+                    continue
+
+                val_x = get_row_val(idx_x)
+                val_y = get_row_val(idx_y)
+                val_wkt = get_row_val(idx_wkt)
+
+                wkt_lon, wkt_lat = parse_wkt_point(val_wkt)
+                lat, lon, este, norte = None, None, None, None
+
+                if val_x or val_y:
+                    lat, lon, este, norte = resolver_coordenadas_robust(val_x, val_y)
+
+                if (lat is None or lon is None) and wkt_lat is not None and wkt_lon is not None:
+                    lat, lon = wkt_lat, wkt_lon
+                    if este is None or norte is None:
+                        _, _, este, norte = resolver_coordenadas_robust(lon, lat)
+
+                pontos_detetados.append({
+                    "tipo_ponto": tipo or "V",
+                    "numero": num or 0,
+                    "codigo_completo": vertice,
+                    "norte": norte,
+                    "este": este,
+                    "altitude": parse_num_robust(get_row_val(idx_z)) or 0.0,
+                    "lat": lat,
+                    "lon": lon,
+                    "sigma_n": parse_num_robust(get_row_val(idx_sigma_y)) or 0.0,
+                    "sigma_e": parse_num_robust(get_row_val(idx_sigma_x)) or 0.0,
+                    "sigma_z": parse_num_robust(get_row_val(idx_sigma_z)) or 0.0,
+                    "metodo_posicionamento": get_row_val(idx_metodo) or "PG1"
+                })
+
+    # Tratamento caso polígono isolado
+    if is_poligono_only:
         try:
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
-                
                 cursor.execute("""
                     SELECT c.id, p.nome, c.pessoa_id FROM confrontantes c
                     JOIN pessoas p ON c.pessoa_id = p.id
                     WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
                 """, (id, qrcode_imovel))
                 row_conf = cursor.fetchone()
-                
+
                 if row_conf:
                     confrontante_id = row_conf["id"]
                     novo_nome = row_conf["nome"]
                     if row_conf["nome"].startswith("Vizinho SIGEF -"):
                         novo_nome = f"Proprietário de {nome_propriedade}"
-                        
-                    # Atualiza a tabela pessoas
-                    cursor.execute(
-                        "UPDATE pessoas SET nome = ? WHERE id = ?",
-                        (novo_nome, row_conf["pessoa_id"])
-                    )
-                    # Atualiza a tabela confrontantes
-                    cursor.execute(
-                        "UPDATE confrontantes SET nome_propriedade = ? WHERE id = ?",
-                        (nome_propriedade, confrontante_id)
-                    )
+
+                    cursor.execute("UPDATE pessoas SET nome = ? WHERE id = ?", (novo_nome, row_conf["pessoa_id"]))
+                    cursor.execute("UPDATE confrontantes SET nome_propriedade = ? WHERE id = ?", (nome_propriedade, confrontante_id))
                 else:
                     novo_nome = f"Proprietário de {nome_propriedade}"
-                    
-                    # 1. Cria a pessoa correspondente
-                    cursor.execute("""
-                        INSERT INTO pessoas (nome) VALUES (?)
-                    """, (novo_nome,))
+                    cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (novo_nome,))
                     pessoa_id = cursor.lastrowid
-                    
-                    # 2. Cria o confrontante
                     cursor.execute(
-                        """
-                        INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel)
-                        VALUES (?, ?, ?, ?)
-                        """,
+                        "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel) VALUES (?, ?, ?, ?)",
                         (pessoa_id, id, nome_propriedade, qrcode_imovel)
                     )
                     confrontante_id = cursor.lastrowid
@@ -696,21 +610,124 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
 
             return {
                 "success": True,
-                "confrontante": {
-                    "id": confrontante_id,
-                    "nome_propriedade": nome_propriedade
-                },
+                "confrontante": {"id": confrontante_id, "nome_propriedade": nome_propriedade},
                 "mensagem": f"Propriedade do vizinho identificada com sucesso: '{nome_propriedade}'."
             }
         except Exception as e_db:
             logging.getLogger(__name__).error(f"Erro ao salvar polígono no banco: {e_db}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Erro ao atualizar metadados da propriedade: {str(e_db)}")
 
-    else:
-        raise HTTPException(
-            status_code=400, 
-            detail="Estrutura de CSV do SIGEF não reconhecida. Certifique-se de enviar o arquivo de vértices (CVS vertices.csv) ou de polígono (CVS poligono.csv)."
-        )
+    # Caso contrário: Ingestão de Vértices
+    if not qrcode_imovel:
+        qrcode_imovel = f"CSV_{os.path.splitext(filename)[0]}"
+
+    if not pontos_detetados:
+        raise HTTPException(status_code=400, detail="Nenhum ponto válido no formato de vértice (ex: 'M-0001' ou 'ABC-M-0001') foi localizado no arquivo.")
+
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT c.id, p.nome, c.nome_propriedade FROM confrontantes c
+                JOIN pessoas p ON c.pessoa_id = p.id
+                WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
+            """, (id, qrcode_imovel))
+            row_conf = cursor.fetchone()
+
+            if row_conf:
+                confrontante_id = row_conf["id"]
+                nome_propriedade = row_conf["nome_propriedade"]
+                nome_detentor = row_conf["nome"]
+            else:
+                nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}"
+                nome_propriedade = "Propriedade Vizinha"
+
+                cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome_detentor,))
+                pessoa_id = cursor.lastrowid
+
+                cursor.execute(
+                    "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel) VALUES (?, ?, ?, ?)",
+                    (pessoa_id, id, nome_propriedade, qrcode_imovel)
+                )
+                confrontante_id = cursor.lastrowid
+
+            cursor.execute(
+                "DELETE FROM pontos WHERE levantamento_id = ? AND confrontante_id = ? AND ponto_vizinho = 1",
+                (id, confrontante_id)
+            )
+
+            dados_json = json.dumps({"tipo_limite": "Limite de Propriedade", "origem": "SIGEF / INCRA"})
+            pontos_to_insert = [
+                (
+                    id, None, pt["codigo_completo"], pt["tipo_ponto"], pt["lat"], pt["lon"], pt["altitude"],
+                    pt["norte"], pt["este"], pt["altitude"], pt["sigma_n"], pt["sigma_e"], pt["sigma_z"],
+                    pt["sigma_n"], pt["sigma_e"], pt["sigma_z"], "CORRIGIDO", pt["metodo_posicionamento"],
+                    filename, 0, confrontante_id, 1, dados_json
+                )
+                for pt in pontos_detetados
+            ]
+
+            cursor.executemany(
+                """
+                INSERT INTO pontos (
+                    levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
+                    n_original, e_original, alt_original, sigma_n, sigma_e, sigma_z,
+                    sigma_lat, sigma_lon, sigma_alt, status_ponto, metodo_posicionamento,
+                    arquivo_origem, origem_homologada, confrontante_id, ponto_vizinho, dados_vizinho_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                pontos_to_insert
+            )
+
+            # Cruzamento com os pontos do levantamento atual para vincular confrontante aos segmentos
+            cursor.execute(
+                "SELECT id, nome_vertice, lat, lon FROM pontos WHERE levantamento_id = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)",
+                (id,)
+            )
+            nossos_pontos = cursor.fetchall()
+
+            pontos_vizinho_coincidentes = []
+            for n_pt in nossos_pontos:
+                pt_viz_match = next((v for v in pontos_detetados if v["codigo_completo"].upper() == n_pt["nome_vertice"].upper()), None)
+                if pt_viz_match:
+                    pontos_vizinho_coincidentes.append(n_pt["id"])
+                    continue
+
+                for v in pontos_detetados:
+                    if v["lat"] is not None and v["lon"] is not None and n_pt["lat"] is not None and n_pt["lon"] is not None:
+                        d_lat = abs(v["lat"] - n_pt["lat"])
+                        d_lon = abs(v["lon"] - n_pt["lon"])
+                        if d_lat < 0.0000005 and d_lon < 0.0000005:
+                            pontos_vizinho_coincidentes.append(n_pt["id"])
+                            break
+
+            if pontos_vizinho_coincidentes:
+                valores_in = ",".join(str(pid) for pid in pontos_vizinho_coincidentes)
+                query_update_seg = f"""
+                    UPDATE segmentos
+                    SET confrontante_id = ?
+                    WHERE levantamento_id = ? 
+                      AND (ponto_inicio_id IN ({valores_in}) OR ponto_fim_id IN ({valores_in}))
+                """
+                cursor.execute(query_update_seg, (confrontante_id, id))
+
+            conn.commit()
+
+        prop_exibida = f"{nome_propriedade} ({nome_detentor})" if nome_propriedade else nome_detentor
+        return {
+            "success": True,
+            "confrontante": {
+                "id": confrontante_id,
+                "nome": nome_detentor,
+                "propriedade": nome_propriedade
+            },
+            "pontos_importados": len(pontos_detetados),
+            "mensagem": f"Importação concluída: {len(pontos_detetados)} pontos do vizinho '{prop_exibida}' importados."
+        }
+    except Exception as e_db:
+        logging.getLogger(__name__).error(f"Erro ao salvar pontos do vizinho no banco: {e_db}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir informações no banco: {str(e_db)}")
 
 @router.get("/levantamentos/{id}/pontos-vizinhos")
 def get_pontos_vizinhos(id: int):

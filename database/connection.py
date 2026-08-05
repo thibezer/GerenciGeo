@@ -18,6 +18,7 @@ class DatabaseManager:
             # Melhoras de performance e concorrência no SQLite
             self.connection.execute("PRAGMA journal_mode = WAL;")
             self.connection.execute("PRAGMA synchronous = NORMAL;")
+            self.connection.execute("PRAGMA busy_timeout = 30000;")
             self.connection.execute("PRAGMA foreign_keys = ON;")
             return self.connection
         except sqlite3.Error as e:
