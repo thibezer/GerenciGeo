@@ -43,10 +43,9 @@ def set_clipboard_text(text):
         user32.CloseClipboard()
     return True
 
-async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"):
+async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe", modo_interativo=True):
     """
-    Realiza a conversão ultrarrápida de um ou mais arquivos .GNS para RINEX usando o HGO.
-    Cópia independente de refinamento.
+    Realiza a conversão de arquivos .GNS para RINEX usando o HGO com pausas interativas para calibração fina de tempo e validação visual de cada passo.
     """
     if isinstance(arquivos_origem, str):
         arquivos_origem = [arquivos_origem]
@@ -66,7 +65,19 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
     desktop_dir = None
     proj_dir = None
     
+    def pausar_e_perguntar(nome_passo, descricao, tempo_passo=None):
+        if modo_interativo:
+            tempo_str = f" (Tempo decorrido: {tempo_passo:.2f}s)" if tempo_passo is not None else ""
+            print(f"\n==================================================")
+            print(f" ⏸️ PAUSA - {nome_passo}{tempo_str}")
+            print(f" Ação realizada: {descricao}")
+            print(f"==================================================")
+            input("👉 Confira na tela e pressione ENTER no terminal para continuar para o próximo passo...")
+
     try:
+        # PASSO 1: Inicialização do HGO
+        t0 = time.perf_counter()
+        print("\n[PASSO 1] Fechando HGOs antigos e iniciando novo HGO.exe...")
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
         await asyncio.sleep(0.1)
         
@@ -78,8 +89,13 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         janela = app.window(title_re="(?i).*hi-target.*")
         janela.wait('ready', timeout=8)
         janela.set_focus()
+        t1 = time.perf_counter() - t0
         
-        # 1. Cria projeto via atalho de teclado Alt+F -> N (Novo)
+        pausar_e_perguntar("PASSO 1: Abertura do HGO", "Aplicação HGO.exe aberta e focada.", t1)
+
+        # PASSO 2: Abrir janela Novo Projeto (Alt+F -> N)
+        t0 = time.perf_counter()
+        print("\n[PASSO 2] Abrindo menu de Novo Projeto (Alt+F -> N)...")
         send_keys("%f")
         time.sleep(0.15)
         send_keys("n")
@@ -94,9 +110,15 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         tb_name = dlg_novo.child_window(auto_id="tbProjectName", control_type="Edit")
         tb_name.set_edit_text(proj_name)
         time.sleep(0.1)
+        t2 = time.perf_counter() - t0
+        
+        pausar_e_perguntar("PASSO 2: Novo Projeto", f"Janela Novo Projeto aberta e nome '{proj_name}' preenchido.", t2)
+
+        # PASSO 3: Confirmar Novo Projeto e ir para Propriedades
+        t0 = time.perf_counter()
+        print("\n[PASSO 3] Confirmando nome do projeto e abrindo Propriedades...")
         send_keys("{ENTER}")
         
-        # 2. Propriedades do Projeto -> Confirma diretamente com ENTER
         time.sleep(0.2)
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
@@ -108,10 +130,15 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
             send_keys("p")
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
             dlg_prop.wait('ready', timeout=3.0)
-        
+            
+        t3 = time.perf_counter() - t0
+        pausar_e_perguntar("PASSO 3: Propriedades do Projeto", "Janela Propriedades do Projeto aberta.", t3)
+
+        # PASSO 4: Confirmar Propriedades e Tratar Coordenadas
+        t0 = time.perf_counter()
+        print("\n[PASSO 4] Confirmando Propriedades (ENTER) e tratando diálogo de Coordenadas...")
         send_keys("{ENTER}")
         
-        # 3. Janela de Coordenadas -> Confirma instantaneamente se aberta
         time.sleep(0.2)
         try:
             dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
@@ -119,7 +146,12 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
                 send_keys("{ENTER}")
         except: pass
         
-        # 4. Importar arquivos GNS via atalho Alt+F -> I
+        t4 = time.perf_counter() - t0
+        pausar_e_perguntar("PASSO 4: Coordenadas / Confirmação", "Propriedades confirmadas e projeto criado na tela principal.", t4)
+
+        # PASSO 5: Abrir diálogo de Importação GNS (Alt+F -> I)
+        t0 = time.perf_counter()
+        print("\n[PASSO 5] Abrindo janela de Importação de arquivos GNS (Alt+F -> I)...")
         time.sleep(0.2)
         janela.set_focus()
         send_keys("{ESC}")
@@ -140,9 +172,15 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         edit_box = dlg_abrir.child_window(class_name="Edit", control_type="Edit")
         edit_box.set_edit_text(caminhos_formatados)
         time.sleep(0.1)
+        t5 = time.perf_counter() - t0
+        
+        pausar_e_perguntar("PASSO 5: Seleção de Arquivo GNS", f"Caminho do arquivo injetado na janela Abrir: {caminhos_formatados}", t5)
+
+        # PASSO 6: Confirmar Importação e Aguardar .zsd
+        t0 = time.perf_counter()
+        print("\n[PASSO 6] Confirmando importação no diálogo (ENTER) e aguardando arquivo bruto (.zsd)...")
         send_keys("{ENTER}")
         
-        # 5. Espera dinâmica ultrarrápida pela importação dos arquivos (.zsd)
         obs_dir = os.path.join(proj_dir, "ObsBinData")
         arquivos_esperados = [os.path.splitext(os.path.basename(a))[0] + ".zsd" for a in arquivos_origem]
         timeout_importacao = 15
@@ -167,7 +205,12 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
                 break
             time.sleep(0.1)
             
-        # 6. Ativar aba Arq-Observacoes e iniciar conversão
+        t6 = time.perf_counter() - t0
+        pausar_e_perguntar("PASSO 6: Processamento de Importação Bruta", "Arquivo .zsd importado e estabilizado na pasta do projeto.", t6)
+
+        # PASSO 7: Ativar Aba Arq-Observações e disparar conversão RINEX
+        t0 = time.perf_counter()
+        print("\n[PASSO 7] Selecionando aba 'Arq-Observacoes' e disparando comando RINEX...")
         time.sleep(0.2)
         janela.set_focus()
         send_keys("{ESC}")
@@ -190,8 +233,13 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         time.sleep(0.2)
         
         send_keys("r{ENTER}")
+        t7 = time.perf_counter() - t0
         
-        # 7. Aguarda dinamicamente a conclusão da conversão Rinex
+        pausar_e_perguntar("PASSO 7: Disparo da Conversão RINEX", "Comando de conversão acionado na tabela de observações.", t7)
+
+        # PASSO 8: Aguardar Conclusão da Conversão RINEX
+        t0 = time.perf_counter()
+        print("\n[PASSO 8] Monitorando geração dos arquivos RINEX...")
         inicio_conversao = time.time()
         timeout_conversao = 25.0
         nomes_base_origem = [os.path.splitext(os.path.basename(a))[0].lower() for a in arquivos_origem]
@@ -244,8 +292,11 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
             if time.time() - inicio_conversao > timeout_conversao:
                 break
             time.sleep(0.2)
-        
-        # 8. Encerramento seguro
+            
+        t8 = time.perf_counter() - t0
+        pausar_e_perguntar("PASSO 8: Finalização do RINEX", f"Arquivos RINEX gerados com sucesso no disco.", t8)
+
+        # Encerramento seguro
         try:
             janela.close()
         except: pass
@@ -260,20 +311,15 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         return False
 
 if __name__ == "__main__":
-    # Configuração de execução independente apontando para o arquivo cobaia em 'Arquivos de teste'
     diretorio_atual = os.path.dirname(os.path.abspath(__file__))
     arquivo_cobaia = os.path.normpath(os.path.join(diretorio_atual, "16062026.GNS"))
     pasta_saida_teste = os.path.normpath(os.path.join(diretorio_atual, "Saida_Rinex_Teste"))
 
     print("==================================================")
-    print(" CÓPIA DE REFINAMENTO INDEPENDENTE DE CONVERTERRINEX")
+    print(" REFINAMENTO INTERATIVO PASSO A PASSO (HGO.EXE)")
     print(f" Arquivo cobaia: {arquivo_cobaia}")
     print(f" Pasta de saída: {pasta_saida_teste}")
     print("==================================================")
 
-    sucesso = asyncio.run(converter_rinex(arquivo_cobaia, pasta_saida_teste))
-    
-    if sucesso:
-        print("\n[OK] Processo de conversão finalizado com sucesso!")
-    else:
-        print("\n[ERRO] Ocorreu uma falha durante o processo de conversão.")
+    # Executa com modo interativo ativado por padrão
+    asyncio.run(converter_rinex(arquivo_cobaia, pasta_saida_teste, modo_interativo=True))
