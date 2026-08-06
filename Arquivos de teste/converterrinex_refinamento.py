@@ -90,7 +90,7 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
             garantir_foco()
 
     try:
-        # PASSO 1: Inicialização do HGO
+        # PASSO 1: Inicialização do HGO (sem pausa, segue direto para o Passo 2)
         t0 = time.perf_counter()
         print("\n[PASSO 1] Fechando HGOs antigos e iniciando novo HGO.exe...")
         os.system("taskkill /f /im HGO.exe >nul 2>&1")
@@ -105,8 +105,7 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         janela.wait('ready', timeout=8)
         garantir_foco()
         t1 = time.perf_counter() - t0
-        
-        pausar_e_perguntar("PASSO 1: Abertura do HGO", "Aplicação HGO.exe aberta e focada.", t1)
+        print(f" -> HGO.exe aberto e focado em {t1:.2f}s.")
 
         # PASSO 2: Abrir janela Novo Projeto (Alt+F -> N) e preencher nome
         t0 = time.perf_counter()
@@ -125,20 +124,34 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         
         tb_name = dlg_novo.child_window(auto_id="tbProjectName", control_type="Edit")
         tb_name.set_edit_text(proj_name)
-        time.sleep(0.15)
+        time.sleep(0.2)
         
-        # Clica/Confirma OK explicitamente no diálogo de Novo Projeto
+        # Clica fisicamente no botão OK da janela Novo Projeto
+        confirmado = False
         try:
-            btn_ok = dlg_novo.child_window(auto_id="btnOK", control_type="Button")
-            if btn_ok.exists():
-                btn_ok.click()
-            else:
-                dlg_novo.type_keys("{ENTER}")
-        except:
-            dlg_novo.type_keys("{ENTER}")
+            for search_param in [{"auto_id": "btnOK"}, {"title": "OK"}, {"auto_id": "btnOk"}, {"auto_id": "btn_ok"}]:
+                try:
+                    btn = dlg_novo.child_window(control_type="Button", **search_param)
+                    if btn.exists():
+                        btn.click_input()
+                        confirmado = True
+                        break
+                except: pass
+        except: pass
+
+        if not confirmado:
+            try:
+                btns = dlg_novo.children(control_type="Button")
+                if btns:
+                    btns[0].click_input()
+                    confirmado = True
+            except: pass
+
+        if not confirmado:
+            send_keys("{ENTER}")
             
         t2 = time.perf_counter() - t0
-        pausar_e_perguntar("PASSO 2: Novo Projeto Criado", f"Nome '{proj_name}' preenchido e OK clicado no diálogo.", t2)
+        pausar_e_perguntar("PASSO 2: Novo Projeto Criado", f"Nome '{proj_name}' preenchido e botão OK clicado no diálogo.", t2)
 
         # PASSO 3: Abrir Propriedades do Projeto
         t0 = time.perf_counter()
