@@ -6,7 +6,7 @@ import logging
 import zipfile
 import xml.etree.ElementTree as ET
 from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -17,6 +17,8 @@ from utils.geodesia_parser import (
     parse_num_robust,
     parse_dms_robust,
     parse_wkt_point,
+    parse_wkt_linestring,
+    parse_wkt_geometry,
     resolver_coordenadas_robust,
     detect_csv_delimiter,
 )
@@ -105,7 +107,8 @@ def get_confrontantes(id: int):
                    p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
                    p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
                    c.matricula_imovel, c.cns_confrontante, c.caminho_matricula_pdf,
-                   c.nome_propriedade, c.codigo_incra_imovel, c.created_at
+                   c.nome_propriedade, c.codigo_incra_imovel, c.poligono_wkt,
+                   c.confrontacoes_json, c.created_at
             FROM confrontantes c
             JOIN pessoas p ON c.pessoa_id = p.id
             WHERE c.levantamento_id = ?
@@ -417,7 +420,11 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/levantamentos/{id}/importar-vizinho-csv")
-async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
+async def importar_vizinho_csv(
+    id: int,
+    file: UploadFile = File(...),
+    fuso_utm: int = Query(22, description="Fuso UTM padrão do levantamento")
+):
     verificar_levantamento_arquivado(id)
     content_bytes = await file.read()
     filename = file.filename or "vizinho.csv"
@@ -427,6 +434,8 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
     qrcode_imovel = None
     nome_propriedade = None
     is_poligono_only = False
+    is_limites_segmentos = False
+    segmentos_confrontacao = []
 
     if is_ods:
         try:
@@ -439,6 +448,7 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                         'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
                     }
                     root = ET.fromstring(xml_data)
+                    ods_rows = []
                     for table in root.findall('.//table:table', ns):
                         for row in table.findall('.//table:table-row', ns):
                             cells = row.findall('.//table:table-cell', ns)
@@ -453,23 +463,53 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                                 if count > 30: count = 1
                                 cell_texts.extend([cell_text] * count)
 
-                            if len(cell_texts) >= 4:
-                                tipo, num, vertice = extract_codigo_parts(cell_texts[0])
-                                if vertice:
-                                    lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3])
+                            if any(str(c).strip() for c in cell_texts):
+                                ods_rows.append(cell_texts)
+
+                    if ods_rows:
+                        headers_ods = [str(c).strip().upper() for c in ods_rows[0]]
+                        def get_col_ods(names):
+                            for n in names:
+                                if n in headers_ods:
+                                    return headers_ods.index(n)
+                            return -1
+
+                        idx_cod_ods = get_col_ods(['CODIGO', 'VERTICE', 'DO_VERTICE', 'NOME', 'MARCO', 'PONTO', 'ID'])
+                        idx_x_ods = get_col_ods(['X', 'LONGITUDE', 'ESTE', 'EASTING', 'COORD_X', 'LONG', 'E'])
+                        idx_y_ods = get_col_ods(['Y', 'LATITUDE', 'NORTE', 'NORTHING', 'COORD_Y', 'LAT', 'N'])
+
+                        has_header_ods = idx_cod_ods >= 0 and (idx_x_ods >= 0 or idx_y_ods >= 0)
+                        data_rows_ods = ods_rows[1:] if has_header_ods else ods_rows
+
+                        for row_cells in data_rows_ods:
+                            if len(row_cells) < 2:
+                                continue
+                            if has_header_ods:
+                                c_code = row_cells[idx_cod_ods] if 0 <= idx_cod_ods < len(row_cells) else ""
+                                c_x = row_cells[idx_x_ods] if 0 <= idx_x_ods < len(row_cells) else ""
+                                c_y = row_cells[idx_y_ods] if 0 <= idx_y_ods < len(row_cells) else ""
+                            else:
+                                c_code = row_cells[0]
+                                c_x = row_cells[1] if len(row_cells) > 1 else ""
+                                c_y = row_cells[3] if len(row_cells) > 3 else (row_cells[2] if len(row_cells) > 2 else "")
+
+                            tipo, num, vertice = extract_codigo_parts(c_code)
+                            if vertice:
+                                lat, lon, este, norte = resolver_coordenadas_robust(c_x, c_y, fuso_utm)
+                                if lat is not None and lon is not None:
                                     pontos_detetados.append({
                                         "tipo_ponto": tipo,
                                         "numero": num,
                                         "codigo_completo": vertice,
                                         "norte": norte,
                                         "este": este,
-                                        "altitude": parse_num_robust(cell_texts[5]) if len(cell_texts) > 5 else 0.0,
+                                        "altitude": parse_num_robust(row_cells[5]) if len(row_cells) > 5 else 0.0,
                                         "lat": lat,
                                         "lon": lon,
-                                        "sigma_n": parse_num_robust(cell_texts[4]) if len(cell_texts) > 4 else 0.0,
-                                        "sigma_e": parse_num_robust(cell_texts[2]) if len(cell_texts) > 2 else 0.0,
-                                        "sigma_z": parse_num_robust(cell_texts[6]) if len(cell_texts) > 6 else 0.0,
-                                        "metodo_posicionamento": str(cell_texts[7]).strip() if len(cell_texts) > 7 else "PG1"
+                                        "sigma_n": parse_num_robust(row_cells[4]) if len(row_cells) > 4 else 0.0,
+                                        "sigma_e": parse_num_robust(row_cells[2]) if len(row_cells) > 2 else 0.0,
+                                        "sigma_z": parse_num_robust(row_cells[6]) if len(row_cells) > 6 else 0.0,
+                                        "metodo_posicionamento": str(row_cells[7]).strip() if len(row_cells) > 7 else "PG1"
                                     })
         except Exception as e_ods:
             logging.getLogger(__name__).error(f"Erro ao processar ODS do vizinho: {e_ods}")
@@ -500,6 +540,7 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
             is_poligono_only = True
             idx_qrcode = headers.index('QRCODE')
             idx_nome = headers.index('NOME')
+            idx_wkt = headers.index('GEOMETRIA_WKT')
 
             if len(rows) < 2 or len(rows[1]) <= max(idx_qrcode, idx_nome):
                 raise HTTPException(status_code=400, detail="Linha de dados do polígono truncada ou inválida.")
@@ -508,6 +549,84 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
             nome_propriedade = str(rows[1][idx_nome]).strip()
             if not qrcode_imovel or not nome_propriedade:
                 raise HTTPException(status_code=400, detail="Dados de QRCODE ou NOME ausentes no CSV do polígono.")
+
+            for r_idx, row in enumerate(rows[1:]):
+                if len(row) > idx_wkt:
+                    val_wkt = str(row[idx_wkt]).strip()
+                    coords = parse_wkt_geometry(val_wkt)
+                    for pt_idx, (cx, cy) in enumerate(coords):
+                        lat, lon, este, norte = resolver_coordenadas_robust(cx, cy, fuso_utm)
+                        if lat is not None and lon is not None:
+                            pontos_detetados.append({
+                                "tipo_ponto": "V",
+                                "numero": pt_idx + 1,
+                                "codigo_completo": f"V-{pt_idx+1:04d}",
+                                "norte": norte,
+                                "este": este,
+                                "altitude": 0.0,
+                                "lat": lat,
+                                "lon": lon,
+                                "sigma_n": 0.0,
+                                "sigma_e": 0.0,
+                                "sigma_z": 0.0,
+                                "metodo_posicionamento": "PG1"
+                            })
+
+        # Caso C: Limites / Segmentos de Confrontação (arquivo "limites" do SIGEF)
+        # Identificado por DO_VERTICE + AO_VERTICE, SEM coluna CODIGO. Esse arquivo descreve
+        # os trechos (segmentos) entre vértices já existentes no arquivo de vértices — a
+        # GEOMETRIA_WKT aqui é um LINESTRING (segmento), não um POINT (vértice isolado).
+        # NÃO deve ser tratado como ingestão de pontos: os vértices reais vêm do outro arquivo.
+        elif 'DO_VERTICE' in headers and 'AO_VERTICE' in headers and 'CODIGO' not in headers:
+            is_limites_segmentos = True
+
+            def get_col_idx_limites(col_names):
+                for name in col_names:
+                    if name in headers:
+                        return headers.index(name)
+                return -1
+
+            idx_qrcode_lim = get_col_idx_limites(['QRCODE'])
+            idx_do_vertice = get_col_idx_limites(['DO_VERTICE'])
+            idx_ao_vertice = get_col_idx_limites(['AO_VERTICE'])
+            idx_confrontante_desc = get_col_idx_limites(['CONFRONTANTE_DESC'])
+            idx_azimute = get_col_idx_limites(['AZIMUTE'])
+            idx_comprimento = get_col_idx_limites(['COMPRIMENTO'])
+            idx_wkt_lim = get_col_idx_limites(['GEOMETRIA_WKT', 'WKT'])
+
+            def get_row_val_limites(row, idx):
+                return str(row[idx]).strip() if 0 <= idx < len(row) else ""
+
+            for row in rows[1:]:
+                if not row:
+                    continue
+
+                if idx_qrcode_lim >= 0 and not qrcode_imovel:
+                    q_val = get_row_val_limites(row, idx_qrcode_lim)
+                    if q_val:
+                        qrcode_imovel = q_val
+
+                do_vertice = get_row_val_limites(row, idx_do_vertice)
+                ao_vertice = get_row_val_limites(row, idx_ao_vertice)
+                if not do_vertice or not ao_vertice:
+                    continue
+
+                vertices_linestring = parse_wkt_linestring(get_row_val_limites(row, idx_wkt_lim))
+
+                segmentos_confrontacao.append({
+                    "do_vertice": do_vertice.upper(),
+                    "ao_vertice": ao_vertice.upper(),
+                    "confrontante_desc": get_row_val_limites(row, idx_confrontante_desc) or None,
+                    "azimute": parse_num_robust(get_row_val_limites(row, idx_azimute)),
+                    "comprimento": parse_num_robust(get_row_val_limites(row, idx_comprimento)),
+                    "vertices": vertices_linestring,
+                })
+
+            if not qrcode_imovel:
+                qrcode_imovel = f"CSV_{os.path.splitext(filename)[0]}"
+
+            if not segmentos_confrontacao:
+                raise HTTPException(status_code=400, detail="Nenhum segmento de confrontação (DO_VERTICE/AO_VERTICE) foi localizado no arquivo de limites.")
 
         # Caso B: Vértices (ou fallback)
         else:
@@ -518,11 +637,11 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                 return -1
 
             idx_qrcode = get_col_idx(['QRCODE'])
-            idx_codigo = get_col_idx(['CODIGO', 'VERTICE', 'DO_VERTICE'])
-            idx_tipo = get_col_idx(['TIPO_VERTICE', 'TIPO'])
-            idx_x = get_col_idx(['X', 'LONGITUDE', 'ESTE'])
-            idx_y = get_col_idx(['Y', 'LATITUDE', 'NORTE'])
-            idx_z = get_col_idx(['Z', 'ALTITUDE', 'ALT'])
+            idx_codigo = get_col_idx(['CODIGO', 'VERTICE', 'DO_VERTICE', 'NOME', 'MARCO', 'PONTO', 'CODIGO_VERTICE', 'NOME_VERTICE', 'DENOMINACAO', 'ID', 'NUMERO'])
+            idx_tipo = get_col_idx(['TIPO_VERTICE', 'TIPO', 'TIPO_MARCO'])
+            idx_x = get_col_idx(['X', 'LONGITUDE', 'ESTE', 'EASTING', 'COORD_X', 'LONG', 'E', 'LONGITUDE_DECIMAL', 'X_UTM'])
+            idx_y = get_col_idx(['Y', 'LATITUDE', 'NORTE', 'NORTHING', 'COORD_Y', 'LAT', 'N', 'LATITUDE_DECIMAL', 'Y_UTM'])
+            idx_z = get_col_idx(['Z', 'ALTITUDE', 'ALT', 'ELEVATION', 'HEIGHT', 'H'])
             idx_wkt = get_col_idx(['GEOMETRIA_WKT', 'WKT'])
             idx_metodo = get_col_idx(['METODO_POSICIONAMENTO', 'METODO'])
             idx_sigma_x = get_col_idx(['SIGMA_X', 'SIGMA_E'])
@@ -554,12 +673,12 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                 lat, lon, este, norte = None, None, None, None
 
                 if val_x or val_y:
-                    lat, lon, este, norte = resolver_coordenadas_robust(val_x, val_y)
+                    lat, lon, este, norte = resolver_coordenadas_robust(val_x, val_y, fuso_utm)
 
                 if (lat is None or lon is None) and wkt_lat is not None and wkt_lon is not None:
                     lat, lon = wkt_lat, wkt_lon
                     if este is None or norte is None:
-                        _, _, este, norte = resolver_coordenadas_robust(lon, lat)
+                        _, _, este, norte = resolver_coordenadas_robust(lon, lat, fuso_utm)
 
                 pontos_detetados.append({
                     "tipo_ponto": tipo or "V",
@@ -576,13 +695,37 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                     "metodo_posicionamento": get_row_val(idx_metodo) or "PG1"
                 })
 
-    # Tratamento caso polígono isolado
-    if is_poligono_only:
+    # Tratamento caso arquivo de limites / segmentos de confrontação (Caso C)
+    # IMPORTANTE: este arquivo NUNCA deve inserir, apagar ou alterar registros da tabela
+    # `pontos` — os vértices já vêm do arquivo de vértices. Aqui só guardamos a poligonal
+    # do perímetro (para desenho no mapa) e a descrição de confrontação de cada segmento.
+    if is_limites_segmentos:
         try:
+            anel = []
+            for seg in segmentos_confrontacao:
+                pts = seg.get("vertices") or []
+                if not pts:
+                    continue
+                if not anel:
+                    anel.extend(pts)
+                else:
+                    inicio = 1 if pts[0] == anel[-1] else 0
+                    anel.extend(pts[inicio:])
+
+            if anel and anel[0] != anel[-1]:
+                anel.append(anel[0])
+
+            poligono_wkt = None
+            if len(anel) >= 4:
+                coords_str = ", ".join(f"{lon} {lat}" for lon, lat in anel)
+                poligono_wkt = f"POLYGON(({coords_str}))"
+
+            confrontacoes_json = json.dumps(segmentos_confrontacao, ensure_ascii=False)
+
             with DatabaseManager() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT c.id, p.nome, c.pessoa_id FROM confrontantes c
+                    SELECT c.id, p.nome, c.pessoa_id, c.nome_propriedade FROM confrontantes c
                     JOIN pessoas p ON c.pessoa_id = p.id
                     WHERE c.levantamento_id = ? AND c.codigo_incra_imovel = ?
                 """, (id, qrcode_imovel))
@@ -590,39 +733,40 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
 
                 if row_conf:
                     confrontante_id = row_conf["id"]
-                    novo_nome = row_conf["nome"]
-                    if row_conf["nome"].startswith("Vizinho SIGEF -"):
-                        novo_nome = f"Proprietário de {nome_propriedade}"
-
-                    cursor.execute("UPDATE pessoas SET nome = ? WHERE id = ?", (novo_nome, row_conf["pessoa_id"]))
-                    cursor.execute("UPDATE confrontantes SET nome_propriedade = ? WHERE id = ?", (nome_propriedade, confrontante_id))
+                    nome_propriedade_final = row_conf["nome_propriedade"] or "Propriedade Vizinha"
                 else:
-                    novo_nome = f"Proprietário de {nome_propriedade}"
-                    cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (novo_nome,))
+                    nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}"
+                    nome_propriedade_final = "Propriedade Vizinha"
+                    cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome_detentor,))
                     pessoa_id = cursor.lastrowid
                     cursor.execute(
                         "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome_propriedade, codigo_incra_imovel) VALUES (?, ?, ?, ?)",
-                        (pessoa_id, id, nome_propriedade, qrcode_imovel)
+                        (pessoa_id, id, nome_propriedade_final, qrcode_imovel)
                     )
                     confrontante_id = cursor.lastrowid
 
+                cursor.execute(
+                    "UPDATE confrontantes SET poligono_wkt = ?, confrontacoes_json = ? WHERE id = ?",
+                    (poligono_wkt, confrontacoes_json, confrontante_id)
+                )
                 conn.commit()
 
             return {
                 "success": True,
-                "confrontante": {"id": confrontante_id, "nome_propriedade": nome_propriedade},
-                "mensagem": f"Propriedade do vizinho identificada com sucesso: '{nome_propriedade}'."
+                "confrontante": {"id": confrontante_id, "nome_propriedade": nome_propriedade_final},
+                "segmentos_importados": len(segmentos_confrontacao),
+                "mensagem": f"Limites do vizinho importados: {len(segmentos_confrontacao)} segmento(s) de confrontação processados."
             }
         except Exception as e_db:
-            logging.getLogger(__name__).error(f"Erro ao salvar polígono no banco: {e_db}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Erro ao atualizar metadados da propriedade: {str(e_db)}")
+            logging.getLogger(__name__).error(f"Erro ao salvar limites/segmentos do vizinho no banco: {e_db}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Erro ao persistir limites do vizinho: {str(e_db)}")
 
-    # Caso contrário: Ingestão de Vértices
+    # Ingestão de Vértices e Polígonos
     if not qrcode_imovel:
         qrcode_imovel = f"CSV_{os.path.splitext(filename)[0]}"
 
     if not pontos_detetados:
-        raise HTTPException(status_code=400, detail="Nenhum ponto válido no formato de vértice (ex: 'M-0001' ou 'ABC-M-0001') foi localizado no arquivo.")
+        raise HTTPException(status_code=400, detail="Nenhum ponto ou geometria válida no formato de vértice ou WKT foi localizado no arquivo.")
 
     try:
         with DatabaseManager() as conn:
@@ -637,11 +781,15 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
 
             if row_conf:
                 confrontante_id = row_conf["id"]
-                nome_propriedade = row_conf["nome_propriedade"]
+                if nome_propriedade and nome_propriedade != row_conf["nome_propriedade"]:
+                    cursor.execute("UPDATE confrontantes SET nome_propriedade = ? WHERE id = ?", (nome_propriedade, confrontante_id))
+                else:
+                    nome_propriedade = row_conf["nome_propriedade"]
                 nome_detentor = row_conf["nome"]
             else:
-                nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}"
-                nome_propriedade = "Propriedade Vizinha"
+                nome_detentor = f"Vizinho SIGEF - {qrcode_imovel[:8]}" if not is_poligono_only else f"Proprietário de {nome_propriedade}"
+                if not nome_propriedade:
+                    nome_propriedade = "Propriedade Vizinha"
 
                 cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome_detentor,))
                 pessoa_id = cursor.lastrowid
@@ -723,6 +871,7 @@ async def importar_vizinho_csv(id: int, file: UploadFile = File(...)):
                 "propriedade": nome_propriedade
             },
             "pontos_importados": len(pontos_detetados),
+            "pontos": pontos_detetados,
             "mensagem": f"Importação concluída: {len(pontos_detetados)} pontos do vizinho '{prop_exibida}' importados."
         }
     except Exception as e_db:
@@ -735,10 +884,11 @@ def get_pontos_vizinhos(id: int):
         query = """
             SELECT p.id, p.levantamento_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt,
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.confrontante_id, p.dados_vizinho_json,
-                   pe.nome as nome_confrontante, c.nome_propriedade
+                   COALESCE(pe.nome, 'Vizinho Desconhecido') as nome_confrontante,
+                   COALESCE(c.nome_propriedade, 'Propriedade Vizinha') as nome_propriedade
             FROM pontos p
-            JOIN confrontantes c ON p.confrontante_id = c.id
-            JOIN pessoas pe ON c.pessoa_id = pe.id
+            LEFT JOIN confrontantes c ON p.confrontante_id = c.id
+            LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
             WHERE p.levantamento_id = ? AND p.ponto_vizinho = 1 AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
             ORDER BY p.id ASC
         """

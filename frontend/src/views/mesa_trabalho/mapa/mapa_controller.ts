@@ -39,6 +39,10 @@ export class MesaTrabalhoMapa {
     this.marcadores.plotPontosVizinhos(pontos);
   }
 
+  public plotPoligonosVizinhos(confrontantes: any[]): void {
+    this.marcadores.plotPoligonosVizinhos(confrontantes);
+  }
+
   public plotSegmentos(segmentos: Segmento[], pontos: Ponto[]): void {
     this.linhas.plotSegmentos(segmentos, pontos);
   }
@@ -67,11 +71,27 @@ export class MesaTrabalhoMapa {
     }
   }
 
-  public fitBounds(pontos: Ponto[], padding: [number, number] = [40, 40]): void {
+  public fitBounds(pontos: Ponto[], padding: [number, number] = [40, 40], incluirVizinhos: boolean = false, pontosVizinhos: Ponto[] = []): void {
     if (!this.core.map) return;
-    const validCoords = pontos
-      .filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0)
-      .map(p => L.latLng(p.lat as number, p.lon as number));
+
+    let todosPontos = [...pontos];
+    if (incluirVizinhos && pontosVizinhos && pontosVizinhos.length > 0) {
+      todosPontos = [...todosPontos, ...pontosVizinhos];
+    }
+
+    const validCoords = todosPontos
+      .map(p => {
+        const rawLat = p.lat ?? (p as any).latitude ?? (p as any).y;
+        const rawLon = p.lon ?? (p as any).lng ?? (p as any).longitude ?? (p as any).x;
+        const lat = typeof rawLat === 'string' ? parseFloat(rawLat) : Number(rawLat);
+        const lon = typeof rawLon === 'string' ? parseFloat(rawLon) : Number(rawLon);
+        if (lat !== undefined && lon !== undefined && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+          return L.latLng(lat, lon);
+        }
+        return null;
+      })
+      .filter((coord): coord is L.LatLng => coord !== null);
+
     if (validCoords.length > 0) {
       const bounds = L.latLngBounds(validCoords);
       this.core.map.fitBounds(bounds, { padding });
@@ -79,6 +99,12 @@ export class MesaTrabalhoMapa {
       this.core.map.once('moveend', () => {
         this.core.preCarregarTilesRegiao(bounds);
       });
+    }
+
+    try {
+      this.core.map.invalidateSize();
+    } catch (err) {
+      // Absorve exceções de desmontagem DOM silenciosamente
     }
   }
 

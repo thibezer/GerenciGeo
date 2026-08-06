@@ -4,6 +4,7 @@ from utils.geodesia_parser import (
     parse_num_robust,
     parse_dms_robust,
     parse_wkt_point,
+    parse_wkt_geometry,
     resolver_coordenadas_robust,
     detect_csv_delimiter,
 )
@@ -58,6 +59,12 @@ class TestGeodesiaParser(unittest.TestCase):
         self.assertEqual(parse_wkt_point(None), (None, None))
         self.assertEqual(parse_wkt_point(""), (None, None))
 
+    def test_parse_wkt_geometry(self):
+        wkt_poly = "POLYGON((-53.48654 -23.58077, -53.48700 -23.58100, -53.48800 -23.58200))"
+        coords = parse_wkt_geometry(wkt_poly)
+        self.assertEqual(len(coords), 3)
+        self.assertEqual(coords[0], (-53.48654, -23.58077))
+
     def test_resolver_coordenadas_robust(self):
         # Lat/Lon SIRGAS 2000 Fuso 22S
         lat, lon, este, norte = resolver_coordenadas_robust("-51.1234", "-23.5678", fuso_utm_default=22)
@@ -71,11 +78,23 @@ class TestGeodesiaParser(unittest.TestCase):
         self.assertAlmostEqual(lat_u, -23.58077, places=4)
         self.assertAlmostEqual(lon_u, -53.48654, places=4)
 
+        # Inversão UTM (Norte no v1 e Este no v2)
+        lat_inv, lon_inv, este_inv, norte_inv = resolver_coordenadas_robust("7389982.83", "246223.93", fuso_utm_default=22)
+        self.assertAlmostEqual(lat_inv, -23.58077, places=4)
+        self.assertAlmostEqual(lon_inv, -53.48654, places=4)
+
     def test_fusos_utm_transicao(self):
         # Fuso 21S (Ex: Lon -57.0)
         lat21, lon21, este21, norte21 = resolver_coordenadas_robust("-57.0000", "-20.0000")
         self.assertAlmostEqual(lon21, -57.0, places=4)
         self.assertIsNotNone(este21)
+
+        # Resolução de UTM usando fuso 21S vs 22S
+        lat_u21, lon_u21, _, _ = resolver_coordenadas_robust("500000", "7788000", fuso_utm_default=21)
+        lat_u22, lon_u22, _, _ = resolver_coordenadas_robust("500000", "7788000", fuso_utm_default=22)
+        # Em fuso 21, Easting 500000 está na longitude central -57; no fuso 22 está na longitude -51
+        self.assertAlmostEqual(lon_u21, -57.0, places=2)
+        self.assertAlmostEqual(lon_u22, -51.0, places=2)
 
         # Fuso 23S (Ex: Lon -45.0)
         lat23, lon23, este23, norte23 = resolver_coordenadas_robust("-45.0000", "-22.0000")

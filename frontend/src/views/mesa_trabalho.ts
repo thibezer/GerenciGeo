@@ -654,6 +654,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
         ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
       }
+      if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
+        ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
+      }
     };
 
     let _previousSelectedIds = new Set<number>();

@@ -9,6 +9,7 @@ import { getPointShapeHtml } from './mapa_pontos_shapes';
 export class MapaMarcadores {
   public markers: L.Marker[] = [];
   public vizinhosMarkers: L.Marker[] = [];
+  public vizinhosPoligonos: L.Polygon[] = [];
   private core: MapaCore;
   private controller: MesaTrabalhoMapa;
 
@@ -98,15 +99,17 @@ export class MapaMarcadores {
     }
     this.core.pontosVizinhosGroup.clearLayers();
 
-    const grupos = new Map<number, Ponto[]>();
-    pontos.forEach(p => {
-      const lat = typeof p.lat === 'string' ? parseFloat(p.lat) : p.lat;
-      const lon = typeof p.lon === 'string' ? parseFloat(p.lon) : p.lon;
+    const grupos = new Map<string, Ponto[]>();
+    (pontos || []).forEach(p => {
+      const rawLat = p.lat ?? (p as any).latitude ?? (p as any).y;
+      const rawLon = p.lon ?? (p as any).lng ?? (p as any).longitude ?? (p as any).x;
+      const lat = typeof rawLat === 'string' ? parseFloat(rawLat.replace(',', '.')) : Number(rawLat);
+      const lon = typeof rawLon === 'string' ? parseFloat(rawLon.replace(',', '.')) : Number(rawLon);
 
-      if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+      if (lat !== undefined && lon !== undefined && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
         p.lat = lat;
         p.lon = lon;
-        const cId = p.confrontante_id !== undefined && p.confrontante_id !== null ? p.confrontante_id : 0;
+        const cId = p.confrontante_id !== undefined && p.confrontante_id !== null ? String(p.confrontante_id) : '0';
         if (!grupos.has(cId)) grupos.set(cId, []);
         grupos.get(cId)!.push(p);
       }
@@ -185,6 +188,64 @@ export class MapaMarcadores {
     });
   }
 
+  /**
+   * Desenha o perímetro (limites) dos imóveis vizinhos importados via CSV de "limites" do SIGEF.
+   * Cada confrontante pode ter um `poligono_wkt` no formato "POLYGON((lon lat, lon lat, ...))",
+   * montado a partir dos segmentos LINESTRING do arquivo de limites (ver backend: segmentos.py).
+   */
+  public plotPoligonosVizinhos(confrontantes: any[]): void {
+    if (!this.core.map || !this.core.pontosVizinhosGroup) return;
+
+    if (!this.core.map.hasLayer(this.core.pontosVizinhosGroup)) {
+      this.core.pontosVizinhosGroup.addTo(this.core.map);
+    }
+
+    if (this.vizinhosPoligonos.length > 0) {
+      this.vizinhosPoligonos.forEach(pg => pg.off());
+      this.vizinhosPoligonos = [];
+    }
+
+    (confrontantes || []).forEach(c => {
+      if (!c || !c.poligono_wkt) return;
+
+      const match = /POLYGON\s*\(\s*\(\s*(.*?)\s*\)\s*\)/i.exec(c.poligono_wkt);
+      if (!match) return;
+
+      const coords: L.LatLngExpression[] = match[1]
+        .split(',')
+        .map(par => {
+          const partes = par.trim().split(/\s+/);
+          const lon = parseFloat(partes[0]);
+          const lat = parseFloat(partes[1]);
+          return (!isNaN(lat) && !isNaN(lon)) ? [lat, lon] as L.LatLngExpression : null;
+        })
+        .filter((p): p is L.LatLngExpression => p !== null);
+
+      if (coords.length < 3) return;
+
+      const nomePropriedade = escapeHtml(c.nome_propriedade || 'Propriedade Vizinha');
+      const nomeConfrontante = escapeHtml(c.nome || 'Desconhecido');
+
+      const poligono = L.polygon(coords, {
+        color: '#a855f7',
+        weight: this.core.config.vizinhoWeight,
+        dashArray: '4, 6',
+        fillColor: '#a855f7',
+        fillOpacity: 0.05,
+        pane: 'overlayPane'
+      }).bindPopup(`
+        <div class="p-2 font-sans text-xs bg-forest-deep text-white min-w-[200px]">
+          <div class="font-bold text-purple-400 mb-1 border-b border-white/10 pb-1">Limite do Vizinho (Importado)</div>
+          <div class="mb-1"><strong>Propriedade:</strong> ${nomePropriedade}</div>
+          <div class="mb-1"><strong>Proprietário:</strong> ${nomeConfrontante}</div>
+        </div>
+      `, { className: 'custom-leaflet-popup' });
+
+      poligono.addTo(this.core.pontosVizinhosGroup!);
+      this.vizinhosPoligonos.push(poligono);
+    });
+  }
+
   public clearMarkers(): void {
     if (this.markers) {
       this.markers.forEach(m => {
@@ -200,6 +261,10 @@ export class MapaMarcadores {
         m.unbindPopup();
       });
       this.vizinhosMarkers = [];
+    }
+    if (this.vizinhosPoligonos) {
+      this.vizinhosPoligonos.forEach(pg => pg.off());
+      this.vizinhosPoligonos = [];
     }
     if (this.core.pontosVizinhosGroup) {
       this.core.pontosVizinhosGroup.clearLayers();

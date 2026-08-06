@@ -10,35 +10,58 @@ from utils.transformer_cache import get_transformer
 REGEX_MARCO_SIGEF = re.compile(r"\b([A-Z0-9]{3,5})-(M|P|V)-(\d+)\b", re.IGNORECASE)
 REGEX_MARCO_SEM_PREFIXO = re.compile(r"\b(M|P|V)-(\d+)\b", re.IGNORECASE)
 WKT_POINT_REGEX = re.compile(r"POINT\s*\(\s*(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)\s*\)", re.IGNORECASE)
+WKT_LINESTRING_REGEX = re.compile(r"LINESTRING\s*\(\s*(.*?)\s*\)", re.IGNORECASE)
+WKT_COORDS_REGEX = re.compile(r"(-?[\d.]+(?:[eE][+-]?\d+)?)\s+(-?[\d.]+(?:[eE][+-]?\d+)?)")
 
 # ── Funções de Extração e Validação ────────────────────────────────────────────
 
 def extract_codigo_parts(codigo):
     """
     Extrai tipo (M/P/V), número e código completo do vértice.
-    Suporta formatos 'ABC-M-0001', 'M-0001' ou similares.
+    Suporta formatos 'ABC-M-0001', 'M-0001', 'P1', 'V01', 'VRT-1', etc.
     """
     if not codigo:
         return None, None, None
-    codigo = str(codigo).strip()
+    codigo = str(codigo).strip().strip('"').strip("'")
+    if not codigo:
+        return None, None, None
+
     match = REGEX_MARCO_SIGEF.search(codigo)
     if match and match.group(0) == codigo:
         return match.group(2).upper(), int(match.group(3)), codigo.upper()
     match_sem = REGEX_MARCO_SEM_PREFIXO.search(codigo)
     if match_sem and match_sem.group(0) == codigo:
         return match_sem.group(1).upper(), int(match_sem.group(2)), codigo.upper()
-    return None, None, None
+
+    # Fallback 1: se contem padrao SIGEF em qualquer trecho do texto
+    if match:
+        return match.group(2).upper(), int(match.group(3)), match.group(0).upper()
+    if match_sem:
+        return match_sem.group(1).upper(), int(match_sem.group(2)), match_sem.group(0).upper()
+
+    # Fallback 2: Vértice genérico (ex: P0001, P1, V1, M01, VRT-1, P_01, 101, etc.)
+    # Exige presença de ao menos um número no código do ponto para descartar palavras genéricas ("INVALIDO", "OBS")
+    m_num = re.search(r'\d+', codigo)
+    if not m_num:
+        return None, None, None
+
+    m_tipo = re.search(r'\b(M|P|V)\b', codigo, re.IGNORECASE)
+    if not m_tipo:
+        m_tipo = re.search(r'(M|P|V)', codigo, re.IGNORECASE)
+    tipo_flex = m_tipo.group(1).upper() if m_tipo else 'V'
+    num_flex = int(m_num.group(0))
+    return tipo_flex, num_flex, codigo.upper()
 
 
 def parse_num_robust(val):
     """
     Converte uma representação numérica string em float de forma robusta.
-    Suporta formato brasileiro (vírgula decimal '1.234,56'), internacional ('1234.56')
-    e sanitiza espaços invisíveis/inquebráveis (\\xa0).
+    Suporta formato brasileiro (vírgula decimal '1.234,56'), internacional ('1234.56'),
+    aspas e sanitiza espaços invisíveis/inquebráveis (\\xa0).
     """
     if val is None:
         return None
-    s = str(val).strip().replace('\xa0', '').replace(' ', '')
+    s = str(val).strip().strip('"').strip("'").replace('\xa0', '').replace(' ', '')
     if not s:
         return None
     try:
@@ -102,6 +125,49 @@ def parse_wkt_point(wkt_str):
     return None, None
 
 
+def parse_wkt_linestring(wkt_str):
+    """
+    Extrai a sequência de vértices [(lon, lat), (lon, lat), ...] de uma string
+    WKT LINESTRING (lon1 lat1, lon2 lat2, ...), como a exportada pelo SIGEF/INCRA
+    para descrever cada segmento de confrontação (arquivo de "limites").
+    Retorna lista vazia se a string não for um LINESTRING válido.
+    """
+    if not wkt_str:
+        return []
+    m = WKT_LINESTRING_REGEX.search(str(wkt_str))
+    if not m:
+        return []
+
+    pontos = []
+    for par in m.group(1).split(','):
+        partes = par.strip().split()
+        if len(partes) >= 2:
+            try:
+                lon = float(partes[0])
+                lat = float(partes[1])
+                pontos.append((lon, lat))
+            except (ValueError, TypeError):
+                continue
+    return pontos
+
+
+def parse_wkt_geometry(wkt_str):
+    """
+    Extrai lista de coordenadas (x, y) de qualquer WKT (POINT, LINESTRING, POLYGON, MULTIPOLYGON).
+    Retorna lista de tuplas [(x1, y1), (x2, y2), ...].
+    """
+    if not wkt_str:
+        return []
+    coords = WKT_COORDS_REGEX.findall(str(wkt_str))
+    res = []
+    for cx, cy in coords:
+        try:
+            res.append((float(cx), float(cy)))
+        except (ValueError, TypeError):
+            continue
+    return res
+
+
 def resolver_coordenadas_robust(val_x, val_y, fuso_utm_default=22):
     """
     Resolve e converte inteligentemente entre coordenadas Geográficas (Lat/Lon) e UTM (Easting/Northing).
@@ -129,7 +195,11 @@ def resolver_coordenadas_robust(val_x, val_y, fuso_utm_default=22):
             except Exception as e:
                 logging.getLogger(__name__).warning(f"Erro ao converter GEO para UTM: {e}")
         else:
-            este, norte = v1, v2
+            # Tratamento de inversão UTM (Norte no v1 e Este no v2)
+            if v1 > 1000000 and v2 < 1000000:
+                norte, este = v1, v2
+            else:
+                este, norte = v1, v2
             epsg_utm = 31960 + fuso_utm_default
             try:
                 transformer_utm_to_ll = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)

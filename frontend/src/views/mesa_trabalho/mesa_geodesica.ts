@@ -216,6 +216,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
       ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
     }
+    if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
+      ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
+    }
 
   }
 
@@ -1199,7 +1202,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
         const formData = new FormData();
         formData.append('file', file);
 
-        const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv`, {
+        const fusoAtual = ctx.mapaController?.fusoUtm || 22;
+        const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv?fuso_utm=${fusoAtual}`, {
           method: 'POST',
           body: formData
         });
@@ -1217,7 +1221,11 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
 
       if (sucessos > 0) {
         showToast(`Sucesso: ${sucessos} de ${files.length} arquivo(s) importados!`, 'success');
-        ctx.loadLevantamentoDetails();
+        await ctx.loadLevantamentoDetails();
+        if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0 && ctx.mapaController) {
+          ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+          ctx.mapaController.fitBounds(ctx.pontosList || [], [50, 50], true, ctx.pontosVizinhosList);
+        }
       } else {
         alert("Erro ao importar arquivos de vizinho.");
       }

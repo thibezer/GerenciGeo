@@ -528,7 +528,9 @@ def create_tables(conn):
             ("cns_confrontante", "TEXT"),
             ("caminho_matricula_pdf", "TEXT"),
             ("nome_propriedade", "TEXT"),
-            ("codigo_incra_imovel", "TEXT")
+            ("codigo_incra_imovel", "TEXT"),
+            ("poligono_wkt", "TEXT"),
+            ("confrontacoes_json", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}

@@ -80,3 +80,21 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. O componente `<ui-botao>` dispara `form.requestSubmit()` automaticamente via atributo `tipo-submit` ou `type="submit"`. Não registre ouvintes manuais de `click` ou `ui-click` chamando `form.requestSubmit()` em botões que já estejam dentro do `<form>`.
   2. Toda Pydantic model (`MatriculaCreate`) e rotas de banco devem aceitar ambos os nomes de propriedades (tanto os nomes abreviados quanto os completos), e os utilitários de exibição no frontend (`renderMatriculasTabelaHtml`) devem verificar fallbacks (`m.area_registrada_ha ?? m.area_ha`).
   3. Toda rota REST deve possuir alias quando o frontend invoca caminhos com diferentes nomenclaturas (ex: `@router.post("/propriedades/{id}/clientes")` e `@router.post("/propriedades/{id}/proprietarios")`).
+
+---
+
+## 10. Ingestão de Planilhas de Limites/Polígonos SIGEF (WKT) vs. Vértices e Renderização no Leaflet
+- **Problema**: Ao importar planilhas de **Limites/Polígonos** (ex: `Limites_...csv` contendo `GEOMETRIA_WKT`), a rotina `importar_vizinho_csv` identificava `is_poligono_only = True` e encerrava a execução inserindo apenas os metadados do confrontante, sem converter nem salvar os vértices do perímetro na tabela `pontos`. Como resultado, a importação isolada de arquivos de Limites não exibia nenhum ponto ou linha no mapa.
+- **Regra Obrigatória**:
+  1. A função `parse_wkt_geometry(wkt_str)` em `geodesia_parser.py` deve extrair as coordenadas `(X, Y)` / `(Lon, Lat)` de geometrias `POLYGON`, `MULTIPOLYGON` e `LINESTRING`.
+  2. A ingestão em `importar_vizinho_csv` deve obrigatoriamente converter a geometria WKT em pontos do perímetro quando a lista de vértices explicítos estiver ausente, salvando-os na tabela `pontos` e vinculando-os ao confrontante.
+  3. A consulta `GET /levantamentos/{id}/pontos-vizinhos` deve utilizar `LEFT JOIN` nas tabelas `confrontantes` e `pessoas` para assegurar que nenhum ponto seja omitido no retorno da API.
+  4. No frontend, após a importação, o mapa deve plotar os novos pontos vizinhos e disparar o enquadramento automático `fitBounds` com recálculo seguro `invalidateSize()`.
+
+---
+
+## 11. Propagação do Fuso UTM na Importação de Vizinhos (CSV/ODS)
+- **Problema**: A rota POST `/levantamentos/{id}/importar-vizinho-csv` chamava `resolver_coordenadas_robust()` sem passar o fuso UTM do levantamento, assumindo a Zona 22S por padrão. Quando o levantamento estava em outra zona (ex: 21S, 23S, 24S), arquivos de vizinhos com coordenadas UTM (Este/Norte) eram convertidos para a zona errada, caindo longe ou resultando em Lat/Lon inválidos que o frontend descartava no mapa.
+- **Regra Obrigatória**:
+  1. A rota POST `/levantamentos/{id}/importar-vizinho-csv` deve aceitar o parâmetro `fuso_utm: int = Query(22)` no backend e repassá-lo para todas as chamadas a `resolver_coordenadas_robust(..., fuso_utm)`.
+  2. No frontend (`mesa_geodesica.ts`), a requisição `fetch` de importação de vizinhos deve anexar `?fuso_utm=${fusoAtual}` na URL, obtendo o fuso ativo via `ctx.mapaController?.fusoUtm || 22`.
