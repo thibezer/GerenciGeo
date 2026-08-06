@@ -13,7 +13,6 @@ timings.Timings.fast()
 timings.Timings.after_clickinput_wait = 0.005
 timings.Timings.after_click_wait = 0.005
 timings.Timings.after_setcursorpos_wait = 0.002
-timings.Timings.type_keys_delay = 0.001
 
 def set_clipboard_text(text):
     import ctypes
