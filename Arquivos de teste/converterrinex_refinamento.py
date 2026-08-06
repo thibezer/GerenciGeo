@@ -145,23 +145,49 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         t2 = time.perf_counter() - t0
         pausar_e_perguntar("PASSO 2: Novo Projeto Criado", f"Nome '{proj_name}' injetado instantaneamente e OK acionado via Alt+O.", t2)
 
-        # PASSO 3: Abrir Propriedades do Projeto (abre instantaneamente após Alt+O)
+        # PASSO 3: Abrir Propriedades do Projeto, selecionar aba Avançado e escolher opção 8
         t0 = time.perf_counter()
-        print("\n[PASSO 3] Aguardando/Abrindo janela Propriedades do Projeto...")
-        time.sleep(0.02)
+        print("\n[PASSO 3] Aguardando janela Propriedades do Projeto e ajustando Aba Avançado...")
+        time.sleep(0.05)
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=2.0)
+            dlg_prop.wait('ready', timeout=3.0)
         except:
             garantir_foco()
             send_keys("%f")
-            time.sleep(0.02)
+            time.sleep(0.05)
             send_keys("p")
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=2.0)
+            dlg_prop.wait('ready', timeout=3.0)
+
+        garantir_foco()
+        
+        # 1. Seleciona a aba 'Avançado'
+        try:
+            tab_avancado = dlg_prop.child_window(title_re="(?i).*avançado.*|.*advanced.*", control_type="TabItem")
+            if tab_avancado.exists():
+                tab_avancado.select()
+            else:
+                tab_ctrl = dlg_prop.child_window(control_type="Tab")
+                items = tab_ctrl.children(control_type="TabItem")
+                if len(items) >= 2:
+                    items[1].select() # A aba Avançado normalmente é a 2ª aba
+        except: pass
+
+        time.sleep(0.05)
+
+        # 2. Seleciona a opção '8' no menu flutuante / ComboBox da aba Avançado
+        try:
+            combo = dlg_prop.child_window(control_type="ComboBox")
+            if combo.exists():
+                combo.select("8")
+            else:
+                send_keys("8")
+        except:
+            send_keys("8")
             
         t3 = time.perf_counter() - t0
-        pausar_e_perguntar("PASSO 3: Propriedades do Projeto", "Janela Propriedades do Projeto aberta instantaneamente.", t3)
+        pausar_e_perguntar("PASSO 3: Propriedades do Projeto (Avançado)", "Aba 'Avançado' selecionada e opção '8' escolhida no menu.", t3)
 
         # PASSO 4: Confirmar Propriedades e Tratar Coordenadas
         t0 = time.perf_counter()
