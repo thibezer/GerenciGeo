@@ -1256,6 +1256,41 @@ fluent-button {
   transition: all 120ms ease !important;
 }
 
+/* Prevenção de preenchimento forçado (fill sólido) nos ícones SVG / Lucide da Ribbon Mestre */
+.fluent-ribbon-theme svg,
+.fluent-ribbon-theme [data-lucide],
+.fluent-ribbon-theme i,
+.rl3-tool-btn svg,
+.rl3-tool-btn [data-lucide],
+.rl3-tool-btn i,
+.rl1-btn svg,
+.rl1-btn [data-lucide],
+.rl1-btn i {
+  fill: none !important;
+}
+
+.fluent-ribbon-theme svg path,
+.fluent-ribbon-theme svg polygon,
+.fluent-ribbon-theme svg polyline,
+.fluent-ribbon-theme svg rect,
+.fluent-ribbon-theme svg circle,
+.fluent-ribbon-theme svg line,
+.rl3-tool-btn svg path,
+.rl3-tool-btn svg polygon,
+.rl3-tool-btn svg polyline,
+.rl3-tool-btn svg rect,
+.rl3-tool-btn svg circle,
+.rl3-tool-btn svg line,
+.rl1-btn svg path,
+.rl1-btn svg polygon,
+.rl1-btn svg polyline,
+.rl1-btn svg rect,
+.rl1-btn svg circle,
+.rl1-btn svg line {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 /* Camada 1: Botões do App Bar / QAT / Navegação Global */
 .rl1-btn {
   display: inline-flex !important;
