@@ -188,11 +188,16 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
 
         time.sleep(0.05)
 
-        # 2. Seleciona a opção '8' no menu flutuante / ComboBox da aba Avançado
+        # 2. Seleciona a opção '8' no menu flutuante / ComboBox (Define quantos caracteres interpretados)
         try:
             combo = dlg_prop.child_window(control_type="ComboBox")
+            if not combo.exists():
+                combo = dlg_prop.child_window(class_name_re="(?i).*combobox.*")
+                
             if combo.exists():
-                combo.select("8")
+                combo.click_input()
+                time.sleep(0.05)
+                send_keys("8{ENTER}")
             else:
                 send_keys("8")
         except:
