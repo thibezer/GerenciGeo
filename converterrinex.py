@@ -41,7 +41,18 @@ def set_clipboard_text(text):
         user32.SetClipboardData(CF_UNICODETEXT, h_global)
     finally:
         user32.CloseClipboard()
-    return True
+def garantir_foco(janela_alvo):
+    if janela_alvo is not None:
+        try:
+            if janela_alvo.exists():
+                import ctypes
+                user32 = ctypes.windll.user32
+                hwnd = janela_alvo.handle
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.SetForegroundWindow(hwnd)
+                janela_alvo.set_focus()
+                time.sleep(0.05)
+        except: pass
 
 async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"):
     """
@@ -76,9 +87,10 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         app = Application(backend="uia").connect(process=proc.pid, timeout=8)
         janela = app.window(title_re="(?i).*hi-target.*")
         janela.wait('ready', timeout=8)
-        janela.set_focus()
+        garantir_foco(janela)
         
         # 1. Cria projeto via atalho de teclado Alt+F -> N (Novo)
+        garantir_foco(janela)
         send_keys("%f")
         time.sleep(0.15)
         send_keys("n")
@@ -95,33 +107,54 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         time.sleep(0.1)
         send_keys("{ENTER}")
         
-        # 2. Propriedades do Projeto -> Confirma diretamente com ENTER
-        time.sleep(0.2)
+        # 2. Propriedades do Projeto -> Confirma com OK
+        time.sleep(0.3)
+        dlg_prop = None
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=2.0)
+            dlg_prop.wait('ready', timeout=4.0)
         except:
             janela.set_focus()
             send_keys("%f")
             time.sleep(0.15)
             send_keys("p")
-            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=3.0)
-        
-        send_keys("{ENTER}")
-        
-        # 3. Janela de Coordenadas -> Confirma instantaneamente se aberta
-        time.sleep(0.2)
+            try:
+                dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+                dlg_prop.wait('ready', timeout=4.0)
+            except: pass
+
+        if dlg_prop and dlg_prop.exists():
+            try:
+                dlg_prop.set_focus()
+                time.sleep(0.1)
+                btn_ok = dlg_prop.child_window(auto_id="btOK", control_type="Button")
+                if btn_ok.exists():
+                    btn_ok.click_input()
+                else:
+                    send_keys("%o")
+            except:
+                send_keys("%o")
+
+        # 3. Janela de Coordenadas -> Confirma se aberta
+        time.sleep(0.3)
         try:
             dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
-            if dlg_coord.exists():
+            dlg_coord.wait('ready', timeout=3.0)
+            dlg_coord.set_focus()
+            time.sleep(0.1)
+            try:
+                btn_coord_ok = dlg_coord.child_window(auto_id="btOk", control_type="Button")
+                if btn_coord_ok.exists():
+                    btn_coord_ok.click_input()
+                else:
+                    send_keys("%o")
+            except:
                 send_keys("{ENTER}")
         except: pass
-        
+
         # 4. Importar arquivos GNS via atalho Alt+F -> I
         time.sleep(0.2)
         janela.set_focus()
-        send_keys("{ESC}")
         time.sleep(0.1)
         send_keys("%f")
         time.sleep(0.15)

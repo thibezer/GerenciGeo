@@ -71,25 +71,47 @@ def test_hgo_standalone(arquivo_gns, pasta_saida):
         # PASSO 3: Propriedades do Projeto
         print("\n[PASSO 3] Confirmando Propriedades do Projeto...")
         time.sleep(0.3)
+        dlg_prop = None
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=3.0)
+            dlg_prop.wait('ready', timeout=4.0)
         except:
             janela.set_focus()
             send_keys("%f")
             time.sleep(0.3)
             send_keys("p")
-            dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=4.0)
+            try:
+                dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
+                dlg_prop.wait('ready', timeout=4.0)
+            except: pass
 
-        send_keys("{ENTER}")
+        if dlg_prop and dlg_prop.exists():
+            try:
+                dlg_prop.set_focus()
+                time.sleep(0.1)
+                btn_ok = dlg_prop.child_window(auto_id="btOK", control_type="Button")
+                if btn_ok.exists():
+                    btn_ok.click_input()
+                else:
+                    send_keys("%o")
+            except:
+                send_keys("%o")
 
         # PASSO 4: Janela de Coordenadas (se surgir)
         time.sleep(0.3)
         try:
             dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
-            if dlg_coord.exists():
-                print("  -> Fechando diálogo de coordenadas...")
+            dlg_coord.wait('ready', timeout=3.0)
+            dlg_coord.set_focus()
+            time.sleep(0.1)
+            try:
+                btn_coord_ok = dlg_coord.child_window(auto_id="btOk", control_type="Button")
+                if btn_coord_ok.exists():
+                    print("  -> Confirmando diálogo de coordenadas...")
+                    btn_coord_ok.click_input()
+                else:
+                    send_keys("%o")
+            except:
                 send_keys("{ENTER}")
         except: pass
 
@@ -97,7 +119,6 @@ def test_hgo_standalone(arquivo_gns, pasta_saida):
         print("\n[PASSO 5] Abrindo janela de Importação (Alt+F -> I)...")
         time.sleep(0.3)
         janela.set_focus()
-        send_keys("{ESC}")
         time.sleep(0.2)
         send_keys("%f")
         time.sleep(0.3)

@@ -143,11 +143,11 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         time.sleep(0.02)
             
         t2 = time.perf_counter() - t0
-        pausar_e_perguntar("PASSO 2: Novo Projeto Criado", f"Nome '{proj_name}' injetado instantaneamente e OK acionado via Alt+O.", t2)
+        print(f" -> Novo Projeto criado e confirmado em {t2:.2f}s.")
 
-        # PASSO 3: Abrir Propriedades do Projeto, selecionar aba Avançado e escolher opção 8
+        # PASSO 3: Propriedades do Projeto -> Selecionar aba Avançado e escolher opção 8
         t0 = time.perf_counter()
-        print("\n[PASSO 3] Aguardando janela Propriedades do Projeto e ajustando Aba Avançado...")
+        print("\n[PASSO 3] Ajustando Propriedades do Projeto (Aba Avançado -> 8)...")
         time.sleep(0.05)
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
@@ -197,30 +197,40 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
             if combo.exists():
                 combo.click_input()
                 time.sleep(0.05)
-                send_keys("8{ENTER}")
+                send_keys("8")
+                time.sleep(0.05)
             else:
                 send_keys("8")
         except:
             send_keys("8")
             
         t3 = time.perf_counter() - t0
-        pausar_e_perguntar("PASSO 3: Propriedades do Projeto (Avançado)", "Aba 'Avançado' selecionada e opção '8' escolhida no menu.", t3)
+        print(f" -> Aba Avançado ajustada para '8' em {t3:.2f}s.")
 
-        # PASSO 4: Confirmar Propriedades e Tratar Coordenadas
+        # PASSO 4: Confirmar Propriedades (Alt+O) e abrir Janela de Coordenadas
         t0 = time.perf_counter()
-        print("\n[PASSO 4] Confirmando Propriedades (ENTER) e tratando diálogo de Coordenadas...")
+        print("\n[PASSO 4] Confirmando Propriedades (Alt+O) e abrindo Janela de Coordenadas...")
         garantir_foco()
-        send_keys("{ENTER}")
+        time.sleep(0.05)
+        send_keys("%o")
         
-        time.sleep(0.02)
+        time.sleep(0.1)
+        dlg_coord = None
         try:
             dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
-            if dlg_coord.exists():
-                send_keys("{ENTER}")
-        except: pass
-        
+            dlg_coord.wait('ready', timeout=3.0)
+        except:
+            garantir_foco()
+            send_keys("%f")
+            time.sleep(0.05)
+            send_keys("c")
+            try:
+                dlg_coord = janela.child_window(auto_id="frmCoord", control_type="Window")
+                dlg_coord.wait('ready', timeout=3.0)
+            except: pass
+            
         t4 = time.perf_counter() - t0
-        pausar_e_perguntar("PASSO 4: Coordenadas / Confirmação", "Propriedades confirmadas e projeto criado na tela principal.", t4)
+        pausar_e_perguntar("PASSO 4: Janela de Coordenadas", "Janela de Propriedades confirmada e Janela de Coordenadas aberta na tela.", t4)
 
         # PASSO 5: Abrir diálogo de Importação GNS (Alt+F -> I)
         t0 = time.perf_counter()
