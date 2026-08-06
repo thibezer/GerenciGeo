@@ -163,16 +163,28 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         garantir_foco()
         
         # 1. Seleciona a aba 'Avançado'
+        tab_selecionada = False
         try:
-            tab_avancado = dlg_prop.child_window(title_re="(?i).*avançado.*|.*advanced.*", control_type="TabItem")
+            tab_avancado = dlg_prop.child_window(title_re="(?i).*avan.*|.*advanc.*", control_type="TabItem")
             if tab_avancado.exists():
                 tab_avancado.select()
-            else:
+                tab_selecionada = True
+        except: pass
+
+        if not tab_selecionada:
+            try:
                 tab_ctrl = dlg_prop.child_window(control_type="Tab")
                 items = tab_ctrl.children(control_type="TabItem")
-                if len(items) >= 2:
-                    items[1].select() # A aba Avançado normalmente é a 2ª aba
-        except: pass
+                if len(items) >= 3:
+                    items[2].select() # Aba Avançado é a 3ª aba (índice 2)
+                    tab_selecionada = True
+                elif len(items) >= 2:
+                    items[1].select()
+                    tab_selecionada = True
+            except: pass
+
+        if not tab_selecionada:
+            send_keys("^{TAB}^{TAB}")
 
         time.sleep(0.05)
 
