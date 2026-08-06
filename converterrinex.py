@@ -358,9 +358,65 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         time.sleep(0.3)
         send_keys("{ENTER}")
         
-        # 7. Aguarda tempo fixo para a conversão Rinex ser concluída pelo HGO
-        print(" -> Aguardando 30 segundos para a conversao Rinex...")
-        time.sleep(30.0)
+        # 7. Aguarda dinamicamente a conclusão da conversão Rinex pelo HGO
+        print(" -> Aguardando conversão Rinex dinâmica pelo HGO...")
+        inicio_conversao = time.time()
+        timeout_conversao = 30.0
+        nomes_base_origem = [os.path.splitext(os.path.basename(a))[0].lower() for a in arquivos_origem]
+
+        def encontrar_arquivos_rinex_temp():
+            pastas_varredura = [proj_dir, os.path.join(proj_dir, "Rinex"), desktop_dir, pasta_destino]
+            encontrados = {}
+            for p_var in pastas_varredura:
+                if not p_var or not os.path.exists(p_var):
+                    continue
+                try:
+                    for f in os.listdir(p_var):
+                        caminho_f = os.path.join(p_var, f)
+                        if not os.path.isfile(caminho_f):
+                            continue
+                        nome_f, ext_f = os.path.splitext(f)
+                        nome_f_lower = nome_f.lower()
+                        ext_f_lower = ext_f.lower()
+
+                        if not any(nome_f_lower == nb or nome_f_lower.startswith(nb) for nb in nomes_base_origem):
+                            continue
+
+                        if ext_f_lower in ['.obs', '.nav', '.o', '.n', '.g'] or bool(re.match(r'^\.\d{2}[ong]$', ext_f_lower)):
+                            try:
+                                mtime = os.path.getmtime(caminho_f)
+                                if mtime >= (inicio_conversao - 5):
+                                    encontrados[f.lower()] = caminho_f
+                            except: pass
+                except: pass
+            return encontrados
+
+        while True:
+            arqs_dict = encontrar_arquivos_rinex_temp()
+            bases_prontas = 0
+            for nb in nomes_base_origem:
+                tem_obs = any(
+                    (k.startswith(nb) and (k.endswith('.obs') or k.endswith('.o') or bool(re.match(r'^.+\.\d{2}o$', k))))
+                    for k in arqs_dict.keys()
+                )
+                if tem_obs:
+                    bases_prontas += 1
+
+            if bases_prontas >= len(nomes_base_origem) and len(arqs_dict) > 0:
+                try:
+                    tamanhos_ini = {path: os.path.getsize(path) for path in arqs_dict.values()}
+                    time.sleep(0.5)
+                    arqs_dict_check = encontrar_arquivos_rinex_temp()
+                    tamanhos_fim = {path: os.path.getsize(path) for path in arqs_dict_check.values()}
+                    if tamanhos_ini == tamanhos_fim:
+                        print(f" -> Conversão Rinex concluída dinamicamente em {time.time() - inicio_conversao:.1f}s ({len(arqs_dict)} arquivos gerados).")
+                        break
+                except: pass
+
+            if time.time() - inicio_conversao > timeout_conversao:
+                print(f"[AVISO] Timeout na conversão Rinex ({timeout_conversao}s). Prosseguindo...")
+                break
+            time.sleep(0.4)
         
         # 8. Fecha o HGO de forma segura
         print(" -> Fechando o HGO...")
