@@ -969,3 +969,19 @@ def migrar_restricao_unicidade_banco_pontos(conn):
                 cursor.execute("PRAGMA foreign_keys = ON;")
             except Exception:
                 pass
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE pontos 
+            SET status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO' 
+            WHERE ponto_vizinho = 1 OR tipo_ponto = 'V';
+        """)
+        cursor.execute("""
+            UPDATE pontos 
+            SET status_correcao = 'CORRIGIDO' 
+            WHERE status_ponto = 'CORRIGIDO' AND (status_correcao IS NULL OR status_correcao = 'BRUTO');
+        """)
+        conn.commit()
+    except Exception as e_sync:
+        logger.warning(f"Aviso ao sincronizar status dos pontos de vizinhos no init_db: {e_sync}")

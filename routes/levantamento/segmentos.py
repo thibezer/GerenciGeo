@@ -810,7 +810,7 @@ async def importar_vizinho_csv(
                 (
                     id, None, pt["codigo_completo"], pt["tipo_ponto"], pt["lat"], pt["lon"], pt["altitude"],
                     pt["norte"], pt["este"], pt["altitude"], pt["sigma_n"], pt["sigma_e"], pt["sigma_z"],
-                    pt["sigma_n"], pt["sigma_e"], pt["sigma_z"], "CORRIGIDO", pt["metodo_posicionamento"],
+                    pt["sigma_n"], pt["sigma_e"], pt["sigma_z"], "CORRIGIDO", "CORRIGIDO", pt["metodo_posicionamento"],
                     filename, 0, confrontante_id, 1, dados_json
                 )
                 for pt in pontos_detetados
@@ -821,9 +821,9 @@ async def importar_vizinho_csv(
                 INSERT INTO pontos (
                     levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
                     n_original, e_original, alt_original, sigma_n, sigma_e, sigma_z,
-                    sigma_lat, sigma_lon, sigma_alt, status_ponto, metodo_posicionamento,
+                    sigma_lat, sigma_lon, sigma_alt, status_ponto, status_correcao, metodo_posicionamento,
                     arquivo_origem, origem_homologada, confrontante_id, ponto_vizinho, dados_vizinho_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 pontos_to_insert
             )

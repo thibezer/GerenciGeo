@@ -130,7 +130,7 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
         if matricula_id:
             pontos_data.append((
                 id_levantamento, matricula_id, p.get("codigo_completo"), p.get("tipo_ponto"), p.get("lat"), p.get("lon"), p.get("altitude"),
-                p.get("sigma_e"), p.get("sigma_n"), p.get("sigma_z"), idx_ordem, 'CORRIGIDO', p.get("metodo_posicionamento"), nome_planilha, 1
+                p.get("sigma_e"), p.get("sigma_n"), p.get("sigma_z"), idx_ordem, 'CORRIGIDO', 'CORRIGIDO', p.get("metodo_posicionamento"), nome_planilha, 1
             ))
 
     if not skip_banco and banco_pontos_data:
@@ -150,8 +150,8 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
             """
             INSERT INTO pontos 
             (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
-             sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, metodo_posicionamento, arquivo_origem, origem_homologada)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, metodo_posicionamento, arquivo_origem, origem_homologada)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, pontos_data
         )
         

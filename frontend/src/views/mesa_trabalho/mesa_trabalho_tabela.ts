@@ -274,7 +274,7 @@ export const renderLinhaPontoGeoprocessamentoHtml = (
      col6 = corrH;
   }
 
-  const isCorrigido = p.status_correcao === 'CORRIGIDO';
+  const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO' || p.ponto_vizinho === 1 || p.tipo_ponto === 'V' || p.tipo === 'V';
   const rowClass = isSelected 
      ? 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/30' 
      : (!isCorrigido 

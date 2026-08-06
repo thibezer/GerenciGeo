@@ -394,13 +394,15 @@ def create_ponto(id: int, p: PontoCreate):
             max_ord = row_max["max_ord"] if row_max else None
             ordem = (max_ord + 1) if max_ord is not None else 1
 
+        status_final = "CORRIGIDO" if p.tipo_ponto == 'V' else p.status_ponto
+
         query = """
-            INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, ponto_base_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, ponto_base_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         execute_query(query, params=(
             id, p.matricula_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
-            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem, p.status_ponto, p.ponto_base_id
+            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem, status_final, status_final, p.ponto_base_id
         ), commit=True)
         
         sanitizar_ordens_duplicadas(id)
@@ -878,14 +880,14 @@ def integrar_ponto_vizinho(id: int, pid: int, matricula_id: Optional[int] = None
                 INSERT INTO pontos (
                     levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
                     n_original, e_original, alt_original, sigma_n, sigma_e, sigma_z,
-                    sigma_lat, sigma_lon, sigma_alt, status_ponto, metodo_posicionamento,
+                    sigma_lat, sigma_lon, sigma_alt, status_ponto, status_correcao, metodo_posicionamento,
                     arquivo_origem, origem_homologada, confrontante_id, ponto_vizinho, ordem_caminhamento
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     id, matricula_id, p_viz["nome_vertice"], p_viz["tipo_ponto"], p_viz["lat"], p_viz["lon"], p_viz["alt"],
                     p_viz["n_original"], p_viz["e_original"], p_viz["alt_original"], p_viz["sigma_n"], p_viz["sigma_e"], p_viz["sigma_z"],
-                    p_viz["sigma_lat"], p_viz["sigma_lon"], p_viz["sigma_alt"], "CORRIGIDO", p_viz["metodo_posicionamento"],
+                    p_viz["sigma_lat"], p_viz["sigma_lon"], p_viz["sigma_alt"], "CORRIGIDO", "CORRIGIDO", p_viz["metodo_posicionamento"],
                     p_viz["arquivo_origem"], 0, p_viz["confrontante_id"], 0, nova_ordem
                 )
             )

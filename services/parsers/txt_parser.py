@@ -430,6 +430,13 @@ class TxtGeodesicParser:
             else:
                 tipo = "P"
 
+            # Pontos de vizinhos (tipo V) já vêm finalizados/corrigidos por outros profissionais
+            if tipo == "V":
+                status_ponto_final = "CORRIGIDO"
+                lat_corr_val = lat_corrigido
+                lon_corr_val = lon_corrigido
+                alt_corr_val = alt_corrigido
+
             # VALIDAR INTEGRIDADE INTERNA DO ARQUIVO IMPORTADO
             identificador_unico = (p["nome"].upper(), tipo)
             if identificador_unico in vertices_vistos:
