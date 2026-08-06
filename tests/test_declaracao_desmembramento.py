@@ -37,8 +37,8 @@ class TestDeclaracaoDesmembramento(unittest.TestCase):
             cls.pessoa_id = cursor.lastrowid
 
             cursor.execute("""
-                INSERT INTO clientes (pessoa_id, profissional_id, sexo) VALUES (?, ?, 'F')
-            """, (cls.pessoa_id, cls.prof_id))
+                INSERT INTO clientes (pessoa_id, sexo) VALUES (?, 'F')
+            """, (cls.pessoa_id,))
             cls.cliente_id = cursor.lastrowid
 
             # Criar propriedade
