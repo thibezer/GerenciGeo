@@ -108,16 +108,16 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         
         pausar_e_perguntar("PASSO 1: Abertura do HGO", "Aplicação HGO.exe aberta e focada.", t1)
 
-        # PASSO 2: Abrir janela Novo Projeto (Alt+F -> N)
+        # PASSO 2: Abrir janela Novo Projeto (Alt+F -> N) e preencher nome
         t0 = time.perf_counter()
         print("\n[PASSO 2] Abrindo menu de Novo Projeto (Alt+F -> N)...")
         garantir_foco()
         send_keys("%f")
-        time.sleep(0.2)
+        time.sleep(0.15)
         send_keys("n")
         
         dlg_novo = janela.child_window(auto_id="frmNewProject", control_type="Window")
-        dlg_novo.wait('ready', timeout=5)
+        dlg_novo.wait('ready', timeout=3) # Timeout máximo de 3s conforme solicitado
         
         tb_path = dlg_novo.child_window(auto_id="tbWorkPath", control_type="Edit")
         desktop_dir = os.path.normpath(os.path.abspath(tb_path.window_text()))
@@ -125,28 +125,35 @@ async def converter_rinex(arquivos_origem, pasta_destino, caminho_exe=r"C:\Progr
         
         tb_name = dlg_novo.child_window(auto_id="tbProjectName", control_type="Edit")
         tb_name.set_edit_text(proj_name)
-        time.sleep(0.1)
+        time.sleep(0.15)
+        
+        # Clica/Confirma OK explicitamente no diálogo de Novo Projeto
+        try:
+            btn_ok = dlg_novo.child_window(auto_id="btnOK", control_type="Button")
+            if btn_ok.exists():
+                btn_ok.click()
+            else:
+                dlg_novo.type_keys("{ENTER}")
+        except:
+            dlg_novo.type_keys("{ENTER}")
+            
         t2 = time.perf_counter() - t0
-        
-        pausar_e_perguntar("PASSO 2: Novo Projeto", f"Janela Novo Projeto aberta e nome '{proj_name}' preenchido.", t2)
+        pausar_e_perguntar("PASSO 2: Novo Projeto Criado", f"Nome '{proj_name}' preenchido e OK clicado no diálogo.", t2)
 
-        # PASSO 3: Confirmar Novo Projeto e ir para Propriedades
+        # PASSO 3: Abrir Propriedades do Projeto
         t0 = time.perf_counter()
-        print("\n[PASSO 3] Confirmando nome do projeto e abrindo Propriedades...")
-        garantir_foco()
-        send_keys("{ENTER}")
-        
-        time.sleep(0.3)
+        print("\n[PASSO 3] Aguardando/Abrindo janela Propriedades do Projeto...")
+        time.sleep(0.2)
         try:
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
             dlg_prop.wait('ready', timeout=3.0)
         except:
             garantir_foco()
             send_keys("%f")
-            time.sleep(0.2)
+            time.sleep(0.15)
             send_keys("p")
             dlg_prop = janela.child_window(auto_id="frmProjectSetting", control_type="Window")
-            dlg_prop.wait('ready', timeout=4.0)
+            dlg_prop.wait('ready', timeout=3.0)
             
         t3 = time.perf_counter() - t0
         pausar_e_perguntar("PASSO 3: Propriedades do Projeto", "Janela Propriedades do Projeto aberta.", t3)
