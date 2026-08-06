@@ -34,6 +34,7 @@ interface Ponto {
   status_ponto?: string;
   ignorar_poligono?: number;
   arquivo_origem?: string;
+  ponto_vizinho?: number;
 }
 
 // Interface auxiliar para os segmentos
