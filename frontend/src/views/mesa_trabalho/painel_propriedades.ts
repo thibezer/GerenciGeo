@@ -29,10 +29,20 @@ import {
 } from './painel_propriedades_helpers';
 import type { Ponto, Segmento, Confrontante } from './painel_propriedades_helpers';
 
+let panelAbortController: AbortController | null = null;
+let collapseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 export function atualizarPainelPropriedades(ctx: any): void {
   const panelContent = document.getElementById('props-panel-content');
   const panelActions = document.getElementById('props-panel-actions');
   if (!panelContent) return;
+
+  // ARQ-03: Cancela o ciclo de vida de listeners anteriores evitando vazamento de memória e clones DOM
+  if (panelAbortController) {
+    panelAbortController.abort();
+  }
+  panelAbortController = new AbortController();
+  const signal = panelAbortController.signal;
 
   if (ctx.etapaAtiva === 'cartorio') {
     if (panelActions) panelActions.classList.add('hidden');
@@ -117,7 +127,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       </div>
     `;
 
-      setupCollapsibleSections(['geral', 'matricula']);
+      setupCollapsibleSections(['geral', 'matricula'], signal);
       initIcons();
       if (panelActions) panelActions.classList.add('hidden');
     }
@@ -440,21 +450,21 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ` : ''}
     `;
 
-      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados']);
+      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados'], signal);
       initIcons();
 
       const btnAjudaMetodo = document.getElementById('btn-ajuda-metodo');
       if (btnAjudaMetodo) {
-        btnAjudaMetodo.onclick = () => {
+        btnAjudaMetodo.addEventListener('click', () => {
           customAlert(renderModalMetodosHTML(), 'Catálogo: Métodos de Posicionamento');
-        };
+        }, { signal });
       }
 
       const btnAjudaLimite = document.getElementById('btn-ajuda-limite');
       if (btnAjudaLimite) {
-        btnAjudaLimite.onclick = () => {
+        btnAjudaLimite.addEventListener('click', () => {
           customAlert(renderModalLimitesHTML(), 'Catálogo: Tipos de Limite');
-        };
+        }, { signal });
       }
 
       if (isPontoVizinho || isArquivado) {
@@ -531,14 +541,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
       inputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-          el.addEventListener('input', verificarAlteracoes);
-          el.addEventListener('change', verificarAlteracoes);
+          el.addEventListener('input', verificarAlteracoes, { signal });
+          el.addEventListener('change', verificarAlteracoes, { signal });
         }
       });
 
       const btnSugerir = document.getElementById('btn-sugerir-nome');
       if (btnSugerir) {
-        btnSugerir.onclick = async () => {
+        btnSugerir.addEventListener('click', async () => {
           try {
             const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
             const tipo = tipoSelect ? tipoSelect.value : (p!.tipo_ponto || p!.tipo);
@@ -566,16 +576,13 @@ export function atualizarPainelPropriedades(ctx: any): void {
             console.error(err);
             showToast(tratarErroAPI(err, "Erro ao sugerir código de ponto."), "error");
           }
-        };
+        }, { signal });
       }
 
-      // Salvar Alterações
+      // Salvar Alterações (gerenciado via signal sem clones DOM)
       const btnSalvar = document.getElementById('btn-props-salvar');
       if (btnSalvar) {
-        const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
-        btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
-
-        novoBtn.onclick = async () => {
+        btnSalvar.addEventListener('click', async () => {
           const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
           const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
           const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
@@ -747,16 +754,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
             console.error(err);
             showToast(tratarErroAPI(err, "Erro ao salvar alterações no vértice."), "error");
           }
-        };
+        }, { signal });
       }
 
       const btnDescartar = document.getElementById('btn-props-descartar');
       if (btnDescartar) {
-        const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
-        btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
-        novoBtn.onclick = () => {
+        btnDescartar.addEventListener('click', () => {
           atualizarPainelPropriedades(ctx);
-        };
+        }, { signal });
       }
 
       if (panelActions) {
@@ -1058,24 +1063,24 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ` : ''}
     `;
 
-      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados']);
+      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados'], signal);
       initIcons();
 
       const btnAjudaMetodoMulti = document.getElementById('btn-ajuda-metodo-multi');
       if (btnAjudaMetodoMulti) {
-        btnAjudaMetodoMulti.onclick = () => {
+        btnAjudaMetodoMulti.addEventListener('click', () => {
           customAlert(renderModalMetodosHTML(), 'Catálogo: Métodos de Posicionamento');
-        };
+        }, { signal });
       }
 
       const btnAjudaLimiteMulti = document.getElementById('btn-ajuda-limite-multi');
       if (btnAjudaLimiteMulti) {
-        btnAjudaLimiteMulti.onclick = () => {
+        btnAjudaLimiteMulti.addEventListener('click', () => {
           customAlert(renderModalLimitesHTML(), 'Catálogo: Tipos de Limite');
-        };
+        }, { signal });
       }
 
-      // Aplica indeterminate síncrono/seguro no checkbox de polígono
+      // EDGE-02: Aplica indeterminate síncrono/seguro no checkbox de polígono
       const checkPoli = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
       if (checkPoli && poligonoIndeterminate) {
         checkPoli.indeterminate = true;
@@ -1085,9 +1090,9 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       if (isArquivado) {
         const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
-        if (btnBatchIgnorar) btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
+        if (btnBatchIgnorar) btnBatchIgnorar.addEventListener('click', () => document.getElementById('btn-batch-ignorar')?.click(), { signal });
         const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
-        if (btnBatchDeletar) btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
+        if (btnBatchDeletar) btnBatchDeletar.addEventListener('click', () => document.getElementById('btn-batch-deletar')?.click(), { signal });
         return;
       }
 
@@ -1163,29 +1168,23 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ['prop-multi-tipo', 'prop-multi-metodo', 'prop-multi-tipo-limite', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-          el.addEventListener('input', verificarAlteracoesMulti);
-          el.addEventListener('change', verificarAlteracoesMulti);
+          el.addEventListener('input', verificarAlteracoesMulti, { signal });
+          el.addEventListener('change', verificarAlteracoesMulti, { signal });
         }
       });
 
-      const checkPoliElOrig = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
-      if (checkPoliElOrig) {
-        const checkPoliEl = checkPoliElOrig.cloneNode(true) as HTMLInputElement;
-        checkPoliElOrig.parentNode?.replaceChild(checkPoliEl, checkPoliElOrig);
-
+      const checkPoliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
+      if (checkPoliEl) {
         checkPoliEl.addEventListener('change', () => {
           checkPoliEl.indeterminate = false;
           verificarAlteracoesMulti();
-        });
+        }, { signal });
       }
 
       // Botão Salvar em lote
       const btnSalvar = document.getElementById('btn-props-salvar');
       if (btnSalvar) {
-        const novoBtn = btnSalvar.cloneNode(true) as HTMLButtonElement;
-        btnSalvar.parentNode?.replaceChild(novoBtn, btnSalvar);
-
-        novoBtn.onclick = async () => {
+        btnSalvar.addEventListener('click', async () => {
           const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
           const metodoEl = document.getElementById('prop-multi-metodo') as HTMLSelectElement;
           const limiteEl = document.getElementById('prop-multi-tipo-limite') as HTMLSelectElement;
@@ -1204,7 +1203,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const poliAlterado = poliEl && !poliEl.indeterminate && poliEl.checked !== multiOriginais.ignorar_poligono;
 
           try {
-            novoBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando ${pontosMulti.length} vértices...`;
+            btnSalvar.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Atualizando ${pontosMulti.length} vértices...`;
             initIcons();
 
             const batchPayload: any = { pontos: [] };
@@ -1302,26 +1301,24 @@ export function atualizarPainelPropriedades(ctx: any): void {
             console.error(err);
             showToast(tratarErroAPI(err, "Erro ao salvar alterações em lote."), "error");
           } finally {
-            novoBtn.innerText = "Salvar Alterações em Lote";
+            btnSalvar.innerText = "Salvar Alterações em Lote";
           }
-        };
+        }, { signal });
       }
 
       const btnDescartar = document.getElementById('btn-props-descartar');
       if (btnDescartar) {
-        const novoBtn = btnDescartar.cloneNode(true) as HTMLButtonElement;
-        btnDescartar.parentNode?.replaceChild(novoBtn, btnDescartar);
-        novoBtn.onclick = () => atualizarPainelPropriedades(ctx);
+        btnDescartar.addEventListener('click', () => atualizarPainelPropriedades(ctx), { signal });
       }
 
       const btnBatchIgnorar = document.getElementById('btn-batch-props-ignorar');
       if (btnBatchIgnorar) {
-        btnBatchIgnorar.onclick = () => document.getElementById('btn-batch-ignorar')?.click();
+        btnBatchIgnorar.addEventListener('click', () => document.getElementById('btn-batch-ignorar')?.click(), { signal });
       }
 
       const btnBatchDeletar = document.getElementById('btn-batch-props-deletar');
       if (btnBatchDeletar) {
-        btnBatchDeletar.onclick = () => document.getElementById('btn-batch-deletar')?.click();
+        btnBatchDeletar.addEventListener('click', () => document.getElementById('btn-batch-deletar')?.click(), { signal });
       }
     }
   } catch (err) {
@@ -1334,8 +1331,12 @@ export function atualizarPainelPropriedades(ctx: any): void {
   }
 }
 
-function setupCollapsibleSections(sections: string[]): void {
-  setTimeout(() => {
+function setupCollapsibleSections(sections: string[], signal: AbortSignal): void {
+  if (collapseTimeoutId) {
+    clearTimeout(collapseTimeoutId);
+  }
+  collapseTimeoutId = setTimeout(() => {
+    if (signal.aborted) return;
     sections.forEach(sec => {
       const header = document.getElementById(`header-props-${sec}`);
       const body = document.getElementById(`body-props-${sec}`);
@@ -1350,7 +1351,7 @@ function setupCollapsibleSections(sections: string[]): void {
           }
         }
 
-        header.onclick = () => {
+        header.addEventListener('click', () => {
           const currentlyCollapsed = header.classList.toggle('collapsed');
           body.classList.toggle('hidden', currentlyCollapsed);
           localStorage.setItem(`props_collapsed_${sec}`, currentlyCollapsed ? 'true' : 'false');
@@ -1359,7 +1360,7 @@ function setupCollapsibleSections(sections: string[]): void {
           if (icon) {
             (icon as HTMLElement).style.transform = currentlyCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
           }
-        };
+        }, { signal });
       }
     });
   }, 10);
