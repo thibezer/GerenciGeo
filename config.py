@@ -13,6 +13,11 @@ else:
 
 # Configurações Externas (Usuario/PC)
 CONVERT_RINEX_PATH = r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\ConvertRinex.exe"
+PYTHON_32BIT_PATH = os.environ.get(
+    "GERENCIGEO_PYTHON_32BIT",
+    os.path.join(BASE_DIR, "venv32", "Scripts", "python.exe")
+)
+CONVERT_RINEX_SCRIPT = os.path.join(BASE_DIR, "converterrinex.py")
 IBGE_PPP_URL = "https://servicodados.ibge.gov.br/api/geociencias/v1/ppp" # Placeholder API PPP
 IBGE_PPP_WEB_URL = "https://www.ibge.gov.br/geociencias/informacoes-sobre-posicionamento-geodesico/servicos-para-posicionamento-geodesico/16334-servico-online-para-pos-processamento-de-dados-gnss-ibge-ppp.html?=&t=processar-os-dados"
 DEFAULT_ANTENNA = "HITV60 NONE"

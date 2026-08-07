@@ -6,13 +6,58 @@ import re
 import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from converterrinex import converter_rinex
-from buscador_rinex import encontrar_rinex, copiar_rinex
-from database.repository import HistoricoRinexRepo
-from services.processamento.triagem_inteligente import ler_metadados_rinex
-from services.gestores.workspace_manager import WorkspaceManager
+import asyncio
+import json
 
-logger = logging.getLogger(__name__)
+async def rodar_conversao_hgo_subprocess(
+    arquivos: list[str],
+    destino: str,
+    caminho_exe: str = None
+) -> dict:
+    from config import PYTHON_32BIT_PATH, CONVERT_RINEX_SCRIPT
+
+    cmd = [
+        PYTHON_32BIT_PATH,
+        CONVERT_RINEX_SCRIPT,
+        *arquivos,
+        "--destino", destino,
+    ]
+    if caminho_exe:
+        cmd.extend(["--exe", caminho_exe])
+
+    processo = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    try:
+        stdout, stderr = await asyncio.wait_for(processo.communicate(), timeout=300.0)
+    except asyncio.TimeoutError:
+        try:
+            processo.kill()
+        except OSError:
+            pass
+        raise RuntimeError("Timeout na conversão HGO (execução excedeu 300 segundos).")
+
+    if stderr:
+        logger.debug("stderr do converterrinex: %s", stderr.decode(errors="ignore"))
+
+    if processo.returncode != 0:
+        raise RuntimeError(f"converterrinex.py encerrou com código de erro {processo.returncode}.")
+
+    linhas = stdout.decode("utf-8", errors="ignore").strip().splitlines()
+    if not linhas:
+        raise RuntimeError("converterrinex.py não retornou nenhuma saída no stdout.")
+
+    try:
+        resultado = json.loads(linhas[-1])
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Falha ao decodificar JSON retornado pelo converterrinex: {e}. Última linha: '{linhas[-1]}'"
+        )
+
+    return resultado
 
 class GNSSPipelineWorker(threading.Thread):
     def __init__(self, lista_arquivos, pasta_destino, result_queue, caminho_exe=None, levantamento_id=None):
@@ -71,12 +116,18 @@ class GNSSPipelineWorker(threading.Thread):
             self.result_queue.put({"tipo": "log", "mensagem": "[CANCELADO] Interrupção pelo usuário antes do início."})
             return
 
-        # 3. CHAMAR O CONVERSOR RINEX DO HGO
+        # 3. CHAMAR O CONVERSOR RINEX DO HGO VIA SUBPROCESSO 32-BIT ASSÍNCRONO
         try:
-            self.result_queue.put({"tipo": "log", "mensagem": "[HGO] Iniciando automação do HGO no backend..."})
+            self.result_queue.put({"tipo": "log", "mensagem": "[HGO] Iniciando automação do HGO no backend (32-bit)..."})
             
-            import asyncio
-            sucesso_geral = asyncio.run(converter_rinex(validos, self.pasta_destino, caminho_exe=self.caminho_exe))
+            resultado_dict = asyncio.run(
+                rodar_conversao_hgo_subprocess(validos, self.pasta_destino, caminho_exe=self.caminho_exe)
+            )
+            sucesso_geral = resultado_dict.get("sucesso", False)
+            if not sucesso_geral:
+                msg_erro = resultado_dict.get("mensagem_erro") or "Conversão HGO não gerou arquivos RINEX."
+                self.result_queue.put({"tipo": "log", "mensagem": f"[AVISO HGO] {msg_erro}"})
+
             
             if self._stop_event.is_set():
                 self.result_queue.put({"tipo": "log", "mensagem": "[CANCELADO] Interrupção pelo usuário."})

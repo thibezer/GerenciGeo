@@ -820,3 +820,19 @@ def converter_rinex(
                 logger.debug("Pasta de projeto temporário removida: %s", proj_dir)
             except Exception as e:
                 logger.warning("Não foi possível remover pasta temporária '%s': %s", proj_dir, e)
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    from dataclasses import asdict
+
+    parser = argparse.ArgumentParser(description="Conversor RINEX HGO (32-bit CLI)")
+    parser.add_argument("arquivos", nargs="+", help="Lista de arquivos GNS de origem")
+    parser.add_argument("--destino", required=True, help="Pasta de destino para os arquivos RINEX")
+    parser.add_argument("--exe", default=CAMINHO_EXE_PADRAO, help="Caminho do HGO.exe")
+
+    args = parser.parse_args()
+
+    res = converter_rinex(args.arquivos, pasta_destino=args.destino, caminho_exe=args.exe)
+    print(json.dumps(asdict(res), ensure_ascii=False), flush=True)

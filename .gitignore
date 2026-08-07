@@ -28,6 +28,7 @@ gerencigeo.log
 # Ambientes virtuais e segredos
 env/
 venv/
+venv32/
 .env
 .venv
 ENV/
