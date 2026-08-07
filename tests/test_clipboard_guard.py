@@ -53,5 +53,28 @@ class TestClipboardPayloadGuard(unittest.TestCase):
         for key in expected_keys:
             self.assertIn(f'(= k {key})', content, f"Chave {key} não encontrada no parser AutoLISP")
 
+    def test_gcopiar_command_present(self):
+        """
+        Garante que o comando GCOPIAR e GCOPIA estão presentes no gerencigeo_sync.lsp
+        e que a função set-clipboard-text foi declarada.
+        """
+        with open(self.lisp_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        self.assertIn("defun c:GCOPIAR", content, "Comando c:GCOPIAR não encontrado no AutoLISP")
+        self.assertIn("defun c:GCOPIA", content, "Comando c:GCOPIA não encontrado no AutoLISP")
+        self.assertIn("defun set-clipboard-text", content, "Função set-clipboard-text não encontrada no AutoLISP")
+
+    def test_importar_cad_ts_present(self):
+        """
+        Garante que a função importarDoCADClipboard e o botão de importar CAD foram integrados.
+        """
+        with open(self.ts_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        self.assertIn("export async function importarDoCADClipboard", content, "Função importarDoCADClipboard ausente no TS")
+        self.assertIn("btn-importar-cad", content, "Ouvinte btn-importar-cad ausente no TS")
+
 if __name__ == '__main__':
     unittest.main()
+

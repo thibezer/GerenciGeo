@@ -98,3 +98,13 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. A rota POST `/levantamentos/{id}/importar-vizinho-csv` deve aceitar o parâmetro `fuso_utm: int = Query(22)` no backend e repassá-lo para todas as chamadas a `resolver_coordenadas_robust(..., fuso_utm)`.
   2. No frontend (`mesa_geodesica.ts`), a requisição `fetch` de importação de vizinhos deve anexar `?fuso_utm=${fusoAtual}` na URL, obtendo o fuso ativo via `ctx.mapaController?.fusoUtm || 22`.
+
+---
+
+## 12. Sincronização Bidirecional CAD (Comando GCOPIAR AutoLISP & Upsert de Pontos no GerenciGeo)
+- **Problema**: Ao ajustar vértices ou criar pontos virtuais (`V`) no AutoCAD/TopoCAD2000, o usuário precisava reimportar cadernetas inteiras ou recadastrar manualmente.
+- **Regra Obrigatória**:
+  1. O comando AutoLISP `GCOPIAR` (ou `GCOPIA`) em [gerencigeo_sync.lsp](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/recursos/autocad/gerencigeo_sync.lsp) deve varrer blocos de vértices com atributos e gravar no Clipboard do Windows no formato de payload estruturado oficial (`ACAO=NOVO;BLOCO=...;X=...;Y=...;Z=...;ATRIB(...)`).
+  2. O backend FastAPI `POST /levantamentos/{id}/pontos/sincronizar-cad` deve realizar o parse linha a linha, convertendo coordenadas UTM Zona 22S para Geodésica SIRGAS 2000.
+  3. Aplica **Upsert**: se o ponto já existir no levantamento por `nome_vertice`, ele atualiza coordenadas $(Lat, Lon, Alt)$, tipo e metadados. Se não existir, ele cria o novo vértice (ex: tipo `'V'`), recalcula a ordem de caminhamento e regenera as divisas perimetrais sem duplicar os registros.
+

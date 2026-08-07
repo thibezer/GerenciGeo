@@ -206,11 +206,16 @@ export const renderMesaTrabalho = (): string => {
                       <i data-lucide="download"></i>
                       <span>Exportar CSV</span>
                     </fluent-button>
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD" type="button">
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD (comando GCOLA)" type="button">
                       <i data-lucide="copy"></i>
                       <span>Copiar CAD</span>
                     </fluent-button>
+                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-importar-cad" title="Importar/Sincronizar vértices copiados do AutoCAD (comando GCOPIAR)" type="button">
+                      <i data-lucide="clipboard"></i>
+                      <span>Importar CAD</span>
+                    </fluent-button>
                   </div>
+
                 </div>
                 <div class="rl3-group-label">Exportar</div>
               </div>

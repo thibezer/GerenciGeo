@@ -173,5 +173,142 @@
   )
 )
 
-(princ "\n[GerenciGeo] Rotina carregada com sucesso! Digite GCOLA para colar os pontos da área de transferência.")
+(princ "\n[GerenciGeo] Rotina carregada com sucesso! Digite GCOLA para colar os pontos ou GCOPIAR para copiar pontos do CAD pro sistema.")
 (princ)
+
+;; Grava texto na Área de Transferência (Clipboard) do Windows via HTMLFile
+(defun set-clipboard-text ( str / html window clip result )
+  (setq html (vlax-create-object "htmlfile"))
+  (if html
+    (progn
+      (setq window (vlax-get html 'ParentWindow))
+      (setq clip (vlax-get window 'ClipboardData))
+      (setq result (vl-catch-all-apply 'vlax-invoke (list clip 'SetData "Text" str)))
+      (vlax-release-object html)
+      (not (vl-catch-all-error-p result))
+    )
+    nil
+  )
+)
+
+;; Extrai atributos de um bloco VLA e retorna uma lista de associativa
+(defun get-block-attributes-assoc ( blkRef / atts att tag val i res )
+  (setq res '())
+  (if (= (vla-get-HasAttributes blkRef) :vlax-true)
+    (progn
+      (setq atts (vlax-variant-value (vla-GetAttributes blkRef)))
+      (if (>= (vlax-safearray-get-u-bound atts 1) 0)
+        (progn
+          (setq i 0)
+          (while (<= i (vlax-safearray-get-u-bound atts 1))
+            (setq att (vlax-safearray-get-element atts i))
+            (setq tag (strcase (vla-get-TagString att)))
+            (setq val (vla-get-TextString att))
+            (setq res (cons (cons tag val) res))
+            (setq i (1+ i))
+          )
+        )
+      )
+    )
+  )
+  res
+)
+
+;; Busca valor de chave na lista associativa com fallbacks de tags
+(defun find-attr-val ( alist tags default_val / found pair tag )
+  (setq found default_val)
+  (foreach pair alist
+    (setq tag (car pair))
+    (if (member tag tags)
+      (setq found (cdr pair))
+    )
+  )
+  found
+)
+
+;; Comando GCOPIAR / GCOPIA: Seleciona blocos no CAD e copia payload pro Clipboard
+(defun c:GCOPIAR ( / ss i ent obj blkName pt x y z attList id tipo sigma metpos tiplim cns matr confro line lines payloadStr count )
+  (princ "\n[GerenciGeo] Selecione os blocos de pontos para copiar (ou Enter para todos): ")
+  (setq ss (ssget '((0 . "INSERT"))))
+  (if (not ss)
+    (setq ss (ssget "_X" '((0 . "INSERT"))))
+  )
+  
+  (if (not ss)
+    (princ "\n[GerenciGeo] Nenhum bloco encontrado no desenho.")
+    (progn
+      (setq lines '())
+      (setq count 0)
+      (setq i 0)
+      (while (< i (sslength ss))
+        (setq ent (ssname ss i))
+        (setq obj (vlax-ename->vla-object ent))
+        (if (= (vla-get-HasAttributes obj) :vlax-true)
+          (progn
+            ;; Nome do bloco (suporta blocos dinâmicos)
+            (setq blkName (if (vlax-property-available-p obj 'EffectiveName)
+                            (vla-get-EffectiveName obj)
+                            (vla-get-Name obj)))
+            ;; Coordenadas
+            (setq pt (vlax-safearray->list (vlax-variant-value (vla-get-InsertionPoint obj))))
+            (setq x (car pt))
+            (setq y (cadr pt))
+            (setq z (caddr pt))
+            
+            ;; Atributos
+            (setq attList (get-block-attributes-assoc obj))
+            (setq id (find-attr-val attList '("ID" "NOME" "VERTICE" "PONTO") ""))
+            (setq tipo (find-attr-val attList '("TIPO" "TIP_VERT") "V"))
+            (setq sigma (find-attr-val attList '("SIGMA" "SIGMAX" "SIGMAY" "SIGMAZ") "0.000"))
+            (setq metpos (find-attr-val attList '("METPOS" "METODO") ""))
+            (setq tiplim (find-attr-val attList '("TIPLIM" "LIMITE") ""))
+            (setq cns (find-attr-val attList '("CNS" "CARTORIO") ""))
+            (setq matr (find-attr-val attList '("MATR" "MATRICULA") ""))
+            (setq confro (find-attr-val attList '("CONFRO" "CONFRONTANTE" "NOME_CONFRO") ""))
+            
+            ;; Formata a linha de payload
+            (if (> (strlen id) 0)
+              (progn
+                (setq line (strcat "ACAO=NOVO;BLOCO=" blkName 
+                                  ";X=" (rtos x 2 4) 
+                                  ";Y=" (rtos y 2 4) 
+                                  ";Z=" (rtos z 2 4) 
+                                  ";ATRIB(ID:" id 
+                                  ",TIPO:" tipo 
+                                  ",SIGMA:" sigma 
+                                  ",METPOS:" metpos 
+                                  ",TIPLIM:" tiplim 
+                                  ",CNS:" cns 
+                                  ",MATR:" matr 
+                                  ",CONFRO:" confro ")"))
+                (setq lines (cons line lines))
+                (setq count (1+ count))
+              )
+            )
+          )
+        )
+        (setq i (1+ i))
+      )
+      
+      (if (> count 0)
+        (progn
+          (setq lines (reverse lines))
+          ;; Monta a string dividida por quebras de linha
+          (setq payloadStr "")
+          (foreach l lines
+            (setq payloadStr (if (= payloadStr "") l (strcat payloadStr "\n" l)))
+          )
+          (if (set-clipboard-text payloadStr)
+            (princ (strcat "\n[GerenciGeo] Sucesso! " (itoa count) " vértice(s) copiado(s) para o Clipboard no formato GerenciGeo. Cole na Mesa de Trabalho do sistema."))
+            (princ "\n[GerenciGeo Erro] Falha ao gravar dados na Área de Transferência.")
+          )
+        )
+        (princ "\n[GerenciGeo] Nenhum bloco de vértice válido com ID encontrado na seleção.")
+      )
+    )
+  )
+  (princ)
+)
+
+(defun c:GCOPIA () (c:GCOPIAR))
+

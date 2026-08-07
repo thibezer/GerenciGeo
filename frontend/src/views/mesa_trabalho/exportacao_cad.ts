@@ -251,11 +251,56 @@ export function exportarParaCSV(ctx: MesaTrabalhoContext): void {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Importação do CAD (Clipboard → Sincronização Inteligente/Upsert)
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Importa/Sincroniza os vértices do CAD via Clipboard (copiados via comando GCOPIAR no AutoCAD).
+ * Envia o payload ao backend FastAPI para Upsert e atualização sem F5.
+ */
+export async function importarDoCADClipboard(ctx: MesaTrabalhoContext): Promise<void> {
+  if (!ctx.currentLevId) {
+    alert("Nenhum levantamento ativo selecionado!");
+    return;
+  }
+
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || (!text.includes("ACAO=") && !text.includes("ATRIB("))) {
+      alert("A área de transferência não contém um payload válido do CAD. Selecione os pontos no AutoCAD/TopoCAD e execute o comando GCOPIAR antes de importar.");
+      return;
+    }
+
+    const resp = await fetch(`/api/levantamentos/${ctx.currentLevId}/pontos/sincronizar-cad`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload_cad: text })
+    });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || "Erro ao processar a sincronização do CAD no servidor.");
+    }
+
+    const data = await resp.json();
+    showToast(data.mensagem || "Sincronização com o CAD concluída com sucesso!", "success");
+
+    // Recarrega os dados da mesa de trabalho sem dar refresh na página
+    if (typeof (window as any).carregarDadosMesaTrabalho === 'function') {
+      await (window as any).carregarDadosMesaTrabalho(ctx.currentLevId);
+    }
+  } catch (err: any) {
+    console.error("Erro na importação do CAD:", err);
+    alert(err.message || "Falha ao ler a área de transferência ou sincronizar os pontos com o CAD.");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Registro de Event Listeners (Ponte com a UI)
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Registra os event listeners dos botões de exportação CSV e CAD.
+ * Registra os event listeners dos botões de exportação e importação CAD/CSV.
  * Deve ser chamado uma única vez durante o setup da mesa geodésica.
  */
 export function registrarEventosExportacao(ctx: MesaTrabalhoContext): void {
@@ -266,4 +311,9 @@ export function registrarEventosExportacao(ctx: MesaTrabalhoContext): void {
   document.getElementById('btn-exportar-cad')?.addEventListener('click', async () => {
     await exportarParaCAD(ctx);
   });
+
+  document.getElementById('btn-importar-cad')?.addEventListener('click', async () => {
+    await importarDoCADClipboard(ctx);
+  });
 }
+

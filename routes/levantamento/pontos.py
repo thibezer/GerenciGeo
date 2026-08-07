@@ -903,4 +903,148 @@ def integrar_ponto_vizinho(id: int, pid: int, matricula_id: Optional[int] = None
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
+class PayloadSincronizarCAD(BaseModel):
+    payload_cad: str
+    matricula_id: Optional[int] = None
+
+@router.post("/levantamentos/{id}/pontos/sincronizar-cad")
+def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
+    """
+    Sincroniza os vértices recebidos do CAD via Clipboard (comando GCOPIAR).
+    Aplica lógica inteligente de Upsert:
+    - Se o nome_vertice já existir no levantamento: atualiza coordenadas, tipo e metadados.
+    - Se for um vértice novo (ex: Vértice Virtual 'V'): insere no banco, calcula Lat/Lon geodésica e vincula à poligonal.
+    """
+    verificar_levantamento_arquivado(id)
+    if not payload.payload_cad or not payload.payload_cad.strip():
+        raise HTTPException(status_code=400, detail="Payload do CAD está vazio ou inválido.")
+
+    try:
+        lines = [l.strip() for l in payload.payload_cad.strip().split("\n") if l.strip()]
+        if not lines:
+            raise HTTPException(status_code=400, detail="Nenhum vértice encontrado no payload informando.")
+
+        transformer = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
+        count_atualizados = 0
+        count_inseridos = 0
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+
+            for line in lines:
+                parts = line.split(";")
+                x, y, z = None, None, 0.0
+                id_vertice, tipo, sigma, metpos, tiplim, cns, matr, confro = "", "V", "0.000", "", "", "", "", ""
+
+                for part in parts:
+                    if "=" in part:
+                        param, val = part.split("=", 1)
+                        param = param.strip().upper()
+                        val = val.strip()
+                        if param == "X":
+                            try: x = float(val)
+                            except ValueError: pass
+                        elif param == "Y":
+                            try: y = float(val)
+                            except ValueError: pass
+                        elif param == "Z":
+                            try: z = float(val)
+                            except ValueError: pass
+
+                    if part.startswith("ATRIB(") and part.endswith(")"):
+                        attr_str = part[6:-1]
+                        attr_items = attr_str.split(",")
+                        for item in attr_items:
+                            if ":" in item:
+                                k, v = item.split(":", 1)
+                                k = k.strip().upper()
+                                v = v.strip()
+                                if k == "ID": id_vertice = v
+                                elif k == "TIPO": tipo = v.upper() if v else "V"
+                                elif k == "SIGMA": sigma = v
+                                elif k == "METPOS": metpos = v
+                                elif k == "TIPLIM": tiplim = v
+                                elif k == "CNS": cns = v
+                                elif k == "MATR": matr = v
+                                elif k == "CONFRO": confro = v
+
+                if not id_vertice or x is None or y is None:
+                    continue
+
+                # Converte UTM Zone 22S para SIRGAS 2000 Geodésico (Lat, Lon)
+                lon, lat = transformer.transform(x, y)
+                tipo_final = tipo if tipo in ['M', 'P', 'V', 'B'] else 'V'
+
+                # Verifica existência prévia do vértice pelo nome
+                cursor.execute(
+                    "SELECT id, matricula_id FROM pontos WHERE levantamento_id = ? AND nome_vertice = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)",
+                    (id, id_vertice)
+                )
+                existente = cursor.fetchone()
+
+                if existente:
+                    pid = existente["id"]
+                    cursor.execute(
+                        """
+                        UPDATE pontos
+                        SET lat = ?, lon = ?, alt = ?, tipo_ponto = ?, status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                            metodo_posicionamento = CASE WHEN ? != '' THEN ? ELSE metodo_posicionamento END
+                        WHERE id = ?
+                        """,
+                        (lat, lon, z, tipo_final, metpos, metpos, pid)
+                    )
+                    count_atualizados += 1
+                else:
+                    target_mat_id = payload.matricula_id or (existente["matricula_id"] if existente else None)
+                    if not target_mat_id:
+                        cursor.execute("SELECT id FROM matriculas WHERE propriedade_id = (SELECT propriedade_id FROM levantamentos WHERE id = ?) LIMIT 1", (id,))
+                        mat_row = cursor.fetchone()
+                        if mat_row:
+                            target_mat_id = mat_row["id"]
+
+                    cursor.execute(
+                        "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR (? IS NULL AND matricula_id IS NULL)) AND tipo_ponto != 'B'",
+                        (id, target_mat_id, target_mat_id)
+                    )
+                    max_row = cursor.fetchone()
+                    nova_ordem = (max_row["max_ord"] + 1) if max_row and max_row["max_ord"] is not None else 1
+
+                    cursor.execute(
+                        """
+                        INSERT INTO pontos (
+                            levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
+                            sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, metodo_posicionamento
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'CORRIGIDO', 'CORRIGIDO', ?)
+                        """,
+                        (id, target_mat_id, id_vertice, tipo_final, lat, lon, z, nova_ordem, metpos)
+                    )
+                    count_inseridos += 1
+
+            conn.commit()
+
+        sanitizar_ordens_duplicadas(id)
+        wm = WorkspaceManager()
+        ExportacaoService.gerar_documento_cliente_workspace(id)
+
+        from services.processamento.historico_campo import HistoricoCampoLogger
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=id,
+            tipo_evento="SINCRONIZACAO_CAD",
+            descricao=f"Sincronização via Clipboard do CAD realizada com sucesso: {count_atualizados} atualizados, {count_inseridos} inseridos.",
+            dados_detalhados={"atualizados": count_atualizados, "inseridos": count_inseridos}
+        )
+
+        return {
+            "sucesso": True,
+            "atualizados": count_atualizados,
+            "inseridos": count_inseridos,
+            "mensagem": f"Sincronização CAD concluída: {count_atualizados} vértice(s) atualizado(s) e {count_inseridos} novo(s) inserido(s)."
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro na sincronização CAD: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno durante a sincronização CAD: {str(e)}")
+
+
 
