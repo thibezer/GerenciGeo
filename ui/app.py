@@ -3,12 +3,24 @@ import sys
 import ctypes
 import threading
 import traceback
+import struct
 
 def sou_administrador():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
+
+def encontrar_python64():
+    """Localiza o interpretador Python 64-bit do projeto."""
+    candidatos = [
+        r"C:\Users\Thiago\AppData\Local\Programs\Python\Python312\python.exe",
+        os.environ.get("GERENCIGEO_PYTHON64", ""),
+    ]
+    for c in candidatos:
+        if c and os.path.exists(c):
+            return c
+    return sys.executable
 
 def main():
     try:
@@ -20,7 +32,21 @@ def main():
         # Trava o CWD para a raiz para evitar side-effects do UAC (que inicia na pasta System32)
         os.chdir(diretorio_raiz)
 
-        # Importações perigosas que podem falhar dependendo do path
+        # 1. GARANTIA DE ARQUITETURA 64-BIT E ELEVAÇÃO UAC (antes de importar uvicorn/webview)
+        is_32bit = (struct.calcsize("P") == 4)
+        is_admin = sou_administrador()
+
+        if is_32bit or not is_admin:
+            python_exe = encontrar_python64() if is_32bit else sys.executable
+            python_exe = python_exe.replace("pythonw.exe", "python.exe")
+            
+            args_list = [f'"{os.path.abspath(arg)}"' if i == 0 else f'"{arg}"' for i, arg in enumerate(sys.argv)]
+            args = " ".join(args_list)
+            cwd = diretorio_raiz
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", python_exe, args, cwd, 1)
+            sys.exit(0)
+
+        # 2. IMPORTAÇÕES DO BACKEND (após garantir Python 64-bit e Admin)
         import uvicorn
         import webview
         from api import app as fastapi_app
@@ -32,17 +58,7 @@ def main():
             except Exception as err:
                 print(f"ERRO Crítico ao subir o Uvicorn: {err}")
 
-        # GARANTIA UAC
-        if not sou_administrador():
-            print("Solicitando privilégios de Administrador...")
-            # Força o uso do python.exe para ter console se quisermos ver o erro
-            exec_path = sys.executable.replace("pythonw.exe", "python.exe")
-            args = " ".join([f'"{arg}"' for arg in sys.argv])
-            cwd = diretorio_raiz
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", exec_path, args, cwd, 1)
-            sys.exit(0)
-
-        # Já elevado
+        # Já elevado e em 64-bit
         print("Iniciando Uvicorn Daemon e Janela Webview Nativa...")
         t = threading.Thread(target=iniciar_servidor, daemon=True)
         t.start()
