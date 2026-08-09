@@ -100,5 +100,45 @@ class TestSincronizacaoCAD(unittest.TestCase):
         self.assertEqual(p_v["tipo_ponto"], "V")
         self.assertEqual(p_v["metodo_posicionamento"], "PA2")
 
+    def test_sincronizacao_com_polilinha_e_pontos_suporte_e_confrontantes(self):
+        # Cria matrícula específica para o teste
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO matriculas (propriedade_id, numero_matricula) VALUES (?, 'MATR-POLY-1')", (self.prop_id,))
+            mat_poly_id = cursor.lastrowid
+            conn.commit()
+
+        # 3 pontos no perímetro (POLIGONO=1 com ORDEM 1, 2, 3) e 1 ponto de suporte fora (POLIGONO=0)
+        payload_polilinha = (
+            "ACAO=NOVO;BLOCO=BL-MEMOVEM3;X=245000.0000;Y=7400000.0000;Z=100.0000;POLIGONO=1;ORDEM=1;ATRIB(ID:P1,TIPO:M,SIGMA:0.010,METPOS:PG1,TIPLIM:LN1,CNS:08.123-4,MATR:5555,CONFRO:Fazenda Vizinha Norte)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEP3;X=245500.0000;Y=7400000.0000;Z=100.0000;POLIGONO=1;ORDEM=2;ATRIB(ID:P2,TIPO:P,SIGMA:0.010,METPOS:PA1,TIPLIM:LA3,CNS:,MATR:,CONFRO:Estrada Municipal)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEV3;X=245500.0000;Y=7399500.0000;Z=100.0000;POLIGONO=1;ORDEM=3;ATRIB(ID:P3,TIPO:V,SIGMA:0.010,METPOS:PA2,TIPLIM:LN1,CNS:08.123-4,MATR:5555,CONFRO:Fazenda Vizinha Norte)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEP3;X=245200.0000;Y=7399800.0000;Z=100.0000;POLIGONO=0;ORDEM=0;ATRIB(ID:SUP-01,TIPO:P,SIGMA:0.020,METPOS:PG1,TIPLIM:,CNS:,MATR:,CONFRO:)"
+        )
+
+        payload = PayloadSincronizarCAD(payload_cad=payload_polilinha, matricula_id=mat_poly_id, reconstruir_poligonal=True)
+        res = sincronizar_cad_clipboard(self.lev_id, payload)
+
+        self.assertTrue(res.get("sucesso"))
+        self.assertEqual(res.get("inseridos"), 4)
+        self.assertGreaterEqual(res.get("confrontantes_criados", 0), 2)
+        self.assertGreaterEqual(res.get("segmentos_gerados", 0), 3)
+
+        # Verifica que P1, P2, P3 estão no polígono (ignorar_poligono = 0)
+        p1 = execute_query("SELECT * FROM pontos WHERE levantamento_id = ? AND nome_vertice = 'P1'", params=(self.lev_id,), fetch_one=True)
+        self.assertEqual(p1["ignorar_poligono"], 0)
+        self.assertEqual(p1["ordem_caminhamento"], 1)
+        self.assertIsNotNone(p1["confrontante_id"])
+
+        # Verifica que SUP-01 está fora do polígono (ignorar_poligono = 1)
+        p_sup = execute_query("SELECT * FROM pontos WHERE levantamento_id = ? AND nome_vertice = 'SUP-01'", params=(self.lev_id,), fetch_one=True)
+        self.assertEqual(p_sup["ignorar_poligono"], 1)
+
+        # Verifica criação do confrontante no banco
+        conf = execute_query("SELECT * FROM confrontantes WHERE levantamento_id = ? AND nome = 'Fazenda Vizinha Norte'", params=(self.lev_id,), fetch_one=True)
+        self.assertIsNotNone(conf)
+        self.assertEqual(conf["matricula_imovel"], "5555")
+        self.assertEqual(conf["cns_confrontante"], "08.123-4")
+
 if __name__ == '__main__':
     unittest.main()

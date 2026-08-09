@@ -252,8 +252,54 @@
   found
 )
 
+;; Extrai lista de pontos (X Y) de uma LWPOLYLINE ou POLYLINE em ordem
+(defun get-polyline-vertices ( ent / obj coords i res pt objName )
+  (if (and ent (setq obj (vlax-ename->vla-object ent)))
+    (progn
+      (setq objName (vla-get-ObjectName obj))
+      (if (vlax-property-available-p obj 'Coordinates)
+        (progn
+          (setq coords (vlax-safearray->list (vlax-variant-value (vla-get-Coordinates obj))))
+          (setq i 0)
+          (setq res '())
+          (if (= objName "AcDbPolyline")
+            ;; LWPOLYLINE 2D (x, y)
+            (while (< i (length coords))
+              (setq pt (list (nth i coords) (nth (1+ i) coords)))
+              (setq res (cons pt res))
+              (setq i (+ i 2))
+            )
+            ;; 3D Polyline (x, y, z)
+            (while (< i (length coords))
+              (setq pt (list (nth i coords) (nth (1+ i) coords)))
+              (setq res (cons pt res))
+              (setq i (+ i 3))
+            )
+          )
+          (reverse res)
+        )
+        nil
+      )
+    )
+    nil
+  )
+)
+
 ;; Comando GCOPIAR / GCOPIA: Seleciona blocos no CAD e copia payload pro Clipboard
-(defun c:GCOPIAR ( / ss i ent obj blkName pt x y z attList id tipo sigma metpos tiplim cns matr confro line lines payloadStr count )
+(defun c:GCOPIAR ( / polyEnt polyVertices ss i ent obj blkName pt x y z attList id tipo sigma metpos tiplim cns matr confro line lines payloadStr count poliVal ordVal bestMatch k pPt dist )
+  (setq polyVertices nil)
+  (setvar "ERRNO" 0)
+  (setq polyEnt (car (entsel "\n[GerenciGeo] Selecione a POLILINHA do perímetro da matrícula (ou Enter se não houver): ")))
+  (if polyEnt
+    (progn
+      (setq polyVertices (get-polyline-vertices polyEnt))
+      (if polyVertices
+        (princ (strcat "\n[GerenciGeo] Polilinha identificada com " (itoa (length polyVertices)) " vértice(s) de perímetro."))
+        (princ "\n[GerenciGeo] O objeto selecionado não é uma polilinha válida.")
+      )
+    )
+  )
+
   (princ "\n[GerenciGeo] Selecione os blocos de pontos para copiar (ou Enter para todos): ")
   (setq ss (ssget '((0 . "INSERT"))))
   (if (not ss)
@@ -299,6 +345,34 @@
             (setq cns (find-attr-val attList '("CNS" "CARTORIO") ""))
             (setq matr (find-attr-val attList '("MATR" "MATRICULA") ""))
             (setq confro (find-attr-val attList '("CONFRO" "CONFRONTANTE" "NOME_CONFRO") ""))
+
+            ;; Identificação de ordem e presença na Poligonal Perimetral
+            (setq poliVal "1")
+            (setq ordVal (itoa (1+ count)))
+            (if polyVertices
+              (progn
+                (setq bestMatch nil)
+                (setq k 0)
+                (while (< k (length polyVertices))
+                  (setq pPt (nth k polyVertices))
+                  (setq dist (distance (list x y) pPt))
+                  (if (< dist 0.05) ; tolerância de 5cm
+                    (setq bestMatch (1+ k))
+                  )
+                  (setq k (1+ k))
+                )
+                (if bestMatch
+                  (progn
+                    (setq poliVal "1")
+                    (setq ordVal (itoa bestMatch))
+                  )
+                  (progn
+                    (setq poliVal "0") ; Ponto de suporte/fora da poligonal
+                    (setq ordVal "0")
+                  )
+                )
+              )
+            )
             
             ;; Formata a linha de payload
             (if (and id (> (strlen id) 0))
@@ -307,6 +381,8 @@
                                   ";X=" (rtos x 2 4) 
                                   ";Y=" (rtos y 2 4) 
                                   ";Z=" (rtos z 2 4) 
+                                  ";POLIGONO=" poliVal 
+                                  ";ORDEM=" ordVal 
                                   ";ATRIB(ID:" id 
                                   ",TIPO:" tipo 
                                   ",SIGMA:" sigma 
