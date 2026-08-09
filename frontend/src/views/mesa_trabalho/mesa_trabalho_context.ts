@@ -66,9 +66,15 @@ export interface MesaTrabalhoContext {
   subirPontoSimplificado: (pontoId: number) => void;
   descerPontoSimplificado: (pontoId: number) => void;
   inverterOrdemPerimetral: () => void;
+  definirInicioMaisAoNorte: () => void;
   lidarCliqueMarcadorSequencial: (pontoId: number) => void;
   obterPontosParaOrdenacao: () => any[];
   alternarModoReordenarManual: (ativo: boolean) => void;
+  gerenciadorHistorico?: any;
+  salvarEstadoHistorico?: (descricao: string) => void;
+  desfazerHistorico?: () => boolean;
+  refazerHistorico?: () => boolean;
+  abrirModalUnificacaoSobrepostos?: () => Promise<void>;
   expandirIngestao?: () => void;
   colapsarIngestao?: () => void;
   atualizarPainelPropriedades?: () => void;

@@ -12,6 +12,8 @@ import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './m
 import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
+import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
+import { abrirModalUnificacaoSobrepostos } from './mesa_trabalho/unificador_sobrepostos';
 import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
 import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
 import { registerFluentComponents } from '../ui/fluent_setup';
@@ -110,6 +112,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       subirPontoSimplificado: () => {},
       descerPontoSimplificado: () => {},
       inverterOrdemPerimetral: () => {},
+      definirInicioMaisAoNorte: () => {},
       lidarCliqueMarcadorSequencial: () => {},
       obterPontosParaOrdenacao: () => [],
       alternarModoReordenarManual: () => {}
@@ -118,6 +121,8 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.atualizarPainelPropriedades = () => atualizarPainelPropriedades(ctx);
 
     // 2. Registra os submódulos no contexto comum
+    setupMesaTrabalhoHistorico(ctx);
+    ctx.abrirModalUnificacaoSobrepostos = () => abrirModalUnificacaoSobrepostos(ctx);
     setupMesaGeodesica(ctx);
     setupOrganizadorPerimetro(ctx);
     setupOrdenadorManual(ctx);

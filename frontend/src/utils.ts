@@ -1,4 +1,4 @@
-import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info } from 'lucide';
+import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw } from 'lucide';
 
 // --- FUNÇÕES AUXILIARES GLOBAIS DE VALIDAÇÃO E MÁSCARAS ---
 export const formatarCAR = (v: string): string => {
@@ -22,7 +22,7 @@ export const formatarCCIR = (v: string): string => {
    d = d.replace(/^(\d{3})(\d)/, "$1.$2");
    d = d.replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3");
    d = d.replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3.$4");
-   d = d.replace(/^(\d{3})\.(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3.$4-$5");
+   d = d.replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3.$4-$5");
    return d;
 };
 
@@ -63,7 +63,7 @@ export const deltaClass = (meters: number | null | undefined): string => {
 // Initialize Icons
 export const initIcons = () => {
   createIcons({
-    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info }
+    icons: { Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw }
   });
 };
 

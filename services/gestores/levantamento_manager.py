@@ -1190,10 +1190,13 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # Seleciona campos adicionais para fazer a deduplicação por nome e tipo
+            from services.processamento.geometria_topologica import desembaracar_poligono_2opt, _distancia_metrica_2d, _obter_coordenadas_ponto
+
+            # Seleciona campos completos e coordenadas corrigidas
             cursor.execute(
                 """
-                SELECT id, nome_vertice, tipo_ponto, lat, lon, status_ponto, matricula_id, sequencia_travada_id, ordem_caminhamento
+                SELECT id, nome_vertice, tipo_ponto, lat, lon, lat_corrigido, lon_corrigido,
+                       n_original, e_original, status_ponto, matricula_id, sequencia_travada_id, ordem_caminhamento
                 FROM pontos
                 WHERE levantamento_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
                 """,
@@ -1243,7 +1246,6 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
             # Valida e ordena internamente cada bloco
             blocos_ativos = []
             for seq_id, pts_bloco in list(dict_blocos.items()):
-                # Ordena pelo caminhamento original (e por id como fallback)
                 pts_bloco.sort(key=lambda x: (x["ordem_caminhamento"] or 999999, x["id"]))
                 if len(pts_bloco) >= 2:
                     blocos_ativos.append({
@@ -1252,19 +1254,18 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
                         "pontas": [pts_bloco[0], pts_bloco[-1]]
                     })
                 else:
-                    # Bloco com apenas 1 ponto vira solto
                     pontos_soltos.extend(pts_bloco)
 
-            # Algoritmo de busca com restrições
-            pontos_ordenados = []
-            
-            # Determina o ponto de partida mais ao Norte entre pontos soltos e pontas de blocos
+            # Determina o ponto de partida mais ao Norte
             possiveis_partidas = []
             for p in pontos_soltos:
-                possiveis_partidas.append((p["lat"] or -90.0, p, None, None)) # (lat, ponto, bloco, ponta_idx)
+                lat, _ = _obter_coordenadas_ponto(p)
+                possiveis_partidas.append((lat, p, None, None))
             for b in blocos_ativos:
-                possiveis_partidas.append((b["pontas"][0]["lat"] or -90.0, b["pontas"][0], b, 0))
-                possiveis_partidas.append((b["pontas"][1]["lat"] or -90.0, b["pontas"][1], b, 1))
+                lat0, _ = _obter_coordenadas_ponto(b["pontas"][0])
+                lat1, _ = _obter_coordenadas_ponto(b["pontas"][1])
+                possiveis_partidas.append((lat0, b["pontas"][0], b, 0))
+                possiveis_partidas.append((lat1, b["pontas"][1], b, 1))
                 
             if not possiveis_partidas:
                 return {"sucesso": False, "erro": "Nenhum ponto com coordenadas válidas para iniciar."}
@@ -1272,7 +1273,7 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
             # Seleciona o que está mais ao Norte
             _, pt_atual, bloco_atual, ponta_idx = max(possiveis_partidas, key=lambda x: x[0])
             
-            # Consome o ponto de partida/bloco inicial
+            pontos_ordenados = []
             if bloco_atual:
                 pts_bloco = bloco_atual["pontos"]
                 if ponta_idx == 0:
@@ -1285,36 +1286,24 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
                 pontos_ordenados.append(pt_atual)
                 pontos_soltos.remove(pt_atual)
                 
-            # Loop principal
+            # Loop principal do Vizinho Mais Próximo com distância métrica real
             while pontos_soltos or blocos_ativos:
                 candidatos = []
                 
-                # Opções de pontos soltos
                 for p in pontos_soltos:
-                    d = math.hypot(
-                        (p["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
-                        (p["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
-                    )
+                    d = _distancia_metrica_2d(pt_atual, p)
                     candidatos.append((d, p, None, None))
                     
-                # Opções de pontas de blocos ativos
                 for b in blocos_ativos:
-                    d0 = math.hypot(
-                        (b["pontas"][0]["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
-                        (b["pontas"][0]["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
-                    )
+                    d0 = _distancia_metrica_2d(pt_atual, b["pontas"][0])
                     candidatos.append((d0, b["pontas"][0], b, 0))
                     
-                    d1 = math.hypot(
-                        (b["pontas"][1]["lat"] or 0.0) - (pt_atual["lat"] or 0.0),
-                        (b["pontas"][1]["lon"] or 0.0) - (pt_atual["lon"] or 0.0)
-                    )
+                    d1 = _distancia_metrica_2d(pt_atual, b["pontas"][1])
                     candidatos.append((d1, b["pontas"][1], b, 1))
                     
                 if not candidatos:
                     break
                     
-                # Escolhe o mais próximo
                 _, proximo_pt, proximo_bloco, ponta_idx = min(candidatos, key=lambda x: x[0])
                 
                 if proximo_bloco:
@@ -1330,8 +1319,7 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
                     pontos_soltos.remove(proximo_pt)
                     pt_atual = proximo_pt
                     
-            # Aplica pós-processamento 2-Opt geométrico para eliminar cruzamentos/autointerseções (polígono borboleta)
-            from services.processamento.geometria_topologica import desembaracar_poligono_2opt
+            # Aplica pós-processamento 2-Opt geométrico e métrico (elimina cruzamentos e ziguezagues)
             pontos_ordenados = desembaracar_poligono_2opt(pontos_ordenados)
 
             # Prepara a lista de objetos no formato aceito por salvar_ordem_caminhamento

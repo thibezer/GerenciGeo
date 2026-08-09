@@ -1,8 +1,9 @@
 """
 Módulo de Geometria e Topologia Cadastral (GerenciGeo)
 Validação de simplicidade poligonal (OGC / SIGEF / INCRA),
-detecção determinística de autointerseções e desentrelaçamento 2-Opt.
+detecção determinística de autointerseções e desentrelaçamento 2-Opt geométrico e métrico.
 """
+import math
 from typing import List, Dict, Any, Tuple, Optional
 
 
@@ -30,6 +31,33 @@ def segmentos_se_cruzam(p1: Tuple[float, float], p2: Tuple[float, float],
     return False
 
 
+def _obter_coordenadas_ponto(p: Dict[str, Any]) -> Tuple[float, float]:
+    """Retorna a melhor coordenada (lat, lon) disponível para o ponto."""
+    lat = p.get("lat_corrigido") if p.get("lat_corrigido") is not None else p.get("lat")
+    lon = p.get("lon_corrigido") if p.get("lon_corrigido") is not None else p.get("lon")
+    return float(lat or 0.0), float(lon or 0.0)
+
+
+def _distancia_metrica_2d(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
+    """Calcula a distância métrica euclidiana aproximada entre dois pontos em metros."""
+    e1, n1 = p1.get("e_original"), p1.get("n_original")
+    e2, n2 = p2.get("e_original"), p2.get("n_original")
+    if e1 is not None and n1 is not None and e2 is not None and n2 is not None:
+        try:
+            dx = float(e1) - float(e2)
+            dy = float(n1) - float(n2)
+            return math.hypot(dx, dy)
+        except (ValueError, TypeError):
+            pass
+
+    lat1, lon1 = _obter_coordenadas_ponto(p1)
+    lat2, lon2 = _obter_coordenadas_ponto(p2)
+    lat_med = math.radians((lat1 + lat2) / 2.0)
+    dx = (lon1 - lon2) * math.cos(lat_med) * 111319.5
+    dy = (lat1 - lat2) * 111139.0
+    return math.hypot(dx, dy)
+
+
 def detectar_autointersecoes_poligono(pontos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Identifica todos os pares de segmentos não adjacentes que se cruzam no perímetro fechado.
@@ -39,12 +67,7 @@ def detectar_autointersecoes_poligono(pontos: List[Dict[str, Any]]) -> List[Dict
     if n < 4:
         return []
 
-    coords = []
-    for p in pontos:
-        lat = p.get("lat") or p.get("lat_corrigido") or 0.0
-        lon = p.get("lon") or p.get("lon_corrigido") or 0.0
-        coords.append((float(lat), float(lon)))
-
+    coords = [_obter_coordenadas_ponto(p) for p in pontos]
     cruzamentos = []
 
     for i in range(n):
@@ -58,7 +81,7 @@ def detectar_autointersecoes_poligono(pontos: List[Dict[str, Any]]) -> List[Dict
                 nome2 = pontos[(i + 1) % n].get("nome_vertice") or f"P{((i + 1) % n) + 1}"
                 nome3 = pontos[j].get("nome_vertice") or f"P{j+1}"
                 nome4 = pontos[(j + 1) % n].get("nome_vertice") or f"P{((j + 1) % n) + 1}"
-                
+
                 cruzamentos.append({
                     "segmento_1": f"{nome1} -> {nome2}",
                     "segmento_2": f"{nome3} -> {nome4}",
@@ -96,26 +119,24 @@ def _pode_inverter_subrota_com_travamentos(pontos: List[Dict[str, Any]], inicio:
 
 def desembaracar_poligono_2opt(pontos_ordenados: List[Dict[str, Any]], max_iter: int = 300) -> List[Dict[str, Any]]:
     """
-    Aplica o algoritmo 2-Opt geométrico para eliminar autointerseções do polígono fechado,
-    preservando a integridade de blocos com sequencia_travada_id.
+    Aplica o algoritmo 2-Opt geométrico e métrico:
+    1. Elimina autointerseções e cruzamentos em X do polígono fechado.
+    2. Otimiza o comprimento perimetral, eliminando dobras internas, linhas duplas e zig-zags.
+    Preserva 100% a integridade de blocos com sequencia_travada_id.
     """
     n = len(pontos_ordenados)
     if n < 4:
         return pontos_ordenados
 
     lista = list(pontos_ordenados)
+
+    # ── Fase 1: Desentrelaçamento de Autointerseções Estritas ──────────────
     melhorou = True
     iter_count = 0
-
     while melhorou and iter_count < max_iter:
         melhorou = False
         iter_count += 1
-
-        coords = []
-        for p in lista:
-            lat = p.get("lat") or p.get("lat_corrigido") or 0.0
-            lon = p.get("lon") or p.get("lon_corrigido") or 0.0
-            coords.append((float(lat), float(lon)))
+        coords = [_obter_coordenadas_ponto(p) for p in lista]
 
         for i in range(n):
             p1, p2 = coords[i], coords[(i + 1) % n]
@@ -129,7 +150,35 @@ def desembaracar_poligono_2opt(pontos_ordenados: List[Dict[str, Any]], max_iter:
                     sub_fim = j
 
                     if _pode_inverter_subrota_com_travamentos(lista, sub_ini, sub_fim):
-                        # Inverte o sub-segmento entre i+1 e j
+                        lista[sub_ini:sub_fim + 1] = list(reversed(lista[sub_ini:sub_fim + 1]))
+                        melhorou = True
+                        break
+
+            if melhorou:
+                break
+
+    # ── Fase 2: Otimização Métrica de Comprimento Euclidiano (2-Opt TSP) ───
+    # Elimina dobras paralelas, ziguezagues e rotas de ida-e-volta internas
+    melhorou = True
+    iter_count = 0
+    while melhorou and iter_count < max_iter:
+        melhorou = False
+        iter_count += 1
+
+        for i in range(n):
+            limite_fim = n if i > 0 else n - 1
+            for j in range(i + 2, limite_fim):
+                p1, p2 = lista[i], lista[(i + 1) % n]
+                p3, p4 = lista[j], lista[(j + 1) % n]
+
+                d_atual = _distancia_metrica_2d(p1, p2) + _distancia_metrica_2d(p3, p4)
+                d_nova = _distancia_metrica_2d(p1, p3) + _distancia_metrica_2d(p2, p4)
+
+                if d_nova < d_atual - 1e-4:
+                    sub_ini = i + 1
+                    sub_fim = j
+
+                    if _pode_inverter_subrota_com_travamentos(lista, sub_ini, sub_fim):
                         lista[sub_ini:sub_fim + 1] = list(reversed(lista[sub_ini:sub_fim + 1]))
                         melhorou = True
                         break

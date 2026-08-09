@@ -1,3 +1,4 @@
+import { showToast } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
@@ -56,6 +57,8 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
   ctx.subirPonto = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
+    if (pontosMat.length < 2) return;
+
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -75,7 +78,12 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
       primeiroIdxBloco = idx;
     }
 
-    if (primeiroIdxBloco <= 0) return;
+    if (primeiroIdxBloco <= 0 || blocoParaMover.length === 0) return;
+
+    // Salva snapshot para Ctrl+Z
+    if (ctx.salvarEstadoHistorico) {
+      ctx.salvarEstadoHistorico(`Subir ponto ${pontoClicado.nome_vertice || '#' + pontoId}`);
+    }
 
     const pontoAcima = pontosMat[primeiroIdxBloco - 1];
     const seqIdAcima = pontoAcima.sequencia_travada_id;
@@ -114,6 +122,8 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
   ctx.descerPonto = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
+    if (pontosMat.length < 2) return;
+
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -138,7 +148,12 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
       ultimoIdxBloco = idx;
     }
 
-    if (ultimoIdxBloco >= pontosMat.length - 1) return;
+    if (ultimoIdxBloco >= pontosMat.length - 1 || blocoParaMover.length === 0) return;
+
+    // Salva snapshot para Ctrl+Z
+    if (ctx.salvarEstadoHistorico) {
+      ctx.salvarEstadoHistorico(`Descer ponto ${pontoClicado.nome_vertice || '#' + pontoId}`);
+    }
 
     const pontoAbaixo = pontosMat[ultimoIdxBloco + 1];
     const seqIdAbaixo = pontoAbaixo.sequencia_travada_id;
@@ -174,6 +189,8 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
   ctx.moverPontoPosicao = (pontoId: number, novaPosicao: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
+    if (pontosMat.length === 0) return;
+
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const oldIdx = pontosMat.findIndex(p => p.id === pontoId);
@@ -181,6 +198,12 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
     const pontoQueMoveu = pontosMat[oldIdx];
     const seqIdMoveu = pontoQueMoveu.sequencia_travada_id;
+
+    // Clamping seguro da nova posição
+    const posClamped = Math.max(1, Math.min(Math.round(Number(novaPosicao) || 1), pontosMat.length));
+    
+    // Verificação de No-Op: se o ponto já está na posição desejada, não faz nada
+    if (oldIdx === posClamped - 1 && !seqIdMoveu) return;
 
     let pontosParaMover: any[];
     if (seqIdMoveu) {
@@ -191,7 +214,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
     const pontosRestantes = pontosMat.filter(p => !pontosParaMover.includes(p));
 
-    let targetIdx = novaPosicao - 1;
+    let targetIdx = posClamped - 1;
     if (targetIdx < 0) targetIdx = 0;
     if (targetIdx > pontosRestantes.length) targetIdx = pontosRestantes.length;
 
@@ -224,6 +247,11 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
       }
     }
 
+    // Salva snapshot para Ctrl+Z somente após validar que haverá mudança
+    if (ctx.salvarEstadoHistorico) {
+      ctx.salvarEstadoHistorico(`Mover ponto ${pontoQueMoveu.nome_vertice || '#' + pontoId} para posição ${posClamped}`);
+    }
+
     pontosRestantes.splice(targetIdx, 0, ...pontosParaMover);
 
     pontosRestantes.forEach((p, index) => {
@@ -244,7 +272,15 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
   ctx.inverterOrdemPerimetral = () => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
-    if (pontosMat.length < 2) return;
+    if (pontosMat.length < 2) {
+      showToast?.("São necessários pelo menos 2 vértices no perímetro para inverter a ordem.", "info");
+      return;
+    }
+
+    // Salva snapshot para Ctrl+Z
+    if (ctx.salvarEstadoHistorico) {
+      ctx.salvarEstadoHistorico("Inverter sentido de caminhamento");
+    }
 
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
     const total = pontosMat.length;
@@ -264,12 +300,62 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     ctx.salvarRascunhoLocal();
   };
 
+  ctx.definirInicioMaisAoNorte = () => {
+    const todosPontos = ctx.obterPontosParaOrdenacao();
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
+    if (pontosMat.length < 3) {
+      showToast?.("São necessários pelo menos 3 vértices no perímetro para rotacionar ao Norte.", "info");
+      return;
+    }
+
+    pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
+
+    // Ponto mais ao Norte (maior latitude ou maior coordenada Norte UTM)
+    let idxNorte = 0;
+    let maxNorteValor = -Infinity;
+    
+    pontosMat.forEach((p, idx) => {
+      // Normalização numérica robusta de coordenadas (suporta lat/lon e UTM Este/Norte)
+      const nVal = Number(p.n_corrigido ?? p.northing ?? p.norte ?? (p.lat_corrigido ?? p.lat ? Number(p.lat_corrigido ?? p.lat) * 111139 : -Infinity));
+      if (!isNaN(nVal) && nVal > maxNorteValor) {
+        maxNorteValor = nVal;
+        idxNorte = idx;
+      }
+    });
+
+    if (idxNorte === 0) {
+      showToast?.("O perímetro já inicia no vértice mais ao Norte.", "info");
+      return;
+    }
+
+    // Salva snapshot para Ctrl+Z
+    if (ctx.salvarEstadoHistorico) {
+      ctx.salvarEstadoHistorico("Iniciar numeração pelo vértice mais ao Norte");
+    }
+
+    // Rotação circular: preserva 100% a ordem relativa e os blocos travados
+    const rotacionado = [...pontosMat.slice(idxNorte), ...pontosMat.slice(0, idxNorte)];
+    rotacionado.forEach((p, index) => {
+      p.ordem_caminhamento = index + 1;
+    });
+
+    const btnSalvar = document.getElementById('btn-salvar-ordem-simplificada');
+    if (btnSalvar) {
+      btnSalvar.classList.remove('hidden');
+      btnSalvar.classList.add('animate-pulse');
+    }
+
+    ctx.renderListaReordenarSimplificada();
+    ctx.atualizarPolilinhaMapaTemp();
+    ctx.salvarRascunhoLocal();
+  };
+
   ctx.lidarCliqueMarcadorSequencial = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
     const maxOrdem = pontosMat.length;
 
-    if (ctx.sequenciaCliqueProximoIndice === null || ctx.sequenciaCliqueProximoIndice > maxOrdem) {
+    if (ctx.sequenciaCliqueProximoIndice === null || ctx.sequenciaCliqueProximoIndice > maxOrdem || ctx.sequenciaCliqueProximoIndice < 1) {
       ctx.sequenciaCliqueProximoIndice = 1;
     }
 

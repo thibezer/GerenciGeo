@@ -64,6 +64,15 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           ? `<span class="inline-flex items-center gap-0.5 text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-bold uppercase tracking-wider shrink-0" title="Sequência travada: ${seqId}"><i data-lucide="lock" class="w-2.5 h-2.5"></i> ${seqId}</span>`
           : '';
 
+        let matBadgeHtml = '';
+        if (p.matricula_id) {
+          const matObj = ctx.matriculasList?.find(m => m.id === p.matricula_id);
+          const matLabel = matObj?.numero_matricula ? `Mat. ${matObj.numero_matricula}` : `Mat. #${p.matricula_id}`;
+          matBadgeHtml = `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 shrink-0" title="Pertence à ${matLabel}">${matLabel}</span>`;
+        } else {
+          matBadgeHtml = `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-white/5 text-white/30 border border-white/5 shrink-0" title="Ponto Avulso (Sem Matrícula Vinculada)">Avulso</span>`;
+        }
+
         return `
           <div class="flex items-center justify-between py-0.5 px-1.5 rounded text-[11px] font-mono transition-all duration-150 linha-ponto-ordenador ${cardBgClass}"
                id="ordenador-item-${p.id}"
@@ -72,17 +81,24 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
                data-ordem="${ordemOriginal}"
                data-idx="${pontosFiltrados.indexOf(p)}"
                data-sequencia-travada="${seqId || ''}">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1">
               <input type="checkbox"
                      class="chk-ponto-ordenador rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/20 w-3 h-3 cursor-pointer shrink-0"
                      data-ponto-id="${p.id}"
                      data-idx="${pontosFiltrados.indexOf(p)}" />
-              <div class="cursor-grab text-white/20 hover:text-mint-vibrant transition-colors active:cursor-grabbing shrink-0 px-1" title="Arrastar para reordenar">
+              <div class="cursor-grab text-white/20 hover:text-mint-vibrant transition-colors active:cursor-grabbing shrink-0 px-0.5" title="Arrastar para reordenar">
                 <i data-lucide="grip-vertical" class="w-3 h-3"></i>
               </div>
-              <span class="text-[10px] text-white/40 min-w-[20px] text-center font-bold">${ordemOriginal}</span>
+              <input type="number"
+                     class="input-ordem-manual w-9 text-[10px] text-center font-bold bg-white/5 border border-white/10 rounded focus:border-mint-vibrant focus:outline-none font-mono px-0.5 py-0 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                     data-ponto-id="${p.id}"
+                     value="${ordemOriginal}"
+                     min="1"
+                     max="${totalPontos}"
+                     title="Digite a posição desejada" />
               <span class="font-bold truncate" title="${p.nome_vertice}">${p.nome_vertice}</span>
               <span class="text-[9px] text-white/30 shrink-0">(${tipoP})</span>
+              ${matBadgeHtml}
               ${lockIconHtml}
             </div>
           </div>
@@ -143,15 +159,48 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         }
       });
 
+      elReordenar.addEventListener('mousedown', (e) => {
+        if ((e.target as HTMLElement).closest('.input-ordem-manual')) {
+          e.stopPropagation();
+        }
+      });
+
       let dragSrcEl: HTMLElement | null = null;
 
       elReordenar.addEventListener('dragstart', (e: DragEvent) => {
+        if ((e.target as HTMLElement).closest('.input-ordem-manual')) {
+          e.preventDefault();
+          return;
+        }
         const target = (e.target as HTMLElement).closest('.linha-ponto-ordenador') as HTMLElement;
         if (target) {
           dragSrcEl = target;
           e.dataTransfer!.effectAllowed = 'move';
           e.dataTransfer!.setData('text/plain', target.getAttribute('data-ponto-id') || '');
           target.classList.add('opacity-40', 'border-dashed', 'border-mint-vibrant');
+        }
+      });
+
+      elReordenar.addEventListener('change', (e) => {
+        const input = (e.target as HTMLElement).closest('.input-ordem-manual') as HTMLInputElement | null;
+        if (!input) return;
+
+        const pontoId = parseInt(input.getAttribute('data-ponto-id') || '0');
+        const max = parseInt(input.getAttribute('max') || '1');
+        let novaPosicao = parseInt(input.value || '0');
+
+        if (!pontoId || isNaN(novaPosicao)) {
+          ctx.renderListaReordenarSimplificada();
+          return;
+        }
+        novaPosicao = Math.min(Math.max(novaPosicao, 1), max);
+        ctx.moverPontoPosicao(pontoId, novaPosicao);
+      });
+
+      elReordenar.addEventListener('keydown', (e: KeyboardEvent) => {
+        const el = e.target as HTMLElement;
+        if (el.classList.contains('input-ordem-manual') && e.key === 'Enter') {
+          (el as HTMLInputElement).blur();
         }
       });
 
@@ -261,6 +310,10 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           btnTravar.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Gravando...`;
           initIcons();
 
+          if (ctx.salvarEstadoHistorico) {
+            ctx.salvarEstadoHistorico(`Travar sequência '${seqName}'`);
+          }
+
           const payload = {
             pontos: pIds.map(pid => ({
               id: pid,
@@ -313,6 +366,10 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           btnDestravar.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Destravando...`;
           initIcons();
 
+          if (ctx.salvarEstadoHistorico) {
+            ctx.salvarEstadoHistorico(`Destravar ${pIds.length} pontos`);
+          }
+
           const payload = {
             pontos: pIds.map(pid => ({
               id: pid,
@@ -347,6 +404,15 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         } finally {
           btnDestravar.innerHTML = `<i data-lucide="unlock" class="w-3.5 h-3.5 text-white/50"></i> <span class="font-mono text-[9px]">Destravar</span>`;
           initIcons();
+        }
+      };
+    }
+
+    const btnSobrepostos = document.getElementById('btn-unificar-sobrepostos');
+    if (btnSobrepostos) {
+      btnSobrepostos.onclick = () => {
+        if (ctx.abrirModalUnificacaoSobrepostos) {
+          ctx.abrirModalUnificacaoSobrepostos();
         }
       };
     }
@@ -397,12 +463,22 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           const res = await fetch(url, { method: 'POST' });
           const data = await res.json();
           if (res.ok && data.sucesso) {
-            showToast("Ordenação calculada com sucesso!", "success");
-
             const prefix = ctx.currentMatriculaId ? `mat_${ctx.currentMatriculaId}` : 'avulsos';
             localStorage.removeItem(`rascunho_ordem_lev_${ctx.currentLevId}_${prefix}`);
 
             await ctx.loadLevantamentoDetails();
+
+            const msgBase = data.mensagem || "Ordenação calculada com sucesso!";
+            if (data.tem_autointersecao && data.cruzamentos_detectados && data.cruzamentos_detectados.length > 0) {
+              const detalhes = data.cruzamentos_detectados.slice(0, 5).map((c: any) => `• ${c.descricao || c.segmento_1 + ' cruza com ' + c.segmento_2}`).join('<br>');
+              const extra = data.cruzamentos_detectados.length > 5 ? `<br>... e mais ${data.cruzamentos_detectados.length - 5} cruzamento(s).` : '';
+              await customAlert(
+                `<strong>${msgBase}</strong><br><br><span class="text-amber-400 font-bold">⚠️ ALERTA TOPOLÓGICO (SIGEF/INCRA):</span><br>Foram detectados cruzamentos residuais que não puderam ser desfeitos automaticamente devido a restrições de sequências travadas:<br><div class="mt-2 text-xs font-mono bg-black/30 p-2 rounded">${detalhes}${extra}</div><br><span class="text-xs text-white/60">Ajuste manualmente ou destrave as sequências conflitantes para eliminar os cruzamentos.</span>`,
+                "Aviso Topológico"
+              );
+            } else {
+              showToast(msgBase, "success");
+            }
           } else {
             await customAlert(data.mensagem || data.error || "Erro ao sugerir ordenação geográfica.", "Erro de Ordenação");
           }
@@ -414,6 +490,14 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           btnSugerir.innerHTML = oldHtml;
           initIcons();
         }
+      };
+    }
+
+    const btnInicioNorte = document.getElementById('btn-definir-inicio-norte');
+    if (btnInicioNorte) {
+      btnInicioNorte.onclick = () => {
+        ctx.definirInicioMaisAoNorte();
+        showToast("Numeração rotacionada — vértice mais ao Norte agora é o nº 1.", "success");
       };
     }
 

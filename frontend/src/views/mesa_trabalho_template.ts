@@ -312,6 +312,25 @@ export const renderMesaTrabalho = (): string => {
           <!-- ORDENADOR MANUAL (Exibido na barra lateral durante a etapa Organizador de Perímetro) -->
           <div class="props-panel-body" id="props-panel-ordenador" style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding: 8px;">
             <div class="flex flex-col flex-1 min-h-0" id="container-reordenar-manual" style="display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;">
+              
+              <!-- Barra de Ações Rápidas: Desfazer / Refazer (Ctrl+Z) e Unificar Sobrepostos -->
+              <div class="flex items-center justify-between gap-1 mb-1.5 shrink-0 text-[9px]">
+                <div class="flex items-center gap-1">
+                  <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/20 text-white/80 hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-mono text-[9px] border border-white/10 opacity-30 cursor-not-allowed" id="btn-historico-undo" type="button" title="Desfazer alteração (Ctrl+Z)">
+                    <i data-lucide="rotate-ccw" class="w-3 h-3 text-mint-vibrant"></i>
+                    <span>Desfazer</span>
+                  </button>
+                  <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/20 text-white/80 hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-mono text-[9px] border border-white/10 opacity-30 cursor-not-allowed" id="btn-historico-redo" type="button" title="Refazer alteração (Ctrl+Y)">
+                    <i data-lucide="rotate-cw" class="w-3 h-3 text-mint-vibrant"></i>
+                    <span>Refazer</span>
+                  </button>
+                </div>
+                <button class="flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 px-1.5 py-0.5 rounded transition-all font-mono text-[9px] border border-amber-500/20" id="btn-unificar-sobrepostos" type="button" title="Detectar e unificar vértices nas mesmas coordenadas">
+                  <i data-lucide="layers" class="w-3 h-3 text-amber-400"></i>
+                  <span>Sobrepostos</span>
+                </button>
+              </div>
+
               <div class="relative w-full mb-1.5 shrink-0">
                 <input type="text" id="input-search-ordenador" placeholder="Pesquisar ponto..." class="w-full bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2 py-0.5 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
                 <span class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search-ordenador" title="Limpar pesquisa">×</span>
@@ -332,6 +351,13 @@ export const renderMesaTrabalho = (): string => {
                 <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-bold border border-white/10 w-1/2 justify-center" id="btn-auto-ordenar-vizinho" type="button" title="Sugerir ordem automática baseada em distância (Nearest Neighbor)">
                   <i data-lucide="sparkles" class="w-3 h-3 text-mint-vibrant"></i>
                   <span class="font-mono text-[8.5px]">Sugerir Ordem</span>
+                </button>
+              </div>
+
+              <div class="mb-1.5 shrink-0 text-[9px]">
+                <button class="flex items-center justify-center gap-1 w-full bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-1.5 py-0.5 rounded transition-all font-bold border border-white/10" id="btn-definir-inicio-norte" type="button" title="Rotaciona a numeração para começar no vértice mais ao Norte, sem alterar a ordem relativa">
+                  <i data-lucide="compass" class="w-3 h-3 text-mint-vibrant"></i>
+                  <span class="font-mono text-[8.5px]">Iniciar pelo Norte</span>
                 </button>
               </div>
               
@@ -461,111 +487,61 @@ export const renderMesaTrabalho = (): string => {
              </div>
           </div>
 
-          <!-- ABA 2: Org. de Perímetro (Tabela de Divisas / Segmentos + Ordenador Manual + Workspace GNSS) -->
-          <div class="view-panel hidden" id="view-org-perimetro">
-             <div class="flex flex-col lg:flex-row gap-0 h-full w-full overflow-hidden">
-                <!-- Esquerda: Ordenador Perimetral -->
-                <div class="flex flex-col flex-1 h-full overflow-hidden" id="container-ordenador-manual-parent">
-                    <div class="flex flex-col h-full p-1.5 space-y-1.5 overflow-y-auto">
-                       <!-- Ordenador Manual -->
-                       
-                       <!-- Workspace GNSS Oculto para compatibilidade com o JS legada -->
-                       <div class="hidden" style="display: none !important;">
-                          <div id="painel-workspace-gnss">
-                            <button id="btn-atualizar-arquivos-list"></button>
-                            <button id="btn-testar-busca-rinex"></button>
-                            <div id="container-workspace-arquivos"></div>
-                            <div id="btn-toggle-workspace-collapse"></div>
-                          </div>
-                       </div>
-
-                       <!-- MODAL DE INGESTÃO E TRIAGEM DE ARQUIVOS (Auto-Detect Drag & Drop) -->
-                       <div id="container-ingestao-arquivos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
-                         <div class="bg-[#0e1b14]/95 border border-mint-vibrant/20 w-full max-w-2xl rounded-technical shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
-                           <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                             <h3 class="text-base font-bold text-white flex items-center gap-2">
-                               <i data-lucide="upload-cloud" class="text-mint-vibrant animate-pulse"></i>
-                               Triagem e Ingestão de Arquivos GNSS
-                             </h3>
-                             <button class="text-white/40 hover:text-white transition-colors text-xl font-bold font-mono" id="btn-fechar-modal-ingestao" type="button">×</button>
-                           </div>
-                           
-                           <div class="p-6 overflow-y-auto flex-1 space-y-4">
-                             <p class="text-xs text-white/60 leading-relaxed">
-                               Defina os vínculos de base e configure a destinação para cada arquivo importado antes de processá-los na Mesa Geodésica.
-                             </p>
-
-                             <!-- Dropzone interna para clique/arraste adicional -->
-                             <div id="triagem-dropzone" class="border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col justify-center items-center group relative overflow-hidden min-h-[120px]">
-                               <i id="triagem-dropzone-icon" data-lucide="upload-cloud" class="w-8 h-8 text-white/30 mb-2"></i>
-                               <span id="triagem-dropzone-title" class="text-xs font-bold text-white/70">Arraste múltiplos arquivos para triagem</span>
-                               <span id="triagem-dropzone-desc" class="text-[10px] text-white/40">Suporta arquivos .GNS, .TXT, .CSV, .XLSX, .ODS</span>
-                             </div>
-                             
-                             <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT,.csv,.CSV,.xlsx,.XLSX,.ods,.ODS" />
-                             
-                             <!-- Fila de Arquivos -->
-                             <div id="triagem-fila-container" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 hidden">
-                               <!-- Injetado dinamicamente -->
-                             </div>
-                             
-                             <!-- Opções Globais -->
-                             <div class="bg-white/[0.02] border border-white/5 p-4 rounded flex flex-col md:flex-row gap-4 justify-between items-center hidden" id="triagem-opcoes-lote">
-                               <div class="flex items-center gap-2">
-                                 <input type="checkbox" id="chk-inverter-ne-mesa" class="rounded bg-white/5 border-white/10 text-mint-vibrant focus:ring-mint-vibrant" />
-                                 <label for="chk-inverter-ne-mesa" class="text-xs text-white/70 select-none font-bold">Inverter coordenadas (Norte/Este) na importação</label>
-                               </div>
-                             </div>
-                           </div>
-                           
-                           <div class="px-6 py-4 border-t border-white/5 flex justify-end gap-3 shrink-0">
-                             <button class="btn-secondary text-xs px-4 py-2" id="btn-cancelar-ingestao-modal" type="button">Cancelar</button>
-                             <button class="btn-primary text-xs px-5 py-2 flex items-center gap-2 font-bold hidden" id="btn-processar-lote-modal" type="button">
-                               <i data-lucide="play" class="w-4 h-4"></i>
-                               Iniciar Processamento
-                             </button>
-                           </div>
-                         </div>
-                       </div>
-                    </div>
+          <!-- ABA 2: Org. de Perímetro (Tabela de Divisas / Segmentos + Confrontantes) -->
+          <div class="view-panel hidden h-full w-full overflow-hidden" id="view-org-perimetro">
+             <div class="flex flex-col h-full w-full overflow-hidden bg-white/[0.005]" id="container-tabela-divisas">
+                <div class="px-4 py-2.5 border-b border-white/5 bg-white/[0.01] flex justify-between items-center shrink-0">
+                  <div class="flex items-center gap-2">
+                    <h4 class="text-xs font-bold uppercase tracking-widest text-white/50" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
+                    <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDIÇÃO REAL-TIME</span>
+                  </div>
+                </div>
+                <!-- Formulário Rápido de Inclusão de Confrontante -->
+                <div class="px-4 py-2 border-b border-white/5 bg-white/[0.002] flex gap-2 items-center shrink-0" id="container-confrontante-rapido">
+                  <input type="text" id="input-confrontante-nome-rapido" placeholder="Nome do novo confrontante..." class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-xs text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                  <button class="px-3 py-1 text-[10px] font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 hover:bg-mint-vibrant/20 rounded transition-all flex items-center gap-1 shrink-0 active:scale-95" id="btn-confrontante-adicionar-rapido" type="button">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    Adicionar
+                  </button>
+                </div>
+                <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-[var(--geo-z-sticky)]">
+                        <th class="px-3 py-2">De ➔ Para</th>
+                        <th class="px-2 py-2 text-right">Dist (m)</th>
+                        <th class="px-2 py-2 text-right">Azimute</th>
+                        <th class="px-3 py-2">Confrontante Oficial / Divisa</th>
+                        <th class="px-2 py-2 text-center">Anuên</th>
+                        <th class="px-3 py-2 text-center">Peças</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbl-segmentos-triagem" class="divide-y divide-white/5 text-white/60">
+                      <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum segmento atrelado a esta matrícula.</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
 
-                <!-- Splitter de redimensionamento inferior -->
-                <div class="col-splitter" id="splitter-inferior"></div>
-
-                <!-- Direita: Tabela de Segmentos/Divisas -->
-                <div class="flex flex-col shrink-0 h-full overflow-hidden bg-white/[0.005]" id="container-tabela-divisas" style="width: 480px; min-width: 250px;">
-                   <div class="px-4 py-3 border-b border-white/5 bg-white/[0.01] flex justify-between items-center shrink-0">
-                     <h4 class="text-xs font-bold uppercase tracking-widest text-white/40" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
-                     <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDICAO REAL-TIME</span>
-                   </div>
-                   <!-- Formulário Rápido de Inclusão de Confrontante -->
-                   <div class="px-4 py-2 border-b border-white/5 bg-white/[0.002] flex gap-2 items-center shrink-0" id="container-confrontante-rapido">
-                     <input type="text" id="input-confrontante-nome-rapido" placeholder="Nome do novo confrontante..." class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-xs text-white placeholder-white/30 focus:outline-none transition-all" />
-                     <button class="px-2.5 py-1 text-[10px] font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 hover:bg-mint-vibrant/20 rounded transition-all flex items-center gap-1 shrink-0 active:scale-95" id="btn-confrontante-adicionar-rapido" type="button">
-                       <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                       Adicionar
-                     </button>
-                   </div>
-                   <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
-                     <table class="w-full text-left border-collapse text-xs">
-                       <thead>
-                         <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-[var(--geo-z-sticky)]">
-                           <th class="px-3 py-2">De ➔ Para</th>
-                           <th class="px-2 py-2 text-right">Dist (m)</th>
-                           <th class="px-2 py-2 text-right">Azimute</th>
-                           <th class="px-3 py-2">Confrontante Oficial / Divisa</th>
-                           <th class="px-2 py-2 text-center">Anuên</th>
-                           <th class="px-3 py-2 text-center">Peças</th>
-                         </tr>
-                       </thead>
-                       <tbody id="tbl-segmentos-triagem" class="divide-y divide-white/5 text-white/60">
-                         <tr>
-                           <td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum segmento atrelado a esta matrícula.</td>
-                         </tr>
-                       </tbody>
-                     </table>
-                   </div>
+                <!-- Elementos ocultos para compatibilidade com listeners legados -->
+                <div class="hidden" style="display: none !important;">
+                  <div id="container-ordenador-manual-parent"></div>
+                  <div id="splitter-inferior"></div>
+                  <div id="painel-workspace-gnss">
+                    <button id="btn-atualizar-arquivos-list"></button>
+                    <button id="btn-testar-busca-rinex"></button>
+                    <div id="container-workspace-arquivos"></div>
+                    <div id="btn-toggle-workspace-collapse"></div>
+                  </div>
+                  <div id="container-ingestao-arquivos">
+                    <button id="btn-fechar-modal-ingestao"></button>
+                    <div id="triagem-dropzone"></div>
+                    <input type="file" id="triagem-file-input" />
+                    <div id="triagem-fila-container"></div>
+                    <button id="btn-cancelar-ingestao-modal"></button>
+                    <button id="btn-processar-lote-modal"></button>
+                  </div>
                 </div>
              </div>
           </div>
