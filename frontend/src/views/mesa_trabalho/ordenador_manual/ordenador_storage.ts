@@ -3,7 +3,14 @@ import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 export function setupOrdenadorStorage(ctx: MesaTrabalhoContext) {
   ctx.salvarRascunhoLocal = () => {
     if (!ctx.currentLevId) return;
-    const pontosMat = ctx.obterPontosParaOrdenacao();
+    const todosPontos = ctx.obterPontosParaOrdenacao();
+    const pontosMat = todosPontos.filter(p =>
+      p &&
+      p.ignorar_poligono !== 1 &&
+      p.tipo_ponto !== 'B' &&
+      p.tipo !== 'B' &&
+      (!ctx.currentMatriculaId || String(p.matricula_id) === String(ctx.currentMatriculaId))
+    );
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const prefix = ctx.currentMatriculaId ? `mat_${ctx.currentMatriculaId}` : 'avulsos';

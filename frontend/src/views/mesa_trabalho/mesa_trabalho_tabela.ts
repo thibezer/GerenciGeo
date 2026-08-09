@@ -126,20 +126,12 @@ export const renderLinhaPontoCartorioHtml = (
      badgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/50">${p.tipo_ponto || p.tipo}</span>`;
   }
 
-  // Coluna de ações / ordem
+  // Coluna de ordem (Unificada: reordenação é gerenciada no Painel Lateral)
   let colAcoesHtml = '';
   if (isBaseFisica || p.ignorar_poligono === 1) {
      colAcoesHtml = `<span class="text-[10px] font-bold text-white/30 font-mono">-</span>`;
   } else {
-     colAcoesHtml = `
-        <span class="text-[10px] font-bold text-mint-vibrant font-mono mr-1">${ordemExibida}</span>
-        <button class="btn-subir-ponto p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors active:scale-95 inline-flex items-center justify-center" data-ponto-id="${p.id}" title="Subir Ponto" type="button">
-          <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-        </button>
-        <button class="btn-descer-ponto p-3 md:p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors active:scale-95 inline-flex items-center justify-center" data-ponto-id="${p.id}" title="Descer Ponto" type="button">
-          <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-        </button>
-     `;
+     colAcoesHtml = `<span class="text-[11px] font-bold text-mint-vibrant font-mono">${ordemExibida}</span>`;
   }
 
   // Checkbox de ignorar
@@ -154,7 +146,7 @@ export const renderLinhaPontoCartorioHtml = (
 
   return `
     <tr class="linha-ponto-tbl group cursor-pointer transition-colors border-b ${selectionClass} hover:bg-white/[0.02]" id="tr-ponto-${p.id}" data-ponto-id="${p.id}">
-      <td class="px-2 py-2.5 text-center flex items-center justify-center gap-1.5">
+      <td class="px-3 py-2 text-center font-mono">
         ${colAcoesHtml}
       </td>
       <td class="px-4 py-2.5">

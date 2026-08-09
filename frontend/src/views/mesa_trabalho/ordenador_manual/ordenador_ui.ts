@@ -1,5 +1,5 @@
 import { API_BASE } from '../../../config';
-import { initIcons } from '../../../utils';
+import { initIcons, customAlert, customConfirm, customPrompt, showToast } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
@@ -8,7 +8,14 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
       const container = document.getElementById('lista-reordenar-simplificada');
       if (!container) return;
 
-      const pontosMatCompleto = ctx.obterPontosParaOrdenacao();
+      const todosPontos = ctx.obterPontosParaOrdenacao();
+      const pontosMatCompleto = todosPontos.filter(p =>
+        p &&
+        p.ignorar_poligono !== 1 &&
+        p.tipo_ponto !== 'B' &&
+        p.tipo !== 'B' &&
+        (!ctx.currentMatriculaId || String(p.matricula_id) === String(ctx.currentMatriculaId))
+      );
 
       pontosMatCompleto.sort((a, b) => {
         const valA = a.ordem_caminhamento;
@@ -58,7 +65,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           : '';
 
         return `
-          <div class="flex items-center justify-between py-0.5 px-1.5 rounded text-[11px] font-mono transition-all duration-300 linha-ponto-ordenador ${cardBgClass}"
+          <div class="flex items-center justify-between py-0.5 px-1.5 rounded text-[11px] font-mono transition-all duration-150 linha-ponto-ordenador ${cardBgClass}"
                id="ordenador-item-${p.id}"
                draggable="true"
                data-ponto-id="${p.id}"
@@ -152,14 +159,24 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         e.preventDefault();
         const target = (e.target as HTMLElement).closest('.linha-ponto-ordenador') as HTMLElement;
         if (target && target !== dragSrcEl) {
-          target.classList.add('bg-mint-vibrant/10', 'border-mint-vibrant/40');
+          const rect = target.getBoundingClientRect();
+          const isAfter = e.clientY > (rect.top + rect.height / 2);
+
+          target.classList.add('bg-mint-vibrant/5');
+          if (isAfter) {
+            target.classList.add('border-b-2', '!border-b-mint-vibrant');
+            target.classList.remove('border-t-2', '!border-t-mint-vibrant');
+          } else {
+            target.classList.add('border-t-2', '!border-t-mint-vibrant');
+            target.classList.remove('border-b-2', '!border-b-mint-vibrant');
+          }
         }
       });
 
       elReordenar.addEventListener('dragleave', (e: DragEvent) => {
         const target = (e.target as HTMLElement).closest('.linha-ponto-ordenador') as HTMLElement;
         if (target) {
-          target.classList.remove('bg-mint-vibrant/10', 'border-mint-vibrant/40');
+          target.classList.remove('bg-mint-vibrant/5', 'border-t-2', '!border-t-mint-vibrant', 'border-b-2', '!border-b-mint-vibrant');
         }
       });
 
@@ -169,15 +186,20 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         const pontoIdArrastado = parseInt(e.dataTransfer!.getData('text/plain') || '0');
 
         if (target && pontoIdArrastado) {
-          const novaOrdem = parseInt(target.getAttribute('data-ordem') || '1');
-          ctx.moverPontoPosicao(pontoIdArrastado, novaOrdem);
+          const rect = target.getBoundingClientRect();
+          const isAfter = e.clientY > (rect.top + rect.height / 2);
+          let ordemAlvo = parseInt(target.getAttribute('data-ordem') || '1');
+          if (isAfter) {
+            ordemAlvo += 1;
+          }
+          ctx.moverPontoPosicao(pontoIdArrastado, ordemAlvo);
         }
       });
 
       elReordenar.addEventListener('dragend', () => {
         const items = elReordenar.querySelectorAll('.linha-ponto-ordenador');
         items.forEach(item => {
-          item.classList.remove('opacity-40', 'border-dashed', 'border-mint-vibrant', 'bg-mint-vibrant/10', 'border-mint-vibrant/40');
+          item.classList.remove('opacity-40', 'border-dashed', 'border-mint-vibrant', 'bg-mint-vibrant/5', 'border-t-2', '!border-t-mint-vibrant', 'border-b-2', '!border-b-mint-vibrant');
         });
       });
     }
@@ -190,7 +212,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         const checkboxes = document.querySelectorAll('.chk-ponto-ordenador:checked') as NodeListOf<HTMLInputElement>;
         const pIds = Array.from(checkboxes).map(chk => parseInt(chk.getAttribute('data-ponto-id') || '0')).filter(id => id > 0);
         if (pIds.length < 2) {
-          alert("Por favor, selecione pelo menos 2 pontos para travar uma sequência.");
+          await customAlert("Por favor, selecione pelo menos 2 pontos para travar uma sequência.", "Travar Sequência");
           return;
         }
 
@@ -210,17 +232,17 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           .sort((a, b) => a - b);
 
         if (indices.length < 2) {
-          alert("Por favor, selecione pelo menos 2 pontos válidos do perímetro para travar uma sequência.");
+          await customAlert("Por favor, selecione pelo menos 2 pontos válidos do perímetro para travar uma sequência.", "Travar Sequência");
           return;
         }
 
         const saoContiguos = indices.every((idx, i) => i === 0 || idx === indices[i - 1] + 1);
         if (!saoContiguos) {
-          alert("Os pontos selecionados precisam ser consecutivos na ordem de caminhamento para formar uma sequência travada. Reordene-os primeiro ou utilize Shift+Clique para selecionar uma faixa contínua.");
+          await customAlert("Os pontos selecionados precisam ser consecutivos na ordem de caminhamento para formar uma sequência travada. Reordene-os primeiro ou utilize Shift+Clique para selecionar uma faixa contínua.", "Sequência Não Contígua");
           return;
         }
 
-        const nomeSequencia = prompt("Digite um nome ou identificação para esta sequência travada (ex: rio, cerca_oeste):");
+        const nomeSequencia = await customPrompt("Digite um nome ou identificação para esta sequência travada:", "", "Travar Sequência", "ex: rio, cerca_oeste");
         if (!nomeSequencia || !nomeSequencia.trim()) return;
 
         const seqName = nomeSequencia.trim();
@@ -231,7 +253,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
                !pIds.includes(p.id)
         );
         if (colidiu) {
-          alert(`Já existe outra sequência travada com o nome "${seqName}". Escolha um nome exclusivo para evitar fusões acidentais de grupos.`);
+          await customAlert(`Já existe outra sequência travada com o nome "${seqName}". Escolha um nome exclusivo para evitar fusões acidentais de grupos.`, "Nome Duplicado");
           return;
         }
 
@@ -257,7 +279,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
             throw new Error(errData.detail || errData.error || "Falha ao salvar sequência travada no servidor.");
           }
 
-          alert(`Sequência '${seqName}' travada com sucesso em ${pIds.length} pontos!`);
+          showToast(`Sequência '${seqName}' travada com sucesso!`, "success");
 
           pIds.forEach(pid => {
             const pt = ctx.pontosList.find(p => p.id === pid);
@@ -269,7 +291,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           ctx.salvarRascunhoLocal();
         } catch (err: any) {
           console.error("Erro ao travar pontos:", err);
-          alert(err.message || "Ocorreu um erro ao salvar o travamento dos pontos.");
+          await customAlert(err.message || "Ocorreu um erro ao salvar o travamento dos pontos.", "Erro ao Travar");
         } finally {
           btnTravar.innerHTML = `<i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> <span class="font-mono text-[9px]">Travar Sequência</span>`;
           initIcons();
@@ -281,7 +303,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
       btnDestravar.onclick = async () => {
         const checkboxes = document.querySelectorAll('.chk-ponto-ordenador:checked') as NodeListOf<HTMLInputElement>;
         if (checkboxes.length === 0) {
-          alert("Selecione os pontos que deseja destravar.");
+          await customAlert("Selecione os pontos que deseja destravar.", "Destravar Sequência");
           return;
         }
 
@@ -309,7 +331,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
             throw new Error(errData.detail || errData.error || "Falha ao destravar pontos no servidor.");
           }
 
-          alert("Pontos destravados com sucesso!");
+          showToast("Pontos destravados com sucesso!", "success");
 
           pIds.forEach(pid => {
             const pt = ctx.pontosList.find(p => p.id === pid);
@@ -321,7 +343,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           ctx.salvarRascunhoLocal();
         } catch (err: any) {
           console.error("Erro ao destravar pontos:", err);
-          alert(err.message || "Ocorreu um erro ao destravar os pontos.");
+          await customAlert(err.message || "Ocorreu um erro ao destravar os pontos.", "Erro ao Destravar");
         } finally {
           btnDestravar.innerHTML = `<i data-lucide="unlock" class="w-3.5 h-3.5 text-white/50"></i> <span class="font-mono text-[9px]">Destravar</span>`;
           initIcons();
@@ -356,9 +378,11 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
     if (btnSugerir) {
       btnSugerir.onclick = async () => {
         if (!ctx.currentLevId) return;
-        if (!confirm("Isso irá recalcular a sequência de todos os pontos ativos baseando-se na distância geográfica (Nearest Neighbor). Deseja continuar?")) {
-          return;
-        }
+        const confirmou = await customConfirm(
+          "Isso irá recalcular a sequência de todos os pontos ativos baseando-se na distância geográfica (Nearest Neighbor com desentrelaçamento 2-Opt). Deseja continuar?",
+          "Sugerir Ordem Perimetral"
+        );
+        if (!confirmou) return;
 
         btnSugerir.disabled = true;
         const oldHtml = btnSugerir.innerHTML;
@@ -373,18 +397,18 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           const res = await fetch(url, { method: 'POST' });
           const data = await res.json();
           if (res.ok && data.sucesso) {
-            alert("Ordenação geográfica calculada e divisas atualizadas com sucesso!");
+            showToast("Ordenação calculada com sucesso!", "success");
 
             const prefix = ctx.currentMatriculaId ? `mat_${ctx.currentMatriculaId}` : 'avulsos';
             localStorage.removeItem(`rascunho_ordem_lev_${ctx.currentLevId}_${prefix}`);
 
             await ctx.loadLevantamentoDetails();
           } else {
-            alert(data.mensagem || data.error || "Erro ao sugerir ordenação geográfica.");
+            await customAlert(data.mensagem || data.error || "Erro ao sugerir ordenação geográfica.", "Erro de Ordenação");
           }
         } catch (err) {
           console.error("Erro na ordenação automática:", err);
-          alert("Erro de comunicação com o servidor.");
+          await customAlert("Erro de comunicação com o servidor.", "Erro de Conexão");
         } finally {
           btnSugerir.disabled = false;
           btnSugerir.innerHTML = oldHtml;
@@ -441,7 +465,14 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         initIcons();
 
         try {
-          const pontosMat = ctx.obterPontosParaOrdenacao();
+          const todosPontos = ctx.obterPontosParaOrdenacao();
+          const pontosMat = todosPontos.filter(p =>
+            p &&
+            p.ignorar_poligono !== 1 &&
+            p.tipo_ponto !== 'B' &&
+            p.tipo !== 'B' &&
+            (!ctx.currentMatriculaId || String(p.matricula_id) === String(ctx.currentMatriculaId))
+          );
           pontosMat.sort((a, b) => {
             const valA = a.ordem_caminhamento;
             const valB = b.ordem_caminhamento;
@@ -480,18 +511,21 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
 
             const msgBase = data.mensagem || `Ordem perimetral salva com sucesso!`;
             if (data.tem_autointersecao && data.cruzamentos_detectados && data.cruzamentos_detectados.length > 0) {
-              const detalhes = data.cruzamentos_detectados.slice(0, 5).map((c: any) => `• ${c.descricao || c.segmento_1 + ' cruza com ' + c.segmento_2}`).join('\n');
-              const extra = data.cruzamentos_detectados.length > 5 ? `\n... e mais ${data.cruzamentos_detectados.length - 5} cruzamento(s).` : '';
-              alert(`${msgBase}\n\n⚠️ ALERTA TOPOLÓGICO (SIGEF/INCRA):\nO perímetro salvo possui autointerseção (polígono borboleta/cruzado):\n${detalhes}${extra}\n\nRecomenda-se ajustar a sequência dos vértices para evitar pendências no SIGEF.`);
+              const detalhes = data.cruzamentos_detectados.slice(0, 5).map((c: any) => `• ${c.descricao || c.segmento_1 + ' cruza com ' + c.segmento_2}`).join('<br>');
+              const extra = data.cruzamentos_detectados.length > 5 ? `<br>... e mais ${data.cruzamentos_detectados.length - 5} cruzamento(s).` : '';
+              await customAlert(
+                `<strong>${msgBase}</strong><br><br><span class="text-amber-400 font-bold">⚠️ ALERTA TOPOLÓGICO (SIGEF/INCRA):</span><br>O perímetro salvo possui autointerseção (polígono borboleta):<br><div class="mt-2 text-xs font-mono bg-black/30 p-2 rounded">${detalhes}${extra}</div><br><span class="text-xs text-white/60">Recomenda-se ajustar a sequência dos vértices para evitar pendências no SIGEF.</span>`,
+                "Aviso Topológico"
+              );
             } else {
-              alert(msgBase);
+              showToast(msgBase, "success");
             }
           } else {
-            alert(data.mensagem || data.error || "Erro ao salvar ordenação no banco.");
+            await customAlert(data.mensagem || data.error || "Erro ao salvar ordenação no banco.", "Erro ao Salvar");
           }
         } catch (err) {
           console.error("Erro ao salvar ordem:", err);
-          alert("Erro de comunicação com o servidor API.");
+          await customAlert("Erro de comunicação com o servidor API.", "Erro de Conexão");
         } finally {
           btnSalvarOrdem.disabled = false;
           btnSalvarOrdem.innerHTML = oldContent;

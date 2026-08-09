@@ -192,6 +192,116 @@ export const customConfirm = (message: string, title: string = 'Confirmação'):
   });
 };
 
+export interface PromptOptions {
+  title: string;
+  message: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+export const showPromptDialog = (options: PromptOptions): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0';
+    overlay.style.zIndex = '999999';
+
+    const container = document.createElement('div');
+    container.className = 'w-full max-w-md mx-4 bg-[#111113] border border-white/10 rounded-technical shadow-2xl p-6 transform scale-95 transition-transform duration-200';
+    container.style.backgroundColor = 'var(--geo-bg-surface, #111113)';
+    container.style.borderRadius = 'var(--geo-radius-modal, 14px)';
+    container.style.borderColor = 'var(--geo-border-default, rgba(255, 255, 255, 0.11))';
+    container.style.color = 'var(--geo-text-primary, rgba(255, 255, 255, 0.92))';
+
+    container.innerHTML = `
+      <div class="flex flex-col gap-4">
+        <h3 class="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+          <i data-lucide="edit-3" class="text-mint-vibrant w-5 h-5 shrink-0"></i>
+          ${options.title}
+        </h3>
+        <div class="text-sm text-white/70 leading-relaxed font-sans" style="font-family: var(--geo-font-sans), sans-serif;">
+          ${options.message}
+        </div>
+        <div>
+          <input type="text" id="prompt-input"
+                 class="w-full bg-white/5 border border-white/10 focus:border-mint-vibrant focus:ring-1 focus:ring-mint-vibrant rounded-technical px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none transition-all font-mono"
+                 value="${options.defaultValue || ''}"
+                 placeholder="${options.placeholder || ''}" />
+        </div>
+        <div class="flex justify-end gap-3 mt-2">
+          <button id="prompt-cancel" class="px-4 py-2 text-sm font-medium rounded-technical bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition-all cursor-pointer">
+            ${options.cancelText || 'Cancelar'}
+          </button>
+          <button id="prompt-confirm" class="px-4 py-2 text-sm font-bold rounded-technical bg-mint-vibrant text-forest-deep hover:brightness-110 active:scale-95 transition-all cursor-pointer">
+            ${options.confirmText || 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    createIcons({
+      icons: { Edit3 },
+      nameAttr: 'data-lucide'
+    });
+
+    const inputEl = container.querySelector('#prompt-input') as HTMLInputElement | null;
+
+    setTimeout(() => {
+      overlay.classList.remove('opacity-0');
+      container.classList.remove('scale-95');
+      inputEl?.focus();
+      inputEl?.select();
+    }, 10);
+
+    const closePrompt = (value: string | null) => {
+      overlay.classList.add('opacity-0');
+      container.classList.add('scale-95');
+      setTimeout(() => {
+        if (overlay.parentNode) {
+          document.body.removeChild(overlay);
+        }
+        resolve(value);
+      }, 200);
+    };
+
+    container.querySelector('#prompt-confirm')?.addEventListener('click', () => {
+      closePrompt(inputEl?.value ?? '');
+    });
+    container.querySelector('#prompt-cancel')?.addEventListener('click', () => {
+      closePrompt(null);
+    });
+
+    inputEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        closePrompt(inputEl.value);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closePrompt(null);
+      }
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closePrompt(null);
+    });
+  });
+};
+
+export const customPrompt = (message: string, defaultValue: string = '', title: string = 'Identificação da Sequência', placeholder: string = 'ex: rio, cerca_oeste'): Promise<string | null> => {
+  return showPromptDialog({
+    title,
+    message,
+    defaultValue,
+    placeholder,
+    confirmText: 'Travar Sequência',
+    cancelText: 'Cancelar'
+  });
+};
+
 export const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info', duration: number = 3000) => {
   let container = document.getElementById('toast-container');
   if (!container) {

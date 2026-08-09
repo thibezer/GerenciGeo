@@ -43,9 +43,19 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     return Array.from(dedupMap.values());
   };
 
+  const filtrarPontosPerimetro = (pontos: any[]) => {
+    return pontos.filter(p =>
+      p &&
+      p.ignorar_poligono !== 1 &&
+      p.tipo_ponto !== 'B' &&
+      p.tipo !== 'B' &&
+      (!ctx.currentMatriculaId || String(p.matricula_id) === String(ctx.currentMatriculaId))
+    );
+  };
+
   ctx.subirPonto = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
-    const pontosMat = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -103,7 +113,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.descerPonto = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
-    const pontosMat = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const idx = pontosMat.findIndex(p => p.id === pontoId);
@@ -163,7 +173,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.moverPontoPosicao = (pontoId: number, novaPosicao: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
-    const pontosMat = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
 
     const oldIdx = pontosMat.findIndex(p => p.id === pontoId);
@@ -233,7 +243,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.inverterOrdemPerimetral = () => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
-    const pontosMat = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
     if (pontosMat.length < 2) return;
 
     pontosMat.sort((a, b) => (a.ordem_caminhamento ?? 999999) - (b.ordem_caminhamento ?? 999999));
@@ -256,7 +266,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
 
   ctx.lidarCliqueMarcadorSequencial = (pontoId: number) => {
     const todosPontos = ctx.obterPontosParaOrdenacao();
-    const pontosMat = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+    const pontosMat = filtrarPontosPerimetro(todosPontos);
     const maxOrdem = pontosMat.length;
 
     if (ctx.sequenciaCliqueProximoIndice === null || ctx.sequenciaCliqueProximoIndice > maxOrdem) {
