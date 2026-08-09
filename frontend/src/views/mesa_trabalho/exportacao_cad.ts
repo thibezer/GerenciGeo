@@ -456,7 +456,7 @@ function abrirModalConfirmacaoCAD(ctx: MesaTrabalhoContext, preview: ReturnType<
   `).join('');
 
   const modalHtml = `
-    <div id="modal-cad-sync-preview" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[var(--geo-z-modal,9999)] flex items-center justify-center p-4">
+    <div id="modal-cad-sync-preview" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" style="z-index: var(--geo-z-max, 100000);">
       <div class="glass-card w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-mint-vibrant/30 rounded-2xl bg-[#0c1510]/95">
         
         <!-- Cabeçalho do Modal -->
@@ -649,11 +649,6 @@ function abrirModalConfirmacaoCAD(ctx: MesaTrabalhoContext, preview: ReturnType<
       // Re-renderiza a etapa atual (Tabela Geodésica, Mapa, etc.)
       if (typeof ctx.alternarEtapa === 'function') {
         ctx.alternarEtapa(ctx.etapaAtiva);
-      }
-
-      // Centraliza a visão do mapa nos pontos atualizados
-      if (ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
-        ctx.mapaController.fitBounds(ctx.pontosList);
       }
 
     } catch (err: any) {

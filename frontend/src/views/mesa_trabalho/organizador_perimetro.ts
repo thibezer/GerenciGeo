@@ -131,7 +131,6 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
       ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
     }
-    ctx.mapaController.fitBounds(pontosMat);
   }
 
   const tblHeader = document.getElementById('tbl-pontos-header');

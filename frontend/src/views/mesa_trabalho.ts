@@ -275,7 +275,8 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.loadWorkspaceArquivos();
         ctx.alternarEtapa(ctx.etapaAtiva);
         
-        // Centralização inicial do mapa nos pontos da propriedade
+        // Centralização inicial do mapa nos pontos da propriedade (Apenas na 1ª abertura do levantamento)
+        const precisaCentralizarInicial = ctx.lastFittedLevId !== ctx.currentLevId;
         if (ctx.triagemMap && ctx.mapaController) {
           setTimeout(() => {
             if (!ctx.triagemMap) return;
@@ -283,21 +284,24 @@ export const mesaTrabalhoRoute: RouteDef = {
               ctx.triagemMap.invalidateSize();
             } catch (e) {}
             
-            let pontosParaCentralizar = [];
-            
-            // Na mesa geodésica o usuário vê os pontos brutos/ordenados, se tiver matrícula ele filtra.
-            if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
-              pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
-            } else if (ctx.currentMatriculaId) {
-              pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
-            } else {
-              pontosParaCentralizar = ctx.pontosList;
+            if (precisaCentralizarInicial) {
+              ctx.lastFittedLevId = ctx.currentLevId;
+              let pontosParaCentralizar = [];
+              
+              // Na mesa geodésica o usuário vê os pontos brutos/ordenados, se tiver matrícula ele filtra.
+              if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
+                pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
+              } else if (ctx.currentMatriculaId) {
+                pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+              } else {
+                pontosParaCentralizar = ctx.pontosList;
+              }
+              
+              if (pontosParaCentralizar.length > 0 && ctx.mapaController) {
+                ctx.mapaController.fitBounds(pontosParaCentralizar);
+              }
             }
-            
-            if (pontosParaCentralizar.length > 0 && ctx.mapaController) {
-              ctx.mapaController.fitBounds(pontosParaCentralizar);
-            }
-          }, 600); // 600ms para garantir transição do SPA Vanilla e render da DOM Layout
+          }, 300);
         }
         
         ctx.carregarSugestoesNumeracao();
@@ -321,6 +325,23 @@ export const mesaTrabalhoRoute: RouteDef = {
         canvasInteracao.ativar(ctx.mapaController);
         ctx.mapaController.canvasInteracao = canvasInteracao;
         ctx.canvasInteracao = canvasInteracao;
+
+        // Listener para recentralização sob demanda (Bússola / Atalhos / Zoom Extents)
+        window.addEventListener('gerencigeo:recenter', () => {
+          if (ctx.triagemMap && ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
+            let pontosParaCentralizar = [];
+            if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
+              pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
+            } else if (ctx.currentMatriculaId) {
+              pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+            } else {
+              pontosParaCentralizar = ctx.pontosList;
+            }
+            if (pontosParaCentralizar.length > 0) {
+              ctx.mapaController.fitBounds(pontosParaCentralizar);
+            }
+          }
+        });
         
         // Listener de cliques sequenciais no mapa Leaflet
         ctx.triagemMap?.on('popupopen', (e: any) => {

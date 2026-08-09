@@ -96,12 +96,12 @@
   /* --- Z-Index Layers --- */
   --geo-z-base:        0;
   --geo-z-elevated:    10;
-  --geo-z-dropdown:    20;
-  --geo-z-sticky:      30;
-  --geo-z-modal:       50;
-  --geo-z-toast:       100;
-  --geo-z-overlay:     1000;
-  --geo-z-tooltip:     9999;
+  --geo-z-dropdown:    1500;
+  --geo-z-sticky:      1600;
+  --geo-z-overlay:     10000;
+  --geo-z-modal:       20000;
+  --geo-z-toast:       30000;
+  --geo-z-tooltip:     40000;
   --geo-z-max:         100000;
 
   /* --- Transições --- */

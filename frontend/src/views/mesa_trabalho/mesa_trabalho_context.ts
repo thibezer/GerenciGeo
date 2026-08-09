@@ -33,10 +33,11 @@ export interface MesaTrabalhoContext {
   pontosVizinhosList: any[];
   travamentoInicio: number;
   travamentoFim: number;
-  arquivosDesativadosList?: string[];
   travamentoInicioPontoId: number | null;
   travamentoFimPontoId: number | null;
   sequenciaCliqueProximoIndice: number | null;
+  arquivosDesativadosList?: string[];
+  lastFittedLevId?: number | null;
 
   // Funções centrais e callbacks
   loadLevantamentoDetails: () => Promise<void>;
