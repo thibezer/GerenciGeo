@@ -68,5 +68,37 @@ class TestSincronizacaoCAD(unittest.TestCase):
         self.assertEqual(p2["tipo_ponto"], "V")
         self.assertEqual(p2["status_ponto"], "CORRIGIDO")
 
+    def test_sincronizacao_payload_real_com_confrontantes_e_blocos(self):
+        payload_real = (
+            "ACAO=NOVO;BLOCO=BL-MEMOVEV3;X=246577.0858;Y=7402037.2450;Z=0.0000;ATRIB(ID:XRXR-V-0112,TIPO:V,SIGMA:0.03,METPOS:PA2,TIPLIM:,CNS:,MATR:,CONFRO:0.020)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEV3;X=245609.1499;Y=7401984.1704;Z=0.0000;ATRIB(ID:XRXR-V-0134,TIPO:V,SIGMA:0.01,METPOS:PA2,TIPLIM:LN1,CNS:08.726-2,MATR:1101,CONFRO:Lote rural n°74-A)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEM3;X=245842.8530;Y=7402047.0490;Z=0.0000;ATRIB(ID:CQI-M-3754,TIPO:V,SIGMA:0.000,METPOS:PG2,TIPLIM:LN1,CNS:\t08.726-2,MATR:12840,CONFRO:Unificação dos lotes nº. 76 e 77, 78/A, 78/B e 78/C, estes da subdivisão do lote nº. 78, todos da Gleba nº. 11, do Núcleo Serra)\n"
+            "ACAO=NOVO;BLOCO=BL-MEMOVEP3;X=245696.0206;Y=7402000.6630;Z=0.0000;ATRIB(ID:XRXR-P-0181,TIPO:V,SIGMA:0.02402580,METPOS:PA1,TIPLIM:LN1,CNS:08.726-2,MATR:1101,CONFRO:Lote rural n°74-A)"
+        )
+
+        payload = PayloadSincronizarCAD(payload_cad=payload_real, matricula_id=self.mat_id)
+        res = sincronizar_cad_clipboard(self.lev_id, payload)
+
+        self.assertTrue(res.get("sucesso"))
+        self.assertEqual(res.get("inseridos"), 4)
+
+        # CQI-M-3754 deve ser inferido como 'M' pelo bloco BL-MEMOVEM3 / ID
+        p_m = execute_query("SELECT * FROM pontos WHERE levantamento_id = ? AND nome_vertice = 'CQI-M-3754'", params=(self.lev_id,), fetch_one=True)
+        self.assertIsNotNone(p_m)
+        self.assertEqual(p_m["tipo_ponto"], "M")
+        self.assertEqual(p_m["metodo_posicionamento"], "PG2")
+
+        # XRXR-P-0181 deve ser inferido como 'P'
+        p_p = execute_query("SELECT * FROM pontos WHERE levantamento_id = ? AND nome_vertice = 'XRXR-P-0181'", params=(self.lev_id,), fetch_one=True)
+        self.assertIsNotNone(p_p)
+        self.assertEqual(p_p["tipo_ponto"], "P")
+        self.assertAlmostEqual(p_p["sigma_lat"], 0.02402580, places=6)
+
+        # XRXR-V-0112 deve ser 'V'
+        p_v = execute_query("SELECT * FROM pontos WHERE levantamento_id = ? AND nome_vertice = 'XRXR-V-0112'", params=(self.lev_id,), fetch_one=True)
+        self.assertIsNotNone(p_v)
+        self.assertEqual(p_v["tipo_ponto"], "V")
+        self.assertEqual(p_v["metodo_posicionamento"], "PA2")
+
 if __name__ == '__main__':
     unittest.main()

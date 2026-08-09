@@ -256,9 +256,15 @@
             (setq z (caddr pt))
             
             ;; Atributos
-            (setq attList (get-block-attributes-assoc obj))
-            (setq id (find-attr-val attList '("ID" "NOME" "VERTICE" "PONTO") ""))
-            (setq tipo (find-attr-val attList '("TIPO" "TIP_VERT") "V"))
+            (setq defaultTipo
+              (cond
+                ((vl-string-search "MEMOVEM" (strcase blkName)) "M")
+                ((vl-string-search "MEMOVEP" (strcase blkName)) "P")
+                ((vl-string-search "MEMOVEB" (strcase blkName)) "B")
+                (t "V")
+              )
+            )
+            (setq tipo (find-attr-val attList '("TIPO" "TIP_VERT") defaultTipo))
             (setq sigma (find-attr-val attList '("SIGMA" "SIGMAX" "SIGMAY" "SIGMAZ") "0.000"))
             (setq metpos (find-attr-val attList '("METPOS" "METODO") ""))
             (setq tiplim (find-attr-val attList '("TIPLIM" "LIMITE") ""))

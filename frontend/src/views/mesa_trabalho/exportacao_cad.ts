@@ -11,6 +11,7 @@
  */
 
 import { showToast } from '../../utils';
+import { API_BASE } from '../../config';
 import { latLonToUTM } from './mesa_geodesica';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
@@ -271,10 +272,13 @@ export async function importarDoCADClipboard(ctx: MesaTrabalhoContext): Promise<
       return;
     }
 
-    const resp = await fetch(`/api/levantamentos/${ctx.currentLevId}/pontos/sincronizar-cad`, {
+    const resp = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/sincronizar-cad`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload_cad: text })
+      body: JSON.stringify({ 
+        payload_cad: text,
+        matricula_id: ctx.currentMatriculaId || undefined
+      })
     });
 
     if (!resp.ok) {

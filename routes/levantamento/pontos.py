@@ -2,6 +2,7 @@
 routes/levantamento/pontos.py — Gestão de Pontos de Campo, Matrículas e Ordenação
 """
 import os
+import re
 import stat
 import shutil
 import logging
@@ -934,14 +935,17 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
             for line in lines:
                 parts = line.split(";")
                 x, y, z = None, None, 0.0
-                id_vertice, tipo, sigma, metpos, tiplim, cns, matr, confro = "", "V", "0.000", "", "", "", "", ""
+                id_vertice, tipo, sigma, metpos, tiplim, cns, matr, confro = "", "", "0.000", "", "", "", "", ""
+                bloco = ""
 
                 for part in parts:
-                    if "=" in part:
+                    if "=" in part and not part.startswith("ATRIB("):
                         param, val = part.split("=", 1)
                         param = param.strip().upper()
                         val = val.strip()
-                        if param == "X":
+                        if param == "BLOCO":
+                            bloco = val
+                        elif param == "X":
                             try: x = float(val)
                             except ValueError: pass
                         elif param == "Y":
@@ -953,27 +957,45 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
 
                     if part.startswith("ATRIB(") and part.endswith(")"):
                         attr_str = part[6:-1]
-                        attr_items = attr_str.split(",")
-                        for item in attr_items:
-                            if ":" in item:
-                                k, v = item.split(":", 1)
-                                k = k.strip().upper()
-                                v = v.strip()
-                                if k == "ID": id_vertice = v
-                                elif k == "TIPO": tipo = v.upper() if v else "V"
-                                elif k == "SIGMA": sigma = v
-                                elif k == "METPOS": metpos = v
-                                elif k == "TIPLIM": tiplim = v
-                                elif k == "CNS": cns = v
-                                elif k == "MATR": matr = v
-                                elif k == "CONFRO": confro = v
+                        matches = re.findall(
+                            r'(ID|TIPO|SIGMA|METPOS|TIPLIM|CNS|MATR|CONFRO)\s*:\s*(.*?)(?=(?:,\s*(?:ID|TIPO|SIGMA|METPOS|TIPLIM|CNS|MATR|CONFRO)\s*:)|$)',
+                            attr_str,
+                            re.IGNORECASE
+                        )
+                        for k, v in matches:
+                            k = k.strip().upper()
+                            v = v.strip()
+                            if k == "ID": id_vertice = v
+                            elif k == "TIPO": tipo = v.upper() if v else ""
+                            elif k == "SIGMA": sigma = v
+                            elif k == "METPOS": metpos = v
+                            elif k == "TIPLIM": tiplim = v
+                            elif k == "CNS": cns = v
+                            elif k == "MATR": matr = v
+                            elif k == "CONFRO": confro = v
 
                 if not id_vertice or x is None or y is None:
                     continue
 
                 # Converte UTM Zone 22S para SIRGAS 2000 Geodésico (Lat, Lon)
                 lon, lat = transformer.transform(x, y)
-                tipo_final = tipo if tipo in ['M', 'P', 'V', 'B'] else 'V'
+                
+                # Determina tipo inteligente caso não venha explícito ou seja default 'V'
+                tipo_final = tipo.upper() if tipo and tipo.upper() in ['M', 'P', 'V', 'B'] else ''
+                if not tipo_final or tipo_final == 'V':
+                    if "MEMOVEM" in bloco.upper() or "-M-" in id_vertice.upper():
+                        tipo_final = "M"
+                    elif "MEMOVEP" in bloco.upper() or "-P-" in id_vertice.upper():
+                        tipo_final = "P"
+                    elif "MEMOVEB" in bloco.upper() or "-B-" in id_vertice.upper() or id_vertice.upper().startswith("BASE"):
+                        tipo_final = "B"
+                    else:
+                        tipo_final = tipo_final or "V"
+
+                try:
+                    sig_val = float(sigma) if sigma else 0.0
+                except ValueError:
+                    sig_val = 0.0
 
                 # Verifica existência prévia do vértice pelo nome
                 cursor.execute(
@@ -987,11 +1009,15 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
                     cursor.execute(
                         """
                         UPDATE pontos
-                        SET lat = ?, lon = ?, alt = ?, tipo_ponto = ?, status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                        SET lat = ?, lon = ?, alt = ?, tipo_ponto = ?,
+                            sigma_lat = CASE WHEN ? > 0 THEN ? ELSE sigma_lat END,
+                            sigma_lon = CASE WHEN ? > 0 THEN ? ELSE sigma_lon END,
+                            sigma_alt = CASE WHEN ? > 0 THEN ? ELSE sigma_alt END,
+                            status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
                             metodo_posicionamento = CASE WHEN ? != '' THEN ? ELSE metodo_posicionamento END
                         WHERE id = ?
                         """,
-                        (lat, lon, z, tipo_final, metpos, metpos, pid)
+                        (lat, lon, z, tipo_final, sig_val, sig_val, sig_val, sig_val, sig_val, sig_val, metpos, metpos, pid)
                     )
                     count_atualizados += 1
                 else:
@@ -1014,9 +1040,9 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
                         INSERT INTO pontos (
                             levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
                             sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, metodo_posicionamento
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'CORRIGIDO', 'CORRIGIDO', ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?)
                         """,
-                        (id, target_mat_id, id_vertice, tipo_final, lat, lon, z, nova_ordem, metpos)
+                        (id, target_mat_id, id_vertice, tipo_final, lat, lon, z, sig_val, sig_val, sig_val, nova_ordem, metpos)
                     )
                     count_inseridos += 1
 
