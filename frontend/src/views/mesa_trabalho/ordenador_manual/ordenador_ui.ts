@@ -188,8 +188,35 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
     if (btnTravar) {
       btnTravar.onclick = async () => {
         const checkboxes = document.querySelectorAll('.chk-ponto-ordenador:checked') as NodeListOf<HTMLInputElement>;
-        if (checkboxes.length < 2) {
+        const pIds = Array.from(checkboxes).map(chk => parseInt(chk.getAttribute('data-ponto-id') || '0')).filter(id => id > 0);
+        if (pIds.length < 2) {
           alert("Por favor, selecione pelo menos 2 pontos para travar uma sequência.");
+          return;
+        }
+
+        const todosPontos = ctx.obterPontosParaOrdenacao();
+        const pontosMatValidos = todosPontos.filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+        pontosMatValidos.sort((a, b) => {
+          const valA = a.ordem_caminhamento;
+          const valB = b.ordem_caminhamento;
+          const numA = Number(valA ?? 999999);
+          const numB = Number(valB ?? 999999);
+          return numA - numB;
+        });
+
+        const indices = pIds
+          .map(pid => pontosMatValidos.findIndex(p => p.id === pid))
+          .filter(idx => idx !== -1)
+          .sort((a, b) => a - b);
+
+        if (indices.length < 2) {
+          alert("Por favor, selecione pelo menos 2 pontos válidos do perímetro para travar uma sequência.");
+          return;
+        }
+
+        const saoContiguos = indices.every((idx, i) => i === 0 || idx === indices[i - 1] + 1);
+        if (!saoContiguos) {
+          alert("Os pontos selecionados precisam ser consecutivos na ordem de caminhamento para formar uma sequência travada. Reordene-os primeiro ou utilize Shift+Clique para selecionar uma faixa contínua.");
           return;
         }
 
@@ -197,19 +224,38 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         if (!nomeSequencia || !nomeSequencia.trim()) return;
 
         const seqName = nomeSequencia.trim();
-        const pIds = Array.from(checkboxes).map(chk => parseInt(chk.getAttribute('data-ponto-id') || '0')).filter(id => id > 0);
+
+        const colidiu = ctx.pontosList.some(
+          p => p && p.sequencia_travada_id &&
+               String(p.sequencia_travada_id).toLowerCase().trim() === seqName.toLowerCase() &&
+               !pIds.includes(p.id)
+        );
+        if (colidiu) {
+          alert(`Já existe outra sequência travada com o nome "${seqName}". Escolha um nome exclusivo para evitar fusões acidentais de grupos.`);
+          return;
+        }
 
         try {
           btnTravar.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Gravando...`;
           initIcons();
 
-          await Promise.all(pIds.map(async (pid) => {
-            await fetch(`${API_BASE}/pontos/${pid}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sequencia_travada_id: seqName })
-            });
-          }));
+          const payload = {
+            pontos: pIds.map(pid => ({
+              id: pid,
+              sequencia_travada_id: seqName
+            }))
+          };
+
+          const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/batch`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || errData.error || "Falha ao salvar sequência travada no servidor.");
+          }
 
           alert(`Sequência '${seqName}' travada com sucesso em ${pIds.length} pontos!`);
 
@@ -221,9 +267,9 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           ctx.renderListaReordenarSimplificada();
           ctx.atualizarPolilinhaMapaTemp();
           ctx.salvarRascunhoLocal();
-        } catch (err) {
+        } catch (err: any) {
           console.error("Erro ao travar pontos:", err);
-          alert("Ocorreu um erro ao salvar o travamento dos pontos.");
+          alert(err.message || "Ocorreu um erro ao salvar o travamento dos pontos.");
         } finally {
           btnTravar.innerHTML = `<i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i> <span class="font-mono text-[9px]">Travar Sequência</span>`;
           initIcons();
@@ -245,13 +291,23 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           btnDestravar.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Destravando...`;
           initIcons();
 
-          await Promise.all(pIds.map(async (pid) => {
-            await fetch(`${API_BASE}/pontos/${pid}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sequencia_travada_id: null })
-            });
-          }));
+          const payload = {
+            pontos: pIds.map(pid => ({
+              id: pid,
+              sequencia_travada_id: null
+            }))
+          };
+
+          const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/batch`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || errData.error || "Falha ao destravar pontos no servidor.");
+          }
 
           alert("Pontos destravados com sucesso!");
 
@@ -263,9 +319,9 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           ctx.renderListaReordenarSimplificada();
           ctx.atualizarPolilinhaMapaTemp();
           ctx.salvarRascunhoLocal();
-        } catch (err) {
+        } catch (err: any) {
           console.error("Erro ao destravar pontos:", err);
-          alert("Ocorreu um erro ao destravar os pontos.");
+          alert(err.message || "Ocorreu um erro ao destravar os pontos.");
         } finally {
           btnDestravar.innerHTML = `<i data-lucide="unlock" class="w-3.5 h-3.5 text-white/50"></i> <span class="font-mono text-[9px]">Destravar</span>`;
           initIcons();
@@ -411,8 +467,6 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
 
           const data = await res.json();
           if (res.ok && (data.sucesso || data.success)) {
-            alert(data.mensagem || `Ordem perimetral salva com sucesso!`);
-
             const prefix = ctx.currentMatriculaId ? `mat_${ctx.currentMatriculaId}` : 'avulsos';
             localStorage.removeItem(`rascunho_ordem_lev_${ctx.currentLevId}_${prefix}`);
 
@@ -423,6 +477,15 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
             }
 
             await ctx.loadLevantamentoDetails();
+
+            const msgBase = data.mensagem || `Ordem perimetral salva com sucesso!`;
+            if (data.tem_autointersecao && data.cruzamentos_detectados && data.cruzamentos_detectados.length > 0) {
+              const detalhes = data.cruzamentos_detectados.slice(0, 5).map((c: any) => `• ${c.descricao || c.segmento_1 + ' cruza com ' + c.segmento_2}`).join('\n');
+              const extra = data.cruzamentos_detectados.length > 5 ? `\n... e mais ${data.cruzamentos_detectados.length - 5} cruzamento(s).` : '';
+              alert(`${msgBase}\n\n⚠️ ALERTA TOPOLÓGICO (SIGEF/INCRA):\nO perímetro salvo possui autointerseção (polígono borboleta/cruzado):\n${detalhes}${extra}\n\nRecomenda-se ajustar a sequência dos vértices para evitar pendências no SIGEF.`);
+            } else {
+              alert(msgBase);
+            }
           } else {
             alert(data.mensagem || data.error || "Erro ao salvar ordenação no banco.");
           }

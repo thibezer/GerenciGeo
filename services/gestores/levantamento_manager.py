@@ -305,13 +305,16 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
 
                 # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
                 cursor.execute(
-                    "SELECT id, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
+                    "SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
                     (levantamento_id, matricula_id)
                 )
                 rows = cursor.fetchall()
                 if len(rows) < 2:
                     conn.commit()
                     return {"sucesso": True, "segmentos_gerados": 0, "mensagem": "Ordem salva. Menos de 2 pontos ativos."}
+
+                from services.processamento.geometria_topologica import detectar_autointersecoes_poligono
+                cruzamentos_detectados = detectar_autointersecoes_poligono([dict(r) for r in rows])
 
                 pts_ordenados_ids = [r["id"] for r in rows]
                 primeiro_pt_sigma = rows[0]["sigma_lat"] or 0.0
@@ -367,11 +370,16 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
         wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
         
-        return {
+        resp = {
             "sucesso": True, 
             "segmentos_gerados": len(pts_ordenados_ids), 
-            "mensagem": f"Ordem de caminhamento salva com sucesso e {len(pts_ordenados_ids)} segmentos perimetrais recalculados!"
+            "mensagem": f"Ordem de caminhamento salva com sucesso e {len(pts_ordenados_ids)} segmentos perimetrais recalculados!",
+            "tem_autointersecao": bool(cruzamentos_detectados),
+            "cruzamentos_detectados": cruzamentos_detectados
         }
+        if cruzamentos_detectados:
+            resp["aviso_topologia"] = f"Atenção: O perímetro salvo possui {len(cruzamentos_detectados)} autointerseção(ões) detectada(s)."
+        return resp
     except Exception as e:
         logger.error(f"Erro ao salvar ordem de caminhamento personalizada: {e}")
         return {"sucesso": False, "erro": str(e)}
@@ -582,6 +590,11 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                     mat_id = valid_ids[pid]['matricula_id']
                     if mat_id:
                         matriculas_afetadas.add(mat_id)
+
+                if 'sequencia_travada_id' in p_update:
+                    val_seq = p_update['sequencia_travada_id']
+                    update_fields.append("sequencia_travada_id = ?")
+                    update_values.append(str(val_seq).strip() if val_seq and str(val_seq).strip() else None)
 
                 if update_fields:
                     update_values.append(pid)
@@ -1317,6 +1330,10 @@ def ordenar_vizinho_mais_proximo(levantamento_id: int, matricula_id: int) -> dic
                     pontos_soltos.remove(proximo_pt)
                     pt_atual = proximo_pt
                     
+            # Aplica pós-processamento 2-Opt geométrico para eliminar cruzamentos/autointerseções (polígono borboleta)
+            from services.processamento.geometria_topologica import desembaracar_poligono_2opt
+            pontos_ordenados = desembaracar_poligono_2opt(pontos_ordenados)
+
             # Prepara a lista de objetos no formato aceito por salvar_ordem_caminhamento
             pontos_ordem = [{"id": pt["id"], "ordem": idx + 1} for idx, pt in enumerate(pontos_ordenados)]
             

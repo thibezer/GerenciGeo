@@ -638,6 +638,7 @@ class PontoUpdateBatchItem(BaseModel):
     id: int
     tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
     ignorar_poligono: Optional[int] = None
+    sequencia_travada_id: Optional[str] = None
     confrontante: Optional[ConfrontanteUpdateBatch] = None
 
 class PontoBatchUpdatePayload(BaseModel):

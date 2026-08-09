@@ -317,15 +317,11 @@ export const renderMesaTrabalho = (): string => {
                 <span class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-mint-vibrant cursor-pointer transition-colors font-bold text-xs" id="btn-clear-search-ordenador" title="Limpar pesquisa">×</span>
               </div>
 
-              <div class="flex items-center justify-between gap-1.5 mb-1.5 shrink-0 text-[9px]">
-                <button class="flex items-center gap-1 bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-2 py-0.5 rounded transition-all font-bold border border-white/10" id="btn-toggle-clique-sequencial" type="button" title="Ativar clique sequencial no mapa para enfileirar pontos">
+              <div class="mb-1.5 shrink-0 text-[9px]">
+                <button class="flex items-center justify-center gap-1.5 w-full bg-white/5 hover:bg-mint-vibrant/10 text-white hover:text-mint-vibrant px-2 py-1 rounded transition-all font-bold border border-white/10" id="btn-toggle-clique-sequencial" type="button" title="Ativar clique sequencial no mapa para enfileirar pontos">
                   <i data-lucide="play" class="w-3 h-3 text-mint-vibrant" id="icon-clique-sequencial"></i>
                   <span id="txt-clique-sequencial" class="font-mono text-[8.5px]">Caminhar Clique</span>
                 </button>
-                <div class="flex items-center gap-1 text-white/50 font-mono text-[8.5px]">
-                  <span>Travados:</span>
-                  <span id="txt-faixa-travada" class="text-mint-vibrant font-bold">Nenhum</span>
-                </div>
               </div>
 
               <div class="flex items-center justify-between gap-1.5 mb-1.5 shrink-0 text-[9px]">
