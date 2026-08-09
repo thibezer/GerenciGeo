@@ -176,8 +176,10 @@
 (princ "\n[GerenciGeo] Rotina carregada com sucesso! Digite GCOLA para colar os pontos ou GCOPIAR para copiar pontos do CAD pro sistema.")
 (princ)
 
-;; Grava texto na Área de Transferência (Clipboard) do Windows via HTMLFile
-(defun set-clipboard-text ( str / html window clip result )
+;; Grava texto na Área de Transferência (Clipboard) do Windows via HTMLFile com Fallback via clip.exe
+(defun set-clipboard-text ( str / html window clip result success tempFile f wsh )
+  (setq success nil)
+  ;; Método 1: HTMLFile COM (Rápido)
   (setq html (vlax-create-object "htmlfile"))
   (if html
     (progn
@@ -185,10 +187,34 @@
       (setq clip (vlax-get window 'ClipboardData))
       (setq result (vl-catch-all-apply 'vlax-invoke (list clip 'SetData "Text" str)))
       (vlax-release-object html)
-      (not (vl-catch-all-error-p result))
+      (if (not (vl-catch-all-error-p result))
+        (setq success t)
+      )
     )
-    nil
   )
+  
+  ;; Método 2: Fallback resiliente usando comando nativo clip.exe do Windows
+  (if (not success)
+    (progn
+      (setq tempFile (strcat (getvar "TEMPPREFIX") "gerencigeo_clip.txt"))
+      (setq f (open tempFile "w"))
+      (if f
+        (progn
+          (write-line str f)
+          (close f)
+          (setq wsh (vlax-create-object "WScript.Shell"))
+          (if wsh
+            (progn
+              (vl-catch-all-apply 'vlax-invoke-method (list wsh 'Run (strcat "cmd.exe /c type \"" tempFile "\" | clip") 0 :vlax-true))
+              (vlax-release-object wsh)
+              (setq success t)
+            )
+          )
+        )
+      )
+    )
+  )
+  success
 )
 
 ;; Extrai atributos de um bloco VLA e retorna uma lista de associativa
@@ -256,6 +282,8 @@
             (setq z (caddr pt))
             
             ;; Atributos
+            (setq attList (get-block-attributes-assoc obj))
+            (setq id (find-attr-val attList '("ID" "NOME" "VERTICE" "PONTO") ""))
             (setq defaultTipo
               (cond
                 ((vl-string-search "MEMOVEM" (strcase blkName)) "M")
@@ -273,7 +301,7 @@
             (setq confro (find-attr-val attList '("CONFRO" "CONFRONTANTE" "NOME_CONFRO") ""))
             
             ;; Formata a linha de payload
-            (if (> (strlen id) 0)
+            (if (and id (> (strlen id) 0))
               (progn
                 (setq line (strcat "ACAO=NOVO;BLOCO=" blkName 
                                   ";X=" (rtos x 2 4) 
