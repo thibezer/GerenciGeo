@@ -1,0 +1,14 @@
+[
+   {
+      "id": 0,
+      "levantamento_id": 15,
+      "timestamp": "2026-08-11T11:53:56.862361",
+      "tipo_evento": "SINCRONIZACAO_CAD",
+      "descricao": "Sincronização via Clipboard do CAD realizada com sucesso: 1 atualizados, 1 inseridos, 2 confrontantes criados.",
+      "dados_detalhados": {
+         "atualizados": 1,
+         "inseridos": 1,
+         "confrontantes_criados": 2
+      }
+   }
+]

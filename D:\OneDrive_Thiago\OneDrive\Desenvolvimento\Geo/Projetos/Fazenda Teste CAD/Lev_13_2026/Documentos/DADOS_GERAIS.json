@@ -1,0 +1,26 @@
+{
+    "propriedade": {
+        "id": 13,
+        "nome_propriedade": "Fazenda Teste CAD",
+        "codigo_car": null,
+        "municipio": "Palotina",
+        "uf": "PR"
+    },
+    "clientes": [],
+    "matriculas": [
+        {
+            "id": 17,
+            "numero_matricula": "MATR-999",
+            "ccir": null,
+            "itr": null,
+            "area_ha": null
+        },
+        {
+            "id": 18,
+            "numero_matricula": "MATR-POLY-1",
+            "ccir": null,
+            "itr": null,
+            "area_ha": null
+        }
+    ]
+}
