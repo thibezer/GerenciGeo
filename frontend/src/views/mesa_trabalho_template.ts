@@ -270,7 +270,7 @@ export const renderMesaTrabalho = (): string => {
             <div class="rl3-panel hidden" id="panel-cartorio" role="tabpanel">
               <div class="rl3-group" data-group-id="grp-documentos">
                 <div class="rl3-group-tools">
-                  <fluent-button appearance="primary" class="rl3-tool-btn" id="btn-gerar-requerimento-cri" type="button">
+                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-gerar-requerimento-cri" type="button">
                     <i data-lucide="file-text"></i>
                     <span>Requerimento</span>
                   </fluent-button>

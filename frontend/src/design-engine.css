@@ -203,25 +203,8 @@ button {
 
 
 /* ===========================================================
-   5. BARRA DE FERRAMENTAS TÉCNICAS — desktop compacto
+   5. BARRA DE FERRAMENTAS TÉCNICAS — desktop compacto (Legado removido - padronizado na Camada 3)
    =========================================================== */
-
-@media (min-width: 768px) {
-  #btn-exportar-kml,
-  #btn-unificar-sigef,
-  #btn-consolidar-pontos-utm,
-  #btn-reordenar-caminhamento,
-  #btn-override-base-manual,
-  #btn-gerar-requerimento-cri,
-  #btn-arquivar-projeto-seguro {
-    padding: 5px 10px !important;
-    font-size: 11px !important;
-    height: 28px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 5px !important;
-  }
-}
 
 
 /* ===========================================================
@@ -969,15 +952,18 @@ td[colspan][class*="text-center"] {
   height: 68px;
 }
 
-/* Coluna flex para empilhar até 3 botões pequenos (Grid Helper de 3 Linhas - Limite físico: 3 itens de 21px) */
+/* Coluna flex para empilhar até 3 botões pequenos (Grid Helper de 3 Linhas - Limite físico: 3 itens de 20px) */
 .rl3-tool-col {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 2.5px;
-  height: 68px;
-  max-height: 68px;
-  overflow: hidden;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 2.5px !important;
+  height: 68px !important;
+  max-height: 68px !important;
+  min-width: max-content !important;
+  width: max-content !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
 }
 
 .rl3-group-label {
@@ -1009,7 +995,8 @@ td[colspan][class*="text-center"] {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 48px;
+  min-width: 52px;
+  width: auto;
   height: 68px !important;
   padding: 4px 6px !important;
   font-size: 9.5px;
@@ -1022,6 +1009,7 @@ td[colspan][class*="text-center"] {
   white-space: nowrap;
   font-weight: 400;
   box-sizing: border-box !important;
+  flex-shrink: 0 !important;
 }
 .rl3-tool-btn i,
 .rl3-tool-btn svg {
@@ -1042,12 +1030,15 @@ td[colspan][class*="text-center"] {
 /* Botão grande (ação principal do grupo - ocupa as 3 linhas) */
 .rl3-group-tools .rl3-tool-btn.rl3-btn-lg {
   min-width: 58px;
+  width: auto;
   height: 68px !important;
   font-size: 10px;
   font-weight: 500;
   color: var(--geo-accent) !important;
   border-color: rgba(0,245,160,0.25) !important;
   background: rgba(0,245,160,0.05) !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
 }
 .rl3-group-tools .rl3-tool-btn.rl3-btn-lg i,
 .rl3-group-tools .rl3-tool-btn.rl3-btn-lg svg,
@@ -1066,25 +1057,33 @@ td[colspan][class*="text-center"] {
 
 /* Botão pequeno (empilhável em 3 linhas na rl3-tool-col) */
 .rl3-group-tools .rl3-tool-btn.rl3-btn-small {
-  flex-direction: row;
-  justify-content: flex-start;
-  height: 21px !important;
-  min-height: 21px !important;
-  max-height: 21px !important;
-  padding: 0 6px !important;
-  min-width: 0;
-  font-size: 9px;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 8px !important;
+  min-width: max-content !important;
+  width: 100% !important;
+  font-size: 9.5px !important;
+  font-weight: 500 !important;
   box-sizing: border-box !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 .rl3-group-tools .rl3-tool-btn.rl3-btn-small i,
 .rl3-group-tools .rl3-tool-btn.rl3-btn-small svg,
 .rl3-group-tools .rl3-tool-btn.rl3-btn-small [data-lucide] {
   margin-bottom: 0 !important;
-  margin-right: 4px;
+  margin-right: 2px !important;
   width: 12px !important;
   height: 12px !important;
   min-width: 12px !important;
   min-height: 12px !important;
+  flex-shrink: 0 !important;
 }
 
 /* Botão de aviso (ação potencialmente perigosa) */
@@ -1453,9 +1452,10 @@ fluent-button.rl3-tool-btn {
   align-items: center !important;
   justify-content: center !important;
   gap: 3px !important;
-  width: 100% !important;
+  width: auto !important;
+  min-width: 52px !important;
   height: 68px !important;
-  padding: 6px 8px !important;
+  padding: 4px 6px !important;
   font-size: 9.5px !important;
   line-height: 1.1 !important;
   color: rgba(255,255,255,0.75) !important;
@@ -1464,6 +1464,26 @@ fluent-button.rl3-tool-btn {
   border-radius: 4px !important;
   cursor: pointer !important;
   box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+fluent-button.rl3-tool-btn::part(control) {
+  display: flex !important;
+  flex-direction: inherit !important;
+  align-items: center !important;
+  justify-content: inherit !important;
+  gap: inherit !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
 }
 
 fluent-button.rl3-tool-btn:hover {
@@ -1480,6 +1500,11 @@ fluent-button[appearance="primary"].rl3-tool-btn {
   border: 1px solid rgba(0, 245, 160, 0.3) !important;
   font-weight: 500 !important;
   border-radius: 4px !important;
+  min-width: 58px !important;
+  width: auto !important;
+  height: 68px !important;
+  padding: 4px 8px !important;
+  flex-shrink: 0 !important;
 }
 fluent-button.rl3-tool-btn.rl3-btn-lg:hover,
 fluent-button[appearance="primary"].rl3-tool-btn:hover {
@@ -1518,15 +1543,30 @@ fluent-button.rl3-btn-danger:hover {
 
 /* Botões Pequenos de 3 Linhas (Small Tool Buttons) */
 fluent-button.rl3-tool-btn.rl3-btn-small {
+  display: flex !important;
   flex-direction: row !important;
   justify-content: flex-start !important;
   align-items: center !important;
-  height: 21px !important;
-  min-height: 21px !important;
-  max-height: 21px !important;
-  padding: 0 6px !important;
-  font-size: 9px !important;
+  gap: 4px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 8px !important;
+  font-size: 9.5px !important;
+  font-weight: 500 !important;
   border-radius: 3px !important;
+  width: 100% !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+/* Garante que o span interno nunca quebre ou truncar indevidamente */
+fluent-button.rl3-tool-btn span,
+.rl3-tool-btn span {
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 /* Botões e Container de Toggle (Modo UTM / Geo - Enquadramento Físico Estrito) */
