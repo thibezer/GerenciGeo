@@ -101,10 +101,20 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 
 ---
 
+
 ## 12. Sincronização Bidirecional CAD (Comando GCOPIAR AutoLISP & Upsert de Pontos no GerenciGeo)
 - **Problema**: Ao ajustar vértices ou criar pontos virtuais (`V`) no AutoCAD/TopoCAD2000, o usuário precisava reimportar cadernetas inteiras ou recadastrar manualmente.
 - **Regra Obrigatória**:
   1. O comando AutoLISP `GCOPIAR` (ou `GCOPIA`) em [gerencigeo_sync.lsp](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/recursos/autocad/gerencigeo_sync.lsp) deve varrer blocos de vértices com atributos e gravar no Clipboard do Windows no formato de payload estruturado oficial (`ACAO=NOVO;BLOCO=...;X=...;Y=...;Z=...;ATRIB(...)`).
   2. O backend FastAPI `POST /levantamentos/{id}/pontos/sincronizar-cad` deve realizar o parse linha a linha, convertendo coordenadas UTM Zona 22S para Geodésica SIRGAS 2000.
   3. Aplica **Upsert**: se o ponto já existir no levantamento por `nome_vertice`, ele atualiza coordenadas $(Lat, Lon, Alt)$, tipo e metadados. Se não existir, ele cria o novo vértice (ex: tipo `'V'`), recalcula a ordem de caminhamento e regenera as divisas perimetrais sem duplicar os registros.
+
+---
+
+## 13. Integridade de Imports em Refatorações Modulares de Rotas e Serviços
+- **Problema**: Refatorações automatizadas que dividem arquivos extensos do backend (como `routes/levantamento/pontos.py` em submódulos `pontos_crud.py`, `pontos_acoes.py`, etc.) podem omitir referências cruzadas ou funções utilitárias internas (como `sanitizar_ordens_duplicadas(id)` em `get_pontos`). Isso resulta em `NameError: name 'sanitizar_ordens_duplicadas' is not defined` capturado silenciosamente pela rota e retornado como HTTP 500, fazendo com que a listagem de pontos venha vazia (`pontosList = []`) e nenhum vértice apareça na tabela ou no mapa.
+- **Regra Obrigatória**:
+  1. Sempre verificar com auditoria de bytecode / introspecção de variáveis globais (`co_names` vs `__globals__`) se todas as funções dos novos módulos possuem seus símbolos e dependências devidamente importados.
+  2. Executar testes de integração direta nas rotas (`get_pontos(levantamento_id)`) para validar que os dados reais do banco SQLite são serializados e retornados sem exceções.
+
 
