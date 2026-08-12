@@ -48,18 +48,34 @@ def gerar_declaracao_anuencia_html(
             return "_" * tamanho_linha
         return str(valor).strip()
         
+    MAPA_REGIMES = {
+        "comunhao_parcial": "Comunhão Parcial de Bens",
+        "comunhao_universal": "Comunhão Universal de Bens",
+        "separacao_total": "Separação Total de Bens",
+        "participacao_final": "Participação Final nos Aquestos"
+    }
+
+    MAPA_ESTADO_CIVIL = {
+        "solteiro": "solteiro(a)",
+        "casado": "casado(a)",
+        "divorciado": "divorciado(a)",
+        "viuvo": "viúvo(a)",
+        "uniao_estavel": "convivente em união estável"
+    }
+
     c_nome = obter_valor_ou_linha(conf["nome"], 35)
     c_cpf = obter_valor_ou_linha(formatar_cpf(conf["cpf_cnpj"]), 18)
     c_rg = obter_valor_ou_linha(formatar_rg(conf["rg"]), 15)
-    c_nac = obter_valor_ou_linha(conf.get("nacionalidade"), 18)
+    c_nac = obter_valor_ou_linha(conf.get("nacionalidade") or "brasileiro(a)", 18)
     c_prof = obter_valor_ou_linha(conf.get("profissao"), 20)
-    c_est_civil = obter_valor_ou_linha(conf.get("estado_civil"), 15)
+    c_est_civil = str(conf.get("estado_civil") or "").strip()
     c_domicilio = obter_valor_ou_linha(conf.get("endereco_completo"), 50)
     c_matricula = obter_valor_ou_linha(conf.get("matricula_imovel"), 24)
     
-    e_civil = str(conf.get("estado_civil") or "").strip().lower()
-    regime = conf.get("regime_bens") or "Não Informado"
-    is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil
+    e_civil = c_est_civil.lower()
+    regime_raw = str(conf.get("regime_bens") or "").strip()
+    regime = MAPA_REGIMES.get(regime_raw.lower(), regime_raw) if regime_raw else "Não Informado"
+    is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil or e_civil == "uniao_estavel"
     
     if is_casado:
         conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
@@ -72,7 +88,8 @@ def gerar_declaracao_anuencia_html(
             conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
             casado_info = f", casado(a) sob o regime de {regime} com {conj_n}, portador(a) do RG nº {conj_rg} e inscrito(a) no CPF nº {conj_cpf}"
     else:
-        casado_info = f", {c_est_civil.lower() if '_' not in c_est_civil else c_est_civil}"
+        est_civil_desc = MAPA_ESTADO_CIVIL.get(e_civil, c_est_civil.lower() if '_' not in c_est_civil else c_est_civil)
+        casado_info = f", {est_civil_desc}"
         
     qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, inscrito no CPF nº {c_cpf} e portador do RG nº {c_rg}'
 

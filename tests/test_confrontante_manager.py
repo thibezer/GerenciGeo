@@ -19,7 +19,17 @@ class TestConfrontanteManager(unittest.TestCase):
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS pessoas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT NOT NULL
+                nome TEXT NOT NULL,
+                cpf_cnpj TEXT,
+                rg TEXT,
+                nacionalidade TEXT,
+                profissao TEXT,
+                estado_civil TEXT,
+                regime_bens TEXT,
+                endereco_completo TEXT,
+                nome_conjuge TEXT,
+                cpf_conjuge TEXT,
+                rg_conjuge TEXT
             )
         """)
         self.cursor.execute("""
@@ -69,6 +79,24 @@ class TestConfrontanteManager(unittest.TestCase):
         pessoa_row = self.cursor.fetchone()
         self.assertIsNotNone(pessoa_row)
         self.assertIn("JOAO DA SILVA", pessoa_row["nome"])
+
+    def test_qualificacao_confrontante_casado(self):
+        # Inserir pessoa casada com cônjuge
+        self.cursor.execute("""
+            INSERT INTO pessoas (nome, estado_civil, regime_bens, nome_conjuge)
+            VALUES ('JOSE SANTOS', 'casado', 'comunhao_parcial', 'MARIA SANTOS')
+        """)
+        p_id = self.cursor.lastrowid
+        self.cursor.execute("""
+            INSERT INTO confrontantes (pessoa_id, levantamento_id, nome, matricula_imovel)
+            VALUES (?, ?, 'JOSE SANTOS', 'Mat. 9999')
+        """, (p_id, self.lev_id))
+        c_id = self.cursor.lastrowid
+        self.conn.commit()
+
+        self.cursor.execute("SELECT * FROM confrontantes WHERE id = ?", (c_id,))
+        c_row = self.cursor.fetchone()
+        self.assertEqual(c_row["nome"], "JOSE SANTOS")
 
 if __name__ == '__main__':
     unittest.main()

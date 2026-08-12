@@ -360,30 +360,28 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   };
 
   const renderizarStatusAnexoMatricula = (selectedConf: any) => {
-    const wrapper = document.getElementById('wrapper-anexo-matricula-conf');
-    if (!wrapper) return;
+    const statusEl = document.getElementById('status-matricula-anexo');
+    const btnVer = document.getElementById('btn-ver-matricula-conf');
+    const btnRemover = document.getElementById('btn-remover-matricula-conf');
+
+    if (!statusEl) return;
 
     if (selectedConf && selectedConf.caminho_matricula_pdf) {
       const pathStr = selectedConf.caminho_matricula_pdf;
       const parts = pathStr.split(/[\\/]/);
       const fileName = parts[parts.length - 1];
 
-      wrapper.innerHTML = `
-        <div class="flex items-center justify-between w-full gap-2 text-xs">
-          <a href="${API_BASE}/confrontantes/${selectedConf.id}/visualizar-matricula" target="_blank" class="flex items-center gap-1.5 text-mint-vibrant hover:underline font-medium truncate max-w-[200px]" title="Visualizar matrícula anexada">
-            <i data-lucide="file-text" class="w-4 h-4 shrink-0"></i>
-            <span class="truncate text-ellipsis overflow-hidden">${fileName}</span>
-          </a>
-          <button type="button" id="btn-remover-matricula-conf" class="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1 rounded transition-colors" title="Excluir anexo da matrícula">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-          </button>
-        </div>
-      `;
-
-      initIcons();
-
-      const btnRemover = document.getElementById('btn-remover-matricula-conf');
+      statusEl.innerHTML = `<span class="text-mint-vibrant font-medium flex items-center gap-1.5"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> ${fileName}</span>`;
+      
+      if (btnVer) {
+        btnVer.classList.remove('hidden');
+        btnVer.onclick = () => {
+          window.open(`${API_BASE}/confrontantes/${selectedConf.id}/visualizar-matricula`, '_blank');
+        };
+      }
+      
       if (btnRemover) {
+        btnRemover.classList.remove('hidden');
         btnRemover.onclick = async () => {
           if (!confirm("Deseja realmente remover o anexo da matrícula deste confrontante?")) return;
           
@@ -407,23 +405,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         };
       }
     } else {
-      wrapper.innerHTML = `
-        <button type="button" id="btn-upload-matricula-conf" class="text-xs text-white/60 hover:text-white flex items-center gap-1.5 font-medium w-full text-left">
-          <i data-lucide="upload" class="w-4 h-4"></i>
-          Escolher Arquivo (PDF/Imagem)
-        </button>
-      `;
-
-      initIcons();
-
-      const btnUpload = document.getElementById('btn-upload-matricula-conf');
-      if (btnUpload) {
-        btnUpload.onclick = () => {
-          const fileInput = document.getElementById('file-matricula-conf') as HTMLInputElement;
-          if (fileInput) fileInput.click();
-        };
-      }
+      statusEl.innerHTML = `<span class="text-white/50">Nenhum arquivo anexado.</span>`;
+      if (btnVer) btnVer.classList.add('hidden');
+      if (btnRemover) btnRemover.classList.add('hidden');
     }
+    initIcons();
   };
 
   // 5. Inicialização principal dos eventos do gerador de documentos para cartório
@@ -711,14 +697,14 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             
             (document.getElementById('txt-conf-id-edicao') as HTMLElement).innerText = `ID: ${selectedConf.id}`;
             (document.getElementById('input-conf-nome') as HTMLInputElement).value = selectedConf.nome || '';
-            (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj || '';
+            (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj ? formatarCpfCnpjDinamico(selectedConf.cpf_cnpj) : '';
             (document.getElementById('input-conf-rg') as HTMLInputElement).value = selectedConf.rg || '';
-            (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || '';
+            (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || 'brasileiro(a)';
             (document.getElementById('input-conf-profissao') as HTMLInputElement).value = selectedConf.profissao || '';
-            (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = selectedConf.estado_civil || 'solteiro';
-            (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = selectedConf.regime_bens || '';
+            (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = normalizarEstadoCivil(selectedConf.estado_civil);
+            (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = normalizarRegimeBens(selectedConf.regime_bens);
             (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = selectedConf.nome_conjuge || '';
-            (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge || '';
+            (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge ? formatarCpfCnpjDinamico(selectedConf.cpf_conjuge) : '';
             (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = selectedConf.rg_conjuge || '';
             (document.getElementById('input-conf-endereco') as HTMLInputElement).value = selectedConf.endereco_completo || '';
             (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value = selectedConf.matricula_imovel || '';
@@ -754,12 +740,12 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               // Preenche os campos do formulário
               (document.getElementById('input-conf-nome') as HTMLInputElement).value = data.nome || '';
               (document.getElementById('input-conf-rg') as HTMLInputElement).value = data.rg || '';
-              (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = data.nacionalidade || '';
+              (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = data.nacionalidade || 'brasileiro(a)';
               (document.getElementById('input-conf-profissao') as HTMLInputElement).value = data.profissao || '';
-              (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = data.estado_civil || 'solteiro';
-              (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = data.regime_bens || '';
+              (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = normalizarEstadoCivil(data.estado_civil);
+              (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = normalizarRegimeBens(data.regime_bens);
               (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = data.nome_conjuge || '';
-              (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = data.cpf_conjuge || '';
+              (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '';
               (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = data.rg_conjuge || '';
               (document.getElementById('input-conf-endereco') as HTMLInputElement).value = data.endereco_completo || '';
               if (data.matricula_imovel) {
@@ -1217,53 +1203,79 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   };
 }
 
+// Normalizadores para Estado Civil e Regime de Bens
+export function normalizarEstadoCivil(val: string | null | undefined): string {
+  if (!val) return 'solteiro';
+  const v = val.toLowerCase().trim();
+  if (v.includes('casad')) return 'casado';
+  if (v.includes('estav') || v.includes('estáv') || v.includes('uniao')) return 'uniao_estavel';
+  if (v.includes('divorc') || v.includes('divorç')) return 'divorciado';
+  if (v.includes('viuv') || v.includes('viúv')) return 'viuvo';
+  return 'solteiro';
+}
+
+export function normalizarRegimeBens(val: string | null | undefined): string {
+  if (!val) return '';
+  const v = val.toLowerCase().trim();
+  if (v.includes('parcial')) return 'comunhao_parcial';
+  if (v.includes('universal')) return 'comunhao_universal';
+  if (v.includes('separac') || v.includes('separaç')) return 'separacao_total';
+  if (v.includes('aquestos') || v.includes('participacao') || v.includes('participação')) return 'participacao_final';
+  return v;
+}
+
 // Máquina de Estados Reativa para a Qualificação de Cônjuge
 export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
   const selectEstadoCivil = cardElement.querySelector('#conf-estado-civil') as HTMLSelectElement;
   const selectRegime = cardElement.querySelector('#conf-regime-bens') as HTMLSelectElement;
-  const groupConjuge = cardElement.querySelector('#group-dados-conjuge') as HTMLElement;
+  const groupConjuge = (cardElement.querySelector('#box-conjuge') || cardElement.querySelector('#group-dados-conjuge')) as HTMLElement;
   const inputConjugeNome = cardElement.querySelector('#input-conf-conjuge-nome') as HTMLInputElement;
   const inputsCamposExtra = cardElement.querySelectorAll('#input-conf-conjuge-cpf, #input-conf-conjuge-rg') as NodeListOf<HTMLInputElement>;
 
   const atualizarCampos = () => {
-      if (!selectEstadoCivil || !selectRegime || !groupConjuge) return;
-      const estCivil = selectEstadoCivil.value.toLowerCase();
-      const regime = selectRegime.value.toLowerCase();
+    if (!selectEstadoCivil || !groupConjuge) return;
+    const estCivil = (selectEstadoCivil.value || '').toLowerCase().trim();
+    const regime = selectRegime ? (selectRegime.value || '').toLowerCase().trim() : '';
 
-      const precisaConjuge = estCivil.includes('casad') || estCivil.includes('estável') || estCivil.includes('estavel');
+    const precisaConjuge = estCivil.includes('casad') || estCivil.includes('estav') || estCivil.includes('estáv') || estCivil === 'uniao_estavel';
 
-      if (!precisaConjuge) {
-          selectRegime.disabled = true;
-          selectRegime.value = "";
-          groupConjuge.classList.add('hidden');
-      } else {
-          selectRegime.disabled = false;
-          groupConjuge.classList.remove('hidden');
-          
-          if (inputConjugeNome) {
-              inputConjugeNome.disabled = false;
-              inputConjugeNome.placeholder = "Nome do cônjuge";
-          }
-          
-          if (regime.includes('separac') || regime.includes('separaç')) {
-              inputsCamposExtra.forEach(input => {
-                  input.placeholder = "Omitido no Laudo (Separação)";
-                  input.disabled = true;
-                  input.value = "";
-              });
-          } else {
-              inputsCamposExtra.forEach(input => {
-                  input.placeholder = "Digitar documento";
-                  input.disabled = false;
-              });
-          }
+    if (!precisaConjuge) {
+      if (selectRegime) {
+        selectRegime.disabled = true;
+        selectRegime.value = "";
       }
+      groupConjuge.classList.add('hidden');
+    } else {
+      if (selectRegime) {
+        selectRegime.disabled = false;
+      }
+      groupConjuge.classList.remove('hidden');
+      
+      if (inputConjugeNome) {
+        inputConjugeNome.disabled = false;
+        inputConjugeNome.placeholder = "Nome completo";
+      }
+      
+      if (regime.includes('separac') || regime.includes('separaç') || regime === 'separacao_total') {
+        inputsCamposExtra.forEach(input => {
+          input.placeholder = input.id.includes('cpf') ? "CPF (Opcional na Separação)" : "RG (Opcional na Separação)";
+          input.disabled = false;
+        });
+      } else {
+        inputsCamposExtra.forEach(input => {
+          input.placeholder = input.id.includes('cpf') ? "000.000.000-00" : "RG";
+          input.disabled = false;
+        });
+      }
+    }
   };
 
-  if (selectEstadoCivil) selectEstadoCivil.addEventListener('change', atualizarCampos);
+  if (selectEstadoCivil) {
+    selectEstadoCivil.onchange = atualizarCampos;
+  }
   if (selectRegime) {
-      selectRegime.addEventListener('change', atualizarCampos);
-      selectRegime.addEventListener('input', atualizarCampos);
+    selectRegime.onchange = atualizarCampos;
+    selectRegime.oninput = atualizarCampos;
   }
   
   atualizarCampos();
