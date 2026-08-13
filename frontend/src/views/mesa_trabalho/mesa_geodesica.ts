@@ -282,20 +282,26 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       };
     });
 
+    const htmlToEl = (htmlStr: string): HTMLElement => {
+      const t = document.createElement('template');
+      t.innerHTML = htmlStr.trim();
+      return (t.content.firstElementChild || document.createElement('span')) as HTMLElement;
+    };
+
     const isGeodesico = ctx.modoCoordenadas === 'geodesico';
 
     const colunasComunsInicio = [
       {
         id: 'ordem_num',
         rotulo: 'Ord',
-        largura: 46,
+        largura: 50,
         alinhamento: 'centro',
         ordenavel: true,
         render: (_: any, item: any) => {
           if (item.is_base_fisica || item.ignorar_poligono === 1) {
-            return '<span class="text-[10px] font-bold text-white/30 font-mono">-</span>';
+            return htmlToEl('<span class="text-[10px] font-bold text-white/30 font-mono">-</span>');
           }
-          return `<span class="text-[10px] font-bold text-mint-vibrant font-mono">${item.ordem_display}</span>`;
+          return htmlToEl(`<span class="text-[10px] font-bold text-mint-vibrant font-mono">${item.ordem_display}</span>`);
         }
       },
       {
@@ -329,13 +335,13 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       {
         id: 'tipo_ponto',
         rotulo: 'Tipo',
-        largura: 48,
+        largura: 50,
         alinhamento: 'centro',
         ordenavel: true,
         render: (_: any, item: any) => {
-          if (item.is_base_ppp) return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">M</span>';
-          if (item.is_base_fisica) return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">B</span>';
-          return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/50">${item.tipo_ponto || item.tipo || '-'}</span>`;
+          if (item.is_base_ppp) return htmlToEl('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">M</span>');
+          if (item.is_base_fisica) return htmlToEl('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">B</span>');
+          return htmlToEl(`<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/50">${item.tipo_ponto || item.tipo || '-'}</span>`);
         }
       }
     ];
@@ -347,7 +353,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.lat_bruta_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-white/80 tabular-nums font-mono">${item.lat_bruta_str}</span>`)
       },
       {
         id: 'lon_bruta_str',
@@ -355,7 +361,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.lon_bruta_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-white/80 tabular-nums font-mono">${item.lon_bruta_str}</span>`)
       },
       {
         id: 'lat_corr_str',
@@ -363,7 +369,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lat_corr_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lat_corr_str}</span>`)
       },
       {
         id: 'lon_corr_str',
@@ -371,7 +377,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lon_corr_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lon_corr_str}</span>`)
       },
       {
         id: 'alt_bruta_str',
@@ -379,7 +385,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 80,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.alt_bruta_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-white/80 tabular-nums font-mono">${item.alt_bruta_str}</span>`)
       },
       {
         id: 'alt_corr_str',
@@ -387,7 +393,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 80,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.alt_corr_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.alt_corr_str}</span>`)
       }
     ] : [
       {
@@ -396,7 +402,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.n_bruto_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-white/80 tabular-nums font-mono">${item.n_bruto_str}</span>`)
       },
       {
         id: 'e_original',
@@ -404,7 +410,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.e_bruto_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-white/80 tabular-nums font-mono">${item.e_bruto_str}</span>`)
       },
       {
         id: 'n_corrigido',
@@ -412,7 +418,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.n_corr_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.n_corr_str}</span>`)
       },
       {
         id: 'e_corrigido',
@@ -420,39 +426,39 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         largura: 120,
         alinhamento: 'direita',
         ordenavel: true,
-        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.e_corr_str}</span>`
+        render: (_: any, item: any) => htmlToEl(`<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.e_corr_str}</span>`)
       },
       {
         id: 'delta_n_num',
         rotulo: 'Δ N (mm)',
-        largura: 65,
+        largura: 70,
         alinhamento: 'direita',
         ordenavel: true,
         render: (_: any, item: any) => {
           const cor = item.delta_n_num === 0 ? 'text-white/40' : (Math.abs(item.delta_n_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
-          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_n_str}</span>`;
+          return htmlToEl(`<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_n_str}</span>`);
         }
       },
       {
         id: 'delta_e_num',
         rotulo: 'Δ E (mm)',
-        largura: 65,
+        largura: 70,
         alinhamento: 'direita',
         ordenavel: true,
         render: (_: any, item: any) => {
           const cor = item.delta_e_num === 0 ? 'text-white/40' : (Math.abs(item.delta_e_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
-          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_e_str}</span>`;
+          return htmlToEl(`<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_e_str}</span>`);
         }
       },
       {
         id: 'delta_h_num',
         rotulo: 'Δ H (mm)',
-        largura: 65,
+        largura: 70,
         alinhamento: 'direita',
         ordenavel: true,
         render: (_: any, item: any) => {
           const cor = item.delta_h_num === 0 ? 'text-white/40' : (Math.abs(item.delta_h_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
-          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_h_str}</span>`;
+          return htmlToEl(`<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_h_str}</span>`);
         }
       }
     ];
@@ -461,7 +467,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       {
         id: 'ignorar_poligono',
         rotulo: 'Políg',
-        largura: 46,
+        largura: 48,
         alinhamento: 'centro',
         ordenavel: false,
         render: (_: any, item: any) => {
@@ -495,9 +501,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         alinhamento: 'centro',
         ordenavel: true,
         render: (_: any, item: any) => {
-          return !item.is_corrigido 
+          return htmlToEl(!item.is_corrigido 
             ? '<span class="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/30 text-[9px] uppercase tracking-wider">BRUTO</span>'
-            : '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 text-[9px] uppercase tracking-wider">CORRIGIDO</span>';
+            : '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 text-[9px] uppercase tracking-wider">CORRIGIDO</span>');
         }
       },
       {
@@ -509,15 +515,52 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
         render: (_: any, item: any) => {
           if (item.arquivo_origem) {
             const cor = obterCorArquivo(item.arquivo_origem);
-            return `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit" style="background-color: ${cor}15; color: ${cor}; border-color: ${cor}30;" title="${item.arquivo_origem}">${item.arquivo_origem}</span>`;
+            return htmlToEl(`<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit" style="background-color: ${cor}15; color: ${cor}; border-color: ${cor}30;" title="${item.arquivo_origem}">${item.arquivo_origem}</span>`);
           }
-          return '<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit bg-white/5 text-white/30 border-white/10" title="Sem arquivo de origem (Inserido Manual)">Inserido Manual</span>';
+          return htmlToEl('<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit bg-white/5 text-white/30 border-white/10" title="Sem arquivo de origem (Inserido Manual)">Inserido Manual</span>');
         }
       }
     ];
 
     uiTabela.colunas = [...colunasComunsInicio, ...colunasCoordenadas, ...colunasComunsFim];
     uiTabela.dados = pontosProcessados;
+
+    if (uiTabela.shadowRoot && !uiTabela.shadowRoot.querySelector('#estilo-compacto-override')) {
+      const style = document.createElement('style');
+      style.id = 'estilo-compacto-override';
+      style.textContent = `
+        .ui-tabela__header-text {
+          margin-right: 4px !important;
+        }
+        .ui-tabela__sort-icon,
+        .ui-tabela__header-icon {
+          width: 14px !important;
+          min-width: 14px !important;
+          max-width: 14px !important;
+        }
+        .ui-tabela th {
+          font-size: 8.5px !important;
+          font-weight: 600 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          color: rgba(255, 255, 255, 0.4) !important;
+          background-color: #0c1510 !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+          padding: 2px 6px !important;
+          height: 20px !important;
+        }
+        .ui-tabela td {
+          font-size: 10px !important;
+          padding: 1px 6px !important;
+          height: 18px !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+        }
+        .ui-tabela tbody tr:hover {
+          background-color: rgba(255, 255, 255, 0.04) !important;
+        }
+      `;
+      uiTabela.shadowRoot.appendChild(style);
+    }
 
     setTimeout(() => {
       initIcons();
