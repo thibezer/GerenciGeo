@@ -30,8 +30,8 @@ def gerar_declaracao_anuencia_html(
 
     row_conf = execute_query(
         """
-        SELECT c.id, p.nome, p.cpf_cnpj, p.rg, p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens, 
-               p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, c.matricula_imovel
+        SELECT c.id, p.nome, p.cpf_cnpj, p.rg, p.genero, p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens, 
+               p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge, c.matricula_imovel
         FROM confrontantes c
         JOIN pessoas p ON c.pessoa_id = p.id
         WHERE c.id = ? AND c.levantamento_id = ?
@@ -77,21 +77,87 @@ def gerar_declaracao_anuencia_html(
     regime = MAPA_REGIMES.get(regime_raw.lower(), regime_raw) if regime_raw else "Não Informado"
     is_casado = "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil or e_civil == "uniao_estavel"
     
+    if is_casado and regime == "Não Informado":
+        raise ValueError(f"O confrontante '{c_nome}' está qualificado como Casado ou União Estável, mas o Regime de Bens não foi informado. Por favor, edite e atualize a qualificação deste confrontante.")
+    
+    genero = str(conf.get("genero") or "M").upper()
+    if genero == "M":
+        sufixo = "o"
+        suf_portador = "portador"
+        suf_inscrito = "inscrito"
+        suf_casado = "casado"
+        suf_proprietario = "proprietário"
+        suf_possuidor = "possuidor"
+        suf_legitimo = "legítimo"
+        suf_nasc = "brasileiro" if "brasileiro" in c_nac.lower() else c_nac
+    elif genero == "F":
+        sufixo = "a"
+        suf_portador = "portadora"
+        suf_inscrito = "inscrita"
+        suf_casado = "casada"
+        suf_proprietario = "proprietária"
+        suf_possuidor = "possuidora"
+        suf_legitimo = "legítima"
+        suf_nasc = "brasileira" if "brasileiro" in c_nac.lower() else c_nac
+    else:
+        sufixo = "(a)"
+        suf_portador = "portador(a)"
+        suf_inscrito = "inscrito(a)"
+        suf_casado = "casado(a)"
+        suf_proprietario = "proprietário(a)"
+        suf_possuidor = "possuidor(a)"
+        suf_legitimo = "legítimo(a)"
+        suf_nasc = c_nac
+        
+    c_nac = suf_nasc
+
     if is_casado:
         conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
+        
         # Se for regime de separação de bens, o cônjuge é apenas citado sem qualificação completa.
         if "separacao" in regime.lower() or "separação" in regime.lower():
-            casado_info = f", casado(a) sob o regime de {regime} com {conj_n}"
+            casado_info = f", {suf_casado} sob o regime de {regime} com {conj_n}"
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, {suf_inscrito} no CPF/MF sob o nº {c_cpf} e {suf_portador} da cédula de identidade RG nº {c_rg}'
         else:
-            # Nos outros regimes (como parcial ou universal), qualifica completamente.
             conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
             conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
-            casado_info = f", casado(a) sob o regime de {regime} com {conj_n}, portador(a) do RG nº {conj_rg} e inscrito(a) no CPF nº {conj_cpf}"
+            conj_prof = obter_valor_ou_linha(conf.get("profissao_conjuge") or "Profissão Não Informada", 25)
+            conj_nac_raw = conf.get("nacionalidade_conjuge") or "brasileiro(a)"
+            gen_conjuge = conf.get("genero_conjuge") or ("F" if genero == "M" else "M")
+            
+            if genero == "M" and gen_conjuge == "F":
+                conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ele portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, ela portadora da cédula de identidade RG nº {conj_rg} e inscrita no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
+            elif genero == "F" and gen_conjuge == "M":
+                conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ela portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, ele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
+            elif genero == "M" and gen_conjuge == "M":
+                conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, e aquele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
+            elif genero == "F" and gen_conjuge == "F":
+                conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambas residentes e domiciliadas em {c_domicilio}, esta portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, e aquela portadora da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
+            else:
+                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac_raw}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador(a) da cédula de identidade RG nº {c_rg} e inscrito(a) no CPF sob o nº {c_cpf}, e aquele portador(a) da cédula de identidade RG nº {conj_rg} e inscrito(a) no CPF sob o nº {conj_cpf}'
+
     else:
         est_civil_desc = MAPA_ESTADO_CIVIL.get(e_civil, c_est_civil.lower() if '_' not in c_est_civil else c_est_civil)
+        if genero == "M":
+            est_civil_desc = est_civil_desc.replace("(a)", "").replace("viúvoo", "viúvo")
+        elif genero == "F":
+            est_civil_desc = est_civil_desc.replace("(a)", "a")
+        
         casado_info = f", {est_civil_desc}"
         
-    qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, inscrito no CPF nº {c_cpf} e portador do RG nº {c_rg}'
+        qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, {suf_inscrito} no CPF/MF sob o nº {c_cpf} e {suf_portador} da cédula de identidade RG nº {c_rg}'
+
+    plural = is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower())
+    texto_declara = "DECLARAM" if plural else "DECLARA"
+    texto_declarante = "Os declarantes" if plural else ("O declarante" if genero == "M" else "A declarante")
+    suf_m = "m" if plural else ""
+    texto_declaramos_ainda = "Declaramos ainda" if plural else "Declaro ainda"
+    texto_concordam = "Os declarantes concordam" if plural else ("O declarante concorda" if genero == "M" else "A declarante concorda")
+    texto_reconhecem = "reconhecem" if plural else "reconhece"
 
     tabela_divisas_html = gerar_tabela_divisas_html(matricula_id, confrontante_id)
 
@@ -158,7 +224,16 @@ def gerar_declaracao_anuencia_html(
         "{conselho_profissional}": str(conselho_prof or ""),
         "{registro_profissional}": str(registro_prof or ""),
         "{credencial_incra}": str(credencial_incra or ""),
-        "{final_trt}": str(final_trt or "")
+        "{final_trt}": str(final_trt or ""),
+        "{suf_proprietario}": suf_proprietario,
+        "{suf_possuidor}": suf_possuidor,
+        "{suf_legitimo}": suf_legitimo,
+        "{texto_declara}": texto_declara,
+        "{texto_declarante}": texto_declarante,
+        "{suf_m}": suf_m,
+        "{texto_declaramos_ainda}": texto_declaramos_ainda,
+        "{texto_concordam}": texto_concordam,
+        "{texto_reconhecem}": texto_reconhecem
     }
 
     for key, val in replacements.items():

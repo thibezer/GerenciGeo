@@ -9,17 +9,33 @@ export function inicializarEventosTabela(
   ctx: any, 
   abrirModalEditarPonto: (pId: number) => void
 ): void {
+  const uiTabela = document.getElementById('ui-tbl-pontos-triagem');
   const tblTriagem = document.getElementById('tbl-pontos-triagem');
   const painelInferior = document.getElementById('container-tabelas-inferiores');
-  const containerTabela = painelInferior || tblTriagem;
+  const containerTabela = uiTabela || painelInferior || tblTriagem;
 
   if (containerTabela) {
     // 1. Cliques Curtos (Seleção, focar no mapa, subir/descer na ordem)
-    containerTabela.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const linha = target.closest('.linha-ponto-tbl');
-      const btnSubir = target.closest('.btn-subir-ponto');
-      const btnDescer = target.closest('.btn-descer-ponto');
+    containerTabela.addEventListener('click', (e: Event) => {
+      const path = (e.composedPath ? e.composedPath() : [e.target]) as HTMLElement[];
+
+      let btnSubir: HTMLElement | null = null;
+      let btnDescer: HTMLElement | null = null;
+      let btnFocar: HTMLElement | null = null;
+      let chkPoligono: HTMLElement | null = null;
+      let pIdStr: string | null = null;
+
+      for (const el of path) {
+        if (el instanceof HTMLElement) {
+          if (!btnSubir && el.classList?.contains('btn-subir-ponto')) btnSubir = el;
+          if (!btnDescer && el.classList?.contains('btn-descer-ponto')) btnDescer = el;
+          if (!btnFocar && el.classList?.contains('btn-focar-ponto-mapa')) btnFocar = el;
+          if (!chkPoligono && el.classList?.contains('chk-ignorar-poligono')) chkPoligono = el;
+          if (!pIdStr && el.hasAttribute && el.hasAttribute('data-ponto-id')) {
+            pIdStr = el.getAttribute('data-ponto-id');
+          }
+        }
+      }
 
       if (btnSubir) {
         e.stopPropagation();
@@ -34,7 +50,6 @@ export function inicializarEventosTabela(
         return;
       }
 
-      const btnFocar = target.closest('.btn-focar-ponto-mapa');
       if (btnFocar) {
         e.stopPropagation();
         const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
@@ -45,8 +60,12 @@ export function inicializarEventosTabela(
         return;
       }
 
-      if (linha && !target.closest('.chk-ignorar-poligono')) {
-        const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
+      if (chkPoligono) {
+        return;
+      }
+
+      if (pIdStr) {
+        const pId = parseInt(pIdStr);
         if (!pId) return;
 
         const mouseEvent = e as MouseEvent;
@@ -87,36 +106,41 @@ export function inicializarEventosTabela(
     });
 
     // 2. Duplo Clique (Abre edição individual)
-    containerTabela.addEventListener('dblclick', (e) => {
-      const target = e.target as HTMLElement;
-      const linha = target.closest('.linha-ponto-tbl');
-      if (linha && !target.closest('.chk-ignorar-poligono')) {
-        const pId = parseInt(linha.getAttribute('data-ponto-id') || '0');
-        if (pId) {
-          e.stopPropagation();
-          abrirModalEditarPonto(pId);
+    containerTabela.addEventListener('dblclick', (e: Event) => {
+      const path = (e.composedPath ? e.composedPath() : [e.target]) as HTMLElement[];
+      for (const el of path) {
+        if (el instanceof HTMLElement && el.hasAttribute && el.hasAttribute('data-ponto-id')) {
+          const pId = parseInt(el.getAttribute('data-ponto-id') || '0');
+          if (pId) {
+            e.stopPropagation();
+            abrirModalEditarPonto(pId);
+            break;
+          }
         }
       }
     });
 
     // 3. Modificação (Participação no Polígono da Matrícula)
-    containerTabela.addEventListener('change', async (e) => {
-      const target = e.target as HTMLElement;
-      const chk = target.closest('.chk-ignorar-poligono') as HTMLInputElement;
-      if (chk) {
-        const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
-        if (!pId) return;
-        const ignorarVal = chk.checked ? 0 : 1;
-        try {
-          await fetch(`${API_BASE}/pontos/${pId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ignorar_poligono: ignorarVal })
-          });
-          ctx.loadLevantamentoDetails();
-        } catch (err) {
-          console.error("Erro ao alterar participação no polígono:", err);
-          showToast("Erro ao alterar participação do ponto no polígono.", "error");
+    containerTabela.addEventListener('change', async (e: Event) => {
+      const path = (e.composedPath ? e.composedPath() : [e.target]) as HTMLElement[];
+      for (const el of path) {
+        if (el instanceof HTMLElement && el.classList?.contains('chk-ignorar-poligono')) {
+          const chk = el as HTMLInputElement;
+          const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
+          if (!pId) return;
+          const ignorarVal = chk.checked ? 0 : 1;
+          try {
+            await fetch(`${API_BASE}/pontos/${pId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ignorar_poligono: ignorarVal })
+            });
+            ctx.loadLevantamentoDetails();
+          } catch (err) {
+            console.error("Erro ao alterar participação no polígono:", err);
+            showToast("Erro ao alterar participação do ponto no polígono.", "error");
+          }
+          break;
         }
       }
     });

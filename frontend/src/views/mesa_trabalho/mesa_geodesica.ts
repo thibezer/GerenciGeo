@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
-import { renderLinhaPontoGeoprocessamentoHtml, renderAuditoriaTranslacaoHtml } from './mesa_trabalho_tabela';
+import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from './mesa_trabalho_tabela';
 import { registrarEventosExportacao } from './exportacao_cad';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
@@ -222,172 +222,306 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
 
   }
 
-  const tblHeader = document.getElementById('tbl-pontos-header');
-  if (tblHeader) {
-    if (ctx.modoCoordenadas === 'geodesico') {
-      tblHeader.innerHTML = `
-           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 36px;">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome" style="width: 100px;">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_lat_bruta" style="width: 130px;">Lat Bruta ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_lon_bruta" style="width: 130px;">Lon Bruta ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_lat_corr" style="width: 130px;">Lat Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_lon_corr" style="width: 130px;">Lon Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-alt-bruta" data-col-id="col_vertice_alt_bruta" style="width: 80px;">Alt Bruta ${ctx.currentSortColumn === 'alt_bruta' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_alt_corr" style="width: 80px;">Alt Corr ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-1 text-center resizable-col" data-col-id="col_vertice_poligono" style="width: 36px;">Políg</th>
-           <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status" style="width: 75px;">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
-         `;
-    } else {
-      tblHeader.innerHTML = `
-           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 36px;">Ord. ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome" style="width: 100px;">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte-bruto" data-col-id="col_vertice_n_bruto" style="width: 130px;">Norte Bruto ${ctx.currentSortColumn === 'norte_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este-bruto" data-col-id="col_vertice_e_bruto" style="width: 130px;">Este Bruto ${ctx.currentSortColumn === 'este_bruto' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_n_corr" style="width: 130px;">Norte Corr ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_e_corr" style="width: 130px;">Este Corr ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-n" data-col-id="col_vertice_dn" style="width: 62px;">Δ N (mm) ${ctx.currentSortColumn === 'delta_n' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-e" data-col-id="col_vertice_de" style="width: 62px;">Δ E (mm) ${ctx.currentSortColumn === 'delta_e' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-delta-h" data-col-id="col_vertice_dh" style="width: 62px;">Δ H (mm) ${ctx.currentSortColumn === 'delta_h' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-2 py-1 text-center resizable-col" data-col-id="col_vertice_poligono" style="width: 36px;">Políg</th>
-           <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-status" data-col-id="col_vertice_status" style="width: 75px;">Status ${ctx.currentSortColumn === 'status' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-           <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
-         `;
-    }
+  const uiTabela = document.getElementById('ui-tbl-pontos-triagem') as any;
+  if (uiTabela) {
+    const pontosProcessados = pontosMat.map(p => {
+      const isBasePPP = p.tipo_ponto === 'M' || p.tipo === 'M';
+      const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
+      const ordemExibida = mapaOrdemReal.get(p.id) || '-';
 
-    const setupSortHeader = (id: string, column: string) => {
-      const btn = document.getElementById(id);
-      if (btn) {
-        btn.onclick = () => {
-          if (ctx.currentSortColumn === column) {
-            ctx.currentSortDirection = ctx.currentSortDirection === 'asc' ? 'desc' : 'asc';
-          } else {
-            ctx.currentSortColumn = column;
-            ctx.currentSortDirection = 'asc';
-          }
-          ctx.renderMatriculaDados();
-        };
+      let nCorrNum = p.n_corrigido !== undefined && p.n_corrigido !== null ? p.n_corrigido : (p.n_original || p.lat || 0);
+      let eCorrNum = p.e_corrigido !== undefined && p.e_corrigido !== null ? p.e_corrigido : (p.e_original || p.lon || 0);
+
+      let deltaNNum = 0;
+      let deltaENum = 0;
+      let deltaHNum = 0;
+
+      if (p.e_corrigido !== undefined && p.e_corrigido !== null && p.n_corrigido !== undefined && p.n_corrigido !== null) {
+        if (p.e_original && p.n_original) {
+          deltaENum = Math.round((p.e_corrigido - p.e_original) * 1000);
+          deltaNNum = Math.round((p.n_corrigido - p.n_original) * 1000);
+          deltaHNum = Math.round(((p.alt || 0) - (p.alt_original || 0)) * 1000);
+        }
+      } else if (p.lat && p.lon) {
+        const utm = latLonToUTM(p.lat, p.lon);
+        nCorrNum = utm.n;
+        eCorrNum = utm.e;
+        if (p.e_original && p.n_original) {
+          deltaENum = Math.round((utm.e - p.e_original) * 1000);
+          deltaNNum = Math.round((utm.n - p.n_original) * 1000);
+          deltaHNum = Math.round(((p.alt || 0) - (p.alt_original || 0)) * 1000);
+        }
       }
-    };
 
-    setupSortHeader('header-sort-ordem', 'ordem');
-    setupSortHeader('header-sort-nome', 'nome');
-    setupSortHeader('header-sort-tipo', 'tipo');
-    setupSortHeader('header-sort-este', 'este');
-    setupSortHeader('header-sort-norte', 'norte');
-    setupSortHeader('header-sort-altitude', 'altitude');
-    setupSortHeader('header-sort-norte-bruto', 'norte_bruto');
-    setupSortHeader('header-sort-este-bruto', 'este_bruto');
-    setupSortHeader('header-sort-alt-bruta', 'alt_bruta');
-    setupSortHeader('header-sort-delta-n', 'delta_n');
-    setupSortHeader('header-sort-delta-e', 'delta_e');
-    setupSortHeader('header-sort-delta-h', 'delta_h');
-    setupSortHeader('header-sort-status', 'status');
+      const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO' || p.ponto_vizinho === 1 || p.tipo_ponto === 'V' || p.tipo === 'V';
 
-    if (ctx.inicializarRedimensionamentoColunas) {
-      ctx.inicializarRedimensionamentoColunas();
-    }
-  }
+      return {
+        ...p,
+        ordem_num: typeof ordemExibida === 'number' ? ordemExibida : 999999,
+        ordem_display: ordemExibida,
+        n_bruto_str: p.n_original ? p.n_original.toFixed(3) : (p.lat ? p.lat.toFixed(8) : '-'),
+        e_bruto_str: p.e_original ? p.e_original.toFixed(3) : (p.lon ? p.lon.toFixed(8) : '-'),
+        n_corr_str: Number(nCorrNum).toFixed(3),
+        e_corr_str: Number(eCorrNum).toFixed(3),
+        lat_bruta_str: p.lat ? p.lat.toFixed(8) : '-',
+        lon_bruta_str: p.lon ? p.lon.toFixed(8) : '-',
+        lat_corr_str: p.lat_corrigido ? p.lat_corrigido.toFixed(8) : (p.lat ? p.lat.toFixed(8) : '-'),
+        lon_corr_str: p.lon_corrigido ? p.lon_corrigido.toFixed(8) : (p.lon ? p.lon.toFixed(8) : '-'),
+        alt_bruta_str: p.alt_original ? p.alt_original.toFixed(3) : (p.alt ? p.alt.toFixed(3) : '-'),
+        alt_corr_str: p.alt ? p.alt.toFixed(3) : (p.alt_original ? p.alt_original.toFixed(3) : '-'),
+        delta_n_str: deltaNNum !== 0 ? (deltaNNum > 0 ? `+${deltaNNum}` : `${deltaNNum}`) : '-',
+        delta_e_str: deltaENum !== 0 ? (deltaENum > 0 ? `+${deltaENum}` : `${deltaENum}`) : '-',
+        delta_h_str: deltaHNum !== 0 ? (deltaHNum > 0 ? `+${deltaHNum}` : `${deltaHNum}`) : '-',
+        delta_n_num: deltaNNum,
+        delta_e_num: deltaENum,
+        delta_h_num: deltaHNum,
+        status_str: isCorrigido ? 'CORRIGIDO' : 'BRUTO',
+        is_corrigido: isCorrigido,
+        is_base_ppp: isBasePPP,
+        is_base_fisica: isBaseFisica
+      };
+    });
 
-  const listPt = document.getElementById('tbl-pontos-triagem');
-  if (listPt) {
-    if (pontosMat.length === 0) {
-      listPt.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a este levantamento.</td></tr>`;
-    } else {
-      pontosMat.sort((a, b) => {
-        let valA: any;
-        let valB: any;
-        let isNumeric = false;
+    const isGeodesico = ctx.modoCoordenadas === 'geodesico';
 
-        if (ctx.currentSortColumn === 'ordem') {
-          const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
-          const isIgnB = isIgnoradoOuBase(b) ? 1 : 0;
-          if (isIgnA !== isIgnB) {
-            return isIgnB - isIgnA;
+    const colunasComunsInicio = [
+      {
+        id: 'ordem_num',
+        rotulo: 'Ord',
+        largura: 46,
+        alinhamento: 'centro',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          if (item.is_base_fisica || item.ignorar_poligono === 1) {
+            return '<span class="text-[10px] font-bold text-white/30 font-mono">-</span>';
           }
-          if (isIgnA === 1) {
-            return a.nome_vertice.localeCompare(b.nome_vertice);
+          return `<span class="text-[10px] font-bold text-mint-vibrant font-mono">${item.ordem_display}</span>`;
+        }
+      },
+      {
+        id: 'nome_vertice',
+        rotulo: 'Vértice',
+        largura: 110,
+        alinhamento: 'esquerda',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          const colorClass = item.is_base_ppp ? 'text-indigo-400 font-bold' : (item.is_base_fisica ? 'text-rose-400 font-bold' : 'text-white');
+          const div = document.createElement('div');
+          div.className = 'flex items-center gap-1.5 w-full';
+          div.setAttribute('data-ponto-id', String(item.id));
+          div.innerHTML = `
+            <span class="text-xs ${colorClass} truncate">${item.nome_vertice}</span>
+            <button class="btn-focar-ponto-mapa p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${item.id}" title="Focar no Mapa" type="button">
+              <i data-lucide="crosshair" class="w-3 h-3"></i>
+            </button>
+          `;
+          const btn = div.querySelector('.btn-focar-ponto-mapa') as HTMLElement;
+          if (btn) {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              ctx.selectPontoFromTabela(item.id);
+              ctx.mapaController.selectPonto(item.id, 21);
+            });
           }
-          const valAOrdem = a.ordem_caminhamento;
-          const valBOrdem = b.ordem_caminhamento;
-          const numA = Number(valAOrdem ?? 999999);
-          const numB = Number(valBOrdem ?? 999999);
-          return ctx.currentSortDirection === 'asc' ? numA - numB : numB - numA;
-        } else if (ctx.currentSortColumn === 'nome') {
-          valA = a.nome_vertice;
-          valB = b.nome_vertice;
-        } else if (ctx.currentSortColumn === 'tipo') {
-          valA = a.tipo_ponto || a.tipo || '';
-          valB = b.tipo_ponto || b.tipo || '';
-        } else if (ctx.currentSortColumn === 'este') {
-          isNumeric = true;
-          valA = a.e_corrigido !== undefined && a.e_corrigido !== null ? a.e_corrigido : (a.e_original || a.lon || 0);
-          valB = b.e_corrigido !== undefined && b.e_corrigido !== null ? b.e_corrigido : (b.e_original || b.lon || 0);
-        } else if (ctx.currentSortColumn === 'norte') {
-          isNumeric = true;
-          valA = a.n_corrigido !== undefined && a.n_corrigido !== null ? a.n_corrigido : (a.n_original || a.lat || 0);
-          valB = b.n_corrigido !== undefined && b.n_corrigido !== null ? b.n_corrigido : (b.n_original || b.lat || 0);
-        } else if (ctx.currentSortColumn === 'altitude') {
-          isNumeric = true;
-          valA = a.alt !== undefined && a.alt !== null ? a.alt : (a.alt_original || 0);
-          valB = b.alt !== undefined && b.alt !== null ? b.alt : (b.alt_original || 0);
-        } else if (ctx.currentSortColumn === 'norte_bruto') {
-          isNumeric = true;
-          valA = a.n_original || a.lat || 0;
-          valB = b.n_original || b.lat || 0;
-        } else if (ctx.currentSortColumn === 'este_bruto') {
-          isNumeric = true;
-          valA = a.e_original || a.lon || 0;
-          valB = b.e_original || b.lon || 0;
-        } else if (ctx.currentSortColumn === 'alt_bruta') {
-          isNumeric = true;
-          valA = a.alt_original || 0;
-          valB = b.alt_original || 0;
-        } else if (ctx.currentSortColumn === 'delta_n') {
-          isNumeric = true;
-          const da = a.n_corrigido !== undefined && a.n_corrigido !== null && a.n_original ? (a.n_corrigido - a.n_original) : 0;
-          const db = b.n_corrigido !== undefined && b.n_corrigido !== null && b.n_original ? (b.n_corrigido - b.n_original) : 0;
-          valA = da;
-          valB = db;
-        } else if (ctx.currentSortColumn === 'delta_e') {
-          isNumeric = true;
-          const da = a.e_corrigido !== undefined && a.e_corrigido !== null && a.e_original ? (a.e_corrigido - a.e_original) : 0;
-          const db = b.e_corrigido !== undefined && b.e_corrigido !== null && b.e_original ? (b.e_corrigido - b.e_original) : 0;
-          valA = da;
-          valB = db;
-        } else if (ctx.currentSortColumn === 'delta_h') {
-          isNumeric = true;
-          const da = a.alt !== undefined && a.alt !== null && a.alt_original ? (a.alt - a.alt_original) : 0;
-          const db = b.alt !== undefined && b.alt !== null && b.alt_original ? (b.alt - b.alt_original) : 0;
-          valA = da;
-          valB = db;
-        } else if (ctx.currentSortColumn === 'status') {
-          valA = a.status_correcao || a.status_ponto || '';
-          valB = b.status_correcao || b.status_ponto || '';
+          return div;
         }
-
-        if (isNumeric) {
-          const numA = Number(valA) || 0;
-          const numB = Number(valB) || 0;
-          return ctx.currentSortDirection === 'asc' ? numA - numB : numB - numA;
-        } else {
-          if (valA === null || valA === undefined) valA = '';
-          if (valB === null || valB === undefined) valB = '';
-          const strA = String(valA).toLowerCase();
-          const strB = String(valB).toLowerCase();
-          return ctx.currentSortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+      },
+      {
+        id: 'tipo_ponto',
+        rotulo: 'Tipo',
+        largura: 48,
+        alinhamento: 'centro',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          if (item.is_base_ppp) return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">M</span>';
+          if (item.is_base_fisica) return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">B</span>';
+          return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/50">${item.tipo_ponto || item.tipo || '-'}</span>`;
         }
-      });
+      }
+    ];
 
-      listPt.innerHTML = pontosMat.map((p) => {
-        const ordemExibida = mapaOrdemReal.get(p.id) || '-';
-        return renderLinhaPontoGeoprocessamentoHtml(p, ordemExibida, ctx.modoCoordenadas, ctx.selectedPontoIds, latLonToUTM);
-      }).join('');
+    const colunasCoordenadas = isGeodesico ? [
+      {
+        id: 'lat_bruta_str',
+        rotulo: 'Lat Bruta',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.lat_bruta_str}</span>`
+      },
+      {
+        id: 'lon_bruta_str',
+        rotulo: 'Lon Bruta',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.lon_bruta_str}</span>`
+      },
+      {
+        id: 'lat_corr_str',
+        rotulo: 'Lat Corr',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lat_corr_str}</span>`
+      },
+      {
+        id: 'lon_corr_str',
+        rotulo: 'Lon Corr',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.lon_corr_str}</span>`
+      },
+      {
+        id: 'alt_bruta_str',
+        rotulo: 'Alt Bruta',
+        largura: 80,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.alt_bruta_str}</span>`
+      },
+      {
+        id: 'alt_corr_str',
+        rotulo: 'Alt Corr',
+        largura: 80,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.alt_corr_str}</span>`
+      }
+    ] : [
+      {
+        id: 'n_original',
+        rotulo: 'Norte Bruto',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.n_bruto_str}</span>`
+      },
+      {
+        id: 'e_original',
+        rotulo: 'Este Bruto',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-white/80 tabular-nums font-mono">${item.e_bruto_str}</span>`
+      },
+      {
+        id: 'n_corrigido',
+        rotulo: 'Norte Corr',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.n_corr_str}</span>`
+      },
+      {
+        id: 'e_corrigido',
+        rotulo: 'Este Corr',
+        largura: 120,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => `<span class="text-xs text-mint-vibrant tabular-nums font-mono">${item.e_corr_str}</span>`
+      },
+      {
+        id: 'delta_n_num',
+        rotulo: 'Δ N (mm)',
+        largura: 65,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          const cor = item.delta_n_num === 0 ? 'text-white/40' : (Math.abs(item.delta_n_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
+          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_n_str}</span>`;
+        }
+      },
+      {
+        id: 'delta_e_num',
+        rotulo: 'Δ E (mm)',
+        largura: 65,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          const cor = item.delta_e_num === 0 ? 'text-white/40' : (Math.abs(item.delta_e_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
+          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_e_str}</span>`;
+        }
+      },
+      {
+        id: 'delta_h_num',
+        rotulo: 'Δ H (mm)',
+        largura: 65,
+        alinhamento: 'direita',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          const cor = item.delta_h_num === 0 ? 'text-white/40' : (Math.abs(item.delta_h_num) < 100 ? 'text-emerald-400' : 'text-yellow-400');
+          return `<span class="text-xs ${cor} tabular-nums font-mono">${item.delta_h_str}</span>`;
+        }
+      }
+    ];
 
+    const colunasComunsFim = [
+      {
+        id: 'ignorar_poligono',
+        rotulo: 'Políg',
+        largura: 46,
+        alinhamento: 'centro',
+        ordenavel: false,
+        render: (_: any, item: any) => {
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.className = 'chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-3.5 h-3.5';
+          chk.checked = item.ignorar_poligono !== 1;
+          chk.setAttribute('data-ponto-id', String(item.id));
+          chk.addEventListener('change', async (e) => {
+            e.stopPropagation();
+            const ignorarVal = chk.checked ? 0 : 1;
+            try {
+              await fetch(`${API_BASE}/pontos/${item.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ignorar_poligono: ignorarVal })
+              });
+              ctx.loadLevantamentoDetails();
+            } catch (err) {
+              console.error("Erro ao alterar participação no polígono:", err);
+              showToast("Erro ao alterar participação no polígono.", "error");
+            }
+          });
+          return chk;
+        }
+      },
+      {
+        id: 'status_str',
+        rotulo: 'Status',
+        largura: 85,
+        alinhamento: 'centro',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          return !item.is_corrigido 
+            ? '<span class="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/30 text-[9px] uppercase tracking-wider">BRUTO</span>'
+            : '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 text-[9px] uppercase tracking-wider">CORRIGIDO</span>';
+        }
+      },
+      {
+        id: 'arquivo_origem',
+        rotulo: 'Origem',
+        largura: 130,
+        alinhamento: 'esquerda',
+        ordenavel: true,
+        render: (_: any, item: any) => {
+          if (item.arquivo_origem) {
+            const cor = obterCorArquivo(item.arquivo_origem);
+            return `<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit" style="background-color: ${cor}15; color: ${cor}; border-color: ${cor}30;" title="${item.arquivo_origem}">${item.arquivo_origem}</span>`;
+          }
+          return '<span class="block text-[9px] font-medium font-sans mt-0.5 max-w-[120px] truncate border px-1 rounded-sm w-fit bg-white/5 text-white/30 border-white/10" title="Sem arquivo de origem (Inserido Manual)">Inserido Manual</span>';
+        }
+      }
+    ];
+
+    uiTabela.colunas = [...colunasComunsInicio, ...colunasCoordenadas, ...colunasComunsFim];
+    uiTabela.dados = pontosProcessados;
+
+    setTimeout(() => {
       initIcons();
-    }
+    }, 10);
   }
 
   const containerLateral = document.getElementById('container-tabela-lateral-content');

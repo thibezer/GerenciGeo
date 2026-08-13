@@ -696,25 +696,49 @@ export const mesaTrabalhoRoute: RouteDef = {
       // Instead of querying all rows in the table with querySelectorAll (which is slow for large datasets),
       // we only update the rows whose selection status changed by comparing previous and current state.
 
+      const uiTabelaEl = document.getElementById('ui-tbl-pontos-triagem') as (HTMLElement & { shadowRoot?: ShadowRoot }) | null;
+
       // 1. Remove highlight from rows that are NO LONGER selected
       _previousSelectedIds.forEach(pId => {
         if (!currentSelectedIds.has(pId)) {
-          // Using querySelectorAll to handle potential edge cases where multiple views show the same ID
+          // DOM tradicional
           document.querySelectorAll(`.linha-ponto-tbl[data-ponto-id="${pId}"]`).forEach(tr => {
             tr.classList.remove('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
             tr.classList.add('hover:bg-white/[0.02]', 'border-white/5');
           });
+
+          // Shadow DOM da <ui-tabela>
+          if (uiTabelaEl?.shadowRoot) {
+            uiTabelaEl.shadowRoot.querySelectorAll(`[data-ponto-id="${pId}"]`).forEach(el => {
+              const tr = el.closest('tr');
+              if (tr) {
+                tr.style.backgroundColor = '';
+                tr.style.color = '';
+              }
+            });
+          }
         }
       });
 
       // 2. Add highlight to rows that are NEWLY selected
       currentSelectedIds.forEach(pId => {
         if (!_previousSelectedIds.has(pId)) {
-          // Using querySelectorAll to handle potential edge cases where multiple views show the same ID
+          // DOM tradicional
           document.querySelectorAll(`.linha-ponto-tbl[data-ponto-id="${pId}"]`).forEach(tr => {
             tr.classList.add('bg-mint-vibrant/25', 'text-mint-vibrant', 'border-mint-vibrant/40');
             tr.classList.remove('hover:bg-white/[0.02]', 'border-white/5');
           });
+
+          // Shadow DOM da <ui-tabela>
+          if (uiTabelaEl?.shadowRoot) {
+            uiTabelaEl.shadowRoot.querySelectorAll(`[data-ponto-id="${pId}"]`).forEach(el => {
+              const tr = el.closest('tr');
+              if (tr) {
+                tr.style.backgroundColor = 'rgba(0, 224, 138, 0.15)';
+                tr.style.color = '#00E08A';
+              }
+            });
+          }
         }
       });
 

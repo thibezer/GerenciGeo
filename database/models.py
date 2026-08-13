@@ -30,6 +30,7 @@ def create_tables(conn):
             nome TEXT NOT NULL,
             cpf_cnpj TEXT UNIQUE,
             rg TEXT,
+            genero TEXT DEFAULT 'M',
             nacionalidade TEXT,
             profissao TEXT,
             estado_civil TEXT,
@@ -38,6 +39,9 @@ def create_tables(conn):
             nome_conjuge TEXT,
             cpf_conjuge TEXT,
             rg_conjuge TEXT,
+            genero_conjuge TEXT,
+            nacionalidade_conjuge TEXT,
+            profissao_conjuge TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """,

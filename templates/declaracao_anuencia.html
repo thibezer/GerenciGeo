@@ -153,18 +153,18 @@
 
             <!-- CORPO DO TEXTO DA ANUÊNCIA -->
             <div class="space-y-3 text-xs text-justify leading-relaxed text-slate-700">
-                <p>{qualificacao_confrontante}, na qualidade de proprietário(a) e/ou possuidor(a) legítimo(a) da área
+                <p>{qualificacao_confrontante}, na qualidade de {suf_proprietario} e/ou {suf_possuidor} {suf_legitimo} da área
                     confrontante registrada sob a <strong>Matrícula nº {c_matricula}</strong>, e assumindo integralmente
                     as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
                     condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
-                        Federal nº 6.015 de 1973</strong>), <strong>DECLARAM</strong> não existir nenhuma disputa,
+                        Federal nº 6.015 de 1973</strong>), <strong>{texto_declara}</strong> não existir nenhuma disputa,
                     litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
                     vizinho denominado <strong>{nome_lote}</strong>, de propriedade de
                     <strong>{proprietarios_str}</strong>, objeto da <strong>Matrícula nº {numero_matricula}</strong> do
                     Serviço de Registro de Imóveis da Comarca de {comarca}.
                 </p>
 
-                <p>O(s) declarante(s) atesta(m) que a linha de divisa comum entre as propriedades corresponde ao
+                <p>{texto_declarante} atesta{suf_m} que a linha de divisa comum entre as propriedades corresponde ao
                     caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico
                     Local (SGL) oficial do projeto:</p>
 
@@ -172,14 +172,14 @@
                 {tabela_divisas_html}
 
                 <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
-                <p class="break-inside-avoid">Declaramos ainda que o profissional responsável técnico
+                <p class="break-inside-avoid">{texto_declaramos_ainda} que o profissional responsável técnico
                     <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
                     <strong>{registro_profissional}</strong>, credenciado pelo INCRA sob o código
                     <strong>{credencial_incra}</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
                     Técnica - ART/TRT nº <strong>{final_trt}</strong>, indicou com precisão todas as
                     demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
-                    gráficas. Os declarantes concordam integralmente com essa demarcação, expressa na planta e
-                    no memorial descritivo em anexo, e reconhecem esta descrição como o limite legal e definitivo entre
+                    gráficas. {texto_concordam} integralmente com essa demarcação, expressa na planta e
+                    no memorial descritivo em anexo, e {texto_reconhecem} esta descrição como o limite legal e definitivo entre
                     as suas propriedades, assinando em plena concordância.
                 </p>
             </div>

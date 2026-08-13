@@ -32,6 +32,7 @@ class ConfrontanteCreate(BaseModel):
     cpf_cnpj: Optional[str] = None
     tipo_relacao: Optional[str] = None
     rg: Optional[str] = None
+    genero: Optional[str] = None
     nacionalidade: Optional[str] = None
     profissao: Optional[str] = None
     estado_civil: Optional[str] = None
@@ -40,6 +41,9 @@ class ConfrontanteCreate(BaseModel):
     nome_conjuge: Optional[str] = None
     cpf_conjuge: Optional[str] = None
     rg_conjuge: Optional[str] = None
+    genero_conjuge: Optional[str] = None
+    nacionalidade_conjuge: Optional[str] = None
+    profissao_conjuge: Optional[str] = None
     matricula_imovel: Optional[str] = None
     cns_confrontante: Optional[str] = None # ADICIONADO PARA AMARRAÇÃO MANUAL
     nome_propriedade: Optional[str] = None
@@ -149,10 +153,10 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
             if not pessoa_id:
                 cursor.execute("""
                     INSERT INTO pessoas (
-                        nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens,
-                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (c.nome, cpf_cnpj, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge))
+                        nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens,
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (c.nome, cpf_cnpj, c.rg, c.genero, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.genero_conjuge, c.nacionalidade_conjuge, c.profissao_conjuge))
                 pessoa_id = cursor.lastrowid
                 
             cursor.execute("""
@@ -190,11 +194,12 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
             cpf_cnpj_norm = c.cpf_cnpj if (c.cpf_cnpj and str(c.cpf_cnpj).strip()) else None
             cursor.execute("""
                 UPDATE pessoas
-                SET nome = ?, cpf_cnpj = ?, rg = ?, nacionalidade = ?, profissao = ?,
+                SET nome = ?, cpf_cnpj = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?,
                     estado_civil = ?, regime_bens = ?, endereco_completo = ?,
-                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
+                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
+                    nacionalidade_conjuge = ?, profissao_conjuge = ?
                 WHERE id = ?
-            """, (c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
+            """, (c.nome, cpf_cnpj_norm, c.rg, c.genero, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.genero_conjuge, c.nacionalidade_conjuge, c.profissao_conjuge, pessoa_id))
             
             # Atualiza metadados específicos da divisa na tabela confrontantes
             cursor.execute("""

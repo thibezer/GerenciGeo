@@ -414,6 +414,22 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
 
   // 5. Inicialização principal dos eventos do gerador de documentos para cartório
   const inicializarEventosCartorio = () => {
+    const validarPreRequisitosPecas = async (): Promise<boolean> => {
+      if (!ctx.currentMatriculaId) return false;
+      try {
+        const resLev = await fetch(`${API_BASE}/levantamentos`);
+        const allLevs = await resLev.json();
+        const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
+        if (levObj) ctx.currentLevantamento = levObj;
+      } catch (e) {
+        console.error("Erro ao recarregar levantamento:", e);
+      }
+      if (ctx.currentLevantamento && (!ctx.currentLevantamento.propriedade_id || !ctx.currentLevantamento.profissional_id)) {
+        return confirm("Atenção: A Propriedade ou o Profissional Principal não estão vinculados a este levantamento. As peças de cartório poderão conter campos em branco. Deseja emitir mesmo assim?");
+      }
+      return true;
+    };
+
     const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
     if (btnToggleMapa) {
       btnToggleMapa.onclick = () => {
@@ -444,16 +460,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const btnReq = document.getElementById('btn-emitir-req-cartorio');
     if (btnReq) {
       btnReq.onclick = async () => {
-        if (!ctx.currentMatriculaId) return;
-        
-        try {
-          const resLev = await fetch(`${API_BASE}/levantamentos`);
-          const allLevs = await resLev.json();
-          const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
-          if (levObj) ctx.currentLevantamento = levObj;
-        } catch (e) {
-          console.error("Erro ao recarregar levantamento:", e);
-        }
+        if (!(await validarPreRequisitosPecas())) return;
         
         let trt = "";
         let data = "";
@@ -502,8 +509,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     
     const btnResp = document.getElementById('btn-emitir-decl-resp');
     if (btnResp) {
-      btnResp.onclick = () => {
-        if (!ctx.currentMatriculaId) return;
+      btnResp.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
         const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/declaracao-responsabilidade-html`;
         window.open(url, '_blank');
       };
@@ -512,16 +519,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const btnLaudo = document.getElementById('btn-emitir-laudo-tec');
     if (btnLaudo) {
       btnLaudo.onclick = async () => {
-        if (!ctx.currentMatriculaId) return;
-        
-        try {
-          const resLev = await fetch(`${API_BASE}/levantamentos`);
-          const allLevs = await resLev.json();
-          const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
-          if (levObj) ctx.currentLevantamento = levObj;
-        } catch (e) {
-          console.error("Erro ao recarregar levantamento:", e);
-        }
+        if (!(await validarPreRequisitosPecas())) return;
         
         let trt = "";
         let data = "";
@@ -574,16 +572,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const btnTermoSigef = document.getElementById('btn-emitir-termo-sigef');
     if (btnTermoSigef) {
       btnTermoSigef.onclick = async () => {
-        if (!ctx.currentMatriculaId) return;
-        
-        try {
-          const resLev = await fetch(`${API_BASE}/levantamentos`);
-          const allLevs = await resLev.json();
-          const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
-          if (levObj) ctx.currentLevantamento = levObj;
-        } catch (e) {
-          console.error("Erro ao recarregar levantamento:", e);
-        }
+        if (!(await validarPreRequisitosPecas())) return;
         
         let trt = "";
         let data = "";
@@ -632,8 +621,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     
     const btnManualProprietario = document.getElementById('btn-emitir-manual-proprietario');
     if (btnManualProprietario) {
-      btnManualProprietario.onclick = () => {
-        if (!ctx.currentMatriculaId) return;
+      btnManualProprietario.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
         const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/manual-proprietario-html`;
         window.open(url, '_blank');
       };
@@ -641,8 +630,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     
     const btnAnuenciaDesmembramento = document.getElementById('btn-emitir-anuencia-desmembramento');
     if (btnAnuenciaDesmembramento) {
-      btnAnuenciaDesmembramento.onclick = () => {
-        if (!ctx.currentMatriculaId) return;
+      btnAnuenciaDesmembramento.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
         const cnsVal = prompt("Informe o Código CNS do Cartório de Registro de Imóveis (opcional):", "");
         if (cnsVal === null) return;
         const qtdVal = prompt("Informe a quantidade de novas parcelas resultantes do desmembramento:", "3");
@@ -658,8 +647,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
 
     const btnAnuencia = document.getElementById('btn-emitir-anuencia');
     if (btnAnuencia) {
-      btnAnuencia.onclick = () => {
-        if (!ctx.currentMatriculaId) return;
+      btnAnuencia.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
         const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
         const confId = select ? select.value : '';
         if (!confId) {
@@ -698,6 +687,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('txt-conf-id-edicao') as HTMLElement).innerText = `ID: ${selectedConf.id}`;
             (document.getElementById('input-conf-nome') as HTMLInputElement).value = selectedConf.nome || '';
             (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj ? formatarCpfCnpjDinamico(selectedConf.cpf_cnpj) : '';
+            (document.getElementById('conf-genero') as HTMLSelectElement).value = selectedConf.genero || 'M';
             (document.getElementById('input-conf-rg') as HTMLInputElement).value = selectedConf.rg || '';
             (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || 'brasileiro(a)';
             (document.getElementById('input-conf-profissao') as HTMLInputElement).value = selectedConf.profissao || '';
@@ -706,6 +696,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = selectedConf.nome_conjuge || '';
             (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge ? formatarCpfCnpjDinamico(selectedConf.cpf_conjuge) : '';
             (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = selectedConf.rg_conjuge || '';
+            (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value = selectedConf.genero_conjuge || 'F';
+            (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade_conjuge || 'brasileiro(a)';
+            (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value = selectedConf.profissao_conjuge || '';
             (document.getElementById('input-conf-endereco') as HTMLInputElement).value = selectedConf.endereco_completo || '';
             (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value = selectedConf.matricula_imovel || '';
             
@@ -732,6 +725,17 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const cpfLimpo = cpfVal.replace(/\D/g, '');
         if (cpfLimpo.length < 11) return; // Menor que CPF completo
         
+        const loadingEl = document.createElement('span');
+        loadingEl.id = 'loading-cpf-busca';
+        loadingEl.className = 'text-[10px] text-mint-vibrant/70 font-semibold mt-1 flex items-center gap-1';
+        loadingEl.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Buscando...';
+        
+        const oldLoading = document.getElementById('loading-cpf-busca');
+        if (oldLoading) oldLoading.remove();
+        
+        inputCpf.parentNode?.appendChild(loadingEl);
+        initIcons();
+
         try {
           const res = await fetch(`${API_BASE}/confrontantes/buscar-por-cpf?cpf=${encodeURIComponent(cpfLimpo)}`);
           if (res.ok) {
@@ -739,6 +743,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             if (data && data.nome) {
               // Preenche os campos do formulário
               (document.getElementById('input-conf-nome') as HTMLInputElement).value = data.nome || '';
+              (document.getElementById('conf-genero') as HTMLSelectElement).value = data.genero || 'M';
               (document.getElementById('input-conf-rg') as HTMLInputElement).value = data.rg || '';
               (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = data.nacionalidade || 'brasileiro(a)';
               (document.getElementById('input-conf-profissao') as HTMLInputElement).value = data.profissao || '';
@@ -747,6 +752,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = data.nome_conjuge || '';
               (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '';
               (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = data.rg_conjuge || '';
+              (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value = data.genero_conjuge || 'F';
+              (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value = data.nacionalidade_conjuge || 'brasileiro(a)';
+              (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value = data.profissao_conjuge || '';
               (document.getElementById('input-conf-endereco') as HTMLInputElement).value = data.endereco_completo || '';
               if (data.matricula_imovel) {
                 const inputMat = document.getElementById('input-conf-matricula-imovel') as HTMLInputElement;
@@ -779,6 +787,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           }
         } catch (err) {
           console.error("Erro ao buscar confrontante por CPF:", err);
+        } finally {
+          const l = document.getElementById('loading-cpf-busca');
+          if (l) l.remove();
         }
       });
     }
@@ -811,6 +822,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const payload = {
           nome: nome,
           cpf_cnpj: (document.getElementById('input-conf-cpf') as HTMLInputElement).value.trim() || null,
+          genero: (document.getElementById('conf-genero') as HTMLSelectElement).value || 'M',
           rg: (document.getElementById('input-conf-rg') as HTMLInputElement).value.trim() || null,
           nacionalidade: (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value.trim() || null,
           profissao: (document.getElementById('input-conf-profissao') as HTMLInputElement).value.trim() || null,
@@ -819,6 +831,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           nome_conjuge: (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value.trim() || null,
           cpf_conjuge: (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value.trim() || null,
           rg_conjuge: (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value.trim() || null,
+          genero_conjuge: (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value || null,
+          nacionalidade_conjuge: (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value.trim() || null,
+          profissao_conjuge: (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value.trim() || null,
           endereco_completo: (document.getElementById('input-conf-endereco') as HTMLInputElement).value.trim() || null,
           matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value.trim() || null,
           tipo_relacao: null

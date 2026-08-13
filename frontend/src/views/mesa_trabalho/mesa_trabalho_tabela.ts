@@ -48,10 +48,7 @@ interface Segmento {
   anuencia_assinada?: number;
 }
 
-/**
- * Retorna uma cor HSL consistente para cada arquivo de origem.
- */
-const obterCorArquivo = (nomeArquivo: string): string => {
+export const obterCorArquivo = (nomeArquivo: string): string => {
   if (!nomeArquivo) return '#ffffff';
   let hash = 0;
   for (let i = 0; i < nomeArquivo.length; i++) {

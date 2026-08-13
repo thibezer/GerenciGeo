@@ -452,28 +452,7 @@ export const renderMesaTrabalho = (): string => {
                 </div>
 
                 <div class="vtx-table-container">
-                  <table class="vtx-table">
-                    <thead>
-                      <tr id="tbl-pontos-header">
-                        <th style="width: 36px;">Ord</th>
-                        <th style="width: 100px;">Vértice</th>
-                        <th style="width: 42px;">Tipo</th>
-                        <th class="text-right" style="width: 130px;" id="th-coord1">Este (E)</th>
-                        <th class="text-right" style="width: 130px;" id="th-coord2">Norte (N)</th>
-                        <th class="text-right" style="width: 62px;" id="th-delta1">Δ E (mm)</th>
-                        <th class="text-right" style="width: 62px;" id="th-delta2">Δ N (mm)</th>
-                        <th class="text-right" style="width: 72px;">Alt. (m)</th>
-                        <th class="text-center" style="width: 36px;">Políg.</th>
-                        <th class="text-center" style="width: 75px;">Status</th>
-                        <th class="text-left" style="width: 130px;">Origem</th>
-                      </tr>
-                    </thead>
-                    <tbody id="tbl-pontos-triagem">
-                      <tr>
-                        <td colspan="11" class="text-center py-8 text-white/30">Nenhum ponto carregado.</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <ui-tabela id="ui-tbl-pontos-triagem" densidade="compacta" virtualizar="true" texto-vazio="Nenhum ponto carregado."></ui-tabela>
                 </div>
 
                 <!-- Batch Bar Flutuante na tabela -->
@@ -677,71 +656,93 @@ export const renderMesaTrabalho = (): string => {
                        <!-- Bloco 1: Dados Básicos -->
                        <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">CPF / CNPJ</label>
-                          <input type="text" id="input-conf-cpf" class="glass-input w-full" placeholder="000.000.000-00" />
+                          <ui-campo-texto type="text" id="input-conf-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
                        </div>
                        <div class="lg:col-span-2">
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome Completo / Razão Social *</label>
-                          <input type="text" id="input-conf-nome" class="glass-input w-full" placeholder="Nome completo do confrontante" required />
+                          <ui-campo-texto type="text" id="input-conf-nome" class="w-full" placeholder="Nome completo do confrontante" required></ui-campo-texto>
                        </div>
                        <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">RG / Inscrição Estadual</label>
-                          <input type="text" id="input-conf-rg" class="glass-input w-full" placeholder="RG ou I.E." />
+                          <ui-campo-texto type="text" id="input-conf-rg" class="w-full" placeholder="RG ou I.E."></ui-campo-texto>
                        </div>
                        
                        <!-- Bloco 2: Dados Pessoais -->
                        <div>
+                          <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Gênero</label>
+                          <ui-lista-flutuante id="conf-genero" class="w-full">
+                             <option value="M">Homem</option>
+                             <option value="F">Mulher</option>
+                          </ui-lista-flutuante>
+                       </div>
+                       <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nacionalidade</label>
-                          <input type="text" id="input-conf-nacionalidade" class="glass-input w-full" placeholder="brasileiro(a)" value="brasileiro(a)" />
+                          <ui-campo-texto type="text" id="input-conf-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
                        </div>
                        <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Profissão</label>
-                          <input type="text" id="input-conf-profissao" class="glass-input w-full" placeholder="Ex: Pecuarista" />
+                          <ui-campo-texto type="text" id="input-conf-profissao" class="w-full" placeholder="Ex: Pecuarista"></ui-campo-texto>
                        </div>
                        <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Estado Civil</label>
-                          <select id="conf-estado-civil" class="glass-input w-full appearance-none">
+                          <ui-lista-flutuante id="conf-estado-civil" class="w-full">
                              <option value="solteiro">Solteiro(a)</option>
                              <option value="casado">Casado(a)</option>
                              <option value="divorciado">Divorciado(a)</option>
                              <option value="viuvo">Viúvo(a)</option>
                              <option value="uniao_estavel">União Estável</option>
-                          </select>
+                          </ui-lista-flutuante>
                        </div>
                        <div>
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Regime de Bens</label>
-                          <select id="conf-regime-bens" class="glass-input w-full appearance-none">
+                          <ui-lista-flutuante id="conf-regime-bens" class="w-full">
                              <option value="">Não se aplica</option>
                              <option value="comunhao_parcial">Comunhão Parcial</option>
                              <option value="comunhao_universal">Comunhão Universal</option>
                              <option value="separacao_total">Separação Total</option>
                              <option value="participacao_final">Participação Final nos Aquestos</option>
-                          </select>
+                          </ui-lista-flutuante>
                        </div>
                        
                        <!-- Bloco 3: Dados do Cônjuge (Reativo) -->
-                       <div class="col-span-1 lg:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-white/5 border border-white/10 rounded-lg hidden" id="box-conjuge">
+                       <div class="col-span-1 lg:col-span-4 grid grid-cols-1 md:grid-cols-6 gap-4 p-3 bg-white/5 border border-white/10 rounded-lg hidden" id="box-conjuge">
                           <div>
                              <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nome do Cônjuge</label>
-                             <input type="text" id="input-conf-conjuge-nome" class="glass-input w-full" placeholder="Nome completo" />
+                             <ui-campo-texto type="text" id="input-conf-conjuge-nome" class="w-full" placeholder="Nome completo"></ui-campo-texto>
                           </div>
                           <div>
                              <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">CPF do Cônjuge</label>
-                             <input type="text" id="input-conf-conjuge-cpf" class="glass-input w-full" placeholder="000.000.000-00" />
+                             <ui-campo-texto type="text" id="input-conf-conjuge-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
                           </div>
                           <div>
                              <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">RG do Cônjuge</label>
-                             <input type="text" id="input-conf-conjuge-rg" class="glass-input w-full" placeholder="RG" />
+                             <ui-campo-texto type="text" id="input-conf-conjuge-rg" class="w-full" placeholder="RG"></ui-campo-texto>
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Gênero do Cônjuge</label>
+                             <ui-lista-flutuante id="conf-conjuge-genero" class="w-full">
+                                <option value="M">Homem</option>
+                                <option value="F">Mulher</option>
+                             </ui-lista-flutuante>
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Nacionalidade do Cônjuge</label>
+                             <ui-campo-texto type="text" id="input-conf-conjuge-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
+                          </div>
+                          <div>
+                             <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Profissão do Cônjuge</label>
+                             <ui-campo-texto type="text" id="input-conf-conjuge-profissao" class="w-full" placeholder="Ex: Do lar"></ui-campo-texto>
                           </div>
                        </div>
                        
                        <!-- Bloco 4: Endereço e Imóvel -->
                        <div class="col-span-1 lg:col-span-2">
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Endereço de Correspondência</label>
-                          <input type="text" id="input-conf-endereco" class="glass-input w-full" placeholder="Rua, Número, Bairro, Cidade - UF" />
+                          <ui-campo-texto type="text" id="input-conf-endereco" class="w-full" placeholder="Rua, Número, Bairro, Cidade - UF"></ui-campo-texto>
                        </div>
                        <div class="col-span-1 lg:col-span-2">
                           <label class="block text-[10px] text-white/30 uppercase font-bold mb-1">Matrícula (Nº / CRI / Comarca)</label>
-                          <input type="text" id="input-conf-matricula-imovel" class="glass-input w-full" placeholder="Ex: Mat. 12.345 - CRI Ponta Porã" />
+                          <ui-campo-texto type="text" id="input-conf-matricula-imovel" class="w-full" placeholder="Ex: Mat. 12.345 - CRI Ponta Porã"></ui-campo-texto>
                        </div>
                        
                        <!-- Upload de Matrícula PDF -->
@@ -768,13 +769,12 @@ export const renderMesaTrabalho = (): string => {
                        </div>
                        
                        <div class="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2">
-                          <button type="button" class="btn-secondary py-2 px-5 font-bold flex items-center gap-1" id="btn-cancelar-confrontante-qualificacao">
+                          <ui-botao-primario variante="secondary" id="btn-cancelar-confrontante-qualificacao" type="button">
                              Cancelar
-                          </button>
-                          <button type="button" class="btn-primary py-2 px-5 font-bold flex items-center gap-1" id="btn-salvar-confrontante-qualificacao">
-                             <i data-lucide="save" class="w-4 h-4"></i>
-                             Salvar Qualificação
-                          </button>
+                          </ui-botao-primario>
+                          <ui-botao-primario variante="primary" id="btn-salvar-confrontante-qualificacao" type="button">
+                             <i data-lucide="save" class="w-4 h-4 mr-2"></i> Salvar Qualificação
+                          </ui-botao-primario>
                        </div>
                     </form>
                  </div>
