@@ -72,7 +72,16 @@ export const renderLinhasTabelaHtml = (visiveis: any[], clientesSelecionados: Se
                <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
             </td>
             <td class="py-2.5 px-4 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
-            <td class="py-2.5 px-4 font-mono text-white/75 font-medium">${cli.senha_gov ? escapeHtml(cli.senha_gov) : '-'}</td>
+            <td class="py-2.5 px-4 font-mono text-white/75 font-medium">
+               ${cli.senha_gov ? `
+                  <div class="flex items-center gap-1.5 font-mono">
+                     <span id="senha-gov-val-${cli.id}">••••••••</span>
+                     <button type="button" class="text-white/40 hover:text-mint-vibrant transition-colors p-1 cursor-pointer" onclick="window.revelarSenhaGovTabela(${cli.id})" title="Mostrar/Ocultar Senha GOV">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                     </button>
+                  </div>
+               ` : '-'}
+            </td>
             <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>
             <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_levantamentos || 0}</td>
             <td class="py-2.5 px-4 text-right">

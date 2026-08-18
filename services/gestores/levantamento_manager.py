@@ -71,14 +71,14 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                         nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
                         endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (nome_completo, cli_data.get("cpf_cnpj"), rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge))
+                """, (nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge))
                 pessoa_id = cursor.lastrowid
                 
             # 3. Insere a associação do cliente apontando para a pessoa
             cursor.execute("""
-                INSERT INTO clientes (pessoa_id, profissional_id, email, telefone, cidade, estado, cep, sexo, senha_gov)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (pessoa_id, cli_data.get("profissional_id") or 1, email, telefone, cidade, estado, cep, sexo, senha_gov))
+                INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (pessoa_id, cli_data.get("profissional_id") or 1, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov))
             cliente_id = cursor.lastrowid
             
             if metadados:
@@ -136,7 +136,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             query_old = """
                 SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.nacionalidade,
                        p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo,
-                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, c.email, c.telefone,
+                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, c.data_nascimento_fundacao, c.email, c.telefone,
                        c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at, c.pessoa_id
                 FROM clientes c
                 JOIN pessoas p ON c.pessoa_id = p.id
@@ -166,14 +166,14 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                     estado_civil = ?, regime_bens = ?, endereco_completo = ?,
                     nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?
                 WHERE id = ?
-            """, (nome_completo, cli_data.get("cpf_cnpj"), rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, pessoa_id))
+            """, (nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, pessoa_id))
             
             # 4. Atualiza os dados de relacionamento na tabela clientes
             cursor.execute("""
                 UPDATE clientes 
-                SET email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?, senha_gov = ?
+                SET data_nascimento_fundacao = ?, email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?, senha_gov = ?
                 WHERE id = ?
-            """, (email, telefone, cidade, estado, cep, sexo, senha_gov, cliente_id))
+            """, (data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov, cliente_id))
             
             # Atualiza metadados (limpa e insere novos)
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))

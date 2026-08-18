@@ -162,7 +162,7 @@ export const renderClientesTemplate = (): string => `
                    <ui-campo-texto name="rg_ie"></ui-campo-texto>
                 </div>
              </div>
-             <div class="grid grid-cols-2 gap-3 items-end">
+             <div class="grid grid-cols-3 gap-3 items-end">
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Estado Civil</label>
                    <ui-select name="estado_civil" texto-padrao="Selecione o Estado Civil...">
@@ -177,6 +177,10 @@ export const renderClientesTemplate = (): string => `
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nacionalidade</label>
                    <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Data Nasc. / Fundação</label>
+                   <ui-campo-texto name="data_nascimento_fundacao" tipo="date"></ui-campo-texto>
                 </div>
              </div>
           </div>
@@ -327,7 +331,7 @@ export const renderClientesTemplate = (): string => `
           <div class="space-y-4">
              <!-- ABA DADOS CADASTRAIS -->
              <div id="tab-det-dados" class="tab-content-det space-y-3.5">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
                    <div>
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Gênero</p>
                       <p class="text-xs text-white/80 font-medium mt-0.5" id="det-cli-sexo">-</p>
@@ -337,16 +341,20 @@ export const renderClientesTemplate = (): string => `
                       <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-rg">-</p>
                    </div>
                    <div>
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Data Nasc./Fundação</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-datanasc">-</p>
+                   </div>
+                   <div>
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Estado Civil</p>
                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-estcivil">-</p>
                    </div>
                    <div>
                        <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Nacionalidade</p>
-                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-nacionalidade"></p>
+                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-nacionalidade">-</p>
                     </div>
                     <div>
                        <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Profissão</p>
-                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-profissao"></p>
+                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-profissao">-</p>
                     </div>
                 </div>
                 
@@ -383,7 +391,12 @@ export const renderClientesTemplate = (): string => `
                    </div>
                    <div>
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Senha GOV</p>
-                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-senhagov">-</p>
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                         <p class="text-xs text-white/80 font-mono" id="det-cli-senhagov">-</p>
+                         <button type="button" id="btn-revelar-senhagov-det" class="text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" title="Mostrar/Ocultar Senha GOV">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                         </button>
+                      </div>
                    </div>
                    <div class="col-span-3 border-t border-white/5 pt-2 mt-1">
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Endereço Completo</p>

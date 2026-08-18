@@ -33,11 +33,16 @@ class ExportacaoService:
             mat_rows = execute_query(query_mat, params=(propriedade_id,), fetch_all=True)
             matriculas_list = [dict(m) for m in mat_rows]
 
-            # 2. Busca todos os clientes associados à propriedade
+            # 2. Busca todos os clientes associados à propriedade com seus dados civis completos
             query_cli = """
-                SELECT c.*
+                SELECT c.id, c.pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
+                       p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+                       p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                       c.data_nascimento_fundacao, c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo,
+                       pc.percentual_participacao
                 FROM propriedade_clientes pc
                 JOIN clientes c ON pc.cliente_id = c.id
+                JOIN pessoas p ON c.pessoa_id = p.id
                 WHERE pc.propriedade_id = ?
             """
             cli_rows = execute_query(query_cli, params=(propriedade_id,), fetch_all=True)
@@ -59,6 +64,7 @@ class ExportacaoService:
                     c_dict = dict(r)
                     c_id = c_dict['id']
                     c_dict.pop('created_at', None)
+                    c_dict.pop('senha_gov', None)
                     c_dict['metadados'] = meta_dict.get(c_id, {})
                     clientes_list.append(c_dict)
 

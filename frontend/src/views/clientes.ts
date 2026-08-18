@@ -344,6 +344,22 @@ export const clientesRoute: RouteDef = {
       checkAllClientes?.addEventListener('change', handleCheckAll);
       checkAllClientes?.addEventListener('ui-change', handleCheckAll);
 
+      (window as any).revelarSenhaGovTabela = (id: number) => {
+         const cli = todosClientes.find(c => c.id === id);
+         if (!cli || !cli.senha_gov) return;
+         const span = document.getElementById(`senha-gov-val-${id}`);
+         if (!span) return;
+         if (span.innerText === '••••••••') {
+            if (confirm(`Deseja realmente visualizar a Senha GOV de "${cli.nome_completo}"?`)) {
+               span.innerText = cli.senha_gov;
+               span.classList.add('text-mint-vibrant', 'font-bold');
+            }
+         } else {
+            span.innerText = '••••••••';
+            span.classList.remove('text-mint-vibrant', 'font-bold');
+         }
+      };
+
       (window as any).irParaPropriedade = (propId: number) => {
          fecharModalDetalhes();
          localStorage.setItem('gerencigeo_foco_propriedade_id', propId.toString());
@@ -374,12 +390,53 @@ export const clientesRoute: RouteDef = {
 
          setDetVal('det-cli-sexo', cli.sexo === 'M' ? 'Masculino' : cli.sexo === 'F' ? 'Feminino' : '-');
          setDetVal('det-cli-rg', cli.rg_ie);
+
+         let dataNascFormatada = '-';
+         if (cli.data_nascimento_fundacao) {
+            const partes = cli.data_nascimento_fundacao.split('-');
+            if (partes.length === 3) {
+               dataNascFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+            } else {
+               dataNascFormatada = cli.data_nascimento_fundacao;
+            }
+         }
+         setDetVal('det-cli-datanasc', dataNascFormatada);
+
          setDetVal('det-cli-estcivil', cli.estado_civil);
          setDetVal('det-cli-nacionalidade', cli.nacionalidade);
          setDetVal('det-cli-profissao', cli.profissao || '-');
          setDetVal('det-cli-telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '-');
          setDetVal('det-cli-email', cli.email);
-         setDetVal('det-cli-senhagov', cli.senha_gov);
+
+         const btnRevelarDet = document.getElementById('btn-revelar-senhagov-det');
+         const spanSenhaDet = document.getElementById('det-cli-senhagov');
+         if (cli.senha_gov) {
+            if (spanSenhaDet) {
+               spanSenhaDet.innerText = '••••••••';
+               spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
+            }
+            if (btnRevelarDet) {
+               btnRevelarDet.classList.remove('hidden');
+               btnRevelarDet.onclick = () => {
+                  if (spanSenhaDet?.innerText === '••••••••') {
+                     if (confirm(`Deseja realmente visualizar a Senha GOV de "${cli.nome_completo}"?`)) {
+                        spanSenhaDet.innerText = cli.senha_gov;
+                        spanSenhaDet.classList.add('text-mint-vibrant', 'font-bold');
+                     }
+                  } else if (spanSenhaDet) {
+                     spanSenhaDet.innerText = '••••••••';
+                     spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
+                  }
+               };
+            }
+         } else {
+            if (spanSenhaDet) {
+               spanSenhaDet.innerText = '-';
+               spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
+            }
+            if (btnRevelarDet) btnRevelarDet.classList.add('hidden');
+         }
+
          setDetVal('det-cli-endereco', `${cli.endereco_completo || ''} ${cli.cep ? ' · CEP: ' + aplicarMascaraCep(cli.cep) : ''} - ${cli.cidade || ''}/${cli.estado || ''}`);
          setDetVal('det-cli-total-levs', cli.total_levantamentos || 0);
          setDetVal('det-cli-total-props', cli.total_propriedades || 0);
@@ -509,6 +566,7 @@ export const clientesRoute: RouteDef = {
          setFormVal('nome_completo', cli.nome_completo);
          setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
          setFormVal('rg_ie', cli.rg_ie);
+         setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
          setFormVal('estado_civil', cli.estado_civil);
          setFormVal('sexo', cli.sexo || 'M');
          setFormVal('nacionalidade', cli.nacionalidade);

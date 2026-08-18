@@ -548,6 +548,7 @@ def create_tables(conn):
 
         # Migração dinâmica para a tabela matriculas
         colunas_matriculas = [
+            ("ccir", "TEXT"),
             ("cri_comarca", "TEXT"),
             ("cri_circunscricao", "TEXT"),
             ("livro_registro", "TEXT"),
@@ -569,7 +570,8 @@ def create_tables(conn):
         
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [
-            ("sexo", "TEXT DEFAULT 'M'")
+            ("sexo", "TEXT DEFAULT 'M'"),
+            ("data_nascimento_fundacao", "DATE")
         ]
         cursor.execute("PRAGMA table_info(clientes)")
         colunas_clientes_existentes = {row[1] for row in cursor.fetchall()}

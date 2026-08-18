@@ -117,4 +117,14 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. Sempre verificar com auditoria de bytecode / introspecção de variáveis globais (`co_names` vs `__globals__`) se todas as funções dos novos módulos possuem seus símbolos e dependências devidamente importados.
   2. Executar testes de integração direta nas rotas (`get_pontos(levantamento_id)`) para validar que os dados reais do banco SQLite são serializados e retornados sem exceções.
 
+---
+
+## 14. Custódia de Senhas GOV e Integridade de Dados Civis de Clientes
+- **Problema**: O campo `senha_gov` era renderizado em texto puro nas tabelas e modais, violando boas práticas de segurança, e `data_nascimento_fundacao` era omitido nos comandos de `INSERT`/`UPDATE`/`SELECT`, além de `ExportacaoService` omitir os dados civis da pessoa no `DADOS_GERAIS.json`.
+- **Regra Obrigatória**:
+  1. A `senha_gov` deve ser mascarada por padrão no frontend (`••••••••`) e sua revelação deve exigir confirmação explícita do usuário via popup.
+  2. O arquivo `DADOS_GERAIS.json` do workspace deve realizar `JOIN` na tabela `pessoas` para compilar o conjunto completo de dados civis dos proprietários e cônjuges, e **nunca** deve conter o campo `senha_gov`.
+  3. Toda coluna declarada no modelo Pydantic e banco de clientes (`data_nascimento_fundacao`) deve ser obrigatoriamente persistida, consultada e vinculada aos formulários de cadastro e edição.
+
+
 
