@@ -126,5 +126,15 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   2. O arquivo `DADOS_GERAIS.json` do workspace deve realizar `JOIN` na tabela `pessoas` para compilar o conjunto completo de dados civis dos proprietários e cônjuges, e **nunca** deve conter o campo `senha_gov`.
   3. Toda coluna declarada no modelo Pydantic e banco de clientes (`data_nascimento_fundacao`) deve ser obrigatoriamente persistida, consultada e vinculada aos formulários de cadastro e edição.
 
+---
+
+## 15. Isolamento Estrito do Banco de Testes e Proteção Anti-Wipeout
+- **Problema**: Testes unitários rodando sem isolamento explícito de banco poderiam executar `DELETE` acidentalmente no arquivo `gerencigeo.db` de produção.
+- **Regra Obrigatória**:
+  1. A detecção de ambiente de testes em `config.py` e `tests/__init__.py` força automaticamente o uso de `gerencigeo_test.db` ao detectar runners de teste (`unittest`, `pytest`).
+  2. O driver `database/connection.py` gera backups atômicos automáticos antes de conexões de escrita e intercepta/bloqueia qualquer comando `DELETE FROM <tabela_vital>` sem `WHERE` na base de produção.
+  3. Todo arquivo de teste unitário deve utilizar dados com identificadores controlados e limpar estritamente os registros que criou (`DELETE FROM ... WHERE id IN (...)`), nunca limpando tabelas inteiras.
+
+
 
 

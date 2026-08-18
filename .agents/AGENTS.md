@@ -35,3 +35,9 @@
 6. **Registro Obrigatório e Consulta de Aprendizados (.jules/)**:
    - Toda e qualquer correção de bugs críticos ou regressões de estabilidade (como erros de navegação SPA por desanexação de DOM/`invalidateSize`, comparações de IDs `String(id) === String(id)` e fallbacks de polilhas nos mapas) deve ser **obrigatoriamente documentada e mantida** nos arquivos da pasta `.jules/` ([.jules/bolt.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/.jules/bolt.md) e [.jules/learnings.md](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/.jules/learnings.md)).
    - Os agentes de IA (Antigravity e Jules) **devem obrigatoriamente consultar e respeitar essas diretrizes de aprendizado** antes e durante qualquer alteração ou integração de código, assegurando que funcionalidades básicas e fundamentais não parem de funcionar.
+
+7. **Proteção Irrestrita da Base de Dados Principal (`gerencigeo.db`)**:
+   - A base de dados `gerencigeo.db` contém os dados de produção do usuário e nunca deve ser apagada, limpa ou manipulada por testes automatizados.
+   - Todos os testes unitários e de integração executam estritamente na base isolada `gerencigeo_test.db` (configurada automaticamente via `config.py` e `tests/__init__.py`).
+   - O sistema gera backups atômicos automáticos na pasta `backups/` e em `gerencigeo.db.backup`.
+   - O driver de conexão (`database/connection.py`) bloqueia qualquer tentativa de `DELETE` global sem cláusula `WHERE` na base de produção.

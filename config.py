@@ -6,7 +6,21 @@ APP_VERSION = "1.0.0"
 # Diretório base estrutural do próprio código (onde fica BD, assets, etc)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-if os.environ.get("GERENCIGEO_TEST"):
+import sys
+
+# Detecção automática e rigorosa de ambiente de testes para proteção irrestrita da base de produção
+def _is_test_environment() -> bool:
+    if os.environ.get("GERENCIGEO_TEST") in ("1", "true", "True"):
+        return True
+    if any("unittest" in str(arg).lower() or "pytest" in str(arg).lower() for arg in sys.argv):
+        return True
+    if sys.argv and any(str(sys.argv[0]).lower().endswith(x) for x in ("unittest", "pytest", "test", "__main__.py")):
+        if any("test" in str(a).lower() for a in sys.argv):
+            return True
+    return False
+
+if _is_test_environment():
+    os.environ["GERENCIGEO_TEST"] = "1"
     DB_PATH = os.path.join(BASE_DIR, "gerencigeo_test.db")
 else:
     DB_PATH = os.path.join(BASE_DIR, "gerencigeo.db")

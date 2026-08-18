@@ -49,6 +49,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pessoa_id INTEGER NOT NULL,
+            profissional_id INTEGER,
             data_nascimento_fundacao DATE,
             email TEXT,
             telefone TEXT,
@@ -58,7 +59,8 @@ def create_tables(conn):
             sexo TEXT DEFAULT 'M',
             senha_gov TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE,
+            FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE SET NULL
         );
         """,
         """
@@ -570,6 +572,7 @@ def create_tables(conn):
         
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [
+            ("profissional_id", "INTEGER"),
             ("sexo", "TEXT DEFAULT 'M'"),
             ("data_nascimento_fundacao", "DATE")
         ]
