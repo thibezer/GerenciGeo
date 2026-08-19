@@ -1,10 +1,136 @@
 ;;; =========================================================================
-;;; SUÍTE CICLOVIA V6 - SUPORTE A POLILINHAS, ARCOS E LINHAS
+;;; SUÍTE DE SINALIZAÇÃO VIÁRIA E CICLOVIAS - V7 (CONTRAN)
+;;; Suporte a Polilinhas, Arcos e Linhas com Geometria e Camadas Dinâmicas
 ;;; =========================================================================
 
 (vl-load-com)
 
-;; --- 1. CICLOFAIXA CONTÍNUA ---
+;;; =========================================================================
+;;; 1. COMANDO PRINCIPAL: FAIXAS DA VIA COM ESTACIONAMENTO E EIXO BALANCEADO
+;;; =========================================================================
+
+(defun c:FAIXASRUA ( / sel eName wTotal respEst ladoEst wEst respEixo tipoEixo
+                       dashScale objAxis doc acadObj modelSpace
+                       oldCmd oldError oldGapType createdEnts totalGrupos
+                       wCirc wFaixa halfW )
+  (setq acadObj (vlax-get-acad-object))
+  (setq doc (vla-get-ActiveDocument acadObj))
+  (setq modelSpace (vla-get-ModelSpace doc))
+  (setq oldCmd (getvar "CMDECHO"))
+  (setq oldGapType (getvar "OFFSETGAPTYPE"))
+  (setq oldError *error*)
+
+  (defun *error* (msg)
+    (if (and msg (/= msg "Function cancelled"))
+      (princ (strcat "\n[FAIXASRUA] Erro: " msg))
+    )
+    (setvar "OFFSETGAPTYPE" oldGapType)
+    (setvar "CMDECHO" oldCmd)
+    (vl-catch-all-apply 'vla-EndUndoMark (list doc))
+    (setq *error* oldError)
+    (princ)
+  )
+
+  (setvar "CMDECHO" 0)
+  (makeViaLayers doc)
+  (avisarUnidadeFaixas)
+
+  ;; 1. Largura Total da Via
+  (setq wTotal (getreal "\nInforme a largura total da rua (m) <10.00>: "))
+  (if (null wTotal) (setq wTotal 10.00))
+
+  ;; 2. Configuração do Estacionamento
+  (initget "D E N")
+  (setq respEst (getkword "\nLado das vagas de estacionamento [Direito / Esquerdo / Nenhum] <Direito>: "))
+  (if (null respEst) (setq respEst "D"))
+  (setq ladoEst respEst)
+
+  (setq wEst 0.0)
+  (if (/= ladoEst "N")
+    (progn
+      (setq wEst (getreal "\nInforme a largura da faixa de estacionamento (m) <2.20>: "))
+      (if (null wEst) (setq wEst 2.20))
+      (if (>= wEst wTotal)
+        (progn
+          (princ "\n[AVISO] Largura do estacionamento maior ou igual à da rua! Ajustado para 2.20m.")
+          (setq wEst 2.20)
+        )
+      )
+    )
+  )
+
+  ;; 3. Tipo de Sinalização do Eixo
+  (initget "D U N")
+  (setq respEixo (getkword "\nTipo de eixo da via [Mão Dupla (Amarelo) / Mão Única (Branco) / Nenhum] <Dupla>: "))
+  (if (null respEixo) (setq respEixo "D"))
+  (setq tipoEixo respEixo)
+
+  (setq dashScale 2.0)
+  (if (/= tipoEixo "N")
+    (progn
+      (setq dashScale (getreal "\nInforme a escala do tracejado do eixo <2.0>: "))
+      (if (null dashScale) (setq dashScale 2.0))
+    )
+  )
+
+  ;; Resumo do dimensionamento no console
+  (setq wCirc (- wTotal wEst))
+  (setq wFaixa (/ wCirc 2.0))
+  (princ (strcat "\n[FAIXASRUA] Configuração: Rua = " (rtos wTotal 2 2) "m"
+                 (if (/= ladoEst "N")
+                   (strcat " | Estacionamento (" (if (= ladoEst "D") "Direito" "Esquerdo") ") = " (rtos wEst 2 2) "m")
+                   " | Sem Estacionamento")
+                 " | Pista útil = " (rtos wCirc 2 2) "m (2 faixas de " (rtos wFaixa 2 2) "m)"))
+
+  (vla-StartUndoMark doc)
+  (setq totalGrupos 0)
+
+  (princ "\nSelecione o Eixo Guia da Rua (Polilinha, Arco ou Linha) (ENTER para finalizar): ")
+  (setq sel (entsel))
+
+  (while sel
+    (setq eName (car sel))
+    (setq objAxis (obterEixoComoLwpolyline eName))
+
+    (if (null objAxis)
+      (princ "\n[AVISO] Entidade ignorada: selecione uma POLILINHA, ARCO ou LINHA.")
+      (progn
+        (setq createdEnts (gerarSinalizacaoVia objAxis wTotal ladoEst wEst tipoEixo dashScale))
+        (vla-delete objAxis)
+        (if createdEnts
+          (progn
+            (criarGrupoVia doc "VIA" createdEnts)
+            (setq totalGrupos (1+ totalGrupos))
+          )
+        )
+      )
+    )
+
+    (princ "\nSelecione o próximo Eixo Guia (ENTER para finalizar): ")
+    (setq sel (entsel))
+  )
+
+  (setvar "OFFSETGAPTYPE" oldGapType)
+  (vla-EndUndoMark doc)
+
+  (if (> totalGrupos 0)
+    (princ (strcat "\n[OK] " (itoa totalGrupos) " via(s) gerada(s) com sucesso!"))
+    (princ "\nNenhuma entidade foi processada.")
+  )
+
+  (setvar "CMDECHO" oldCmd)
+  (setq *error* oldError)
+  (princ)
+)
+
+(defun c:FAIXAS () (c:FAIXASRUA))
+(defun c:VIA () (c:FAIXASRUA))
+
+;;; =========================================================================
+;;; 2. ROTINAS DE CICLOFAIXA, TRAVESSIA E PICTOGRAMAS
+;;; =========================================================================
+
+;; --- 2.1 CICLOFAIXA CONTÍNUA ---
 (defun c:CICLOFAIXA ( / sel eName w dashScale objAxis doc acadObj modelSpace
                          oldCmd oldError createdEnts totalGrupos )
   (setq acadObj (vlax-get-acad-object))
@@ -25,7 +151,7 @@
 
   (setvar "CMDECHO" 0)
   (makeCicloLayers doc)
-  (avisarUnidadeCiclo)
+  (avisarUnidadeFaixas)
 
   (setq w (getreal "\nInforme a largura total da ciclofaixa (m) <2.50>: "))
   (if (null w) (setq w 2.50))
@@ -48,7 +174,7 @@
       (progn
         (setq createdEnts (gerarSinalizacaoCiclo objAxis w T dashScale nil 1.0 0.10))
         (vla-delete objAxis)
-        (criarGrupoCiclo doc "CICLOFAIXA" createdEnts)
+        (criarGrupoVia doc "CICLOFAIXA" createdEnts)
         (setq totalGrupos (1+ totalGrupos))
       )
     )
@@ -68,7 +194,7 @@
   (princ)
 )
 
-;; --- 2. TRAVESSIA DE RUA ---
+;; --- 2.2 TRAVESSIA DE CICLOFAIXA ---
 (defun c:CICLOTRAVESSIA ( / sel eName w dashScale objAxis doc acadObj modelSpace
                              oldCmd oldError createdEnts totalGrupos )
   (setq acadObj (vlax-get-acad-object))
@@ -89,7 +215,7 @@
 
   (setvar "CMDECHO" 0)
   (makeCicloLayers doc)
-  (avisarUnidadeCiclo)
+  (avisarUnidadeFaixas)
 
   (setq w (getreal "\nInforme a largura da travessia (m) <2.50>: "))
   (if (null w) (setq w 2.50))
@@ -112,7 +238,7 @@
       (progn
         (setq createdEnts (gerarSinalizacaoCiclo objAxis w nil 1.0 T dashScale 0.10))
         (vla-delete objAxis)
-        (criarGrupoCiclo doc "CICLOTRAVESSIA" createdEnts)
+        (criarGrupoVia doc "CICLOTRAVESSIA" createdEnts)
         (setq totalGrupos (1+ totalGrupos))
       )
     )
@@ -132,7 +258,7 @@
   (princ)
 )
 
-;; --- 3. PICTOGRAMAS AUTOMÁTICOS AO LONGO DO EIXO ---
+;; --- 2.3 PICTOGRAMAS AUTOMÁTICOS ---
 (defun c:CICLOPICTOS ( / sel eName curve doc acadObj oldCmd oldError
                          bidirecional blkName blkFile intervalo afastamento
                          escala margem anguloBase
@@ -155,9 +281,8 @@
   )
 
   (setvar "CMDECHO" 0)
-  (avisarUnidadeCiclo)
+  (avisarUnidadeFaixas)
 
-  ;; Sentido
   (initget "B U")
   (setq resp (getkword "\nSentido da ciclofaixa [Bidirecional/Unidirecional] <Bidirecional>: "))
   (if (null resp) (setq resp "B"))
@@ -200,7 +325,6 @@
         )
       )
 
-      ;; Correção de ângulo (-90 graus)
       (setq anguloBase (/ pi -2.0))
 
       (vla-StartUndoMark doc)
@@ -220,7 +344,7 @@
                                                   afastamento escala margem anguloBase))
             (if createdEnts
               (progn
-                (criarGrupoCiclo doc "PICTOS" createdEnts)
+                (criarGrupoVia doc "PICTOS" createdEnts)
                 (setq totalGrupos (1+ totalGrupos))
               )
               (princ "\n[AVISO] Eixo muito curto; nada inserido para esta entidade.")
@@ -245,9 +369,145 @@
   (princ)
 )
 
-;; =========================================================================
-;; FUNÇÕES AUXILIARES DE CONVERSÃO E GEOMETRIA
-;; =========================================================================
+;;; =========================================================================
+;;; 3. CÁLCULOS GEOMÉTRICOS DE SINALIZAÇÃO VIÁRIA (FAIXASRUA)
+;;; =========================================================================
+
+(defun gerarSinalizacaoVia (objAxis wTotal ladoEst wEst tipoEixo dashScale
+                             / halfW wCirc wFaixa offBordoEsq offBordoDir
+                               offEstac offEixo createdEnts rEsq rDir rEst rEixo
+                               lyrEixo oldGapType )
+  (setq oldGapType (getvar "OFFSETGAPTYPE"))
+  (setvar "OFFSETGAPTYPE" 1)
+
+  (setq halfW (/ wTotal 2.0))
+  (if (= ladoEst "N")
+    (setq wEst 0.0)
+  )
+  (setq wCirc (- wTotal wEst))
+  (setq wFaixa (/ wCirc 2.0))
+  (setq createdEnts '())
+
+  ;; Offsets calculados a partir do eixo base:
+  ;; Lado Esquerdo = Positivo (+) | Lado Direito = Negativo (-)
+  (setq offBordoEsq halfW)
+  (setq offBordoDir (- halfW))
+
+  ;; Linha de Estacionamento
+  (setq offEstac nil)
+  (cond
+    ((= ladoEst "D")
+     (setq offEstac (- (- halfW wEst))))  ; Deslocamento para o lado direito
+    ((= ladoEst "E")
+     (setq offEstac (- halfW wEst)))      ; Deslocamento para o lado esquerdo
+  )
+
+  ;; Novo Eixo da Pista Útil (Centro de wCirc)
+  (setq offEixo 0.0)
+  (cond
+    ((= ladoEst "D")
+     ;; Desloca em direção à esquerda para equilibrar as 2 faixas
+     (setq offEixo (- halfW wFaixa)))
+    ((= ladoEst "E")
+     ;; Desloca em direção à direita para equilibrar as 2 faixas
+     (setq offEixo (- (- halfW wFaixa))))
+    ((= ladoEst "N")
+     (setq offEixo 0.0))
+  )
+
+  ;; 1. GERAÇÃO DO BORDO ESQUERDO (+halfW)
+  (setq rEsq (vl-catch-all-apply 'vlax-invoke (list objAxis 'Offset offBordoEsq)))
+  (if (not (vl-catch-all-error-p rEsq))
+    (foreach item rEsq
+      (vla-put-Layer item "SINAL_BORDO")
+      (if (vlax-property-available-p item 'ConstantWidth)
+        (vla-put-ConstantWidth item 0.10)
+      )
+      (setq createdEnts (cons item createdEnts))
+    )
+    (princ (strcat "\n[AVISO] Falha ao gerar o bordo esquerdo em +" (rtos offBordoEsq 2 2) "m."))
+  )
+
+  ;; 2. GERAÇÃO DO BORDO DIREITO (-halfW)
+  (setq rDir (vl-catch-all-apply 'vlax-invoke (list objAxis 'Offset offBordoDir)))
+  (if (not (vl-catch-all-error-p rDir))
+    (foreach item rDir
+      (vla-put-Layer item "SINAL_BORDO")
+      (if (vlax-property-available-p item 'ConstantWidth)
+        (vla-put-ConstantWidth item 0.10)
+      )
+      (setq createdEnts (cons item createdEnts))
+    )
+    (princ (strcat "\n[AVISO] Falha ao gerar o bordo direito em " (rtos offBordoDir 2 2) "m."))
+  )
+
+  ;; 3. GERAÇÃO DA LINHA CONTÍNUA DO ESTACIONAMENTO (se houver)
+  (if offEstac
+    (progn
+      (setq rEst (vl-catch-all-apply 'vlax-invoke (list objAxis 'Offset offEstac)))
+      (if (not (vl-catch-all-error-p rEst))
+        (foreach item rEst
+          (vla-put-Layer item "SINAL_ESTACIONAMENTO")
+          (if (vlax-property-available-p item 'ConstantWidth)
+            (vla-put-ConstantWidth item 0.10)
+          )
+          (setq createdEnts (cons item createdEnts))
+        )
+        (princ (strcat "\n[AVISO] Falha ao gerar a linha de estacionamento em " (rtos offEstac 2 2) "m."))
+      )
+    )
+  )
+
+  ;; 4. GERAÇÃO DO EIXO CENTRAL BALANCEADO DA PISTA ÚTIL
+  (if (/= tipoEixo "N")
+    (progn
+      (setq lyrEixo (if (= tipoEixo "D") "SINAL_EIXO_DUPLO" "SINAL_EIXO_UNICO"))
+      
+      (if (< (abs offEixo) 0.001)
+        ;; Eixo perfeitamente centralizado no eixo base (copia direta)
+        (progn
+          (setq objCopia (vla-copy objAxis))
+          (vla-put-Layer objCopia lyrEixo)
+          (vla-put-Linetype objCopia "DASHED")
+          (vla-put-LinetypeScale objCopia dashScale)
+          (if (vlax-property-available-p objCopia 'ConstantWidth)
+            (vla-put-ConstantWidth objCopia 0.10)
+          )
+          (if (vlax-property-available-p objCopia 'LinetypeGeneration)
+            (vla-put-LinetypeGeneration objCopia :vlax-true)
+          )
+          (setq createdEnts (cons objCopia createdEnts))
+        )
+        ;; Eixo recalculado e deslocado no meio de wCirc
+        (progn
+          (setq rEixo (vl-catch-all-apply 'vlax-invoke (list objAxis 'Offset offEixo)))
+          (if (not (vl-catch-all-error-p rEixo))
+            (foreach item rEixo
+              (vla-put-Layer item lyrEixo)
+              (vla-put-Linetype item "DASHED")
+              (vla-put-LinetypeScale item dashScale)
+              (if (vlax-property-available-p item 'ConstantWidth)
+                (vla-put-ConstantWidth item 0.10)
+              )
+              (if (vlax-property-available-p item 'LinetypeGeneration)
+                (vla-put-LinetypeGeneration item :vlax-true)
+              )
+              (setq createdEnts (cons item createdEnts))
+            )
+            (princ (strcat "\n[AVISO] Falha ao gerar o eixo da via em " (rtos offEixo 2 2) "m."))
+          )
+        )
+      )
+    )
+  )
+
+  (setvar "OFFSETGAPTYPE" oldGapType)
+  createdEnts
+)
+
+;;; =========================================================================
+;;; 4. FUNÇÕES AUXILIARES DE CONVERSÃO E GEOMETRIA
+;;; =========================================================================
 
 ;; Converte um ARC (DXF) para LWPOLYLINE equivalente mantendo a curvatura exata
 (defun arcParaLwpolyline (eName / dxf obj aStart aEnd sweep bulge ptStart ptEnd layer newEnt)
@@ -344,9 +604,9 @@
   )
 )
 
-;; =========================================================================
-;; FUNÇÕES AUXILIARES COMPARTILHADAS
-;; =========================================================================
+;;; =========================================================================
+;;; 5. FUNÇÕES AUXILIARES DE CICLOVIA E PICTOGRAMAS
+;;; =========================================================================
 
 (defun gerarSinalizacaoCiclo (objAxis w criarEixoAmarelo dashScaleEixo bordoTracejado dashScaleBordo bordoWidth
                                / halfW objRed objYellow r1 r2 off1 off2 createdEnts okOff1 okOff2 oldGapType)
@@ -437,7 +697,6 @@
   createdEnts
 )
 
-;; LÓGICA ESPACIAL PARA OS PICTOGRAMAS (CURVAS, ARCOS E RETAS)
 (defun inserirPictosEixo (modelSpace curve blkName bidirecional intervalo afastamento escala margem anguloBase
                            / totalLen dist param deriv tangAngle ang1 ang2 perpAngRight perpAngLeft pt pt1 pt2 obj1 obj2 createdEnts)
   (setq createdEnts '())
@@ -451,31 +710,24 @@
         (setq pt        (vlax-curve-getPointAtParam curve param))
         (setq deriv     (vlax-curve-getFirstDeriv curve param))
         
-        ;; Ângulo real da curva no ponto (tangente pura)
         (setq tangAngle (atan (cadr deriv) (car deriv)))
-
-        ;; Vetores perpendiculares REAIS baseados na curva (Mão Direita)
         (setq perpAngRight (- tangAngle (/ pi 2.0)))
         (setq perpAngLeft  (+ tangAngle (/ pi 2.0)))
 
-        ;; Ângulos de inserção final do bloco
-        (setq ang1 (+ tangAngle anguloBase))       ; Sentido ida
-        (setq ang2 (+ tangAngle pi anguloBase))    ; Sentido volta (girado 180 graus)
+        (setq ang1 (+ tangAngle anguloBase))
+        (setq ang2 (+ tangAngle pi anguloBase))
 
         (if bidirecional
           (progn
-            ;; 1. Ida (Lado Direito)
             (setq pt1 (polar pt perpAngRight afastamento))
             (setq obj1 (vla-InsertBlock modelSpace (vlax-3d-point pt1) blkName escala escala escala ang1))
             (setq createdEnts (cons obj1 createdEnts))
 
-            ;; 2. Volta (Lado Esquerdo)
             (setq pt2 (polar pt perpAngLeft afastamento))
             (setq obj2 (vla-InsertBlock modelSpace (vlax-3d-point pt2) blkName escala escala escala ang2))
             (setq createdEnts (cons obj2 createdEnts))
           )
           (progn
-            ;; Unidirecional (Eixo Central)
             (setq obj1 (vla-InsertBlock modelSpace (vlax-3d-point pt) blkName escala escala escala ang1))
             (setq createdEnts (cons obj1 createdEnts))
           )
@@ -487,7 +739,11 @@
   createdEnts
 )
 
-(defun criarGrupoCiclo (doc prefixo createdEnts / grpObj grpName sarr i n)
+;;; =========================================================================
+;;; 6. GERENCIAMENTO DE CAMADAS (LAYERS) E GRUPOS
+;;; =========================================================================
+
+(defun criarGrupoVia (doc prefixo createdEnts / grpObj grpName sarr i n)
   (if createdEnts
     (progn
       (setq grpName (strcat prefixo "_" (vla-get-Handle (car createdEnts))))
@@ -505,7 +761,7 @@
   )
 )
 
-(defun criarCicloLayer (doc lyrName lyrColor / lyrObj)
+(defun criarFaixasLayer (doc lyrName lyrColor / lyrObj)
   (if (not (tblsearch "LAYER" lyrName))
     (command "-LAYER" "M" lyrName "C" lyrColor lyrName "")
   )
@@ -522,20 +778,37 @@
   )
 )
 
-(defun makeCicloLayers (doc)
+(defun makeViaLayers (doc)
   (vl-catch-all-apply '(lambda () (vla-load (vla-get-Linetypes doc) "DASHED" "acad.lin")))
-  (criarCicloLayer doc "SINAL_CICLO_FUNDO" "1")   
-  (criarCicloLayer doc "SINAL_CICLO_BORDO" "7")   
-  (criarCicloLayer doc "SINAL_CICLO_EIXO"  "2")   
+  (criarFaixasLayer doc "SINAL_BORDO"          "7")   ; Branco
+  (criarFaixasLayer doc "SINAL_ESTACIONAMENTO" "7")   ; Branco
+  (criarFaixasLayer doc "SINAL_EIXO_DUPLO"     "2")   ; Amarelo (Mão Dupla)
+  (criarFaixasLayer doc "SINAL_EIXO_UNICO"     "7")   ; Branco (Mão Única)
 )
 
-(defun avisarUnidadeCiclo ( / u)
+(defun makeCicloLayers (doc)
+  (vl-catch-all-apply '(lambda () (vla-load (vla-get-Linetypes doc) "DASHED" "acad.lin")))
+  (criarFaixasLayer doc "SINAL_CICLO_FUNDO" "1")   ; Vermelho
+  (criarFaixasLayer doc "SINAL_CICLO_BORDO" "7")   ; Branco
+  (criarFaixasLayer doc "SINAL_CICLO_EIXO"  "2")   ; Amarelo
+)
+
+(defun avisarUnidadeFaixas ( / u)
   (setq u (getvar "INSUNITS"))
   (if (/= u 6)
-    (princ "\n[AVISO] As unidades (INSUNITS) não estão em Metros.")
+    (princ "\n[AVISO] As unidades do desenho (INSUNITS) não estão configuradas em Metros.")
   )
   (princ)
 )
 
-(princ "\nSuíte Ciclovia V6 carregada! Suporte a Polilinhas, Arcos e Linhas ativado.")
+;;; =========================================================================
+;;; MENSAGEM DE INICIALIZAÇÃO
+;;; =========================================================================
+(princ "\n=====================================================================")
+(princ "\nSuíte Sinalização Viária V7 carregada!")
+(princ "\n- Digite FAIXASRUA (ou VIA / FAIXAS) para gerar vias com estacionamento e eixo balanceado.")
+(princ "\n- Digite CICLOFAIXA para ciclofaixas contínuas.")
+(princ "\n- Digite CICLOTRAVESSIA para travessias em ruas.")
+(princ "\n- Digite CICLOPICTOS para distribuição de pictogramas.")
+(princ "\n=====================================================================")
 (princ)
