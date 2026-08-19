@@ -136,7 +136,7 @@ def copiar_rinex(nomes_base_origem: list, pasta_destino: str, pastas_extras: lis
 if __name__ == "__main__":
     # Teste manual: substitua pelo nome base do arquivo bruto e pasta destino
     NOMES_BASE = ["2sarad8"]
-    PASTA_DESTINO = r"D:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo\scratch\debug_out"
+    PASTA_DESTINO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch", "debug_out")
 
     print(f"Buscando RINEX para: {NOMES_BASE}")
     encontrados = encontrar_rinex(NOMES_BASE, pasta_destino=PASTA_DESTINO)
