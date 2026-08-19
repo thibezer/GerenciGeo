@@ -2,7 +2,7 @@ import zipfile
 import re
 import os
 
-ods_path = r"d:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo\Norte Corre.ODS"
+ods_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Norte Corre.ODS")
 codigo_credenciado = "XRXR"
 
 with zipfile.ZipFile(ods_path, 'r') as zip_ref:

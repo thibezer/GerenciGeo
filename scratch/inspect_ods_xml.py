@@ -2,7 +2,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 import io
 
-ods_path = r"d:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo\Norte Corre.ODS"
+import os
+ods_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Norte Corre.ODS")
 
 with zipfile.ZipFile(ods_path, 'r') as zip_ref:
     xml_data = zip_ref.read('content.xml')

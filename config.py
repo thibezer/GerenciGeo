@@ -38,7 +38,7 @@ DEFAULT_ANTENNA = "HITV60 NONE"
 
 # Configurações do Negócio
 DEFAULT_EMAIL = "tsilvabertuchi@outlook.com"
-EXPORT_BASE_FOLDER = r"D:\OneDrive_Thiago\OneDrive\Desenvolvimento\Geo"
+EXPORT_BASE_FOLDER = r"D:\Desenvolvimento\Geo"
 
 IBGE_SIGEF_LIMITES = {
     'artificial': 0.50,

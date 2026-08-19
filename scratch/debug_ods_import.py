@@ -12,7 +12,7 @@ from database.connection import execute_query
 import glob
 
 def debug_import():
-    path_list = glob.glob("D:/OneDrive_Thiago/OneDrive/Desenvolvimento/Geo/**/*6715*Fran.ODS", recursive=True)
+    path_list = glob.glob("D:/Desenvolvimento/Geo/**/*6715*Fran.ODS", recursive=True)
     if not path_list:
         print("Arquivo ODS nao encontrado!")
         return

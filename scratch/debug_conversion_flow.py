@@ -9,7 +9,7 @@ timings.Timings.fast()
 
 caminho_exe = r"C:\Program Files (x86)\Hi-Target Geomatics Office\bin\HGO.exe"
 proj_name = "proj_debug_flow_2"
-arquivo_gns = r"D:\OneDrive_Thiago\OneDrive\Desenvolvimento\Geo\area\Base\gnss\0202t.GNS"
+arquivo_gns = r"D:\Desenvolvimento\Geo\area\Base\gnss\0202t.GNS"
 
 try:
     print("Matando instâncias anteriores...")

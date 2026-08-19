@@ -1,6 +1,5 @@
-import sqlite3
-
-db_path = r"d:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo\gerencigeo.db"
+import os
+db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gerencigeo.db")
 conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row
 cursor = conn.cursor()

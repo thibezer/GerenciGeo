@@ -3,7 +3,7 @@ import os
 import sys
 
 # Ensure we use the correct path
-BASE_DIR = r"d:\OneDrive_Thiago\OneDrive\Desenvolvimento\GerenciGeo"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
 from database.models import create_tables
