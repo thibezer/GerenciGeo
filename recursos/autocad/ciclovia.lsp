@@ -1,12 +1,12 @@
 ;;; =========================================================================
-;;; SUÍTE CICLOVIA V6 - SUPORTE A POLILINHAS, ARCOS E LINHAS
+;;; SUÍTE CICLOVIA V6 - CONTROLE DE EIXO PARA MÃO ÚNICA (UNIDIRECIONAL)
 ;;; =========================================================================
 
 (vl-load-com)
 
 ;; --- 1. CICLOFAIXA CONTÍNUA ---
 (defun c:CICLOFAIXA ( / sel eName w dashScale objAxis doc acadObj modelSpace
-                         oldCmd oldError createdEnts totalGrupos )
+                         oldCmd oldError createdEnts totalGrupos resp bidirecional )
   (setq acadObj (vlax-get-acad-object))
   (setq doc (vla-get-ActiveDocument acadObj))
   (setq modelSpace (vla-get-ModelSpace doc))
@@ -27,40 +27,53 @@
   (makeCicloLayers doc)
   (avisarUnidadeCiclo)
 
+  ;; Pergunta o Sentido da Via
+  (initget "B U")
+  (setq resp (getkword "\nSentido da ciclofaixa [Bidirecional/Unidirecional] <Bidirecional>: "))
+  (if (null resp) (setq resp "B"))
+  (setq bidirecional (= resp "B"))
+
   (setq w (getreal "\nInforme a largura total da ciclofaixa (m) <2.50>: "))
   (if (null w) (setq w 2.50))
 
-  (setq dashScale (getreal "\nInforme a escala do tracejado amarelo <2.0>: "))
-  (if (null dashScale) (setq dashScale 2.0))
+  ;; Só pergunta a escala do tracejado se for Bidirecional
+  (setq dashScale 2.0)
+  (if bidirecional
+    (progn
+      (setq dashScale (getreal "\nInforme a escala do tracejado amarelo <2.0>: "))
+      (if (null dashScale) (setq dashScale 2.0))
+    )
+  )
 
   (vla-StartUndoMark doc)
   (setq totalGrupos 0)
 
-  (princ "\nSelecione o Eixo da Ciclofaixa (Polilinha, Arco ou Linha) (ENTER para finalizar): ")
+  (princ "\nSelecione a Polilinha do Eixo da Ciclofaixa (ENTER para finalizar): ")
   (setq sel (entsel))
 
   (while sel
     (setq eName (car sel))
-    (setq objAxis (obterEixoComoLwpolyline eName))
+    (setq objAxis (vlax-ename->vla-object eName))
 
-    (if (null objAxis)
-      (princ "\n[AVISO] Entidade ignorada: selecione uma POLILINHA, ARCO ou LINHA.")
+    (if (not (vlax-property-available-p objAxis 'ConstantWidth))
+      (princ "\n[AVISO] Entidade ignorada: não é uma POLILINHA (LWPOLYLINE).")
       (progn
-        (setq createdEnts (gerarSinalizacaoCiclo objAxis w T dashScale nil 1.0 0.10))
+        ;; Passa a variável 'bidirecional' para controlar o eixo amarelo
+        (setq createdEnts (gerarSinalizacaoCiclo objAxis w bidirecional dashScale nil 1.0 0.10))
         (vla-delete objAxis)
         (criarGrupoCiclo doc "CICLOFAIXA" createdEnts)
         (setq totalGrupos (1+ totalGrupos))
       )
     )
 
-    (princ "\nSelecione o próximo Eixo (ENTER para finalizar): ")
+    (princ "\nSelecione a próxima Polilinha do Eixo (ENTER para finalizar): ")
     (setq sel (entsel))
   )
 
   (vla-EndUndoMark doc)
   (if (> totalGrupos 0)
     (princ (strcat "\n[OK] " (itoa totalGrupos) " ciclofaixa(s) gerada(s) com sucesso!"))
-    (princ "\nNenhuma entidade foi processada.")
+    (princ "\nNenhuma polilinha foi processada.")
   )
 
   (setvar "CMDECHO" oldCmd)
@@ -100,15 +113,15 @@
   (vla-StartUndoMark doc)
   (setq totalGrupos 0)
 
-  (princ "\nSelecione o Eixo da Travessia (Polilinha, Arco ou Linha) (ENTER para finalizar): ")
+  (princ "\nSelecione a Polilinha do Eixo da Travessia na Rua (ENTER para finalizar): ")
   (setq sel (entsel))
 
   (while sel
     (setq eName (car sel))
-    (setq objAxis (obterEixoComoLwpolyline eName))
+    (setq objAxis (vlax-ename->vla-object eName))
 
-    (if (null objAxis)
-      (princ "\n[AVISO] Entidade ignorada: selecione uma POLILINHA, ARCO ou LINHA.")
+    (if (not (vlax-property-available-p objAxis 'ConstantWidth))
+      (princ "\n[AVISO] Entidade ignorada: não é uma POLILINHA (LWPOLYLINE).")
       (progn
         (setq createdEnts (gerarSinalizacaoCiclo objAxis w nil 1.0 T dashScale 0.10))
         (vla-delete objAxis)
@@ -117,14 +130,14 @@
       )
     )
 
-    (princ "\nSelecione o próximo Eixo (ENTER para finalizar): ")
+    (princ "\nSelecione a próxima Polilinha do Eixo (ENTER para finalizar): ")
     (setq sel (entsel))
   )
 
   (vla-EndUndoMark doc)
   (if (> totalGrupos 0)
     (princ (strcat "\n[OK] " (itoa totalGrupos) " travessia(s) gerada(s) com sucesso!"))
-    (princ "\nNenhuma entidade foi processada.")
+    (princ "\nNenhuma polilinha foi processada.")
   )
 
   (setvar "CMDECHO" oldCmd)
@@ -206,7 +219,7 @@
       (vla-StartUndoMark doc)
       (setq totalGrupos 0)
 
-      (princ "\nSelecione o Eixo de referência (Polilinha, Arco ou Linha) (ENTER para finalizar): ")
+      (princ "\nSelecione a polilinha/eixo de referência (ENTER para finalizar): ")
       (setq sel (entsel))
 
       (while sel
@@ -228,7 +241,7 @@
           )
         )
 
-        (princ "\nSelecione o próximo Eixo (ENTER para finalizar): ")
+        (princ "\nSelecione o próximo eixo (ENTER para finalizar): ")
         (setq sel (entsel))
       )
 
@@ -246,105 +259,6 @@
 )
 
 ;; =========================================================================
-;; FUNÇÕES AUXILIARES DE CONVERSÃO E GEOMETRIA
-;; =========================================================================
-
-;; Converte um ARC (DXF) para LWPOLYLINE equivalente mantendo a curvatura exata
-(defun arcParaLwpolyline (eName / dxf obj aStart aEnd sweep bulge ptStart ptEnd layer newEnt)
-  (setq dxf (entget eName))
-  (setq obj (vlax-ename->vla-object eName))
-  (setq aStart (cdr (assoc 50 dxf)))
-  (setq aEnd   (cdr (assoc 51 dxf)))
-  (setq layer  (cdr (assoc 8 dxf)))
-
-  ;; Ângulo central (sweep angle) no sentido anti-horário
-  (setq sweep (- aEnd aStart))
-  (if (<= sweep 0.0)
-    (setq sweep (+ sweep (* 2.0 pi)))
-  )
-  ;; Bulge = tan(sweep / 4)
-  (setq bulge (/ (sin (/ sweep 4.0)) (cos (/ sweep 4.0))))
-
-  (setq ptStart (vlax-curve-getStartPoint obj))
-  (setq ptEnd   (vlax-curve-getEndPoint obj))
-
-  (if (entmake
-        (list
-          '(0 . "LWPOLYLINE")
-          '(100 . "AcDbEntity")
-          '(100 . "AcDbPolyline")
-          '(90 . 2)
-          '(70 . 0)
-          (cons 8 layer)
-          (list 10 (car ptStart) (cadr ptStart))
-          (cons 42 bulge)
-          (list 10 (car ptEnd) (cadr ptEnd))
-          '(42 . 0.0)
-        )
-      )
-    (progn
-      (setq newEnt (entlast))
-      (entdel eName)
-      (vlax-ename->vla-object newEnt)
-    )
-    nil
-  )
-)
-
-;; Converte uma LINE para LWPOLYLINE de 2 vértices
-(defun lineParaLwpolyline (eName / dxf obj ptStart ptEnd layer newEnt)
-  (setq dxf (entget eName))
-  (setq obj (vlax-ename->vla-object eName))
-  (setq layer (cdr (assoc 8 dxf)))
-  (setq ptStart (vlax-curve-getStartPoint obj))
-  (setq ptEnd   (vlax-curve-getEndPoint obj))
-
-  (if (entmake
-        (list
-          '(0 . "LWPOLYLINE")
-          '(100 . "AcDbEntity")
-          '(100 . "AcDbPolyline")
-          '(90 . 2)
-          '(70 . 0)
-          (cons 8 layer)
-          (list 10 (car ptStart) (cadr ptStart))
-          '(42 . 0.0)
-          (list 10 (car ptEnd) (cadr ptEnd))
-          '(42 . 0.0)
-        )
-      )
-    (progn
-      (setq newEnt (entlast))
-      (entdel eName)
-      (vlax-ename->vla-object newEnt)
-    )
-    nil
-  )
-)
-
-;; Garante que a entidade selecionada (LWPOLYLINE, ARC, LINE ou POLYLINE) seja retornada como VLA-Object de LWPOLYLINE
-(defun obterEixoComoLwpolyline (eName / dxf entType)
-  (setq dxf (entget eName))
-  (setq entType (cdr (assoc 0 dxf)))
-  (cond
-    ((= entType "LWPOLYLINE")
-     (vlax-ename->vla-object eName)
-    )
-    ((= entType "ARC")
-     (arcParaLwpolyline eName)
-    )
-    ((= entType "LINE")
-     (lineParaLwpolyline eName)
-    )
-    ((= entType "POLYLINE")
-     (vl-cmdf "_.CONVERT" "_P" "_S" eName "")
-     (vlax-ename->vla-object (entlast))
-    )
-    (t nil)
-  )
-)
-
-;; =========================================================================
 ;; FUNÇÕES AUXILIARES COMPARTILHADAS
 ;; =========================================================================
 
@@ -359,24 +273,18 @@
   ;; 1. Fundo vermelho
   (setq objRed (vla-copy objAxis))
   (vla-put-Layer objRed "SINAL_CICLO_FUNDO")
-  (if (vlax-property-available-p objRed 'ConstantWidth)
-    (vla-put-ConstantWidth objRed w)
-  )
+  (vla-put-ConstantWidth objRed w)
   (setq createdEnts (cons objRed createdEnts))
 
-  ;; 2. Eixo amarelo tracejado
+  ;; 2. Eixo amarelo tracejado (SÓ CRIA SE A VARIÁVEL FOR TRUE)
   (if criarEixoAmarelo
     (progn
       (setq objYellow (vla-copy objAxis))
       (vla-put-Layer objYellow "SINAL_CICLO_EIXO")
       (vla-put-Linetype objYellow "DASHED")
       (vla-put-LinetypeScale objYellow dashScaleEixo)
-      (if (vlax-property-available-p objYellow 'ConstantWidth)
-        (vla-put-ConstantWidth objYellow 0.10)
-      )
-      (if (vlax-property-available-p objYellow 'LinetypeGeneration)
-        (vla-put-LinetypeGeneration objYellow :vlax-true)
-      )
+      (vla-put-ConstantWidth objYellow 0.10)
+      (vla-put-LinetypeGeneration objYellow :vlax-true)
       (setq createdEnts (cons objYellow createdEnts))
     )
   )
@@ -389,16 +297,12 @@
       (setq off1 r1)
       (foreach item off1
         (vla-put-Layer item "SINAL_CICLO_BORDO")
-        (if (vlax-property-available-p item 'ConstantWidth)
-          (vla-put-ConstantWidth item bordoWidth)
-        )
+        (vla-put-ConstantWidth item bordoWidth)
         (if bordoTracejado
           (progn
             (vla-put-Linetype item "DASHED")
             (vla-put-LinetypeScale item dashScaleBordo)
-            (if (vlax-property-available-p item 'LinetypeGeneration)
-              (vla-put-LinetypeGeneration item :vlax-true)
-            )
+            (vla-put-LinetypeGeneration item :vlax-true)
           )
         )
         (setq createdEnts (cons item createdEnts))
@@ -415,16 +319,12 @@
       (setq off2 r2)
       (foreach item off2
         (vla-put-Layer item "SINAL_CICLO_BORDO")
-        (if (vlax-property-available-p item 'ConstantWidth)
-          (vla-put-ConstantWidth item bordoWidth)
-        )
+        (vla-put-ConstantWidth item bordoWidth)
         (if bordoTracejado
           (progn
             (vla-put-Linetype item "DASHED")
             (vla-put-LinetypeScale item dashScaleBordo)
-            (if (vlax-property-available-p item 'LinetypeGeneration)
-              (vla-put-LinetypeGeneration item :vlax-true)
-            )
+            (vla-put-LinetypeGeneration item :vlax-true)
           )
         )
         (setq createdEnts (cons item createdEnts))
@@ -437,7 +337,7 @@
   createdEnts
 )
 
-;; LÓGICA ESPACIAL PARA OS PICTOGRAMAS (CURVAS, ARCOS E RETAS)
+;; LÓGICA ESPACIAL CORRIGIDA PARA OS PICTOGRAMAS
 (defun inserirPictosEixo (modelSpace curve blkName bidirecional intervalo afastamento escala margem anguloBase
                            / totalLen dist param deriv tangAngle ang1 ang2 perpAngRight perpAngLeft pt pt1 pt2 obj1 obj2 createdEnts)
   (setq createdEnts '())
@@ -537,5 +437,5 @@
   (princ)
 )
 
-(princ "\nSuíte Ciclovia V6 carregada! Suporte a Polilinhas, Arcos e Linhas ativado.")
+(princ "\nSuíte V6 carregada! O comando CICLOFAIXA agora permite desativar o eixo amarelo central em vias unidirecionais.")
 (princ)
