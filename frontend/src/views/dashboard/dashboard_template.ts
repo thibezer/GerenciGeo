@@ -85,8 +85,12 @@ export function renderDashboardTemplate(): string {
       <div id="modal-content" class="p-4 text-xs space-y-4">
          <p class="text-white/40 text-center py-4">Carregando dados da parcela...</p>
       </div>
-      <div id="modal-footer" slot="rodape" class="flex justify-end gap-2 hidden">
-         <a id="sigef-link" target="_blank" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
+      <div id="modal-footer" slot="rodape" class="flex items-center justify-between w-full gap-2 hidden">
+         <a id="sigef-shp-link" target="_blank" rel="noopener noreferrer" class="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 text-mint-vibrant border-mint-vibrant/30 hover:bg-mint-vibrant/10">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            Shapefile (.ZIP)
+         </a>
+         <a id="sigef-link" target="_blank" rel="noopener noreferrer" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5">
             <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
             Abrir no SIGEF/INCRA
          </a>

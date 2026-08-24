@@ -42,9 +42,18 @@ export const consultarSigefGetFeatureInfo = async (
   y: number,
   size: { x: number; y: number },
   bbox: string
-): Promise<string> => {
+): Promise<any> => {
   const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&INFO_FORMAT=text/plain&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-  const res = await fetch(proxyUrl);
-  return res.text();
+  const isLocal = window.location.origin.includes('localhost') || 
+                  window.location.origin.includes('127.0.0.1') || 
+                  window.location.origin.includes('[::1]');
+
+  const proxyFetchUrl = isLocal 
+    ? `${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`
+    : `${window.location.origin}/api.php?action=proxy_sigef&url=${encodeURIComponent(targetUrl)}`;
+
+  const res = await fetch(proxyFetchUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 };
+
