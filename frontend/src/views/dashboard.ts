@@ -3,14 +3,13 @@
  */
 import L from 'leaflet';
 import type { RouteDef } from '../types';
-import { initIcons, showToast, escapeHtml } from '../utils';
+import { initIcons, showToast } from '../utils';
 import { renderDashboardTemplate } from './dashboard/dashboard_template';
 import {
   fetchStatus,
   fetchStats,
   fetchAlerts,
   fetchGeometrias,
-  consultarSigefGetFeatureInfo,
   downloadLocalShapefile
 } from './dashboard/dashboard_service';
 import {
@@ -20,6 +19,7 @@ import {
   enquadrarTodosImoveis,
   criarPainelCamadasLocaisControl
 } from './dashboard/dashboard_helpers';
+import { consultarEPlotarSigef } from '../utils/sigef_consultor';
 
 let mapInstance: L.Map | null = null;
 
@@ -158,135 +158,10 @@ export const dashboardRoute: RouteDef = {
     // Controle de camadas nativo do Leaflet inicia recolhido para não poluir visualmente
     let layersControl = L.control.layers(undefined, overlayMaps, { collapsed: true }).addTo(map);
 
-    // 5. Modal e Consulta GetFeatureInfo do SIGEF
-    const parcelModal = document.getElementById('parcel-modal') as any;
-    const modalContent = document.getElementById('modal-content');
-    const modalFooter = document.getElementById('modal-footer');
-    const sigefLink = document.getElementById('sigef-link') as HTMLAnchorElement;
-    const sigefShpLink = document.getElementById('sigef-shp-link') as HTMLAnchorElement;
-
-    const openParcelModal = () => {
-      if (parcelModal?.abrir) {
-        parcelModal.abrir();
-      } else {
-        parcelModal?.setAttribute('aberto', '');
-      }
-    };
-
+    // 5. Consulta GetFeatureInfo do SIGEF (Módulo Unificado)
     map.on('click', async (e: L.LeafletMouseEvent) => {
       if (!map.hasLayer(sigef)) return;
-      const size = map.getSize();
-      const bounds = map.getBounds();
-      const sw = bounds.getSouthWest();
-      const ne = bounds.getNorthEast();
-      const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
-      const x = Math.round(e.containerPoint.x);
-      const y = Math.round(e.containerPoint.y);
-
-      const mapContainer = document.getElementById('map-container');
-      if (mapContainer) mapContainer.style.cursor = 'wait';
-
-      const loadingPopup = L.popup({
-        className: 'compact-sigef-popup',
-        maxWidth: 250
-      })
-        .setLatLng(e.latlng)
-        .setContent(`
-          <div style="display:flex; align-items:center; gap:8px; color:#ffffff; font-size:12px; padding:4px;">
-            <svg style="animation:spin 1s linear infinite; width:14px; height:14px; flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"></circle>
-              <path fill="#00f5a0" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Consultando SIGEF/INCRA...</span>
-          </div>
-        `)
-        .openOn(map);
-
-      try {
-        const data = await consultarSigefGetFeatureInfo(x, y, size, bbox);
-        map.closePopup(loadingPopup);
-
-        let props: any = null;
-        let featureId = '';
-
-        if (data && data.features && data.features.length > 0) {
-          const feat = data.features[0];
-          props = feat.properties || {};
-          featureId = feat.id || props.parcela_codigo || props.co_parcela || props.id_parcela || '';
-        } else if (typeof data === 'string' && data.includes("GetFeatureInfo results:")) {
-          const lines = (data as string).split('\n');
-          const currentFeature: any = {};
-          for (const line of lines) {
-            const match = line.trim().match(/^([\w_]+)\s*=\s*['"]?([^'"]*)['"]?/) || line.trim().match(/([\w_]+)\s*=\s*['"]?([^'"]*)['"]?/);
-            if (match) {
-              currentFeature[match[1]] = match[2].trim();
-            }
-          }
-          if (Object.keys(currentFeature).length > 0) {
-            props = currentFeature;
-            featureId = currentFeature.parcela_codigo || currentFeature.id || '';
-          }
-        }
-
-        if (props && Object.keys(props).length > 0) {
-          const uuid = featureId || props.parcela_codigo || props.co_parcela || props.id_parcela;
-          const link = uuid ? `https://sigef.incra.gov.br/geo/parcela/detalhe/${uuid}/` : `https://sigef.incra.gov.br/consultar/parcelas`;
-          const shpLink = uuid ? `https://sigef.incra.gov.br/geo/exportar/parcela/shp/${uuid}/` : '#';
-
-          if (modalContent) {
-            modalContent.innerHTML = `
-              <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Código do Imóvel</p>
-                  <p class="text-sm font-mono text-white">${escapeHtml(props.codigo_imovel || 'N/A')}</p>
-                </div>
-                <div class="space-y-1 text-right">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Data Submissão</p>
-                  <p class="text-sm font-mono text-mint-vibrant">${escapeHtml(props.data_submissao || 'N/A')}</p>
-                </div>
-                <div class="col-span-2 space-y-1 pt-3 border-t border-white/5">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Nome do Imóvel / Parcela</p>
-                  <p class="text-sm text-white font-medium">${escapeHtml(props.nome_area || props.nome_imovel || 'N/A')}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Matrícula</p>
-                  <p class="text-sm text-white/80">${escapeHtml(props.registro_matricula || props.matricula || 'Consulte o SIGEF')}</p>
-                </div>
-                <div class="space-y-1 text-right">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">Status</p>
-                  <p class="text-sm text-white/80">${escapeHtml(props.situacao_informada || props.status || 'Certificada')}</p>
-                </div>
-                ${props.art ? `
-                <div class="col-span-2 space-y-1 pt-2 border-t border-white/5">
-                  <p class="text-[10px] text-white/40 uppercase tracking-widest font-bold">ART / RT</p>
-                  <p class="text-xs font-mono text-white/70">${escapeHtml(props.art || '')} ${props.rt ? `(${escapeHtml(props.rt)})` : ''}</p>
-                </div>
-                ` : ''}
-              </div>
-            `;
-          }
-
-          if (sigefLink) sigefLink.href = link;
-          if (sigefShpLink) {
-            if (uuid) {
-              sigefShpLink.href = shpLink;
-              sigefShpLink.classList.remove('hidden');
-            } else {
-              sigefShpLink.classList.add('hidden');
-            }
-          }
-          modalFooter?.classList.remove('hidden');
-          openParcelModal();
-          initIcons();
-        } else {
-          showToast("Nenhum imóvel do SIGEF encontrado no ponto clicado.", "info");
-        }
-      } catch (err) {
-        map.closePopup(loadingPopup);
-        showToast("Erro ao consultar o servidor do INCRA ou tempo limite esgotado.", "error");
-      } finally {
-        if (mapContainer) mapContainer.style.cursor = '';
-      }
+      await consultarEPlotarSigef(map, e);
     });
 
     // 6. Geometrias dos Imóveis Locais e Camadas

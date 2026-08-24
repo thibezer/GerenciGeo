@@ -77,6 +77,18 @@ def update_pendencia(item_id: int, payload: PendenciaUpdate):
     repo.update_status(item_id, payload.status)
     return {"message": "Status atualizado"}
 
+@router.delete("/pendencias/{item_id}")
+def delete_pendencia(item_id: int):
+    repo = PendenciaRepo()
+    repo.delete(item_id)
+    return {"message": "Pendência excluída com sucesso"}
+
+@router.post("/pendencias/{item_id}/concluir")
+def concluir_pendencia(item_id: int):
+    repo = PendenciaRepo()
+    repo.update_status(item_id, "CONCLUIDO")
+    return {"message": "Pendência concluída com sucesso"}
+
 # ── Clientes ──────────────────────────────────────────────────────────────────
 
 @router.post("/clientes")

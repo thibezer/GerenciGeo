@@ -198,5 +198,41 @@ class TestClientesBlockers(unittest.TestCase):
         # Garante que a senha_gov NÃO está exposta no arquivo
         self.assertNotIn("senha_gov", cli_doc)
 
+    def test_pendencias_ciclo_completo(self):
+        """Valida criação, atualização, conclusão e exclusão de pendências via rotas da API"""
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+        
+        # 1. Criar pendência
+        resp_post = client.post("/pendencias", json={
+            "titulo": "Auditoria de Limites",
+            "descricao": "Conferir memorial descritivo",
+            "prioridade": "ALTA"
+        })
+        self.assertEqual(resp_post.status_code, 200)
+
+        # 2. Listar pendências
+        resp_get = client.get("/pendencias")
+        self.assertEqual(resp_get.status_code, 200)
+        items = resp_get.json()
+        item = next((p for p in items if p["titulo"] == "Auditoria de Limites"), None)
+        self.assertIsNotNone(item)
+        item_id = item["id"]
+
+        # 3. Concluir pendência
+        resp_concluir = client.post(f"/pendencias/{item_id}/concluir")
+        self.assertEqual(resp_concluir.status_code, 200)
+
+        # 4. Excluir pendência
+        resp_del = client.delete(f"/pendencias/{item_id}")
+        self.assertEqual(resp_del.status_code, 200)
+
+        # 5. Validar que foi removido
+        resp_after = client.get("/pendencias")
+        items_after = resp_after.json()
+        self.assertIsNone(next((p for p in items_after if p["id"] == item_id), None))
+
 if __name__ == "__main__":
     unittest.main()
