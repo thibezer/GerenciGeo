@@ -5,6 +5,27 @@
 
 (vl-load-com)
 
+;; Função auxiliar para ler números reais aceitando vírgula ou ponto
+(defun rota:lerReal (promptStr defaultVal / inputStr val)
+  (setq inputStr (getstring promptStr))
+  (if (or (null inputStr) (= inputStr ""))
+    defaultVal
+    (progn
+      (while (vl-string-search "," inputStr)
+        (setq inputStr (vl-string-subst "." "," inputStr))
+      )
+      (setq val (distof inputStr))
+      (if (and val (> val 0.0))
+        val
+        (progn
+          (princ (strcat "\n[AVISO] Valor inválido. Usando padrão <" (rtos defaultVal 2 2) ">."))
+          defaultVal
+        )
+      )
+    )
+  )
+)
+
 (defun c:ROTAFUGA ( / acadObj doc space oldCmd oldError
                       blkName blkFile dist escala inverter
                       sel ent obj curLen curDist pt deriv ang objBlk totalInseridos )
@@ -51,13 +72,9 @@
   (if (not blkName)
     (princ "\n[ERRO] Operação cancelada. Bloco não definido.")
     (progn
-      ;; 2. Parâmetros de Inserção
-      (initget 6)
-      (setq dist (getdist "\nDistância de espaçamento entre símbolos (m) <2.50>: "))
-      (if (null dist) (setq dist 2.50))
-
-      (setq escala (getreal "\nFator de escala do bloco <1.0>: "))
-      (if (null escala) (setq escala 1.0))
+      ;; 2. Parâmetros de Inserção (Padrão 1.00m e suporte a vírgula/ponto)
+      (setq dist (rota:lerReal "\nDistância de espaçamento entre símbolos (m) <1.00>: " 1.00))
+      (setq escala (rota:lerReal "\nFator de escala do bloco <1.00>: " 1.00))
 
       (initget "S N")
       (setq inverter (= (getkword "\nInverter sentido das setas/símbolos? [Sim/Nao] <Nao>: ") "S"))
