@@ -30,17 +30,20 @@
   (setvar "CMDECHO" 0)
 
   ;; 1. Verificação e Busca do Bloco
-  (setq blkName "Rota de fuga intermediaria")
+  (setq blkName "Rota de fuga intermediária")
   (if (not (tblsearch "BLOCK" blkName))
-    (progn
-      (princ (strcat "\nBloco \"" blkName "\" não encontrado no desenho."))
-      (setq blkFile (getfiled (strcat "Selecione o arquivo DWG para " blkName) "" "dwg" 0))
-      (if blkFile
-        (progn
-          (command "_.-INSERT" blkFile "0,0" "1" "1" "0")
-          (command "_.ERASE" "_L" "")
+    (if (tblsearch "BLOCK" "Rota de fuga intermediaria")
+      (setq blkName "Rota de fuga intermediaria")
+      (progn
+        (princ (strcat "\nBloco \"" blkName "\" não encontrado no desenho."))
+        (setq blkFile (getfiled (strcat "Selecione o arquivo DWG para " blkName) "" "dwg" 0))
+        (if blkFile
+          (progn
+            (command "_.-INSERT" blkFile "0,0" "1" "1" "0")
+            (command "_.ERASE" "_L" "")
+          )
+          (setq blkName nil)
         )
-        (setq blkName nil)
       )
     )
   )
