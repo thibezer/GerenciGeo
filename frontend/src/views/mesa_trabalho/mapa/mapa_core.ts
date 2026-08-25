@@ -311,26 +311,27 @@ export class MapaCore {
   }
 
   private atualizarGrade(): void {
-    if (!this.map) return;
-    const zoom = this.map.getZoom();
+    if (!this.map || !(this.map as any)._mapPane) return;
+    try {
+      const zoom = this.map.getZoom();
 
-    if (!this.gridGroup) {
-      this.gridGroup = L.layerGroup().addTo(this.map);
-    } else {
-      this.gridGroup.clearLayers();
-    }
-
-    if (zoom > 20) {
-      if (this.satelliteLayer) {
-        this.satelliteLayer.setOpacity(0);
+      if (!this.gridGroup) {
+        this.gridGroup = L.layerGroup().addTo(this.map);
+      } else {
+        this.gridGroup.clearLayers();
       }
 
-      const bounds = this.map.getBounds();
-      const south = bounds.getSouth();
-      const north = bounds.getNorth();
-      const west = bounds.getWest();
-      const east = bounds.getEast();
-      const center = this.map.getCenter();
+      if (zoom > 20) {
+        if (this.satelliteLayer) {
+          this.satelliteLayer.setOpacity(0);
+        }
+
+        const bounds = this.map.getBounds();
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+        const center = this.map.getCenter();
 
       const latGridStep = 0.000008999;
       const cosLat = Math.cos(center.lat * Math.PI / 180);
@@ -363,6 +364,7 @@ export class MapaCore {
         this.satelliteLayer.setOpacity(this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0);
       }
     }
+    } catch (e) {}
   }
 
   private async consultarSigef(e: L.LeafletMouseEvent): Promise<void> {

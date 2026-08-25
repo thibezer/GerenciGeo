@@ -104,13 +104,19 @@ export const dashboardRoute: RouteDef = {
     }).setView(defaultCenter, defaultZoom);
     mapInstance = map;
 
-    // Salva a posição/zoom do mapa ao movimentar
+    // Salva a posição/zoom do mapa ao movimentar com proteção anti-desmontagem
     map.on('moveend', () => {
-      const center = map.getCenter();
-      localStorage.setItem('gerencigeo_dashboard_center', JSON.stringify([center.lat, center.lng]));
+      try {
+        if (!map || !(map as any)._mapPane) return;
+        const center = map.getCenter();
+        localStorage.setItem('gerencigeo_dashboard_center', JSON.stringify([center.lat, center.lng]));
+      } catch (e) {}
     });
     map.on('zoomend', () => {
-      localStorage.setItem('gerencigeo_dashboard_zoom', map.getZoom().toString());
+      try {
+        if (!map || !(map as any)._mapPane) return;
+        localStorage.setItem('gerencigeo_dashboard_zoom', map.getZoom().toString());
+      } catch (e) {}
     });
 
     // Controles de escala, norte e tela cheia
@@ -279,6 +285,7 @@ export const dashboardRoute: RouteDef = {
   cleanup: () => {
     if (mapInstance) {
       try {
+        mapInstance.off();
         mapInstance.remove();
       } catch (e) {
         console.warn("[Dashboard] Erro ao remover mapa no cleanup:", e);

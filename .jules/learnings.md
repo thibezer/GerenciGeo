@@ -4,12 +4,15 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 
 ---
 
-## 1. Prevenção de Erros de Desmontagem DOM em Navegações SPA (Leaflet / `invalidateSize`)
-- **Problema**: Callbacks agendados via `setTimeout` ou registrados em ouvintes de eventos (scroll do container, resize de splitters) continuando ativos após a transição de telas no SPA Vanilla. Quando o usuário sai de uma tela (ex: da Mesa de Trabalho para Levantamentos), o objeto do mapa (`ctx.triagemMap`) ou seu container DOM é zerado (`null`). O uso de asserções não nulas (`ctx.triagemMap!.invalidateSize()`) provocava erro fatal em tempo de execução: `TypeError: Cannot read properties of null (reading 'invalidateSize')`.
+## 1. Prevenção de Erros de Desmontagem DOM em Navegações SPA (Leaflet / `invalidateSize` / `_leaflet_pos`)
+- **Problema**: 
+  1. Callbacks agendados via `setTimeout` ou registrados em ouvintes de eventos (`moveend`, `zoomend`, `resize`, scroll) continuando ativos após a transição de telas no SPA Vanilla. Quando o usuário sai de uma tela (ex: do Dashboard para Clientes), `mapInstance.remove()` ou a troca de container HTML desanexa o `_mapPane` do Leaflet.
+  2. Ao disparar eventos residuais ou tentar chamar `map.getCenter()`, `map.getBounds()`, `invalidateSize()` com o pane desanexado, o Leaflet invoca internamente `L.DomUtil.getPosition(this._mapPane)`, que tenta ler `undefined._leaflet_pos`, provocando erro fatal em tempo de execução: `TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`.
 - **Regra Obrigatória**:
   1. Nunca usar asserção de não-nulo `!` em métodos de mapas chamados de forma assíncrona ou em eventos de layout.
-  2. Utilizar obrigatoriamente navegação opcional encadeada: `ctx.triagemMap?.invalidateSize?.()`.
-  3. No método `invalidateSize()` das classes centrais ([mapa_core.ts](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_core.ts) e [mapa_controller.ts](file:///d:/OneDrive_Thiago/OneDrive/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_controller.ts)), sempre encapsular a chamada ao Leaflet em blocos `try { ... } catch (err) {}` para absorver desanexações do DOM silenciosamente.
+  2. Em qualquer ouvinte de evento de mapa (`moveend`, `zoomend`, etc.), sempre checar se `map` e `map._mapPane` existem antes de chamar `getCenter()` ou `getBounds()`, e encapsular a lógica em blocos `try { ... } catch (e) {}`.
+  3. No método `cleanup` das rotas com mapa, sempre executar `mapInstance.off()` para desregistrar todos os ouvintes de eventos antes de chamar `mapInstance.remove()`.
+  4. No método `invalidateSize()` das classes centrais ([mapa_core.ts](file:///d:/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_core.ts) e [mapa_controller.ts](file:///d:/Desenvolvimento/GerenciGeo/frontend/src/views/mesa_trabalho/mapa/mapa_controller.ts)), sempre encapsular a chamada ao Leaflet em blocos `try { ... } catch (err) {}` para absorver desanexações do DOM silenciosamente.
 
 ---
 
