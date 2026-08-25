@@ -24,7 +24,7 @@ Responsável por toda a parte de exportação de peças técnicas, geração de 
 ## 2. `services/gestores/`
 Arquivos do tipo `Manager`. São os orquestradores de regras de negócio estritas.
 
-- **`cliente_manager.py`**: Lida com a criação, edição, atualização e formatação de proprietários, verificando duplicidades de CPFs e unificando contatos.
+- **`cliente_manager.py`**: Lida com o ciclo de vida completo de clientes (cadastro, edição com histórico de auditoria comparativo, vínculo de propriedades com validação percentual de 100%, exclusão cirúrgica de dependências e expurgo de pessoas órfãs, e exclusão em lote atômica com proteção contra lock de concorrência).
 - **`confrontante_manager.py`**: Resolve o "Match" algorítmico entre vizinhos detectados no mapa (por exemplo de planilhas ODS) e os vizinhos cadastrados no banco de dados, cuidando para não criar confrontantes duplicados.
 - **`levantamento_manager.py`**: O coração do projeto principal. Gerencia a exclusão e atualização em lote dos pontos do perímetro.
 - **`workspace_manager.py`**: Gerenciamento do disco rígido e pastas dos projetos físicos do usuário (auditoria de espaço, deleção de arquivos inúteis, backup do banco de dados).

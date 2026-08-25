@@ -327,5 +327,111 @@ class TestClientesBlockers(unittest.TestCase):
         self.assertEqual(resp.status_code, 409)
         self.assertIn("Não é possível excluir cliente com levantamentos vinculados", resp.json()["detail"])
 
+    def test_exclusao_lote_mista_com_parcial_sucesso_e_erros(self):
+        """Valida que exclusão em lote mista deleta os elegíveis e reporta os que possuem levantamentos vinculados."""
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+
+        # 1. Cliente livre
+        res_livre = cadastrar_cliente({"nome_completo": "Cliente Livre Lote", "cpf_cnpj": "78612659191"})
+        self.assertNotIn("error", res_livre)
+        c_livre_id = res_livre["id"]
+
+        # 2. Cliente com levantamento
+        res_bloqueado = cadastrar_cliente({"nome_completo": "Cliente Bloqueado Lote", "cpf_cnpj": "90378697501"})
+        self.assertNotIn("error", res_bloqueado)
+        c_bloq_id = res_bloqueado["id"]
+        self.created_cliente_ids.append(c_bloq_id)
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, 100.0)", (self.prop_id, c_bloq_id))
+            conn.commit()
+
+        # 3. Executa lote com livre, bloqueado e ID inexistente (99999)
+        resp = client.post("/clientes/excluir-lote", json={"cliente_ids": [c_livre_id, c_bloq_id, 99999]})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["sucessos"], 1)
+        self.assertEqual(len(data["erros"]), 2)
+        self.assertEqual(data["total_processado"], 3)
+
+        # 4. Verifica banco
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            # Livre foi excluído
+            cursor.execute("SELECT id FROM clientes WHERE id = ?", (c_livre_id,))
+            self.assertIsNone(cursor.fetchone())
+            # Bloqueado continua intacto
+            cursor.execute("SELECT id FROM clientes WHERE id = ?", (c_bloq_id,))
+            self.assertIsNotNone(cursor.fetchone())
+
+    def test_verificacao_automatica_pendencia_conjuge_cliente_casado(self):
+        """Valida que ao cadastrar cliente casado sem dados de cônjuge, o sistema gera pendência automática."""
+        cli_payload = {
+            "nome_completo": "Roberto Casado Sem Conjuge",
+            "cpf_cnpj": "78612659191",
+            "estado_civil": "Casado(a)"
+        }
+        res_cad = cadastrar_cliente(cli_payload)
+        self.assertNotIn("error", res_cad)
+        cid = res_cad["id"]
+        self.created_cliente_ids.append(cid)
+
+        # Verifica na tabela pendencias
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, titulo, prioridade FROM pendencias WHERE titulo LIKE '%Roberto Casado Sem Conjuge%'")
+            pend = cursor.fetchone()
+            self.assertIsNotNone(pend)
+            self.assertEqual(pend["prioridade"], "ALTA")
+            # Limpa pendência de teste
+            cursor.execute("DELETE FROM pendencias WHERE id = ?", (pend["id"],))
+            conn.commit()
+
+    def test_auditoria_historico_logs_em_edicao_cliente(self):
+        """Valida se a edição de campos gera histórico detalhado na tabela cliente_historico_logs."""
+        cli_payload = {
+            "nome_completo": "Marcos Auditoria",
+            "cpf_cnpj": "78612659191",
+            "email": "antigo@teste.com",
+            "telefone": "(45) 91111-1111",
+            "profissao": "Empresário"
+        }
+        res_cad = cadastrar_cliente(cli_payload)
+        self.assertNotIn("error", res_cad)
+        cid = res_cad["id"]
+        self.created_cliente_ids.append(cid)
+
+        # Atualiza campos
+        cli_payload["email"] = "novo@teste.com"
+        cli_payload["telefone"] = "(45) 92222-2222"
+        cli_payload["profissao"] = "Produtor Rural"
+        res_up = atualizar_cliente(cid, cli_payload)
+        self.assertNotIn("error", res_up)
+
+        # Consulta logs de histórico
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT campo_alterado, valor_antigo, valor_novo FROM cliente_historico_logs WHERE id_cliente = ? ORDER BY id ASC", (cid,))
+            logs = cursor.fetchall()
+            self.assertGreaterEqual(len(logs), 3)
+            campos = {l["campo_alterado"]: (l["valor_antigo"], l["valor_novo"]) for l in logs}
+            self.assertEqual(campos["email"], ("antigo@teste.com", "novo@teste.com"))
+            self.assertEqual(campos["telefone"], ("(45) 91111-1111", "(45) 92222-2222"))
+            self.assertEqual(campos["profissao"], ("Empresário", "Produtor Rural"))
+
+    def test_bloqueio_duplicacao_cpf_cnpj(self):
+        """Valida que o cadastro com CPF/CNPJ duplicado é rejeitado."""
+        res1 = cadastrar_cliente({"nome_completo": "Cliente Original", "cpf_cnpj": "78612659191"})
+        self.assertNotIn("error", res1)
+        self.created_cliente_ids.append(res1["id"])
+
+        res2 = cadastrar_cliente({"nome_completo": "Cliente Clonado", "cpf_cnpj": "78612659191"})
+        self.assertIn("error", res2)
+        self.assertIn("CPF/CNPJ já cadastrado", res2["error"])
+
 if __name__ == "__main__":
     unittest.main()
