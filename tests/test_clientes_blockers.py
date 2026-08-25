@@ -234,5 +234,98 @@ class TestClientesBlockers(unittest.TestCase):
         items_after = resp_after.json()
         self.assertIsNone(next((p for p in items_after if p["id"] == item_id), None))
 
+    def test_exclusao_cirurgica_cliente_sem_afetar_outras_pessoas(self):
+        """Valida que a exclusão de um cliente remove apenas suas dependências e pessoa órfã, sem afetar terceiros."""
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+
+        # 1. Cria uma terceira pessoa (ex: confrontante independente)
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO pessoas (nome, cpf_cnpj) VALUES ('Confrontante Independente', '99988877700')")
+            pessoa_terceira_id = cursor.lastrowid
+            conn.commit()
+
+        # 2. Cadastra um cliente
+        cli_payload = {
+            "nome_completo": "Cliente Para Exclusao",
+            "cpf_cnpj": "78612659191",
+            "email": "exclusao@teste.com"
+        }
+        res_cad = cadastrar_cliente(cli_payload)
+        self.assertNotIn("error", res_cad)
+        cliente_id = res_cad["id"]
+
+        # 3. Exclui o cliente via API
+        resp = client.delete(f"/clientes/{cliente_id}")
+        self.assertEqual(resp.status_code, 200)
+
+        # 4. Garante que o cliente foi excluído
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM clientes WHERE id = ?", (cliente_id,))
+            self.assertIsNone(cursor.fetchone())
+
+            # Garante que a pessoa daquele cliente foi limpa cirurgicamente
+            cursor.execute("SELECT id FROM pessoas WHERE cpf_cnpj = '78612659191'")
+            self.assertIsNone(cursor.fetchone())
+
+            # Garante que a terceira pessoa continua intacta no banco
+            cursor.execute("SELECT id FROM pessoas WHERE id = ?", (pessoa_terceira_id,))
+            self.assertIsNotNone(cursor.fetchone())
+
+            # Limpeza
+            cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_terceira_id,))
+            conn.commit()
+
+    def test_exclusao_em_lote_atomica_api(self):
+        """Valida o endpoint POST /clientes/excluir-lote executando exclusão atômica de múltiplos clientes."""
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+
+        res1 = cadastrar_cliente({"nome_completo": "Cliente Lote 1", "cpf_cnpj": "78612659191"})
+        res2 = cadastrar_cliente({"nome_completo": "Cliente Lote 2", "cpf_cnpj": "90378697501"})
+        self.assertNotIn("error", res1)
+        self.assertNotIn("error", res2)
+        c1_id = res1["id"]
+        c2_id = res2["id"]
+
+        resp = client.post("/clientes/excluir-lote", json={"cliente_ids": [c1_id, c2_id]})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["sucessos"], 2)
+        self.assertEqual(len(data["erros"]), 0)
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM clientes WHERE id IN (?, ?)", (c1_id, c2_id))
+            self.assertEqual(len(cursor.fetchall()), 0)
+
+    def test_bloqueio_exclusao_cliente_com_levantamento_ativo(self):
+        """Valida que cliente com levantamento vinculado tem sua exclusão bloqueada com HTTP 409."""
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+
+        res = cadastrar_cliente({"nome_completo": "Cliente Com Projeto", "cpf_cnpj": "39601739114"})
+        self.assertNotIn("error", res)
+        c_id = res["id"]
+        self.created_cliente_ids.append(c_id)
+
+        # Vincula à propriedade que tem levantamento
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, 100.0)", (self.prop_id, c_id))
+            conn.commit()
+
+        resp = client.delete(f"/clientes/{c_id}")
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("Não é possível excluir cliente com levantamentos vinculados", resp.json()["detail"])
+
 if __name__ == "__main__":
     unittest.main()

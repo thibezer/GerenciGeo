@@ -3,11 +3,17 @@ routes/clientes.py — CRUD de Clientes, Profissionais e Pendências
 """
 import logging
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 from collections import defaultdict
 from database.connection import DatabaseManager, execute_query
-from services.gestores.levantamento_manager import cadastrar_cliente, atualizar_cliente, vincular_cliente_propriedade
+from services.gestores.cliente_manager import (
+    cadastrar_cliente,
+    atualizar_cliente,
+    excluir_cliente,
+    excluir_clientes_lote,
+    vincular_cliente_propriedade
+)
 from database.repository import PendenciaRepo
 
 router = APIRouter(tags=["Clientes & Profissionais"])
@@ -21,6 +27,9 @@ class PendenciaCreate(BaseModel):
 
 class PendenciaUpdate(BaseModel):
     status: str
+
+class ClientesLoteDelete(BaseModel):
+    cliente_ids: List[int] = Field(default_factory=list)
 
 class ClienteCreate(BaseModel):
     nome_completo: str
@@ -176,31 +185,16 @@ def get_clientes():
 
 @router.delete("/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int):
-    try:
-        levs = execute_query("SELECT count(l.id) as qtd FROM propriedade_clientes pc JOIN propriedades p ON pc.propriedade_id = p.id JOIN levantamentos l ON p.id = l.propriedade_id WHERE pc.cliente_id = ?", params=(cliente_id,), fetch_one=True)
-        if levs and levs['qtd'] > 0:
-            raise HTTPException(
-                status_code=409,
-                detail="Não é possível excluir cliente com levantamentos vinculados."
-            )
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
-            cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
+    res = excluir_cliente(cliente_id)
+    if "error" in res:
+        status_code = res.get("status_code", 400)
+        raise HTTPException(status_code=status_code, detail=res["error"])
+    return res
 
-            # Limpa pessoas órfãs (não associadas a clientes nem confrontantes)
-            cursor.execute("""
-                DELETE FROM pessoas
-                WHERE id NOT IN (SELECT pessoa_id FROM clientes WHERE pessoa_id IS NOT NULL)
-                  AND id NOT IN (SELECT pessoa_id FROM confrontantes WHERE pessoa_id IS NOT NULL);
-            """)
-            conn.commit()
-        return {"message": "Cliente excluído com sucesso"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Erro ao excluir cliente id={cliente_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Erro interno ao excluir cliente.")
+@router.post("/clientes/excluir-lote")
+def delete_clientes_lote(payload: ClientesLoteDelete):
+    res = excluir_clientes_lote(payload.cliente_ids)
+    return res
 
 @router.put("/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
