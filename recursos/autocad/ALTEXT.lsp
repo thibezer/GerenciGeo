@@ -1,5 +1,6 @@
 ;;; =========================================================================
-;;; ALTEXT V2 - ALINHAMENTO AUTOMÁTICO DE TEXTOS EM TUBULAÇÕES / LINHAS GUIAS
+;;; ALTEXT V2.1 - ALINHAMENTO AUTOMÁTICO DE TEXTOS EM TUBULAÇÕES / LINHAS GUIAS
+;;; Projeção Ortogonal pelo Centro do Texto (Sem Pular para o Ponto do Clique)
 ;;; Suporte a MText e Text, Leitura ABNT NBR 6492, Máscara de Fundo e Modos em Lote
 ;;; =========================================================================
 
@@ -34,14 +35,31 @@
   )
 )
 
-;; --- 3. NÚCLEO DE ALINHAMENTO E POSICIONAMENTO DO TEXTO ---
-(defun altext:alinharTexto (entTxt lineObj ptRef distOffset usarMascara / 
-                            objTxt txtType ptNearest param deriv ang normAng vRef dotProd newPt)
-  (setq objTxt  (vlax-ename->vla-object entTxt)
-        txtType (cdr (assoc 0 (entget entTxt))))
+;; --- 3. FUNÇÃO AUXILIAR: CENTRO GEOMÉTRICO DO TEXTO ---
+(defun altext:obterCentroTexto (objTxt / minPt maxPt p1 p2)
+  (if (not (vl-catch-all-error-p (vl-catch-all-apply 'vla-GetBoundingBox (list objTxt 'minPt 'maxPt))))
+    (progn
+      (setq p1 (vlax-safearray->list minPt)
+            p2 (vlax-safearray->list maxPt))
+      (mapcar '(lambda (a b) (/ (+ a b) 2.0)) p1 p2)
+    )
+    ;; Fallback seguro caso GetBoundingBox não esteja disponível
+    (if (vlax-property-available-p objTxt 'InsertionPoint)
+      (vlax-safearray->list (vlax-variant-value (vla-get-InsertionPoint objTxt)))
+      (cdr (assoc 10 (entget (vlax-vla-object->ename objTxt))))
+    )
+  )
+)
 
-  ;; 1. Ponto mais próximo na linha e vetor tangente
-  (setq ptNearest (vlax-curve-getClosestPointTo lineObj ptRef))
+;; --- 4. NÚCLEO DE ALINHAMENTO E POSICIONAMENTO DO TEXTO ---
+(defun altext:alinharTexto (entTxt lineObj ptClick distOffset usarMascara / 
+                            objTxt txtType ptCenter ptNearest param deriv ang normAng vRef dotProd newPt)
+  (setq objTxt   (vlax-ename->vla-object entTxt)
+        txtType  (cdr (assoc 0 (entget entTxt)))
+        ptCenter (altext:obterCentroTexto objTxt))
+
+  ;; 1. Projeta o CENTRO DO TEXTO na linha (mantém a posição original ao longo da tubulação)
+  (setq ptNearest (vlax-curve-getClosestPointTo lineObj ptCenter))
   (setq param     (vlax-curve-getParamAtPoint lineObj ptNearest))
   
   (if (null param)
@@ -63,11 +81,20 @@
   ;; Aplica rotação ao texto
   (vla-put-Rotation objTxt ang)
 
-  ;; 3. Cálculo do Vetor Normal e Deslocamento Lateral
+  ;; 3. Determina o Lado do Afastamento
+  ;; Usa o vetor do centro do texto em relação à linha para saber de qual lado o texto já estava
   (setq normAng (+ ang (/ pi 2.0)))
-  (setq vRef (mapcar '- ptRef ptNearest))
-  (setq dotProd (+ (* (car vRef) (cos normAng)) (* (cadr vRef) (sin normAng))))
+  (setq vRef (mapcar '- ptCenter ptNearest))
 
+  ;; Se o texto já estiver sobre o eixo (distância quase zero), usa o clique do mouse como desempate
+  (if (< (distance ptCenter ptNearest) 0.001)
+    (if ptClick
+      (setq vRef (mapcar '- ptClick ptNearest))
+      (setq vRef '(0.0 1.0 0.0))
+    )
+  )
+
+  (setq dotProd (+ (* (car vRef) (cos normAng)) (* (cadr vRef) (sin normAng))))
   (if (< dotProd 0.0)
     (setq normAng (- normAng pi))
   )
@@ -85,7 +112,6 @@
       (if (and usarMascara (vlax-property-available-p objTxt 'BackgroundFill))
         (progn
           (vla-put-BackgroundFill objTxt :vlax-true)
-          ;; Define margem de máscara padrão 1.2 se suportado
           (vl-catch-all-apply 'vlax-put-property (list objTxt 'BackgroundScaleFactor 1.2))
         )
       )
@@ -98,7 +124,7 @@
   )
 )
 
-;; --- 4. COMANDO PRINCIPAL ---
+;; --- 5. COMANDO PRINCIPAL ---
 (defun c:ALTEXT ( / acadObj doc oldEcho oldError opt entTxt entLine lineObj 
                      txtCount ss i e ptPos loopMain )
 
@@ -184,8 +210,7 @@
                   (setq txtCount 0)
                   (repeat (setq i (sslength ss))
                     (setq e (ssname ss (setq i (1- i))))
-                    (setq ptPos (cdr (assoc 10 (entget e))))
-                    (altext:alinharTexto e lineObj ptPos *AlText_Dist* *AlText_Mask*)
+                    (altext:alinharTexto e lineObj nil *AlText_Dist* *AlText_Mask*)
                     (setq txtCount (1+ txtCount))
                   )
                   (princ (strcat "\n[OK] " (itoa txtCount) " texto(s) alinhado(s) com sucesso à tubulação!"))
@@ -209,6 +234,7 @@
                 (if (and entLine (altext:ehCurvaValida (car entLine)))
                   (progn
                     (setq lineObj (vlax-ename->vla-object (car entLine)))
+                    ;; Passa o clique como desempate se necessário, mas projeta pela posição real do texto
                     (altext:alinharTexto entTxt lineObj (cadr entLine) *AlText_Dist* *AlText_Mask*)
                     (princ "\n-> Texto posicionado e alinhado com sucesso.")
                   )
@@ -229,5 +255,5 @@
   (princ)
 )
 
-(princ "\nComando ALTEXT V2 carregado! Digite ALTEXT para executar.")
+(princ "\nComando ALTEXT V2.1 carregado! Digite ALTEXT para executar.")
 (princ)
