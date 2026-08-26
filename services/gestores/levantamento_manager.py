@@ -349,6 +349,35 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                     update_fields.append("tipo_ponto = ?")
                     update_values.append(tipo_ponto)
 
+                if 'matricula_id' in p_update:
+                    raw_mat = p_update['matricula_id']
+                    novo_mat_id = int(raw_mat) if raw_mat is not None and int(raw_mat) > 0 else None
+                    mat_antiga = valid_ids[pid]['matricula_id']
+
+                    if novo_mat_id != mat_antiga:
+                        pt_nome = valid_ids[pid]['nome_vertice']
+                        pt_tipo = p_update.get('tipo_ponto') or valid_ids[pid].get('tipo_ponto') or 'P'
+
+                        cursor.execute(
+                            "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                            (levantamento_id, novo_mat_id, pt_nome, pt_tipo, pid)
+                        )
+                        exists = cursor.fetchone()
+                        if exists:
+                            return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_nome}' do tipo '{pt_tipo}' na matrícula de destino.", "status_code": 400}
+
+                        update_fields.append("matricula_id = ?")
+                        update_values.append(novo_mat_id)
+
+                        if mat_antiga:
+                            matriculas_afetadas.add(mat_antiga)
+                            cursor.execute(
+                                "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND (ponto_inicio_id = ? OR ponto_fim_id = ?)",
+                                (levantamento_id, mat_antiga, pid, pid)
+                            )
+                        if novo_mat_id:
+                            matriculas_afetadas.add(novo_mat_id)
+
                 if 'ignorar_poligono' in p_update and p_update['ignorar_poligono'] is not None:
                     update_fields.append("ignorar_poligono = ?")
                     update_values.append(p_update['ignorar_poligono'])
@@ -588,11 +617,36 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             
         # B. Valida e Prepara Matrícula
         matricula_id = data.get("matricula_id")
+        matriculas_para_reordenar = set()
         if matricula_id is not None and matricula_id != pt_antigo["matricula_id"]:
             m_id = matricula_id if matricula_id > 0 else None
+            
+            # Validação de unicidade na matrícula de destino
+            pt_nome_val = data.get("nome_vertice") or pt_antigo["nome_vertice"]
+            pt_tipo_val = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
+            exists_dest = execute_query(
+                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                params=(levantamento_id, m_id, pt_nome_val, pt_tipo_val, pid),
+                fetch_one=True
+            )
+            if exists_dest:
+                return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_nome_val}' do tipo '{pt_tipo_val}' na matrícula de destino.", "status_code": 400}
+
             campos_update.append("matricula_id = ?")
             valores_update.append(m_id)
             
+            # Limpa segmentos órfãos na matrícula antiga
+            if pt_antigo["matricula_id"]:
+                execute_query(
+                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND (ponto_inicio_id = ? OR ponto_fim_id = ?)",
+                    params=(levantamento_id, pt_antigo["matricula_id"], pid, pid),
+                    commit=True
+                )
+                matriculas_para_reordenar.add(pt_antigo["matricula_id"])
+                
+            if m_id:
+                matriculas_para_reordenar.add(m_id)
+                
             desc_mat = f"Vértice {pt_antigo['nome_vertice']} atrelado à matrícula ID {m_id} (anteriormente ID {pt_antigo['matricula_id']})."
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
@@ -684,6 +738,14 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 logger.info(f"Divisas da matrícula ID {pt_antigo['matricula_id']} autorregeneradas devido à alteração de ignorar_poligono do ponto ID {pid}.")
             except Exception as ex_reorder:
                 logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
+
+        if matriculas_para_reordenar:
+            for mat_afetada in matriculas_para_reordenar:
+                try:
+                    reordenar_perimetro_matricula(levantamento_id, mat_afetada)
+                    logger.info(f"Divisas da matrícula ID {mat_afetada} recalculadas devido à transferência do ponto ID {pid}.")
+                except Exception as ex_reorder_mat:
+                    logger.warning(f"Falha ao reordenar matrícula {mat_afetada} reativamente: {ex_reorder_mat}")
 
         # BUGFIX: esses blocos estavam indevidamente dentro do if reordenar_poligono_reativo,
         # causando que a função retornasse None implicitamente quando o flag era False.

@@ -40,6 +40,7 @@ export interface Ponto {
   ponto_vizinho?: number;
   confrontante_id?: number | null;
   ponto_base_id?: number | null;
+  matricula_id?: number | null;
   arquivo_origem?: string;
   ignorar_poligono?: number;
   fuso?: string;

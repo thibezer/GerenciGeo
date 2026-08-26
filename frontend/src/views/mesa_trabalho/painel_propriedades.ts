@@ -253,6 +253,18 @@ export function atualizarPainelPropriedades(ctx: any): void {
           </div>
 
           <div class="props-field">
+            <label class="props-field-label">Matrícula</label>
+            <select id="prop-matricula" class="props-field-value" ${isDisabled ? 'disabled' : ''}>
+              <option class="bg-[#111113] text-white/90" value="">Sem Matrícula (Avulso)</option>
+              ${matriculasList.map((m: any) => `
+                <option class="bg-[#111113] text-white/90" value="${m.id}" ${String(p!.matricula_id) === String(m.id) ? 'selected' : ''}>
+                  Nº ${escapeHtml(m.numero_matricula || String(m.id))}${m.denominacao ? ' (' + escapeHtml(m.denominacao) + ')' : ''}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div class="props-field">
             <label class="props-field-label">Tipo</label>
             <select id="prop-tipo-ponto" class="props-field-value" ${isDisabled ? 'disabled' : ''}>
               <option class="bg-[#111113] text-white/90" value="M" ${p.tipo_ponto === 'M' || p.tipo === 'M' ? 'selected' : ''}>M - Marco</option>
@@ -475,6 +487,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       // Registra os valores originais para detecção de alteração ("dirty")
       const valoresOriginais = {
         nome_vertice: p.nome_vertice || '',
+        matricula_id: p.matricula_id != null ? String(p.matricula_id) : '',
         tipo_ponto: p.tipo_ponto || p.tipo || '',
         metodo: (p as any).metodo_posicionamento || '',
         limite: (seg && seg.tipo_limite_sigef) ? seg.tipo_limite_sigef : '',
@@ -490,7 +503,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       };
 
       const inputs = [
-        'prop-nome-vertice', 'prop-tipo-ponto', 'prop-alt-corrigido',
+        'prop-nome-vertice', 'prop-matricula', 'prop-tipo-ponto', 'prop-alt-corrigido',
         'prop-confrontante', 'prop-confrontante-matricula', 'prop-confrontante-cartorio',
         'prop-ignorar-poligono', 'prop-metodo', 'prop-tipo-limite'
       ];
@@ -508,13 +521,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement;
           if (el) {
             const val = isCheckbox ? (el as HTMLInputElement).checked : el.value;
-            const d = val !== originalVal;
+            const d = String(val ?? '').trim() !== String(originalVal ?? '').trim();
             el.classList.toggle('dirty', d);
             if (d) modificado = true;
           }
         };
 
         checkDirty('prop-nome-vertice', valoresOriginais.nome_vertice);
+        checkDirty('prop-matricula', valoresOriginais.matricula_id);
         checkDirty('prop-tipo-ponto', valoresOriginais.tipo_ponto);
         checkDirty('prop-metodo', valoresOriginais.metodo);
         checkDirty('prop-tipo-limite', valoresOriginais.limite);
@@ -584,6 +598,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (btnSalvar) {
         btnSalvar.addEventListener('click', async () => {
           const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
+          const matSelect = document.getElementById('prop-matricula') as HTMLSelectElement;
           const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
           const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
           const ignorarCheck = document.getElementById('prop-ignorar-poligono') as HTMLInputElement;
@@ -595,6 +610,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const payload: any = {
             nome_vertice: nomeInput.value,
             tipo_ponto: tipoSelect.value,
+            matricula_id: matSelect && matSelect.value ? parseInt(matSelect.value) : null,
             ignorar_poligono: ignorarCheck.checked ? 0 : 1,
             metodo_posicionamento: metodoSelect.value
           };
@@ -749,6 +765,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
             showToast("Vértice salvo com sucesso!", "success");
             await ctx.loadLevantamentoDetails();
+            ctx.renderMatriculaDados();
+            ctx.atualizarPolilinhaMapaTemp();
             atualizarPainelPropriedades(ctx);
           } catch (err) {
             console.error(err);
@@ -794,6 +812,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       };
 
       const tipoResolvido = resolveField(p => p.tipo_ponto || p.tipo || '');
+      const matriculaResolvidaMulti = resolveField(p => p.matricula_id != null ? String(p.matricula_id) : '');
       const metodoResolvidoMulti = resolveField(p => (p as any).metodo_posicionamento || '');
       const limiteResolvidoMulti = resolveField(p => {
         const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === p.id);
@@ -936,6 +955,18 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold border bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20">
               ${escapeHtml(String(selectedCount))} vértices
             </span>
+          </div>
+
+          <div class="props-field">
+            <label class="props-field-label">Matrícula</label>
+            <select id="prop-multi-matricula" class="props-field-value" ${isArquivado ? 'disabled' : ''}>
+              ${matriculaResolvidaMulti === 'várias' ? '<option class="bg-[#111113] text-white/90" value="" selected disabled>(Várias Selecionadas)</option>' : '<option class="bg-[#111113] text-white/90" value="">Sem Matrícula (Avulso)</option>'}
+              ${matriculasList.map((m: any) => `
+                <option class="bg-[#111113] text-white/90" value="${m.id}" ${matriculaResolvidaMulti === String(m.id) ? 'selected' : ''}>
+                  Nº ${escapeHtml(m.numero_matricula || String(m.id))}${m.denominacao ? ' (' + escapeHtml(m.denominacao) + ')' : ''}
+                </option>
+              `).join('')}
+            </select>
           </div>
 
           <div class="props-field">
@@ -1097,6 +1128,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       }
 
       const multiOriginais = {
+        matricula: matriculaResolvidaMulti === 'várias' ? '' : matriculaResolvidaMulti,
         tipo: tipoResolvido === 'várias' ? '' : tipoResolvido,
         metodo: metodoResolvidoMulti === 'várias' ? '' : metodoResolvidoMulti,
         limite: limiteResolvidoMulti === 'várias' ? '' : limiteResolvidoMulti,
@@ -1108,6 +1140,14 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       const verificarAlteracoesMulti = () => {
         let modificado = false;
+
+        const matEl = document.getElementById('prop-multi-matricula') as HTMLSelectElement;
+        if (matEl && matEl.value !== multiOriginais.matricula && (multiOriginais.matricula !== '' || matEl.value !== '')) {
+          matEl.classList.add('dirty');
+          modificado = true;
+        } else if (matEl) {
+          matEl.classList.remove('dirty');
+        }
 
         const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
         if (tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo) {
@@ -1165,7 +1205,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         if (panelActions) panelActions.classList.toggle('hidden', !modificado);
       };
 
-      ['prop-multi-tipo', 'prop-multi-metodo', 'prop-multi-tipo-limite', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
+      ['prop-multi-matricula', 'prop-multi-tipo', 'prop-multi-metodo', 'prop-multi-tipo-limite', 'prop-multi-confrontante', 'prop-multi-confrontante-matricula', 'prop-multi-confrontante-cartorio'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener('input', verificarAlteracoesMulti, { signal });
@@ -1185,6 +1225,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const btnSalvar = document.getElementById('btn-props-salvar');
       if (btnSalvar) {
         btnSalvar.addEventListener('click', async () => {
+          const matEl = document.getElementById('prop-multi-matricula') as HTMLSelectElement;
           const tipoEl = document.getElementById('prop-multi-tipo') as HTMLSelectElement;
           const metodoEl = document.getElementById('prop-multi-metodo') as HTMLSelectElement;
           const limiteEl = document.getElementById('prop-multi-tipo-limite') as HTMLSelectElement;
@@ -1193,6 +1234,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
           const confCnsEl = document.getElementById('prop-multi-confrontante-cartorio') as HTMLInputElement;
           const poliEl = document.getElementById('prop-multi-ignorar-poligono') as HTMLInputElement;
 
+          const matAlterado = matEl && matEl.value !== multiOriginais.matricula && (multiOriginais.matricula !== '' || matEl.value !== '');
           const tipoAlterado = tipoEl && tipoEl.value && tipoEl.value !== multiOriginais.tipo;
           const metodoAlterado = metodoEl && metodoEl.value && metodoEl.value !== multiOriginais.metodo;
           const limiteAlterado = limiteEl && limiteEl.value && limiteEl.value !== multiOriginais.limite;
@@ -1213,6 +1255,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
               const pid = pObj.id;
               const itemPayload: any = { id: pid };
 
+              if (matAlterado) itemPayload.matricula_id = matEl.value ? parseInt(matEl.value) : null;
               if (tipoAlterado) itemPayload.tipo_ponto = tipoEl.value;
               if (metodoAlterado) itemPayload.metodo_posicionamento = metodoEl.value;
               if (poliAlterado) itemPayload.ignorar_poligono = poliEl.checked ? 0 : 1;
@@ -1293,6 +1336,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
               showToast(`${batchPayload.pontos.length} vértices atualizados com sucesso!`, "success");
               await ctx.loadLevantamentoDetails();
+              ctx.renderMatriculaDados();
+              ctx.atualizarPolilinhaMapaTemp();
               atualizarPainelPropriedades(ctx);
             } else {
               showToast("Nenhuma alteração detectada para salvar.", "info");
