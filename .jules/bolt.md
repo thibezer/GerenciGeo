@@ -33,5 +33,10 @@
 
 ## 2026-08-27 - Criptografia em repouso, auditoria de senhas e layout responsivo de clientes
 **Learning:** Armazenar senhas e segredos em texto puro no SQLite compromete a segurança e não gera trilha de conformidade. Em interfaces com Web Components, layouts rígidos baseados em grids com colunas fixas geram sobreposição de textos longos (ex: "NACIONALIDADEPROFISSÃO").
-**Action:** Implementado módulo de criptografia simétrica autenticada (`services/seguranca/crypto_service.py`), mascaramento estrito por padrão em `GET /clientes`, revelação pontual com auditoria (`POST /clientes/{id}/revelar-senha`), layout responsivo auto-fit (`grid-template-columns: repeat(auto-fit, minmax(130px, 1fr))`) com `break-words`, suporte estruturado a Pessoas Jurídicas (vínculo de Representante Legal PF) e tabela de documentos com alerta de CNH vencida.
+**Action:** Implementado módulo de criptografia simétrica autenticada (`services/seguranca/crypto_service.py`), mascaramento estrito por padrão em `GET /clientes`, revelação pontual com auditoria (`POST /clientes/{id}/revelar-senha`), layout responsivo auto-fit com `break-words`, suporte estruturado a Pessoas Jurídicas (vínculo de Representante Legal PF) e tabela de documentos com alerta de CNH vencida.
+
+## 2026-08-27 - Alta densidade de dados, CSS Grid Defensivo e Microinterações Operacionais no Módulo de Clientes
+**Learning:** Modais de power users com dados cadastrais e notariais densos requerem CSS Grid defensivo (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4` com `min-w-0` em todas as células filhas) e hierarquia tipográfica assimétrica (labels em `text-[11px] font-medium uppercase text-white/40` e valores em `text-sm font-semibold text-white`) para eliminar colisões visuais.
+**Action:** Implementada estrutura de qualificação civil expandida (CNH com categoria, validade e órgão/UF, RG com órgão/UF, Naturalidade e Matrícula da Certidão de Casamento), alternador de Pills RG ⇆ CNH com detecção de validade, card de cônjuge condicional para Casado/União Estável, e microinterações de alta produtividade (1-Click Copy com feedback visual de 2s e link direto sanitizado para WhatsApp `https://wa.me/55...`).
+
 

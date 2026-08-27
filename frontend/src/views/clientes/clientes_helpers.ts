@@ -41,6 +41,47 @@ export const aplicarMascaraCep = (value: string): string => {
   return value.replace(/\D/g, '').replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 };
 
+export const gerarLinkWhatsApp = (telefone?: string | null): string | null => {
+  if (!telefone) return null;
+  const nums = telefone.replace(/\D/g, '');
+  if (nums.length < 10) return null;
+  const foneCompleto = nums.startsWith('55') ? nums : `55${nums}`;
+  return `https://wa.me/${foneCompleto}`;
+};
+
+export const copiarParaClipboard = async (texto: string, btnElement?: HTMLElement | null): Promise<boolean> => {
+  if (!texto) return false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(texto);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = texto;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      textArea.remove();
+    }
+
+    if (btnElement) {
+      const originalHtml = btnElement.innerHTML;
+      btnElement.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-mint-vibrant animate-in fade-in"></i>`;
+      btnElement.classList.add('text-mint-vibrant');
+      setTimeout(() => {
+        btnElement.innerHTML = originalHtml;
+        btnElement.classList.remove('text-mint-vibrant');
+      }, 2000);
+    }
+    return true;
+  } catch (err) {
+    console.warn("Falha ao copiar texto para o clipboard:", err);
+    return false;
+  }
+};
+
 export const isCnhVencida = (dataValidade?: string | null): boolean => {
   if (!dataValidade || !dataValidade.trim()) return false;
   try {

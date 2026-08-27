@@ -173,3 +173,58 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
 
         docs_finais = obter_documentos_cliente(cid)
         self.assertEqual(len(docs_finais), 2)
+
+    def test_qualificacao_civil_expandida_cnh_naturalidade_certidao(self):
+        """Valida persistência e recuperação de CNH, RG com órgão/UF, Naturalidade e Matrícula de Casamento."""
+        cli_data = {
+            "nome_completo": "Carlos Roberto dos Santos",
+            "cpf_cnpj": "01234567890",
+            "rg_ie": "12.345.678-9",
+            "rg_orgao": "SSP",
+            "rg_uf": "PR",
+            "naturalidade": "Ponta Grossa - PR",
+            "nacionalidade": "Brasileiro",
+            "estado_civil": "Casado(a)",
+            "nome_conjuge": "Mariana dos Santos",
+            "cpf_conjuge": "98765432100",
+            "rg_conjuge": "98.765.432-1",
+            "regime_bens": "Comunhão Parcial de Bens",
+            "certidao_casamento_matricula": "123456.01.55.2020.1.00123.456.0007890-12",
+            "cnh_numero": "99887766554",
+            "cnh_categoria": "AB",
+            "cnh_validade": "2028-12-31",
+            "cnh_orgao_uf": "DETRAN/PR",
+            "telefone": "(42) 99999-8888",
+            "email": "carlos@exemplo.com"
+        }
+
+        res = cadastrar_cliente(cli_data)
+        self.assertNotIn("error", res)
+        cid = res["id"]
+        self.created_cliente_ids.append(cid)
+
+        # 1. Recupera via get_clientes()
+        clientes = get_clientes()
+        c = next(x for x in clientes if x["id"] == cid)
+        self.assertEqual(c["rg_orgao"], "SSP")
+        self.assertEqual(c["rg_uf"], "PR")
+        self.assertEqual(c["naturalidade"], "Ponta Grossa - PR")
+        self.assertEqual(c["certidao_casamento_matricula"], "123456.01.55.2020.1.00123.456.0007890-12")
+        self.assertEqual(c["cnh_numero"], "99887766554")
+        self.assertEqual(c["cnh_categoria"], "AB")
+        self.assertEqual(c["cnh_validade"], "2028-12-31")
+        self.assertEqual(c["cnh_orgao_uf"], "DETRAN/PR")
+
+        # 2. Atualiza os dados
+        cli_data["naturalidade"] = "Curitiba - PR"
+        cli_data["cnh_categoria"] = "AE"
+        cli_data["certidao_casamento_matricula"] = "NOVA-MATRICULA-999"
+        res_up = atualizar_cliente(cid, cli_data)
+        self.assertNotIn("error", res_up)
+
+        clientes_up = get_clientes()
+        c_up = next(x for x in clientes_up if x["id"] == cid)
+        self.assertEqual(c_up["naturalidade"], "Curitiba - PR")
+        self.assertEqual(c_up["cnh_categoria"], "AE")
+        self.assertEqual(c_up["certidao_casamento_matricula"], "NOVA-MATRICULA-999")
+

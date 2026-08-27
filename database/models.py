@@ -656,14 +656,22 @@ def create_tables(conn):
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em segmentos: {ex_mig}")
 
-        # Migração dinâmica para a tabela pessoas (Campos PF/PJ e Representante Legal)
+        # Migração dinâmica para a tabela pessoas (Campos PF/PJ, Qualificação Civil e CNH)
         colunas_pessoas = [
             ("tipo_pessoa", "TEXT DEFAULT 'PF'"),
             ("razao_social", "TEXT"),
             ("nome_fantasia", "TEXT"),
             ("inscricao_estadual", "TEXT"),
             ("inscricao_municipal", "TEXT"),
-            ("representante_legal_id", "INTEGER")
+            ("representante_legal_id", "INTEGER"),
+            ("cnh_numero", "TEXT"),
+            ("cnh_categoria", "TEXT"),
+            ("cnh_validade", "TEXT"),
+            ("cnh_orgao_uf", "TEXT"),
+            ("rg_orgao", "TEXT"),
+            ("rg_uf", "TEXT"),
+            ("naturalidade", "TEXT"),
+            ("certidao_casamento_matricula", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(pessoas)")
         colunas_pessoas_existentes = {row[1] for row in cursor.fetchall()}
@@ -674,6 +682,27 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em pessoas: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em pessoas: {ex_mig}")
+
+        # Migração dinâmica para a tabela clientes (Espelhamento defensivo)
+        colunas_clientes = [
+            ("cnh_numero", "TEXT"),
+            ("cnh_categoria", "TEXT"),
+            ("cnh_validade", "TEXT"),
+            ("cnh_orgao_uf", "TEXT"),
+            ("rg_orgao", "TEXT"),
+            ("rg_uf", "TEXT"),
+            ("naturalidade", "TEXT"),
+            ("certidao_casamento_matricula", "TEXT")
+        ]
+        cursor.execute("PRAGMA table_info(clientes)")
+        colunas_clientes_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_clientes:
+            if col not in colunas_clientes_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em clientes: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em clientes: {ex_mig}")
 
         # Criação das tabelas de documentos e auditoria de acesso se ausentes em bancos legados
         cursor.execute("""

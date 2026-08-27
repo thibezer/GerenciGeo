@@ -27,6 +27,9 @@ import {
   aplicarMascaraCpfCnpj,
   aplicarMascaraTelefone,
   aplicarMascaraCep,
+  gerarLinkWhatsApp,
+  copiarParaClipboard,
+  isCnhVencida,
   calcularEstatisticasClientes,
   renderLinhasTabelaHtml,
   renderBotoesPaginacaoHtml,
@@ -454,7 +457,62 @@ export const clientesRoute: RouteDef = {
       }
 
       setDetVal('det-cli-sexo', cli.sexo === 'M' ? 'Masculino' : cli.sexo === 'F' ? 'Feminino' : '-');
-      setDetVal('det-cli-rg', cli.rg_ie);
+      setDetVal('det-cli-naturalidade', cli.naturalidade || '-');
+      setDetVal('det-cli-nacionalidade', cli.nacionalidade || 'Brasileiro(a)');
+      setDetVal('det-cli-estcivil', cli.estado_civil || '-');
+      setDetVal('det-cli-profissao', cli.profissao || '-');
+
+      // RG
+      setDetVal('det-cli-rg', cli.rg_ie || '-');
+      setDetVal('det-cli-rg-orgao', cli.rg_orgao || 'SSP');
+      setDetVal('det-cli-rg-uf', cli.rg_uf || cli.estado || 'PR');
+
+      // CNH
+      setDetVal('det-cli-cnh-num', cli.cnh_numero || '-');
+      setDetVal('det-cli-cnh-cat', cli.cnh_categoria || '-');
+      setDetVal('det-cli-cnh-val', cli.cnh_validade || '-');
+      setDetVal('det-cli-cnh-orgaouf', cli.cnh_orgao_uf || 'DETRAN');
+
+      // Badge de CNH Vencida
+      const badgeCnhVencida = document.getElementById('det-doc-badge-validade');
+      if (badgeCnhVencida) {
+        if (isCnhVencida(cli.cnh_validade)) {
+          badgeCnhVencida.classList.remove('hidden');
+        } else {
+          badgeCnhVencida.classList.add('hidden');
+        }
+      }
+
+      // Alternância de Pills RG / CNH no Modal de Detalhes
+      const pillRg = document.getElementById('pill-doc-rg');
+      const pillCnh = document.getElementById('pill-doc-cnh');
+      const blocoPillRg = document.getElementById('bloco-pill-rg');
+      const blocoPillCnh = document.getElementById('bloco-pill-cnh');
+
+      const setPillAtivo = (docTipo: 'RG' | 'CNH') => {
+        if (docTipo === 'RG') {
+          pillRg?.classList.add('bg-mint-vibrant', 'text-forest-deep');
+          pillRg?.classList.remove('text-white/50');
+          pillCnh?.classList.remove('bg-mint-vibrant', 'text-forest-deep');
+          pillCnh?.classList.add('text-white/50');
+          blocoPillRg?.classList.remove('hidden');
+          blocoPillCnh?.classList.add('hidden');
+        } else {
+          pillCnh?.classList.add('bg-mint-vibrant', 'text-forest-deep');
+          pillCnh?.classList.remove('text-white/50');
+          pillRg?.classList.remove('bg-mint-vibrant', 'text-forest-deep');
+          pillRg?.classList.add('text-white/50');
+          blocoPillCnh?.classList.remove('hidden');
+          blocoPillRg?.classList.add('hidden');
+        }
+      };
+
+      if (pillRg && pillCnh) {
+        pillRg.onclick = () => setPillAtivo('RG');
+        pillCnh.onclick = () => setPillAtivo('CNH');
+        // Se cliente tem CNH e não tem RG, inicia em CNH; caso contrário RG
+        setPillAtivo(cli.cnh_numero && !cli.rg_ie ? 'CNH' : 'RG');
+      }
 
       let dataNascFormatada = '-';
       if (cli.data_nascimento_fundacao) {
@@ -467,14 +525,24 @@ export const clientesRoute: RouteDef = {
       }
       setDetVal('det-cli-datanasc', dataNascFormatada);
 
-      setDetVal('det-cli-estcivil', cli.estado_civil);
-      setDetVal('det-cli-nacionalidade', cli.nacionalidade);
-      setDetVal('det-cli-profissao', cli.profissao || '-');
+      // Telefone e Link WhatsApp
       setDetVal('det-cli-telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '-');
-      setDetVal('det-cli-email', cli.email);
+      const btnWhatsapp = document.getElementById('btn-det-whatsapp') as HTMLAnchorElement | null;
+      if (btnWhatsapp) {
+        const linkWa = gerarLinkWhatsApp(cli.telefone);
+        if (linkWa) {
+          btnWhatsapp.href = linkWa;
+          btnWhatsapp.classList.remove('hidden');
+        } else {
+          btnWhatsapp.classList.add('hidden');
+        }
+      }
 
-      // Senha GOV com revelação auditada
+      setDetVal('det-cli-email', cli.email || '-');
+
+      // Senha GOV com revelação auditada e botão de cópia
       const btnRevelarDet = document.getElementById('btn-revelar-senhagov-det');
+      const btnCopySenhaDet = document.getElementById('btn-copy-senhagov-det');
       const spanSenhaDet = document.getElementById('det-cli-senhagov');
       const temSenha = Boolean(cli.tem_senha_gov || cli.senha_gov);
 
@@ -494,6 +562,7 @@ export const clientesRoute: RouteDef = {
                     spanSenhaDet.innerText = senhaRevelada || '(vazia)';
                     spanSenhaDet.classList.add('text-mint-vibrant', 'font-bold');
                   }
+                  if (btnCopySenhaDet) btnCopySenhaDet.classList.remove('hidden');
                   // Recarrega acessos caso a aba de auditoria seja aberta
                   carregarLogsAcesso(cli.id);
                 } catch (err: unknown) {
@@ -503,16 +572,38 @@ export const clientesRoute: RouteDef = {
             } else if (spanSenhaDet) {
               spanSenhaDet.innerText = '••••••••';
               spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
+              if (btnCopySenhaDet) btnCopySenhaDet.classList.add('hidden');
             }
           };
         }
+        if (btnCopySenhaDet) btnCopySenhaDet.classList.add('hidden');
       } else {
         if (spanSenhaDet) {
           spanSenhaDet.innerText = '-';
           spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
         }
         if (btnRevelarDet) btnRevelarDet.classList.add('hidden');
+        if (btnCopySenhaDet) btnCopySenhaDet.classList.add('hidden');
       }
+
+      // Microinterações 1-Click Copy
+      document.querySelectorAll<HTMLElement>('.btn-copy-field').forEach(btn => {
+        btn.onclick = (ev: MouseEvent) => {
+          ev.stopPropagation();
+          const targetId = btn.getAttribute('data-copy-target');
+          if (!targetId) return;
+          const targetEl = document.getElementById(targetId);
+          if (!targetEl) return;
+          let textoParaCopiar = targetEl.innerText.trim();
+          // Remove prefixos como "CPF: " ou "CNPJ: "
+          if (textoParaCopiar.startsWith('CPF: ') || textoParaCopiar.startsWith('CNPJ: ')) {
+            textoParaCopiar = textoParaCopiar.replace(/^(CPF|CNPJ):\s*/, '');
+          }
+          if (textoParaCopiar && textoParaCopiar !== '-' && textoParaCopiar !== '••••••••') {
+            copiarParaClipboard(textoParaCopiar, btn);
+          }
+        };
+      });
 
       setDetVal('det-cli-endereco', `${cli.endereco_completo || ''} ${cli.cep ? ' · CEP: ' + aplicarMascaraCep(cli.cep) : ''} - ${cli.cidade || ''}/${cli.estado || ''}`);
       setDetVal('det-cli-total-levs', cli.total_levantamentos || 0);
@@ -524,15 +615,17 @@ export const clientesRoute: RouteDef = {
         initIcons();
       }
 
+      // Bloco de Cônjuge & Regime Notarial
       const blocoConjuge = document.getElementById('det-conjuge-bloco');
-      const isCasado = (cli.estado_civil || '').includes("Casado") || (cli.estado_civil || '').includes("União Estável");
+      const isCasado = (cli.estado_civil || '').includes("Casado") || (cli.estado_civil || '').includes("União Estável") || Boolean(cli.nome_conjuge || cli.cpf_conjuge);
       if (blocoConjuge) {
         if (isCasado) {
           blocoConjuge.classList.remove('hidden');
-          setDetVal('det-cli-nomeconjuge', cli.nome_conjuge);
-          setDetVal('det-cli-cpfconjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
-          setDetVal('det-cli-rgconjuge', cli.rg_conjuge);
-          setDetVal('det-cli-regimebens', cli.regime_bens);
+          setDetVal('det-cli-nomeconjuge', cli.nome_conjuge || '-');
+          setDetVal('det-cli-cpfconjuge', cli.cpf_conjuge ? aplicarMascaraCpfCnpj(cli.cpf_conjuge) : '-');
+          setDetVal('det-cli-rgconjuge', cli.rg_conjuge || '-');
+          setDetVal('det-cli-regimebens', cli.regime_bens || 'Não informado');
+          setDetVal('det-cli-certidaocasamento', cli.certidao_casamento_matricula || '-');
         } else {
           blocoConjuge.classList.add('hidden');
         }
@@ -550,6 +643,7 @@ export const clientesRoute: RouteDef = {
       carregarHistoricoAlteracoes(id);
       carregarLogsAcesso(id);
 
+      initIcons();
       abrirModalDetalhes();
     };
 
@@ -628,6 +722,14 @@ export const clientesRoute: RouteDef = {
         inscricao_estadual: cli.inscricao_estadual,
         inscricao_municipal: cli.inscricao_municipal,
         representante_legal_id: cli.representante_legal_id,
+        cnh_numero: cli.cnh_numero,
+        cnh_categoria: cli.cnh_categoria,
+        cnh_validade: cli.cnh_validade,
+        cnh_orgao_uf: cli.cnh_orgao_uf,
+        rg_orgao: cli.rg_orgao,
+        rg_uf: cli.rg_uf,
+        naturalidade: cli.naturalidade,
+        certidao_casamento_matricula: cli.certidao_casamento_matricula,
         metadados: metadadosCopy
       };
 
@@ -677,6 +779,12 @@ export const clientesRoute: RouteDef = {
 
       setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
       setFormVal('rg_ie', cli.rg_ie);
+      setFormVal('rg_orgao', cli.rg_orgao || 'SSP');
+      setFormVal('rg_uf', cli.rg_uf || cli.estado || 'PR');
+      setFormVal('naturalidade', cli.naturalidade);
+      setFormVal('cnh_numero', cli.cnh_numero);
+      setFormVal('cnh_categoria', cli.cnh_categoria);
+      setFormVal('cnh_validade', cli.cnh_validade);
       setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
       setFormVal('estado_civil', cli.estado_civil);
       setFormVal('sexo', cli.sexo || 'M');
@@ -685,6 +793,7 @@ export const clientesRoute: RouteDef = {
       setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
       setFormVal('rg_conjuge', cli.rg_conjuge);
       setFormVal('regime_bens', cli.regime_bens);
+      setFormVal('certidao_casamento_matricula', cli.certidao_casamento_matricula);
       setFormVal('profissao', cli.profissao);
       setFormVal('telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '');
       setFormVal('email', cli.email);
@@ -969,6 +1078,14 @@ export const clientesRoute: RouteDef = {
         inscricao_estadual: cli.inscricao_estadual,
         inscricao_municipal: cli.inscricao_municipal,
         representante_legal_id: cli.representante_legal_id,
+        cnh_numero: cli.cnh_numero,
+        cnh_categoria: cli.cnh_categoria,
+        cnh_validade: cli.cnh_validade,
+        cnh_orgao_uf: cli.cnh_orgao_uf,
+        rg_orgao: cli.rg_orgao,
+        rg_uf: cli.rg_uf,
+        naturalidade: cli.naturalidade,
+        certidao_casamento_matricula: cli.certidao_casamento_matricula,
         metadados: metadadosCopy
       };
 
@@ -1077,6 +1194,14 @@ export const clientesRoute: RouteDef = {
         inscricao_estadual: isPj ? (rawPayload.inscricao_estadual || null) : null,
         inscricao_municipal: isPj ? (rawPayload.inscricao_municipal || null) : null,
         representante_legal_id: isPj ? representanteId : null,
+        cnh_numero: rawPayload.cnh_numero || null,
+        cnh_categoria: rawPayload.cnh_categoria || null,
+        cnh_validade: rawPayload.cnh_validade || null,
+        cnh_orgao_uf: rawPayload.cnh_orgao_uf || null,
+        rg_orgao: rawPayload.rg_orgao || null,
+        rg_uf: rawPayload.rg_uf || null,
+        naturalidade: rawPayload.naturalidade || null,
+        certidao_casamento_matricula: rawPayload.certidao_casamento_matricula || null,
         metadados: {}
       };
 

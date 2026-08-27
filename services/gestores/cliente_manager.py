@@ -235,13 +235,21 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
     documentos = cli_data.get("documentos", [])
     
-    # Novos campos PF / PJ
+    # Novos campos PF / PJ e Qualificação Civil Expandida
     tipo_pessoa = cli_data.get("tipo_pessoa")
     razao_social = cli_data.get("razao_social")
     nome_fantasia = cli_data.get("nome_fantasia")
     inscricao_estadual = cli_data.get("inscricao_estadual")
     inscricao_municipal = cli_data.get("inscricao_municipal")
     representante_legal_id = cli_data.get("representante_legal_id")
+    cnh_numero = cli_data.get("cnh_numero")
+    cnh_categoria = cli_data.get("cnh_categoria")
+    cnh_validade = cli_data.get("cnh_validade")
+    cnh_orgao_uf = cli_data.get("cnh_orgao_uf")
+    rg_orgao = cli_data.get("rg_orgao")
+    rg_uf = cli_data.get("rg_uf")
+    naturalidade = cli_data.get("naturalidade")
+    certidao_casamento_matricula = cli_data.get("certidao_casamento_matricula")
 
     # Sanitização de CPF/CNPJ
     cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
@@ -294,27 +302,39 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                     INSERT INTO pessoas (
                         nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
                         endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
-                        tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
+                        cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, 
                     endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
-                    tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id
+                    tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
+                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
                 ))
                 pessoa_id = cursor.lastrowid
             else:
                 # Atualiza os dados da pessoa existente
                 cursor.execute("""
                     UPDATE pessoas
-                    SET tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?, inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?
+                    SET tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?, inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?,
+                        cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?, rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
                     WHERE id = ?
-                """, (tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id, pessoa_id))
+                """, (
+                    tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
+                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                    pessoa_id
+                ))
                 
             # 3. Insere a associação do cliente apontando para a pessoa
             cursor.execute("""
-                INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (pessoa_id, cli_data.get("profissional_id") or 1, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov))
+                INSERT INTO clientes (
+                    pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
+                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                pessoa_id, cli_data.get("profissional_id") or 1, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
+                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
+            ))
             cliente_id = cursor.lastrowid
             
             # 4. Grava metadados customizados
@@ -342,12 +362,17 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                             doc.get("data_validade"),
                             doc.get("observacoes")
                         ))
-            elif rg_ie and rg_ie.strip():
-                # Inclusão automática retrocompatível do RG inicial em cliente_documentos
-                cursor.execute("""
-                    INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor)
-                    VALUES (?, 'RG', ?, 'SSP')
-                """, (pessoa_id, rg_ie.strip()))
+            else:
+                if rg_ie and rg_ie.strip():
+                    cursor.execute("""
+                        INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor)
+                        VALUES (?, 'RG', ?, ?, ?)
+                    """, (pessoa_id, rg_ie.strip(), rg_orgao or 'SSP', rg_uf or estado or 'PR'))
+                if cnh_numero and cnh_numero.strip():
+                    cursor.execute("""
+                        INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, categoria_cnh, data_validade)
+                        VALUES (?, 'CNH', ?, ?, ?, ?)
+                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or 'DETRAN', cnh_categoria, cnh_validade))
 
             conn.commit()
             
@@ -387,13 +412,21 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     metadados = cli_data.get("metadados", {})
     documentos = cli_data.get("documentos")
     
-    # Novos campos PF / PJ
+    # Novos campos PF / PJ e Qualificação Civil Expandida
     tipo_pessoa = cli_data.get("tipo_pessoa")
     razao_social = cli_data.get("razao_social")
     nome_fantasia = cli_data.get("nome_fantasia")
     inscricao_estadual = cli_data.get("inscricao_estadual")
     inscricao_municipal = cli_data.get("inscricao_municipal")
     representante_legal_id = cli_data.get("representante_legal_id")
+    cnh_numero = cli_data.get("cnh_numero")
+    cnh_categoria = cli_data.get("cnh_categoria")
+    cnh_validade = cli_data.get("cnh_validade")
+    cnh_orgao_uf = cli_data.get("cnh_orgao_uf")
+    rg_orgao = cli_data.get("rg_orgao")
+    rg_uf = cli_data.get("rg_uf")
+    naturalidade = cli_data.get("naturalidade")
+    certidao_casamento_matricula = cli_data.get("certidao_casamento_matricula")
 
     # Sanitização de CPF/CNPJ
     cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
@@ -419,6 +452,8 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                        p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo,
                        p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.tipo_pessoa, p.razao_social,
                        p.nome_fantasia, p.inscricao_estadual, p.inscricao_municipal, p.representante_legal_id,
+                       p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf, p.rg_orgao, p.rg_uf,
+                       p.naturalidade, p.certidao_casamento_matricula,
                        c.data_nascimento_fundacao, c.email, c.telefone,
                        c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at, c.pessoa_id
                 FROM clientes c
@@ -457,26 +492,56 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                     estado_civil = ?, regime_bens = ?, endereco_completo = ?,
                     nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?,
                     tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?,
-                    inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?
+                    inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?,
+                    cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?,
+                    rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
                 WHERE id = ?
             """, (
                 nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo,
                 nome_conjuge, cpf_conjuge, rg_conjuge, tipo_pessoa, razao_social, nome_fantasia,
-                inscricao_estadual, inscricao_municipal, representante_legal_id, pessoa_id
+                inscricao_estadual, inscricao_municipal, representante_legal_id,
+                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf,
+                rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                pessoa_id
             ))
             
             # 5. Atualiza os dados de relacionamento na tabela clientes
             cursor.execute("""
                 UPDATE clientes 
-                SET data_nascimento_fundacao = ?, email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?, senha_gov = ?
+                SET data_nascimento_fundacao = ?, email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?, senha_gov = ?,
+                    cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?,
+                    rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
                 WHERE id = ?
-            """, (data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov_final, cliente_id))
+            """, (
+                data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov_final,
+                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf,
+                rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                cliente_id
+            ))
             
             # Atualiza metadados (limpa e insere novos)
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
             if metadados:
                 for k, v in metadados.items():
                     cursor.execute("INSERT INTO cliente_metadados (id_cliente, chave, valor) VALUES (?, ?, ?)", (cliente_id, k, v))
+
+            # Atualiza documentos de identificação se CNH ou RG foram informados
+            if cnh_numero and cnh_numero.strip():
+                cursor.execute("""
+                    SELECT id FROM cliente_documentos WHERE pessoa_id = ? AND tipo_documento = 'CNH'
+                """, (pessoa_id,))
+                cnh_row = cursor.fetchone()
+                if cnh_row:
+                    cursor.execute("""
+                        UPDATE cliente_documentos
+                        SET numero = ?, categoria_cnh = ?, data_validade = ?, orgao_emissor = ?
+                        WHERE id = ?
+                    """, (cnh_numero.strip(), cnh_categoria, cnh_validade, cnh_orgao_uf or 'DETRAN', cnh_row[0]))
+                else:
+                    cursor.execute("""
+                        INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, categoria_cnh, data_validade)
+                        VALUES (?, 'CNH', ?, ?, ?, ?)
+                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or 'DETRAN', cnh_categoria, cnh_validade))
             
             # Sincroniza documentos se fornecidos explicitamente
             if documentos is not None and isinstance(documentos, list):

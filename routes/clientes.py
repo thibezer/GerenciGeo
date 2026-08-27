@@ -68,13 +68,21 @@ class ClienteCreate(BaseModel):
     senha_gov: Optional[str] = None
     metadados: dict = Field(default_factory=dict)
     
-    # Novos campos PF / PJ
+    # Campos PF / PJ e Qualificação Civil Expandida
     tipo_pessoa: Optional[str] = "PF"
     razao_social: Optional[str] = None
     nome_fantasia: Optional[str] = None
     inscricao_estadual: Optional[str] = None
     inscricao_municipal: Optional[str] = None
     representante_legal_id: Optional[int] = None
+    cnh_numero: Optional[str] = None
+    cnh_categoria: Optional[str] = None
+    cnh_validade: Optional[str] = None
+    cnh_orgao_uf: Optional[str] = None
+    rg_orgao: Optional[str] = None
+    rg_uf: Optional[str] = None
+    naturalidade: Optional[str] = None
+    certidao_casamento_matricula: Optional[str] = None
     documentos: Optional[List[dict]] = None
 
 class ProfissionalCreate(BaseModel):
@@ -125,6 +133,7 @@ def concluir_pendencia(item_id: int):
 # ── Clientes ──────────────────────────────────────────────────────────────────
 
 @router.post("/clientes")
+@router.post("/api/clientes")
 def create_cliente(cli: ClienteCreate):
     res = cadastrar_cliente(cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
     if "error" in res:
@@ -132,6 +141,7 @@ def create_cliente(cli: ClienteCreate):
     return res
 
 @router.get("/clientes")
+@router.get("/api/clientes")
 def get_clientes():
     try:
         query = """
@@ -140,6 +150,8 @@ def get_clientes():
                    p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
                    p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual,
                    p.inscricao_municipal, p.representante_legal_id, rep.nome as representante_legal_nome,
+                   p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf,
+                   p.rg_orgao, p.rg_uf, p.naturalidade, p.certidao_casamento_matricula,
                    c.data_nascimento_fundacao, c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at
             FROM clientes c
             JOIN pessoas p ON c.pessoa_id = p.id
@@ -234,7 +246,58 @@ def get_clientes():
         logging.getLogger(__name__).error(f"Erro ao listar clientes: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar lista de clientes.")
 
+@router.get("/clientes/{cliente_id}")
+@router.get("/api/clientes/{cliente_id}")
+def get_cliente_por_id(cliente_id: int):
+    try:
+        query = """
+            SELECT c.id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
+                   p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual,
+                   p.inscricao_municipal, p.representante_legal_id, rep.nome as representante_legal_nome,
+                   p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf,
+                   p.rg_orgao, p.rg_uf, p.naturalidade, p.certidao_casamento_matricula,
+                   c.data_nascimento_fundacao, c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at
+            FROM clientes c
+            JOIN pessoas p ON c.pessoa_id = p.id
+            LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
+            WHERE c.id = ?
+        """
+        row = execute_query(query, params=(cliente_id,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+        
+        c = dict(row)
+        p_id = c['pessoa_id']
+        
+        # Metadados
+        metas = execute_query("SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?", params=(cliente_id,), fetch_all=True)
+        c['metadados'] = {m['chave']: m['valor'] for m in metas} if metas else {}
+        
+        # Documentos
+        docs = execute_query("""
+            SELECT id, pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor,
+                   categoria_cnh, data_emissao, data_validade, observacoes
+            FROM cliente_documentos
+            WHERE pessoa_id = ?
+            ORDER BY created_at ASC
+        """, params=(p_id,), fetch_all=True)
+        c['documentos'] = [dict(d) for d in docs] if docs else []
+        
+        tem_senha = bool(c.get('senha_gov'))
+        c['tem_senha_gov'] = tem_senha
+        c['senha_gov'] = '••••••••' if tem_senha else None
+        
+        return c
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar cliente {cliente_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar cliente.")
+
 @router.delete("/clientes/{cliente_id}")
+@router.delete("/api/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int):
     res = excluir_cliente(cliente_id)
     if "error" in res:
@@ -243,11 +306,13 @@ def delete_cliente(cliente_id: int):
     return res
 
 @router.post("/clientes/excluir-lote")
+@router.post("/api/clientes/excluir-lote")
 def delete_clientes_lote(payload: ClientesLoteDelete):
     res = excluir_clientes_lote(payload.cliente_ids)
     return res
 
 @router.put("/clientes/{cliente_id}")
+@router.put("/api/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
     res = atualizar_cliente(cliente_id, cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
     if "error" in res:

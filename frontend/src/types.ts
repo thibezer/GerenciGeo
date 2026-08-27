@@ -98,6 +98,14 @@ export interface Cliente {
   inscricao_municipal?: string | null;
   representante_legal_id?: number | null;
   representante_legal_nome?: string | null;
+  cnh_numero?: string | null;
+  cnh_categoria?: string | null;
+  cnh_validade?: string | null;
+  cnh_orgao_uf?: string | null;
+  rg_orgao?: string | null;
+  rg_uf?: string | null;
+  naturalidade?: string | null;
+  certidao_casamento_matricula?: string | null;
   documentos?: ClienteDocumento[];
   created_at?: string;
   metadados?: Record<string, string>;
@@ -132,6 +140,14 @@ export interface ClientePayload {
   inscricao_estadual?: string | null;
   inscricao_municipal?: string | null;
   representante_legal_id?: number | null;
+  cnh_numero?: string | null;
+  cnh_categoria?: string | null;
+  cnh_validade?: string | null;
+  cnh_orgao_uf?: string | null;
+  rg_orgao?: string | null;
+  rg_uf?: string | null;
+  naturalidade?: string | null;
+  certidao_casamento_matricula?: string | null;
   documentos?: ClienteDocumento[];
   metadados?: Record<string, string>;
 }
