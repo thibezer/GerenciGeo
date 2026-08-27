@@ -3,6 +3,8 @@ import type {
   Cliente,
   ClienteEstatisticas,
   ClienteHistoricoLog,
+  ClienteAcessoLog,
+  ClienteDocumento,
   PropriedadeVinculadaCliente
 } from '../../types';
 
@@ -39,14 +41,26 @@ export const aplicarMascaraCep = (value: string): string => {
   return value.replace(/\D/g, '').replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 };
 
+export const isCnhVencida = (dataValidade?: string | null): boolean => {
+  if (!dataValidade || !dataValidade.trim()) return false;
+  try {
+    const valDate = new Date(dataValidade);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return valDate < today;
+  } catch {
+    return false;
+  }
+};
+
 export const calcularEstatisticasClientes = (clientes: Cliente[]): ClienteEstatisticas => {
   let pf = 0;
   let pj = 0;
   let incompletos = 0;
 
   clientes.forEach(cli => {
-    const docLimpo = (cli.cpf_cnpj || '').replace(/\D/g, '');
-    if (docLimpo.length > 11) {
+    const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+    if (isPj) {
       pj++;
     } else {
       pf++;
@@ -67,6 +81,10 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
   return visiveis.map(cli => {
     const isSel = clientesSelecionados.has(cli.id);
     const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.01]';
+    const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+    const badgeTipo = isPj 
+      ? '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">PJ</span>'
+      : '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>';
 
     return `
       <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${cli.id}">
@@ -75,11 +93,14 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
         </td>
         <td class="py-2.5 px-4 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72 btn-action" data-action="detalhes" data-id="${cli.id}">
           <ui-avatar nome="${escapeHtml(cli.nome_completo || '')}" tamanho="sm"></ui-avatar>
-          <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
+          <div class="min-w-0 flex-1 flex items-center gap-1.5">
+            <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
+            ${badgeTipo}
+          </div>
         </td>
         <td class="py-2.5 px-4 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
         <td class="py-2.5 px-4 font-mono text-white/75 font-medium">
-          ${cli.senha_gov ? `
+          ${(cli.tem_senha_gov || cli.senha_gov) ? `
             <div class="flex items-center gap-1.5 font-mono">
               <span id="senha-gov-val-${cli.id}">••••••••</span>
               <button type="button" class="text-white/40 hover:text-mint-vibrant transition-colors p-1 cursor-pointer btn-action" data-action="revelar-senha" data-id="${cli.id}" title="Mostrar/Ocultar Senha GOV">
@@ -174,6 +195,55 @@ export const renderLogsHistoricoTabelaHtml = (logs: ClienteHistoricoLog[]): stri
   }).join('');
 };
 
+export const renderLogsAcessoTabelaHtml = (acessos: ClienteAcessoLog[]): string => {
+  if (!Array.isArray(acessos) || acessos.length === 0) {
+    return '<tr><td colspan="5" class="text-center py-4 text-white/20">Nenhum registro de acesso a dados sensíveis gravado.</td></tr>';
+  }
+  return acessos.map(ac => {
+    const dataFormatada = new Date(ac.data_acesso).toLocaleString('pt-BR');
+    return `
+      <tr class="hover:bg-white/[0.01]">
+        <td class="py-2 px-3 font-mono text-mint-vibrant">${escapeHtml(ac.tipo_dado)}</td>
+        <td class="py-2 px-3 text-white/80 font-medium">${escapeHtml(ac.acao)}</td>
+        <td class="py-2 px-3 text-white/60">${escapeHtml(ac.usuario || 'Operador')}</td>
+        <td class="py-2 px-3 font-mono text-white/40 text-[10px]">${escapeHtml(ac.ip_origem || 'Local')}</td>
+        <td class="py-2 px-3 text-right text-white/40 font-mono">${dataFormatada}</td>
+      </tr>
+    `;
+  }).join('');
+};
+
+export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[]): string => {
+  if (!Array.isArray(docs) || docs.length === 0) {
+    return '<tr><td colspan="6" class="text-center py-4 text-white/30">Nenhum documento cadastrado.</td></tr>';
+  }
+  return docs.map(doc => {
+    const isVencida = doc.tipo_documento === 'CNH' && isCnhVencida(doc.data_validade);
+    const validadeFormatada = doc.data_validade ? doc.data_validade.split('-').reverse().join('/') : '-';
+    const badgeVencida = isVencida 
+      ? `<span class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse"><i data-lucide="alert-triangle" class="w-3 h-3"></i> CNH Vencida</span>`
+      : '';
+
+    return `
+      <tr class="hover:bg-white/[0.01] text-xs">
+        <td class="py-2 px-3 font-bold font-mono text-mint-vibrant">${escapeHtml(doc.tipo_documento)}</td>
+        <td class="py-2 px-3 font-mono text-white/90 font-medium">${escapeHtml(doc.numero)}</td>
+        <td class="py-2 px-3 text-white/60">${escapeHtml(doc.orgao_emissor || '-')}${doc.uf_emissor ? `/${escapeHtml(doc.uf_emissor)}` : ''}</td>
+        <td class="py-2 px-3 font-mono text-white/60">${escapeHtml(doc.categoria_cnh || '-')}</td>
+        <td class="py-2 px-3 font-mono text-white/80 flex items-center gap-2">
+          <span>${validadeFormatada}</span>
+          ${badgeVencida}
+        </td>
+        <td class="py-2 px-3 text-right">
+          <button data-action="excluir-doc" data-doc-id="${doc.id}" class="text-white/40 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action-doc" title="Excluir Documento">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+};
+
 export const renderPropriedadesVinculadasHtml = (props: PropriedadeVinculadaCliente[]): string => {
   if (!Array.isArray(props) || props.length === 0) {
     return `<p class="text-[11px] text-white/30 italic py-1">Nenhuma propriedade vinculada a este cliente.</p>`;
@@ -191,3 +261,4 @@ export const renderPropriedadesVinculadasHtml = (props: PropriedadeVinculadaClie
     </div>
   `).join('');
 };
+

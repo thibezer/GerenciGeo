@@ -33,6 +33,8 @@ venv32/
 .venv
 ENV/
 .env.*
+*.key
+app_secrets.key
 
 # Rascunhos e saídas de teste temporárias
 saida.txt

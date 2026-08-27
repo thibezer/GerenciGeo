@@ -3,6 +3,8 @@ import type {
   Cliente,
   ClientePayload,
   ClienteHistoricoLog,
+  ClienteAcessoLog,
+  ClienteDocumento,
   ExcluirLoteResponse,
   ViaCepResponse
 } from '../../types';
@@ -90,6 +92,61 @@ export const salvarMetadadosCliente = async (id: number, payloadCliente: Cliente
   return res.json();
 };
 
+export const revelarSenhaGovApi = async (clienteId: number): Promise<string | null> => {
+  const res = await fetch(`${API_BASE}/clientes/${clienteId}/revelar-senha`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.error || "Falha ao revelar senha GOV.");
+  }
+  const data = await res.json();
+  return data.senha_gov || null;
+};
+
+export const fetchClienteAcessosApi = async (clienteId: number): Promise<ClienteAcessoLog[]> => {
+  const res = await fetch(`${API_BASE}/clientes/${clienteId}/acessos`);
+  if (!res.ok) {
+    throw new Error("Falha ao obter histórico de acessos.");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+};
+
+export const fetchClienteDocumentosApi = async (clienteId: number): Promise<ClienteDocumento[]> => {
+  const res = await fetch(`${API_BASE}/clientes/${clienteId}/documentos`);
+  if (!res.ok) {
+    throw new Error("Falha ao obter documentos do cliente.");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+};
+
+export const salvarDocumentoClienteApi = async (clienteId: number, doc: Partial<ClienteDocumento>): Promise<any> => {
+  const res = await fetch(`${API_BASE}/clientes/${clienteId}/documentos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(doc)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || "Erro ao salvar documento.");
+  }
+  return data;
+};
+
+export const excluirDocumentoClienteApi = async (docId: number): Promise<any> => {
+  const res = await fetch(`${API_BASE}/clientes/documentos/${docId}`, {
+    method: 'DELETE'
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || "Erro ao excluir documento.");
+  }
+  return data;
+};
+
 export const carregarCidadesIbgeService = async (uf: string): Promise<string[]> => {
   try {
     const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`);
@@ -117,3 +174,4 @@ export const buscarCepViaCepService = async (cep: string): Promise<ViaCepRespons
     return null;
   }
 };
+

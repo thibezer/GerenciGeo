@@ -138,6 +138,15 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   2. O driver `database/connection.py` gera backups atômicos automáticos antes de conexões de escrita e intercepta/bloqueia qualquer comando `DELETE FROM <tabela_vital>` sem `WHERE` na base de produção.
   3. Todo arquivo de teste unitário deve utilizar dados com identificadores controlados e limpar estritamente os registros que criou (`DELETE FROM ... WHERE id IN (...)`), nunca limpando tabelas inteiras.
 
+---
 
-
-
+## 16. Criptografia em Repouso, Auditoria de Credenciais Sensíveis e Gestão Cadastral PF/PJ
+- **Problema**: 
+  1. Credenciais sensíveis (ex: senha GOV) persistidas em texto plano no banco de dados violavam padrões de segurança e compliance, sem trilha de auditoria sobre quem acessou ou revelou a informação.
+  2. Modais com grids de colunas fixas (`grid-cols-2 md:grid-cols-3 lg:grid-cols-6`) colidiam títulos longos ("NACIONALIDADEPROFISSÃO") em diferentes resoluções.
+  3. Falta de suporte estruturado a Pessoas Jurídicas (Razão Social, Nome Fantasia, IE, IM, Representante Legal) e múltiplos documentos com validade (ex: CNH, CREA).
+- **Regra Obrigatória**:
+  1. **Criptografia Simétrica em Repouso**: Dados sensíveis (senhas GOV) devem ser cifrados antes do `INSERT`/`UPDATE` usando CTR stream cipher + HMAC-SHA256 (`services/seguranca/crypto_service.py`) com prefixo identificador (`ENC:G4G2:`). A chave é gerenciada em `app_secrets.key` ou variável de ambiente.
+  2. **Mascaramento por Padrão e Revelação Auditada**: O endpoint público `GET /clientes` nunca retorna a senha em texto claro (retorna `••••••••` e `tem_senha_gov: true`). A revelação ocorre estritamente via endpoint dedicado `POST /clientes/{id}/revelar-senha`, que registra o operador, IP e timestamp na tabela `cliente_acesso_logs`.
+  3. **Layout Flexível Auto-Fit**: Grids de dados em modais devem usar `grid [grid-template-columns:repeat(auto-fit,minmax(130px,1fr))]` com `min-w-0`, `break-words` e `white-space: normal`, evitando qualquer colisão ou sobreposição de labels.
+  4. **Suporte Completo PF/PJ & Documentos**: Formulários devem oferecer alternância PF/PJ com soft-hide (preservando preenchimento), vinculação de Representante Legal PF para empresas PJ, e tabela dinâmica `cliente_documentos` com detecção visual e badge de alerta para CNH vencida.

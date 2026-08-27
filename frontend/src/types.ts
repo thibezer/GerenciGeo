@@ -45,8 +45,32 @@ export interface PropriedadeVinculadaCliente {
   percentual_participacao: number;
 }
 
+export interface ClienteDocumento {
+  id?: number;
+  pessoa_id?: number;
+  tipo_documento: 'RG' | 'CNH' | 'CREA' | 'CAU' | 'OAB' | 'PASSAPORTE' | string;
+  numero: string;
+  orgao_emissor?: string | null;
+  uf_emissor?: string | null;
+  categoria_cnh?: string | null;
+  data_emissao?: string | null;
+  data_validade?: string | null;
+  observacoes?: string | null;
+  created_at?: string;
+}
+
+export interface ClienteAcessoLog {
+  id: number;
+  tipo_dado: string;
+  acao: string;
+  usuario: string;
+  ip_origem?: string | null;
+  data_acesso: string;
+}
+
 export interface Cliente {
   id: number;
+  pessoa_id?: number;
   nome_completo: string;
   cpf_cnpj: string;
   rg_ie?: string | null;
@@ -66,6 +90,15 @@ export interface Cliente {
   cep?: string | null;
   sexo?: 'M' | 'F' | string;
   senha_gov?: string | null;
+  tem_senha_gov?: boolean;
+  tipo_pessoa?: 'PF' | 'PJ' | string;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  inscricao_estadual?: string | null;
+  inscricao_municipal?: string | null;
+  representante_legal_id?: number | null;
+  representante_legal_nome?: string | null;
+  documentos?: ClienteDocumento[];
   created_at?: string;
   metadados?: Record<string, string>;
   total_levantamentos?: number;
@@ -93,6 +126,13 @@ export interface ClientePayload {
   cep?: string | null;
   sexo?: string;
   senha_gov?: string | null;
+  tipo_pessoa?: 'PF' | 'PJ' | string;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  inscricao_estadual?: string | null;
+  inscricao_municipal?: string | null;
+  representante_legal_id?: number | null;
+  documentos?: ClienteDocumento[];
   metadados?: Record<string, string>;
 }
 

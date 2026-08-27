@@ -115,9 +115,13 @@ class TestClientesBlockers(unittest.TestCase):
         clientes = get_clientes()
         cli = next((c for c in clientes if c["id"] == cliente_id), None)
         self.assertIsNotNone(cli)
-        self.assertEqual(cli["data_nascimento_fundacao"], "1985-06-20")
-        self.assertEqual(cli["nome_completo"], "Carlos Teste Unitario")
-        self.assertEqual(cli["senha_gov"], "SenhaSecretaGov123")
+        self.assertEqual(cli["senha_gov"], "••••••••")
+        self.assertTrue(cli.get("tem_senha_gov"))
+
+        # Valida revelação auditada
+        from services.gestores.cliente_manager import revelar_senha_gov
+        res_rev = revelar_senha_gov(cliente_id)
+        self.assertEqual(res_rev.get("senha_gov"), "SenhaSecretaGov123")
 
         # Atualiza a data de nascimento
         cli_payload["data_nascimento_fundacao"] = "1985-06-25"

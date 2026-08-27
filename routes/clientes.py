@@ -1,8 +1,8 @@
 """
-routes/clientes.py — CRUD de Clientes, Profissionais e Pendências
+routes/clientes.py — CRUD de Clientes, Profissionais, Documentos e Auditoria
 """
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from collections import defaultdict
@@ -12,7 +12,12 @@ from services.gestores.cliente_manager import (
     atualizar_cliente,
     excluir_cliente,
     excluir_clientes_lote,
-    vincular_cliente_propriedade
+    vincular_cliente_propriedade,
+    revelar_senha_gov,
+    obter_acessos_cliente,
+    obter_documentos_cliente,
+    salvar_documento_cliente,
+    excluir_documento_cliente
 )
 from database.repository import PendenciaRepo
 
@@ -30,6 +35,16 @@ class PendenciaUpdate(BaseModel):
 
 class ClientesLoteDelete(BaseModel):
     cliente_ids: List[int] = Field(default_factory=list)
+
+class DocumentoCreate(BaseModel):
+    tipo_documento: str = "RG"
+    numero: str
+    orgao_emissor: Optional[str] = None
+    uf_emissor: Optional[str] = None
+    categoria_cnh: Optional[str] = None
+    data_emissao: Optional[str] = None
+    data_validade: Optional[str] = None
+    observacoes: Optional[str] = None
 
 class ClienteCreate(BaseModel):
     nome_completo: str
@@ -52,6 +67,15 @@ class ClienteCreate(BaseModel):
     sexo: str = "M"
     senha_gov: Optional[str] = None
     metadados: dict = Field(default_factory=dict)
+    
+    # Novos campos PF / PJ
+    tipo_pessoa: Optional[str] = "PF"
+    razao_social: Optional[str] = None
+    nome_fantasia: Optional[str] = None
+    inscricao_estadual: Optional[str] = None
+    inscricao_municipal: Optional[str] = None
+    representante_legal_id: Optional[int] = None
+    documentos: Optional[List[dict]] = None
 
 class ProfissionalCreate(BaseModel):
     nome: str
@@ -102,7 +126,7 @@ def concluir_pendencia(item_id: int):
 
 @router.post("/clientes")
 def create_cliente(cli: ClienteCreate):
-    res = cadastrar_cliente(cli.dict())
+    res = cadastrar_cliente(cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
@@ -111,18 +135,23 @@ def create_cliente(cli: ClienteCreate):
 def get_clientes():
     try:
         query = """
-            SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
+            SELECT c.id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
                    p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
                    p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual,
+                   p.inscricao_municipal, p.representante_legal_id, rep.nome as representante_legal_nome,
                    c.data_nascimento_fundacao, c.email, c.telefone, c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at
             FROM clientes c
             JOIN pessoas p ON c.pessoa_id = p.id
+            LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
+            ORDER BY c.id DESC
         """
         clientes = [dict(r) for r in execute_query(query, fetch_all=True)]
         if not clientes:
             return clientes
 
         client_ids = [c['id'] for c in clientes]
+        pessoa_ids = list({c['pessoa_id'] for c in clientes if c.get('pessoa_id')})
         placeholders = ",".join(["?"] * len(client_ids))
 
         # 1. Metadados
@@ -170,13 +199,35 @@ def get_clientes():
                 'percentual_participacao': row['percentual_participacao']
             })
 
-        # Atribuir os valores mapeados aos clientes
+        # 5. Documentos estruturados por pessoa_id
+        docs_map = defaultdict(list)
+        if pessoa_ids:
+            p_placeholders = ",".join(["?"] * len(pessoa_ids))
+            docs_query = f"""
+                SELECT id, pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor,
+                       categoria_cnh, data_emissao, data_validade, observacoes
+                FROM cliente_documentos
+                WHERE pessoa_id IN ({p_placeholders})
+                ORDER BY created_at ASC
+            """
+            docs_rows = execute_query(docs_query, params=tuple(pessoa_ids), fetch_all=True)
+            for d in docs_rows:
+                docs_map[d['pessoa_id']].append(dict(d))
+
+        # Atribuir os valores mapeados e sanitizar a Senha GOV
         for c in clientes:
             c_id = c['id']
+            p_id = c['pessoa_id']
             c['metadados'] = dict(metadados_map.get(c_id, {}))
             c['total_levantamentos'] = levs_map.get(c_id, 0)
             c['total_propriedades'] = props_count_map.get(c_id, 0)
             c['propriedades'] = list(props_detail_map.get(c_id, []))
+            c['documentos'] = list(docs_map.get(p_id, []))
+            
+            # SEGURANÇA: Mascaramento estrito de senha na listagem pública
+            tem_senha = bool(c.get('senha_gov'))
+            c['tem_senha_gov'] = tem_senha
+            c['senha_gov'] = '••••••••' if tem_senha else None
 
         return clientes
     except Exception as e:
@@ -198,7 +249,7 @@ def delete_clientes_lote(payload: ClientesLoteDelete):
 
 @router.put("/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
-    res = atualizar_cliente(cliente_id, cli.dict())
+    res = atualizar_cliente(cliente_id, cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
@@ -212,6 +263,51 @@ def get_cliente_historico(cliente_id: int):
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao buscar histórico do cliente id={cliente_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar histórico do cliente.")
+
+@router.post("/clientes/{cliente_id}/revelar-senha")
+def post_revelar_senha_cliente(cliente_id: int, request: Request):
+    """
+    Endpoint auditado que descriptografa a senha GOV sob demanda explícita.
+    """
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    res = revelar_senha_gov(cliente_id, usuario="Operador do Sistema", ip_origem=client_ip)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
+
+@router.get("/clientes/{cliente_id}/acessos")
+def get_cliente_acessos(cliente_id: int):
+    """
+    Retorna a trilha de auditoria de acessos aos dados sensíveis do cliente.
+    """
+    return obter_acessos_cliente(cliente_id)
+
+@router.get("/clientes/{cliente_id}/documentos")
+def get_cliente_documentos(cliente_id: int):
+    """
+    Retorna os documentos de identificação do cliente.
+    """
+    return obter_documentos_cliente(cliente_id)
+
+@router.post("/clientes/{cliente_id}/documentos")
+def post_cliente_documento(cliente_id: int, doc: DocumentoCreate):
+    """
+    Adiciona um novo documento de identificação ao cliente.
+    """
+    res = salvar_documento_cliente(cliente_id, doc.model_dump() if hasattr(doc, 'model_dump') else doc.dict())
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
+
+@router.delete("/clientes/documentos/{doc_id}")
+def delete_cliente_documento(doc_id: int):
+    """
+    Exclui um documento pelo ID.
+    """
+    res = excluir_documento_cliente(doc_id)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
 
 # ── Profissionais ─────────────────────────────────────────────────────────────
 

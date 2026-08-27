@@ -136,13 +136,25 @@ export const renderClientesTemplate = (): string => `
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
     <ui-modal id="modal-cliente" titulo="Cadastro de Cliente">
-       <form id="form-cliente" class="space-y-3.5" style="--ui-altura-minima: 36px;">
-          <!-- Seção: Identificação -->
-          <div class="space-y-3">
+       <form id="form-cliente" class="space-y-4" style="--ui-altura-minima: 36px;">
+          <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
+
+          <!-- Alternador de Tipo de Pessoa (PF / PJ) -->
+          <div class="flex items-center gap-2 p-1 bg-white/[0.03] border border-white/5 rounded-technical w-fit">
+             <button type="button" id="btn-tipo-pf" class="px-3 py-1.5 text-xs font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
+                Pessoa Física (PF)
+             </button>
+             <button type="button" id="btn-tipo-pj" class="px-3 py-1.5 text-xs font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
+                Pessoa Jurídica (PJ)
+             </button>
+          </div>
+
+          <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
+          <div id="bloco-campos-pf" class="space-y-3">
              <div class="grid grid-cols-4 gap-3 items-end">
                 <div class="col-span-3">
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nome Completo</label>
-                   <ui-campo-texto name="nome_completo" required></ui-campo-texto>
+                   <ui-campo-texto name="nome_completo" id="input-nome-completo" required></ui-campo-texto>
                 </div>
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Gênero</label>
@@ -154,18 +166,18 @@ export const renderClientesTemplate = (): string => `
              </div>
              <div class="grid grid-cols-2 gap-3 items-end">
                 <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">CPF / CNPJ</label>
-                   <ui-campo-texto name="cpf_cnpj" required></ui-campo-texto>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">CPF</label>
+                   <ui-campo-texto name="cpf_cnpj" id="input-cpf-cnpj" required></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">RG / IE</label>
-                   <ui-campo-texto name="rg_ie"></ui-campo-texto>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">RG Principal</label>
+                   <ui-campo-texto name="rg_ie" placeholder="Número do RG"></ui-campo-texto>
                 </div>
              </div>
              <div class="grid grid-cols-3 gap-3 items-end">
                 <div>
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Estado Civil</label>
-                   <ui-select name="estado_civil" texto-padrao="Selecione o Estado Civil...">
+                   <ui-select name="estado_civil" id="select-estado-civil" texto-padrao="Selecione o Estado Civil...">
                       <option value="">Não informado / Solteiro(a)</option>
                       <option value="Solteiro(a)">Solteiro(a)</option>
                       <option value="Casado(a)">Casado(a)</option>
@@ -179,15 +191,49 @@ export const renderClientesTemplate = (): string => `
                    <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Data Nasc. / Fundação</label>
-                   <ui-campo-texto name="data_nascimento_fundacao" tipo="date"></ui-campo-texto>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Data de Nascimento</label>
+                   <ui-campo-texto name="data_nascimento_fundacao" id="input-data-nasc" tipo="date"></ui-campo-texto>
                 </div>
              </div>
           </div>
 
-          <!-- Seção: Cônjuge -->
-          <div id="secao-conjuge" class="border-t border-white/5 pt-3.5 space-y-2.5">
-             <h5 class="text-[9px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge</h5>
+          <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA JURÍDICA (Oculta por padrão) -->
+          <div id="bloco-campos-pj" class="space-y-3 hidden">
+             <div class="grid grid-cols-2 gap-3 items-end">
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Razão Social</label>
+                   <ui-campo-texto name="razao_social" id="input-razao-social"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nome Fantasia</label>
+                   <ui-campo-texto name="nome_fantasia" id="input-nome-fantasia"></ui-campo-texto>
+                </div>
+             </div>
+             <div class="grid grid-cols-3 gap-3 items-end">
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Inscrição Estadual (IE)</label>
+                   <ui-campo-texto name="inscricao_estadual" placeholder="Isento / Nº"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Inscrição Municipal (IM)</label>
+                   <ui-campo-texto name="inscricao_municipal" placeholder="Opcional"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Data de Fundação</label>
+                   <ui-campo-texto name="data_fundacao_pj" id="input-data-fundacao" tipo="date"></ui-campo-texto>
+                </div>
+             </div>
+             <div>
+                <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Representante Legal (Vincular Cliente PF)</label>
+                <ui-select name="representante_legal_id" id="select-representante-legal" texto-padrao="Selecione um cliente PF já cadastrado...">
+                   <!-- Opções de clientes PF via JS -->
+                </ui-select>
+             </div>
+          </div>
+
+          <!-- SEÇÃO: CÔNJUGE (Visível para Casado e União Estável) -->
+          <div id="secao-conjuge" class="border-t border-white/5 pt-3.5 space-y-2.5 hidden">
+             <h5 class="text-[9px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge / Companheiro(a)</h5>
              <div class="grid grid-cols-4 gap-3 items-end">
                 <div class="col-span-2">
                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nome do Cônjuge</label>
@@ -217,7 +263,7 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
 
-          <!-- Seção: Contato e Endereço -->
+          <!-- SEÇÃO: CONTATO E LOCALIZAÇÃO -->
           <div class="border-t border-white/5 pt-3.5 space-y-2.5">
              <h5 class="text-[9px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
              <div class="grid grid-cols-3 gap-3 items-end">
@@ -230,11 +276,14 @@ export const renderClientesTemplate = (): string => `
                     <ui-campo-texto name="email" tipo="email"></ui-campo-texto>
                 </div>
                 <div class="col-span-2">
-                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Profissão</label>
+                    <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Profissão / Ramo de Atuação</label>
                     <ui-campo-texto name="profissao"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Senha GOV</label>
+                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1 flex items-center justify-between">
+                     <span>Senha GOV</span>
+                     <span class="text-[8px] text-mint-vibrant lowercase">criptografada</span>
+                   </label>
                    <ui-campo-texto name="senha_gov" placeholder="Senha GOV"></ui-campo-texto>
                 </div>
              </div>
@@ -304,11 +353,15 @@ export const renderClientesTemplate = (): string => `
     <!-- MODAL DE DETALHES COMPLETO -->
     <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente">
        <div class="space-y-4">
+          <!-- Cabeçalho do Modal de Detalhes -->
           <div class="flex items-center justify-between pb-3 border-b border-white/5">
              <div class="flex items-center gap-3 min-w-0">
                 <ui-avatar id="det-cli-avatar" nome="??" tamanho="md"></ui-avatar>
                 <div class="min-w-0">
-                   <h3 class="text-sm font-bold text-white truncate" id="det-cli-titulo">Nome do Cliente</h3>
+                   <div class="flex items-center gap-2">
+                      <h3 class="text-sm font-bold text-white truncate" id="det-cli-titulo">Nome do Cliente</h3>
+                      <span id="det-cli-badge-tipo" class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>
+                   </div>
                    <p class="text-[9px] text-white/40 font-mono leading-none mt-1" id="det-cli-subtitulo">CPF: 000.000.000-00</p>
                 </div>
              </div>
@@ -322,88 +375,118 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
           
-          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none">
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico de Alterações</button>
+          <!-- Abas de Navegação -->
+          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none gap-1">
+             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
+             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos</button>
+             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
+             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
           </div>
           
           <div class="space-y-4">
-             <!-- ABA DADOS CADASTRAIS -->
+             <!-- ABA 1: DADOS CADASTRAIS (GRID FLEXÍVEL AUTO-FIT SEM SOBREPOSIÇÃO) -->
              <div id="tab-det-dados" class="tab-content-det space-y-3.5">
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Gênero</p>
-                      <p class="text-xs text-white/80 font-medium mt-0.5" id="det-cli-sexo">-</p>
+                
+                <!-- Bloco PJ (Exibido apenas para PJ) -->
+                <div id="det-bloco-pj" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical hidden">
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Razão Social</p>
+                      <p class="text-xs text-white/80 font-medium mt-0.5 break-words" id="det-cli-razaosocial">-</p>
                    </div>
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">RG / IE</p>
-                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-rg">-</p>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Nome Fantasia</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-nomefantasia">-</p>
                    </div>
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Data Nasc./Fundação</p>
-                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-datanasc">-</p>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Inscrição Estadual</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-ie">-</p>
                    </div>
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Estado Civil</p>
-                      <p class="text-xs text-white/80 mt-0.5" id="det-cli-estcivil">-</p>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Representante Legal</p>
+                      <p class="text-xs text-mint-vibrant font-medium mt-0.5 break-words" id="det-cli-representante">-</p>
                    </div>
-                   <div>
-                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Nacionalidade</p>
-                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-nacionalidade">-</p>
-                    </div>
-                    <div>
-                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Profissão</p>
-                       <p class="text-xs text-white/80 mt-0.5" id="det-cli-profissao">-</p>
-                    </div>
+                </div>
+
+                <!-- Grid Dinâmico de Identificação Civil (Bugfix NACIONALIDADE/PROFISSÃO) -->
+                <div class="grid [grid-template-columns:repeat(auto-fit,minmax(130px,1fr))] sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 bg-white/[0.01] p-3.5 border border-white/5 rounded-technical">
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">Gênero</p>
+                      <p class="text-xs text-white/80 font-medium mt-0.5 truncate" id="det-cli-sexo">-</p>
+                   </div>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">RG / IE</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-rg">-</p>
+                   </div>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">Data Nasc./Fundação</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-datanasc">-</p>
+                   </div>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">Estado Civil</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-estcivil">-</p>
+                   </div>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">Nacionalidade</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-nacionalidade">-</p>
+                   </div>
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold break-words">Profissão</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-profissao">-</p>
+                   </div>
                 </div>
                 
-                <div id="det-conjuge-bloco" class="space-y-2 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
-                   <h6 class="text-[9px] text-mint-vibrant uppercase tracking-wider font-bold leading-none">Informações do Cônjuge</h6>
+                <!-- Bloco de Cônjuge -->
+                <div id="det-conjuge-bloco" class="space-y-2 bg-white/[0.01] p-3.5 border border-white/5 rounded-technical hidden">
+                   <h6 class="text-[9px] text-mint-vibrant uppercase tracking-wider font-bold leading-none">Informações do Cônjuge / Companheiro(a)</h6>
                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
+                      <div class="min-w-0">
                          <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Cônjuge</p>
-                         <p class="text-xs text-white/80 font-medium mt-0.5" id="det-cli-nomeconjuge">-</p>
+                         <p class="text-xs text-white/80 font-medium mt-0.5 break-words" id="det-cli-nomeconjuge">-</p>
                       </div>
-                      <div>
+                      <div class="min-w-0">
                          <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">CPF Cônjuge</p>
-                         <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-cpfconjuge">-</p>
+                         <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-cpfconjuge">-</p>
                       </div>
-                      <div>
+                      <div class="min-w-0">
                          <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">RG Cônjuge</p>
-                         <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-rgconjuge">-</p>
+                         <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-rgconjuge">-</p>
                       </div>
-                      <div class="sm:col-span-3 border-t border-white/5 pt-2 mt-1">
+                      <div class="sm:col-span-3 border-t border-white/5 pt-2 mt-1 min-w-0">
                          <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Regime de Bens</p>
-                         <p class="text-xs text-white/80 mt-0.5" id="det-cli-regimebens">-</p>
+                         <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-regimebens">-</p>
                       </div>
                    </div>
                 </div>
                 
-                <div class="grid grid-cols-3 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
-                   <div>
+                <!-- Bloco de Contato, Endereço e Senha GOV -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white/[0.01] p-3.5 border border-white/5 rounded-technical">
+                   <div class="min-w-0">
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Telefone</p>
-                      <p class="text-xs text-white/80 font-mono mt-0.5" id="det-cli-telefone">-</p>
+                      <p class="text-xs text-white/80 font-mono mt-0.5 break-words" id="det-cli-telefone">-</p>
                    </div>
-                   <div>
+                   <div class="min-w-0">
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">E-mail</p>
-                      <p class="text-xs text-white/80 mt-0.5" id="det-cli-email">-</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-email">-</p>
                    </div>
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Senha GOV</p>
-                      <div class="flex items-center gap-1.5 mt-0.5">
+                   <div class="min-w-0">
+                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold flex items-center justify-between">
+                         <span>Senha GOV</span>
+                         <span class="text-[8px] text-mint-vibrant lowercase">auditada</span>
+                      </p>
+                      <div class="flex items-center gap-2 mt-0.5">
                          <p class="text-xs text-white/80 font-mono" id="det-cli-senhagov">-</p>
                          <button type="button" id="btn-revelar-senhagov-det" class="text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" title="Mostrar/Ocultar Senha GOV">
                             <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                          </button>
                       </div>
                    </div>
-                   <div class="col-span-3 border-t border-white/5 pt-2 mt-1">
+                   <div class="sm:col-span-3 border-t border-white/5 pt-2 mt-1 min-w-0">
                       <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Endereço Completo</p>
-                      <p class="text-xs text-white/80 mt-0.5" id="det-cli-endereco">-</p>
+                      <p class="text-xs text-white/80 mt-0.5 break-words" id="det-cli-endereco">-</p>
                    </div>
                 </div>
                 
+                <!-- KPIs de Levantamentos e Propriedades -->
                 <div class="grid grid-cols-2 gap-3">
                    <div class="glass-card p-3.5 flex items-center justify-between">
                       <div>
@@ -433,8 +516,67 @@ export const renderClientesTemplate = (): string => `
                    </div>
                 </div>
              </div>
+
+             <!-- ABA 2: DOCUMENTOS DE IDENTIFICAÇÃO (RG, CNH COM VALIDADE, CONSELHOS) -->
+             <div id="tab-det-docs" class="tab-content-det hidden space-y-3.5">
+                <!-- Formulário de Adicionar Documento -->
+                <div class="bg-white/[0.02] p-3 border border-white/5 rounded-technical space-y-2.5">
+                   <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Adicionar Novo Documento</h6>
+                   <form id="form-add-doc" class="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
+                      <div class="sm:col-span-1">
+                         <label class="block text-[8.5px] text-white/40 uppercase font-bold mb-1">Tipo</label>
+                         <ui-select id="doc-tipo" value="RG" class="w-full">
+                            <option value="RG">RG</option>
+                            <option value="CNH">CNH</option>
+                            <option value="CREA">CREA</option>
+                            <option value="CAU">CAU</option>
+                            <option value="OAB">OAB</option>
+                            <option value="PASSAPORTE">Passaporte</option>
+                            <option value="OUTRO">Outro</option>
+                         </ui-select>
+                      </div>
+                      <div class="sm:col-span-2">
+                         <label class="block text-[8.5px] text-white/40 uppercase font-bold mb-1">Número</label>
+                         <ui-campo-texto id="doc-numero" placeholder="Nº do documento" required class="w-full"></ui-campo-texto>
+                      </div>
+                      <div class="sm:col-span-1">
+                         <label class="block text-[8.5px] text-white/40 uppercase font-bold mb-1">Órgão / UF</label>
+                         <ui-campo-texto id="doc-orgao" placeholder="SSP/PR" class="w-full"></ui-campo-texto>
+                      </div>
+                      <div class="sm:col-span-1">
+                         <label class="block text-[8.5px] text-white/40 uppercase font-bold mb-1">Validade (CNH)</label>
+                         <ui-campo-texto id="doc-validade" tipo="date" class="w-full"></ui-campo-texto>
+                      </div>
+                      <div class="sm:col-span-1 flex justify-end">
+                         <ui-botao tipo-submit variante="primario" class="w-full">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            Adicionar
+                         </ui-botao>
+                      </div>
+                   </form>
+                </div>
+
+                <!-- Tabela de Documentos -->
+                <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden">
+                   <table class="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
+                           <th class="py-2.5 px-3">Tipo</th>
+                           <th class="py-2.5 px-3">Número</th>
+                           <th class="py-2.5 px-3">Órgão Emissor</th>
+                           <th class="py-2.5 px-3">Categoria</th>
+                           <th class="py-2.5 px-3">Validade</th>
+                           <th class="py-2.5 px-3 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody id="det-cli-documentos" class="divide-y divide-white/5">
+                         <!-- Documentos via JS -->
+                      </tbody>
+                   </table>
+                </div>
+             </div>
              
-             <!-- ABA METADADOS -->
+             <!-- ABA 3: METADADOS -->
              <div id="tab-det-meta" class="tab-content-det hidden space-y-3">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                    <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Campos Adicionais</h6>
@@ -462,26 +604,60 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
              
-             <!-- ABA HISTORICO -->
-             <div id="tab-det-historico" class="tab-content-det hidden space-y-2">
-                <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider mb-2">Logs de Alterações Cadastrais</h6>
-                <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden max-h-[260px] overflow-y-auto pr-1">
-                   <table class="w-full text-left text-[11px] border-collapse">
-                      <thead>
-                         <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
-                            <th class="py-2 px-3 bg-[#0d1611]">Campo</th>
-                            <th class="py-2 px-3 bg-[#0d1611]">Antigo</th>
-                            <th class="py-2 px-3 bg-[#0d1611]">Novo</th>
-                            <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
-                         </tr>
-                      </thead>
-                      <tbody id="det-cli-logs" class="divide-y divide-white/5">
-                         <!-- Logs via JS -->
-                      </tbody>
-                   </table>
+             <!-- ABA 4: HISTÓRICO & AUDITORIA DE ACESSO -->
+             <div id="tab-det-historico" class="tab-content-det hidden space-y-3">
+                <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                   <div class="flex gap-2">
+                      <button type="button" id="btn-subtab-historico" class="px-2.5 py-1 text-[11px] font-bold rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 cursor-pointer">
+                         Edições Cadastrais
+                      </button>
+                      <button type="button" id="btn-subtab-acessos" class="px-2.5 py-1 text-[11px] font-bold rounded text-white/40 hover:text-white border border-transparent cursor-pointer">
+                         Auditoria de Acesso Sensível
+                      </button>
+                   </div>
+                </div>
+
+                <!-- Sub-aba: Edições -->
+                <div id="subtab-content-historico" class="space-y-2">
+                   <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden max-h-[260px] overflow-y-auto pr-1">
+                      <table class="w-full text-left text-[11px] border-collapse">
+                         <thead>
+                            <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
+                               <th class="py-2 px-3 bg-[#0d1611]">Campo</th>
+                               <th class="py-2 px-3 bg-[#0d1611]">Antigo</th>
+                               <th class="py-2 px-3 bg-[#0d1611]">Novo</th>
+                               <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
+                            </tr>
+                         </thead>
+                         <tbody id="det-cli-logs" class="divide-y divide-white/5">
+                            <!-- Logs via JS -->
+                         </tbody>
+                      </table>
+                   </div>
+                </div>
+
+                <!-- Sub-aba: Acessos Sensíveis -->
+                <div id="subtab-content-acessos" class="space-y-2 hidden">
+                   <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden max-h-[260px] overflow-y-auto pr-1">
+                      <table class="w-full text-left text-[11px] border-collapse">
+                         <thead>
+                            <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
+                               <th class="py-2 px-3 bg-[#0d1611]">Dado</th>
+                               <th class="py-2 px-3 bg-[#0d1611]">Ação</th>
+                               <th class="py-2 px-3 bg-[#0d1611]">Usuário</th>
+                               <th class="py-2 px-3 bg-[#0d1611]">Origem</th>
+                               <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
+                            </tr>
+                         </thead>
+                         <tbody id="det-cli-acessos" class="divide-y divide-white/5">
+                            <!-- Acessos via JS -->
+                         </tbody>
+                      </table>
+                   </div>
                 </div>
              </div>
           </div>
        </div>
     </ui-modal>
+
 `;

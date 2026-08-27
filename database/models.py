@@ -84,6 +84,34 @@ def create_tables(conn):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS cliente_acesso_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_cliente INTEGER NOT NULL,
+            tipo_dado TEXT NOT NULL,
+            acao TEXT NOT NULL,
+            usuario TEXT DEFAULT 'Operador Local',
+            ip_origem TEXT,
+            data_acesso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cliente_documentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pessoa_id INTEGER NOT NULL,
+            tipo_documento TEXT NOT NULL,
+            numero TEXT NOT NULL,
+            orgao_emissor TEXT,
+            uf_emissor TEXT,
+            categoria_cnh TEXT,
+            data_emissao DATE,
+            data_validade DATE,
+            observacoes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
+        );
+        """,
+        """
         CREATE TABLE IF NOT EXISTS propriedades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome_propriedade TEXT NOT NULL,
@@ -628,6 +656,55 @@ def create_tables(conn):
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em segmentos: {ex_mig}")
 
+        # Migração dinâmica para a tabela pessoas (Campos PF/PJ e Representante Legal)
+        colunas_pessoas = [
+            ("tipo_pessoa", "TEXT DEFAULT 'PF'"),
+            ("razao_social", "TEXT"),
+            ("nome_fantasia", "TEXT"),
+            ("inscricao_estadual", "TEXT"),
+            ("inscricao_municipal", "TEXT"),
+            ("representante_legal_id", "INTEGER")
+        ]
+        cursor.execute("PRAGMA table_info(pessoas)")
+        colunas_pessoas_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_pessoas:
+            if col not in colunas_pessoas_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE pessoas ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em pessoas: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em pessoas: {ex_mig}")
+
+        # Criação das tabelas de documentos e auditoria de acesso se ausentes em bancos legados
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cliente_acesso_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_cliente INTEGER NOT NULL,
+                tipo_dado TEXT NOT NULL,
+                acao TEXT NOT NULL,
+                usuario TEXT DEFAULT 'Operador Local',
+                ip_origem TEXT,
+                data_acesso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cliente_documentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pessoa_id INTEGER NOT NULL,
+                tipo_documento TEXT NOT NULL,
+                numero TEXT NOT NULL,
+                orgao_emissor TEXT,
+                uf_emissor TEXT,
+                categoria_cnh TEXT,
+                data_emissao DATE,
+                data_validade DATE,
+                observacoes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
+            );
+        """)
+
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário
         migrar_restricao_unicidade_pontos(conn)
@@ -639,6 +716,8 @@ def create_tables(conn):
         # conhecido não conseguiam ser cadastrados — todo INSERT em pessoas falhava
         # com "NOT NULL constraint failed: pessoas.cpf_cnpj")
         migrar_cpf_cnpj_opcional_pessoas(conn)
+        # Migração de retrocompatibilidade para RG e Senha GOV criptografada
+        migrar_retrocompatibilidade_documentos_e_senhas(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -646,12 +725,8 @@ def create_tables(conn):
 def migrar_cpf_cnpj_opcional_pessoas(conn):
     """
     BUGFIX: a tabela 'pessoas' foi criada com 'cpf_cnpj TEXT UNIQUE NOT NULL'.
-    Isso torna impossível cadastrar um confrontante sem CPF/CNPJ conhecido —
-    o INSERT INTO pessoas falha com 'NOT NULL constraint failed: pessoas.cpf_cnpj'
-    sempre que o formulário rápido de confrontantes (nome/matrícula/CNS) é usado
-    sem informar CPF. Esta migração recria a tabela sem o NOT NULL, preservando
-    todos os dados e o índice UNIQUE (SQLite permite múltiplos valores NULL em
-    colunas UNIQUE sem conflito).
+    Isso torna impossivel cadastrar um confrontante sem CPF/CNPJ conhecido.
+    Esta migracao recria a tabela sem o NOT NULL, preservando todos os dados.
     """
     cursor = conn.cursor()
     cursor.execute("PRAGMA table_info(pessoas)")
@@ -993,4 +1068,52 @@ def migrar_restricao_unicidade_banco_pontos(conn):
         """)
         conn.commit()
     except Exception as e_sync:
-        logger.warning(f"Aviso ao sincronizar status dos pontos de vizinhos no init_db: {e_sync}")
+        logger.warning(f"Aviso ao sincronizar status dos pontos de vizinhos no init_db: {e_sync}")
+
+def migrar_retrocompatibilidade_documentos_e_senhas(conn):
+    """
+    Migra dados legados sem perda:
+    1. RGs gravados em 'pessoas.rg' são sincronizados na tabela 'cliente_documentos'.
+    2. Senhas GOV em texto puro existentes em 'clientes.senha_gov' são criptografadas em repouso.
+    """
+    try:
+        from services.seguranca.crypto_service import encrypt_sensitive_data, CIPHER_PREFIX
+        cursor = conn.cursor()
+        
+        # 1. Criptografia em repouso de senhas GOV legadas
+        cursor.execute("SELECT id, senha_gov FROM clientes WHERE senha_gov IS NOT NULL AND senha_gov != ''")
+        rows_senhas = cursor.fetchall()
+        for cid, senha in rows_senhas:
+            if senha and not str(senha).startswith(CIPHER_PREFIX):
+                try:
+                    cifrado = encrypt_sensitive_data(senha)
+                    cursor.execute("UPDATE clientes SET senha_gov = ? WHERE id = ?", (cifrado, cid))
+                except Exception as ex_enc:
+                    logger.warning(f"Aviso ao migrar criptografia da senha_gov do cliente ID {cid}: {ex_enc}")
+                    
+        # 2. Migração de RGs de 'pessoas.rg' para 'cliente_documentos'
+        cursor.execute("""
+            SELECT p.id, p.rg 
+            FROM pessoas p 
+            WHERE p.rg IS NOT NULL AND TRIM(p.rg) != ''
+        """)
+        pessoas_com_rg = cursor.fetchall()
+        for pid, rg_val in pessoas_com_rg:
+            rg_limpo = str(rg_val).strip()
+            if not rg_limpo:
+                continue
+            # Verifica se já existe documento RG cadastrado para essa pessoa
+            cursor.execute("""
+                SELECT id FROM cliente_documentos 
+                WHERE pessoa_id = ? AND tipo_documento = 'RG'
+            """, (pid,))
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor)
+                    VALUES (?, 'RG', ?, 'SSP')
+                """, (pid, rg_limpo))
+                
+        conn.commit()
+    except Exception as e_mig:
+        logger.warning(f"Aviso durante migração de documentos e senhas: {e_mig}")
+

@@ -2,13 +2,20 @@ import type {
   RouteDef,
   Cliente,
   ClientePayload,
-  ClienteHistoricoLog
+  ClienteHistoricoLog,
+  ClienteAcessoLog,
+  ClienteDocumento
 } from '../types';
 import { initIcons } from '../utils';
 import { renderClientesTemplate } from './clientes/clientes_template';
 import {
   fetchTodosClientes,
   fetchClienteHistorico,
+  fetchClienteAcessosApi,
+  fetchClienteDocumentosApi,
+  salvarDocumentoClienteApi,
+  excluirDocumentoClienteApi,
+  revelarSenhaGovApi,
   salvarCliente,
   excluirClienteIndividual as apiExcluirCliente,
   excluirClientesEmLote as apiExcluirLote,
@@ -25,6 +32,8 @@ import {
   renderBotoesPaginacaoHtml,
   renderMetadadosTabelaHtml,
   renderLogsHistoricoTabelaHtml,
+  renderLogsAcessoTabelaHtml,
+  renderDocumentosTabelaHtml,
   renderPropriedadesVinculadasHtml
 } from './clientes/clientes_helpers';
 
@@ -49,6 +58,7 @@ export const clientesRoute: RouteDef = {
   setup: () => {
     let clienteSelecionadoId: number | null = null;
     let todosClientes: Cliente[] = [];
+    let documentosAtuais: ClienteDocumento[] = [];
     let termoBusca = "";
     let paginaAtual = 1;
     let limitePorPagina = 10;
@@ -56,12 +66,20 @@ export const clientesRoute: RouteDef = {
 
     // Formulário e Elementos da UI
     const form = document.getElementById('form-cliente') as HTMLFormElement | null;
-    const inputCpfCnpj = form?.querySelector<HTMLInputElement>('[name="cpf_cnpj"]') || null;
+    const inputTipoPessoa = document.getElementById('input-tipo-pessoa') as HTMLInputElement | null;
+    const btnTipoPf = document.getElementById('btn-tipo-pf');
+    const btnTipoPj = document.getElementById('btn-tipo-pj');
+    const blocoCamposPf = document.getElementById('bloco-campos-pf');
+    const blocoCamposPj = document.getElementById('bloco-campos-pj');
+    const inputNomeCompleto = document.getElementById('input-nome-completo') as HTMLInputElement | null;
+    const inputRazaoSocial = document.getElementById('input-razao-social') as HTMLInputElement | null;
+    const inputCpfCnpj = document.getElementById('input-cpf-cnpj') as HTMLInputElement | null;
     const inputCpfConjuge = form?.querySelector<HTMLInputElement>('[name="cpf_conjuge"]') || null;
     const inputTelefone = form?.querySelector<HTMLInputElement>('[name="telefone"]') || null;
     const inputCep = form?.querySelector<HTMLInputElement>('[name="cep"]') || null;
     const selectEstado = form?.querySelector<UISelectElement>('[name="estado"]') || null;
     const selectEstadoCivil = form?.querySelector<UISelectElement>('[name="estado_civil"]') || null;
+    const selectRepresentante = document.getElementById('select-representante-legal') as (HTMLElement & { value?: string }) | null;
     const secaoConjuge = document.getElementById('secao-conjuge');
     const modalCadastro = document.getElementById('modal-cliente') as UIModalElement | null;
     const modalDetalhes = document.getElementById('modal-detalhes-cliente') as UIModalElement | null;
@@ -82,6 +100,59 @@ export const clientesRoute: RouteDef = {
     const fecharModalDetalhes = () => {
       if (modalDetalhes?.fechar) modalDetalhes.fechar();
       else modalDetalhes?.classList.add('hidden');
+    };
+
+    // Alternador PF / PJ com soft-hide
+    const setTipoPessoa = (tipo: 'PF' | 'PJ') => {
+      if (inputTipoPessoa) inputTipoPessoa.value = tipo;
+
+      if (tipo === 'PF') {
+        btnTipoPf?.classList.add('bg-mint-vibrant', 'text-forest-deep', 'shadow-sm');
+        btnTipoPf?.classList.remove('text-white/50');
+        btnTipoPj?.classList.remove('bg-mint-vibrant', 'text-forest-deep', 'shadow-sm');
+        btnTipoPj?.classList.add('text-white/50');
+
+        blocoCamposPf?.classList.remove('hidden');
+        blocoCamposPj?.classList.add('hidden');
+
+        if (inputNomeCompleto) inputNomeCompleto.required = true;
+        if (inputRazaoSocial) inputRazaoSocial.required = false;
+      } else {
+        btnTipoPj?.classList.add('bg-mint-vibrant', 'text-forest-deep', 'shadow-sm');
+        btnTipoPj?.classList.remove('text-white/50');
+        btnTipoPf?.classList.remove('bg-mint-vibrant', 'text-forest-deep', 'shadow-sm');
+        btnTipoPf?.classList.add('text-white/50');
+
+        blocoCamposPj?.classList.remove('hidden');
+        blocoCamposPf?.classList.add('hidden');
+
+        if (inputNomeCompleto) inputNomeCompleto.required = false;
+        if (inputRazaoSocial) inputRazaoSocial.required = true;
+      }
+    };
+
+    btnTipoPf?.addEventListener('click', () => setTipoPessoa('PF'));
+    btnTipoPj?.addEventListener('click', () => setTipoPessoa('PJ'));
+
+    // Popular opções de Representante Legal (Clientes PF)
+    const popularSelectRepresentante = (selecionadoId?: number | null) => {
+      if (!selectRepresentante) return;
+      const clientesPf = todosClientes.filter(c => {
+        const isPj = c.tipo_pessoa === 'PJ' || (c.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+        return !isPj;
+      });
+
+      let optionsHtml = '<option value="">Selecione um cliente PF já cadastrado...</option>';
+      clientesPf.forEach(pf => {
+        const pid = pf.pessoa_id || pf.id;
+        const isSel = selecionadoId && Number(selecionadoId) === Number(pid);
+        optionsHtml += `<option value="${pid}" ${isSel ? 'selected' : ''}>${pf.nome_completo} (${aplicarMascaraCpfCnpj(pf.cpf_cnpj || '')})</option>`;
+      });
+      selectRepresentante.innerHTML = optionsHtml;
+      if (selecionadoId) {
+        selectRepresentante.value = String(selecionadoId);
+        if ('setAttribute' in selectRepresentante) selectRepresentante.setAttribute('value', String(selecionadoId));
+      }
     };
 
     // Máscaras de entrada em tempo real
@@ -186,11 +257,13 @@ export const clientesRoute: RouteDef = {
       clienteSelecionadoId = null;
       if (form) {
         form.reset();
+        setTipoPessoa('PF');
         if (selectEstado) {
           selectEstado.value = 'PR';
           if ('setAttribute' in selectEstado) selectEstado.setAttribute('value', 'PR');
         }
         carregarCidadesPorEstado('PR');
+        popularSelectRepresentante(null);
         toggleConjuge();
       }
       if (modalCadastro) modalCadastro.setAttribute('titulo', 'Cadastro de Cliente');
@@ -211,6 +284,30 @@ export const clientesRoute: RouteDef = {
         document.querySelectorAll('.tab-content-det').forEach(tc => tc.classList.add('hidden'));
         document.getElementById(targetTab || '')?.classList.remove('hidden');
       });
+    });
+
+    // Sub-abas de Histórico & Auditoria
+    const btnSubtabHistorico = document.getElementById('btn-subtab-historico');
+    const btnSubtabAcessos = document.getElementById('btn-subtab-acessos');
+    const subtabContentHistorico = document.getElementById('subtab-content-historico');
+    const subtabContentAcessos = document.getElementById('subtab-content-acessos');
+
+    btnSubtabHistorico?.addEventListener('click', () => {
+      btnSubtabHistorico.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/20');
+      btnSubtabHistorico.classList.remove('text-white/40', 'border-transparent');
+      btnSubtabAcessos?.classList.remove('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/20');
+      btnSubtabAcessos?.classList.add('text-white/40', 'border-transparent');
+      subtabContentHistorico?.classList.remove('hidden');
+      subtabContentAcessos?.classList.add('hidden');
+    });
+
+    btnSubtabAcessos?.addEventListener('click', () => {
+      btnSubtabAcessos.classList.add('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/20');
+      btnSubtabAcessos.classList.remove('text-white/40', 'border-transparent');
+      btnSubtabHistorico?.classList.remove('bg-mint-vibrant/10', 'text-mint-vibrant', 'border-mint-vibrant/20');
+      btnSubtabHistorico?.classList.add('text-white/40', 'border-transparent');
+      subtabContentAcessos?.classList.remove('hidden');
+      subtabContentHistorico?.classList.add('hidden');
     });
 
     // Atualização visual da barra de ações em lote
@@ -300,6 +397,8 @@ export const clientesRoute: RouteDef = {
       if (!termoBusca) return todosClientes;
       return todosClientes.filter(c =>
         (c.nome_completo || '').toLowerCase().includes(termoBusca) ||
+        (c.razao_social || '').toLowerCase().includes(termoBusca) ||
+        (c.nome_fantasia || '').toLowerCase().includes(termoBusca) ||
         (c.cpf_cnpj || '').replace(/\D/g, '').includes(termoBusca.replace(/\D/g, ''))
       );
     };
@@ -316,20 +415,43 @@ export const clientesRoute: RouteDef = {
       if (!cli) return;
 
       clienteSelecionadoId = id;
+      const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+
       const avatar = document.getElementById('det-cli-avatar');
       const titulo = document.getElementById('det-cli-titulo');
       const subtitulo = document.getElementById('det-cli-subtitulo');
+      const badgeTipo = document.getElementById('det-cli-badge-tipo');
 
       if (avatar) {
         avatar.setAttribute('nome', cli.nome_completo || '??');
       }
       if (titulo) titulo.innerText = cli.nome_completo;
-      if (subtitulo) subtitulo.innerText = `CPF/CNPJ: ${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}`;
+      if (subtitulo) subtitulo.innerText = `${isPj ? 'CNPJ' : 'CPF'}: ${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}`;
+      if (badgeTipo) {
+        badgeTipo.innerText = isPj ? 'PJ' : 'PF';
+        badgeTipo.className = isPj 
+          ? 'text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+          : 'text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20';
+      }
 
       const setDetVal = (elemId: string, val: string | number | null | undefined) => {
         const el = document.getElementById(elemId);
         if (el) el.innerText = val !== null && val !== undefined && val !== '' ? String(val) : '-';
       };
+
+      // Bloco PJ condicional
+      const detBlocoPj = document.getElementById('det-bloco-pj');
+      if (detBlocoPj) {
+        if (isPj) {
+          detBlocoPj.classList.remove('hidden');
+          setDetVal('det-cli-razaosocial', cli.razao_social || cli.nome_completo);
+          setDetVal('det-cli-nomefantasia', cli.nome_fantasia || '-');
+          setDetVal('det-cli-ie', cli.inscricao_estadual || cli.rg_ie || 'Isento');
+          setDetVal('det-cli-representante', cli.representante_legal_nome || 'Não informado');
+        } else {
+          detBlocoPj.classList.add('hidden');
+        }
+      }
 
       setDetVal('det-cli-sexo', cli.sexo === 'M' ? 'Masculino' : cli.sexo === 'F' ? 'Feminino' : '-');
       setDetVal('det-cli-rg', cli.rg_ie);
@@ -351,20 +473,32 @@ export const clientesRoute: RouteDef = {
       setDetVal('det-cli-telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '-');
       setDetVal('det-cli-email', cli.email);
 
+      // Senha GOV com revelação auditada
       const btnRevelarDet = document.getElementById('btn-revelar-senhagov-det');
       const spanSenhaDet = document.getElementById('det-cli-senhagov');
-      if (cli.senha_gov) {
+      const temSenha = Boolean(cli.tem_senha_gov || cli.senha_gov);
+
+      if (temSenha) {
         if (spanSenhaDet) {
           spanSenhaDet.innerText = '••••••••';
           spanSenhaDet.classList.remove('text-mint-vibrant', 'font-bold');
         }
         if (btnRevelarDet) {
           btnRevelarDet.classList.remove('hidden');
-          btnRevelarDet.onclick = () => {
+          btnRevelarDet.onclick = async () => {
             if (spanSenhaDet?.innerText === '••••••••') {
-              if (confirm(`Deseja realmente visualizar a Senha GOV de "${cli.nome_completo}"?`)) {
-                spanSenhaDet.innerText = cli.senha_gov || '';
-                spanSenhaDet.classList.add('text-mint-vibrant', 'font-bold');
+              if (confirm(`Deseja visualizar a Senha GOV de "${cli.nome_completo}"? O acesso será registrado na auditoria de segurança.`)) {
+                try {
+                  const senhaRevelada = await revelarSenhaGovApi(cli.id);
+                  if (spanSenhaDet) {
+                    spanSenhaDet.innerText = senhaRevelada || '(vazia)';
+                    spanSenhaDet.classList.add('text-mint-vibrant', 'font-bold');
+                  }
+                  // Recarrega acessos caso a aba de auditoria seja aberta
+                  carregarLogsAcesso(cli.id);
+                } catch (err: unknown) {
+                  alert(err instanceof Error ? err.message : "Erro ao revelar senha GOV.");
+                }
               }
             } else if (spanSenhaDet) {
               spanSenhaDet.innerText = '••••••••';
@@ -406,20 +540,51 @@ export const clientesRoute: RouteDef = {
 
       renderMetadadosDetalhes(cli.metadados || {});
 
+      // Documentos
+      carregarDocumentosCliente(id);
+
       const activeTabBtn = document.querySelector<HTMLElement>('.tab-btn-det[data-tab-det="tab-det-dados"]');
       if (activeTabBtn) activeTabBtn.click();
 
+      // Histórico & Auditoria
+      carregarHistoricoAlteracoes(id);
+      carregarLogsAcesso(id);
+
+      abrirModalDetalhes();
+    };
+
+    const carregarDocumentosCliente = async (id: number) => {
+      const container = document.getElementById('det-cli-documentos');
+      if (container) container.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-white/30">Carregando documentos...</td></tr>';
+      try {
+        documentosAtuais = await fetchClienteDocumentosApi(id);
+        if (container) container.innerHTML = renderDocumentosTabelaHtml(documentosAtuais);
+        initIcons();
+      } catch {
+        if (container) container.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-400">Falha ao carregar documentos.</td></tr>';
+      }
+    };
+
+    const carregarHistoricoAlteracoes = async (id: number) => {
       const logsContainer = document.getElementById('det-cli-logs');
       if (logsContainer) logsContainer.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-white/30">Carregando logs...</td></tr>';
-
       try {
         const logs: ClienteHistoricoLog[] = await fetchClienteHistorico(id);
         if (logsContainer) logsContainer.innerHTML = renderLogsHistoricoTabelaHtml(logs);
       } catch {
         if (logsContainer) logsContainer.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-400">Falha ao obter histórico.</td></tr>';
       }
+    };
 
-      abrirModalDetalhes();
+    const carregarLogsAcesso = async (id: number) => {
+      const acessosContainer = document.getElementById('det-cli-acessos');
+      if (acessosContainer) acessosContainer.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-white/30">Carregando auditoria...</td></tr>';
+      try {
+        const acessos: ClienteAcessoLog[] = await fetchClienteAcessosApi(id);
+        if (acessosContainer) acessosContainer.innerHTML = renderLogsAcessoTabelaHtml(acessos);
+      } catch {
+        if (acessosContainer) acessosContainer.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-red-400">Falha ao obter auditoria.</td></tr>';
+      }
     };
 
     const renderMetadadosDetalhes = (metadadosObj: Record<string, string>) => {
@@ -457,6 +622,12 @@ export const clientesRoute: RouteDef = {
         cep: cli.cep,
         sexo: cli.sexo,
         senha_gov: cli.senha_gov,
+        tipo_pessoa: cli.tipo_pessoa,
+        razao_social: cli.razao_social,
+        nome_fantasia: cli.nome_fantasia,
+        inscricao_estadual: cli.inscricao_estadual,
+        inscricao_municipal: cli.inscricao_municipal,
+        representante_legal_id: cli.representante_legal_id,
         metadados: metadadosCopy
       };
 
@@ -475,6 +646,10 @@ export const clientesRoute: RouteDef = {
       if (!cli || !form) return;
 
       clienteSelecionadoId = id;
+      const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+      setTipoPessoa(isPj ? 'PJ' : 'PF');
+
+      popularSelectRepresentante(cli.representante_legal_id);
 
       const setFormVal = (name: string, val: string | null | undefined) => {
         const input = form.querySelector<HTMLInputElement | UISelectElement>(`[name="${name}"]`);
@@ -494,6 +669,12 @@ export const clientesRoute: RouteDef = {
       }
 
       setFormVal('nome_completo', cli.nome_completo);
+      setFormVal('razao_social', cli.razao_social || cli.nome_completo);
+      setFormVal('nome_fantasia', cli.nome_fantasia);
+      setFormVal('inscricao_estadual', cli.inscricao_estadual || cli.rg_ie);
+      setFormVal('inscricao_municipal', cli.inscricao_municipal);
+      setFormVal('data_fundacao_pj', cli.data_nascimento_fundacao);
+
       setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
       setFormVal('rg_ie', cli.rg_ie);
       setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
@@ -541,15 +722,21 @@ export const clientesRoute: RouteDef = {
       }
     };
 
-    const revelarSenhaGovTabela = (id: number) => {
+    const revelarSenhaGovTabela = async (id: number) => {
       const cli = todosClientes.find(c => c.id === id);
-      if (!cli || !cli.senha_gov) return;
+      if (!cli) return;
       const span = document.getElementById(`senha-gov-val-${id}`);
       if (!span) return;
+
       if (span.innerText === '••••••••') {
-        if (confirm(`Deseja realmente visualizar a Senha GOV de "${cli.nome_completo}"?`)) {
-          span.innerText = cli.senha_gov;
-          span.classList.add('text-mint-vibrant', 'font-bold');
+        if (confirm(`Deseja visualizar a Senha GOV de "${cli.nome_completo}"? O acesso será registrado na auditoria.`)) {
+          try {
+            const senhaRevelada = await revelarSenhaGovApi(id);
+            span.innerText = senhaRevelada || '(vazia)';
+            span.classList.add('text-mint-vibrant', 'font-bold');
+          } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : "Erro ao revelar senha GOV.");
+          }
         }
       } else {
         span.innerText = '••••••••';
@@ -641,6 +828,71 @@ export const clientesRoute: RouteDef = {
       }
     });
 
+    // DELEGAÇÃO DE EVENTOS: Documentos
+    const docsContainer = document.getElementById('det-cli-documentos');
+    docsContainer?.addEventListener('click', async (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest<HTMLElement>('.btn-action-doc');
+      if (!target) return;
+      const docId = parseInt(target.getAttribute('data-doc-id') || '0', 10);
+      if (!docId || !confirm("Excluir este documento?")) return;
+
+      try {
+        await excluirDocumentoClienteApi(docId);
+        if (clienteSelecionadoId) carregarDocumentosCliente(clienteSelecionadoId);
+        await loadClientes();
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : "Erro ao excluir documento.");
+      }
+    });
+
+    // Form de Adicionar Documento
+    document.getElementById('form-add-doc')?.addEventListener('submit', async (e: Event) => {
+      e.preventDefault();
+      if (!clienteSelecionadoId) return;
+
+      const selectTipo = document.getElementById('doc-tipo') as (HTMLElement & { value?: string }) | null;
+      const inputNum = document.getElementById('doc-numero') as HTMLInputElement | null;
+      const inputOrg = document.getElementById('doc-orgao') as HTMLInputElement | null;
+      const inputValidade = document.getElementById('doc-validade') as HTMLInputElement | null;
+
+      const tipo = selectTipo?.value || 'RG';
+      const numero = inputNum?.value.trim() || '';
+      const orgao = inputOrg?.value.trim() || '';
+      const validade = inputValidade?.value.trim() || null;
+
+      if (!numero) {
+        alert("Preencha o número do documento.");
+        return;
+      }
+
+      let orgaoEmissor = orgao;
+      let ufEmissor = null;
+      if (orgao.includes('/')) {
+        const parts = orgao.split('/');
+        orgaoEmissor = parts[0].trim();
+        ufEmissor = parts[1].trim();
+      }
+
+      try {
+        await salvarDocumentoClienteApi(clienteSelecionadoId, {
+          tipo_documento: tipo,
+          numero: numero,
+          orgao_emissor: orgaoEmissor,
+          uf_emissor: ufEmissor,
+          data_validade: validade
+        });
+
+        if (inputNum) inputNum.value = '';
+        if (inputOrg) inputOrg.value = '';
+        if (inputValidade) inputValidade.value = '';
+
+        carregarDocumentosCliente(clienteSelecionadoId);
+        await loadClientes();
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : "Erro ao adicionar documento.");
+      }
+    });
+
     // DELEGAÇÃO DE EVENTOS: Metadados
     const metasContainer = document.getElementById('det-cli-metadados');
     metasContainer?.addEventListener('click', (e: MouseEvent) => {
@@ -711,6 +963,12 @@ export const clientesRoute: RouteDef = {
         cep: cli.cep,
         sexo: cli.sexo,
         senha_gov: cli.senha_gov,
+        tipo_pessoa: cli.tipo_pessoa,
+        razao_social: cli.razao_social,
+        nome_fantasia: cli.nome_fantasia,
+        inscricao_estadual: cli.inscricao_estadual,
+        inscricao_municipal: cli.inscricao_municipal,
+        representante_legal_id: cli.representante_legal_id,
         metadados: metadadosCopy
       };
 
@@ -775,15 +1033,29 @@ export const clientesRoute: RouteDef = {
       const formData = new FormData(e.target as HTMLFormElement);
       const rawPayload = Object.fromEntries(formData.entries()) as Record<string, string>;
 
+      const tipoPessoa = (rawPayload.tipo_pessoa as 'PF' | 'PJ') || 'PF';
+      const isPj = tipoPessoa === 'PJ';
+
+      const nomeCompleto = isPj 
+        ? (rawPayload.razao_social || rawPayload.nome_completo || '').trim()
+        : (rawPayload.nome_completo || '').trim();
+
       const enderecoSemNumero = rawPayload.endereco_sem_numero || '';
       const numero = rawPayload.numero_endereco || '';
       const enderecoCompleto = numero ? `${enderecoSemNumero}, ${numero}` : enderecoSemNumero;
 
+      const dataNascFundacao = isPj 
+        ? (rawPayload.data_fundacao_pj || rawPayload.data_nascimento_fundacao || null)
+        : (rawPayload.data_nascimento_fundacao || null);
+
+      const representanteIdRaw = rawPayload.representante_legal_id ? parseInt(rawPayload.representante_legal_id, 10) : null;
+      const representanteId = !isNaN(representanteIdRaw as number) ? representanteIdRaw : null;
+
       const payload: ClientePayload = {
-        nome_completo: rawPayload.nome_completo || '',
+        nome_completo: nomeCompleto,
         cpf_cnpj: rawPayload.cpf_cnpj || '',
-        rg_ie: rawPayload.rg_ie || null,
-        data_nascimento_fundacao: rawPayload.data_nascimento_fundacao || null,
+        rg_ie: isPj ? (rawPayload.inscricao_estadual || rawPayload.rg_ie || null) : (rawPayload.rg_ie || null),
+        data_nascimento_fundacao: dataNascFundacao,
         estado_civil: rawPayload.estado_civil || null,
         profissao: rawPayload.profissao || null,
         nacionalidade: rawPayload.nacionalidade || 'Brasileiro(a)',
@@ -799,6 +1071,12 @@ export const clientesRoute: RouteDef = {
         cep: rawPayload.cep || null,
         sexo: rawPayload.sexo || 'M',
         senha_gov: rawPayload.senha_gov || null,
+        tipo_pessoa: tipoPessoa,
+        razao_social: isPj ? (rawPayload.razao_social || nomeCompleto) : null,
+        nome_fantasia: isPj ? (rawPayload.nome_fantasia || null) : null,
+        inscricao_estadual: isPj ? (rawPayload.inscricao_estadual || null) : null,
+        inscricao_municipal: isPj ? (rawPayload.inscricao_municipal || null) : null,
+        representante_legal_id: isPj ? representanteId : null,
         metadados: {}
       };
 
@@ -819,3 +1097,4 @@ export const clientesRoute: RouteDef = {
     });
   }
 };
+
