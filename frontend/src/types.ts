@@ -56,6 +56,9 @@ export interface ClienteDocumento {
   data_emissao?: string | null;
   data_validade?: string | null;
   observacoes?: string | null;
+  arquivo_path?: string | null;
+  arquivo_nome?: string | null;
+  tamanho_bytes?: number | null;
   created_at?: string;
 }
 

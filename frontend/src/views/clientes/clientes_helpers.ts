@@ -254,9 +254,9 @@ export const renderLogsAcessoTabelaHtml = (acessos: ClienteAcessoLog[]): string 
   }).join('');
 };
 
-export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[]): string => {
+export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[], clienteId?: number): string => {
   if (!Array.isArray(docs) || docs.length === 0) {
-    return '<tr><td colspan="6" class="text-center py-4 text-white/30">Nenhum documento cadastrado.</td></tr>';
+    return '<tr><td colspan="7" class="text-center py-4 text-white/30">Nenhum documento cadastrado.</td></tr>';
   }
   return docs.map(doc => {
     const isVencida = doc.tipo_documento === 'CNH' && isCnhVencida(doc.data_validade);
@@ -265,16 +265,27 @@ export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[]): string => 
       ? `<span class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse"><i data-lucide="alert-triangle" class="w-3 h-3"></i> CNH Vencida</span>`
       : '';
 
+    const temArquivo = Boolean(doc.arquivo_path || doc.arquivo_nome);
+    const btnArquivo = temArquivo && clienteId
+      ? `<a href="/clientes/${clienteId}/documentos/${doc.id}/arquivo" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 hover:bg-mint-vibrant/20 transition-colors" title="Visualizar / Baixar PDF original">
+          <i data-lucide="file-text" class="w-3 h-3"></i>
+          Ver PDF
+         </a>`
+      : `<span class="text-white/20 text-[10px]">-</span>`;
+
     return `
       <tr class="hover:bg-white/[0.01] text-xs">
         <td class="py-2 px-3 font-bold font-mono text-mint-vibrant">${escapeHtml(doc.tipo_documento)}</td>
         <td class="py-2 px-3 font-mono text-white/90 font-medium">${escapeHtml(doc.numero)}</td>
         <td class="py-2 px-3 text-white/60">${escapeHtml(doc.orgao_emissor || '-')}${doc.uf_emissor ? `/${escapeHtml(doc.uf_emissor)}` : ''}</td>
         <td class="py-2 px-3 font-mono text-white/60">${escapeHtml(doc.categoria_cnh || '-')}</td>
-        <td class="py-2 px-3 font-mono text-white/80 flex items-center gap-2">
-          <span>${validadeFormatada}</span>
-          ${badgeVencida}
+        <td class="py-2 px-3 font-mono text-white/80">
+          <div class="flex items-center gap-2">
+            <span>${validadeFormatada}</span>
+            ${badgeVencida}
+          </div>
         </td>
+        <td class="py-2 px-3 text-center">${btnArquivo}</td>
         <td class="py-2 px-3 text-right">
           <button data-action="excluir-doc" data-doc-id="${doc.id}" class="text-white/40 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action-doc" title="Excluir Documento">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>

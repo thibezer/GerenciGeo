@@ -729,10 +729,29 @@ def create_tables(conn):
                 data_emissao DATE,
                 data_validade DATE,
                 observacoes TEXT,
+                arquivo_path TEXT,
+                arquivo_nome TEXT,
+                tamanho_bytes INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
             );
         """)
+
+        # Migração dinâmica de colunas de anexo em cliente_documentos
+        colunas_docs = [
+            ("arquivo_path", "TEXT"),
+            ("arquivo_nome", "TEXT"),
+            ("tamanho_bytes", "INTEGER")
+        ]
+        cursor.execute("PRAGMA table_info(cliente_documentos)")
+        colunas_docs_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_docs:
+            if col not in colunas_docs_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE cliente_documentos ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em cliente_documentos: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração para coluna {col} em cliente_documentos: {ex_mig}")
 
         conn.commit()
         # Executa migração de restrição única composto em pontos se necessário

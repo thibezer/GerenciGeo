@@ -1,8 +1,7 @@
-"""
-routes/clientes.py — CRUD de Clientes, Profissionais, Documentos e Auditoria
-"""
+import os
 import logging
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, File
+from fastapi.responses import FileResponse
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from collections import defaultdict
@@ -17,7 +16,8 @@ from services.gestores.cliente_manager import (
     obter_acessos_cliente,
     obter_documentos_cliente,
     salvar_documento_cliente,
-    excluir_documento_cliente
+    excluir_documento_cliente,
+    importar_identidade_pdf
 )
 from database.repository import PendenciaRepo
 
@@ -373,6 +373,48 @@ def delete_cliente_documento(doc_id: int):
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
+
+@router.post("/clientes/{cliente_id}/importar-identidade-pdf")
+@router.post("/api/clientes/{cliente_id}/importar-identidade-pdf")
+async def post_importar_identidade_pdf(cliente_id: int, request: Request, file: UploadFile = File(...)):
+    """
+    Recebe um arquivo PDF de RG/CNH/Identidade, extrai dados via PyMuPDF e atualiza o cadastro do cliente.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Apenas arquivos no formato PDF são aceitos para importação de identidade.")
+    
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Arquivo PDF vazio.")
+    
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    res = importar_identidade_pdf(cliente_id, file_bytes, file.filename, usuario="Operador Local", ip_origem=client_ip)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
+
+@router.get("/clientes/{cliente_id}/documentos/{doc_id}/arquivo")
+@router.get("/api/clientes/{cliente_id}/documentos/{doc_id}/arquivo")
+def get_arquivo_documento_cliente(cliente_id: int, doc_id: int):
+    """
+    Retorna o arquivo PDF anexado ao documento para visualização ou download no navegador.
+    """
+    query = """
+        SELECT cd.arquivo_path, cd.arquivo_nome
+        FROM cliente_documentos cd
+        JOIN clientes c ON c.pessoa_id = cd.pessoa_id
+        WHERE c.id = ? AND cd.id = ?
+    """
+    row = execute_query(query, params=(cliente_id, doc_id), fetch_one=True)
+    if not row or not row["arquivo_path"]:
+        raise HTTPException(status_code=404, detail="Arquivo anexado não encontrado.")
+    
+    file_path = row["arquivo_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor.")
+    
+    filename = row["arquivo_nome"] or os.path.basename(file_path)
+    return FileResponse(file_path, media_type="application/pdf", filename=filename)
 
 # ── Profissionais ─────────────────────────────────────────────────────────────
 

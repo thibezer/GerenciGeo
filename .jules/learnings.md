@@ -306,5 +306,20 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   3. **Seletor de Documentos (Tabs/Pills)**: Alternador Pill (`[ RG ]` / `[ CNH ]`) permitindo alternância fluida de contexto visual com detecção de CNH vencida.
   4. **Microinterações Operacionais (1-Click Copy & WhatsApp)**:
      - Botões de cópia direta nos campos de documentos (CPF, CNPJ, CNH, RG, Senha GOV) com feedback visual de 2 segundos (ícone de check verde e tooltip).
-     - Link contextual de WhatsApp (`https://wa.me/55...`) ao lado do telefone que sanitiza DDD/número e abre em nova aba com segurança (`target="_blank" rel="noopener noreferrer"`).
   5. **Renderização Condicional Notarial**: Exibir o bloco de Cônjuge, Regime de Bens e Certidão de Casamento/Matrícula estritamente quando `estado_civil` for `Casado(a)` ou `União Estável`.
+
+---
+
+## 18. Importação Inteligente de PDFs de Identidade (Auto-OCR / PyMuPDF) e Modais Ultra-Largos
+- **Problema**:
+  1. O preenchimento manual de documentos civis e notariais (RG, Órgão, CNH, Categoria, Validade, CPF, Naturalidade) era lento e suscetível a erros de digitação.
+  2. Modais com limites de largura padrão ficavam visualmente comprimidos e com scroll desnecessário em telas widescreen.
+- **Regra Obrigatória**:
+  1. **Parsing Inteligente com PyMuPDF (`fitz`)**: Usar extração de texto em memória e regex com heurísticas brasileiras para identificar tipo de documento (CNH vs RG), número, órgãos emissores, categoria, validade e naturalidade.
+  2. **Persistência de Anexos e Atualização Não-Destrutiva**:
+     - Salvar o arquivo PDF em diretório seguro (`uploads/documentos_clientes/{id}/`).
+     - Registrar o anexo na tabela `cliente_documentos` com caminho e nome original.
+     - Atualizar dados cadastrais de forma não-destrutiva (`COALESCE(campo, ?)`), preenchendo apenas campos ausentes.
+     - Disponibilizar endpoint `GET /clientes/{id}/documentos/{doc_id}/arquivo` para download/visualização direta em nova aba.
+  3. **Modais Ultra-Largos (1040px - 1080px)**: Configurar `--ui-modal-largura: 1040px !important; max-width: 1040px !important;` com drag & drop integrado e botão de ação rápida no cabeçalho.
+

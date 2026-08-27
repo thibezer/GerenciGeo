@@ -44,6 +44,7 @@ scratch/*.txt
 saida_rinex/
 saida_ppp/
 saida_hgo/
+uploads/
 
 # Arquivos de Ferramentas / Editores / IDEs
 .vscode/

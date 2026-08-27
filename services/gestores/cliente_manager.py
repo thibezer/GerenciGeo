@@ -143,12 +143,12 @@ def obter_acessos_cliente(cliente_id: int) -> list[dict]:
 
 
 def obter_documentos_cliente(cliente_id: int) -> list[dict]:
-    """Retorna todos os documentos vinculados à pessoa do cliente."""
+    """Retorna todos os documentos vinculados à pessoa do cliente, incluindo caminho de anexo se houver."""
     try:
         query = """
             SELECT cd.id, cd.pessoa_id, cd.tipo_documento, cd.numero, cd.orgao_emissor,
                    cd.uf_emissor, cd.categoria_cnh, cd.data_emissao, cd.data_validade,
-                   cd.observacoes, cd.created_at
+                   cd.observacoes, cd.arquivo_path, cd.arquivo_nome, cd.tamanho_bytes, cd.created_at
             FROM cliente_documentos cd
             JOIN clientes c ON c.pessoa_id = cd.pessoa_id
             WHERE c.id = ?
@@ -162,50 +162,172 @@ def obter_documentos_cliente(cliente_id: int) -> list[dict]:
 
 
 def salvar_documento_cliente(cliente_id: int, doc_data: dict) -> dict:
-    """Insere um novo documento estruturado para a pessoa associada ao cliente."""
+    """Insere um novo documento estruturado para a pessoa do cliente."""
     try:
-        cli = execute_query("SELECT pessoa_id FROM clientes WHERE id = ?", params=(cliente_id,), fetch_one=True)
-        if not cli:
-            return {"error": "Cliente não encontrado."}
+        row = execute_query("SELECT pessoa_id FROM clientes WHERE id = ?", params=(cliente_id,), fetch_one=True)
+        if not row or not row["pessoa_id"]:
+            return {"error": "Pessoa associada ao cliente não encontrada."}
         
-        pessoa_id = cli["pessoa_id"]
-        tipo_documento = doc_data.get("tipo_documento", "RG").upper()
+        pessoa_id = row["pessoa_id"]
+        tipo = str(doc_data.get("tipo_documento", "RG")).upper()
         numero = str(doc_data.get("numero", "")).strip()
         if not numero:
             return {"error": "Número do documento é obrigatório."}
-            
-        orgao_emissor = doc_data.get("orgao_emissor")
-        uf_emissor = doc_data.get("uf_emissor")
-        categoria_cnh = doc_data.get("categoria_cnh")
-        data_emissao = doc_data.get("data_emissao")
-        data_validade = doc_data.get("data_validade")
-        observacoes = doc_data.get("observacoes")
         
         query = """
             INSERT INTO cliente_documentos (
                 pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor,
-                categoria_cnh, data_emissao, data_validade, observacoes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                categoria_cnh, data_emissao, data_validade, observacoes,
+                arquivo_path, arquivo_nome, tamanho_bytes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         execute_query(query, params=(
-            pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor,
-            categoria_cnh, data_emissao, data_validade, observacoes
+            pessoa_id,
+            tipo,
+            numero,
+            doc_data.get("orgao_emissor"),
+            doc_data.get("uf_emissor"),
+            doc_data.get("categoria_cnh"),
+            doc_data.get("data_emissao"),
+            doc_data.get("data_validade"),
+            doc_data.get("observacoes"),
+            doc_data.get("arquivo_path"),
+            doc_data.get("arquivo_nome"),
+            doc_data.get("tamanho_bytes")
         ), commit=True)
-        
-        return {"sucesso": True, "message": "Documento salvo com sucesso"}
+        return {"message": "Documento salvo com sucesso"}
     except Exception as e:
         logger.error(f"Erro ao salvar documento do cliente {cliente_id}: {e}")
         return {"error": str(e)}
 
 
 def excluir_documento_cliente(doc_id: int) -> dict:
-    """Remove um documento pelo ID."""
+    """Remove um documento da tabela cliente_documentos."""
     try:
         execute_query("DELETE FROM cliente_documentos WHERE id = ?", params=(doc_id,), commit=True)
-        return {"sucesso": True, "message": "Documento removido com sucesso"}
+        return {"message": "Documento excluído com sucesso."}
     except Exception as e:
-        logger.error(f"Erro ao excluir documento ID {doc_id}: {e}")
+        logger.error(f"Erro ao excluir documento id={doc_id}: {e}")
         return {"error": str(e)}
+
+
+def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, usuario: str = "Operador Local", ip_origem: str = None) -> dict:
+    """
+    Processa o upload de um PDF de identidade (RG, CNH, Certidões),
+    salva o arquivo em disco, extrai os dados estruturados via PyMuPDF (fitz),
+    atualiza o cadastro do cliente e anexa o documento na tabela cliente_documentos.
+    """
+    try:
+        from services.processamento.identidade_parser import parse_identidade_pdf
+        from config import BASE_DIR
+        
+        # 1. Localiza a pessoa vinculada ao cliente
+        cli_row = execute_query("SELECT c.id, c.pessoa_id, p.nome, p.cpf_cnpj FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?", params=(cliente_id,), fetch_one=True)
+        if not cli_row:
+            return {"error": "Cliente não encontrado.", "status_code": 404}
+        pessoa_id = cli_row["pessoa_id"]
+
+        # 2. Salva o arquivo PDF no diretório de uploads seguro
+        upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
+        os.makedirs(upload_dir, exist_ok=True)
+        safe_filename = re.sub(r'[^\w\.-]', '_', filename) or f"identidade_{cliente_id}.pdf"
+        file_path = os.path.join(upload_dir, safe_filename)
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+        tamanho_bytes = len(file_bytes)
+
+        # 3. Analisa e extrai dados do PDF
+        dados_extraidos = parse_identidade_pdf(file_bytes, filename)
+        tipo_doc = dados_extraidos.get("tipo_identificado") or "IDENTIDADE"
+        
+        num_doc = dados_extraidos.get("cnh_numero") if tipo_doc == "CNH" else (dados_extraidos.get("rg_numero") or dados_extraidos.get("cpf") or "N/D")
+
+        # 4. Registra o documento com anexo de arquivo na tabela cliente_documentos
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO cliente_documentos (
+                    pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor,
+                    categoria_cnh, data_validade, observacoes, arquivo_path, arquivo_nome, tamanho_bytes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                pessoa_id,
+                tipo_doc,
+                num_doc,
+                dados_extraidos.get("rg_orgao") or dados_extraidos.get("cnh_orgao_uf") or "SSP",
+                dados_extraidos.get("rg_uf"),
+                dados_extraidos.get("cnh_categoria"),
+                dados_extraidos.get("cnh_validade"),
+                f"Importado via PDF: {filename}",
+                file_path,
+                safe_filename,
+                tamanho_bytes
+            ))
+            doc_id = cursor.lastrowid
+
+            # 5. Atualiza dados faltantes na tabela pessoas e clientes
+            campos_atualizar_pessoa = []
+            params_pessoa = []
+            
+            if dados_extraidos.get("cnh_numero"):
+                campos_atualizar_pessoa.append("cnh_numero = COALESCE(cnh_numero, ?)")
+                params_pessoa.append(dados_extraidos["cnh_numero"])
+            if dados_extraidos.get("cnh_categoria"):
+                campos_atualizar_pessoa.append("cnh_categoria = COALESCE(cnh_categoria, ?)")
+                params_pessoa.append(dados_extraidos["cnh_categoria"])
+            if dados_extraidos.get("cnh_validade"):
+                campos_atualizar_pessoa.append("cnh_validade = COALESCE(cnh_validade, ?)")
+                params_pessoa.append(dados_extraidos["cnh_validade"])
+            if dados_extraidos.get("cnh_orgao_uf"):
+                campos_atualizar_pessoa.append("cnh_orgao_uf = COALESCE(cnh_orgao_uf, ?)")
+                params_pessoa.append(dados_extraidos["cnh_orgao_uf"])
+            if dados_extraidos.get("rg_numero"):
+                campos_atualizar_pessoa.append("rg = COALESCE(rg, ?)")
+                params_pessoa.append(dados_extraidos["rg_numero"])
+            if dados_extraidos.get("rg_orgao"):
+                campos_atualizar_pessoa.append("rg_orgao = COALESCE(rg_orgao, ?)")
+                params_pessoa.append(dados_extraidos["rg_orgao"])
+            if dados_extraidos.get("rg_uf"):
+                campos_atualizar_pessoa.append("rg_uf = COALESCE(rg_uf, ?)")
+                params_pessoa.append(dados_extraidos["rg_uf"])
+            if dados_extraidos.get("naturalidade"):
+                campos_atualizar_pessoa.append("naturalidade = COALESCE(naturalidade, ?)")
+                params_pessoa.append(dados_extraidos["naturalidade"])
+            if dados_extraidos.get("nacionalidade"):
+                campos_atualizar_pessoa.append("nacionalidade = COALESCE(nacionalidade, ?)")
+                params_pessoa.append(dados_extraidos["nacionalidade"])
+
+            if campos_atualizar_pessoa:
+                params_p = list(params_pessoa) + [pessoa_id]
+                cursor.execute(f"UPDATE pessoas SET {', '.join(campos_atualizar_pessoa)} WHERE id = ?", params_p)
+                
+            # Atualiza na tabela clientes
+            campos_atualizar_cli = [c for c in campos_atualizar_pessoa if not c.startswith("rg = ") and not c.startswith("nacionalidade = ")]
+            params_cli = [p for i, p in enumerate(params_pessoa) if not campos_atualizar_pessoa[i].startswith("rg = ") and not campos_atualizar_pessoa[i].startswith("nacionalidade = ")]
+            if dados_extraidos.get("data_nascimento"):
+                campos_atualizar_cli.append("data_nascimento_fundacao = COALESCE(data_nascimento_fundacao, ?)")
+                params_cli.append(dados_extraidos["data_nascimento"])
+                
+            if campos_atualizar_cli:
+                params_cli.append(cliente_id)
+                cursor.execute(f"UPDATE clientes SET {', '.join(campos_atualizar_cli)} WHERE id = ?", params_cli)
+
+            conn.commit()
+
+        # 6. Grava trilha de auditoria
+        registrar_acesso_sensivel(cliente_id, "DOCUMENTO_PDF", f"IMPORTACAO_IDENTIDADE_{tipo_doc} ({filename})", usuario=usuario, ip_origem=ip_origem)
+
+        return {
+            "sucesso": True,
+            "documento_id": doc_id,
+            "tipo_documento": tipo_doc,
+            "dados_extraidos": {k: v for k, v in dados_extraidos.items() if k != "texto_bruto"},
+            "arquivo_nome": safe_filename,
+            "mensagem": f"Documento {tipo_doc} importado e analisado com sucesso!"
+        }
+    except Exception as e:
+        logger.error(f"Erro ao importar PDF de identidade do cliente {cliente_id}: {e}", exc_info=True)
+        return {"error": f"Falha no processamento do PDF: {str(e)}"}
 
 
 def cadastrar_cliente(cli_data: dict) -> dict:

@@ -391,10 +391,10 @@ export const renderClientesTemplate = (): string => `
     </ui-modal>
 
     <!-- MODAL DE DETALHES COMPLETO (ALTA DENSIDADE & GRID DEFENSIVO) -->
-    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente">
+    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente" tamanho="extra-grande" class="modal-amplo" style="--ui-modal-largura: 1040px; max-width: 1040px;">
        <div class="space-y-4">
           <!-- Cabeçalho do Modal de Detalhes -->
-          <div class="flex items-center justify-between pb-3 border-b border-white/5">
+          <div class="flex items-center justify-between pb-3 border-b border-white/5 gap-2">
              <div class="flex items-center gap-3 min-w-0">
                 <ui-avatar id="det-cli-avatar" nome="??" tamanho="md"></ui-avatar>
                 <div class="min-w-0">
@@ -411,6 +411,11 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
              <div class="flex items-center gap-1.5 shrink-0">
+                <ui-botao variante="secundario" id="btn-det-importar-pdf" title="Importar e Ler PDF da Identidade (RG/CNH)">
+                    <i data-lucide="file-up" class="w-4 h-4 text-mint-vibrant"></i>
+                    <span class="hidden sm:inline text-xs font-semibold ml-1">Importar PDF</span>
+                </ui-botao>
+                <input type="file" id="input-det-importar-pdf" accept=".pdf,application/pdf" class="hidden">
                 <ui-botao variante="secundario" id="btn-det-editar" title="Editar Cliente">
                     <i data-lucide="edit" class="w-4 h-4"></i>
                 </ui-botao>
@@ -423,7 +428,7 @@ export const renderClientesTemplate = (): string => `
           <!-- Abas de Navegação -->
           <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none gap-1">
              <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
-             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos</button>
+             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos & Anexos</button>
              <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
              <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
           </div>
@@ -642,11 +647,32 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
 
-             <!-- ABA 2: DOCUMENTOS DE IDENTIFICAÇÃO (RG, CNH COM VALIDADE, CONSELHOS) -->
+             <!-- ABA 2: DOCUMENTOS DE IDENTIFICAÇÃO (RG, CNH COM VALIDADE, CONSELHOS, ANEXOS) -->
              <div id="tab-det-docs" class="tab-content-det hidden space-y-3.5">
+                
+                <!-- Card Dropzone de Importação Rápida de Identidade PDF -->
+                <div id="dropzone-pdf-identidade" class="border border-dashed border-mint-vibrant/30 bg-mint-vibrant/[0.02] hover:bg-mint-vibrant/[0.06] hover:border-mint-vibrant/60 transition-all rounded-technical p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer group">
+                   <div class="flex items-center gap-3">
+                      <div class="w-9 h-9 rounded-full bg-mint-vibrant/10 border border-mint-vibrant/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                         <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
+                      </div>
+                      <div>
+                         <h6 class="text-xs font-bold text-white flex items-center gap-2">
+                            Importação Inteligente de Identidade (RG / CNH) via PDF
+                            <span class="text-[8.5px] px-1.5 py-0.2 rounded font-mono font-bold bg-mint-vibrant/20 text-mint-vibrant">Auto-OCR</span>
+                         </h6>
+                         <p class="text-[11px] text-white/50 mt-0.5">Selecione ou arraste o PDF da identidade do cliente para extrair CPF, RG, CNH, Validade e anexar o arquivo original.</p>
+                      </div>
+                   </div>
+                   <button type="button" class="btn-primary text-xs py-1.5 px-3 whitespace-nowrap shrink-0 pointer-events-none">
+                      <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+                      Selecionar PDF
+                   </button>
+                </div>
+
                 <!-- Formulário de Adicionar Documento -->
                 <div class="bg-white/[0.02] p-3 border border-white/5 rounded-technical space-y-2.5">
-                   <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Adicionar Novo Documento</h6>
+                   <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Adicionar Novo Documento Manual</h6>
                    <form id="form-add-doc" class="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
                       <div class="sm:col-span-1">
                          <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Tipo</label>
@@ -691,6 +717,7 @@ export const renderClientesTemplate = (): string => `
                            <th class="py-2.5 px-3">Órgão Emissor</th>
                            <th class="py-2.5 px-3">Categoria</th>
                            <th class="py-2.5 px-3">Validade</th>
+                           <th class="py-2.5 px-3 text-center">Anexo</th>
                            <th class="py-2.5 px-3 text-right">Ação</th>
                         </tr>
                       </thead>

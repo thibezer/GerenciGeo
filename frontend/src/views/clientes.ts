@@ -649,13 +649,13 @@ export const clientesRoute: RouteDef = {
 
     const carregarDocumentosCliente = async (id: number) => {
       const container = document.getElementById('det-cli-documentos');
-      if (container) container.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-white/30">Carregando documentos...</td></tr>';
+      if (container) container.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-white/30">Carregando documentos...</td></tr>';
       try {
         documentosAtuais = await fetchClienteDocumentosApi(id);
-        if (container) container.innerHTML = renderDocumentosTabelaHtml(documentosAtuais);
+        if (container) container.innerHTML = renderDocumentosTabelaHtml(documentosAtuais, id);
         initIcons();
       } catch {
-        if (container) container.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-400">Falha ao carregar documentos.</td></tr>';
+        if (container) container.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-400">Falha ao carregar documentos.</td></tr>';
       }
     };
 
@@ -1098,6 +1098,102 @@ export const clientesRoute: RouteDef = {
         await loadClientes();
       } catch {
         alert("Erro ao salvar metadado.");
+      }
+    });
+
+    // Upload e Parsing Inteligente de PDF de Identidade
+    const uploadPdfIdentidade = async (id: number, file: File) => {
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert("Por favor, selecione um arquivo no formato PDF.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const btnUpload = document.getElementById('btn-det-importar-pdf');
+      const inputPdf = document.getElementById('input-det-importar-pdf') as HTMLInputElement | null;
+
+      try {
+        if (btnUpload) {
+          btnUpload.setAttribute('disabled', 'true');
+          btnUpload.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-mint-vibrant"></i> <span class="hidden sm:inline text-xs font-semibold ml-1">Processando...</span>';
+          initIcons();
+        }
+
+        const res = await fetch(`/clientes/${id}/importar-identidade-pdf`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Erro ao processar o PDF de identidade.');
+        }
+
+        const data = await res.json();
+        alert(data.mensagem || 'PDF de identidade importado com sucesso!');
+
+        // Recarrega todos os clientes do backend e reabre a tela de detalhes atualizada
+        await loadClientes();
+        abrirDetalhesCliente(id);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Falha na importação do PDF.';
+        alert(msg);
+      } finally {
+        if (btnUpload) {
+          btnUpload.removeAttribute('disabled');
+          btnUpload.innerHTML = '<i data-lucide="file-up" class="w-4 h-4 text-mint-vibrant"></i> <span class="hidden sm:inline text-xs font-semibold ml-1">Importar PDF</span>';
+          initIcons();
+        }
+        if (inputPdf) inputPdf.value = '';
+      }
+    };
+
+    // Botão de Importar PDF no Cabeçalho
+    const btnDetImportarPdf = document.getElementById('btn-det-importar-pdf');
+    const inputDetImportarPdf = document.getElementById('input-det-importar-pdf') as HTMLInputElement | null;
+
+    btnDetImportarPdf?.addEventListener('click', () => {
+      if (inputDetImportarPdf) inputDetImportarPdf.click();
+    });
+
+    // Dropzone na Aba de Documentos
+    const dropzonePdf = document.getElementById('dropzone-pdf-identidade');
+    dropzonePdf?.addEventListener('click', () => {
+      if (inputDetImportarPdf) inputDetImportarPdf.click();
+    });
+
+    // Drag and Drop na Dropzone
+    if (dropzonePdf) {
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzonePdf.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzonePdf.classList.add('border-mint-vibrant', 'bg-mint-vibrant/[0.08]');
+        });
+      });
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzonePdf.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzonePdf.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/[0.08]');
+        });
+      });
+      dropzonePdf.addEventListener('drop', (e: DragEvent) => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0 && clienteSelecionadoId) {
+          uploadPdfIdentidade(clienteSelecionadoId, files[0]);
+        }
+      });
+    }
+
+    // Input Change
+    inputDetImportarPdf?.addEventListener('change', (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      if (target.files && target.files.length > 0 && clienteSelecionadoId) {
+        uploadPdfIdentidade(clienteSelecionadoId, target.files[0]);
       }
     });
 

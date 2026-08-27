@@ -228,3 +228,64 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
         self.assertEqual(c_up["cnh_categoria"], "AE")
         self.assertEqual(c_up["certidao_casamento_matricula"], "NOVA-MATRICULA-999")
 
+    def test_importar_identidade_pdf_cnh_extracao(self):
+        """Valida a geração de PDF de identidade, parsing de texto e persistência de anexo e dados civis."""
+        import fitz
+        from services.gestores.cliente_manager import importar_identidade_pdf
+
+        # 1. Cadastra cliente básico sem CNH com CPF matematicamente válido
+        cli_data = {
+            "nome_completo": "Marcos da Silva Sauro",
+            "cpf_cnpj": "78612659191",
+            "estado_civil": "Solteiro(a)"
+        }
+        res = cadastrar_cliente(cli_data)
+        self.assertNotIn("error", res)
+        cid = res["id"]
+        self.created_cliente_ids.append(cid)
+
+        # 2. Cria PDF sintético em memória simulando CNH brasileira
+        doc = fitz.open()
+        page = doc.new_page()
+        conteudo_cnh = (
+            "REPÚBLICA FEDERATIVA DO BRASIL\n"
+            "MINISTÉRIO DOS TRANSPORTES\n"
+            "CARTEIRA NACIONAL DE HABILITAÇÃO\n"
+            "NOME: MARCOS DA SILVA SAURO\n"
+            "DOC. IDENTIDADE: 88776655 SSP/PR\n"
+            "CPF: 786.126.591-91\n"
+            "DATA DE NASCIMENTO: 15/06/1985\n"
+            "NATURALIDADE: Cascavel - PR\n"
+            "Nº REGISTRO: 01234567891\n"
+            "CAT. HAB.: B\n"
+            "VALIDADE: 20/10/2032\n"
+            "DETRAN/PR\n"
+        )
+        page.insert_text((50, 50), conteudo_cnh)
+        pdf_bytes = doc.tobytes()
+        doc.close()
+
+        # 3. Invoca a importação do PDF
+        res_import = importar_identidade_pdf(cid, pdf_bytes, "cnh_marcos.pdf")
+        self.assertNotIn("error", res_import)
+        self.assertTrue(res_import.get("sucesso"))
+        self.assertEqual(res_import.get("tipo_documento"), "CNH")
+        self.assertEqual(res_import["dados_extraidos"].get("cnh_numero"), "01234567891")
+        self.assertEqual(res_import["dados_extraidos"].get("cnh_categoria"), "B")
+
+        # 4. Verifica se o cliente no banco foi atualizado com os dados extraídos
+        clientes = get_clientes()
+        c = next(x for x in clientes if x["id"] == cid)
+        self.assertEqual(c["cnh_numero"], "01234567891")
+        self.assertEqual(c["cnh_categoria"], "B")
+        self.assertEqual(c["cnh_validade"], "2032-10-20")
+        self.assertEqual(c["naturalidade"], "Cascavel - PR")
+
+        # 5. Verifica se o documento foi anexado à lista com caminho de arquivo
+        docs = obter_documentos_cliente(cid)
+        self.assertTrue(len(docs) >= 1)
+        doc_anexado = next(d for d in docs if d["arquivo_nome"] == "cnh_marcos.pdf")
+        self.assertIsNotNone(doc_anexado["arquivo_path"])
+        self.assertTrue(doc_anexado["tamanho_bytes"] > 0)
+
+

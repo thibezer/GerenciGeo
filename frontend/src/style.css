@@ -677,4 +677,27 @@ thead th,
   }
 }
 
+/* ==========================================================================
+   Modais de Alta Densidade e Largura Expandida (Desktop Power Users)
+   ========================================================================== */
+ui-modal#modal-detalhes-cliente,
+ui-modal#modal-cliente,
+ui-modal.modal-amplo,
+ui-modal[tamanho="extra-grande"],
+ui-modal[tamanho="xl"],
+ui-modal[tamanho="grande"] {
+  --ui-modal-largura: 1060px !important;
+  --ui-modal-max-largura: 95vw !important;
+  max-width: 1060px !important;
+}
+
+@media (min-width: 1024px) {
+  ui-modal#modal-detalhes-cliente,
+  ui-modal#modal-cliente,
+  ui-modal.modal-amplo {
+    --ui-modal-largura: 1080px !important;
+  }
+}
+
+
 
