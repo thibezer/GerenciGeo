@@ -124,7 +124,8 @@
   --gg-raio-borda:       var(--geo-radius-input, 7px);
 
   /* --- Overrides Nativos para o ui-components-kit --- */
-  --ui-altura-minima: 36px;
+  --ui-altura-minima: 15px;
+  --ui-campo-altura: var(--ui-altura-minima, 15px);
   --ui-cor-fundo-elevado: rgba(255, 255, 255, 0.04);
   --ui-cor-fundo-menu: var(--geo-bg-surface);
   --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
@@ -488,11 +489,13 @@ button {
    Corrige: radius quadrado, borda muito forte e stretch de grid
    =========================================================== */
 
-/* Corrige distorção no Height 100% de WebComponents em CSS Grids */
+/* Corrige distorção no Height 100% de WebComponents em CSS Grids e suporta --ui-campo-altura */
 ui-lista-flutuante,
-ui-campo-texto {
+ui-campo-texto,
+ui-select {
   height: max-content;
   display: block;
+  min-height: var(--ui-campo-altura, var(--ui-altura-minima, 15px));
 }
 
 .glass-input,
