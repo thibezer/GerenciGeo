@@ -39,9 +39,9 @@
 **Learning:** Modais de power users com dados cadastrais e notariais densos requerem CSS Grid defensivo (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4` com `min-w-0` em todas as células filhas) e hierarquia tipográfica assimétrica (labels em `text-[11px] font-medium uppercase text-white/40` e valores em `text-sm font-semibold text-white`) para eliminar colisões visuais.
 **Action:** Implementada estrutura de qualificação civil expandida (CNH com categoria, validade e órgão/UF, RG com órgão/UF, Naturalidade e Matrícula da Certidão de Casamento), alternador de Pills RG ⇆ CNH com detecção de validade, card de cônjuge condicional para Casado/União Estável, e microinterações de alta produtividade (1-Click Copy com feedback visual de 2s e link direto sanitizado para WhatsApp `https://wa.me/55...`).
 
-## 2026-08-27 - Importação Inteligente de PDFs de Identidade (Auto-OCR / PyMuPDF) e Modais Ultra-Largos
-**Learning:** O upload de PDFs de RG e CNH permite auto-preenchimento cadastral e custódia segura de documentos digitalizados sem redundância ou lentidão de digitação.
-**Action:** Desenvolvido parser regex com PyMuPDF (`fitz`) em `services/processamento/identidade_parser.py`, endpoint multipart `POST /clientes/{id}/importar-identidade-pdf`, download via `GET /clientes/{id}/documentos/{doc_id}/arquivo`, dropzone com drag & drop no frontend e ampliação da largura do modal para 1040px (`--ui-modal-largura: 1040px`).
+## 2026-08-28 - Resolução de Conflitos UNIQUE e Filtragem de Metadados na Importação ODS/SIGEF
+**Learning:** Ao importar planilhas ODS/CSV homologadas para matrículas com pontos de campo preexistentes (`origem_homologada = 0`), a inserção falhava com `UNIQUE constraint failed: pontos.levantamento_id, pontos.matricula_id, pontos.nome_vertice, pontos.tipo_ponto`. Além disso, cabeçalhos de metadados como `"Sistema de referência SIRGAS2000"` eram parseados indevidamente como vértices com coordenadas nulas.
+**Action:** Implementado UPSERT via `INSERT INTO pontos (...) VALUES (...) ON CONFLICT(...) DO UPDATE SET ...` em `persistir_pontos_homologados`, adicionada lista de bloqueio de termos de cabeçalho em `extract_codigo_parts` e validação estrita de coordenadas não-nulas nos parsers ODS e CSV.
 
 
 

@@ -25,6 +25,10 @@ class TestGeodesiaParser(unittest.TestCase):
         self.assertIsNone(invalid_t)
         self.assertIsNone(extract_codigo_parts(None)[0])
         self.assertIsNone(extract_codigo_parts("")[0])
+        self.assertIsNone(extract_codigo_parts("Sistema de referência SIRGAS2000")[0])
+        self.assertIsNone(extract_codigo_parts("Tabela de Perímetro")[0])
+        self.assertIsNone(extract_codigo_parts("Denominação: Parte 1")[0])
+        self.assertIsNone(extract_codigo_parts("Tipo de Coordenada: UTM")[0])
 
     def test_parse_num_robust(self):
         self.assertEqual(parse_num_robust("123.45"), 123.45)

@@ -323,3 +323,13 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
      - Disponibilizar endpoint `GET /clientes/{id}/documentos/{doc_id}/arquivo` para download/visualização direta em nova aba.
   3. **Modais Ultra-Largos (1040px - 1080px)**: Configurar `--ui-modal-largura: 1040px !important; max-width: 1040px !important;` com drag & drop integrado e botão de ação rápida no cabeçalho.
 
+---
+
+## 19. Resolução de Conflitos em Importação de Pontos Homologados (UPSERT SQLite e Filtragem de Metadados)
+- **Problema**:
+  1. Ao importar planilhas homologadas/aprovadas do SIGEF (ODS ou CSV) para uma matrícula que já continha pontos de campo brutos (`origem_homologada = 0`), a rotina `DELETE ... AND origem_homologada = 1` não removia os pontos de campo, e a inserção subsequente com `INSERT INTO pontos` falhava com `IntegrityError: UNIQUE constraint failed: pontos.levantamento_id, pontos.matricula_id, pontos.nome_vertice, pontos.tipo_ponto`.
+  2. Linhas de cabeçalhos descritivos ou metadados de planilhas ODS (como `"Sistema de referência SIRGAS2000"`, `"Tabela de Perímetro"`, etc.) eram falsamente capturadas pelo fallback de vértice genérico em `extract_codigo_parts` e inseridas no banco sem coordenadas válidas (`None`).
+- **Regra Obrigatória**:
+  1. **UPSERT na Inserção de Pontos Homologados**: Em `persistir_pontos_homologados`, sempre utilizar `INSERT INTO pontos (...) VALUES (...) ON CONFLICT(levantamento_id, matricula_id, nome_vertice, tipo_ponto) DO UPDATE SET ...` para atualizar coordenadas, `status_ponto = 'CORRIGIDO'`, `status_correcao = 'CORRIGIDO'`, `ordem_caminhamento` e `origem_homologada = 1` sem colidir com pontos preexistentes.
+  2. **Filtragem Estrita de Metadados e Cabeçalhos**: Em `extract_codigo_parts` (`geodesia_parser.py`), bloquear tokens e frases descritivas contendo palavras-chave de cabeçalho (`sistema`, `referencia`, `sirgas`, `perimetro`, `tabela`, `coordenada`, etc.) ou com comprimento excessivo.
+  3. **Validação Obrigatória de Coordenadas na Ingestão**: Em parsers ODS e CSV de pontos aprovados, ignorar qualquer linha cujas coordenadas resolvidas resultem em `None` (`lat is None or lon is None or este is None or norte is None`).

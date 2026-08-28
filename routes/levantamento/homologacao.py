@@ -64,6 +64,8 @@ def parse_csv_sigef(content: bytes, fuso_utm: int):
                 if not vertice: continue
                 
                 lat, lon, este, norte = resolver_coordenadas_robust(get_val('X') or get_val('LONGITUDE'), get_val('Y') or get_val('LATITUDE'), fuso_utm)
+                if lat is None or lon is None or este is None or norte is None:
+                    continue
                 pontos[vertice] = {
                     "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
                     "norte": norte, "este": este, "altitude": parse_num_robust(get_val('Z')),
@@ -152,6 +154,19 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
             (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
              sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, metodo_posicionamento, arquivo_origem, origem_homologada)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(levantamento_id, matricula_id, nome_vertice, tipo_ponto) DO UPDATE SET
+                lat = excluded.lat,
+                lon = excluded.lon,
+                alt = excluded.alt,
+                sigma_lat = excluded.sigma_lat,
+                sigma_lon = excluded.sigma_lon,
+                sigma_alt = excluded.sigma_alt,
+                ordem_caminhamento = excluded.ordem_caminhamento,
+                status_ponto = excluded.status_ponto,
+                status_correcao = excluded.status_correcao,
+                metodo_posicionamento = excluded.metodo_posicionamento,
+                arquivo_origem = excluded.arquivo_origem,
+                origem_homologada = excluded.origem_homologada
             """, pontos_data
         )
         
@@ -162,6 +177,7 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
         mapa_db_ids = {row["nome_vertice"]: row["id"] for row in cursor.fetchall()}
         
         if len(pontos_ordenados) >= 2:
+            cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1", (id_levantamento, matricula_id))
             segmentos_data = []
             N_pts = len(pontos_ordenados)
             for i in range(N_pts):
@@ -315,6 +331,8 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                                 tipo, num, vertice = extract_codigo_parts(cell_texts[0])
                                                 if vertice:
                                                     lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3], fuso_utm)
+                                                    if lat is None or lon is None or este is None or norte is None:
+                                                        continue
                                                     p_data = {
                                                         "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
                                                         "norte": norte, "este": este, "altitude": parse_num_robust(cell_texts[5]),
@@ -445,6 +463,8 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                         tipo, num, vertice = extract_codigo_parts(cell_texts[0])
                                         if vertice:
                                             lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3], fuso_utm)
+                                            if lat is None or lon is None or este is None or norte is None:
+                                                continue
                                             if vertice not in pontos_dict: ordem_list.append(vertice)
                                             pontos_dict[vertice] = {
                                                 "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,

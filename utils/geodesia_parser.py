@@ -39,6 +39,17 @@ def extract_codigo_parts(codigo):
     if match_sem:
         return match_sem.group(1).upper(), int(match_sem.group(2)), match_sem.group(0).upper()
 
+    # Rejeitar textos descritivos, metadados e cabeçalhos de planilhas
+    palavras_bloqueadas = {
+        'sistema', 'referencia', 'referência', 'sirgas', 'tabela', 'perimetro', 'perímetro',
+        'lado', 'denominacao', 'denominação', 'parcela', 'coordenada', 'coordenadas',
+        'latitude', 'longitude', 'altitude', 'meridiano', 'hemisferio', 'hemisfério',
+        'fuso', 'datum', 'vertice', 'vértice', 'codigo', 'código', 'sigma', 'metodo', 'método'
+    }
+    tokens = set(re.split(r'[:\s\-_/]+', codigo.lower()))
+    if tokens & palavras_bloqueadas or len(codigo.split()) > 2 or len(codigo) > 25:
+        return None, None, None
+
     # Fallback 2: Vértice genérico (ex: P0001, P1, V1, M01, VRT-1, P_01, 101, etc.)
     # Exige presença de ao menos um número no código do ponto para descartar palavras genéricas ("INVALIDO", "OBS")
     m_num = re.search(r'\d+', codigo)
