@@ -333,3 +333,16 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. **UPSERT na Inserção de Pontos Homologados**: Em `persistir_pontos_homologados`, sempre utilizar `INSERT INTO pontos (...) VALUES (...) ON CONFLICT(levantamento_id, matricula_id, nome_vertice, tipo_ponto) DO UPDATE SET ...` para atualizar coordenadas, `status_ponto = 'CORRIGIDO'`, `status_correcao = 'CORRIGIDO'`, `ordem_caminhamento` e `origem_homologada = 1` sem colidir com pontos preexistentes.
   2. **Filtragem Estrita de Metadados e Cabeçalhos**: Em `extract_codigo_parts` (`geodesia_parser.py`), bloquear tokens e frases descritivas contendo palavras-chave de cabeçalho (`sistema`, `referencia`, `sirgas`, `perimetro`, `tabela`, `coordenada`, etc.) ou com comprimento excessivo.
   3. **Validação Obrigatória de Coordenadas na Ingestão**: Em parsers ODS e CSV de pontos aprovados, ignorar qualquer linha cujas coordenadas resolvidas resultem em `None` (`lat is None or lon is None or este is None or norte is None`).
+
+---
+
+## 20. Isolamento de Perímetros na Importação de Múltiplas Planilhas / Abas
+- **Problema**:
+  1. Ao importar múltiplas planilhas (CSV/TXT) ou múltiplas abas de um arquivo ODS para a mesma matrícula ou levantamento, a rotina de lote concatenava todos os vértices de todas as planilhas em um único array de pontos ordenados (`pontos_processados[mat_id]`), unindo os nomes como `"Planilha1 + Planilha2"`.
+  2. O gerador de segmentos conectava o último ponto da Planilha 1 com o primeiro ponto da Planilha 2 e fechava o último ponto da Planilha 2 de volta ao primeiro da Planilha 1, fundindo áreas/glebas distintas em um único perímetro cruzado gigante.
+  3. No mapa Leaflet (`mapa_linhas.ts`), as polilinhas agrupavam os pontos apenas por `matricula_id`, traçando uma única linha de fechamento ao redor de todas as planilhas da mesma matrícula.
+- **Regra Obrigatória**:
+  1. **Processamento e Persistência Isolada por Planilha/Aba**: Cada arquivo ou aba `(filename, table_name)` deve ser tratado como uma unidade de perímetro independente (`nome_planilha`), persistido separadamente com seu próprio `arquivo_origem` / `planilha_origem` e gerando seu próprio ciclo fechado de segmentos ($P_0 \rightarrow P_1 \dots P_{N-1} \rightarrow P_0$).
+  2. **Remoção Escopada de Segmentos**: Ao salvar os segmentos de uma planilha, a query de limpeza deve remover estritamente os segmentos pertencentes aos pontos daquela planilha/perímetro (`ponto_inicio_id IN (...) OR ponto_fim_id IN (...)`), sem apagar os segmentos das demais planilhas da mesma matrícula.
+  3. **Agrupamento Composto no Mapa**: No frontend (`mapa_linhas.ts`), tanto `plotPolilinhaTemporaria` quanto `plotPoligonalHomologada` devem agrupar os vértices pela chave composta `matricula_id` + `arquivo_origem`/`planilha_origem` (`${matKey}___${origKey}`), garantindo que cada planilha/gleba trace seu próprio polígono fechado de forma independente.
+

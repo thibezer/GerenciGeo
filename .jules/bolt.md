@@ -43,5 +43,10 @@
 **Learning:** Ao importar planilhas ODS/CSV homologadas para matrículas com pontos de campo preexistentes (`origem_homologada = 0`), a inserção falhava com `UNIQUE constraint failed: pontos.levantamento_id, pontos.matricula_id, pontos.nome_vertice, pontos.tipo_ponto`. Além disso, cabeçalhos de metadados como `"Sistema de referência SIRGAS2000"` eram parseados indevidamente como vértices com coordenadas nulas.
 **Action:** Implementado UPSERT via `INSERT INTO pontos (...) VALUES (...) ON CONFLICT(...) DO UPDATE SET ...` em `persistir_pontos_homologados`, adicionada lista de bloqueio de termos de cabeçalho em `extract_codigo_parts` e validação estrita de coordenadas não-nulas nos parsers ODS e CSV.
 
+## 2026-08-28 - Isolamento e Segregação de Múltiplos Perímetros em Planilhas e Abas Distintas
+**Learning:** Na importação em lote de planilhas ODS/CSV, associar múltiplas planilhas/abas à mesma matrícula agrupava todos os vértices em uma única lista contínua, concatenando nomes de arquivo e conectando o último ponto de uma planilha ao primeiro da outra, gerando um perímetro fundido e distorcido. No Leaflet, o agrupamento considerava apenas `matricula_id`, fechando uma única polilinha para todas as planilhas.
+**Action:** O pipeline de importação agora processa e persiste cada planilha/aba como um perímetro independente (`nome_planilha`), gerando segmentos fechados isolados para cada polígono. No Leaflet (`mapa_linhas.ts`), as polilinhas temporárias e homologadas agrupam os pontos pela chave composta `matricula_id` + `arquivo_origem`/`planilha_origem`, renderizando cada perímetro separadamente.
+
+
 
 

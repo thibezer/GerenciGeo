@@ -171,13 +171,22 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
         )
         
         cursor.execute(
-            "SELECT id, nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND arquivo_origem = ? AND origem_homologada = 1", 
-            (id_levantamento, matricula_id, nome_planilha)
+            "SELECT id, nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1", 
+            (id_levantamento, matricula_id)
         )
         mapa_db_ids = {row["nome_vertice"]: row["id"] for row in cursor.fetchall()}
         
-        if len(pontos_ordenados) >= 2:
-            cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1", (id_levantamento, matricula_id))
+        ids_desta_planilha = [mapa_db_ids[p["codigo_completo"]] for p in pontos_ordenados if p.get("codigo_completo") in mapa_db_ids]
+        
+        if len(pontos_ordenados) >= 2 and ids_desta_planilha:
+            placeholders = ",".join("?" for _ in ids_desta_planilha)
+            cursor.execute(
+                f"""DELETE FROM segmentos 
+                   WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1 
+                     AND (ponto_inicio_id IN ({placeholders}) OR ponto_fim_id IN ({placeholders}))""",
+                [id_levantamento, matricula_id] + ids_desta_planilha + ids_desta_planilha
+            )
+            
             segmentos_data = []
             N_pts = len(pontos_ordenados)
             for i in range(N_pts):
@@ -269,133 +278,131 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
         if not codigo_credenciado:
             raise HTTPException(status_code=400, detail="Responsável Técnico sem Código Credenciado no INCRA.")
             
-        pontos_processados = {}
-        limites_processados = {}
-        ordem_processada = {}
-        nomes_arquivos = {}
+        planilhas_para_importar = []
         
-        def init_mat(m_id):
-            if m_id not in pontos_processados:
-                pontos_processados[m_id] = {}
-                limites_processados[m_id] = {}
-                ordem_processada[m_id] = []
-                nomes_arquivos[m_id] = []
+        for file in files:
+            filename = file.filename
+            content = await file.read()
+            is_ods = filename.lower().endswith(".ods") or content.startswith(b"PK\x03\x04")
+            
+            if is_ods:
+                try:
+                    with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
+                        if 'content.xml' in zip_ref.namelist():
+                            xml_data = zip_ref.read('content.xml')
+                            ns = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
+                            root = ET.fromstring(xml_data)
+                            
+                            tables = root.findall('.//table:table', ns)
+                            for table in tables:
+                                table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
+                                map_key = f"{filename}#{table_name}"
+                                if map_key in map_dados and map_dados[map_key]:
+                                    mat_id = int(map_dados[map_key])
+                                    nome_planilha = table_name if filename.lower().replace('.ods', '') in table_name.lower() else f"{filename} - {table_name}"
+                                    
+                                    pontos_aba = {}
+                                    ordem_aba = []
+                                    limites_aba = {}
+                                    
+                                    rows = table.findall('.//table:table-row', ns)
+                                    for row in rows:
+                                        cells = row.findall('.//table:table-cell', ns)
+                                        cell_texts = []
+                                        for cell in cells:
+                                            repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
+                                            p_elements = cell.findall('.//text:p', ns)
+                                            cell_text = "".join([p.text for p in p_elements if p.text])
+                                            if not cell_text: cell_text = cell.get('{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value') or ""
+                                            count = int(repeated) if repeated else 1
+                                            if count > 30: count = 1
+                                            cell_texts.extend([cell_text] * count)
+                                            
+                                        if len(cell_texts) >= 7:
+                                            tipo, num, vertice = extract_codigo_parts(cell_texts[0])
+                                            if vertice:
+                                                lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3], fuso_utm)
+                                                if lat is None or lon is None or este is None or norte is None:
+                                                    continue
+                                                p_data = {
+                                                    "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
+                                                    "norte": norte, "este": este, "altitude": parse_num_robust(cell_texts[5]),
+                                                    "lat": lat, "lon": lon,
+                                                    "sigma_e": parse_num_robust(cell_texts[2]), "sigma_n": parse_num_robust(cell_texts[4]), "sigma_z": parse_num_robust(cell_texts[6]),
+                                                    "metodo_posicionamento": str(cell_texts[7]).strip() if len(cell_texts) > 7 else "", 
+                                                    "tipo_limite": str(cell_texts[8]).strip() if len(cell_texts) > 8 else "",
+                                                    "cns_confrontante": str(cell_texts[9]).strip() if len(cell_texts) > 9 else "", 
+                                                    "matricula_confrontante": str(cell_texts[10]).strip() if len(cell_texts) > 10 else "", 
+                                                    "confrontante_descritivo": str(cell_texts[11]).strip() if len(cell_texts) > 11 else ""
+                                                }
+                                                if vertice not in pontos_aba:
+                                                    ordem_aba.append(vertice)
+                                                    pontos_aba[vertice] = p_data
+                                                elif p_data["lat"] is not None and pontos_aba[vertice]["lat"] is None:
+                                                    pontos_aba[vertice].update(p_data)
+                                                    
+                                    if pontos_aba:
+                                        planilhas_para_importar.append({
+                                            "nome_planilha": nome_planilha,
+                                            "mat_id": mat_id,
+                                            "pontos_dict": pontos_aba,
+                                            "ordem": ordem_aba,
+                                            "limites_dict": limites_aba
+                                        })
+                except Exception as e_ods:
+                    logging.getLogger(__name__).error(f"Erro ao processar ODS em lote: {e_ods}")
+                    raise HTTPException(status_code=400, detail=f"Erro ao processar ODS '{filename}': {str(e_ods)}")
+                    
+            else:
+                map_key = f"{filename}#Arquivo Único"
+                if map_key in map_dados and map_dados[map_key]:
+                    mat_id = int(map_dados[map_key])
+                    nome_planilha = filename
+                    
+                    p_dict, l_dict, o_list = parse_csv_sigef(content, fuso_utm)
+                    if p_dict:
+                        planilhas_para_importar.append({
+                            "nome_planilha": nome_planilha,
+                            "mat_id": mat_id,
+                            "pontos_dict": p_dict,
+                            "ordem": o_list,
+                            "limites_dict": l_dict
+                        })
 
+        # Processamento e Salvamento Isolado por Planilha/Perímetro
+        total_importados = 0
+        mensagens = []
+        
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # Purgar pontos anteriores
-            matriculas_afetadas = set(int(m) for m in map_dados.values() if m)
-            if matriculas_afetadas:
-                placeholders = ','.join(['?'] * len(matriculas_afetadas))
-                params = [id] + list(matriculas_afetadas)
-                cursor.execute(f"DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id IN ({placeholders}) AND origem_homologada = 1", params)
-                cursor.execute(f"DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({placeholders})", params)
+            for item in planilhas_para_importar:
+                nome_planilha = item["nome_planilha"]
+                mat_id = item["mat_id"]
+                p_dict = item["pontos_dict"]
+                l_dict = item["limites_dict"]
+                o_list = item["ordem"]
                 
-            for file in files:
-                filename = file.filename
-                content = await file.read()
-                is_ods = filename.lower().endswith(".ods") or content.startswith(b"PK\x03\x04")
-                
-                if is_ods:
-                    try:
-                        with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
-                            if 'content.xml' in zip_ref.namelist():
-                                xml_data = zip_ref.read('content.xml')
-                                ns = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
-                                root = ET.fromstring(xml_data)
-                                
-                                tables = root.findall('.//table:table', ns)
-                                for table in tables:
-                                    table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
-                                    map_key = f"{filename}#{table_name}"
-                                    if map_key in map_dados and map_dados[map_key]:
-                                        mat_id = int(map_dados[map_key])
-                                        init_mat(mat_id)
-                                        nomes_arquivos[mat_id].append(table_name)
-                                        
-                                        rows = table.findall('.//table:table-row', ns)
-                                        for row in rows:
-                                            cells = row.findall('.//table:table-cell', ns)
-                                            cell_texts = []
-                                            for cell in cells:
-                                                repeated = cell.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}number-columns-repeated')
-                                                p_elements = cell.findall('.//text:p', ns)
-                                                cell_text = "".join([p.text for p in p_elements if p.text])
-                                                if not cell_text: cell_text = cell.get('{urn:oasis:names:tc:opendocument:xmlns:office:1.0}value') or ""
-                                                count = int(repeated) if repeated else 1
-                                                if count > 30: count = 1
-                                                cell_texts.extend([cell_text] * count)
-                                                
-                                            if len(cell_texts) >= 7:
-                                                tipo, num, vertice = extract_codigo_parts(cell_texts[0])
-                                                if vertice:
-                                                    lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3], fuso_utm)
-                                                    if lat is None or lon is None or este is None or norte is None:
-                                                        continue
-                                                    p_data = {
-                                                        "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
-                                                        "norte": norte, "este": este, "altitude": parse_num_robust(cell_texts[5]),
-                                                        "lat": lat, "lon": lon,
-                                                        "sigma_e": parse_num_robust(cell_texts[2]), "sigma_n": parse_num_robust(cell_texts[4]), "sigma_z": parse_num_robust(cell_texts[6]),
-                                                        "metodo_posicionamento": str(cell_texts[7]).strip() if len(cell_texts) > 7 else "", 
-                                                        "tipo_limite": str(cell_texts[8]).strip() if len(cell_texts) > 8 else "",
-                                                        "cns_confrontante": str(cell_texts[9]).strip() if len(cell_texts) > 9 else "", 
-                                                        "matricula_confrontante": str(cell_texts[10]).strip() if len(cell_texts) > 10 else "", 
-                                                        "confrontante_descritivo": str(cell_texts[11]).strip() if len(cell_texts) > 11 else ""
-                                                    }
-                                                    if vertice not in pontos_processados[mat_id]:
-                                                        ordem_processada[mat_id].append(vertice)
-                                                        pontos_processados[mat_id][vertice] = p_data
-                                                    elif p_data["lat"] is not None and pontos_processados[mat_id][vertice]["lat"] is None:
-                                                        pontos_processados[mat_id][vertice].update(p_data)
-                    except Exception as e_ods:
-                        logging.getLogger(__name__).error(f"Erro ao processar ODS em lote: {e_ods}")
-                        raise HTTPException(status_code=400, detail=f"Erro ao processar ODS '{filename}': {str(e_ods)}")
-                        
-                else:
-                    map_key = f"{filename}#Arquivo Único"
-                    if map_key in map_dados and map_dados[map_key]:
-                        mat_id = int(map_dados[map_key])
-                        init_mat(mat_id)
-                        
-                        p_dict, l_dict, o_list = parse_csv_sigef(content, fuso_utm)
-                        if p_dict or l_dict: nomes_arquivos[mat_id].append(filename)
-                            
-                        for vertice, p_data in p_dict.items():
-                            if vertice not in pontos_processados[mat_id]:
-                                ordem_processada[mat_id].append(vertice)
-                                pontos_processados[mat_id][vertice] = p_data
-                            else:
-                                if p_data["lat"] is not None and pontos_processados[mat_id][vertice]["lat"] is None:
-                                    pontos_processados[mat_id][vertice].update(p_data)
-                                    
-                        for vertice, l_data in l_dict.items():
-                            if vertice not in limites_processados[mat_id]:
-                                limites_processados[mat_id][vertice] = l_data
-                            else:
-                                limites_processados[mat_id][vertice].update(l_data)
-
-            # Join na Memória e Salvamento Lote a Lote
-            total_importados = 0
-            mensagens = []
-            
-            for mat_id in pontos_processados:
-                for vertice, p_data in pontos_processados[mat_id].items():
-                    if vertice in limites_processados[mat_id]:
-                        lim = limites_processados[mat_id][vertice]
+                for vertice, p_data in p_dict.items():
+                    if vertice in l_dict:
+                        lim = l_dict[vertice]
                         p_data["confrontante_descritivo"] = lim.get("confrontante_descritivo", p_data.get("confrontante_descritivo"))
                         p_data["tipo_limite"] = lim.get("tipo_limite", p_data.get("tipo_limite"))
                 
-                pontos_ordenados = [pontos_processados[mat_id][v] for v in ordem_processada[mat_id]]
-                
+                pontos_ordenados = [p_dict[v] for v in o_list if v in p_dict]
                 if pontos_ordenados:
-                    nome_planilha = " + ".join(sorted(list(set(nomes_arquivos[mat_id]))))
                     cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
+                    
+                    cursor.execute("SELECT id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", (id, nome_planilha))
+                    pts_anteriores = [r["id"] for r in cursor.fetchall()]
+                    if pts_anteriores:
+                        placeholders = ",".join("?" for _ in pts_anteriores)
+                        cursor.execute(f"DELETE FROM segmentos WHERE ponto_inicio_id IN ({placeholders}) OR ponto_fim_id IN ({placeholders})", pts_anteriores + pts_anteriores)
+                        cursor.execute(f"DELETE FROM pontos WHERE id IN ({placeholders})", pts_anteriores)
                     
                     qtd = persistir_pontos_homologados(cursor, id, mat_id, profissional_id, pontos_ordenados, nome_planilha)
                     total_importados += qtd
-                    mensagens.append(f"Matrícula {mat_id}: {qtd} pontos consolidados.")
+                    mensagens.append(f"{nome_planilha} (Mat. {mat_id}): {qtd} pontos")
             
             # Recalcular Contadores INCRA
             for t in ['M', 'P', 'V']:
@@ -427,16 +434,12 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
         codigo_credenciado = prof["codigo_credenciado"] if prof else None
         if not codigo_credenciado: raise HTTPException(status_code=400, detail="Responsável Técnico não possui Código Credenciado no INCRA.")
         
-        nome_planilha = file.filename if file.filename else "Planilha Importada"
-        exists = execute_query("SELECT count(*) as qtd FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", params=(id, nome_planilha), fetch_one=True)
-        if exists and exists["qtd"] > 0:
-            raise HTTPException(status_code=400, detail=f"A planilha '{nome_planilha}' já foi importada anteriormente. Exclua a versão anterior no painel.")
-        
+        filename_raw = file.filename if file.filename else "Planilha Importada"
         content = await file.read()
-        filename = file.filename.lower() if file.filename else ""
+        filename = filename_raw.lower()
         is_ods = filename.endswith(".ods") or content.startswith(b"PK\x03\x04")
         
-        pontos_dict, limites_dict, ordem_list = {}, {}, []
+        planilhas_para_importar = []
         
         if is_ods:
             try:
@@ -446,7 +449,12 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                         ns = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
                         root = ET.fromstring(xml_data)
                         for table in root.findall('.//table:table', ns):
-                            if "perimetro" in (table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or "").lower():
+                            table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
+                            if "perimetro" in table_name.lower():
+                                nome_aba = table_name if filename_raw.lower().replace('.ods', '') in table_name.lower() else f"{filename_raw} - {table_name}"
+                                pontos_aba = {}
+                                ordem_aba = []
+                                
                                 for row in table.findall('.//table:table-row', ns):
                                     cells = row.findall('.//table:table-cell', ns)
                                     cell_texts = []
@@ -465,8 +473,8 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                             lat, lon, este, norte = resolver_coordenadas_robust(cell_texts[1], cell_texts[3], fuso_utm)
                                             if lat is None or lon is None or este is None or norte is None:
                                                 continue
-                                            if vertice not in pontos_dict: ordem_list.append(vertice)
-                                            pontos_dict[vertice] = {
+                                            if vertice not in pontos_aba: ordem_aba.append(vertice)
+                                            pontos_aba[vertice] = {
                                                 "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
                                                 "norte": norte, "este": este, "altitude": parse_num_robust(cell_texts[5]),
                                                 "lat": lat, "lon": lon,
@@ -477,29 +485,56 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                                 "matricula_confrontante": cell_texts[10].strip() if len(cell_texts) > 10 else "",
                                                 "confrontante_descritivo": cell_texts[11].strip() if len(cell_texts) > 11 else ""
                                             }
+                                if pontos_aba:
+                                    planilhas_para_importar.append({
+                                        "nome_planilha": nome_aba,
+                                        "pontos_dict": pontos_aba,
+                                        "ordem": ordem_aba,
+                                        "limites_dict": {}
+                                    })
             except Exception as e_zip:
                 logging.getLogger(__name__).error(f"Erro ao processar ODS: {e_zip}")
         else:
-            pontos_dict, limites_dict, ordem_list = parse_csv_sigef(content, fuso_utm)
+            p_dict, l_dict, o_list = parse_csv_sigef(content, fuso_utm)
+            if p_dict:
+                planilhas_para_importar.append({
+                    "nome_planilha": filename_raw,
+                    "pontos_dict": p_dict,
+                    "ordem": o_list,
+                    "limites_dict": l_dict
+                })
 
-        if not pontos_dict:
+        if not planilhas_para_importar:
             return {"sucesso": False, "pontos_importados": 0, "mensagem": f"Nenhum ponto válido com o padrão '{codigo_credenciado}-M/P/V-XXXX' foi localizado no arquivo."}
 
-        for v, p in pontos_dict.items():
-             if v in limites_dict:
-                 p["confrontante_descritivo"] = limites_dict[v].get("confrontante_descritivo", p.get("confrontante_descritivo"))
-                 p["tipo_limite"] = limites_dict[v].get("tipo_limite", p.get("tipo_limite"))
-                 
-        pontos_ordenados = [pontos_dict[v] for v in ordem_list]
-
+        total_qtd = 0
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
-            if matricula_id:
-                cursor.execute("DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND origem_homologada = 1", (id, matricula_id))
-                cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (id, matricula_id))
+            
+            for item in planilhas_para_importar:
+                nome_planilha = item["nome_planilha"]
+                p_dict = item["pontos_dict"]
+                l_dict = item["limites_dict"]
+                o_list = item["ordem"]
                 
-            qtd = persistir_pontos_homologados(cursor, id, matricula_id, profissional_id, pontos_ordenados, nome_planilha)
+                for v, p in p_dict.items():
+                    if v in l_dict:
+                        p["confrontante_descritivo"] = l_dict[v].get("confrontante_descritivo", p.get("confrontante_descritivo"))
+                        p["tipo_limite"] = l_dict[v].get("tipo_limite", p.get("tipo_limite"))
+                        
+                pontos_ordenados = [p_dict[v] for v in o_list if v in p_dict]
+                if pontos_ordenados:
+                    cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
+                    
+                    cursor.execute("SELECT id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", (id, nome_planilha))
+                    pts_anteriores = [r["id"] for r in cursor.fetchall()]
+                    if pts_anteriores:
+                        placeholders = ",".join("?" for _ in pts_anteriores)
+                        cursor.execute(f"DELETE FROM segmentos WHERE ponto_inicio_id IN ({placeholders}) OR ponto_fim_id IN ({placeholders})", pts_anteriores + pts_anteriores)
+                        cursor.execute(f"DELETE FROM pontos WHERE id IN ({placeholders})", pts_anteriores)
+                        
+                    qtd = persistir_pontos_homologados(cursor, id, matricula_id, profissional_id, pontos_ordenados, nome_planilha)
+                    total_qtd += qtd
             
             for t in ['M', 'P', 'V']:
                 cursor.execute("SELECT MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto = ? AND codigo_completo LIKE ?", (profissional_id, t, f"{codigo_credenciado}-%"))
@@ -510,9 +545,9 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
             
         return {
             "sucesso": True,
-            "pontos_importados": qtd,
-            "pontos_adicionados": qtd,
-            "mensagem": f"Processamento concluído. {qtd} vértices do credenciamento '{codigo_credenciado}' consolidados com sucesso."
+            "pontos_importados": total_qtd,
+            "pontos_adicionados": total_qtd,
+            "mensagem": f"Processamento concluído. {total_qtd} vértices do credenciamento '{codigo_credenciado}' consolidados com sucesso em perímetros independentes."
         }
     except Exception as e:
         if isinstance(e, HTTPException): raise e

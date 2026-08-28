@@ -59,12 +59,12 @@ export class MapaLinhas {
 
     if (validPoints.length < 2) return;
 
-    // Agrupar pontos por matricula_id ou planilha_origem para traçar perímetros independentes (evita linhas cruzadas em imóveis multigeridos)
+    // Agrupar pontos por matricula_id e arquivo_origem para traçar perímetros independentes (evita fechar polígonos entre planilhas/glebas distintas)
     const grupos: { [key: string]: Ponto[] } = {};
     validPoints.forEach(p => {
-      const key = p.matricula_id != null 
-        ? `mat_${p.matricula_id}` 
-        : ((p as any).planilha_origem || 'default');
+      const matKey = p.matricula_id != null ? `mat_${p.matricula_id}` : 'sem_mat';
+      const origKey = p.arquivo_origem || (p as any).planilha_origem || 'default';
+      const key = `${matKey}___${origKey}`;
       if (!grupos[key]) grupos[key] = [];
       grupos[key].push(p);
     });
@@ -74,7 +74,7 @@ export class MapaLinhas {
     const opacity = this.bancoPontosAtivo ? 0.4 : 1.0;
 
     Object.values(grupos).forEach(grupoPontos => {
-      // Ordena os pontos dentro de cada perímetro/matrícula individualmente
+      // Ordena os pontos dentro de cada perímetro/planilha individualmente
       grupoPontos.sort((a, b) => Number(a.ordem_caminhamento ?? 999999) - Number(b.ordem_caminhamento ?? 999999));
       if (grupoPontos.length < 2) return;
 
@@ -150,10 +150,12 @@ export class MapaLinhas {
       marker.addTo(this.core.bancoPontosGroup!);
     });
 
-    // 2. Agrupar pontos por matricula_id (ou planilha_origem) e traçar a polilinha fechada para cada grupo de forma independente
+    // 2. Agrupar pontos por matricula_id e planilha_origem e traçar a polilinha fechada para cada perímetro/planilha de forma independente
     const grupos: { [key: string]: BancoPonto[] } = {};
     validPoints.forEach(p => {
-      const key = p.matricula_id ? `mat_${p.matricula_id}` : (p.planilha_origem || 'default');
+      const matKey = p.matricula_id != null ? `mat_${p.matricula_id}` : 'sem_mat';
+      const origKey = p.planilha_origem || (p as any).arquivo_origem || 'default';
+      const key = `${matKey}___${origKey}`;
       if (!grupos[key]) {
         grupos[key] = [];
       }
@@ -179,8 +181,6 @@ export class MapaLinhas {
           dashArray: '6, 8',
           pane: 'perimetroPane'
         }).addTo(this.core.bancoPontosGroup!);
-
-        // Removed bringToBack
       }
     }
   }

@@ -17,6 +17,7 @@ export interface Ponto {
   nome_confrontante?: string;
   nome_propriedade?: string;
   matricula_id?: number;
+  arquivo_origem?: string;
   planilha_origem?: string;
 }
 
@@ -37,6 +38,7 @@ export interface BancoPonto extends Ponto {
   confrontante_descritivo?: string;
   matricula_id?: number;
   planilha_origem?: string;
+  arquivo_origem?: string;
 }
 
 export interface PropriedadeVinculadaCliente {

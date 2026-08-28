@@ -95,3 +95,64 @@ class TestHomologacaoODS(unittest.TestCase):
             cursor.execute("SELECT COUNT(*) as c FROM segmentos WHERE levantamento_id = 100 AND matricula_id = 500")
             count_segs = cursor.fetchone()["c"]
             self.assertEqual(count_segs, 66)
+
+    def test_import_multiplas_planilhas_perimetros_separados(self):
+        """Valida que importar 2 planilhas gera 2 perímetros independentes (sem interconectar pontos entre as planilhas)"""
+        csv1 = (
+            "CODIGO;LONGITUDE;LATITUDE;Z;SIGMA_X;SIGMA_Y;SIGMA_Z;METODO_POSICIONAMENTO;LADO;CNS_CONFRONTANTE;MATRICULA_CONFRONTANTE;CONFRONTANTE_DESC\n"
+            "XRXR-M-0001;-53.4000;-23.5000;300.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+            "XRXR-M-0002;-53.4010;-23.5000;300.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+            "XRXR-M-0003;-53.4010;-23.5010;300.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+            "XRXR-M-0004;-53.4000;-23.5010;300.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+        ).encode("utf-8")
+
+        csv2 = (
+            "CODIGO;LONGITUDE;LATITUDE;Z;SIGMA_X;SIGMA_Y;SIGMA_Z;METODO_POSICIONAMENTO;LADO;CNS_CONFRONTANTE;MATRICULA_CONFRONTANTE;CONFRONTANTE_DESC\n"
+            "XRXR-P-0010;-53.4100;-23.5100;310.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+            "XRXR-P-0011;-53.4110;-23.5100;310.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+            "XRXR-P-0012;-53.4110;-23.5110;310.0;0.05;0.05;0.05;PG1;LA1;;;\n"
+        ).encode("utf-8")
+
+        import json
+        mapeamento = json.dumps({
+            "gleba_norte.csv#Arquivo Único": 500,
+            "gleba_sul.csv#Arquivo Único": 500
+        })
+
+        response = self.client.post(
+            "/levantamentos/100/importar-pontos-aprovados-lote",
+            params={"mapeamento": mapeamento, "fuso_utm": 22},
+            files=[
+                ("files", ("gleba_norte.csv", csv1, "text/csv")),
+                ("files", ("gleba_sul.csv", csv2, "text/csv"))
+            ]
+        )
+
+        self.assertEqual(response.status_code, 200, f"Erro: {response.text}")
+        data = response.json()
+        self.assertTrue(data.get("sucesso"))
+        self.assertEqual(data.get("pontos_importados"), 7)
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            
+            # Verificar se os pontos possuem arquivos_origem distintos
+            cursor.execute("SELECT DISTINCT arquivo_origem FROM pontos WHERE levantamento_id = 100 AND matricula_id = 500")
+            arquivos = sorted([r["arquivo_origem"] for r in cursor.fetchall()])
+            self.assertEqual(arquivos, ["gleba_norte.csv", "gleba_sul.csv"])
+
+            # Verificar segmentos criados (4 da gleba norte + 3 da gleba sul = 7)
+            cursor.execute("""
+                SELECT s.id, p1.nome_vertice as v_ini, p2.nome_vertice as v_fim,
+                       p1.arquivo_origem as arq_ini, p2.arquivo_origem as arq_fim
+                FROM segmentos s
+                JOIN pontos p1 ON s.ponto_inicio_id = p1.id
+                JOIN pontos p2 ON s.ponto_fim_id = p2.id
+                WHERE s.levantamento_id = 100 AND s.matricula_id = 500
+            """)
+            segs = cursor.fetchall()
+            self.assertEqual(len(segs), 7)
+
+            # NENHUM segmento pode conectar um ponto da gleba_norte com um ponto da gleba_sul
+            for s in segs:
+                self.assertEqual(s["arq_ini"], s["arq_fim"], f"Segmento cruzado inválido detectado entre planilhas distintas: {s['v_ini']} -> {s['v_fim']}")
