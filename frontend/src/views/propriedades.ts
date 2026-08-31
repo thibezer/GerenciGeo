@@ -933,9 +933,28 @@ export const propriedadesRoute: RouteDef = {
 
              listaFlutuante.querySelectorAll('.opcao-vinc-item').forEach(item => {
                 item.addEventListener('click', () => {
+                   const selId = item.getAttribute('data-id') || '';
                    inputBusca.value = item.getAttribute('data-nome') || '';
-                   inputHidden.value = item.getAttribute('data-id') || '';
+                   inputHidden.value = selId;
                    listaFlutuante.classList.add('hidden');
+
+                   const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
+                   const proprietarioExistente = pAtual?.clientes?.find((c: any) => String(c.id) === String(selId));
+                   const avisoExistente = document.getElementById('lbl-aviso-vinculo-existente');
+                   const btnSubmit = document.getElementById('btn-submit-vinc-prop');
+                   const inputPart = document.getElementById('vinc-participacao') as HTMLInputElement;
+
+                   if (proprietarioExistente) {
+                      if (inputPart) inputPart.value = String(proprietarioExistente.percentual_participacao || '');
+                      if (avisoExistente) {
+                         avisoExistente.innerText = `⚠ Cliente já vinculado (${(proprietarioExistente.percentual_participacao || 0).toFixed(2)}%) — o valor será atualizado`;
+                         avisoExistente.classList.remove('hidden');
+                      }
+                      if (btnSubmit) btnSubmit.innerText = 'Atualizar Participação';
+                   } else {
+                      if (avisoExistente) avisoExistente.classList.add('hidden');
+                      if (btnSubmit) btnSubmit.innerText = 'Vincular Proprietário';
+                   }
                 });
              });
           }
@@ -1057,6 +1076,8 @@ export const propriedadesRoute: RouteDef = {
     const renderProprietariosTabela = (clientes: any[]) => {
        const corpo = document.getElementById('tbl-prop-proprietarios-corpo');
        const lblQuota = document.getElementById('lbl-quota-restante');
+       const lblSoma = document.getElementById('lbl-soma-participacao-total');
+       const badgeStatus = document.getElementById('badge-status-composicao');
        if (!corpo || !lblQuota) return;
 
        let somaParticipacao = 0;
@@ -1113,6 +1134,20 @@ export const propriedadesRoute: RouteDef = {
 
        const quotaDisponivel = Math.max(0, 100 - somaParticipacao);
        lblQuota.innerText = `${quotaDisponivel.toFixed(2)}%`;
+       if (lblSoma) lblSoma.innerText = `${somaParticipacao.toFixed(2)}%`;
+
+       if (badgeStatus) {
+          if (Math.abs(somaParticipacao - 100.0) <= 0.01) {
+             badgeStatus.className = "px-2.5 py-1 rounded text-[10px] font-bold font-mono tracking-tight bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 w-fit";
+             badgeStatus.innerHTML = "✓ Composição Completa (100.00%)";
+          } else if (somaParticipacao > 100.01) {
+             badgeStatus.className = "px-2.5 py-1 rounded text-[10px] font-bold font-mono tracking-tight bg-rose-500/10 text-rose-400 border border-rose-500/20 w-fit";
+             badgeStatus.innerHTML = `❌ Quota Excedida (${somaParticipacao.toFixed(2)}%)`;
+          } else {
+             badgeStatus.className = "px-2.5 py-1 rounded text-[10px] font-bold font-mono tracking-tight bg-amber-500/10 text-amber-400 border border-amber-500/20 w-fit";
+             badgeStatus.innerHTML = `⚠ Incompleto (${somaParticipacao.toFixed(2)}%) — Restam ${quotaDisponivel.toFixed(2)}%`;
+          }
+       }
     };
 
     // --- CARREGAR MATRÍCULAS ---
@@ -1444,6 +1479,10 @@ export const propriedadesRoute: RouteDef = {
              (document.getElementById('busca-proprietario-cliente') as HTMLInputElement).value = '';
              (document.getElementById('vinc-cliente-id') as HTMLInputElement).value = '';
              (document.getElementById('vinc-participacao') as HTMLInputElement).value = '';
+             const avisoExistente = document.getElementById('lbl-aviso-vinculo-existente');
+             if (avisoExistente) avisoExistente.classList.add('hidden');
+             const btnSubmit = document.getElementById('btn-submit-vinc-prop');
+             if (btnSubmit) btnSubmit.innerText = 'Vincular Proprietário';
 
              // Recarrega
              const propRes = await fetch(`${API_BASE}/propriedades`);

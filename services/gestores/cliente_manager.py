@@ -888,10 +888,21 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
 
 def vincular_cliente_propriedade(prop_id: int, cliente_id: int, percentual_participacao: float) -> dict:
     """
-    Vincula ou atualiza a participação do proprietário na fazenda com limite estrito de 100% no total.
+    Vincula ou atualiza a participação do proprietário na fazenda com limite estrito de 100% no total
+    e garantia de unicidade (UNIQUE propriedade_id, cliente_id).
     """
     try:
-        # Validação estrita de 100% de participação
+        try:
+            percentual = round(float(percentual_participacao), 4)
+        except (ValueError, TypeError):
+            return {"error": "Percentual de participação inválido."}
+
+        if percentual <= 0:
+            return {"error": "O percentual de participação deve ser maior que 0%."}
+        if percentual > 100.0:
+            return {"error": "O percentual de participação não pode exceder 100.00%."}
+
+        # Validação estrita de 100% de participação acumulada
         # 1. Pega a soma das participações dos OUTROS clientes vinculados
         soma_outros_row = execute_query(
             "SELECT SUM(percentual_participacao) as soma FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id != ?",
@@ -900,11 +911,11 @@ def vincular_cliente_propriedade(prop_id: int, cliente_id: int, percentual_parti
         )
         soma_outros = float(soma_outros_row['soma']) if (soma_outros_row and soma_outros_row['soma'] is not None) else 0.0
         
-        if soma_outros + percentual_participacao > 100.0:
-            restante = max(0.0, 100.0 - soma_outros)
+        if round(soma_outros + percentual, 4) > 100.0001:
+            restante = max(0.0, round(100.0 - soma_outros, 2))
             return {"error": f"Participação inválida. A soma das participações não pode exceder 100%. Restante disponível: {restante:.2f}%"}
 
-        # 2. Verifica se o vínculo já existe para atualizar ou se deve criar
+        # 2. Verifica se o vínculo já existe para atualizar ou se deve criar (Idempotência / Unicidade)
         exists = execute_query(
             "SELECT id FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",
             params=(prop_id, cliente_id),
@@ -913,17 +924,66 @@ def vincular_cliente_propriedade(prop_id: int, cliente_id: int, percentual_parti
         if exists:
             execute_query(
                 "UPDATE propriedade_clientes SET percentual_participacao = ? WHERE propriedade_id = ? AND cliente_id = ?",
-                params=(percentual_participacao, prop_id, cliente_id),
+                params=(percentual, prop_id, cliente_id),
                 commit=True
             )
-            return {"message": "Participação do proprietário atualizada com sucesso"}
+            msg = "Participação do proprietário atualizada com sucesso"
         else:
             execute_query(
                 "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, ?)",
-                params=(prop_id, cliente_id, percentual_participacao),
+                params=(prop_id, cliente_id, percentual),
                 commit=True
             )
-            return {"message": "Proprietário vinculado com sucesso"}
+            msg = "Proprietário vinculado com sucesso"
+
+        status_comp = validar_composicao_proprietarios(prop_id)
+        return {
+            "message": msg,
+            "status_composicao": status_comp
+        }
     except Exception as e:
         logger.error(f"Erro na vinculação cliente-propriedade: {e}", exc_info=True)
         return {"error": str(e)}
+
+
+def validar_composicao_proprietarios(prop_id: int) -> dict:
+    """
+    Calcula e valida a soma dos percentuais de participação dos proprietários de uma fazenda.
+    Retorna status de completude (Σ = 100%), percentual restante e lista detalhada.
+    """
+    try:
+        query = """
+            SELECT pc.id, pc.propriedade_id, pc.cliente_id, pc.percentual_participacao,
+                   p.nome as nome_completo, p.cpf_cnpj
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id = ?
+            ORDER BY pc.percentual_participacao DESC
+        """
+        rows = execute_query(query, params=(prop_id,), fetch_all=True)
+        proprietarios = [dict(r) for r in rows] if rows else []
+        
+        total = sum(float(p.get('percentual_participacao') or 0.0) for p in proprietarios)
+        total_arredondado = round(total, 4)
+        completo = abs(total_arredondado - 100.0) <= 0.01
+        restante = max(0.0, round(100.0 - total_arredondado, 4))
+        excedido = total_arredondado > 100.01
+        
+        return {
+            "propriedade_id": prop_id,
+            "total_proprietarios": len(proprietarios),
+            "soma_percentual": round(total_arredondado, 2),
+            "percentual_restante": round(restante, 2),
+            "completo": completo,
+            "excedido": excedido,
+            "proprietarios": proprietarios,
+            "status": "COMPLETO" if completo else ("EXCEDIDO" if excedido else "INCOMPLETO")
+        }
+    except Exception as e:
+        logger.error(f"Erro ao validar composição de proprietários da propriedade {prop_id}: {e}", exc_info=True)
+        return {
+            "propriedade_id": prop_id,
+            "error": str(e),
+            "completo": False
+        }

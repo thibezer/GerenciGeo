@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
-from services.gestores.levantamento_manager import vincular_cliente_propriedade
+from services.gestores.cliente_manager import vincular_cliente_propriedade, validar_composicao_proprietarios
 from config import EXPORT_BASE_FOLDER
 from routes.deps import verificar_propriedade_arquivada
 
@@ -83,9 +83,13 @@ def get_propriedades():
                 prop_id = client_dict.pop('propriedade_id')
                 clients_by_prop[prop_id].append(client_dict)
             
-        # Attach clients to properties
+        # Attach clients to properties and compute composition metrics
         for p in propriedades:
-            p['clientes'] = clients_by_prop.get(p['id'], [])
+            p_clientes = clients_by_prop.get(p['id'], [])
+            p['clientes'] = p_clientes
+            total_part = sum(float(c.get('percentual_participacao') or 0.0) for c in p_clientes)
+            p['total_participacao'] = round(total_part, 2)
+            p['composicao_completa'] = abs(round(total_part, 4) - 100.0) <= 0.01
             
         return propriedades
     except Exception as e:
@@ -293,3 +297,9 @@ def unlink_cliente_propriedade(prop_id: int, cliente_id: int):
         return {"message": "Proprietário desvinculado com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/propriedades/{prop_id}/validar-proprietarios")
+@router.get("/api/propriedades/{prop_id}/validar-proprietarios")
+def get_validacao_proprietarios(prop_id: int):
+    return validar_composicao_proprietarios(prop_id)
+

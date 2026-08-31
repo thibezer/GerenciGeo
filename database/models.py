@@ -132,7 +132,8 @@ def create_tables(conn):
             percentual_participacao REAL,    
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE,
-            FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
+            FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE,
+            UNIQUE (propriedade_id, cliente_id)
         );
         """,
         """
@@ -777,9 +778,35 @@ def create_tables(conn):
         migrar_cpf_cnpj_opcional_pessoas(conn)
         # Migração de retrocompatibilidade para RG e Senha GOV criptografada
         migrar_retrocompatibilidade_documentos_e_senhas(conn)
+        # Executa migração de unicidade de cliente por propriedade se necessário
+        migrar_restricao_unicidade_propriedade_clientes(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
+
+def migrar_restricao_unicidade_propriedade_clientes(conn):
+    """
+    Garante a restrição de unicidade UNIQUE(propriedade_id, cliente_id)
+    na tabela propriedade_clientes, limpando registros duplicados caso existam.
+    """
+    cursor = conn.cursor()
+    try:
+        # 1. Remove duplicatas pré-existentes caso haja, preservando o registro mais recente
+        cursor.execute("""
+            DELETE FROM propriedade_clientes 
+            WHERE id NOT IN (
+                SELECT MAX(id) FROM propriedade_clientes GROUP BY propriedade_id, cliente_id
+            )
+        """)
+        
+        # 2. Cria o índice único
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_propriedade_cliente 
+            ON propriedade_clientes(propriedade_id, cliente_id)
+        """)
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"Aviso ao aplicar unicidade em propriedade_clientes: {e}")
 
 def migrar_cpf_cnpj_opcional_pessoas(conn):
     """

@@ -281,11 +281,16 @@ export const renderPropriedadesTemplate = (): string => `
              <!-- ABA PROPRIETÁRIOS -->
              <div id="tab-prop-proprietarios" class="tab-content-det-prop hidden space-y-4">
                 <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
-                   <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular Novo Proprietário</h5>
+                   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular / Atualizar Proprietário</h5>
+                      <div id="badge-status-composicao" class="px-2.5 py-1 rounded text-[10px] font-bold font-mono tracking-tight bg-white/5 text-white/60 border border-white/10 w-fit">
+                         Calculando composição...
+                      </div>
+                   </div>
                    <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end" style="--ui-altura-minima: 36px;">
                       <div class="relative">
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente</label>
-                         <ui-campo-texto id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." autocomplete="off" required></ui-campo-texto>
+                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente (PF ou PJ)</label>
+                         <ui-campo-texto id="busca-proprietario-cliente" placeholder="Digite nome ou CPF/CNPJ..." autocomplete="off" required></ui-campo-texto>
                          <input type="hidden" id="vinc-cliente-id" required>
                          <div id="lista-vinc-clientes" class="absolute left-0 right-0 mt-1 max-h-36 overflow-y-auto bg-[#0a100d] border border-white/10 rounded shadow-2xl z-50 hidden divide-y divide-white/5">
                             <!-- Opções dinâmicas -->
@@ -297,7 +302,10 @@ export const renderPropriedadesTemplate = (): string => `
                       </div>
                       <ui-botao tipo-submit variante="primario" id="btn-submit-vinc-prop">Vincular Proprietário</ui-botao>
                    </form>
-                   <p class="text-[9px] text-white/30 font-mono uppercase leading-none mt-1">Quota Restante Disponível: <span class="text-mint-vibrant font-bold" id="lbl-quota-restante">100.00%</span></p>
+                   <div class="flex items-center justify-between text-[9px] font-mono text-white/40 mt-1">
+                      <span>Quota Restante Disponível: <strong class="text-mint-vibrant" id="lbl-quota-restante">100.00%</strong></span>
+                      <span id="lbl-aviso-vinculo-existente" class="text-amber-400 font-semibold hidden">⚠ Cliente já vinculado — a participação será atualizada</span>
+                   </div>
                 </div>
 
                 <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
@@ -313,6 +321,13 @@ export const renderPropriedadesTemplate = (): string => `
                       <tbody id="tbl-prop-proprietarios-corpo" class="divide-y divide-white/5">
                          <!-- Proprietários via JS -->
                       </tbody>
+                      <tfoot id="tbl-prop-proprietarios-foot" class="bg-white/[0.02] border-t border-white/10 text-xs font-mono">
+                         <tr>
+                            <td colspan="2" class="py-2.5 px-3 font-bold text-white uppercase text-[10px]">Total Acumulado (Σ)</td>
+                            <td class="py-2.5 px-3 text-right font-bold text-mint-vibrant text-sm" id="lbl-soma-participacao-total">0.00%</td>
+                            <td></td>
+                         </tr>
+                      </tfoot>
                    </table>
                 </div>
              </div>
