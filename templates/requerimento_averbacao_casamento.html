@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requerimento de Averbação de Casamento - {nome_requerente} - Matrícula {numero_matricula}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm 15mm 20mm 15mm !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                box-sizing: border-box !important;
+                display: block !important;
+            }
+
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            p,
+            li {
+                orphans: 2 !important;
+                widows: 2 !important;
+                break-inside: auto !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <div
+        class="no-print w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    Módulo CRI — Requerimento de Averbação de Casamento
+                    <span class="text-[9px] uppercase bg-[#00f5a0]/20 text-[#00f5a0] px-1.5 py-0.5 rounded font-mono font-bold">LRP nº 6.015/73</span>
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Art. 167, II, 5 c/c Art. 246 da Lei Federal nº 6.015/1973</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="px-5 py-2.5 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Imprimir / Salvar PDF
+        </button>
+    </div>
+
+    <div
+        class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
+
+        <div>
+            <!-- Cabeçalho -->
+            <div class="flex flex-col items-center pb-2 mb-6 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários</div>
+            </div>
+
+            <!-- Destinatário / Ofício -->
+            <p class="text-xs font-bold uppercase text-slate-900 mb-6 tracking-wide leading-relaxed">
+                {cabecalho_oficial_cartorio}
+            </p>
+
+            <div class="space-y-4 text-xs text-justify leading-relaxed text-slate-700">
+                <!-- Bloco Requerente -->
+                <div class="bg-slate-50/70 border border-slate-200/80 rounded-lg p-3.5 space-y-1">
+                    <span class="font-bold text-slate-900 uppercase text-[11px] tracking-wide block mb-1">REQUERENTE:</span>
+                    <p class="leading-relaxed">
+                        <strong class="text-slate-900">{nome_requerente}</strong>, {nacionalidade_requerente}, {profissao_requerente}, portador(a) da cédula de identidade RG nº <strong>{rg_requerente}</strong>, órgão expedidor {orgao_uf_rg_requerente}, inscrito(a) no CPF/MF sob o nº <strong>{cpf_requerente}</strong>, residente e domiciliado(a) na {endereco_completo_requerente}, telefone: {telefone_requerente}, e-mail: {email_requerente}.
+                    </p>
+                </div>
+
+                <!-- Bloco Cônjuge -->
+                <div class="bg-slate-50/70 border border-slate-200/80 rounded-lg p-3.5 space-y-1">
+                    <span class="font-bold text-slate-900 uppercase text-[11px] tracking-wide block mb-1">DADOS DO CÔNJUGE:</span>
+                    <p class="leading-relaxed">
+                        <strong class="text-slate-900">{nome_conjuge}</strong>, {nacionalidade_conjuge}, {profissao_conjuge}, portador(a) da cédula de identidade RG nº <strong>{rg_conjuge}</strong>, órgão expedidor {orgao_uf_rg_conjuge}, inscrito(a) no CPF/MF sob o nº <strong>{cpf_conjuge}</strong>, residente e domiciliado(a) {endereco_conjuge}.
+                    </p>
+                </div>
+
+                <!-- Qualificação e Fundamentação Legal -->
+                <p class="pt-2">
+                    Na qualidade de <strong>{qualidade_proprietario}</strong> do imóvel correspondente à <strong>Matrícula nº {numero_matricula}</strong> deste Cartório de Registro de Imóveis, vem, respeitosamente, à presença de Vossa Senhoria, com fundamento no <strong>art. 167, inciso II, item 5, e art. 246 da Lei Federal nº 6.015/1973 (Lei de Registros Públicos)</strong>, <strong>REQUERER</strong> a <strong>AVERBAÇÃO DE CASAMENTO</strong> (e alteração de nome, se aplicável) na matrícula supracitada, de acordo com as informações a seguir:
+                </p>
+
+                <!-- Informações do Casamento -->
+                <div class="mt-4 border border-slate-200 rounded-lg overflow-hidden break-inside-avoid">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <tbody class="divide-y divide-slate-200">
+                            <tr class="bg-slate-50/50">
+                                <td class="px-4 py-2.5 font-bold text-slate-900 w-1/3">Data da Celebração:</td>
+                                <td class="px-4 py-2.5 text-slate-800 font-medium">{data_celebracao}</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2.5 font-bold text-slate-900">Regime de Bens Adotado:</td>
+                                <td class="px-4 py-2.5 text-slate-800 font-semibold text-slate-900">{regime_bens}</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="px-4 py-2.5 font-bold text-slate-900">Cartório de Registro Civil:</td>
+                                <td class="px-4 py-2.5 text-slate-800">{cartorio_registro_civil}</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2.5 font-bold text-slate-900">Dados do Assento de Casamento:</td>
+                                <td class="px-4 py-2.5 text-slate-800 font-mono text-[11px]">{dados_assento_casamento}</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="px-4 py-2.5 font-bold text-slate-900">Pacto Antenupcial:</td>
+                                <td class="px-4 py-2.5 text-slate-800">{pacto_antenupcial}</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-2.5 font-bold text-slate-900">Alteração de Nome:</td>
+                                <td class="px-4 py-2.5 text-slate-800">{alteracao_nome}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="pt-2">
+                    Nestes termos, juntando a documentação comprobatória exigida, pede e espera deferimento.
+                </p>
+            </div>
+
+            <!-- Box Documentos Técnicos e Legais Anexos -->
+            <div class="mt-6 border border-slate-200 rounded-lg p-4 bg-slate-50/50 break-inside-avoid shadow-sm">
+                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">📁 Documentação Comprobatória Anexa:</h4>
+                <ul class="list-none space-y-1 text-[10px] text-slate-600 font-medium pl-0">
+                    <li class="flex items-center gap-1.5">✓ Certidão de Casamento (em inteiro teor ou com as averbações cabíveis)</li>
+                    <li class="flex items-center gap-1.5">✓ Cópias autenticadas das Cédulas de Identidade (RG) e CPF/MF dos cônjuges</li>
+                    <li class="flex items-center gap-1.5">✓ Escritura Pública de Pacto Antenupcial devidamente registrada no Registro de Imóveis competente (quando exigível)</li>
+                    <li class="flex items-center gap-1.5">✓ Comprovante de Residência atualizado</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) -->
+        <div class="break-inside-avoid w-full mt-8">
+            <p class="text-left text-xs font-medium text-slate-900">{cidade_uf_emissao}, {data_extenso}.</p>
+            <div class="pt-2">
+                {bloco_assinaturas}
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

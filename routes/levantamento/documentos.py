@@ -365,6 +365,69 @@ def get_declaracao_anuencia_desmembramento_html(id: int, matricula_id: int, codi
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/requerimento-averbacao-casamento-html", response_class=HTMLResponse)
+def get_requerimento_averbacao_casamento_html(
+    id: int, 
+    matricula_id: int,
+    cliente_id: Optional[int] = Query(None),
+    data_celebracao: Optional[str] = Query(None),
+    regime_bens: Optional[str] = Query(None),
+    cartorio_civil: Optional[str] = Query(None),
+    livro: Optional[str] = Query(None),
+    folha: Optional[str] = Query(None),
+    termo: Optional[str] = Query(None),
+    matricula_certidao: Optional[str] = Query(None),
+    pacto_antenupcial: Optional[str] = Query(None),
+    alteracao_nome: Optional[str] = Query(None),
+    numero_oficio: Optional[str] = Query(None),
+    nome_conjuge: Optional[str] = Query(None),
+    cpf_conjuge: Optional[str] = Query(None),
+    rg_conjuge: Optional[str] = Query(None),
+    nacionalidade_conjuge: Optional[str] = Query(None),
+    profissao_conjuge: Optional[str] = Query(None),
+    orgao_rg_requerente: Optional[str] = Query(None),
+    orgao_rg_conjuge: Optional[str] = Query(None),
+    endereco_conjuge: Optional[str] = Query(None)
+):
+    """Gera o Requerimento de Averbação de Casamento perante o Registro de Imóveis (LRP 6.015/73)"""
+    try:
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
+        params_dict = {
+            "data_celebracao": data_celebracao,
+            "regime_bens": regime_bens,
+            "cartorio_civil": cartorio_civil,
+            "livro": livro,
+            "folha": folha,
+            "termo": termo,
+            "matricula_certidao": matricula_certidao,
+            "pacto_antenupcial": pacto_antenupcial,
+            "alteracao_nome": alteracao_nome,
+            "numero_oficio": numero_oficio,
+            "nome_conjuge": nome_conjuge,
+            "cpf_conjuge": cpf_conjuge,
+            "rg_conjuge": rg_conjuge,
+            "nacionalidade_conjuge": nacionalidade_conjuge,
+            "profissao_conjuge": profissao_conjuge,
+            "orgao_rg_requerente": orgao_rg_requerente,
+            "orgao_rg_conjuge": orgao_rg_conjuge,
+            "endereco_conjuge": endereco_conjuge
+        }
+        # Filtrar chaves com valor None para não sobrescrever fallbacks
+        params_dict = {k: v for k, v in params_dict.items() if v is not None and str(v).strip() != ""}
+        
+        html = CartorioReportGenerator.gerar_requerimento_averbacao_casamento_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            cliente_id=cliente_id,
+            params=params_dict
+        )
+        return HTMLResponse(content=html)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: int):

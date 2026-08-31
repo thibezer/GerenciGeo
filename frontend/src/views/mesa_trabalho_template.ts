@@ -632,6 +632,10 @@ export const renderMesaTrabalho = (): string => {
                      <i data-lucide="scissors" class="w-4 h-4 text-mint-vibrant"></i>
                      Anuência Desmembramento
                    </button>
+                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-averbacao-casamento" type="button">
+                     <i data-lucide="heart-handshake" class="w-4 h-4 text-mint-vibrant"></i>
+                     Averbação de Casamento
+                   </button>
                    <div class="flex gap-2 sm:col-span-2 lg:col-span-1">
                      <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 text-xs text-white focus:outline-none transition-all font-medium">
                        <option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>

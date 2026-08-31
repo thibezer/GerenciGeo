@@ -645,6 +645,16 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
+    const btnAverbacaoCasamento = document.getElementById('btn-emitir-averbacao-casamento');
+    if (btnAverbacaoCasamento) {
+      btnAverbacaoCasamento.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/requerimento-averbacao-casamento-html`;
+        window.open(url, '_blank');
+      };
+    }
+
+
     const btnAnuencia = document.getElementById('btn-emitir-anuencia');
     if (btnAnuencia) {
       btnAnuencia.onclick = async () => {

@@ -3,7 +3,7 @@ from database.connection import execute_query
 from services.documentacao.cartorio.utils import calcular_azimute_e_distancia
 
 def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
-    """Carrega profissional, propriedade, matricula e proprietário principal com dados qualificados"""
+    """Carrega profissional, propriedade, matricula e proprietários com dados qualificados"""
     # 1. Levantamento e Profissional (Inclusão de suporte a TRT persistente no banco)
     query_lev = """
         SELECT l.propriedade_id, l.profissional_id, l.numero_trt as lev_numero_trt, l.data_trt as lev_data_trt,
@@ -49,8 +49,9 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
     # 4. Proprietários
     rows_owners = execute_query(
         """
-        SELECT p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
-               p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado, c.sexo
+        SELECT c.id as cliente_id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+               p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+               p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado, c.cep, c.sexo, c.email, c.telefone
         FROM propriedade_clientes pc
         JOIN clientes c ON pc.cliente_id = c.id
         JOIN pessoas p ON c.pessoa_id = p.id
@@ -132,5 +133,3 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int) -> str:
     </div>
     """
     return table_html
-
-

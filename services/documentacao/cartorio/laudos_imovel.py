@@ -990,3 +990,235 @@ def gerar_declaracao_anuencia_desmembramento_html(lev_id: int, matricula_id: int
         template = template.replace(key, str(val))
 
     return template
+
+
+def formatar_regime_bens_extenso(regime: str) -> str:
+    if not regime:
+        return "Comunhão Parcial de Bens"
+    r = regime.lower().strip()
+    if "universal" in r:
+        return "Comunhão Universal de Bens"
+    if "parcial" in r:
+        return "Comunhão Parcial de Bens"
+    if "separac" in r or "separaç" in r:
+        return "Separação Total de Bens"
+    if "aquestos" in r or "participac" in r or "participaç" in r:
+        return "Participação Final nos Aquestos"
+    return regime
+
+
+def gerar_requerimento_averbacao_casamento_html(
+    lev_id: int,
+    matricula_id: int,
+    cliente_id: int = None,
+    params: dict = None
+) -> str:
+    """Gera a peça jurídica do Requerimento de Averbação de Casamento perante o Cartório de Registro de Imóveis."""
+    params = params or {}
+    dados = obter_dados_comuns(lev_id, matricula_id)
+
+    # 1. Selecionar o proprietário / requerente alvo
+    target_owner = None
+    if cliente_id:
+        for o in dados["owners"]:
+            if o.get("cliente_id") == cliente_id:
+                target_owner = o
+                break
+
+    if not target_owner:
+        # Preferir requerente casado ou que tenha cônjuge cadastrado
+        for o in dados["owners"]:
+            e_civ = str(o.get("estado_civil", "")).lower()
+            if o.get("nome_conjuge") or "casad" in e_civ or "estav" in e_civ:
+                target_owner = o
+                break
+
+    if not target_owner and dados["owners"]:
+        target_owner = dados["owners"][0]
+
+    if not target_owner:
+        raise ValueError("Nenhum proprietário/cliente encontrado para a propriedade do levantamento.")
+
+    # 2. Consultar documentos adicionais / metadados do cliente e pessoa
+    pessoa_id = target_owner.get("pessoa_id")
+    cli_id = target_owner.get("cliente_id")
+
+    orgao_rg_requerente = params.get("orgao_rg_requerente")
+    orgao_rg_conjuge = params.get("orgao_rg_conjuge")
+    certidao_matricula_db = None
+
+    if pessoa_id:
+        doc_rows = execute_query(
+            "SELECT tipo_documento, numero, orgao_emissor, uf_emissor FROM cliente_documentos WHERE pessoa_id = ?",
+            params=(pessoa_id,),
+            fetch_all=True
+        )
+        for d in doc_rows:
+            d_dict = dict(d)
+            if d_dict.get("tipo_documento") == "RG" and not orgao_rg_requerente:
+                oe = d_dict.get("orgao_emissor") or "SSP"
+                uf = d_dict.get("uf_emissor") or (dados["prop"]["uf"] or "PR")
+                orgao_rg_requerente = f"{oe}/{uf}"
+            elif "CASAMENTO" in str(d_dict.get("tipo_documento", "")).upper():
+                certidao_matricula_db = d_dict.get("numero")
+
+    if cli_id and not certidao_matricula_db:
+        meta_rows = execute_query(
+            "SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?",
+            params=(cli_id,),
+            fetch_all=True
+        )
+        for m in meta_rows:
+            m_dict = dict(m)
+            if "casamento" in str(m_dict.get("chave", "")).lower():
+                certidao_matricula_db = m_dict.get("valor")
+
+    uf_padrao = dados["prop"]["uf"] or "PR"
+    if not orgao_rg_requerente:
+        orgao_rg_requerente = f"SSP/{uf_padrao}"
+    if not orgao_rg_conjuge:
+        orgao_rg_conjuge = f"SSP/{uf_padrao}"
+
+    # 3. Cabeçalho / Ofício do Cartório de Registro de Imóveis
+    comarca_cri = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
+    circunscricao_cri = str(dados["mat"].get("cri_circunscricao") or "").strip()
+    numero_oficio = params.get("numero_oficio") or ""
+    
+    if not numero_oficio and circunscricao_cri:
+        import re
+        nums = re.findall(r'\d+', circunscricao_cri)
+        if nums:
+            numero_oficio = nums[0]
+
+    if numero_oficio:
+        cabecalho_oficial_cartorio = f"ILMO. SR. OFICIAL DO {numero_oficio}º OFICIAL DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca_cri}/{uf_padrao}"
+    else:
+        cabecalho_oficial_cartorio = f"ILMO. SR. OFICIAL DO REGISTRO DE IMÓVEIS DA COMARCA DE {comarca_cri}/{uf_padrao}"
+
+    # 4. Dados do Requerente
+    nome_requerente = target_owner.get("nome_completo") or "Nome do Requerente"
+    nacionalidade_requerente = target_owner.get("nacionalidade") or "brasileiro(a)"
+    profissao_requerente = target_owner.get("profissao") or "produtor(a) rural"
+    rg_requerente = formatar_rg(target_owner.get("rg_ie")) or "Não Informado"
+    cpf_requerente = formatar_cpf(target_owner.get("cpf_cnpj")) or "Não Informado"
+    
+    end_parts = []
+    if target_owner.get("endereco_completo"):
+        end_parts.append(str(target_owner["endereco_completo"]).strip())
+    if target_owner.get("cep"):
+        end_parts.append(f"CEP {target_owner['cep']}")
+    if target_owner.get("cidade") and target_owner.get("estado"):
+        end_parts.append(f"{target_owner['cidade']}/{target_owner['estado']}")
+    elif dados["prop"].get("municipio") and dados["prop"].get("uf"):
+        end_parts.append(f"{dados['prop']['municipio']}/{dados['prop']['uf']}")
+        
+    endereco_completo_requerente = ", ".join(end_parts) if end_parts else f"{dados['prop']['municipio']}/{dados['prop']['uf']}"
+    telefone_requerente = target_owner.get("telefone") or "(não informado)"
+    email_requerente = target_owner.get("email") or "(não informado)"
+
+    # 5. Dados do Cônjuge
+    nome_conjuge = params.get("nome_conjuge") or target_owner.get("nome_conjuge") or "Nome do Cônjuge"
+    nacionalidade_conjuge = params.get("nacionalidade_conjuge") or target_owner.get("nacionalidade_conjuge") or "brasileiro(a)"
+    profissao_conjuge = params.get("profissao_conjuge") or target_owner.get("profissao_conjuge") or "do lar"
+    rg_conjuge = formatar_rg(params.get("rg_conjuge") or target_owner.get("rg_conjuge")) or "Não Informado"
+    cpf_conjuge = formatar_cpf(params.get("cpf_conjuge") or target_owner.get("cpf_conjuge")) or "Não Informado"
+    endereco_conjuge = params.get("endereco_conjuge") or "no mesmo endereço acima indicado"
+
+    # 6. Qualidade do Proprietário e Matrícula
+    qualidade_proprietario = "coproprietário(a)" if len(dados["owners"]) > 1 else "proprietário(a)"
+    numero_matricula = dados["mat"].get("numero_matricula") or "_____"
+
+    # 7. Dados do Casamento
+    data_celebracao = params.get("data_celebracao") or "[DD/MM/AAAA]"
+    
+    raw_regime = params.get("regime_bens") or target_owner.get("regime_bens") or "Comunhão Parcial de Bens"
+    regime_bens = formatar_regime_bens_extenso(raw_regime)
+
+    cartorio_registro_civil = params.get("cartorio_civil") or f"Oficial de Registro Civil das Pessoas Naturais da Comarca de {dados['prop']['municipio']}/{uf_padrao}"
+
+    # Assento de casamento
+    livro = params.get("livro")
+    folha = params.get("folha")
+    termo = params.get("termo")
+    mat_certidao = params.get("matricula_certidao") or certidao_matricula_db
+
+    if mat_certidao:
+        dados_assento_casamento = f"Matrícula nº {mat_certidao}"
+    elif livro or folha or termo:
+        dados_assento_casamento = f"Livro nº {livro or '___'}, Folha nº {folha or '___'}, Termo nº {termo or '___'}"
+    else:
+        dados_assento_casamento = "Livro nº [número], Folha nº [número], Termo nº [número] (ou Matrícula nº [número com 32 dígitos])"
+
+    # Pacto antenupcial
+    pacto_param = params.get("pacto_antenupcial")
+    if pacto_param:
+        pacto_antenupcial = pacto_param
+    elif "parcial" in regime_bens.lower():
+        pacto_antenupcial = "Não houve, adotado regime legal (Comunhão Parcial de Bens)"
+    else:
+        pacto_antenupcial = f"Lavrado pelo Tabelionato de Notas da Comarca de {dados['prop']['municipio']}/{uf_padrao}, Livro [nº], Folha [nº], registrado no Registro de Imóveis sob nº [número]"
+
+    # Alteração de nome
+    alteracao_param = params.get("alteracao_nome")
+    if alteracao_param:
+        alteracao_nome = alteracao_param
+    else:
+        alteracao_nome = "Não houve alteração de nome por ocasião do casamento"
+
+    # 8. Local, Data e Assinaturas
+    cidade_uf_emissao = f"{dados['prop']['municipio']}/{uf_padrao}"
+    data_extenso = obter_data_extenso()
+
+    bloco_assinaturas = f"""
+    <div class="mt-8 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">
+        <div class="flex flex-col items-center min-w-[260px] flex-1 max-w-[320px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
+            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{nome_requerente}</div>
+            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5 font-mono">CPF: {cpf_requerente}</div>
+            <div class="text-[9px] text-slate-400 text-center uppercase tracking-wider font-semibold">Requerente</div>
+        </div>
+        <div class="flex flex-col items-center min-w-[260px] flex-1 max-w-[320px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
+            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{nome_conjuge}</div>
+            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5 font-mono">CPF: {cpf_conjuge}</div>
+            <div class="text-[9px] text-slate-400 text-center uppercase tracking-wider font-semibold">Cônjuge</div>
+        </div>
+    </div>
+    """
+
+    template = carregar_template("requerimento_averbacao_casamento.html")
+    replacements = {
+        "{cabecalho_oficial_cartorio}": cabecalho_oficial_cartorio,
+        "{nome_requerente}": nome_requerente,
+        "{nacionalidade_requerente}": nacionalidade_requerente,
+        "{profissao_requerente}": profissao_requerente,
+        "{rg_requerente}": rg_requerente,
+        "{orgao_uf_rg_requerente}": orgao_rg_requerente,
+        "{cpf_requerente}": cpf_requerente,
+        "{endereco_completo_requerente}": endereco_completo_requerente,
+        "{telefone_requerente}": telefone_requerente,
+        "{email_requerente}": email_requerente,
+        "{nome_conjuge}": nome_conjuge,
+        "{nacionalidade_conjuge}": nacionalidade_conjuge,
+        "{profissao_conjuge}": profissao_conjuge,
+        "{rg_conjuge}": rg_conjuge,
+        "{orgao_uf_rg_conjuge}": orgao_rg_conjuge,
+        "{cpf_conjuge}": cpf_conjuge,
+        "{endereco_conjuge}": endereco_conjuge,
+        "{qualidade_proprietario}": qualidade_proprietario,
+        "{numero_matricula}": numero_matricula,
+        "{data_celebracao}": data_celebracao,
+        "{regime_bens}": regime_bens,
+        "{cartorio_registro_civil}": cartorio_registro_civil,
+        "{dados_assento_casamento}": dados_assento_casamento,
+        "{pacto_antenupcial}": pacto_antenupcial,
+        "{alteracao_nome}": alteracao_nome,
+        "{cidade_uf_emissao}": cidade_uf_emissao,
+        "{data_extenso}": data_extenso,
+        "{bloco_assinaturas}": bloco_assinaturas
+    }
+
+    for key, val in replacements.items():
+        template = template.replace(key, str(val))
+
+    return template
