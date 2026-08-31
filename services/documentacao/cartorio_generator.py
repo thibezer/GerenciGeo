@@ -62,8 +62,9 @@ class CartorioReportGenerator:
         return gerar_declaracao_anuencia_desmembramento_html(lev_id, matricula_id, codigo_cns, qtd_parcelas)
 
     @staticmethod
-    def gerar_requerimento_averbacao_casamento_html(lev_id: int, matricula_id: int, cliente_id: int = None, params: dict = None) -> str:
+    def gerar_requerimento_averbacao_casamento_html(lev_id: int = None, matricula_id: int = None, cliente_id: int = None, params: dict = None) -> str:
         from services.documentacao.cartorio.laudos_imovel import gerar_requerimento_averbacao_casamento_html
         return gerar_requerimento_averbacao_casamento_html(lev_id, matricula_id, cliente_id, params)
+
 
 

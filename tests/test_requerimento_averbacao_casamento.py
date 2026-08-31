@@ -137,5 +137,32 @@ class TestRequerimentoAverbacaoCasamento(unittest.TestCase):
         self.assertIn("Ana Paula Souza Silva", html)
         self.assertIn("Matrícula nº 77889", html)
 
+    def test_gerar_sem_levantamento_direto_pela_matricula(self):
+        # Gera o requerimento passando lev_id=None
+        html = CartorioReportGenerator.gerar_requerimento_averbacao_casamento_html(
+            lev_id=None,
+            matricula_id=self.mat_id,
+            cliente_id=self.cliente_id
+        )
+        self.assertIn("Carlos Eduardo Silva", html)
+        self.assertIn("Ana Paula Souza Silva", html)
+        self.assertIn("Matrícula nº 77889", html)
+        self.assertIn("CASCAVEL/PR", html)
+
+
+    def test_endpoint_matricula_direta_sem_levantamento(self):
+        # Rota REST direta por matrícula
+        res = self.client.get(
+            f"/matriculas/{self.mat_id}/requerimento-averbacao-casamento-html"
+            "?data_celebracao=10/11/2015&livro=B-02&folha=88&termo=3321"
+        )
+        self.assertEqual(res.status_code, 200)
+        html = res.text
+        self.assertIn("Carlos Eduardo Silva", html)
+        self.assertIn("Ana Paula Souza Silva", html)
+        self.assertIn("10/11/2015", html)
+        self.assertIn("Livro nº B-02, Folha nº 88, Termo nº 3321", html)
+
 if __name__ == "__main__":
     unittest.main()
+

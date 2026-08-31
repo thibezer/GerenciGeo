@@ -1008,14 +1008,62 @@ def formatar_regime_bens_extenso(regime: str) -> str:
 
 
 def gerar_requerimento_averbacao_casamento_html(
-    lev_id: int,
-    matricula_id: int,
+    lev_id: int = None,
+    matricula_id: int = None,
     cliente_id: int = None,
     params: dict = None
 ) -> str:
-    """Gera a peça jurídica do Requerimento de Averbação de Casamento perante o Cartório de Registro de Imóveis."""
+    """Gera a peça jurídica do Requerimento de Averbação de Casamento perante o Cartório de Registro de Imóveis.
+    Pode ser gerado com um levantamento ativo ou diretamente a partir de uma matrícula/propriedade cadastrada.
+    """
+    if not matricula_id:
+        raise ValueError("O ID da matrícula é obrigatório para gerar o Requerimento de Averbação de Casamento.")
+
     params = params or {}
-    dados = obter_dados_comuns(lev_id, matricula_id)
+    
+    if lev_id:
+        dados = obter_dados_comuns(lev_id, matricula_id)
+    else:
+        # Busca direta por matrícula/propriedade sem exigir levantamento técnico
+        row_mat = execute_query(
+            "SELECT * FROM matriculas WHERE id = ?",
+            params=(matricula_id,),
+            fetch_one=True
+        )
+        if not row_mat:
+            raise ValueError(f"Matrícula ID {matricula_id} não encontrada.")
+        mat_data = dict(row_mat)
+        prop_id = mat_data["propriedade_id"]
+
+        row_prop = execute_query(
+            "SELECT id, nome_propriedade, municipio, uf, codigo_car, codigo_ccir FROM propriedades WHERE id = ?",
+            params=(prop_id,),
+            fetch_one=True
+        )
+        if not row_prop:
+            raise ValueError(f"Propriedade ID {prop_id} não encontrada.")
+        prop_data = dict(row_prop)
+
+        rows_owners = execute_query(
+            """
+            SELECT c.id as cliente_id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens, 
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+                   p.profissao, p.nacionalidade, p.endereco_completo, c.cidade, c.estado, c.cep, c.sexo, c.email, c.telefone
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id = ?
+            ORDER BY pc.percentual_participacao DESC, c.id ASC
+            """,
+            params=(prop_id,),
+            fetch_all=True
+        )
+        owners = [dict(o) for o in rows_owners]
+        dados = {
+            "prop": prop_data,
+            "mat": mat_data,
+            "owners": owners
+        }
 
     # 1. Selecionar o proprietário / requerente alvo
     target_owner = None
@@ -1037,7 +1085,7 @@ def gerar_requerimento_averbacao_casamento_html(
         target_owner = dados["owners"][0]
 
     if not target_owner:
-        raise ValueError("Nenhum proprietário/cliente encontrado para a propriedade do levantamento.")
+        raise ValueError("Nenhum proprietário/cliente encontrado para o imóvel.")
 
     # 2. Consultar documentos adicionais / metadados do cliente e pessoa
     pessoa_id = target_owner.get("pessoa_id")
