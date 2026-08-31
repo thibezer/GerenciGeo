@@ -135,23 +135,26 @@ export const renderClientesTemplate = (): string => `
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
     <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" class="modal-compact-header">
-       <form id="form-cliente" class="space-y-2 relative" style="--ui-altura-minima: 34px; --ui-campo-altura: 34px;">
+       <form id="form-cliente" class="space-y-1.5" style="--ui-altura-minima: 25px; --ui-campo-altura: 25px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
-          <!-- Alternador de Tipo de Pessoa (PF / PJ) integrado à mesma linha do cabeçalho -->
-          <div class="absolute -top-[37px] left-[130px] sm:left-[145px] z-30 flex items-center gap-0.5 p-0.5 bg-black/40 border border-white/10 rounded">
-             <button type="button" id="btn-tipo-pf" class="px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
-                Pessoa Física (PF)
-             </button>
-             <button type="button" id="btn-tipo-pj" class="px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
-                Pessoa Jurídica (PJ)
-             </button>
+          <!-- Linha Superior: Alternador PF / PJ Compacto e Sempre Visível -->
+          <div class="flex items-center justify-between pb-1 border-b border-white/5">
+             <span class="text-[9px] font-bold uppercase tracking-wider text-white/40 font-mono">Tipo de Pessoa</span>
+             <div class="flex items-center gap-1 p-0.5 bg-black/40 border border-white/10 rounded">
+                <button type="button" id="btn-tipo-pf" class="px-2.5 py-0.5 text-[10px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
+                   Pessoa Física (PF)
+                </button>
+                <button type="button" id="btn-tipo-pj" class="px-2.5 py-0.5 text-[10px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
+                   Pessoa Jurídica (PJ)
+                </button>
+             </div>
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
-          <div id="bloco-campos-pf" class="space-y-2">
-             <!-- Linha 1: Nome Completo (col-span-2) + Gênero (col-span-1) + Data Nasc (col-span-1) -->
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+          <div id="bloco-campos-pf" class="space-y-1.5">
+             <!-- Linha 1: Nome Completo (col-span-2) + Gênero (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div class="col-span-2">
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nome Completo</label>
                    <ui-campo-texto name="nome_completo" id="input-nome-completo" required></ui-campo-texto>
@@ -163,14 +166,10 @@ export const renderClientesTemplate = (): string => `
                       <option value="F">Feminino</option>
                    </ui-select>
                 </div>
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Nasc.</label>
-                   <ui-campo-texto name="data_nascimento_fundacao" id="input-data-nasc" tipo="date"></ui-campo-texto>
-                </div>
              </div>
              
-             <!-- Linha 2: CPF (col-span-1) + RG (col-span-1) + Profissão (col-span-1) + Estado Civil (col-span-1) -->
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+             <!-- Linha 2: CPF (1) + RG com Órgão/UF (1) + Data Nasc. (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CPF</label>
                    <ui-campo-texto name="cpf_cnpj" id="input-cpf-cnpj" required></ui-campo-texto>
@@ -193,9 +192,29 @@ export const renderClientesTemplate = (): string => `
                    </div>
                 </div>
                 <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Nasc.</label>
+                   <ui-campo-texto name="data_nascimento_fundacao" id="input-data-nasc" tipo="date"></ui-campo-texto>
+                </div>
+             </div>
+
+             <!-- Linha 3: Profissão (1) + Nacionalidade (1) + Naturalidade (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
+                <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Profissão</label>
                    <ui-campo-texto name="profissao" placeholder="Ex: Produtor Rural"></ui-campo-texto>
                 </div>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
+                   <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Naturalidade</label>
+                   <ui-campo-texto name="naturalidade" placeholder="Cidade - UF"></ui-campo-texto>
+                </div>
+             </div>
+
+             <!-- Linha 4: Estado Civil (1) + CNH Opcional (2) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Estado Civil</label>
                    <ui-select name="estado_civil" id="select-estado-civil" texto-padrao="Selecione...">
@@ -207,19 +226,7 @@ export const renderClientesTemplate = (): string => `
                       <option value="União Estável">União Estável</option>
                    </ui-select>
                 </div>
-             </div>
-
-             <!-- Linha 3: Nacionalidade (1) + Naturalidade (1) + CNH Opcional (2) -->
-             <div class="grid grid-cols-4 gap-2.5 items-end">
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
-                   <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
-                </div>
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Naturalidade</label>
-                   <ui-campo-texto name="naturalidade" placeholder="Cidade - UF"></ui-campo-texto>
-                </div>
-                <div class="col-span-2 bg-white/[0.015] border border-white/5 rounded px-2 py-1">
+                <div class="col-span-2 bg-white/[0.015] border border-white/5 rounded px-2 py-0.5">
                    <div class="flex items-center justify-between mb-0.5">
                       <span class="text-[8.5px] font-bold text-mint-vibrant uppercase tracking-wider">CNH (Opcional)</span>
                       <span class="text-[8px] text-white/30 font-mono">Nº / Cat / Validade</span>
@@ -240,7 +247,7 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA JURÍDICA (Oculta por padrão) -->
-          <div id="bloco-campos-pj" class="space-y-2 hidden">
+          <div id="bloco-campos-pj" class="space-y-1.5 hidden">
              <div class="grid grid-cols-2 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Razão Social</label>
@@ -251,7 +258,7 @@ export const renderClientesTemplate = (): string => `
                    <ui-campo-texto name="nome_fantasia" id="input-nome-fantasia"></ui-campo-texto>
                 </div>
              </div>
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Inscrição Estadual (IE)</label>
                    <ui-campo-texto name="inscricao_estadual" placeholder="Isento / Nº"></ui-campo-texto>
@@ -264,23 +271,24 @@ export const renderClientesTemplate = (): string => `
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Fundação</label>
                    <ui-campo-texto name="data_fundacao_pj" id="input-data-fundacao" tipo="date"></ui-campo-texto>
                 </div>
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Representante Legal</label>
-                   <ui-select name="representante_legal_id" id="select-representante-legal" texto-padrao="Vincular PF...">
-                      <!-- Opções de clientes PF via JS -->
-                   </ui-select>
-                </div>
+             </div>
+             <div>
+                <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Representante Legal (PF)</label>
+                <ui-select name="representante_legal_id" id="select-representante-legal" texto-padrao="Vincular PF...">
+                   <!-- Opções de clientes PF via JS -->
+                </ui-select>
              </div>
           </div>
 
           <!-- SEÇÃO: CÔNJUGE & REGIME NOTARIAL (Visível para Casado e União Estável) -->
-          <div id="secao-conjuge" class="border-t border-white/5 pt-2 space-y-2 hidden">
+          <div id="secao-conjuge" class="border-t border-white/5 pt-1.5 space-y-1.5 hidden">
              <div class="flex items-center justify-between">
-                <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge & Regime Notarial</h5>
-                <span class="text-[9px] text-white/40 font-mono">Qualificação Notarial Completa</span>
+                <h5 class="text-[9.5px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge & Regime Notarial</h5>
+                <span class="text-[8.5px] text-white/40 font-mono">Qualificação Notarial</span>
              </div>
 
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+             <!-- Linha 1: Nome Cônjuge (2) + Gênero (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div class="col-span-2">
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nome do Cônjuge</label>
                    <ui-campo-texto name="nome_conjuge" placeholder="Nome completo do(a) esposo(a)"></ui-campo-texto>
@@ -292,13 +300,14 @@ export const renderClientesTemplate = (): string => `
                       <option value="M">Masculino</option>
                    </ui-select>
                 </div>
+             </div>
+
+             <!-- Linha 2: CPF (1) + RG com Órg/UF (1) + Profissão (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CPF</label>
                    <ui-campo-texto name="cpf_conjuge" placeholder="000.000.000-00"></ui-campo-texto>
                 </div>
-             </div>
-
-             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
                    <div class="flex justify-between items-center mb-0.5">
                       <label class="text-[9px] font-bold tracking-wider uppercase text-white/50">RG</label>
@@ -317,12 +326,16 @@ export const renderClientesTemplate = (): string => `
                    </div>
                 </div>
                 <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
-                   <ui-campo-texto name="nacionalidade_conjuge" value="Brasileiro(a)"></ui-campo-texto>
-                </div>
-                <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Profissão</label>
                    <ui-campo-texto name="profissao_conjuge" placeholder="Ex: Arquiteta, Do Lar"></ui-campo-texto>
+                </div>
+             </div>
+
+             <!-- Linha 3: Nacionalidade (1) + Regime de Bens (1) + Data Celebração (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
+                   <ui-campo-texto name="nacionalidade_conjuge" value="Brasileiro(a)"></ui-campo-texto>
                 </div>
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Regime de Bens</label>
@@ -335,14 +348,14 @@ export const renderClientesTemplate = (): string => `
                       <option value="Separação Obrigatória de Bens">Separação Obrigatória</option>
                    </ui-select>
                 </div>
-             </div>
-
-             <!-- Dados de Cartório e Assento de Casamento (para Averbação Rápida) -->
-             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Celebração</label>
                    <ui-campo-texto name="data_casamento" tipo="date"></ui-campo-texto>
                 </div>
+             </div>
+
+             <!-- Linha 4: Matrícula Certidão (1) + Cartório Civil (1) + Assento (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Matrícula Certidão (32 dig)</label>
                    <ui-campo-texto name="certidao_casamento_matricula" placeholder="Nº da Matrícula"></ui-campo-texto>
@@ -354,7 +367,7 @@ export const renderClientesTemplate = (): string => `
                 <div>
                    <div class="flex justify-between items-center mb-0.5">
                       <label class="text-[9px] font-bold tracking-wider uppercase text-white/50">Assento</label>
-                      <span class="text-[8px] text-white/40 font-mono">Liv/Fol/Ter</span>
+                      <span class="text-[8px] text-white/40 font-mono">Liv / Fol / Ter</span>
                    </div>
                    <div class="grid grid-cols-3 gap-1">
                       <div>
@@ -372,14 +385,15 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CONTATO E LOCALIZAÇÃO -->
-          <div class="border-t border-white/5 pt-2 space-y-2">
-             <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+          <div class="border-t border-white/5 pt-1.5 space-y-1.5">
+             <h5 class="text-[9.5px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
+             <!-- Linha 1: Telefone (1) + Email (1) + Senha GOV (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Telefone / Celular</label>
                    <ui-campo-texto name="telefone" placeholder="(99) 99999-9999"></ui-campo-texto>
                 </div>
-                <div class="col-span-2">
+                <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Email</label>
                    <ui-campo-texto name="email" tipo="email" placeholder="cliente@email.com"></ui-campo-texto>
                 </div>
@@ -392,7 +406,8 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
 
-             <div class="grid grid-cols-4 gap-2.5 items-end">
+             <!-- Linha 2: CEP (1) + Logradouro (2) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CEP</label>
                    <ui-campo-texto name="cep" placeholder="99999-999"></ui-campo-texto>
@@ -401,60 +416,63 @@ export const renderClientesTemplate = (): string => `
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Logradouro / Endereço</label>
                    <ui-campo-texto name="endereco_sem_numero" placeholder="Rua, Av, Linha, Gleba"></ui-campo-texto>
                 </div>
+             </div>
+
+             <!-- Linha 3: Número (1) + Bairro (1) + Cidade / UF (1) -->
+             <div class="grid grid-cols-3 gap-2.5 items-end">
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Número / Compl.</label>
                    <ui-campo-texto name="numero_endereco" placeholder="Ex: 100, Apto 2"></ui-campo-texto>
                 </div>
-             </div>
-
-             <div class="grid grid-cols-4 gap-2.5 items-end">
-                <div class="col-span-2">
+                <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Bairro / Localidade</label>
                    <ui-campo-texto name="bairro" placeholder="Ex: Centro, Gleba Norte"></ui-campo-texto>
                 </div>
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Cidade</label>
-                   <ui-campo-texto name="cidade" placeholder="Digite para buscar..."></ui-campo-texto>
-                   <datalist id="cidades-list">
-                      <!-- Carregado dinamicamente -->
-                   </datalist>
-                </div>
-                <div>
-                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Estado (UF)</label>
-                   <ui-select name="estado" value="PR">
-                      <option value="AC">AC</option>
-                      <option value="AL">AL</option>
-                      <option value="AM">AM</option>
-                      <option value="AP">AP</option>
-                      <option value="BA">BA</option>
-                      <option value="CE">CE</option>
-                      <option value="DF">DF</option>
-                      <option value="ES">ES</option>
-                      <option value="GO">GO</option>
-                      <option value="MA">MA</option>
-                      <option value="MG">MG</option>
-                      <option value="MS">MS</option>
-                      <option value="MT">MT</option>
-                      <option value="PA">PA</option>
-                      <option value="PB">PB</option>
-                      <option value="PE">PE</option>
-                      <option value="PI">PI</option>
-                      <option value="PR">PR</option>
-                      <option value="RJ">RJ</option>
-                      <option value="RN">RN</option>
-                      <option value="RO">RO</option>
-                      <option value="RR">RR</option>
-                      <option value="RS">RS</option>
-                      <option value="SC">SC</option>
-                      <option value="SE">SE</option>
-                      <option value="SP">SP</option>
-                      <option value="TO">TO</option>
-                   </ui-select>
+                <div class="grid grid-cols-3 gap-1 items-end">
+                   <div class="col-span-2">
+                      <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Cidade</label>
+                      <ui-campo-texto name="cidade" placeholder="Buscar..."></ui-campo-texto>
+                      <datalist id="cidades-list">
+                         <!-- Carregado dinamicamente -->
+                      </datalist>
+                   </div>
+                   <div>
+                      <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">UF</label>
+                      <ui-select name="estado" value="PR">
+                         <option value="AC">AC</option>
+                         <option value="AL">AL</option>
+                         <option value="AM">AM</option>
+                         <option value="AP">AP</option>
+                         <option value="BA">BA</option>
+                         <option value="CE">CE</option>
+                         <option value="DF">DF</option>
+                         <option value="ES">ES</option>
+                         <option value="GO">GO</option>
+                         <option value="MA">MA</option>
+                         <option value="MG">MG</option>
+                         <option value="MS">MS</option>
+                         <option value="MT">MT</option>
+                         <option value="PA">PA</option>
+                         <option value="PB">PB</option>
+                         <option value="PE">PE</option>
+                         <option value="PI">PI</option>
+                         <option value="PR">PR</option>
+                         <option value="RJ">RJ</option>
+                         <option value="RN">RN</option>
+                         <option value="RO">RO</option>
+                         <option value="RR">RR</option>
+                         <option value="RS">RS</option>
+                         <option value="SC">SC</option>
+                         <option value="SE">SE</option>
+                         <option value="SP">SP</option>
+                         <option value="TO">TO</option>
+                      </ui-select>
+                   </div>
                 </div>
              </div>
           </div>
        </form>
-       <div slot="rodape" class="flex justify-end gap-2 w-full py-1">
+       <div slot="rodape" class="flex justify-end gap-2 w-full py-0.5">
           <ui-botao variante="primario" id="btn-salvar-cliente">Salvar Cliente</ui-botao>
           <ui-botao variante="secundario" id="btn-cancelar-cliente">Cancelar</ui-botao>
        </div>

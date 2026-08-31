@@ -703,35 +703,60 @@ ui-modal[tamanho="grande"] {
 ui-modal.modal-compact-header::part(header),
 ui-modal#modal-cliente::part(header),
 ui-modal::part(header) {
-  padding: 6px 16px !important;
-  min-height: 36px !important;
-  height: 36px !important;
+  padding: 4px 14px !important;
+  min-height: 32px !important;
+  height: 32px !important;
 }
 
 ui-modal.modal-compact-header::part(titulo),
 ui-modal#modal-cliente::part(titulo),
 ui-modal::part(titulo) {
-  font-size: 13px !important;
+  font-size: 12.5px !important;
   font-weight: 700 !important;
   line-height: 1 !important;
 }
 
 ui-modal.modal-compact-header::part(body),
 ui-modal#modal-cliente::part(body) {
-  padding: 10px 16px !important;
+  padding: 8px 14px !important;
 }
 
 ui-modal.modal-compact-header::part(footer),
 ui-modal#modal-cliente::part(footer) {
-  padding: 8px 16px !important;
+  padding: 6px 14px !important;
+  min-height: 38px !important;
 }
 
-/* Padronização Coerente de Altura e Bordas de Campos */
+/* Modal de Cliente: Campos com 25px de Altura Ultra-Compacta */
+ui-modal#modal-cliente ui-campo-texto,
+ui-modal#modal-cliente ui-select,
+ui-modal#modal-cliente ui-lista-flutuante {
+  --ui-altura-minima: 25px !important;
+  --ui-campo-altura: 25px !important;
+  --ui-raio-borda: 4px !important;
+}
+
+ui-modal#modal-cliente ui-campo-texto::part(input),
+ui-modal#modal-cliente ui-campo-texto::part(container),
+ui-modal#modal-cliente ui-select::part(trigger),
+ui-modal#modal-cliente ui-select::part(select) {
+  height: 25px !important;
+  min-height: 25px !important;
+  font-size: 11px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  border-radius: 4px !important;
+  line-height: 25px !important;
+}
+
+/* Padronização Padrão de Altura e Bordas de Campos */
 ui-campo-texto,
 ui-select,
 ui-lista-flutuante {
-  --ui-altura-minima: 34px !important;
-  --ui-campo-altura: 34px !important;
+  --ui-altura-minima: 32px !important;
+  --ui-campo-altura: 32px !important;
   --ui-raio-borda: 6px !important;
 }
 
@@ -739,8 +764,8 @@ ui-campo-texto::part(input),
 ui-campo-texto::part(container),
 ui-select::part(trigger),
 ui-select::part(select) {
-  height: 34px !important;
-  min-height: 34px !important;
+  height: 32px !important;
+  min-height: 32px !important;
   border-radius: 6px !important;
   font-size: 12px !important;
 }
