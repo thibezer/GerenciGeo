@@ -135,79 +135,70 @@ export const renderClientesTemplate = (): string => `
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
     <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" class="modal-compact-header">
-       <form id="form-cliente" class="space-y-3.5" style="--ui-altura-minima: 34px; --ui-campo-altura: 34px;">
+       <form id="form-cliente" class="space-y-2 relative" style="--ui-altura-minima: 34px; --ui-campo-altura: 34px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
-          <!-- Alternador de Tipo de Pessoa (PF / PJ) -->
-          <div class="flex items-center gap-1.5 p-0.5 bg-white/[0.03] border border-white/10 rounded-technical w-fit">
-             <button type="button" id="btn-tipo-pf" class="px-3 py-1 text-xs font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
+          <!-- Alternador de Tipo de Pessoa (PF / PJ) integrado à mesma linha do cabeçalho -->
+          <div class="absolute -top-[37px] left-[130px] sm:left-[145px] z-30 flex items-center gap-0.5 p-0.5 bg-black/40 border border-white/10 rounded">
+             <button type="button" id="btn-tipo-pf" class="px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
                 Pessoa Física (PF)
              </button>
-             <button type="button" id="btn-tipo-pj" class="px-3 py-1 text-xs font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
+             <button type="button" id="btn-tipo-pj" class="px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
                 Pessoa Jurídica (PJ)
              </button>
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
-          <div id="bloco-campos-pf" class="space-y-3">
-             <div class="grid grid-cols-4 gap-3 items-end">
-                <div class="col-span-3">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Nome Completo</label>
+          <div id="bloco-campos-pf" class="space-y-2">
+             <!-- Linha 1: Nome Completo (col-span-2) + Gênero (col-span-1) + Data Nasc (col-span-1) -->
+             <div class="grid grid-cols-4 gap-2.5 items-end">
+                <div class="col-span-2">
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nome Completo</label>
                    <ui-campo-texto name="nome_completo" id="input-nome-completo" required></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Gênero</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Gênero</label>
                    <ui-select name="sexo" value="M">
                       <option value="M">Masculino</option>
                       <option value="F">Feminino</option>
                    </ui-select>
                 </div>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Nasc.</label>
+                   <ui-campo-texto name="data_nascimento_fundacao" id="input-data-nasc" tipo="date"></ui-campo-texto>
+                </div>
              </div>
              
-             <div class="grid grid-cols-4 gap-3 items-end">
-                <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">CPF</label>
+             <!-- Linha 2: CPF (col-span-1) + RG (col-span-1) + Profissão (col-span-1) + Estado Civil (col-span-1) -->
+             <div class="grid grid-cols-4 gap-2.5 items-end">
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CPF</label>
                    <ui-campo-texto name="cpf_cnpj" id="input-cpf-cnpj" required></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">RG</label>
-                   <ui-campo-texto name="rg_ie" placeholder="Número do RG"></ui-campo-texto>
-                </div>
-                <div class="grid grid-cols-2 gap-1.5">
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Órgão</label>
-                      <ui-campo-texto name="rg_orgao" placeholder="SSP"></ui-campo-texto>
+                   <div class="flex justify-between items-center mb-0.5">
+                      <label class="text-[9px] font-bold tracking-wider uppercase text-white/50">RG</label>
+                      <span class="text-[8px] text-white/40 font-mono">Órg/UF</span>
                    </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">UF</label>
-                      <ui-campo-texto name="rg_uf" placeholder="PR"></ui-campo-texto>
+                   <div class="grid grid-cols-5 gap-1 items-center">
+                      <div class="col-span-3">
+                         <ui-campo-texto name="rg_ie" placeholder="Nº RG"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="rg_orgao" placeholder="SSP"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="rg_uf" placeholder="PR"></ui-campo-texto>
+                      </div>
                    </div>
                 </div>
-             </div>
-
-             <div class="grid grid-cols-4 gap-3 items-end">
-                <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Profissão / Ocupação Principal</label>
-                   <ui-campo-texto name="profissao" placeholder="Ex: Produtor Rural, Empresário, Engenheiro"></ui-campo-texto>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Profissão</label>
+                   <ui-campo-texto name="profissao" placeholder="Ex: Produtor Rural"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Nacionalidade</label>
-                   <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
-                </div>
-                <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Naturalidade</label>
-                   <ui-campo-texto name="naturalidade" placeholder="Cidade - UF"></ui-campo-texto>
-                </div>
-             </div>
-
-             <div class="grid grid-cols-4 gap-3 items-end">
-                <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Data de Nascimento</label>
-                   <ui-campo-texto name="data_nascimento_fundacao" id="input-data-nasc" tipo="date"></ui-campo-texto>
-                </div>
-                <div class="col-span-3">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Estado Civil</label>
-                   <ui-select name="estado_civil" id="select-estado-civil" texto-padrao="Selecione o Estado Civil...">
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Estado Civil</label>
+                   <ui-select name="estado_civil" id="select-estado-civil" texto-padrao="Selecione...">
                       <option value="">Não informado / Solteiro(a)</option>
                       <option value="Solteiro(a)">Solteiro(a)</option>
                       <option value="Casado(a)">Casado(a)</option>
@@ -218,53 +209,63 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
 
-             <!-- Documentação CNH Opcional -->
-             <div class="bg-white/[0.02] p-2.5 border border-white/5 rounded-technical space-y-2">
-                <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider block">Carteira Nacional de Habilitação (CNH) — Opcional</span>
-                <div class="grid grid-cols-4 gap-3 items-end">
-                   <div class="col-span-2">
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Número CNH</label>
-                      <ui-campo-texto name="cnh_numero" placeholder="Nº de Registro"></ui-campo-texto>
+             <!-- Linha 3: Nacionalidade (1) + Naturalidade (1) + CNH Opcional (2) -->
+             <div class="grid grid-cols-4 gap-2.5 items-end">
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
+                   <ui-campo-texto name="nacionalidade" value="Brasileiro(a)"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Naturalidade</label>
+                   <ui-campo-texto name="naturalidade" placeholder="Cidade - UF"></ui-campo-texto>
+                </div>
+                <div class="col-span-2 bg-white/[0.015] border border-white/5 rounded px-2 py-1">
+                   <div class="flex items-center justify-between mb-0.5">
+                      <span class="text-[8.5px] font-bold text-mint-vibrant uppercase tracking-wider">CNH (Opcional)</span>
+                      <span class="text-[8px] text-white/30 font-mono">Nº / Cat / Validade</span>
                    </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Categoria</label>
-                      <ui-campo-texto name="cnh_categoria" placeholder="Ex: AB, B, C"></ui-campo-texto>
-                   </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Validade CNH</label>
-                      <ui-campo-texto name="cnh_validade" tipo="date"></ui-campo-texto>
+                   <div class="grid grid-cols-4 gap-1 items-center">
+                      <div class="col-span-2">
+                         <ui-campo-texto name="cnh_numero" placeholder="Nº Registro"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="cnh_categoria" placeholder="Cat."></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="cnh_validade" tipo="date"></ui-campo-texto>
+                      </div>
                    </div>
                 </div>
              </div>
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA JURÍDICA (Oculta por padrão) -->
-          <div id="bloco-campos-pj" class="space-y-3 hidden">
-             <div class="grid grid-cols-2 gap-3 items-end">
+          <div id="bloco-campos-pj" class="space-y-2 hidden">
+             <div class="grid grid-cols-2 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Razão Social</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Razão Social</label>
                    <ui-campo-texto name="razao_social" id="input-razao-social"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Nome Fantasia</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nome Fantasia</label>
                    <ui-campo-texto name="nome_fantasia" id="input-nome-fantasia"></ui-campo-texto>
                 </div>
              </div>
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Inscrição Estadual (IE)</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Inscrição Estadual (IE)</label>
                    <ui-campo-texto name="inscricao_estadual" placeholder="Isento / Nº"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Inscrição Municipal (IM)</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Inscrição Municipal (IM)</label>
                    <ui-campo-texto name="inscricao_municipal" placeholder="Opcional"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Data de Fundação</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Fundação</label>
                    <ui-campo-texto name="data_fundacao_pj" id="input-data-fundacao" tipo="date"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Representante Legal</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Representante Legal</label>
                    <ui-select name="representante_legal_id" id="select-representante-legal" texto-padrao="Vincular PF...">
                       <!-- Opções de clientes PF via JS -->
                    </ui-select>
@@ -273,150 +274,153 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CÔNJUGE & REGIME NOTARIAL (Visível para Casado e União Estável) -->
-          <div id="secao-conjuge" class="border-t border-white/5 pt-3 space-y-2.5 hidden">
+          <div id="secao-conjuge" class="border-t border-white/5 pt-2 space-y-2 hidden">
              <div class="flex items-center justify-between">
                 <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge & Regime Notarial</h5>
-                <span class="text-[9px] text-white/40 font-mono">Qualificação Civil Completa</span>
+                <span class="text-[9px] text-white/40 font-mono">Qualificação Notarial Completa</span>
              </div>
 
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Nome do Cônjuge</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nome do Cônjuge</label>
                    <ui-campo-texto name="nome_conjuge" placeholder="Nome completo do(a) esposo(a)"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Gênero Cônjuge</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Gênero</label>
                    <ui-select name="genero_conjuge" value="F">
                       <option value="F">Feminino</option>
                       <option value="M">Masculino</option>
                    </ui-select>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">CPF Cônjuge</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CPF</label>
                    <ui-campo-texto name="cpf_conjuge" placeholder="000.000.000-00"></ui-campo-texto>
                 </div>
              </div>
 
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">RG Cônjuge</label>
-                   <ui-campo-texto name="rg_conjuge" placeholder="Número RG"></ui-campo-texto>
-                </div>
-                <div class="grid grid-cols-2 gap-1.5">
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Órgão</label>
-                      <ui-campo-texto name="rg_orgao_conjuge" placeholder="SSP"></ui-campo-texto>
+                   <div class="flex justify-between items-center mb-0.5">
+                      <label class="text-[9px] font-bold tracking-wider uppercase text-white/50">RG</label>
+                      <span class="text-[8px] text-white/40 font-mono">Órg/UF</span>
                    </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">UF</label>
-                      <ui-campo-texto name="rg_uf_conjuge" placeholder="PR"></ui-campo-texto>
+                   <div class="grid grid-cols-5 gap-1 items-center">
+                      <div class="col-span-3">
+                         <ui-campo-texto name="rg_conjuge" placeholder="Nº RG"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="rg_orgao_conjuge" placeholder="SSP"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="rg_uf_conjuge" placeholder="PR"></ui-campo-texto>
+                      </div>
                    </div>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Nacionalidade Cônjuge</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Nacionalidade</label>
                    <ui-campo-texto name="nacionalidade_conjuge" value="Brasileiro(a)"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Profissão Cônjuge</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Profissão</label>
                    <ui-campo-texto name="profissao_conjuge" placeholder="Ex: Arquiteta, Do Lar"></ui-campo-texto>
                 </div>
-             </div>
-
-             <div class="grid grid-cols-2 gap-3 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Regime de Bens</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Regime de Bens</label>
                    <ui-select name="regime_bens">
-                      <option value="">Nenhum / Não aplicável</option>
-                      <option value="Comunhão Parcial de Bens">Comunhão Parcial de Bens</option>
-                      <option value="Comunhão Universal de Bens">Comunhão Universal de Bens</option>
-                      <option value="Separação Total de Bens">Separação Total de Bens</option>
-                      <option value="Participação Final nos Aquestos">Participação Final nos Aquestos</option>
-                      <option value="Separação Obrigatória de Bens">Separação Obrigatória de Bens</option>
+                      <option value="">Não aplicável</option>
+                      <option value="Comunhão Parcial de Bens">Comunhão Parcial</option>
+                      <option value="Comunhão Universal de Bens">Comunhão Universal</option>
+                      <option value="Separação Total de Bens">Separação Total</option>
+                      <option value="Participação Final nos Aquestos">Aquestos</option>
+                      <option value="Separação Obrigatória de Bens">Separação Obrigatória</option>
                    </ui-select>
-                </div>
-                <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Matrícula Certidão de Casamento (32 dígitos)</label>
-                   <ui-campo-texto name="certidao_casamento_matricula" placeholder="Nº da Matrícula do Cartório"></ui-campo-texto>
                 </div>
              </div>
 
              <!-- Dados de Cartório e Assento de Casamento (para Averbação Rápida) -->
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Data Celebração</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Data Celebração</label>
                    <ui-campo-texto name="data_casamento" tipo="date"></ui-campo-texto>
                 </div>
-                <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Cartório de Registro Civil</label>
-                   <ui-campo-texto name="cartorio_casamento" placeholder="Ex: Registro Civil de Pessoas Naturais de Cascavel/PR"></ui-campo-texto>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Matrícula Certidão (32 dig)</label>
+                   <ui-campo-texto name="certidao_casamento_matricula" placeholder="Nº da Matrícula"></ui-campo-texto>
                 </div>
-                <div class="grid grid-cols-3 gap-1">
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Livro</label>
-                      <ui-campo-texto name="livro_casamento" placeholder="B-12"></ui-campo-texto>
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Cartório Civil</label>
+                   <ui-campo-texto name="cartorio_casamento" placeholder="Ex: Registro Civil"></ui-campo-texto>
+                </div>
+                <div>
+                   <div class="flex justify-between items-center mb-0.5">
+                      <label class="text-[9px] font-bold tracking-wider uppercase text-white/50">Assento</label>
+                      <span class="text-[8px] text-white/40 font-mono">Liv/Fol/Ter</span>
                    </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Folha</label>
-                      <ui-campo-texto name="folha_casamento" placeholder="145"></ui-campo-texto>
-                   </div>
-                   <div>
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Termo</label>
-                      <ui-campo-texto name="termo_casamento" placeholder="8920"></ui-campo-texto>
+                   <div class="grid grid-cols-3 gap-1">
+                      <div>
+                         <ui-campo-texto name="livro_casamento" placeholder="Livro"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="folha_casamento" placeholder="Folha"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="termo_casamento" placeholder="Termo"></ui-campo-texto>
+                      </div>
                    </div>
                 </div>
              </div>
           </div>
 
           <!-- SEÇÃO: CONTATO E LOCALIZAÇÃO -->
-          <div class="border-t border-white/5 pt-3 space-y-2.5">
+          <div class="border-t border-white/5 pt-2 space-y-2">
              <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Telefone / Celular</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Telefone / Celular</label>
                    <ui-campo-texto name="telefone" placeholder="(99) 99999-9999"></ui-campo-texto>
                 </div>
                 <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Email</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Email</label>
                    <ui-campo-texto name="email" tipo="email" placeholder="cliente@email.com"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1 flex items-center justify-between">
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5 flex items-center justify-between">
                      <span>Senha GOV</span>
-                     <span class="text-[9px] text-mint-vibrant lowercase font-mono">segura</span>
+                     <span class="text-[8px] text-mint-vibrant font-mono">segura</span>
                    </label>
                    <ui-campo-texto name="senha_gov" placeholder="Senha GOV"></ui-campo-texto>
                 </div>
              </div>
 
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">CEP</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CEP</label>
                    <ui-campo-texto name="cep" placeholder="99999-999"></ui-campo-texto>
                 </div>
                 <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Endereço (Rua, Av, Linha, Gleba)</label>
-                   <ui-campo-texto name="endereco_sem_numero" placeholder="Logradouro"></ui-campo-texto>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Logradouro / Endereço</label>
+                   <ui-campo-texto name="endereco_sem_numero" placeholder="Rua, Av, Linha, Gleba"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Número / Compl.</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Número / Compl.</label>
                    <ui-campo-texto name="numero_endereco" placeholder="Ex: 100, Apto 2"></ui-campo-texto>
                 </div>
              </div>
 
-             <div class="grid grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
                 <div class="col-span-2">
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Bairro / Distrito / Localidade</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Bairro / Localidade</label>
                    <ui-campo-texto name="bairro" placeholder="Ex: Centro, Gleba Norte"></ui-campo-texto>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Cidade</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Cidade</label>
                    <ui-campo-texto name="cidade" placeholder="Digite para buscar..."></ui-campo-texto>
                    <datalist id="cidades-list">
                       <!-- Carregado dinamicamente -->
                    </datalist>
                 </div>
                 <div>
-                   <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/50 mb-1">Estado (UF)</label>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Estado (UF)</label>
                    <ui-select name="estado" value="PR">
                       <option value="AC">AC</option>
                       <option value="AL">AL</option>
@@ -450,7 +454,7 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
        </form>
-       <div slot="rodape" class="flex justify-end gap-2 w-full">
+       <div slot="rodape" class="flex justify-end gap-2 w-full py-1">
           <ui-botao variante="primario" id="btn-salvar-cliente">Salvar Cliente</ui-botao>
           <ui-botao variante="secundario" id="btn-cancelar-cliente">Cancelar</ui-botao>
        </div>
