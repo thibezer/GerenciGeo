@@ -83,6 +83,19 @@ class ClienteCreate(BaseModel):
     rg_uf: Optional[str] = None
     naturalidade: Optional[str] = None
     certidao_casamento_matricula: Optional[str] = None
+    genero_conjuge: Optional[str] = None
+    nacionalidade_conjuge: Optional[str] = None
+    profissao_conjuge: Optional[str] = None
+    rg_orgao_conjuge: Optional[str] = None
+    rg_uf_conjuge: Optional[str] = None
+    data_casamento: Optional[str] = None
+    cartorio_casamento: Optional[str] = None
+    livro_casamento: Optional[str] = None
+    folha_casamento: Optional[str] = None
+    termo_casamento: Optional[str] = None
+    bairro: Optional[str] = None
+    endereco_sem_numero: Optional[str] = None
+    numero_endereco: Optional[str] = None
     documentos: Optional[List[dict]] = None
 
 class ProfissionalCreate(BaseModel):
@@ -147,7 +160,9 @@ def get_clientes():
         query = """
             SELECT c.id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
                    p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
-                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+                   p.rg_orgao_conjuge, p.rg_uf_conjuge, p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
                    p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual,
                    p.inscricao_municipal, p.representante_legal_id, rep.nome as representante_legal_nome,
                    p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf,
@@ -253,7 +268,9 @@ def get_cliente_por_id(cliente_id: int):
         query = """
             SELECT c.id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
                    p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
-                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                   p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
+                   p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+                   p.rg_orgao_conjuge, p.rg_uf_conjuge, p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
                    p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual,
                    p.inscricao_municipal, p.representante_legal_id, rep.nome as representante_legal_nome,
                    p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf,

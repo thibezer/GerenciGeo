@@ -671,7 +671,17 @@ def create_tables(conn):
             ("rg_orgao", "TEXT"),
             ("rg_uf", "TEXT"),
             ("naturalidade", "TEXT"),
-            ("certidao_casamento_matricula", "TEXT")
+            ("certidao_casamento_matricula", "TEXT"),
+            ("rg_orgao_conjuge", "TEXT"),
+            ("rg_uf_conjuge", "TEXT"),
+            ("data_casamento", "TEXT"),
+            ("cartorio_casamento", "TEXT"),
+            ("livro_casamento", "TEXT"),
+            ("folha_casamento", "TEXT"),
+            ("termo_casamento", "TEXT"),
+            ("bairro", "TEXT"),
+            ("endereco_sem_numero", "TEXT"),
+            ("numero_endereco", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(pessoas)")
         colunas_pessoas_existentes = {row[1] for row in cursor.fetchall()}
@@ -692,7 +702,8 @@ def create_tables(conn):
             ("rg_orgao", "TEXT"),
             ("rg_uf", "TEXT"),
             ("naturalidade", "TEXT"),
-            ("certidao_casamento_matricula", "TEXT")
+            ("certidao_casamento_matricula", "TEXT"),
+            ("bairro", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(clientes)")
         colunas_clientes_existentes = {row[1] for row in cursor.fetchall()}

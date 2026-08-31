@@ -790,17 +790,28 @@ export const clientesRoute: RouteDef = {
       setFormVal('sexo', cli.sexo || 'M');
       setFormVal('nacionalidade', cli.nacionalidade);
       setFormVal('nome_conjuge', cli.nome_conjuge);
+      setFormVal('genero_conjuge', cli.genero_conjuge || 'F');
       setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
       setFormVal('rg_conjuge', cli.rg_conjuge);
+      setFormVal('rg_orgao_conjuge', cli.rg_orgao_conjuge || 'SSP');
+      setFormVal('rg_uf_conjuge', cli.rg_uf_conjuge || cli.estado || 'PR');
+      setFormVal('nacionalidade_conjuge', cli.nacionalidade_conjuge || 'Brasileiro(a)');
+      setFormVal('profissao_conjuge', cli.profissao_conjuge);
       setFormVal('regime_bens', cli.regime_bens);
       setFormVal('certidao_casamento_matricula', cli.certidao_casamento_matricula);
+      setFormVal('data_casamento', cli.data_casamento);
+      setFormVal('cartorio_casamento', cli.cartorio_casamento);
+      setFormVal('livro_casamento', cli.livro_casamento);
+      setFormVal('folha_casamento', cli.folha_casamento);
+      setFormVal('termo_casamento', cli.termo_casamento);
       setFormVal('profissao', cli.profissao);
       setFormVal('telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '');
       setFormVal('email', cli.email);
       setFormVal('senha_gov', cli.senha_gov);
       setFormVal('cep', cli.cep ? aplicarMascaraCep(cli.cep) : '');
-      setFormVal('endereco_sem_numero', enderecoSemNumero);
-      setFormVal('numero_endereco', numero);
+      setFormVal('endereco_sem_numero', cli.endereco_sem_numero || enderecoSemNumero);
+      setFormVal('numero_endereco', cli.numero_endereco || numero);
+      setFormVal('bairro', cli.bairro);
       setFormVal('estado', cli.estado || 'PR');
 
       if (cli.estado) {
@@ -1273,12 +1284,26 @@ export const clientesRoute: RouteDef = {
         profissao: rawPayload.profissao || null,
         nacionalidade: rawPayload.nacionalidade || 'Brasileiro(a)',
         nome_conjuge: rawPayload.nome_conjuge || null,
+        genero_conjuge: rawPayload.genero_conjuge || null,
         cpf_conjuge: rawPayload.cpf_conjuge || null,
         rg_conjuge: rawPayload.rg_conjuge || null,
+        rg_orgao_conjuge: rawPayload.rg_orgao_conjuge || null,
+        rg_uf_conjuge: rawPayload.rg_uf_conjuge || null,
+        nacionalidade_conjuge: rawPayload.nacionalidade_conjuge || null,
+        profissao_conjuge: rawPayload.profissao_conjuge || null,
         regime_bens: rawPayload.regime_bens || null,
+        certidao_casamento_matricula: rawPayload.certidao_casamento_matricula || null,
+        data_casamento: rawPayload.data_casamento || null,
+        cartorio_casamento: rawPayload.cartorio_casamento || null,
+        livro_casamento: rawPayload.livro_casamento || null,
+        folha_casamento: rawPayload.folha_casamento || null,
+        termo_casamento: rawPayload.termo_casamento || null,
         email: rawPayload.email || null,
         telefone: rawPayload.telefone || null,
         endereco_completo: enderecoCompleto || null,
+        endereco_sem_numero: rawPayload.endereco_sem_numero || null,
+        numero_endereco: rawPayload.numero_endereco || null,
+        bairro: rawPayload.bairro || null,
         cidade: rawPayload.cidade || null,
         estado: rawPayload.estado || 'PR',
         cep: rawPayload.cep || null,
@@ -1297,7 +1322,6 @@ export const clientesRoute: RouteDef = {
         rg_orgao: rawPayload.rg_orgao || null,
         rg_uf: rawPayload.rg_uf || null,
         naturalidade: rawPayload.naturalidade || null,
-        certidao_casamento_matricula: rawPayload.certidao_casamento_matricula || null,
         metadados: {}
       };
 

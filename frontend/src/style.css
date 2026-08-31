@@ -699,5 +699,36 @@ ui-modal[tamanho="grande"] {
   }
 }
 
+/* Cabeçalho Compacto de Modais */
+ui-modal.modal-compact-header::part(header),
+ui-modal#modal-cliente::part(header),
+ui-modal::part(header) {
+  padding: 10px 18px !important;
+  min-height: 42px !important;
+}
 
+ui-modal.modal-compact-header::part(titulo),
+ui-modal#modal-cliente::part(titulo),
+ui-modal::part(titulo) {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
 
+/* Padronização Coerente de Altura e Bordas de Campos */
+ui-campo-texto,
+ui-select,
+ui-lista-flutuante {
+  --ui-altura-minima: 34px !important;
+  --ui-campo-altura: 34px !important;
+  --ui-raio-borda: 6px !important;
+}
+
+ui-campo-texto::part(input),
+ui-campo-texto::part(container),
+ui-select::part(trigger),
+ui-select::part(select) {
+  height: 34px !important;
+  min-height: 34px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+}

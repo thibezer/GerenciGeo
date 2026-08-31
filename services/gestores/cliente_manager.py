@@ -372,6 +372,19 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     rg_uf = cli_data.get("rg_uf")
     naturalidade = cli_data.get("naturalidade")
     certidao_casamento_matricula = cli_data.get("certidao_casamento_matricula")
+    genero_conjuge = cli_data.get("genero_conjuge")
+    nacionalidade_conjuge = cli_data.get("nacionalidade_conjuge")
+    profissao_conjuge = cli_data.get("profissao_conjuge")
+    rg_orgao_conjuge = cli_data.get("rg_orgao_conjuge")
+    rg_uf_conjuge = cli_data.get("rg_uf_conjuge")
+    data_casamento = cli_data.get("data_casamento")
+    cartorio_casamento = cli_data.get("cartorio_casamento")
+    livro_casamento = cli_data.get("livro_casamento")
+    folha_casamento = cli_data.get("folha_casamento")
+    termo_casamento = cli_data.get("termo_casamento")
+    bairro = cli_data.get("bairro")
+    endereco_sem_numero = cli_data.get("endereco_sem_numero")
+    numero_endereco = cli_data.get("numero_endereco")
 
     # Sanitização de CPF/CNPJ
     cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
@@ -422,14 +435,18 @@ def cadastrar_cliente(cli_data: dict) -> dict:
             if not pessoa_id:
                 cursor.execute("""
                     INSERT INTO pessoas (
-                        nome, cpf_cnpj, rg, nacionalidade, profissao, estado_civil, regime_bens, 
-                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
+                        nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens, 
+                        endereco_completo, endereco_sem_numero, numero_endereco, bairro,
+                        nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
+                        rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
                         tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
                         cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, 
-                    endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
+                    nome_completo, cpf_cnpj, rg_ie, sexo, nacionalidade, profissao, estado_civil, regime_bens, 
+                    endereco_completo, endereco_sem_numero, numero_endereco, bairro,
+                    nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
+                    rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
                     tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
                     cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
                 ))
@@ -439,11 +456,19 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                 cursor.execute("""
                     UPDATE pessoas
                     SET tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?, inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?,
-                        cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?, rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
+                        cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?, rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?,
+                        genero = ?, nacionalidade = ?, profissao = ?, estado_civil = ?, regime_bens = ?,
+                        endereco_completo = ?, endereco_sem_numero = ?, numero_endereco = ?, bairro = ?,
+                        nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?, nacionalidade_conjuge = ?, profissao_conjuge = ?,
+                        rg_orgao_conjuge = ?, rg_uf_conjuge = ?, data_casamento = ?, cartorio_casamento = ?, livro_casamento = ?, folha_casamento = ?, termo_casamento = ?
                     WHERE id = ?
                 """, (
                     tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
                     cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                    sexo, nacionalidade, profissao, estado_civil, regime_bens,
+                    endereco_completo, endereco_sem_numero, numero_endereco, bairro,
+                    nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
+                    rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
                     pessoa_id
                 ))
                 
@@ -451,11 +476,11 @@ def cadastrar_cliente(cli_data: dict) -> dict:
             cursor.execute("""
                 INSERT INTO clientes (
                     pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
-                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula, bairro
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pessoa_id, cli_data.get("profissional_id") or 1, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
-                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula
+                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula, bairro
             ))
             cliente_id = cursor.lastrowid
             
@@ -549,6 +574,19 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     rg_uf = cli_data.get("rg_uf")
     naturalidade = cli_data.get("naturalidade")
     certidao_casamento_matricula = cli_data.get("certidao_casamento_matricula")
+    genero_conjuge = cli_data.get("genero_conjuge")
+    nacionalidade_conjuge = cli_data.get("nacionalidade_conjuge")
+    profissao_conjuge = cli_data.get("profissao_conjuge")
+    rg_orgao_conjuge = cli_data.get("rg_orgao_conjuge")
+    rg_uf_conjuge = cli_data.get("rg_uf_conjuge")
+    data_casamento = cli_data.get("data_casamento")
+    cartorio_casamento = cli_data.get("cartorio_casamento")
+    livro_casamento = cli_data.get("livro_casamento")
+    folha_casamento = cli_data.get("folha_casamento")
+    termo_casamento = cli_data.get("termo_casamento")
+    bairro = cli_data.get("bairro")
+    endereco_sem_numero = cli_data.get("endereco_sem_numero")
+    numero_endereco = cli_data.get("numero_endereco")
 
     # Sanitização de CPF/CNPJ
     cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
@@ -570,9 +608,11 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             
             # 1. Pega dados antigos da pessoa mesclados para histórico de auditoria
             query_old = """
-                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.nacionalidade,
-                       p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo,
-                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.tipo_pessoa, p.razao_social,
+                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.genero, p.nacionalidade,
+                       p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
+                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+                       p.rg_orgao_conjuge, p.rg_uf_conjuge, p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
+                       p.tipo_pessoa, p.razao_social,
                        p.nome_fantasia, p.inscricao_estadual, p.inscricao_municipal, p.representante_legal_id,
                        p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf, p.rg_orgao, p.rg_uf,
                        p.naturalidade, p.certidao_casamento_matricula,
@@ -610,17 +650,20 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             # 4. Atualiza os dados civis da pessoa
             cursor.execute("""
                 UPDATE pessoas
-                SET nome = ?, cpf_cnpj = ?, rg = ?, nacionalidade = ?, profissao = ?,
-                    estado_civil = ?, regime_bens = ?, endereco_completo = ?,
-                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?,
+                SET nome = ?, cpf_cnpj = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?,
+                    estado_civil = ?, regime_bens = ?, endereco_completo = ?, endereco_sem_numero = ?, numero_endereco = ?, bairro = ?,
+                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?, nacionalidade_conjuge = ?, profissao_conjuge = ?,
+                    rg_orgao_conjuge = ?, rg_uf_conjuge = ?, data_casamento = ?, cartorio_casamento = ?, livro_casamento = ?, folha_casamento = ?, termo_casamento = ?,
                     tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?,
                     inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?,
                     cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?,
                     rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
                 WHERE id = ?
             """, (
-                nome_completo, cpf_cnpj, rg_ie, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo,
-                nome_conjuge, cpf_conjuge, rg_conjuge, tipo_pessoa, razao_social, nome_fantasia,
+                nome_completo, cpf_cnpj, rg_ie, sexo, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, endereco_sem_numero, numero_endereco, bairro,
+                nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
+                rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
+                tipo_pessoa, razao_social, nome_fantasia,
                 inscricao_estadual, inscricao_municipal, representante_legal_id,
                 cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf,
                 rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
@@ -632,12 +675,12 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                 UPDATE clientes 
                 SET data_nascimento_fundacao = ?, email = ?, telefone = ?, cidade = ?, estado = ?, cep = ?, sexo = ?, senha_gov = ?,
                     cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?,
-                    rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?
+                    rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?, bairro = ?
                 WHERE id = ?
             """, (
                 data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov_final,
                 cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf,
-                rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula, bairro,
                 cliente_id
             ))
             
