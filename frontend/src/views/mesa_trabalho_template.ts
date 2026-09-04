@@ -513,14 +513,6 @@ export const renderMesaTrabalho = (): string => {
                     <div id="container-workspace-arquivos"></div>
                     <div id="btn-toggle-workspace-collapse"></div>
                   </div>
-                  <div id="container-ingestao-arquivos">
-                    <button id="btn-fechar-modal-ingestao"></button>
-                    <div id="triagem-dropzone"></div>
-                    <input type="file" id="triagem-file-input" />
-                    <div id="triagem-fila-container"></div>
-                    <button id="btn-cancelar-ingestao-modal"></button>
-                    <button id="btn-processar-lote-modal"></button>
-                  </div>
                 </div>
              </div>
           </div>
@@ -972,10 +964,59 @@ export const renderMesaTrabalho = (): string => {
                   </div>
                </div>
             </div>
+          </div>
+       </div>
+
+      <!-- MODAL DE INGESTÃO E TRIAGEM DE ARQUIVOS GNSS -->
+      <div id="container-ingestao-arquivos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
+         <div class="glass-card w-full max-w-2xl rounded-technical shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-mint-vibrant/20">
+           <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/[0.02]">
+             <h3 class="text-base font-bold text-white flex items-center gap-2">
+               <i data-lucide="upload-cloud" class="w-5 h-5 text-mint-vibrant"></i>
+               Triagem e Ingestão de Arquivos GNSS
+             </h3>
+             <button class="text-white/40 hover:text-white transition-colors" id="btn-fechar-modal-ingestao" type="button" title="Fechar">
+               <i data-lucide="x" class="w-5 h-5"></i>
+             </button>
+           </div>
+           
+           <div class="p-6 overflow-y-auto flex-1 space-y-4">
+             <p class="text-xs text-white/60 leading-relaxed">
+               Defina os vínculos de base e configure a destinação para cada arquivo importado antes de processá-los na Mesa Geodésica.
+             </p>
+
+             <!-- Dropzone interna para clique/arraste adicional -->
+             <div id="triagem-dropzone" class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col justify-center items-center group relative overflow-hidden min-h-[120px]">
+               <i id="triagem-dropzone-icon" data-lucide="upload-cloud" class="w-8 h-8 text-white/30 mb-2 group-hover:text-mint-vibrant transition-colors"></i>
+               <span id="triagem-dropzone-title" class="text-xs font-bold text-white/70 group-hover:text-white transition-colors">Arraste múltiplos arquivos para triagem</span>
+               <span id="triagem-dropzone-desc" class="text-[10px] text-white/40 mt-1">Suporta arquivos .GNS, .TXT, .CSV, .XLSX, .ODS</span>
+             </div>
+             
+             <input type="file" id="triagem-file-input" class="hidden" multiple accept=".gns,.GNS,.txt,.TXT,.csv,.CSV,.xlsx,.XLSX,.ods,.ODS" />
+             
+             <!-- Fila de Arquivos -->
+             <div id="triagem-fila-container" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 hidden">
+               <!-- Injetado dinamicamente via JS -->
+             </div>
+             
+             <!-- Opções Globais -->
+             <div class="bg-white/[0.02] border border-white/5 p-4 rounded flex flex-col md:flex-row gap-4 justify-between items-center hidden" id="triagem-opcoes-lote">
+               <div class="flex items-center gap-2">
+                 <input type="checkbox" id="chk-inverter-ne-mesa" class="rounded bg-white/5 border-white/10 text-mint-vibrant focus:ring-mint-vibrant" />
+                 <label for="chk-inverter-ne-mesa" class="text-xs text-white/70 select-none font-bold cursor-pointer">Inverter coordenadas (Norte/Este) na importação</label>
+               </div>
+             </div>
+           </div>
+           
+           <div class="px-6 py-4 border-t border-white/5 flex justify-end gap-3 shrink-0 bg-white/[0.01]">
+             <button class="btn-secondary text-xs px-4 py-2" id="btn-cancelar-ingestao-modal" type="button">Cancelar</button>
+             <button class="btn-primary text-xs px-5 py-2 flex items-center gap-2 font-bold hidden" id="btn-processar-lote-modal" type="button">
+               <i data-lucide="play" class="w-4 h-4"></i>
+               Iniciar Processamento
+             </button>
+           </div>
          </div>
       </div>
-
-
 </div>
   `;
 };

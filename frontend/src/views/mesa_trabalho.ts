@@ -1463,6 +1463,9 @@ export const mesaTrabalhoRoute: RouteDef = {
       const expandirIngestao = () => {
         containerIngestao.classList.remove('hidden');
         containerIngestao.classList.add('flex');
+        if (ctx.renderFilaArquivos) {
+          ctx.renderFilaArquivos();
+        }
         initIcons();
       };
 
@@ -1481,6 +1484,20 @@ export const mesaTrabalhoRoute: RouteDef = {
           expandirIngestao();
         });
       }
+
+      // Fechar modal ao clicar no backdrop
+      containerIngestao.addEventListener('click', (e) => {
+        if (e.target === containerIngestao) {
+          colapsarIngestao();
+        }
+      });
+
+      // Fechar modal com a tecla Escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !containerIngestao.classList.contains('hidden')) {
+          colapsarIngestao();
+        }
+      });
 
       // Evento de clique para fechar o modal
       const btnFechar = document.getElementById('btn-fechar-modal-ingestao');
@@ -1510,9 +1527,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
       if (savedSupWidth) {
         const widthPx = parseInt(savedSupWidth);
-        const containerIngestao = document.getElementById('container-ingestao-arquivos');
         const containerReordenar = document.getElementById('container-reordenar-manual');
-        if (containerIngestao) containerIngestao.style.width = `${widthPx}px`;
         if (containerReordenar) containerReordenar.style.width = `${widthPx}px`;
       }
       const savedInfWidth = localStorage.getItem('gerencigeo_split_inf_width');
@@ -1545,7 +1560,6 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     const inicializarSplitters = () => {
       const splitterSup = document.getElementById('splitter-superior');
-      const containerIngestao = document.getElementById('container-ingestao-arquivos');
       const containerReordenar = document.getElementById('container-reordenar-manual');
       const gridSuperior = document.getElementById('grid-superior-detalhe');
 
@@ -1563,10 +1577,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           const deltaX = startX - e.clientX;
           const newWidthRight = Math.max(250, Math.min(rectGrid.width - 350, startWidthRight + deltaX));
 
-          if (containerIngestao && !containerIngestao.classList.contains('hidden') && !containerIngestao.classList.contains('ingestao-collapsed')) {
-            containerIngestao.style.width = `${newWidthRight}px`;
-            localStorage.setItem('gerencigeo_split_sup_width', `${newWidthRight}`);
-          }
           if (containerReordenar && !containerReordenar.classList.contains('hidden')) {
             containerReordenar.style.width = `${newWidthRight}px`;
             localStorage.setItem('gerencigeo_split_sup_width', `${newWidthRight}`);
@@ -1586,15 +1596,11 @@ export const mesaTrabalhoRoute: RouteDef = {
         };
 
         splitterSup.addEventListener('mousedown', (e: MouseEvent) => {
-          if (containerIngestao && containerIngestao.classList.contains('ingestao-collapsed')) return;
-
           e.preventDefault();
           isDraggingSup = true;
           startX = e.clientX;
 
-          const activePanel = (containerIngestao && !containerIngestao.classList.contains('hidden')) 
-            ? containerIngestao 
-            : containerReordenar;
+          const activePanel = containerReordenar;
 
           if (activePanel) {
             startWidthRight = activePanel.getBoundingClientRect().width;
