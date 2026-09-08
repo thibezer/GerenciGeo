@@ -85,6 +85,11 @@ export const copiarParaClipboard = async (texto: string, btnElement?: HTMLElemen
 export const isCnhVencida = (dataValidade?: string | null): boolean => {
   if (!dataValidade || !dataValidade.trim()) return false;
   try {
+    const cleanDate = dataValidade.trim().split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      return cleanDate < todayStr;
+    }
     const valDate = new Date(dataValidade);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

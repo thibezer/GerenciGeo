@@ -1,0 +1,27 @@
+Options -Indexes
+
+RewriteEngine On
+
+# Proteção padrão de builds Hostinger
+RewriteRule ^\.builds - [F,L]
+
+# Roteamento amigável de status e healthcheck
+RewriteRule ^status$ api.php?action=status [QSA,L]
+RewriteRule ^stats$ api.php?action=stats [QSA,L]
+RewriteRule ^dashboard/alerts$ api.php?action=alerts [QSA,L]
+RewriteRule ^dashboard/matriculas-geometrias$ api.php?action=matriculas-geometrias [QSA,L]
+
+# Cache Control
+<IfModule mod_headers.c>
+    # Assets com hash podem ter cache agressivo
+    <FilesMatch "\.(js|css|svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot)$">
+        Header set Cache-Control "max-age=31536000, public"
+    </FilesMatch>
+
+    # HTMLs nunca devem ser cacheados agressivamente para garantir atualizações imediatas
+    <FilesMatch "\.(html|htm)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
+</IfModule>

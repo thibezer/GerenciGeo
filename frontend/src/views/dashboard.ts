@@ -49,9 +49,9 @@ export const dashboardRoute: RouteDef = {
         const cli = document.getElementById('stat-clientes');
         const prop = document.getElementById('stat-prop');
         const prof = document.getElementById('stat-prof');
-        if (cli) cli.innerText = data.clientes.toString();
-        if (prop) prop.innerText = data.propriedades.toString();
-        if (prof) prof.innerText = data.profissionais.toString();
+        if (cli) cli.innerText = (data.clientes ?? 0).toString();
+        if (prop) prop.innerText = (data.propriedades ?? 0).toString();
+        if (prof) prof.innerText = (data.profissionais ?? 0).toString();
       })
       .catch(err => console.error("[Dashboard] Erro ao buscar stats:", err));
 
