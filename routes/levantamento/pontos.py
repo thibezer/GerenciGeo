@@ -307,7 +307,7 @@ async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/matriculas/{mid}/download-pdf")
-def download_matricula_pdf(mid: int):
+def download_matricula_pdf(mid: int, download: bool = False):
     try:
         row = execute_query("SELECT caminho_arquivo_pdf FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
         if not row or not row["caminho_arquivo_pdf"]:
@@ -317,8 +317,10 @@ def download_matricula_pdf(mid: int):
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
             
-        return FileResponse(path, filename=os.path.basename(path))
+        disposition = "attachment" if download else "inline"
+        return FileResponse(path, filename=os.path.basename(path), content_disposition_type=disposition)
     except Exception as e:
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/matriculas/{mid}/pdf")

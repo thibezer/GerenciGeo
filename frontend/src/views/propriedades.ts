@@ -252,10 +252,10 @@ export const propriedadesRoute: RouteDef = {
                       <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-car">
                          <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
                             <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant shrink-0"></i>
-                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-mint-vibrant font-bold" id="txt-anexo-car-nome">Arquivo</span>
+                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-mint-vibrant font-bold" id="txt-anexo-car-nome" title="Clique para abrir o documento">Arquivo</span>
                          </div>
                          <div class="flex gap-1 shrink-0">
-                            <button class="text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all cursor-pointer" id="btn-download-car" title="Download">
+                            <button class="text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all cursor-pointer" id="btn-download-car" title="Baixar arquivo">
                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
                             </button>
                             <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-car" title="Excluir CAR">
@@ -280,10 +280,10 @@ export const propriedadesRoute: RouteDef = {
                       <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-ccir">
                          <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
                             <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
-                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-blue-400 font-bold" id="txt-anexo-ccir-nome">Arquivo</span>
+                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-blue-400 font-bold" id="txt-anexo-ccir-nome" title="Clique para abrir o documento">Arquivo</span>
                          </div>
                          <div class="flex gap-1 shrink-0">
-                            <button class="text-blue-400 hover:text-white p-1 hover:bg-blue-500/20 rounded transition-all cursor-pointer" id="btn-download-ccir" title="Download">
+                            <button class="text-blue-400 hover:text-white p-1 hover:bg-blue-500/20 rounded transition-all cursor-pointer" id="btn-download-ccir" title="Baixar arquivo">
                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
                             </button>
                             <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-ccir" title="Excluir CCIR">
@@ -1060,15 +1060,18 @@ export const propriedadesRoute: RouteDef = {
           const parts = caminho.split(/[\\/]/);
           const filename = parts[parts.length - 1];
           textNome.innerText = filename;
+          textNome.title = "Clique para abrir o documento";
           
-          const openUrl = () => window.open(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/arquivo-${tipo}`, '_blank');
-          btnDownload.onclick = openUrl;
-          textNome.onclick = openUrl;
+          textNome.onclick = () => window.open(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/arquivo-${tipo}`, '_blank');
+          btnDownload.title = "Baixar arquivo";
+          btnDownload.onclick = () => window.open(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/arquivo-${tipo}?download=true`, '_blank');
        } else {
           dropzone.classList.remove('hidden');
           containerAnexo.classList.add('hidden');
           textNome.innerText = '';
+          textNome.title = '';
           textNome.onclick = null;
+          btnDownload.onclick = null;
        }
     };
 

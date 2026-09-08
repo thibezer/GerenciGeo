@@ -412,7 +412,7 @@ async def post_importar_identidade_pdf(cliente_id: int, request: Request, file: 
 
 @router.get("/clientes/{cliente_id}/documentos/{doc_id}/arquivo")
 @router.get("/api/clientes/{cliente_id}/documentos/{doc_id}/arquivo")
-def get_arquivo_documento_cliente(cliente_id: int, doc_id: int):
+def get_arquivo_documento_cliente(cliente_id: int, doc_id: int, download: bool = False):
     """
     Retorna o arquivo PDF anexado ao documento para visualização ou download no navegador.
     """
@@ -431,7 +431,8 @@ def get_arquivo_documento_cliente(cliente_id: int, doc_id: int):
         raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor.")
     
     filename = row["arquivo_nome"] or os.path.basename(file_path)
-    return FileResponse(file_path, media_type="application/pdf", filename=filename)
+    disposition = "attachment" if download else "inline"
+    return FileResponse(file_path, media_type="application/pdf", filename=filename, content_disposition_type=disposition)
 
 # ── Profissionais ─────────────────────────────────────────────────────────────
 

@@ -196,24 +196,26 @@ async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/propriedades/{prop_id}/arquivo-car")
-def download_propriedade_car(prop_id: int):
+def download_propriedade_car(prop_id: int, download: bool = False):
     row = execute_query("SELECT caminho_arquivo_car FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
     if not row or not row["caminho_arquivo_car"]:
         raise HTTPException(status_code=404, detail="Arquivo do CAR não cadastrado para esta propriedade.")
     path = Path(row["caminho_arquivo_car"])
     if not path.exists():
         raise HTTPException(status_code=404, detail="Arquivo do CAR físico não foi localizado no disco.")
-    return FileResponse(path, filename=path.name)
+    disposition = "attachment" if download else "inline"
+    return FileResponse(path, filename=path.name, content_disposition_type=disposition)
 
 @router.get("/propriedades/{prop_id}/arquivo-ccir")
-def download_propriedade_ccir(prop_id: int):
+def download_propriedade_ccir(prop_id: int, download: bool = False):
     row = execute_query("SELECT caminho_arquivo_ccir FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
     if not row or not row["caminho_arquivo_ccir"]:
         raise HTTPException(status_code=404, detail="Arquivo do CCIR não cadastrado para esta propriedade.")
     path = Path(row["caminho_arquivo_ccir"])
     if not path.exists():
         raise HTTPException(status_code=404, detail="Arquivo do CCIR físico não foi localizado no disco.")
-    return FileResponse(path, filename=path.name)
+    disposition = "attachment" if download else "inline"
+    return FileResponse(path, filename=path.name, content_disposition_type=disposition)
 
 @router.delete("/propriedades/{prop_id}/arquivo-car")
 def delete_propriedade_car(prop_id: int):
