@@ -346,3 +346,18 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   2. **Remoção Escopada de Segmentos**: Ao salvar os segmentos de uma planilha, a query de limpeza deve remover estritamente os segmentos pertencentes aos pontos daquela planilha/perímetro (`ponto_inicio_id IN (...) OR ponto_fim_id IN (...)`), sem apagar os segmentos das demais planilhas da mesma matrícula.
   3. **Agrupamento Composto no Mapa**: No frontend (`mapa_linhas.ts`), tanto `plotPolilinhaTemporaria` quanto `plotPoligonalHomologada` devem agrupar os vértices pela chave composta `matricula_id` + `arquivo_origem`/`planilha_origem` (`${matKey}___${origKey}`), garantindo que cada planilha/gleba trace seu próprio polígono fechado de forma independente.
 
+---
+
+## 21. Integridade de Builds no Hub Web Cloud (Hostinger) e Segurança de Proxy
+- **Problema**: 
+  1. O bundle compilado para a Hostinger falhava em produção com `Uncaught TypeError: Failed to resolve module specifier "ui-components-kit"` gerando tela preta. O navegador não suporta *bare imports* sem import map nativo quando pacotes externos não são resolvidos e embutidos diretamente pelo Rollup/Vite.
+  2. Chamadas de proxy WMS para o INCRA/SIGEF necessitam de proteção estrita para evitar vulnerabilidades de SSRF (Server-Side Request Forgery) no servidor Apache/LiteSpeed.
+- **Regra Obrigatória**:
+  1. Antes de publicar qualquer build para o servidor web remoto, assegurar via `npm run build` que o arquivo JS final gerado em `frontend/dist/assets/` não contenha declarações soltas de `import "nome-do-pacote";`. Todas as dependências compartilhadas devem ser embutidas no pacote estático.
+  2. O script `api.php` do servidor Hostinger atua como Hub Web Cloud seguro:
+     - Deve responder HTTP 200 no health check raiz e em `?action=status`.
+     - O endpoint `?action=proxy_sigef&url=...` deve validar rigorosamente via `parse_url()` que o protocolo é exclusivamente `https` e o host pertence à whitelist de domínios governamentais autorizados (`acervofundiario.incra.gov.br`, `sigef.incra.gov.br`, `servicodados.ibge.gov.br`), respondendo 403 para qualquer outro destino.
+     - O endpoint de gravação POST deve limitar o payload a 5MB e sanitizar estritamente o código do projeto (`[a-zA-Z0-9]`).
+  3. Manter na raiz de `public_html` o arquivo `.htaccess` com `Options -Indexes`, reescrita limpa para `/status` e regras de cache (imediato para HTML, com hash para assets).
+
+
