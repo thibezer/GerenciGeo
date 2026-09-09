@@ -64,7 +64,7 @@ function getDb(): PDO {
 }
 
 /**
- * Criação idempotente de tabelas se não existirem
+ * Criação e migração idempotente de tabelas
  */
 function ensureSchema(PDO $pdo): void {
     static $checked = false;
@@ -122,8 +122,7 @@ function ensureSchema(PDO $pdo): void {
             sexo VARCHAR(10) DEFAULT 'M',
             senha_gov VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE,
-            FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE SET NULL
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
         "CREATE TABLE IF NOT EXISTS cliente_documentos (
@@ -155,7 +154,10 @@ function ensureSchema(PDO $pdo): void {
 
         "CREATE TABLE IF NOT EXISTS propriedades (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            nome VARCHAR(255) NOT NULL,
+            nome VARCHAR(255) NULL,
+            nome_propriedade VARCHAR(255) NULL,
+            codigo_car VARCHAR(100),
+            codigo_ccir VARCHAR(100),
             municipio VARCHAR(100),
             comarca VARCHAR(100),
             uf VARCHAR(10) DEFAULT 'SP',
@@ -175,7 +177,8 @@ function ensureSchema(PDO $pdo): void {
         "CREATE TABLE IF NOT EXISTS matriculas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             propriedade_id INT NOT NULL,
-            numero VARCHAR(100) NOT NULL,
+            numero VARCHAR(100) NULL,
+            numero_matricula VARCHAR(100) NULL,
             livro VARCHAR(50),
             folha VARCHAR(50),
             cartorio VARCHAR(255),
@@ -203,8 +206,9 @@ function ensureSchema(PDO $pdo): void {
 
         "CREATE TABLE IF NOT EXISTS levantamentos (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            nome VARCHAR(255) NOT NULL,
+            nome VARCHAR(255) NULL,
             propriedade_id INT NULL,
+            profissional_id INT NULL,
             cliente_id INT NULL,
             responsavel_tecnico VARCHAR(255),
             status VARCHAR(50) DEFAULT 'EM_ANDAMENTO',
@@ -213,6 +217,9 @@ function ensureSchema(PDO $pdo): void {
             fuso_utm INT DEFAULT 22,
             meridiano_central INT DEFAULT -51,
             codigo_compartilhamento VARCHAR(64) UNIQUE,
+            pasta_projeto TEXT,
+            numero_trt VARCHAR(100),
+            data_trt VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
@@ -235,6 +242,7 @@ function ensureSchema(PDO $pdo): void {
             este DOUBLE NULL,
             norte DOUBLE NULL,
             altitude DOUBLE NULL,
+            alt DOUBLE NULL,
             sigma_x DOUBLE DEFAULT 0,
             sigma_y DOUBLE DEFAULT 0,
             sigma_z DOUBLE DEFAULT 0,
@@ -259,6 +267,7 @@ function ensureSchema(PDO $pdo): void {
             confrontante_nome VARCHAR(255),
             azimute VARCHAR(50),
             distancia DOUBLE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
@@ -285,6 +294,7 @@ function ensureSchema(PDO $pdo): void {
             cliente_id INT NULL,
             propriedade_id INT NULL,
             levantamento_id INT NULL,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             data_conclusao TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
@@ -299,10 +309,27 @@ function ensureSchema(PDO $pdo): void {
     foreach ($queries as $sql) {
         try {
             $pdo->exec($sql);
-        } catch (Exception $e) {
-            // Silencia caso tabela já exista
-        }
+        } catch (Exception $e) {}
     }
+
+    // Garante colunas de compatibilidade se a tabela já existia
+    $alters = [
+        "ALTER TABLE propriedades ADD COLUMN IF NOT EXISTS nome_propriedade VARCHAR(255) NULL;",
+        "ALTER TABLE propriedades ADD COLUMN IF NOT EXISTS nome VARCHAR(255) NULL;",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS numero_matricula VARCHAR(100) NULL;",
+        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS numero VARCHAR(100) NULL;",
+        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS pasta_projeto TEXT;",
+        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS numero_trt VARCHAR(100);",
+        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS data_trt VARCHAR(50);",
+        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS nome VARCHAR(255) NULL;",
+        "ALTER TABLE pontos ADD COLUMN IF NOT EXISTS alt DOUBLE NULL;",
+        "ALTER TABLE pontos ADD COLUMN IF NOT EXISTS altitude DOUBLE NULL;",
+        "ALTER TABLE pendencias ADD COLUMN IF NOT EXISTS data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
+    ];
+    foreach ($alters as $sql) {
+        try { $pdo->exec($sql); } catch (Exception $e) {}
+    }
+
     $checked = true;
 }
 
@@ -394,7 +421,7 @@ if ($route === '/stats' || (isset($_GET['action']) && $_GET['action'] === 'stats
 // 3. Alertas do Dashboard
 if ($route === '/dashboard/alerts' || (isset($_GET['action']) && $_GET['action'] === 'alerts')) {
     $pdo = getDb();
-    $stmt = $pdo->query("SELECT * FROM pendencias WHERE status = 'PENDENTE' ORDER BY prazo ASC LIMIT 10");
+    $stmt = $pdo->query("SELECT * FROM pendencias WHERE status = 'PENDENTE' ORDER BY prazo ASC, id DESC LIMIT 10");
     $alerts = [];
     while ($row = $stmt->fetch()) {
         $alerts[] = [
@@ -410,7 +437,7 @@ if ($route === '/dashboard/alerts' || (isset($_GET['action']) && $_GET['action']
 // 4. Geometrias das Matrículas para o Mapa Geral
 if ($route === '/dashboard/matriculas-geometrias' || (isset($_GET['action']) && $_GET['action'] === 'matriculas-geometrias')) {
     $pdo = getDb();
-    $stmt = $pdo->query("SELECT p.id, p.nome_vertice, p.lat, p.lon, p.este, p.norte, p.matricula_id FROM pontos p WHERE p.lat IS NOT NULL AND p.lon IS NOT NULL LIMIT 500");
+    $stmt = $pdo->query("SELECT p.id, p.nome_vertice, COALESCE(p.lat, p.lat_corrigido) as lat, COALESCE(p.lon, p.lon_corrigido) as lon, COALESCE(p.este, p.e_original) as este, COALESCE(p.norte, p.n_original) as norte, p.matricula_id FROM pontos p WHERE (p.lat IS NOT NULL OR p.lat_corrigido IS NOT NULL) LIMIT 500");
     jsonResponse($stmt->fetchAll());
 }
 
@@ -461,7 +488,7 @@ if (isset($_GET['codigo']) && $method === 'GET') {
         $stmt->execute([$codigo]);
         $lev = $stmt->fetch();
         if ($lev) {
-            $stmtPts = $pdo->prepare("SELECT * FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento ASC");
+            $stmtPts = $pdo->prepare("SELECT *, COALESCE(lat, lat_corrigido) as lat, COALESCE(lon, lon_corrigido) as lon, COALESCE(alt, altitude) as alt FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento ASC");
             $stmtPts->execute([$lev['id']]);
             $pontos = $stmtPts->fetchAll();
 
@@ -655,7 +682,7 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
 
     // GET /propriedades/{id}/matriculas
     if ($method === 'GET' && $propId && $subResource === 'matriculas') {
-        $stmt = $pdo->prepare("SELECT * FROM matriculas WHERE propriedade_id = ? ORDER BY id ASC");
+        $stmt = $pdo->prepare("SELECT *, COALESCE(numero, numero_matricula) as numero, COALESCE(numero_matricula, numero) as numero_matricula FROM matriculas WHERE propriedade_id = ? ORDER BY id ASC");
         $stmt->execute([$propId]);
         jsonResponse($stmt->fetchAll());
     }
@@ -663,11 +690,12 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
     // POST /propriedades/{id}/matriculas
     if ($method === 'POST' && $propId && $subResource === 'matriculas') {
         $input = getJsonInput();
-        $numero = trim($input['numero'] ?? '');
+        $numero = trim($input['numero'] ?? ($input['numero_matricula'] ?? ''));
         $area = (float)($input['area_registrada_ha'] ?? ($input['area_ha'] ?? 0));
-        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $propId,
+            $numero,
             $numero,
             $input['livro'] ?? null,
             $input['folha'] ?? null,
@@ -707,10 +735,10 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
 
     // GET /propriedades
     if ($method === 'GET' && !$propId) {
-        $sql = "SELECT p.*,
+        $sql = "SELECT p.*, COALESCE(p.nome, p.nome_propriedade) as nome, COALESCE(p.nome_propriedade, p.nome) as nome_propriedade,
                        (SELECT COUNT(*) FROM matriculas m WHERE m.propriedade_id = p.id) as total_matriculas,
                        (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.propriedade_id = p.id) as total_proprietarios
-                FROM propriedades p ORDER BY p.nome ASC";
+                FROM propriedades p ORDER BY p.id DESC";
         $stmt = $pdo->query($sql);
         jsonResponse($stmt->fetchAll());
     }
@@ -718,11 +746,12 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
     // POST /propriedades
     if ($method === 'POST' && !$propId) {
         $input = getJsonInput();
-        $nome = trim($input['nome'] ?? '');
+        $nome = trim($input['nome'] ?? ($input['nome_propriedade'] ?? ''));
         if (empty($nome)) jsonResponse(['error' => 'Nome do imóvel é obrigatório.'], 400);
 
-        $stmt = $pdo->prepare("INSERT INTO propriedades (nome, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO propriedades (nome, nome_propriedade, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([
+            $nome,
             $nome,
             $input['municipio'] ?? null,
             $input['comarca'] ?? null,
@@ -735,9 +764,11 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
     // PUT /propriedades/{id}
     if ($method === 'PUT' && $propId) {
         $input = getJsonInput();
-        $stmt = $pdo->prepare("UPDATE propriedades SET nome = COALESCE(?, nome), municipio = COALESCE(?, municipio), comarca = COALESCE(?, comarca), uf = COALESCE(?, uf), area_total_ha = COALESCE(?, area_total_ha) WHERE id = ?");
+        $nome = $input['nome'] ?? ($input['nome_propriedade'] ?? null);
+        $stmt = $pdo->prepare("UPDATE propriedades SET nome = COALESCE(?, nome), nome_propriedade = COALESCE(?, nome_propriedade), municipio = COALESCE(?, municipio), comarca = COALESCE(?, comarca), uf = COALESCE(?, uf), area_total_ha = COALESCE(?, area_total_ha) WHERE id = ?");
         $stmt->execute([
-            $input['nome'] ?? null,
+            $nome,
+            $nome,
             $input['municipio'] ?? null,
             $input['comarca'] ?? null,
             $input['uf'] ?? null,
@@ -768,9 +799,11 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
 
     if ($method === 'PUT' && !$action) {
         $input = getJsonInput();
-        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), denominacao = COALESCE(?, denominacao) WHERE id = ?");
+        $num = $input['numero'] ?? ($input['numero_matricula'] ?? null);
+        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), numero_matricula = COALESCE(?, numero_matricula), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), denominacao = COALESCE(?, denominacao) WHERE id = ?");
         $stmt->execute([
-            $input['numero'] ?? null,
+            $num,
+            $num,
             $input['livro'] ?? null,
             $input['folha'] ?? null,
             $input['cartorio'] ?? null,
@@ -798,7 +831,7 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos/{id}/pontos
     if ($method === 'GET' && $levId && $action === 'pontos') {
-        $stmt = $pdo->prepare("SELECT * FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento ASC, id ASC");
+        $stmt = $pdo->prepare("SELECT *, COALESCE(lat, lat_corrigido) as lat, COALESCE(lon, lon_corrigido) as lon, COALESCE(alt, altitude) as alt, COALESCE(este, e_original) as este, COALESCE(norte, n_original) as norte FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento ASC, id ASC");
         $stmt->execute([$levId]);
         jsonResponse($stmt->fetchAll());
     }
@@ -819,7 +852,7 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos/{id}/matriculas
     if ($method === 'GET' && $levId && $action === 'matriculas') {
-        $stmt = $pdo->prepare("SELECT m.* FROM matriculas m JOIN levantamento_matriculas lm ON m.id = lm.matricula_id WHERE lm.levantamento_id = ?");
+        $stmt = $pdo->prepare("SELECT m.*, COALESCE(m.numero, m.numero_matricula) as numero FROM matriculas m JOIN levantamento_matriculas lm ON m.id = lm.matricula_id WHERE lm.levantamento_id = ?");
         $stmt->execute([$levId]);
         jsonResponse($stmt->fetchAll());
     }
@@ -834,7 +867,8 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos
     if ($method === 'GET' && !$levId) {
-        $sql = "SELECT l.*, prop.nome as propriedade_nome, p.nome as cliente_nome,
+        $sql = "SELECT l.*, COALESCE(l.nome, prop.nome_propriedade, prop.nome, CONCAT('Levantamento #', l.id)) as nome,
+                       COALESCE(prop.nome, prop.nome_propriedade) as propriedade_nome, p.nome as cliente_nome,
                        (SELECT COUNT(*) FROM pontos pt WHERE pt.levantamento_id = l.id) as total_pontos
                 FROM levantamentos l
                 LEFT JOIN propriedades prop ON l.propriedade_id = prop.id
@@ -847,7 +881,7 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos/{id}
     if ($method === 'GET' && $levId && !$action) {
-        $stmt = $pdo->prepare("SELECT * FROM levantamentos WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT l.*, COALESCE(l.nome, CONCAT('Levantamento #', l.id)) as nome FROM levantamentos WHERE id = ?");
         $stmt->execute([$levId]);
         $lev = $stmt->fetch();
         if (!$lev) jsonResponse(['error' => 'Levantamento não encontrado.'], 404);
@@ -987,21 +1021,23 @@ if ($route === '/sync/batch' && $method === 'POST') {
         }
         // Propriedades
         if (!empty($data['propriedades'])) {
-            $stmt = $pdo->prepare("INSERT INTO propriedades (id, nome, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), municipio=VALUES(municipio), area_total_ha=VALUES(area_total_ha)");
+            $stmt = $pdo->prepare("INSERT INTO propriedades (id, nome, nome_propriedade, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), nome_propriedade=VALUES(nome_propriedade), municipio=VALUES(municipio), area_total_ha=VALUES(area_total_ha)");
             foreach ($data['propriedades'] as $r) {
+                $nome = $r['nome_propriedade'] ?? ($r['nome'] ?? 'Sem Nome');
                 $stmt->execute([
-                    $r['id'], $r['nome'], $r['municipio'] ?? null, $r['comarca'] ?? null,
+                    $r['id'], $nome, $nome, $r['municipio'] ?? null, $r['comarca'] ?? null,
                     $r['uf'] ?? 'SP', (float)($r['area_total_ha'] ?? 0)
                 ]);
             }
         }
         // Matrículas
         if (!empty($data['matriculas'])) {
-            $stmt = $pdo->prepare("INSERT INTO matriculas (id, propriedade_id, numero, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE numero=VALUES(numero), area_ha=VALUES(area_ha)");
+            $stmt = $pdo->prepare("INSERT INTO matriculas (id, propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE numero=VALUES(numero), numero_matricula=VALUES(numero_matricula), area_ha=VALUES(area_ha)");
             foreach ($data['matriculas'] as $r) {
+                $num = $r['numero_matricula'] ?? ($r['numero'] ?? 'S/N');
                 $stmt->execute([
-                    $r['id'], $r['propriedade_id'], $r['numero'], $r['livro'] ?? null,
-                    $r['folha'] ?? null, $r['cartorio'] ?? null, (float)($r['area_ha'] ?? 0),
+                    $r['id'], $r['propriedade_id'], $num, $num, $r['livro'] ?? ($r['livro_registro'] ?? null),
+                    $r['folha'] ?? ($r['folha_registro'] ?? null), $r['cartorio'] ?? ($r['cri_comarca'] ?? null), (float)($r['area_ha'] ?? 0),
                     (float)($r['perimetro_m'] ?? 0), $r['ccir'] ?? null, $r['itr'] ?? null,
                     $r['denominacao'] ?? null
                 ]);
@@ -1009,25 +1045,32 @@ if ($route === '/sync/batch' && $method === 'POST') {
         }
         // Levantamentos
         if (!empty($data['levantamentos'])) {
-            $stmt = $pdo->prepare("INSERT INTO levantamentos (id, nome, propriedade_id, cliente_id, responsavel_tecnico, status, tipo_levantamento, fuso_utm, codigo_compartilhamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), status=VALUES(status)");
+            $stmt = $pdo->prepare("INSERT INTO levantamentos (id, nome, propriedade_id, profissional_id, cliente_id, responsavel_tecnico, status, tipo_levantamento, fuso_utm, codigo_compartilhamento, pasta_projeto, numero_trt, data_trt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status=VALUES(status)");
             foreach ($data['levantamentos'] as $r) {
+                $nome = $r['nome'] ?? ('Levantamento #' . $r['id']);
                 $stmt->execute([
-                    $r['id'], $r['nome'], $r['propriedade_id'] ?? null, $r['cliente_id'] ?? null,
+                    $r['id'], $nome, $r['propriedade_id'] ?? null, $r['profissional_id'] ?? null, $r['cliente_id'] ?? null,
                     $r['responsavel_tecnico'] ?? null, $r['status'] ?? 'EM_ANDAMENTO',
                     $r['tipo_levantamento'] ?? 'GEORREFERENCIAMENTO', (int)($r['fuso_utm'] ?? 22),
-                    $r['codigo_compartilhamento'] ?? null
+                    $r['codigo_compartilhamento'] ?? null, $r['pasta_projeto'] ?? null,
+                    $r['numero_trt'] ?? null, $r['data_trt'] ?? null
                 ]);
             }
         }
         // Pontos
         if (!empty($data['pontos'])) {
-            $stmt = $pdo->prepare("INSERT INTO pontos (id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, este, norte, altitude, ordem_caminhamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lat=VALUES(lat), lon=VALUES(lon), este=VALUES(este), norte=VALUES(norte)");
+            $stmt = $pdo->prepare("INSERT INTO pontos (id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, este, norte, altitude, alt, ordem_caminhamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lat=VALUES(lat), lon=VALUES(lon), este=VALUES(este), norte=VALUES(norte)");
             foreach ($data['pontos'] as $r) {
+                $lat = $r['lat_corrigido'] ?? ($r['lat'] ?? null);
+                $lon = $r['lon_corrigido'] ?? ($r['lon'] ?? null);
+                $alt = $r['alt_corrigido'] ?? ($r['alt'] ?? null);
+                $este = $r['e_original'] ?? ($r['este'] ?? null);
+                $norte = $r['n_original'] ?? ($r['norte'] ?? null);
                 $stmt->execute([
                     $r['id'], $r['levantamento_id'], $r['matricula_id'] ?? null,
-                    $r['nome_vertice'], $r['tipo_ponto'] ?? 'M', $r['lat'] ?? null,
-                    $r['lon'] ?? null, $r['este'] ?? null, $r['norte'] ?? null,
-                    $r['altitude'] ?? null, (int)($r['ordem_caminhamento'] ?? 0)
+                    $r['nome_vertice'], $r['tipo_ponto'] ?? 'M', $lat,
+                    $lon, $este, $norte,
+                    $alt, $alt, (int)($r['ordem_caminhamento'] ?? 0)
                 ]);
             }
         }
@@ -1037,7 +1080,7 @@ if ($route === '/sync/batch' && $method === 'POST') {
             foreach ($data['segmentos'] as $r) {
                 $stmt->execute([
                     $r['id'], $r['levantamento_id'], $r['matricula_id'] ?? null,
-                    $r['ponto_inicio_id'], $r['ponto_fim_id'], $r['tipo_limite'] ?? 'Linha Seca',
+                    $r['ponto_inicio_id'], $r['ponto_fim_id'], $r['tipo_limite'] ?? ($r['tipo_limite_sigef'] ?? 'Linha Seca'),
                     $r['tipo_limite_sigef'] ?? 'LA1', $r['azimute'] ?? null, (float)($r['distancia'] ?? 0)
                 ]);
             }
@@ -1048,7 +1091,7 @@ if ($route === '/sync/batch' && $method === 'POST') {
             foreach ($data['pendencias'] as $r) {
                 $stmt->execute([
                     $r['id'], $r['titulo'], $r['descricao'] ?? null,
-                    $r['prioridade'] ?? 'MEDIA', $r['status'] ?? 'PENDENTE', $r['prazo'] ?? null
+                    $r['prioridade'] ?? 'MEDIA', $r['status'] ?? 'PENDENTE', $r['prazo'] ?? ($r['data_criacao'] ?? null)
                 ]);
             }
         }

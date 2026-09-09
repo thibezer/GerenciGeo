@@ -68,7 +68,7 @@ def main():
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req, timeout=60) as response:
             res_body = response.read().decode('utf-8')
             print(f"\n[Sucesso HTTP {response.status}] {res_body}")
             print("\nBase de dados sincronizada na nuvem com sucesso!")
