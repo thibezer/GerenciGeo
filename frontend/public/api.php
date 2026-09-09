@@ -958,6 +958,7 @@ if ($route === '/sync/batch' && $method === 'POST') {
     }
 
     $data = $input['data'];
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
     $pdo->beginTransaction();
     try {
         // Pessoas
@@ -1062,9 +1063,11 @@ if ($route === '/sync/batch' && $method === 'POST') {
             }
         }
         $pdo->commit();
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
         jsonResponse(['message' => 'Dados sincronizados com o MySQL com sucesso!']);
     } catch (Exception $e) {
         $pdo->rollBack();
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
         jsonResponse(['error' => 'Falha na sincronização em lote: ' . $e->getMessage()], 500);
     }
 }
