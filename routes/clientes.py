@@ -47,7 +47,8 @@ class DocumentoCreate(BaseModel):
     observacoes: Optional[str] = None
 
 class ClienteCreate(BaseModel):
-    nome_completo: str
+    nome_completo: Optional[str] = None
+    nome: Optional[str] = None
     cpf_cnpj: str
     rg_ie: Optional[str] = None
     data_nascimento_fundacao: Optional[str] = None
@@ -148,7 +149,12 @@ def concluir_pendencia(item_id: int):
 @router.post("/clientes")
 @router.post("/api/clientes")
 def create_cliente(cli: ClienteCreate):
-    res = cadastrar_cliente(cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
+    data = cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict()
+    if not data.get("nome_completo") and data.get("nome"):
+        data["nome_completo"] = data["nome"]
+    if not data.get("nome_completo") and not data.get("razao_social"):
+        raise HTTPException(status_code=400, detail="Nome do cliente é obrigatório.")
+    res = cadastrar_cliente(data)
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
@@ -331,7 +337,10 @@ def delete_clientes_lote(payload: ClientesLoteDelete):
 @router.put("/clientes/{cliente_id}")
 @router.put("/api/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
-    res = atualizar_cliente(cliente_id, cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict())
+    data = cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict()
+    if not data.get("nome_completo") and data.get("nome"):
+        data["nome_completo"] = data["nome"]
+    res = atualizar_cliente(cliente_id, data)
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res

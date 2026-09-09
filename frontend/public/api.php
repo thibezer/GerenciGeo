@@ -390,6 +390,7 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'bairro', "VARCHAR(100) NULL");
     addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
 
     $checked = true;
 }
@@ -760,17 +761,34 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     // POST /clientes
     if ($method === 'POST' && !$id) {
         $input = getJsonInput();
-        $nome = trim($input['nome'] ?? '');
+        $nome = trim((string)($input['nome_completo'] ?? $input['nome'] ?? $input['razao_social'] ?? ''));
         if (empty($nome)) jsonResponse(['error' => 'Nome do cliente é obrigatório.'], 400);
 
         $pdo->beginTransaction();
         try {
-            $stmtP = $pdo->prepare("INSERT INTO pessoas (nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $tipoPessoa = $input['tipo_pessoa'] ?? 'PF';
+            $razaoSocial = $tipoPessoa === 'PJ' ? ($input['razao_social'] ?? $nome) : ($input['razao_social'] ?? null);
+
+            $stmtP = $pdo->prepare("INSERT INTO pessoas (
+                nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo,
+                nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
+                tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
+                cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
+                rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
+                bairro, endereco_sem_numero, numero_endereco
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?
+            )");
             $stmtP->execute([
                 $nome,
                 $input['cpf_cnpj'] ?? null,
-                $input['rg'] ?? null,
-                $input['genero'] ?? 'M',
+                $input['rg'] ?? $input['rg_ie'] ?? null,
+                $input['genero'] ?? $input['sexo'] ?? 'M',
                 $input['nacionalidade'] ?? 'brasileiro(a)',
                 $input['profissao'] ?? null,
                 $input['estado_civil'] ?? null,
@@ -781,12 +799,36 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 $input['rg_conjuge'] ?? null,
                 $input['genero_conjuge'] ?? null,
                 $input['nacionalidade_conjuge'] ?? null,
-                $input['profissao_conjuge'] ?? null
+                $input['profissao_conjuge'] ?? null,
+                $tipoPessoa,
+                $razaoSocial,
+                $input['nome_fantasia'] ?? null,
+                $input['inscricao_estadual'] ?? null,
+                $input['inscricao_municipal'] ?? null,
+                !empty($input['representante_legal_id']) ? (int)$input['representante_legal_id'] : null,
+                $input['cnh_numero'] ?? null,
+                $input['cnh_categoria'] ?? null,
+                $input['cnh_validade'] ?? null,
+                $input['cnh_orgao_uf'] ?? null,
+                $input['rg_orgao'] ?? null,
+                $input['rg_uf'] ?? null,
+                $input['naturalidade'] ?? null,
+                $input['certidao_casamento_matricula'] ?? null,
+                $input['rg_orgao_conjuge'] ?? null,
+                $input['rg_uf_conjuge'] ?? null,
+                $input['data_casamento'] ?? null,
+                $input['cartorio_casamento'] ?? null,
+                $input['livro_casamento'] ?? null,
+                $input['folha_casamento'] ?? null,
+                $input['termo_casamento'] ?? null,
+                $input['bairro'] ?? null,
+                $input['endereco_sem_numero'] ?? null,
+                $input['numero_endereco'] ?? null
             ]);
             $pessoaId = (int)$pdo->lastInsertId();
 
             $senhaCifrada = !empty($input['senha_gov']) ? encryptGovPassword($input['senha_gov']) : null;
-            $stmtC = $pdo->prepare("INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmtC = $pdo->prepare("INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov, metadados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmtC->execute([
                 $pessoaId,
                 $input['profissional_id'] ?? null,
@@ -797,7 +839,8 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 $input['estado'] ?? null,
                 $input['cep'] ?? null,
                 $input['sexo'] ?? ($input['genero'] ?? 'M'),
-                $senhaCifrada
+                $senhaCifrada,
+                !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null
             ]);
             $clienteId = (int)$pdo->lastInsertId();
             $pdo->commit();
@@ -817,14 +860,56 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
         if (!$row) jsonResponse(['error' => 'Cliente não encontrado.'], 404);
         $pessoaId = $row['pessoa_id'];
 
+        $nome = trim((string)($input['nome_completo'] ?? $input['nome'] ?? $input['razao_social'] ?? ''));
+
         $pdo->beginTransaction();
         try {
-            $stmtP = $pdo->prepare("UPDATE pessoas SET nome = COALESCE(?, nome), cpf_cnpj = COALESCE(?, cpf_cnpj), rg = COALESCE(?, rg), genero = COALESCE(?, genero), nacionalidade = COALESCE(?, nacionalidade), profissao = COALESCE(?, profissao), estado_civil = COALESCE(?, estado_civil), regime_bens = COALESCE(?, regime_bens), endereco_completo = COALESCE(?, endereco_completo), nome_conjuge = COALESCE(?, nome_conjuge), cpf_conjuge = COALESCE(?, cpf_conjuge) WHERE id = ?");
+            $stmtP = $pdo->prepare("UPDATE pessoas SET
+                nome = COALESCE(?, nome),
+                cpf_cnpj = COALESCE(?, cpf_cnpj),
+                rg = COALESCE(?, rg),
+                genero = COALESCE(?, genero),
+                nacionalidade = COALESCE(?, nacionalidade),
+                profissao = COALESCE(?, profissao),
+                estado_civil = COALESCE(?, estado_civil),
+                regime_bens = COALESCE(?, regime_bens),
+                endereco_completo = COALESCE(?, endereco_completo),
+                nome_conjuge = COALESCE(?, nome_conjuge),
+                cpf_conjuge = COALESCE(?, cpf_conjuge),
+                rg_conjuge = COALESCE(?, rg_conjuge),
+                genero_conjuge = COALESCE(?, genero_conjuge),
+                nacionalidade_conjuge = COALESCE(?, nacionalidade_conjuge),
+                profissao_conjuge = COALESCE(?, profissao_conjuge),
+                tipo_pessoa = COALESCE(?, tipo_pessoa),
+                razao_social = COALESCE(?, razao_social),
+                nome_fantasia = COALESCE(?, nome_fantasia),
+                inscricao_estadual = COALESCE(?, inscricao_estadual),
+                inscricao_municipal = COALESCE(?, inscricao_municipal),
+                representante_legal_id = COALESCE(?, representante_legal_id),
+                cnh_numero = COALESCE(?, cnh_numero),
+                cnh_categoria = COALESCE(?, cnh_categoria),
+                cnh_validade = COALESCE(?, cnh_validade),
+                cnh_orgao_uf = COALESCE(?, cnh_orgao_uf),
+                rg_orgao = COALESCE(?, rg_orgao),
+                rg_uf = COALESCE(?, rg_uf),
+                naturalidade = COALESCE(?, naturalidade),
+                certidao_casamento_matricula = COALESCE(?, certidao_casamento_matricula),
+                rg_orgao_conjuge = COALESCE(?, rg_orgao_conjuge),
+                rg_uf_conjuge = COALESCE(?, rg_uf_conjuge),
+                data_casamento = COALESCE(?, data_casamento),
+                cartorio_casamento = COALESCE(?, cartorio_casamento),
+                livro_casamento = COALESCE(?, livro_casamento),
+                folha_casamento = COALESCE(?, folha_casamento),
+                termo_casamento = COALESCE(?, termo_casamento),
+                bairro = COALESCE(?, bairro),
+                endereco_sem_numero = COALESCE(?, endereco_sem_numero),
+                numero_endereco = COALESCE(?, numero_endereco)
+                WHERE id = ?");
             $stmtP->execute([
-                $input['nome'] ?? null,
+                $nome !== '' ? $nome : null,
                 $input['cpf_cnpj'] ?? null,
-                $input['rg'] ?? null,
-                $input['genero'] ?? null,
+                $input['rg'] ?? $input['rg_ie'] ?? null,
+                $input['genero'] ?? $input['sexo'] ?? null,
                 $input['nacionalidade'] ?? null,
                 $input['profissao'] ?? null,
                 $input['estado_civil'] ?? null,
@@ -832,6 +917,34 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 $input['endereco_completo'] ?? null,
                 $input['nome_conjuge'] ?? null,
                 $input['cpf_conjuge'] ?? null,
+                $input['rg_conjuge'] ?? null,
+                $input['genero_conjuge'] ?? null,
+                $input['nacionalidade_conjuge'] ?? null,
+                $input['profissao_conjuge'] ?? null,
+                $input['tipo_pessoa'] ?? null,
+                $input['razao_social'] ?? null,
+                $input['nome_fantasia'] ?? null,
+                $input['inscricao_estadual'] ?? null,
+                $input['inscricao_municipal'] ?? null,
+                isset($input['representante_legal_id']) ? (int)$input['representante_legal_id'] : null,
+                $input['cnh_numero'] ?? null,
+                $input['cnh_categoria'] ?? null,
+                $input['cnh_validade'] ?? null,
+                $input['cnh_orgao_uf'] ?? null,
+                $input['rg_orgao'] ?? null,
+                $input['rg_uf'] ?? null,
+                $input['naturalidade'] ?? null,
+                $input['certidao_casamento_matricula'] ?? null,
+                $input['rg_orgao_conjuge'] ?? null,
+                $input['rg_uf_conjuge'] ?? null,
+                $input['data_casamento'] ?? null,
+                $input['cartorio_casamento'] ?? null,
+                $input['livro_casamento'] ?? null,
+                $input['folha_casamento'] ?? null,
+                $input['termo_casamento'] ?? null,
+                $input['bairro'] ?? null,
+                $input['endereco_sem_numero'] ?? null,
+                $input['numero_endereco'] ?? null,
                 $pessoaId
             ]);
 
@@ -841,12 +954,14 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 $input['cidade'] ?? null,
                 $input['estado'] ?? null,
                 $input['cep'] ?? null,
+                $input['data_nascimento_fundacao'] ?? null,
+                !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null,
                 $id
             ];
-            $sqlUp = "UPDATE clientes SET email = COALESCE(?, email), telefone = COALESCE(?, telefone), cidade = COALESCE(?, cidade), estado = COALESCE(?, estado), cep = COALESCE(?, cep)";
+            $sqlUp = "UPDATE clientes SET email = COALESCE(?, email), telefone = COALESCE(?, telefone), cidade = COALESCE(?, cidade), estado = COALESCE(?, estado), cep = COALESCE(?, cep), data_nascimento_fundacao = COALESCE(?, data_nascimento_fundacao), metadados = COALESCE(?, metadados)";
             if (!empty($input['senha_gov']) && $input['senha_gov'] !== '••••••••') {
                 $sqlUp .= ", senha_gov = ?";
-                array_splice($params, 5, 0, [encryptGovPassword($input['senha_gov'])]);
+                array_splice($params, 7, 0, [encryptGovPassword($input['senha_gov'])]);
             }
             $sqlUp .= " WHERE id = ?";
             $pdo->prepare($sqlUp)->execute($params);

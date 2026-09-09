@@ -17,6 +17,8 @@ frontend/out/
 
 # Banco de Dados SQLite local
 *.db
+*.db-shm
+*.db-wal
 *.db.backup
 gerencigeo.db
 gerencigeo.db.backup

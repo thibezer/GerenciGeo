@@ -1261,9 +1261,15 @@ export const clientesRoute: RouteDef = {
       const tipoPessoa = (rawPayload.tipo_pessoa as 'PF' | 'PJ') || 'PF';
       const isPj = tipoPessoa === 'PJ';
 
-      const nomeCompleto = isPj 
-        ? (rawPayload.razao_social || rawPayload.nome_completo || '').trim()
-        : (rawPayload.nome_completo || '').trim();
+      const nomeInputVal = (inputNomeCompleto as any)?.value || (form?.querySelector<any>('#input-nome-completo'))?.value || '';
+      const razaoInputVal = (inputRazaoSocial as any)?.value || (form?.querySelector<any>('#input-razao-social'))?.value || '';
+
+      const nomeCompleto = (isPj 
+        ? (rawPayload.razao_social || razaoInputVal || rawPayload.nome_completo || nomeInputVal || '')
+        : (rawPayload.nome_completo || nomeInputVal || '')
+      ).trim();
+
+      const cpfCnpjVal = (rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || (form?.querySelector<any>('#input-cpf-cnpj'))?.value || '').trim();
 
       const enderecoSemNumero = rawPayload.endereco_sem_numero || '';
       const numero = rawPayload.numero_endereco || '';
@@ -1277,8 +1283,9 @@ export const clientesRoute: RouteDef = {
       const representanteId = !isNaN(representanteIdRaw as number) ? representanteIdRaw : null;
 
       const payload: ClientePayload = {
+        nome: nomeCompleto,
         nome_completo: nomeCompleto,
-        cpf_cnpj: rawPayload.cpf_cnpj || '',
+        cpf_cnpj: cpfCnpjVal,
         rg_ie: isPj ? (rawPayload.inscricao_estadual || rawPayload.rg_ie || null) : (rawPayload.rg_ie || null),
         data_nascimento_fundacao: dataNascFundacao,
         estado_civil: rawPayload.estado_civil || null,

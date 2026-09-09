@@ -47,6 +47,10 @@
 **Learning:** Na importação em lote de planilhas ODS/CSV, associar múltiplas planilhas/abas à mesma matrícula agrupava todos os vértices em uma única lista contínua, concatenando nomes de arquivo e conectando o último ponto de uma planilha ao primeiro da outra, gerando um perímetro fundido e distorcido. No Leaflet, o agrupamento considerava apenas `matricula_id`, fechando uma única polilinha para todas as planilhas.
 **Action:** O pipeline de importação agora processa e persiste cada planilha/aba como um perímetro independente (`nome_planilha`), gerando segmentos fechados isolados para cada polígono. No Leaflet (`mapa_linhas.ts`), as polilinhas temporárias e homologadas agrupam os pontos pela chave composta `matricula_id` + `arquivo_origem`/`planilha_origem`, renderizando cada perímetro separadamente.
 
+## 2026-09-09 - Paridade de campos e validação de nome em cadastro de clientes (Hostinger Cloud e Local)
+**Learning:** O frontend enviava `nome_completo` no payload de salvamento de cliente, mas o backend PHP (`api.php`) no servidor Hostinger checava estritamente `$input['nome']`, disparando erro 400 informando que o nome era obrigatório mesmo com o campo preenchido.
+**Action:** Implementado payload com chaves duplas (`nome` e `nome_completo`) com fallbacks diretos para a propriedade `value` dos Web Components na view, validação flexível com coalescência nos backends (`api.php` e `routes/clientes.py`), e suporte a todos os campos estendidos de cadastro nas queries de inserção e atualização.
+
 
 
 

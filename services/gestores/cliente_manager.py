@@ -335,7 +335,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     Sanitiza e valida os dados de um novo cliente (PF ou PJ).
     Efetua o cadastro atômico no banco de dados, criptografa senha GOV e salva metadados e documentos.
     """
-    nome_completo = cli_data.get("nome_completo")
+    nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")
     cpf_cnpj = cli_data.get("cpf_cnpj")
     rg_ie = cli_data.get("rg_ie")
     data_nascimento_fundacao = cli_data.get("data_nascimento_fundacao")
@@ -537,7 +537,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     Sanitiza, valida e atualiza os dados do cliente no banco (PF ou PJ).
     Registra histórico de auditoria comparativo e sincroniza workspaces de levantamentos ativos.
     """
-    nome_completo = cli_data.get("nome_completo")
+    nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")
     cpf_cnpj = cli_data.get("cpf_cnpj")
     rg_ie = cli_data.get("rg_ie")
     data_nascimento_fundacao = cli_data.get("data_nascimento_fundacao")
