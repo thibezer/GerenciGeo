@@ -1269,7 +1269,8 @@ export const clientesRoute: RouteDef = {
         : (rawPayload.nome_completo || nomeInputVal || '')
       ).trim();
 
-      const cpfCnpjVal = (rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || (form?.querySelector<any>('#input-cpf-cnpj'))?.value || '').trim();
+      const cpfCnpjRaw = (rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || (form?.querySelector<any>('#input-cpf-cnpj'))?.value || '').trim();
+      const cpfCnpjVal = cpfCnpjRaw !== '' ? cpfCnpjRaw : null;
 
       const enderecoSemNumero = rawPayload.endereco_sem_numero || '';
       const numero = rawPayload.numero_endereco || '';

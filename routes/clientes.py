@@ -49,7 +49,7 @@ class DocumentoCreate(BaseModel):
 class ClienteCreate(BaseModel):
     nome_completo: Optional[str] = None
     nome: Optional[str] = None
-    cpf_cnpj: str
+    cpf_cnpj: Optional[str] = None
     rg_ie: Optional[str] = None
     data_nascimento_fundacao: Optional[str] = None
     estado_civil: Optional[str] = None

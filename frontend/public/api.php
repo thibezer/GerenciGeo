@@ -392,6 +392,14 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
     addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
 
+    // Limpeza de campos UNIQUE com string vazia para NULL (evita erro 1062 no MySQL)
+    try {
+        $pdo->exec("UPDATE pessoas SET cpf_cnpj = NULL WHERE cpf_cnpj = '' OR TRIM(cpf_cnpj) = ''");
+    } catch (Exception $e) {}
+    try {
+        $pdo->exec("UPDATE levantamentos SET codigo_compartilhamento = NULL WHERE codigo_compartilhamento = '' OR TRIM(codigo_compartilhamento) = ''");
+    } catch (Exception $e) {}
+
     $checked = true;
 }
 
@@ -440,6 +448,18 @@ function getJsonInput(): array {
     if (empty($raw)) return [];
     $data = json_decode($raw, true);
     return is_array($data) ? $data : [];
+}
+
+/**
+ * Converte string vazia ou apenas espaços em null
+ */
+function emptyToNull($val) {
+    if ($val === null) return null;
+    if (is_string($val)) {
+        $t = trim($val);
+        return $t === '' ? null : $t;
+    }
+    return $val;
 }
 
 // 3. Determinação da Rota e Método HTTP
@@ -786,44 +806,44 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             )");
             $stmtP->execute([
                 $nome,
-                $input['cpf_cnpj'] ?? null,
-                $input['rg'] ?? $input['rg_ie'] ?? null,
-                $input['genero'] ?? $input['sexo'] ?? 'M',
-                $input['nacionalidade'] ?? 'brasileiro(a)',
-                $input['profissao'] ?? null,
-                $input['estado_civil'] ?? null,
-                $input['regime_bens'] ?? null,
-                $input['endereco_completo'] ?? null,
-                $input['nome_conjuge'] ?? null,
-                $input['cpf_conjuge'] ?? null,
-                $input['rg_conjuge'] ?? null,
-                $input['genero_conjuge'] ?? null,
-                $input['nacionalidade_conjuge'] ?? null,
-                $input['profissao_conjuge'] ?? null,
-                $tipoPessoa,
-                $razaoSocial,
-                $input['nome_fantasia'] ?? null,
-                $input['inscricao_estadual'] ?? null,
-                $input['inscricao_municipal'] ?? null,
+                emptyToNull($input['cpf_cnpj'] ?? null),
+                emptyToNull($input['rg'] ?? $input['rg_ie'] ?? null),
+                emptyToNull($input['genero'] ?? $input['sexo'] ?? 'M'),
+                emptyToNull($input['nacionalidade'] ?? 'brasileiro(a)'),
+                emptyToNull($input['profissao'] ?? null),
+                emptyToNull($input['estado_civil'] ?? null),
+                emptyToNull($input['regime_bens'] ?? null),
+                emptyToNull($input['endereco_completo'] ?? null),
+                emptyToNull($input['nome_conjuge'] ?? null),
+                emptyToNull($input['cpf_conjuge'] ?? null),
+                emptyToNull($input['rg_conjuge'] ?? null),
+                emptyToNull($input['genero_conjuge'] ?? null),
+                emptyToNull($input['nacionalidade_conjuge'] ?? null),
+                emptyToNull($input['profissao_conjuge'] ?? null),
+                emptyToNull($tipoPessoa),
+                emptyToNull($razaoSocial),
+                emptyToNull($input['nome_fantasia'] ?? null),
+                emptyToNull($input['inscricao_estadual'] ?? null),
+                emptyToNull($input['inscricao_municipal'] ?? null),
                 !empty($input['representante_legal_id']) ? (int)$input['representante_legal_id'] : null,
-                $input['cnh_numero'] ?? null,
-                $input['cnh_categoria'] ?? null,
-                $input['cnh_validade'] ?? null,
-                $input['cnh_orgao_uf'] ?? null,
-                $input['rg_orgao'] ?? null,
-                $input['rg_uf'] ?? null,
-                $input['naturalidade'] ?? null,
-                $input['certidao_casamento_matricula'] ?? null,
-                $input['rg_orgao_conjuge'] ?? null,
-                $input['rg_uf_conjuge'] ?? null,
-                $input['data_casamento'] ?? null,
-                $input['cartorio_casamento'] ?? null,
-                $input['livro_casamento'] ?? null,
-                $input['folha_casamento'] ?? null,
-                $input['termo_casamento'] ?? null,
-                $input['bairro'] ?? null,
-                $input['endereco_sem_numero'] ?? null,
-                $input['numero_endereco'] ?? null
+                emptyToNull($input['cnh_numero'] ?? null),
+                emptyToNull($input['cnh_categoria'] ?? null),
+                emptyToNull($input['cnh_validade'] ?? null),
+                emptyToNull($input['cnh_orgao_uf'] ?? null),
+                emptyToNull($input['rg_orgao'] ?? null),
+                emptyToNull($input['rg_uf'] ?? null),
+                emptyToNull($input['naturalidade'] ?? null),
+                emptyToNull($input['certidao_casamento_matricula'] ?? null),
+                emptyToNull($input['rg_orgao_conjuge'] ?? null),
+                emptyToNull($input['rg_uf_conjuge'] ?? null),
+                emptyToNull($input['data_casamento'] ?? null),
+                emptyToNull($input['cartorio_casamento'] ?? null),
+                emptyToNull($input['livro_casamento'] ?? null),
+                emptyToNull($input['folha_casamento'] ?? null),
+                emptyToNull($input['termo_casamento'] ?? null),
+                emptyToNull($input['bairro'] ?? null),
+                emptyToNull($input['endereco_sem_numero'] ?? null),
+                emptyToNull($input['numero_endereco'] ?? null)
             ]);
             $pessoaId = (int)$pdo->lastInsertId();
 
@@ -831,14 +851,14 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             $stmtC = $pdo->prepare("INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov, metadados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmtC->execute([
                 $pessoaId,
-                $input['profissional_id'] ?? null,
-                $input['data_nascimento_fundacao'] ?? null,
-                $input['email'] ?? null,
-                $input['telefone'] ?? null,
-                $input['cidade'] ?? null,
-                $input['estado'] ?? null,
-                $input['cep'] ?? null,
-                $input['sexo'] ?? ($input['genero'] ?? 'M'),
+                !empty($input['profissional_id']) ? (int)$input['profissional_id'] : null,
+                emptyToNull($input['data_nascimento_fundacao'] ?? null),
+                emptyToNull($input['email'] ?? null),
+                emptyToNull($input['telefone'] ?? null),
+                emptyToNull($input['cidade'] ?? null),
+                emptyToNull($input['estado'] ?? null),
+                emptyToNull($input['cep'] ?? null),
+                emptyToNull($input['sexo'] ?? ($input['genero'] ?? 'M')),
                 $senhaCifrada,
                 !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null
             ]);
@@ -907,54 +927,54 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 WHERE id = ?");
             $stmtP->execute([
                 $nome !== '' ? $nome : null,
-                $input['cpf_cnpj'] ?? null,
-                $input['rg'] ?? $input['rg_ie'] ?? null,
-                $input['genero'] ?? $input['sexo'] ?? null,
-                $input['nacionalidade'] ?? null,
-                $input['profissao'] ?? null,
-                $input['estado_civil'] ?? null,
-                $input['regime_bens'] ?? null,
-                $input['endereco_completo'] ?? null,
-                $input['nome_conjuge'] ?? null,
-                $input['cpf_conjuge'] ?? null,
-                $input['rg_conjuge'] ?? null,
-                $input['genero_conjuge'] ?? null,
-                $input['nacionalidade_conjuge'] ?? null,
-                $input['profissao_conjuge'] ?? null,
-                $input['tipo_pessoa'] ?? null,
-                $input['razao_social'] ?? null,
-                $input['nome_fantasia'] ?? null,
-                $input['inscricao_estadual'] ?? null,
-                $input['inscricao_municipal'] ?? null,
-                isset($input['representante_legal_id']) ? (int)$input['representante_legal_id'] : null,
-                $input['cnh_numero'] ?? null,
-                $input['cnh_categoria'] ?? null,
-                $input['cnh_validade'] ?? null,
-                $input['cnh_orgao_uf'] ?? null,
-                $input['rg_orgao'] ?? null,
-                $input['rg_uf'] ?? null,
-                $input['naturalidade'] ?? null,
-                $input['certidao_casamento_matricula'] ?? null,
-                $input['rg_orgao_conjuge'] ?? null,
-                $input['rg_uf_conjuge'] ?? null,
-                $input['data_casamento'] ?? null,
-                $input['cartorio_casamento'] ?? null,
-                $input['livro_casamento'] ?? null,
-                $input['folha_casamento'] ?? null,
-                $input['termo_casamento'] ?? null,
-                $input['bairro'] ?? null,
-                $input['endereco_sem_numero'] ?? null,
-                $input['numero_endereco'] ?? null,
+                emptyToNull($input['cpf_cnpj'] ?? null),
+                emptyToNull($input['rg'] ?? $input['rg_ie'] ?? null),
+                emptyToNull($input['genero'] ?? $input['sexo'] ?? null),
+                emptyToNull($input['nacionalidade'] ?? null),
+                emptyToNull($input['profissao'] ?? null),
+                emptyToNull($input['estado_civil'] ?? null),
+                emptyToNull($input['regime_bens'] ?? null),
+                emptyToNull($input['endereco_completo'] ?? null),
+                emptyToNull($input['nome_conjuge'] ?? null),
+                emptyToNull($input['cpf_conjuge'] ?? null),
+                emptyToNull($input['rg_conjuge'] ?? null),
+                emptyToNull($input['genero_conjuge'] ?? null),
+                emptyToNull($input['nacionalidade_conjuge'] ?? null),
+                emptyToNull($input['profissao_conjuge'] ?? null),
+                emptyToNull($input['tipo_pessoa'] ?? null),
+                emptyToNull($input['razao_social'] ?? null),
+                emptyToNull($input['nome_fantasia'] ?? null),
+                emptyToNull($input['inscricao_estadual'] ?? null),
+                emptyToNull($input['inscricao_municipal'] ?? null),
+                isset($input['representante_legal_id']) && $input['representante_legal_id'] !== '' ? (int)$input['representante_legal_id'] : null,
+                emptyToNull($input['cnh_numero'] ?? null),
+                emptyToNull($input['cnh_categoria'] ?? null),
+                emptyToNull($input['cnh_validade'] ?? null),
+                emptyToNull($input['cnh_orgao_uf'] ?? null),
+                emptyToNull($input['rg_orgao'] ?? null),
+                emptyToNull($input['rg_uf'] ?? null),
+                emptyToNull($input['naturalidade'] ?? null),
+                emptyToNull($input['certidao_casamento_matricula'] ?? null),
+                emptyToNull($input['rg_orgao_conjuge'] ?? null),
+                emptyToNull($input['rg_uf_conjuge'] ?? null),
+                emptyToNull($input['data_casamento'] ?? null),
+                emptyToNull($input['cartorio_casamento'] ?? null),
+                emptyToNull($input['livro_casamento'] ?? null),
+                emptyToNull($input['folha_casamento'] ?? null),
+                emptyToNull($input['termo_casamento'] ?? null),
+                emptyToNull($input['bairro'] ?? null),
+                emptyToNull($input['endereco_sem_numero'] ?? null),
+                emptyToNull($input['numero_endereco'] ?? null),
                 $pessoaId
             ]);
 
             $params = [
-                $input['email'] ?? null,
-                $input['telefone'] ?? null,
-                $input['cidade'] ?? null,
-                $input['estado'] ?? null,
-                $input['cep'] ?? null,
-                $input['data_nascimento_fundacao'] ?? null,
+                emptyToNull($input['email'] ?? null),
+                emptyToNull($input['telefone'] ?? null),
+                emptyToNull($input['cidade'] ?? null),
+                emptyToNull($input['estado'] ?? null),
+                emptyToNull($input['cep'] ?? null),
+                emptyToNull($input['data_nascimento_fundacao'] ?? null),
                 !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null,
                 $id
             ];

@@ -51,6 +51,10 @@
 **Learning:** O frontend enviava `nome_completo` no payload de salvamento de cliente, mas o backend PHP (`api.php`) no servidor Hostinger checava estritamente `$input['nome']`, disparando erro 400 informando que o nome era obrigatório mesmo com o campo preenchido.
 **Action:** Implementado payload com chaves duplas (`nome` e `nome_completo`) com fallbacks diretos para a propriedade `value` dos Web Components na view, validação flexível com coalescência nos backends (`api.php` e `routes/clientes.py`), e suporte a todos os campos estendidos de cadastro nas queries de inserção e atualização.
 
+## 2026-09-09 - Prevenção de Violação de Chave Única no MySQL por Strings Vazias (Erro 1062)
+**Learning:** No MySQL/InnoDB, campos com índice `UNIQUE` (como `pessoas.cpf_cnpj`) permitem múltiplos registros com valor `NULL`, mas tratam a string vazia `''` como um valor não-nulo e único, disparando o erro fatal `1062 Duplicate entry '' for key 'cpf_cnpj'` ao cadastrar um segundo registro sem documento.
+**Action:** Criada função `emptyToNull()` no `api.php` para normalizar todas as strings vazias ou com apenas espaços em `null` antes de gravar no banco, adicionada migração idempotente em `ensureSchema` para converter registros preexistentes corrompidos com `''` em `NULL`, e sanitizado o envio no frontend (`clientes.ts`) para despachar `null` explicitamente.
+
 
 
 

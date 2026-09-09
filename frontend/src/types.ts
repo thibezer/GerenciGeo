@@ -135,7 +135,7 @@ export interface Cliente {
 export interface ClientePayload {
   nome?: string;
   nome_completo: string;
-  cpf_cnpj: string;
+  cpf_cnpj?: string | null;
   rg_ie?: string | null;
   data_nascimento_fundacao?: string | null;
   estado_civil?: string | null;

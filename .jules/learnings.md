@@ -366,10 +366,15 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. Ao cadastrar um cliente no sistema online (Hostinger), mesmo preenchendo o nome no formulário, a API retornava o erro: `{"error": "Nome do cliente é obrigatório."}`.
   2. O formulário do frontend enviava no payload `nome_completo: nomeCompleto` (e não a chave `nome`), enquanto o backend PHP (`api.php`) no endpoint `POST /clientes` validava estritamente `$nome = trim($input['nome'] ?? '')`, resultando em string vazia e disparando HTTP 400. No endpoint `PUT /clientes/{id}`, apenas `$input['nome']` era considerado para atualizar `pessoas.nome`.
   3. Além disso, a extração via `new FormData(e.target)` de Web Components (`<ui-campo-texto>`) se beneficia de fallbacks diretos para as propriedades `value` dos elementos DOM (`(inputNomeCompleto as any)?.value`), garantindo que o valor seja sempre capturado.
+  4. Ao salvar um cliente sem informar CPF/CNPJ, o backend MySQL retornava `SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry '' for key 'cpf_cnpj'`. No MySQL, campos `UNIQUE` permitem múltiplos valores `NULL`, mas não aceitam mais de uma string vazia `''`.
 - **Regra Obrigatória**:
   1. **Dual-Key Payload no Frontend**: Na submissão de clientes em `frontend/src/views/clientes.ts`, sempre enviar ambas as propriedades no payload: `nome: nomeCompleto` e `nome_completo: nomeCompleto`, mantendo `nome?: string;` na interface `ClientePayload` em `frontend/src/types.ts`.
-  2. **Validação Flexível nos Backends (PHP e Python)**:
+  2. **Tratamento Estrito de NULL em Campos UNIQUE (MySQL)**:
+     - No `api.php`, usar `emptyToNull()` em todos os campos opcionais (especialmente `cpf_cnpj`, `cpf_conjuge`, `rg`, datas e chaves únicas). Strings vazias ou formadas apenas por espaços devem ser convertidas estritamente para `null`.
+     - Em `ensureSchema`, manter migração idempotente: `UPDATE pessoas SET cpf_cnpj = NULL WHERE cpf_cnpj = '' OR TRIM(cpf_cnpj) = ''`.
+     - No frontend (`clientes.ts`), normalizar `cpf_cnpj` para `null` caso vazio: `const cpfCnpjVal = cpfCnpjRaw !== '' ? cpfCnpjRaw : null;`.
+  3. **Validação Flexível nos Backends (PHP e Python)**:
      - No `api.php`: `$nome = trim((string)($input['nome_completo'] ?? $input['nome'] ?? $input['razao_social'] ?? ''));`. Se vazio, rejeita com 400. Em `PUT /clientes/{id}`, atualizar com `$nome !== '' ? $nome : null`.
      - Em `api.php`, os comandos `INSERT INTO pessoas` e `UPDATE pessoas` devem contemplar todos os campos estendidos de pessoa física e jurídica (tipo_pessoa, razao_social, nome_fantasia, inscrições, CNH, RG, casamento, endereço, metadados).
-     - No backend Python (`routes/clientes.py` e `services/gestores/cliente_manager.py`): o modelo `ClienteCreate` aceita `nome_completo` e `nome`, normalizando `nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")`.
-  3. **Fallbacks de Leitura no Formulário**: Na leitura de campos do formulário com Web Components, compor `rawPayload.campo || (domElement as any)?.value || ''` para evitar valores nulos caso a associação ao formulário sofra atraso no ciclo de eventos.
+     - No backend Python (`routes/clientes.py` e `services/gestores/cliente_manager.py`): o modelo `ClienteCreate` aceita `nome_completo` e `nome`, normalizando `nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")` e `cpf_cnpj = Optional[str] = None`.
+  4. **Fallbacks de Leitura no Formulário**: Na leitura de campos do formulário com Web Components, compor `rawPayload.campo || (domElement as any)?.value || ''` para evitar valores nulos caso a associação ao formulário sofra atraso no ciclo de eventos.
