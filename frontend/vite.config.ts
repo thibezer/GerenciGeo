@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import fs from 'fs';
+
+const localUiPath = resolve(__dirname, '../../UI_Componentes/src/index.ts');
+const hasLocalUi = fs.existsSync(localUiPath);
 
 export default defineConfig({
   resolve: {
-    alias: {
-      'ui-components-kit': resolve(__dirname, '../../UI_Componentes/src/index.ts')
-    }
+    alias: hasLocalUi
+      ? { 'ui-components-kit': localUiPath }
+      : {}
   },
   build: {
     rollupOptions: {

@@ -5,11 +5,19 @@ RewriteEngine On
 # Proteção padrão de builds Hostinger
 RewriteRule ^\.builds - [F,L]
 
+# Proteção do diretório de uploads contra execução de scripts PHP maliciosos
+RewriteRule ^uploads/.*\.(php|phtml|php[0-9]|cgi|py|sh)$ - [F,L,NC]
+
 # Roteamento amigável de status e healthcheck
 RewriteRule ^status$ api.php?action=status [QSA,L]
 RewriteRule ^stats$ api.php?action=stats [QSA,L]
 RewriteRule ^dashboard/alerts$ api.php?action=alerts [QSA,L]
 RewriteRule ^dashboard/matriculas-geometrias$ api.php?action=matriculas-geometrias [QSA,L]
+
+# Roteamento das chamadas REST da API para o api.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(clientes|propriedades|levantamentos|matriculas|pendencias|profissionais|configuracoes)(/.*)?$ api.php?__route=/$1$2 [QSA,L]
 
 # Cache Control
 <IfModule mod_headers.c>
