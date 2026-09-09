@@ -132,15 +132,17 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
       ? '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">PJ</span>'
       : '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>';
 
+    const nomeExibicao = cli.nome_completo || (cli as any).nome || 'Sem Nome';
+
     return `
       <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${cli.id}">
         <td class="py-2.5 px-4">
           <ui-checkbox class="check-cliente" data-id="${cli.id}" ${isSel ? 'marcado' : ''}></ui-checkbox>
         </td>
         <td class="py-2.5 px-4 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72 btn-action" data-action="detalhes" data-id="${cli.id}">
-          <ui-avatar nome="${escapeHtml(cli.nome_completo || '')}" tamanho="sm"></ui-avatar>
+          <ui-avatar nome="${escapeHtml(nomeExibicao)}" tamanho="sm"></ui-avatar>
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
-            <span class="truncate font-semibold">${escapeHtml(cli.nome_completo)}</span>
+            <span class="truncate font-semibold">${escapeHtml(nomeExibicao)}</span>
             ${badgeTipo}
           </div>
         </td>

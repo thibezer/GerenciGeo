@@ -185,6 +185,13 @@ function ensureSchema(PDO $pdo): void {
             FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
+        "CREATE TABLE IF NOT EXISTS propriedade_clientes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            propriedade_id INT NOT NULL,
+            cliente_id INT NOT NULL,
+            percentual_participacao DECIMAL(5,2) DEFAULT 100
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
         "CREATE TABLE IF NOT EXISTS matriculas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             propriedade_id INT NOT NULL,
@@ -358,6 +365,31 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pontos', 'n_original', 'DOUBLE NULL');
 
     addColumnSafe($pdo, 'pendencias', 'data_criacao', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+
+    addColumnSafe($pdo, 'pessoas', 'tipo_pessoa', "VARCHAR(10) DEFAULT 'PF'");
+    addColumnSafe($pdo, 'pessoas', 'razao_social', "VARCHAR(255) NULL");
+    addColumnSafe($pdo, 'pessoas', 'nome_fantasia', "VARCHAR(255) NULL");
+    addColumnSafe($pdo, 'pessoas', 'inscricao_estadual', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'inscricao_municipal', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'representante_legal_id', "INT NULL");
+    addColumnSafe($pdo, 'pessoas', 'cnh_numero', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'cnh_categoria', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'pessoas', 'cnh_validade', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'cnh_orgao_uf', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'rg_orgao', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'rg_uf', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'pessoas', 'naturalidade', "VARCHAR(100) NULL");
+    addColumnSafe($pdo, 'pessoas', 'certidao_casamento_matricula', "VARCHAR(100) NULL");
+    addColumnSafe($pdo, 'pessoas', 'rg_orgao_conjuge', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'rg_uf_conjuge', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'pessoas', 'data_casamento', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'cartorio_casamento', "VARCHAR(255) NULL");
+    addColumnSafe($pdo, 'pessoas', 'livro_casamento', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'folha_casamento', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'termo_casamento', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'pessoas', 'bairro', "VARCHAR(100) NULL");
+    addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
 
     $checked = true;
 }
@@ -572,15 +604,141 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
         jsonResponse($stmt->fetchAll());
     }
 
-    // GET /clientes
-    if ($method === 'GET' && !$id) {
-        $sql = "SELECT c.*, p.nome, p.cpf_cnpj, p.rg, p.genero, p.nacionalidade, p.profissao, 
-                       p.estado_civil, p.regime_bens, p.endereco_completo, p.nome_conjuge, 
-                       p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
-                       (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.cliente_id = c.id) as total_propriedades,
-                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id) as total_documentos
+    // GET /clientes/{id} (Detalhes de um cliente)
+    if ($method === 'GET' && $id && !$subAction) {
+        $sql = "SELECT c.*, 
+                       p.nome as nome_completo,
+                       p.nome,
+                       p.cpf_cnpj,
+                       p.rg,
+                       p.rg as rg_ie,
+                       p.genero,
+                       p.nacionalidade,
+                       p.profissao, 
+                       p.estado_civil,
+                       p.regime_bens,
+                       p.endereco_completo,
+                       p.endereco_sem_numero,
+                       p.numero_endereco,
+                       p.bairro,
+                       p.nome_conjuge, 
+                       p.cpf_conjuge,
+                       p.rg_conjuge,
+                       p.genero_conjuge,
+                       p.nacionalidade_conjuge,
+                       p.profissao_conjuge,
+                       p.rg_orgao_conjuge,
+                       p.rg_uf_conjuge,
+                       p.data_casamento,
+                       p.cartorio_casamento,
+                       p.livro_casamento,
+                       p.folha_casamento,
+                       p.termo_casamento,
+                       p.tipo_pessoa,
+                       p.razao_social,
+                       p.nome_fantasia,
+                       p.inscricao_estadual,
+                       p.inscricao_municipal,
+                       p.representante_legal_id,
+                       rep.nome as representante_legal_nome,
+                       p.cnh_numero,
+                       p.cnh_categoria,
+                       p.cnh_validade,
+                       p.cnh_orgao_uf,
+                       p.rg_orgao,
+                       p.rg_uf,
+                       p.naturalidade,
+                       p.certidao_casamento_matricula,
+                       COALESCE((SELECT COUNT(*) FROM propriedade_clientes pc WHERE pc.cliente_id = c.id), 
+                                (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.cliente_id = c.id), 0) as total_propriedades,
+                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id) as total_documentos,
+                       (SELECT COUNT(*) FROM propriedade_clientes pc JOIN levantamentos l ON pc.propriedade_id = l.propriedade_id WHERE pc.cliente_id = c.id) as total_levantamentos
                 FROM clientes c
                 JOIN pessoas p ON c.pessoa_id = p.id
+                LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
+                WHERE c.id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$id]);
+        $c = $stmt->fetch();
+        if (!$c) jsonResponse(['error' => 'Cliente não encontrado.'], 404);
+        $hasSenha = !empty($c['senha_gov']);
+        $c['tem_senha_gov'] = $hasSenha;
+        $c['senha_gov'] = $hasSenha ? '••••••••' : null;
+        if (empty($c['nome_completo']) && !empty($c['nome'])) {
+            $c['nome_completo'] = $c['nome'];
+        }
+        if (empty($c['nome']) && !empty($c['nome_completo'])) {
+            $c['nome'] = $c['nome_completo'];
+        }
+
+        // Buscar propriedades vinculadas do cliente
+        $stmtP = $pdo->prepare("SELECT p.id, COALESCE(p.nome_propriedade, p.nome) as nome_propriedade, p.municipio, COALESCE(pc.percentual_participacao, 100) as percentual_participacao
+                                FROM propriedade_clientes pc
+                                JOIN propriedades p ON pc.propriedade_id = p.id
+                                WHERE pc.cliente_id = ?");
+        $stmtP->execute([$id]);
+        $c['propriedades'] = $stmtP->fetchAll();
+
+        // Buscar documentos do cliente
+        $stmtD = $pdo->prepare("SELECT * FROM cliente_documentos WHERE cliente_id = ? ORDER BY id DESC");
+        $stmtD->execute([$id]);
+        $c['documentos'] = $stmtD->fetchAll();
+
+        jsonResponse($c);
+    }
+
+    // GET /clientes (Lista completa)
+    if ($method === 'GET' && !$id) {
+        $sql = "SELECT c.*, 
+                       p.nome as nome_completo,
+                       p.nome,
+                       p.cpf_cnpj,
+                       p.rg,
+                       p.rg as rg_ie,
+                       p.genero,
+                       p.nacionalidade,
+                       p.profissao, 
+                       p.estado_civil,
+                       p.regime_bens,
+                       p.endereco_completo,
+                       p.endereco_sem_numero,
+                       p.numero_endereco,
+                       p.bairro,
+                       p.nome_conjuge, 
+                       p.cpf_conjuge,
+                       p.rg_conjuge,
+                       p.genero_conjuge,
+                       p.nacionalidade_conjuge,
+                       p.profissao_conjuge,
+                       p.rg_orgao_conjuge,
+                       p.rg_uf_conjuge,
+                       p.data_casamento,
+                       p.cartorio_casamento,
+                       p.livro_casamento,
+                       p.folha_casamento,
+                       p.termo_casamento,
+                       p.tipo_pessoa,
+                       p.razao_social,
+                       p.nome_fantasia,
+                       p.inscricao_estadual,
+                       p.inscricao_municipal,
+                       p.representante_legal_id,
+                       rep.nome as representante_legal_nome,
+                       p.cnh_numero,
+                       p.cnh_categoria,
+                       p.cnh_validade,
+                       p.cnh_orgao_uf,
+                       p.rg_orgao,
+                       p.rg_uf,
+                       p.naturalidade,
+                       p.certidao_casamento_matricula,
+                       COALESCE((SELECT COUNT(*) FROM propriedade_clientes pc WHERE pc.cliente_id = c.id), 
+                                (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.cliente_id = c.id), 0) as total_propriedades,
+                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id) as total_documentos,
+                       (SELECT COUNT(*) FROM propriedade_clientes pc JOIN levantamentos l ON pc.propriedade_id = l.propriedade_id WHERE pc.cliente_id = c.id) as total_levantamentos
+                FROM clientes c
+                JOIN pessoas p ON c.pessoa_id = p.id
+                LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
                 ORDER BY p.nome ASC";
         $stmt = $pdo->query($sql);
         $clientes = [];
@@ -588,6 +746,12 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             $hasSenha = !empty($c['senha_gov']);
             $c['tem_senha_gov'] = $hasSenha;
             $c['senha_gov'] = $hasSenha ? '••••••••' : null;
+            if (empty($c['nome_completo']) && !empty($c['nome'])) {
+                $c['nome_completo'] = $c['nome'];
+            }
+            if (empty($c['nome']) && !empty($c['nome_completo'])) {
+                $c['nome'] = $c['nome_completo'];
+            }
             $clientes[] = $c;
         }
         jsonResponse($clientes);

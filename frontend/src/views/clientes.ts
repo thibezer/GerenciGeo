@@ -399,7 +399,7 @@ export const clientesRoute: RouteDef = {
     const getClientesFiltrados = (): Cliente[] => {
       if (!termoBusca) return todosClientes;
       return todosClientes.filter(c =>
-        (c.nome_completo || '').toLowerCase().includes(termoBusca) ||
+        (c.nome_completo || (c as any).nome || '').toLowerCase().includes(termoBusca) ||
         (c.razao_social || '').toLowerCase().includes(termoBusca) ||
         (c.nome_fantasia || '').toLowerCase().includes(termoBusca) ||
         (c.cpf_cnpj || '').replace(/\D/g, '').includes(termoBusca.replace(/\D/g, ''))
@@ -419,6 +419,7 @@ export const clientesRoute: RouteDef = {
 
       clienteSelecionadoId = id;
       const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+      const nomeExibicao = cli.nome_completo || (cli as any).nome || 'Sem Nome';
 
       const avatar = document.getElementById('det-cli-avatar');
       const titulo = document.getElementById('det-cli-titulo');
@@ -426,9 +427,9 @@ export const clientesRoute: RouteDef = {
       const badgeTipo = document.getElementById('det-cli-badge-tipo');
 
       if (avatar) {
-        avatar.setAttribute('nome', cli.nome_completo || '??');
+        avatar.setAttribute('nome', nomeExibicao);
       }
-      if (titulo) titulo.innerText = cli.nome_completo;
+      if (titulo) titulo.innerText = nomeExibicao;
       if (subtitulo) subtitulo.innerText = `${isPj ? 'CNPJ' : 'CPF'}: ${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}`;
       if (badgeTipo) {
         badgeTipo.innerText = isPj ? 'PJ' : 'PF';

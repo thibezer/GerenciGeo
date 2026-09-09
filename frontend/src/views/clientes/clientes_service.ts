@@ -18,7 +18,13 @@ export const fetchTodosClientes = async (): Promise<Cliente[]> => {
   if (data && data.error) {
     throw new Error(data.error);
   }
-  return Array.isArray(data) ? data : [];
+  const lista = Array.isArray(data) ? data : [];
+  return lista.map((c: any) => ({
+    ...c,
+    nome_completo: c.nome_completo || c.nome || '',
+    nome: c.nome || c.nome_completo || '',
+    rg_ie: c.rg_ie || c.rg || null
+  }));
 };
 
 export const fetchClienteHistorico = async (id: number): Promise<ClienteHistoricoLog[]> => {
