@@ -64,6 +64,17 @@ function getDb(): PDO {
 }
 
 /**
+ * Adiciona uma coluna com segurança se não existir
+ */
+function addColumnSafe(PDO $pdo, string $table, string $column, string $typeDef): void {
+    try {
+        $pdo->exec("ALTER TABLE `{$table}` ADD `{$column}` {$typeDef}");
+    } catch (Exception $e) {
+        // Já existe ou erro tolerável
+    }
+}
+
+/**
  * Criação e migração idempotente de tabelas
  */
 function ensureSchema(PDO $pdo): void {
@@ -307,28 +318,41 @@ function ensureSchema(PDO $pdo): void {
     ];
 
     foreach ($queries as $sql) {
-        try {
-            $pdo->exec($sql);
-        } catch (Exception $e) {}
-    }
-
-    // Garante colunas de compatibilidade se a tabela já existia
-    $alters = [
-        "ALTER TABLE propriedades ADD COLUMN IF NOT EXISTS nome_propriedade VARCHAR(255) NULL;",
-        "ALTER TABLE propriedades ADD COLUMN IF NOT EXISTS nome VARCHAR(255) NULL;",
-        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS numero_matricula VARCHAR(100) NULL;",
-        "ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS numero VARCHAR(100) NULL;",
-        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS pasta_projeto TEXT;",
-        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS numero_trt VARCHAR(100);",
-        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS data_trt VARCHAR(50);",
-        "ALTER TABLE levantamentos ADD COLUMN IF NOT EXISTS nome VARCHAR(255) NULL;",
-        "ALTER TABLE pontos ADD COLUMN IF NOT EXISTS alt DOUBLE NULL;",
-        "ALTER TABLE pontos ADD COLUMN IF NOT EXISTS altitude DOUBLE NULL;",
-        "ALTER TABLE pendencias ADD COLUMN IF NOT EXISTS data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
-    ];
-    foreach ($alters as $sql) {
         try { $pdo->exec($sql); } catch (Exception $e) {}
     }
+
+    // Garante colunas de compatibilidade se tabelas antigas existiam no MySQL
+    addColumnSafe($pdo, 'propriedades', 'nome', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'propriedades', 'nome_propriedade', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'propriedades', 'municipio', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'propriedades', 'comarca', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'propriedades', 'uf', 'VARCHAR(10) DEFAULT "SP"');
+    addColumnSafe($pdo, 'propriedades', 'area_total_ha', 'DECIMAL(12,4) DEFAULT 0');
+
+    addColumnSafe($pdo, 'matriculas', 'numero', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'matriculas', 'numero_matricula', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'matriculas', 'area_ha', 'DECIMAL(12,4) DEFAULT 0');
+    addColumnSafe($pdo, 'matriculas', 'perimetro_m', 'DECIMAL(12,4) DEFAULT 0');
+    addColumnSafe($pdo, 'matriculas', 'ccir', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'itr', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'denominacao', 'VARCHAR(255) NULL');
+
+    addColumnSafe($pdo, 'levantamentos', 'nome', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'levantamentos', 'pasta_projeto', 'TEXT NULL');
+    addColumnSafe($pdo, 'levantamentos', 'numero_trt', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'levantamentos', 'data_trt', 'VARCHAR(50) NULL');
+
+    addColumnSafe($pdo, 'pontos', 'alt', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'altitude', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'este', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'norte', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'lat_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'lon_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'alt_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'e_original', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'n_original', 'DOUBLE NULL');
+
+    addColumnSafe($pdo, 'pendencias', 'data_criacao', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
 
     $checked = true;
 }
@@ -984,6 +1008,43 @@ if (preg_match('#^/profissionais(?:/([0-9]+))?$#', $route, $matches)) {
     }
 }
 
+/**
+ * Sincroniza dinamicamente linhas de uma tabela filtrando estritamente pelas colunas que existem no MySQL
+ */
+function syncTableRows(PDO $pdo, string $table, array $rows): void {
+    if (empty($rows)) return;
+    $colsStmt = $pdo->query("SHOW COLUMNS FROM `{$table}`");
+    $existing = [];
+    while ($c = $colsStmt->fetch()) {
+        $existing[$c['Field']] = true;
+    }
+
+    foreach ($rows as $r) {
+        $valid = [];
+        foreach ($r as $k => $v) {
+            if (isset($existing[$k])) {
+                $valid[$k] = $v;
+            }
+        }
+        if (empty($valid)) continue;
+
+        $fields = array_keys($valid);
+        $placeholders = array_fill(0, count($fields), '?');
+        $updates = [];
+        foreach ($fields as $f) {
+            if ($f !== 'id') {
+                $updates[] = "`{$f}` = VALUES(`{$f}`)";
+            }
+        }
+        $sql = "INSERT INTO `{$table}` (`" . implode("`, `", $fields) . "`) VALUES (" . implode(", ", $placeholders) . ")";
+        if (!empty($updates)) {
+            $sql .= " ON DUPLICATE KEY UPDATE " . implode(", ", $updates);
+        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(array_values($valid));
+    }
+}
+
 // 7. ROTA DE CARGA EM MASSA / MIGRAÇÃO INICIAL (Sync do PC para a Nuvem)
 if ($route === '/sync/batch' && $method === 'POST') {
     $input = getJsonInput();
@@ -995,119 +1056,73 @@ if ($route === '/sync/batch' && $method === 'POST') {
     $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
     $pdo->beginTransaction();
     try {
-        // Pessoas
         if (!empty($data['pessoas'])) {
-            $stmt = $pdo->prepare("INSERT INTO pessoas (id, nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), cpf_cnpj=VALUES(cpf_cnpj), rg=VALUES(rg)");
-            foreach ($data['pessoas'] as $r) {
-                $stmt->execute([
-                    $r['id'], $r['nome'], $r['cpf_cnpj'] ?? null, $r['rg'] ?? null, 
-                    $r['genero'] ?? 'M', $r['nacionalidade'] ?? null, $r['profissao'] ?? null, 
-                    $r['estado_civil'] ?? null, $r['regime_bens'] ?? null, $r['endereco_completo'] ?? null, 
-                    $r['nome_conjuge'] ?? null, $r['cpf_conjuge'] ?? null
-                ]);
-            }
+            syncTableRows($pdo, 'pessoas', $data['pessoas']);
         }
-        // Clientes
-        if (!empty($data['clientes'])) {
-            $stmt = $pdo->prepare("INSERT INTO clientes (id, pessoa_id, profissional_id, email, telefone, cidade, estado, cep, sexo, senha_gov) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email=VALUES(email), telefone=VALUES(telefone), cidade=VALUES(cidade)");
-            foreach ($data['clientes'] as $r) {
-                $stmt->execute([
-                    $r['id'], $r['pessoa_id'], $r['profissional_id'] ?? null,
-                    $r['email'] ?? null, $r['telefone'] ?? null, $r['cidade'] ?? null,
-                    $r['estado'] ?? null, $r['cep'] ?? null, $r['sexo'] ?? 'M',
-                    !empty($r['senha_gov']) ? encryptGovPassword($r['senha_gov']) : null
-                ]);
-            }
-        }
-        // Propriedades
-        if (!empty($data['propriedades'])) {
-            $stmt = $pdo->prepare("INSERT INTO propriedades (id, nome, nome_propriedade, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), nome_propriedade=VALUES(nome_propriedade), municipio=VALUES(municipio), area_total_ha=VALUES(area_total_ha)");
-            foreach ($data['propriedades'] as $r) {
-                $nome = $r['nome_propriedade'] ?? ($r['nome'] ?? 'Sem Nome');
-                $stmt->execute([
-                    $r['id'], $nome, $nome, $r['municipio'] ?? null, $r['comarca'] ?? null,
-                    $r['uf'] ?? 'SP', (float)($r['area_total_ha'] ?? 0)
-                ]);
-            }
-        }
-        // Matrículas
-        if (!empty($data['matriculas'])) {
-            $stmt = $pdo->prepare("INSERT INTO matriculas (id, propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE numero=VALUES(numero), numero_matricula=VALUES(numero_matricula), area_ha=VALUES(area_ha)");
-            foreach ($data['matriculas'] as $r) {
-                $num = $r['numero_matricula'] ?? ($r['numero'] ?? 'S/N');
-                $stmt->execute([
-                    $r['id'], $r['propriedade_id'], $num, $num, $r['livro'] ?? ($r['livro_registro'] ?? null),
-                    $r['folha'] ?? ($r['folha_registro'] ?? null), $r['cartorio'] ?? ($r['cri_comarca'] ?? null), (float)($r['area_ha'] ?? 0),
-                    (float)($r['perimetro_m'] ?? 0), $r['ccir'] ?? null, $r['itr'] ?? null,
-                    $r['denominacao'] ?? null
-                ]);
-            }
-        }
-        // Levantamentos
-        if (!empty($data['levantamentos'])) {
-            $stmt = $pdo->prepare("INSERT INTO levantamentos (id, nome, propriedade_id, profissional_id, cliente_id, responsavel_tecnico, status, tipo_levantamento, fuso_utm, codigo_compartilhamento, pasta_projeto, numero_trt, data_trt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status=VALUES(status)");
-            foreach ($data['levantamentos'] as $r) {
-                $nome = $r['nome'] ?? ('Levantamento #' . $r['id']);
-                $stmt->execute([
-                    $r['id'], $nome, $r['propriedade_id'] ?? null, $r['profissional_id'] ?? null, $r['cliente_id'] ?? null,
-                    $r['responsavel_tecnico'] ?? null, $r['status'] ?? 'EM_ANDAMENTO',
-                    $r['tipo_levantamento'] ?? 'GEORREFERENCIAMENTO', (int)($r['fuso_utm'] ?? 22),
-                    $r['codigo_compartilhamento'] ?? null, $r['pasta_projeto'] ?? null,
-                    $r['numero_trt'] ?? null, $r['data_trt'] ?? null
-                ]);
-            }
-        }
-        // Pontos
-        if (!empty($data['pontos'])) {
-            $stmt = $pdo->prepare("INSERT INTO pontos (id, levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, este, norte, altitude, alt, ordem_caminhamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lat=VALUES(lat), lon=VALUES(lon), este=VALUES(este), norte=VALUES(norte)");
-            foreach ($data['pontos'] as $r) {
-                $lat = $r['lat_corrigido'] ?? ($r['lat'] ?? null);
-                $lon = $r['lon_corrigido'] ?? ($r['lon'] ?? null);
-                $alt = $r['alt_corrigido'] ?? ($r['alt'] ?? null);
-                $este = $r['e_original'] ?? ($r['este'] ?? null);
-                $norte = $r['n_original'] ?? ($r['norte'] ?? null);
-                $stmt->execute([
-                    $r['id'], $r['levantamento_id'], $r['matricula_id'] ?? null,
-                    $r['nome_vertice'], $r['tipo_ponto'] ?? 'M', $lat,
-                    $lon, $este, $norte,
-                    $alt, $alt, (int)($r['ordem_caminhamento'] ?? 0)
-                ]);
-            }
-        }
-        // Segmentos
-        if (!empty($data['segmentos'])) {
-            $stmt = $pdo->prepare("INSERT INTO segmentos (id, levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, tipo_limite, tipo_limite_sigef, azimute, distancia) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE azimute=VALUES(azimute), distancia=VALUES(distancia)");
-            foreach ($data['segmentos'] as $r) {
-                $stmt->execute([
-                    $r['id'], $r['levantamento_id'], $r['matricula_id'] ?? null,
-                    $r['ponto_inicio_id'], $r['ponto_fim_id'], $r['tipo_limite'] ?? ($r['tipo_limite_sigef'] ?? 'Linha Seca'),
-                    $r['tipo_limite_sigef'] ?? 'LA1', $r['azimute'] ?? null, (float)($r['distancia'] ?? 0)
-                ]);
-            }
-        }
-        // Pendências
-        if (!empty($data['pendencias'])) {
-            $stmt = $pdo->prepare("INSERT INTO pendencias (id, titulo, descricao, prioridade, status, prazo) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE titulo=VALUES(titulo), status=VALUES(status)");
-            foreach ($data['pendencias'] as $r) {
-                $stmt->execute([
-                    $r['id'], $r['titulo'], $r['descricao'] ?? null,
-                    $r['prioridade'] ?? 'MEDIA', $r['status'] ?? 'PENDENTE', $r['prazo'] ?? ($r['data_criacao'] ?? null)
-                ]);
-            }
-        }
-        // Profissionais
         if (!empty($data['profissionais'])) {
-            $stmt = $pdo->prepare("INSERT INTO profissionais (id, nome, registro, codigo_credenciado, cpf, conselho) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE nome=VALUES(nome), registro=VALUES(registro)");
-            foreach ($data['profissionais'] as $r) {
-                $stmt->execute([
-                    $r['id'], $r['nome'], $r['registro'] ?? null,
-                    $r['codigo_credenciado'] ?? null, $r['cpf'] ?? null, $r['conselho'] ?? null
-                ]);
-            }
+            syncTableRows($pdo, 'profissionais', $data['profissionais']);
         }
+        if (!empty($data['clientes'])) {
+            foreach ($data['clientes'] as &$c) {
+                if (!empty($c['senha_gov'])) {
+                    $c['senha_gov'] = encryptGovPassword($c['senha_gov']);
+                }
+            }
+            unset($c);
+            syncTableRows($pdo, 'clientes', $data['clientes']);
+        }
+        if (!empty($data['propriedades'])) {
+            foreach ($data['propriedades'] as &$p) {
+                $nome = $p['nome_propriedade'] ?? ($p['nome'] ?? 'Sem Nome');
+                $p['nome'] = $nome;
+                $p['nome_propriedade'] = $nome;
+            }
+            unset($p);
+            syncTableRows($pdo, 'propriedades', $data['propriedades']);
+        }
+        if (!empty($data['matriculas'])) {
+            foreach ($data['matriculas'] as &$m) {
+                $num = $m['numero_matricula'] ?? ($m['numero'] ?? 'S/N');
+                $m['numero'] = $num;
+                $m['numero_matricula'] = $num;
+            }
+            unset($m);
+            syncTableRows($pdo, 'matriculas', $data['matriculas']);
+        }
+        if (!empty($data['levantamentos'])) {
+            foreach ($data['levantamentos'] as &$l) {
+                $l['nome'] = $l['nome'] ?? ('Levantamento #' . $l['id']);
+            }
+            unset($l);
+            syncTableRows($pdo, 'levantamentos', $data['levantamentos']);
+        }
+        if (!empty($data['pontos'])) {
+            foreach ($data['pontos'] as &$pt) {
+                $lat = $pt['lat_corrigido'] ?? ($pt['lat'] ?? null);
+                $lon = $pt['lon_corrigido'] ?? ($pt['lon'] ?? null);
+                $alt = $pt['alt_corrigido'] ?? ($pt['alt'] ?? null);
+                $este = $pt['e_original'] ?? ($pt['este'] ?? null);
+                $norte = $pt['n_original'] ?? ($pt['norte'] ?? null);
+                $pt['lat'] = $lat;
+                $pt['lon'] = $lon;
+                $pt['alt'] = $alt;
+                $pt['altitude'] = $alt;
+                $pt['este'] = $este;
+                $pt['norte'] = $norte;
+            }
+            unset($pt);
+            syncTableRows($pdo, 'pontos', $data['pontos']);
+        }
+        if (!empty($data['segmentos'])) {
+            syncTableRows($pdo, 'segmentos', $data['segmentos']);
+        }
+        if (!empty($data['pendencias'])) {
+            syncTableRows($pdo, 'pendencias', $data['pendencias']);
+        }
+
         $pdo->commit();
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
-        jsonResponse(['message' => 'Dados sincronizados com o MySQL com sucesso!']);
+        jsonResponse(['message' => 'Todos os dados foram sincronizados com o MySQL com sucesso!']);
     } catch (Exception $e) {
         $pdo->rollBack();
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
