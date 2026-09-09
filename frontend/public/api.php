@@ -338,6 +338,11 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'matriculas', 'denominacao', 'VARCHAR(255) NULL');
 
     addColumnSafe($pdo, 'levantamentos', 'nome', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'levantamentos', 'cliente_id', 'INT NULL');
+    addColumnSafe($pdo, 'levantamentos', 'responsavel_tecnico', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'levantamentos', 'tipo_levantamento', 'VARCHAR(50) DEFAULT "GEORREFERENCIAMENTO"');
+    addColumnSafe($pdo, 'levantamentos', 'fuso_utm', 'INT DEFAULT 22');
+    addColumnSafe($pdo, 'levantamentos', 'meridiano_central', 'INT DEFAULT -51');
     addColumnSafe($pdo, 'levantamentos', 'pasta_projeto', 'TEXT NULL');
     addColumnSafe($pdo, 'levantamentos', 'numero_trt', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'levantamentos', 'data_trt', 'VARCHAR(50) NULL');
@@ -892,12 +897,11 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
     // GET /levantamentos
     if ($method === 'GET' && !$levId) {
         $sql = "SELECT l.*, COALESCE(l.nome, prop.nome_propriedade, prop.nome, CONCAT('Levantamento #', l.id)) as nome,
-                       COALESCE(prop.nome, prop.nome_propriedade) as propriedade_nome, p.nome as cliente_nome,
+                       COALESCE(prop.nome, prop.nome_propriedade) as propriedade_nome,
+                       (SELECT p2.nome FROM propriedade_proprietarios pp2 JOIN clientes c2 ON pp2.cliente_id = c2.id JOIN pessoas p2 ON c2.pessoa_id = p2.id WHERE pp2.propriedade_id = l.propriedade_id LIMIT 1) as cliente_nome,
                        (SELECT COUNT(*) FROM pontos pt WHERE pt.levantamento_id = l.id) as total_pontos
                 FROM levantamentos l
                 LEFT JOIN propriedades prop ON l.propriedade_id = prop.id
-                LEFT JOIN clientes c ON l.cliente_id = c.id
-                LEFT JOIN pessoas p ON c.pessoa_id = p.id
                 ORDER BY l.id DESC";
         $stmt = $pdo->query($sql);
         jsonResponse($stmt->fetchAll());
@@ -1079,6 +1083,15 @@ if ($route === '/sync/batch' && $method === 'POST') {
             }
             unset($p);
             syncTableRows($pdo, 'propriedades', $data['propriedades']);
+        }
+        if (!empty($data['propriedade_clientes'])) {
+            foreach ($data['propriedade_clientes'] as &$pc) {
+                if (isset($pc['percentual_participacao'])) {
+                    $pc['proporcao'] = $pc['percentual_participacao'];
+                }
+            }
+            unset($pc);
+            syncTableRows($pdo, 'propriedade_proprietarios', $data['propriedade_clientes']);
         }
         if (!empty($data['matriculas'])) {
             foreach ($data['matriculas'] as &$m) {

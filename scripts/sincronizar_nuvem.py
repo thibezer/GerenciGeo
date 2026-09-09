@@ -38,7 +38,7 @@ def main():
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
 
     tables = [
-        "pessoas", "clientes", "propriedades", "matriculas",
+        "pessoas", "clientes", "propriedades", "propriedade_clientes", "matriculas",
         "levantamentos", "pontos", "segmentos", "pendencias", "profissionais"
     ]
 
