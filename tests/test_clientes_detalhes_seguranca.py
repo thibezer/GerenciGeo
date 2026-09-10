@@ -23,23 +23,33 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
         with DatabaseManager() as conn:
             create_tables(conn)
 
-    def setUp(self):
-        self.created_cliente_ids = []
-
-    def tearDown(self):
+    def _limpar_dados_teste(self):
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            for cid in self.created_cliente_ids:
-                cursor.execute("SELECT pessoa_id FROM clientes WHERE id = ?", (cid,))
-                row = cursor.fetchone()
-                cursor.execute("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?", (cid,))
-                cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cid,))
-                cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cid,))
-                cursor.execute("DELETE FROM clientes WHERE id = ?", (cid,))
-                if row and row[0]:
-                    cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (row[0],))
-                    cursor.execute("DELETE FROM pessoas WHERE id = ?", (row[0],))
+            cpfs = ('78612659191', '90378697501', '11222333000181', '39601739114', '58943780010', '12345678909', '52998224725', '01234567890', '98765432100')
+            placeholders = ','.join(['?'] * len(cpfs))
+            cursor.execute(f"SELECT id FROM pessoas WHERE cpf_cnpj IN ({placeholders})", cpfs)
+            p_ids = [r[0] for r in cursor.fetchall()]
+            if p_ids:
+                p_placeholders = ','.join(['?'] * len(p_ids))
+                cursor.execute(f"SELECT id FROM clientes WHERE pessoa_id IN ({p_placeholders})", p_ids)
+                c_ids = [r[0] for r in cursor.fetchall()]
+                if c_ids:
+                    c_placeholders = ','.join(['?'] * len(c_ids))
+                    cursor.execute(f"DELETE FROM cliente_acesso_logs WHERE id_cliente IN ({c_placeholders})", c_ids)
+                    cursor.execute(f"DELETE FROM cliente_historico_logs WHERE id_cliente IN ({c_placeholders})", c_ids)
+                    cursor.execute(f"DELETE FROM cliente_metadados WHERE id_cliente IN ({c_placeholders})", c_ids)
+                    cursor.execute(f"DELETE FROM clientes WHERE id IN ({c_placeholders})", c_ids)
+                cursor.execute(f"DELETE FROM cliente_documentos WHERE pessoa_id IN ({p_placeholders})", p_ids)
+                cursor.execute(f"DELETE FROM pessoas WHERE id IN ({p_placeholders})", p_ids)
             conn.commit()
+
+    def setUp(self):
+        self.created_cliente_ids = []
+        self._limpar_dados_teste()
+
+    def tearDown(self):
+        self._limpar_dados_teste()
 
     def test_criptografia_e_revelacao_auditada(self):
         """Valida que a senha é cifrada em repouso e que a revelação gera registro de auditoria."""
@@ -287,5 +297,59 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
         doc_anexado = next(d for d in docs if d["arquivo_nome"] == "cnh_marcos.pdf")
         self.assertIsNotNone(doc_anexado["arquivo_path"])
         self.assertTrue(doc_anexado["tamanho_bytes"] > 0)
+
+    def test_nao_vazar_senha_gov_no_historico_alteracoes(self):
+        """Valida que a alteração de senha GOV nunca grava a senha em texto puro em cliente_historico_logs."""
+        senha_inicial = "GovPlano#1122"
+        senha_nova = "NovaSenha#9988"
+
+        # 1. Cadastra cliente com senha inicial
+        cli_data = {
+            "nome_completo": "Cliente Seguranca Historico",
+            "cpf_cnpj": "52998224725",
+            "senha_gov": senha_inicial
+        }
+        res = cadastrar_cliente(cli_data)
+        self.assertNotIn("error", res)
+        cid = res["id"]
+        self.created_cliente_ids.append(cid)
+
+        # 2. Atualiza para nova senha
+        cli_data["senha_gov"] = senha_nova
+        res_up = atualizar_cliente(cid, cli_data)
+        self.assertNotIn("error", res_up)
+
+        # 3. Consulta o histórico gravado
+        logs = execute_query(
+            "SELECT campo_alterado, valor_antigo, valor_novo FROM cliente_historico_logs WHERE id_cliente = ?",
+            params=(cid,),
+            fetch_all=True
+        )
+
+        for l in logs:
+            # Nunca deve conter a senha plana em nenhum dos campos
+            self.assertNotEqual(l["valor_novo"], senha_nova)
+            self.assertNotEqual(l["valor_antigo"], senha_inicial)
+            self.assertFalse(senha_nova in str(l["valor_novo"]))
+            self.assertFalse(senha_inicial in str(l["valor_antigo"]))
+
+        # Verifica que o log de senha_gov foi registrado como confidencial
+        log_senha = next((l for l in logs if l["campo_alterado"] == "senha_gov"), None)
+        self.assertIsNotNone(log_senha)
+        self.assertEqual(log_senha["valor_antigo"], "[CONFIDENCIAL]")
+        self.assertEqual(log_senha["valor_novo"], "[ALTERADA]")
+
+        # 4. Atualiza novamente sem alterar senha (enviando a máscara "••••••••")
+        cli_data["senha_gov"] = "••••••••"
+        res_up2 = atualizar_cliente(cid, cli_data)
+        self.assertNotIn("error", res_up2)
+
+        # Não deve gerar novo registro de senha_gov
+        logs_depois = execute_query(
+            "SELECT COUNT(*) as count FROM cliente_historico_logs WHERE id_cliente = ? AND campo_alterado = 'senha_gov'",
+            params=(cid,),
+            fetch_one=True
+        )
+        self.assertEqual(logs_depois["count"], 1)
 
 

@@ -202,8 +202,15 @@ def salvar_documento_cliente(cliente_id: int, doc_data: dict) -> dict:
 
 
 def excluir_documento_cliente(doc_id: int) -> dict:
-    """Remove um documento da tabela cliente_documentos."""
+    """Remove um documento da tabela cliente_documentos e remove o arquivo físico associado se existir."""
     try:
+        row = execute_query("SELECT arquivo_path FROM cliente_documentos WHERE id = ?", params=(doc_id,), fetch_one=True)
+        if row and row["arquivo_path"] and os.path.exists(row["arquivo_path"]):
+            try:
+                os.remove(row["arquivo_path"])
+            except Exception as ex_f:
+                logger.warning(f"Aviso ao remover arquivo físico do documento {doc_id}: {ex_f}")
+
         execute_query("DELETE FROM cliente_documentos WHERE id = ?", params=(doc_id,), commit=True)
         return {"message": "Documento excluído com sucesso."}
     except Exception as e:
@@ -641,11 +648,14 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             
             # 3. Tratamento de senha GOV criptografada
             senha_gov_final = old_data.get("senha_gov")
+            senha_alterada = False
             if senha_gov_input is not None and senha_gov_input != '••••••••':
                 if senha_gov_input.strip():
                     senha_gov_final = encrypt_sensitive_data(senha_gov_input.strip())
+                    senha_alterada = True
                 else:
                     senha_gov_final = None
+                    senha_alterada = True
 
             # 4. Atualiza os dados civis da pessoa
             cursor.execute("""
@@ -735,13 +745,19 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
         # AUDITORIA COMPLETA: Itera sobre os campos para registrar mudanças
         mgr = ClienteManager()
         for campo, valor_novo in cli_data.items():
-            if campo == 'metadados':
+            if campo in ('metadados', 'senha_gov'):
                 continue
             valor_antigo = old_data.get(campo)
             str_antigo = str(valor_antigo) if valor_antigo is not None else ""
             str_novo = str(valor_novo) if valor_novo is not None else ""
             if str_antigo != str_novo and valor_novo is not None:
                 mgr.registrar_historico(cliente_id, campo, str_antigo, str_novo)
+
+        # Registra alteração de senha_gov de forma discreta sem expor valores planos nem hashes
+        if senha_alterada:
+            val_antigo_desc = '[CONFIDENCIAL]' if old_data.get('senha_gov') else '[VAZIO]'
+            val_novo_desc = '[ALTERADA]' if senha_gov_final else '[REMOVIDA]'
+            mgr.registrar_historico(cliente_id, 'senha_gov', val_antigo_desc, val_novo_desc)
         
         # SINCRONIZAÇÃO DE WORKSPACE: Atualiza JSON em todos os levantamentos ATIVOS vinculados
         query_ativos = """
@@ -811,6 +827,16 @@ def excluir_cliente(cliente_id: int) -> dict:
 
             conn.commit()
 
+        # Limpeza física de uploads do cliente excluído
+        try:
+            from config import BASE_DIR
+            import shutil
+            cli_upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
+            if os.path.exists(cli_upload_dir):
+                shutil.rmtree(cli_upload_dir, ignore_errors=True)
+        except Exception as ex_rm:
+            logger.warning(f"Aviso ao remover diretório de upload do cliente {cliente_id}: {ex_rm}")
+
         return {"sucesso": True, "message": "Cliente excluído com sucesso"}
     except Exception as e:
         logger.error(f"Erro ao excluir cliente id={cliente_id}: {e}", exc_info=True)
@@ -869,6 +895,16 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
                         cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
 
                 sucessos += 1
+
+                # Limpeza física de uploads do cliente
+                try:
+                    from config import BASE_DIR
+                    import shutil
+                    cli_upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cid))
+                    if os.path.exists(cli_upload_dir):
+                        shutil.rmtree(cli_upload_dir, ignore_errors=True)
+                except Exception as ex_rm_lote:
+                    logger.warning(f"Aviso ao remover uploads do cliente {cid} em lote: {ex_rm_lote}")
 
             conn.commit()
 

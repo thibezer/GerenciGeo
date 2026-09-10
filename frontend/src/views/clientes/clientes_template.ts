@@ -229,9 +229,9 @@ export const renderClientesTemplate = (): string => `
                 <div class="col-span-2 bg-white/[0.015] border border-white/5 rounded px-2 py-0.5">
                    <div class="flex items-center justify-between mb-0.5">
                       <span class="text-[8.5px] font-bold text-mint-vibrant uppercase tracking-wider">CNH (Opcional)</span>
-                      <span class="text-[8px] text-white/30 font-mono">Nº / Cat / Validade</span>
+                      <span class="text-[8px] text-white/30 font-mono">Nº / Cat / Validade / Órg-UF</span>
                    </div>
-                   <div class="grid grid-cols-4 gap-1 items-center">
+                   <div class="grid grid-cols-5 gap-1 items-center">
                       <div class="col-span-2">
                          <ui-campo-texto name="cnh_numero" placeholder="Nº Registro"></ui-campo-texto>
                       </div>
@@ -240,6 +240,9 @@ export const renderClientesTemplate = (): string => `
                       </div>
                       <div>
                          <ui-campo-texto name="cnh_validade" tipo="date"></ui-campo-texto>
+                      </div>
+                      <div>
+                         <ui-campo-texto name="cnh_orgao_uf" placeholder="DETRAN/PR"></ui-campo-texto>
                       </div>
                    </div>
                 </div>
@@ -258,7 +261,11 @@ export const renderClientesTemplate = (): string => `
                    <ui-campo-texto name="nome_fantasia" id="input-nome-fantasia"></ui-campo-texto>
                 </div>
              </div>
-             <div class="grid grid-cols-3 gap-2.5 items-end">
+             <div class="grid grid-cols-4 gap-2.5 items-end">
+                <div>
+                   <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">CNPJ</label>
+                   <ui-campo-texto name="cnpj_pj" id="input-cnpj-pj" placeholder="00.000.000/0000-00"></ui-campo-texto>
+                </div>
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5">Inscrição Estadual (IE)</label>
                    <ui-campo-texto name="inscricao_estadual" placeholder="Isento / Nº"></ui-campo-texto>
@@ -400,9 +407,9 @@ export const renderClientesTemplate = (): string => `
                 <div>
                    <label class="block text-[9px] font-bold tracking-wider uppercase text-white/50 mb-0.5 flex items-center justify-between">
                      <span>Senha GOV</span>
-                     <span class="text-[8px] text-mint-vibrant font-mono">segura</span>
+                     <span class="text-[8px] text-mint-vibrant font-mono" id="label-senhagov-hint">segura</span>
                    </label>
-                   <ui-campo-texto name="senha_gov" placeholder="Senha GOV"></ui-campo-texto>
+                   <ui-campo-texto name="senha_gov" id="input-senha-gov" placeholder="Senha GOV"></ui-campo-texto>
                 </div>
              </div>
 

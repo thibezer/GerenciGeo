@@ -308,6 +308,26 @@ def get_cliente_por_id(cliente_id: int):
         """, params=(p_id,), fetch_all=True)
         c['documentos'] = [dict(d) for d in docs] if docs else []
         
+        # Total de levantamentos
+        lev_row = execute_query("""
+            SELECT count(l.id) as qtd
+            FROM propriedade_clientes pc
+            JOIN propriedades p ON pc.propriedade_id = p.id
+            JOIN levantamentos l ON p.id = l.propriedade_id
+            WHERE pc.cliente_id = ?
+        """, params=(cliente_id,), fetch_one=True)
+        c['total_levantamentos'] = lev_row['qtd'] if lev_row else 0
+
+        # Propriedades e total
+        props_rows = execute_query("""
+            SELECT p.id, p.nome_propriedade, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN propriedades p ON pc.propriedade_id = p.id
+            WHERE pc.cliente_id = ?
+        """, params=(cliente_id,), fetch_all=True)
+        c['propriedades'] = [dict(r) for r in props_rows] if props_rows else []
+        c['total_propriedades'] = len(c['propriedades'])
+
         tem_senha = bool(c.get('senha_gov'))
         c['tem_senha_gov'] = tem_senha
         c['senha_gov'] = '••••••••' if tem_senha else None

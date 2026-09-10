@@ -92,9 +92,10 @@ class PropriedadeClienteRepo(GenericRepo):
 
     def get_by_propriedade(self, propriedade_id):
         query = """
-            SELECT pc.*, c.nome, c.id as cliente_id 
+            SELECT pc.*, p.nome, c.id as cliente_id 
             FROM propriedade_clientes pc 
             JOIN clientes c ON pc.cliente_id = c.id 
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE pc.propriedade_id = ?
         """
         return [dict(r) for r in execute_query(query, params=(propriedade_id,), fetch_all=True)]

@@ -77,6 +77,7 @@ export const clientesRoute: RouteDef = {
     const inputNomeCompleto = document.getElementById('input-nome-completo') as HTMLInputElement | null;
     const inputRazaoSocial = document.getElementById('input-razao-social') as HTMLInputElement | null;
     const inputCpfCnpj = document.getElementById('input-cpf-cnpj') as HTMLInputElement | null;
+    const inputCnpjPj = document.getElementById('input-cnpj-pj') as HTMLInputElement | null;
     const inputCpfConjuge = form?.querySelector<HTMLInputElement>('[name="cpf_conjuge"]') || null;
     const inputTelefone = form?.querySelector<HTMLInputElement>('[name="telefone"]') || null;
     const inputCep = form?.querySelector<HTMLInputElement>('[name="cep"]') || null;
@@ -105,7 +106,7 @@ export const clientesRoute: RouteDef = {
       else modalDetalhes?.classList.add('hidden');
     };
 
-    // Alternador PF / PJ com soft-hide
+    // Alternador PF / PJ com soft-hide e ajuste dinâmico de campos requeridos
     const setTipoPessoa = (tipo: 'PF' | 'PJ') => {
       if (inputTipoPessoa) inputTipoPessoa.value = tipo;
 
@@ -119,7 +120,9 @@ export const clientesRoute: RouteDef = {
         blocoCamposPj?.classList.add('hidden');
 
         if (inputNomeCompleto) inputNomeCompleto.required = true;
+        if (inputCpfCnpj) inputCpfCnpj.required = true;
         if (inputRazaoSocial) inputRazaoSocial.required = false;
+        if (inputCnpjPj) inputCnpjPj.required = false;
       } else {
         btnTipoPj?.classList.add('bg-mint-vibrant', 'text-forest-deep', 'shadow-sm');
         btnTipoPj?.classList.remove('text-white/50');
@@ -130,7 +133,9 @@ export const clientesRoute: RouteDef = {
         blocoCamposPf?.classList.add('hidden');
 
         if (inputNomeCompleto) inputNomeCompleto.required = false;
+        if (inputCpfCnpj) inputCpfCnpj.required = false;
         if (inputRazaoSocial) inputRazaoSocial.required = true;
+        if (inputCnpjPj) inputCnpjPj.required = true;
       }
     };
 
@@ -170,6 +175,7 @@ export const clientesRoute: RouteDef = {
     };
 
     handleInputMask(inputCpfCnpj, aplicarMascaraCpfCnpj);
+    handleInputMask(inputCnpjPj, aplicarMascaraCpfCnpj);
     handleInputMask(inputCpfConjuge, aplicarMascaraCpfCnpj);
     handleInputMask(inputTelefone, aplicarMascaraTelefone);
 
@@ -268,6 +274,8 @@ export const clientesRoute: RouteDef = {
         carregarCidadesPorEstado('PR');
         popularSelectRepresentante(null);
         toggleConjuge();
+        const hintSenha = document.getElementById('label-senhagov-hint');
+        if (hintSenha) hintSenha.innerText = 'segura';
       }
       if (modalCadastro) modalCadastro.setAttribute('titulo', 'Cadastro de Cliente');
       abrirModalCadastro();
@@ -762,14 +770,9 @@ export const clientesRoute: RouteDef = {
         }
       };
 
-      const enderecoCompleto = cli.endereco_completo || '';
-      let enderecoSemNumero = enderecoCompleto;
-      let numero = '';
-      const matchEnd = enderecoCompleto.match(/^(.*?)(?:,\s*([^,]+))?$/);
-      if (matchEnd && matchEnd[2]) {
-        enderecoSemNumero = matchEnd[1];
-        numero = matchEnd[2];
-      }
+      // Preenchimento preciso de endereço nativo
+      const enderecoSemNumero = cli.endereco_sem_numero || (cli.endereco_completo ? cli.endereco_completo.split(',')[0].trim() : '');
+      const numero = cli.numero_endereco || (cli.endereco_completo && cli.endereco_completo.includes(',') ? cli.endereco_completo.split(',').slice(1).join(',').trim() : '');
 
       setFormVal('nome_completo', cli.nome_completo);
       setFormVal('razao_social', cli.razao_social || cli.nome_completo);
@@ -778,7 +781,14 @@ export const clientesRoute: RouteDef = {
       setFormVal('inscricao_municipal', cli.inscricao_municipal);
       setFormVal('data_fundacao_pj', cli.data_nascimento_fundacao);
 
-      setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
+      if (isPj) {
+        setFormVal('cnpj_pj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
+        setFormVal('cpf_cnpj', '');
+      } else {
+        setFormVal('cpf_cnpj', aplicarMascaraCpfCnpj(cli.cpf_cnpj || ''));
+        setFormVal('cnpj_pj', '');
+      }
+
       setFormVal('rg_ie', cli.rg_ie);
       setFormVal('rg_orgao', cli.rg_orgao || 'SSP');
       setFormVal('rg_uf', cli.rg_uf || cli.estado || 'PR');
@@ -786,6 +796,7 @@ export const clientesRoute: RouteDef = {
       setFormVal('cnh_numero', cli.cnh_numero);
       setFormVal('cnh_categoria', cli.cnh_categoria);
       setFormVal('cnh_validade', cli.cnh_validade);
+      setFormVal('cnh_orgao_uf', cli.cnh_orgao_uf || 'DETRAN/PR');
       setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
       setFormVal('estado_civil', cli.estado_civil);
       setFormVal('sexo', cli.sexo || 'M');
@@ -809,6 +820,10 @@ export const clientesRoute: RouteDef = {
       setFormVal('telefone', cli.telefone ? aplicarMascaraTelefone(cli.telefone) : '');
       setFormVal('email', cli.email);
       setFormVal('senha_gov', cli.senha_gov);
+      const hintSenha = document.getElementById('label-senhagov-hint');
+      if (hintSenha) {
+        hintSenha.innerText = cli.tem_senha_gov || cli.senha_gov ? '•••••••• (mantida)' : 'segura';
+      }
       setFormVal('cep', cli.cep ? aplicarMascaraCep(cli.cep) : '');
       setFormVal('endereco_sem_numero', cli.endereco_sem_numero || enderecoSemNumero);
       setFormVal('numero_endereco', cli.numero_endereco || numero);
@@ -1269,7 +1284,10 @@ export const clientesRoute: RouteDef = {
         : (rawPayload.nome_completo || nomeInputVal || '')
       ).trim();
 
-      const cpfCnpjRaw = (rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || (form?.querySelector<any>('#input-cpf-cnpj'))?.value || '').trim();
+      const cpfCnpjRaw = (isPj
+        ? (rawPayload.cnpj_pj || (inputCnpjPj as any)?.value || (form?.querySelector<any>('#input-cnpj-pj'))?.value || rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || '')
+        : (rawPayload.cpf_cnpj || (inputCpfCnpj as any)?.value || (form?.querySelector<any>('#input-cpf-cnpj'))?.value || '')
+      ).trim();
       const cpfCnpjVal = cpfCnpjRaw !== '' ? cpfCnpjRaw : null;
 
       const enderecoSemNumero = rawPayload.endereco_sem_numero || '';

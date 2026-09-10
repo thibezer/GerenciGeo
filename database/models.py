@@ -780,6 +780,8 @@ def create_tables(conn):
         migrar_retrocompatibilidade_documentos_e_senhas(conn)
         # Executa migração de unicidade de cliente por propriedade se necessário
         migrar_restricao_unicidade_propriedade_clientes(conn)
+        # Executa migração de índices de alta performance e saneamento de clientes
+        migrar_indices_e_sanitizacao_clientes(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -1202,4 +1204,31 @@ def migrar_retrocompatibilidade_documentos_e_senhas(conn):
         conn.commit()
     except Exception as e_mig:
         logger.warning(f"Aviso durante migração de documentos e senhas: {e_mig}")
+
+def migrar_indices_e_sanitizacao_clientes(conn):
+    """
+    Garante a criação de índices secundários para alta performance no módulo de clientes
+    e saneia registros legados em cliente_historico_logs com senhas em texto puro.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientes_pessoa_id ON clientes(pessoa_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_metadados_id ON cliente_metadados(id_cliente)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_documentos_pessoa_id ON cliente_documentos(pessoa_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_historico_id ON cliente_historico_logs(id_cliente)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_acesso_id ON cliente_acesso_logs(id_cliente)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_propriedade_clientes_cliente_id ON propriedade_clientes(cliente_id)")
+        
+        # Saneamento de segurança: mascara qualquer senha que possa ter sido salva em texto puro em logs legados
+        cursor.execute("""
+            UPDATE cliente_historico_logs
+            SET valor_antigo = '[CONFIDENCIAL]', valor_novo = '[ALTERADA]'
+            WHERE campo_alterado = 'senha_gov' 
+              AND (valor_novo NOT IN ('[ALTERADA]', '[REMOVIDA]', '[CONFIDENCIAL]') 
+                   OR valor_antigo NOT IN ('[CONFIDENCIAL]', '[VAZIO]'))
+        """)
+        conn.commit()
+        logger.info("[MIGRAÇÃO] Índices secundários de clientes verificados/criados com sucesso.")
+    except Exception as e:
+        logger.warning(f"Aviso ao migrar índices de clientes e sanear histórico: {e}")
 
