@@ -356,7 +356,7 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
         # 1. Carregar todos os pontos da matrícula
         todos_pontos = execute_query(
             """
-            SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono
+            SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
             FROM pontos
             WHERE levantamento_id = ? AND matricula_id = ?
             ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
@@ -388,44 +388,93 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
         
         pts_coords = {pt["id"]: (pt["_lat"], pt["_lon"], pt["nome_vertice"]) for pt in pts_validos}
         
-        # 3. Montar poligonal principal ordenada (exclui ignorar_poligono = 1)
+        # 3. Montar poligonal principal ordenada (Limite Geral do Imóvel):
+        # Prioridade 1: Encadeamento topológico a partir da cadeia de segmentos perimétricos da matrícula
+        rows_segs_mat = execute_query(
+            """
+            SELECT s.ponto_inicio_id, s.ponto_fim_id
+            FROM segmentos s
+            WHERE s.levantamento_id = ? AND s.matricula_id = ?
+            ORDER BY s.id ASC
+            """,
+            params=(lev_id, matricula_id),
+            fetch_all=True
+        )
+        
         poligono_coords = []
-        for pt in pts_validos:
-            if (pt["ignorar_poligono"] or 0) == 0:
-                poligono_coords.append([pt["_lat"], pt["_lon"]])
+        if rows_segs_mat:
+            adj_mat = {r["ponto_inicio_id"]: r["ponto_fim_id"] for r in rows_segs_mat}
+            inicio = rows_segs_mat[0]["ponto_inicio_id"]
+            curr = inicio
+            visitados_anel = set()
+            while curr not in visitados_anel:
+                visitados_anel.add(curr)
+                if curr in pts_coords:
+                    poligono_coords.append([pts_coords[curr][0], pts_coords[curr][1]])
+                curr = adj_mat.get(curr)
+                if not curr or curr == inicio:
+                    break
+                    
+        # Fallback se não houver segmentos perimétricos ou se a cadeia tiver menos de 3 pontos
+        if len(poligono_coords) < 3:
+            pts_filtrados = [p for p in pts_validos if (p.get("ignorar_poligono") or 0) == 0 and p.get("tipo_ponto") != 'B']
+            tem_homologado = any(p.get("origem_homologada") == 1 for p in pts_filtrados)
+            if tem_homologado:
+                pts_filtrados = [p for p in pts_filtrados if p.get("origem_homologada") == 1]
+            poligono_coords = [[p["_lat"], p["_lon"]] for p in pts_filtrados]
                 
         if len(poligono_coords) < 2:
             return "", {}
             
-        # 4. Buscar segmentos do confrontante ordenados por ordem de caminhamento do ponto inicial
+        # 4. Buscar segmentos do confrontante ordenados topologicamente
         rows_segs = execute_query(
             """
             SELECT s.ponto_inicio_id, s.ponto_fim_id, pi.ordem_caminhamento as ini_ordem
             FROM segmentos s
             JOIN pontos pi ON s.ponto_inicio_id = pi.id
             WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
+            ORDER BY s.id ASC
             """,
             params=(lev_id, matricula_id, confrontante_id),
             fetch_all=True
         )
         
         segs = [dict(r) for r in rows_segs]
-        if segs:
-            segs.sort(key=lambda x: x["ini_ordem"] if x["ini_ordem"] is not None else 0)
-            extremidade_inicial_id = segs[0]["ponto_inicio_id"]
-            extremidade_final_id = segs[-1]["ponto_fim_id"]
-        else:
-            extremidade_inicial_id = None
-            extremidade_final_id = None
+        if not segs:
+            return "", {}
+            
+        inicios = {s["ponto_inicio_id"] for s in segs}
+        fins = {s["ponto_fim_id"] for s in segs}
+        pontas_ini = [s for s in segs if s["ponto_inicio_id"] not in fins]
+        
+        adj_conf = {s["ponto_inicio_id"]: s["ponto_fim_id"] for s in segs}
+        start_node = pontas_ini[0]["ponto_inicio_id"] if pontas_ini else segs[0]["ponto_inicio_id"]
+        
+        segs_ordenados = []
+        curr = start_node
+        visitados_segs = set()
+        while curr in adj_conf and curr not in visitados_segs:
+            visitados_segs.add(curr)
+            nxt = adj_conf[curr]
+            segs_ordenados.append((curr, nxt))
+            curr = nxt
+            if curr == start_node:
+                break
+                
+        # Caso haja segmentos desconexos para o mesmo confrontante
+        if len(segs_ordenados) < len(segs):
+            segs_restantes = [s for s in segs if (s["ponto_inicio_id"], s["ponto_fim_id"]) not in segs_ordenados]
+            for s in segs_restantes:
+                segs_ordenados.append((s["ponto_inicio_id"], s["ponto_fim_id"]))
+                
+        ext_ini_id = segs_ordenados[0][0]
+        ext_fim_id = segs_ordenados[-1][1]
         
         lindeira_coords = []
         lindeira_pontos = []
         pts_vistos = set()
         
-        for s in segs:
-            p_ini_id = s["ponto_inicio_id"]
-            p_fim_id = s["ponto_fim_id"]
-            
+        for p_ini_id, p_fim_id in segs_ordenados:
             if p_ini_id in pts_coords and p_fim_id in pts_coords:
                 lat1, lon1, nome1 = pts_coords[p_ini_id]
                 lat2, lon2, nome2 = pts_coords[p_fim_id]
@@ -434,11 +483,11 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
                 lindeira_coords.append([[lat1, lon1], [lat2, lon2]])
                 
                 if p_ini_id not in pts_vistos:
-                    exibir = (p_ini_id == extremidade_inicial_id or p_ini_id == extremidade_final_id)
+                    exibir = (p_ini_id == ext_ini_id or p_ini_id == ext_fim_id)
                     lindeira_pontos.append({"coords": [lat1, lon1], "nome": nome1, "exibir_nome": exibir})
                     pts_vistos.add(p_ini_id)
                 if p_fim_id not in pts_vistos:
-                    exibir = (p_fim_id == extremidade_inicial_id or p_fim_id == extremidade_final_id)
+                    exibir = (p_fim_id == ext_ini_id or p_fim_id == ext_fim_id)
                     lindeira_pontos.append({"coords": [lat2, lon2], "nome": nome2, "exibir_nome": exibir})
                     pts_vistos.add(p_fim_id)
                     
