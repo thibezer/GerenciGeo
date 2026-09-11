@@ -243,7 +243,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             ? `<option value="" class="bg-[#0c1510]">[Sem Matrícula]</option>`
             : ctx.matriculasList.map((m: any) => `
                 <option value="${m.id}" class="bg-[#0c1510]" ${ctx.currentMatriculaId === m.id ? 'selected' : ''}>
-                  Matrícula ${m.numero_matricula || m.num_matricula || m.id} (${formatAreaHa(m.area_ha || m.area)}ha)
+                  Matrícula ${m.numero_matricula || m.num_matricula || m.id} (${formatAreaHa(m.area_ha || m.area)}ha)${m.matricula_origem_desenho_id ? ' 🔗 [Gleba Unificada]' : ''}
                 </option>
               `).join('');
 

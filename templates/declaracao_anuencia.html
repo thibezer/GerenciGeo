@@ -160,7 +160,7 @@
                         Federal nº 6.015 de 1973</strong>), <strong>{texto_declara}</strong> não existir nenhuma disputa,
                     litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
                     vizinho denominado <strong>{nome_lote}</strong>, de propriedade de
-                    <strong>{proprietarios_str}</strong>, objeto da <strong>Matrícula nº {numero_matricula}</strong> do
+                    <strong>{proprietarios_str}</strong>, objeto da(s) <strong>{rotulo_matricula} {numero_matricula}</strong> do
                     Serviço de Registro de Imóveis da Comarca de {comarca}.
                 </p>
 
@@ -170,6 +170,9 @@
 
                 <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
                 {tabela_divisas_html}
+
+                <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
+                {clausula_unificacao}
 
                 <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
                 <p class="break-inside-avoid">{texto_declaramos_ainda} que o profissional responsável técnico

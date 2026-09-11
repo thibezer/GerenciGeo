@@ -152,6 +152,7 @@ def create_tables(conn):
             denominacao TEXT,
             georreferenciamento TEXT,
             caminho_arquivo_pdf TEXT,
+            matricula_origem_desenho_id INTEGER REFERENCES matriculas(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
         );
@@ -587,7 +588,8 @@ def create_tables(conn):
             ("valor_itr", "REAL"),
             ("denominacao", "TEXT"),
             ("georreferenciamento", "TEXT"),
-            ("caminho_arquivo_pdf", "TEXT")
+            ("caminho_arquivo_pdf", "TEXT"),
+            ("matricula_origem_desenho_id", "INTEGER")
         ]
         cursor.execute("PRAGMA table_info(matriculas)")
         colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}
@@ -598,6 +600,11 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em matriculas: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em matriculas: {ex_mig}")
+        
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_matriculas_origem_desenho ON matriculas (matricula_origem_desenho_id)")
+        except Exception:
+            pass
         
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [

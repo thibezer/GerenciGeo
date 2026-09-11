@@ -298,7 +298,26 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                                 table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
                                 map_key = f"{filename}#{table_name}"
                                 if map_key in map_dados and map_dados[map_key]:
-                                    mat_id = int(map_dados[map_key])
+                                    val_map = map_dados[map_key]
+                                    mats_ids_aba = []
+                                    if isinstance(val_map, list):
+                                        mats_ids_aba = [int(x) for x in val_map if str(x).isdigit()]
+                                    elif isinstance(val_map, str) and "," in val_map:
+                                        mats_ids_aba = [int(x.strip()) for x in val_map.split(",") if x.strip().isdigit()]
+                                    elif str(val_map).isdigit():
+                                        mats_ids_aba = [int(val_map)]
+
+                                    if not mats_ids_aba:
+                                        continue
+
+                                    mat_id = mats_ids_aba[0]
+                                    for sec_id in mats_ids_aba[1:]:
+                                        execute_query(
+                                            "UPDATE matriculas SET matricula_origem_desenho_id = ? WHERE id = ?",
+                                            params=(mat_id, sec_id),
+                                            commit=True
+                                        )
+
                                     nome_planilha = table_name if filename.lower().replace('.ods', '') in table_name.lower() else f"{filename} - {table_name}"
                                     
                                     pontos_aba = {}
@@ -356,7 +375,25 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
             else:
                 map_key = f"{filename}#Arquivo Único"
                 if map_key in map_dados and map_dados[map_key]:
-                    mat_id = int(map_dados[map_key])
+                    val_map = map_dados[map_key]
+                    mats_ids_aba = []
+                    if isinstance(val_map, list):
+                        mats_ids_aba = [int(x) for x in val_map if str(x).isdigit()]
+                    elif isinstance(val_map, str) and "," in val_map:
+                        mats_ids_aba = [int(x.strip()) for x in val_map.split(",") if x.strip().isdigit()]
+                    elif str(val_map).isdigit():
+                        mats_ids_aba = [int(val_map)]
+
+                    if not mats_ids_aba:
+                        continue
+
+                    mat_id = mats_ids_aba[0]
+                    for sec_id in mats_ids_aba[1:]:
+                        execute_query(
+                            "UPDATE matriculas SET matricula_origem_desenho_id = ? WHERE id = ?",
+                            params=(mat_id, sec_id),
+                            commit=True
+                        )
                     nome_planilha = filename
                     
                     p_dict, l_dict, o_list = parse_csv_sigef(content, fuso_utm)
@@ -712,6 +749,9 @@ def get_auditoria_banco_pontos(id: int):
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/pontos-homologados")
 def get_pontos_homologados_matricula(id: int, matricula_id: int):
     try:
+        row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
+
         query = """
             SELECT p.id, p.levantamento_id, p.matricula_id, p.nome_vertice as codigo_completo,
                    p.tipo_ponto, p.lat, p.lon, p.alt as altitude, p.sigma_lat, p.sigma_lon, p.sigma_alt,
@@ -719,7 +759,7 @@ def get_pontos_homologados_matricula(id: int, matricula_id: int):
             FROM pontos p WHERE p.levantamento_id = ? AND p.matricula_id = ? AND p.origem_homologada = 1
             ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
-        return [dict(r) for r in execute_query(query, params=(id, matricula_id), fetch_all=True)]
+        return [dict(r) for r in execute_query(query, params=(id, target_id), fetch_all=True)]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

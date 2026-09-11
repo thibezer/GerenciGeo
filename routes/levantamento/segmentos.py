@@ -407,6 +407,9 @@ def delete_segmento(sid: int):
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes-ativos")
 def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
     try:
+        row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
+
         rows = execute_query(
             """
             SELECT c.id, p.nome, p.cpf_cnpj, c.matricula_imovel, c.caminho_matricula_pdf
@@ -417,7 +420,7 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
             GROUP BY c.id
             ORDER BY p.nome ASC
             """,
-            params=(id, matricula_id),
+            params=(id, target_id),
             fetch_all=True
         )
         return [dict(r) for r in rows]

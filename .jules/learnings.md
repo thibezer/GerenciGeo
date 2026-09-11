@@ -378,3 +378,20 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
      - Em `api.php`, os comandos `INSERT INTO pessoas` e `UPDATE pessoas` devem contemplar todos os campos estendidos de pessoa física e jurídica (tipo_pessoa, razao_social, nome_fantasia, inscrições, CNH, RG, casamento, endereço, metadados).
      - No backend Python (`routes/clientes.py` e `services/gestores/cliente_manager.py`): o modelo `ClienteCreate` aceita `nome_completo` e `nome`, normalizando `nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")` e `cpf_cnpj = Optional[str] = None`.
   4. **Fallbacks de Leitura no Formulário**: Na leitura de campos do formulário com Web Components, compor `rawPayload.campo || (domElement as any)?.value || ''` para evitar valores nulos caso a associação ao formulário sofra atraso no ciclo de eventos.
+
+---
+
+## 23. Perímetros Topológicos em Cartas de Anuência e Matrículas com Georreferenciamento Compartilhado (Gleba Unificada)
+- **Problema**:
+  1. **Efeito "Teia de Aranha" no Croqui de Limites (Anexo Gráfico Leaflet)**: A consulta de vértices para traçar o limite geral do imóvel ordenava todos os pontos apenas por `ordem_caminhamento ASC`. Quando uma matrícula continha tanto pontos homologados oficiais (`origem_homologada = 1`) quanto pontos de apoio brutos de campo (`origem_homologada = 0`), a ordenação simples misturava pontos de rio e estações de apoio com o perímetro, traçando linhas cruzadas diagonais que deformavam o mapa.
+  2. **Glebas com Georreferenciamento Conjunto ("Geo Junto" / Matrículas Unificadas)**: Na prática cartorária e topográfica, é comum duas ou mais matrículas contíguas serem levantadas e certificadas juntas em um único perímetro unificado (ex: Matrículas 679 e 682 da Fazenda Serra dos Dourados). Como apenas uma das matrículas continha o arquivo ODS com os vértices cadastrados, a matrícula secundária não encontrava vértices, e os documentos (Cartas de Anuência, Requerimentos, Laudos e Termos SIGEF) não refletiam os números conjuntos das matrículas e omitiam a fundamentação jurídica de unificação territorial.
+- **Regra Obrigatória**:
+  1. **Encadeamento Topológico de Segmentos**: O polígono perimétrico do Anexo Gráfico (`gerar_anexo_grafico_html`) deve ser reconstruído prioritariamente seguindo a cadeia fechada da tabela `segmentos` (`ponto_inicio_id -> ponto_fim_id`). Da mesma forma, a divisa lindeira do confrontante deve ser ordenada como um grafo encadeado a partir do vértice inicial que não é ponta final, garantindo continuidade linear estrita.
+  2. **Vínculo de Desenho Compartilhado (`matricula_origem_desenho_id`)**:
+     - A tabela `matriculas` possui a coluna `matricula_origem_desenho_id INTEGER REFERENCES matriculas(id)` indexada por `idx_matriculas_origem_desenho`.
+     - Toda busca de dados cartoriais e topográficos (`obter_dados_comuns`, `obter_segmentos_detalhados_confrontante`, `get_pontos_homologados_matricula`, `get_confrontantes_ativos_matricula`) deve resolver `mat_desenho_id = matricula_origem_desenho_id or matricula_id`.
+     - Quando `is_unificada` for True:
+       - Rótulo dinâmico: `"Matrículas nºs {num1} e {num2}"`
+       - Soma das áreas registradas consolidadas de todas as matrículas do grupo
+       - Injeção obrigatória do **Parágrafo Único – Da Unificação e Continuidade Territorial** nas Cartas de Anuência e consolidação das tabelas de glebas nos Requerimentos de Cartório, Declarações de Responsabilidade, Laudos Técnicos e Termos do SIGEF.
+  3. **Importação ODS Inteligente**: Ao importar planilhas em lote, caso o nome da aba mencione múltiplas matrículas (ex: `679 e 682.ODS`), o sistema detecta e associa a gleba unificada automaticamente, vinculando as matrículas secundárias à principal.

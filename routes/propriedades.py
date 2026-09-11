@@ -42,6 +42,7 @@ class MatriculaCreate(BaseModel):
     denominacao: Optional[str] = None
     denominacao_gleba: Optional[str] = None
     georreferenciamento: Optional[str] = None
+    matricula_origem_desenho_id: Optional[int] = None
 
 # ── Rotas de Propriedades ───────────────────────────────────────────────────────
 
@@ -267,8 +268,8 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
         itr_val = m.codigo_itr or m.itr
         denominacao_val = m.denominacao_gleba or m.denominacao
 
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(prop_id, m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(prop_id, m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, m.matricula_origem_desenho_id), commit=True)
         return {"message": "Matrícula cadastrada com sucesso na propriedade."}
     except HTTPException:
         raise

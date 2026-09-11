@@ -16,10 +16,16 @@ def gerar_declaracao_anuencia_html(
     retornar_map_data: bool = False
 ) -> str | tuple[str, dict]:
     dados = dados_comuns if dados_comuns is not None else obter_dados_comuns(lev_id, matricula_id)
-    nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
+    nome_lote = dados.get("denominacoes_str") or dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
     proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
     proprietarios_str = " e ".join(proprietarios_list)
+    
+    # Suporte a múltiplas matrículas e unificação territorial
+    mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
+    num_matricula_exibicao = dados.get("numeros_matricula_str") or str(dados["mat"].get("numero_matricula") or "")
+    rotulo_matricula = dados.get("rotulo_matricula") or "Matrícula nº"
+    clausula_unificacao = dados.get("clausula_unificacao_html") or ""
     
     # Dados do Profissional para a Cláusula de Homologação
     nome_prof = dados["lev"].get("nome_profissional") or "Não Informado"
@@ -159,7 +165,7 @@ def gerar_declaracao_anuencia_html(
     texto_concordam = "Os declarantes concordam" if plural else ("O declarante concorda" if genero == "M" else "A declarante concorda")
     texto_reconhecem = "reconhecem" if plural else "reconhece"
 
-    tabela_divisas_html = gerar_tabela_divisas_html(matricula_id, confrontante_id)
+    tabela_divisas_html = gerar_tabela_divisas_html(mat_desenho_id, confrontante_id)
 
     bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
     
@@ -196,7 +202,7 @@ def gerar_declaracao_anuencia_html(
 
     # Gerar o anexo gráfico (Página 2) e mapa Leaflet
     mapa_divisa_leaflet, map_data = gerar_anexo_grafico_html(
-        lev_id, matricula_id, confrontante_id, c_nome, c_matricula
+        lev_id, mat_desenho_id, confrontante_id, c_nome, c_matricula, rotulo_matricula=rotulo_matricula, num_matricula=num_matricula_exibicao
     )
     
     script_inicializacao_mapas = ""
@@ -214,7 +220,9 @@ def gerar_declaracao_anuencia_html(
         "{c_matricula}": str(c_matricula or ""),
         "{nome_lote}": str(nome_lote or ""),
         "{proprietarios_str}": str(proprietarios_str or ""),
-        "{numero_matricula}": str(dados["mat"].get("numero_matricula") or ""),
+        "{numero_matricula}": str(num_matricula_exibicao or ""),
+        "{rotulo_matricula}": str(rotulo_matricula or "Matrícula nº"),
+        "{clausula_unificacao}": str(clausula_unificacao or ""),
         "{comarca}": str(comarca or ""),
         "{tabela_divisas_html}": str(tabela_divisas_html or ""),
         "{mapa_divisa_leaflet}": str(mapa_divisa_leaflet or ""),
@@ -260,6 +268,11 @@ def gerar_declaracao_anuencia_html(
     return res_html
 
 def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confrontantes_ids: str = None) -> str:
+    dados = obter_dados_comuns(lev_id, matricula_id)
+    mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
+    num_mat = dados.get("numeros_matricula_str") or dados["mat"].get("numero_matricula") or "SEM_MATRICULA"
+    rotulo_mat = dados.get("rotulo_matricula") or "Matrícula nº"
+    
     if confrontantes_ids:
         try:
             ids = [int(x.strip()) for x in confrontantes_ids.split(",") if x.strip().isdigit()]
@@ -268,7 +281,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     else:
         rows = execute_query(
             "SELECT DISTINCT confrontante_id FROM segmentos WHERE matricula_id = ? AND confrontante_id IS NOT NULL",
-            params=(matricula_id,),
+            params=(mat_desenho_id,),
             fetch_all=True
         )
         ids = [r["confrontante_id"] for r in rows]
@@ -276,9 +289,6 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     if not ids:
         raise ValueError("Nenhum confrontante com limites definidos encontrado para esta matrícula.")
         
-    dados = obter_dados_comuns(lev_id, matricula_id)
-    num_mat = dados["mat"].get("numero_matricula") or "SEM_MATRICULA"
-    
     template_base = carregar_template("declaracao_anuencia.html")
     
     corpos_paginas = []
@@ -300,10 +310,10 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     # Ajusta título e barra de ações
     template_base = template_base.replace(
         "<title>Declaração de Anuência do Confrontante - {c_nome}</title>",
-        f"<title>Lote de Anuências - Matrícula {num_mat}</title>"
+        f"<title>Lote de Anuências - {rotulo_mat} {num_mat}</title>"
     )
     
-    barra_lote_html = """<!-- BARRA_ACOES_INICIO -->
+    barra_lote_html = f"""<!-- BARRA_ACOES_INICIO -->
 <div
     class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
     <div class="flex items-center gap-3">
@@ -316,7 +326,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
         </div>
         <div>
             <h4 class="text-sm font-bold text-white uppercase tracking-wider">Lote de Anuências do Confrontante</h4>
-            <p class="text-[10px] text-white/40 mt-0.5">Múltiplos Termos de Respeito de Divisas (Matrícula {numero_matricula})</p>
+            <p class="text-[10px] text-white/40 mt-0.5">Múltiplos Termos de Respeito de Divisas ({rotulo_mat} {num_mat})</p>
         </div>
     </div>
     <button onclick="window.print()"
@@ -329,12 +339,12 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     import re
     template_base = re.sub(r'<!-- BARRA_ACOES_INICIO -->.*?<!-- BARRA_ACOES_FIM -->', barra_lote_html, template_base, flags=re.DOTALL)
     template_base = template_base.replace("{numero_matricula}", num_mat)
+    template_base = template_base.replace("{rotulo_matricula}", rotulo_mat)
+    template_base = template_base.replace("{clausula_unificacao}", dados.get("clausula_unificacao_html") or "")
     
     idx_corpo_ini = template_base.find("<!-- INICIO CORPO CONSOLIDADO -->")
     if idx_corpo_ini == -1:
         idx_corpo_ini = template_base.find("<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->")
-    if idx_corpo_ini == -1:
-        idx_corpo_ini = template_base.find("<div\n        class=\"page")
     if idx_corpo_ini == -1:
         idx_corpo_ini = template_base.find("<div\n        class=\"page")
         
@@ -350,7 +360,15 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     
     return header_html + lote_corpos + footer_html
 
-def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: int, c_nome: str, c_matricula: str) -> tuple[str, dict]:
+def gerar_anexo_grafico_html(
+    lev_id: int, 
+    matricula_id: int, 
+    confrontante_id: int, 
+    c_nome: str, 
+    c_matricula: str,
+    rotulo_matricula: str = "Matrícula",
+    num_matricula: str = None
+) -> tuple[str, dict]:
     """Gera o HTML da Página 2 (Anexo Gráfico) e os dados de coordenadas do Leaflet"""
     try:
         # 1. Carregar todos os pontos da matrícula
@@ -495,6 +513,7 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
             return "", {}
             
         map_id = f"map_confrontante_{confrontante_id}"
+        info_mat_requerente = f" | {rotulo_matricula}: <strong class=\"text-slate-900\">{num_matricula}</strong>" if num_matricula else ""
         
         html = f"""
 <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
@@ -507,7 +526,7 @@ def gerar_anexo_grafico_html(lev_id: int, matricula_id: int, confrontante_id: in
     
     <div class="text-center mb-4">
         <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">ANEXO GRÁFICO - CROQUI DE LIMITES</h2>
-        <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Confrontante: <strong class="text-slate-900">{c_nome}</strong> | Matrícula: <strong class="text-slate-900">{c_matricula}</strong></p>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Confrontante: <strong class="text-slate-900">{c_nome}</strong> | Imóvel Confrontante: <strong class="text-slate-900">{c_matricula}</strong>{info_mat_requerente}</p>
     </div>
 
     <!-- Container do Mapa Leaflet -->

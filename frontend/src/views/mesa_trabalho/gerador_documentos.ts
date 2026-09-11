@@ -1057,15 +1057,41 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                 return texto || "0";
               };
               
+              // Detectar se a aba ou o nome do arquivo menciona mais de uma matrícula
+              const matsEncontradas = ctx.matriculasList.filter((m: any) => {
+                const matriculaNorm = normalizarMatriculaJS(String(m.numero_matricula));
+                const abaNorm = normalizarMatriculaJS(aba.nome);
+                const filenameNorm = normalizarMatriculaJS(filename);
+                return matriculaNorm && (abaNorm.includes(matriculaNorm) || filenameNorm.includes(matriculaNorm));
+              });
+
+              const temUnificadaDetectada = matsEncontradas.length > 1;
+
+              if (temUnificadaDetectada) {
+                const idsUnificados = matsEncontradas.map((m: any) => m.id).join(',');
+                const numsUnificados = matsEncontradas.map((m: any) => m.numero_matricula).join(' e ');
+                selectHtml += `<option value="${idsUnificados}" selected class="text-mint-vibrant font-bold">✨ Gleba Unificada: Matrículas ${numsUnificados}</option>`;
+              }
+
+              // Se houver vínculos de desenho compartilhado pré-existentes, adicionar também como opção
+              const matsFilhas = ctx.matriculasList.filter((m: any) => m.matricula_origem_desenho_id);
+              matsFilhas.forEach((filho: any) => {
+                const pai = ctx.matriculasList.find((m: any) => m.id === filho.matricula_origem_desenho_id);
+                if (pai && (!temUnificadaDetectada || !matsEncontradas.some((x: any) => x.id === pai.id && matsEncontradas.some((y: any) => y.id === filho.id)))) {
+                  selectHtml += `<option value="${pai.id},${filho.id}" class="text-mint-vibrant">🔗 Gleba Conjunta: Matrículas ${pai.numero_matricula} e ${filho.numero_matricula}</option>`;
+                }
+              });
+
               ctx.matriculasList.forEach((m: any) => {
                 const matriculaNorm = normalizarMatriculaJS(String(m.numero_matricula));
                 const abaNorm = normalizarMatriculaJS(aba.nome);
                 const filenameNorm = normalizarMatriculaJS(filename);
                 
-                const devePreSelecionar = 
+                const devePreSelecionar = !temUnificadaDetectada && (
                   (matriculaNorm && abaNorm && abaNorm.includes(matriculaNorm)) ||
                   (matriculaNorm && filenameNorm && filenameNorm.includes(matriculaNorm)) ||
-                  (ctx.matriculasList.length === 1); // Se só tiver uma matrícula, pré-seleciona
+                  (ctx.matriculasList.length === 1)
+                );
                 
                 selectHtml += `<option value="${m.id}" ${devePreSelecionar ? 'selected' : ''}>Matrícula ${m.numero_matricula}</option>`;
               });

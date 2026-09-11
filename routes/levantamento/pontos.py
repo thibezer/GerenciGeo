@@ -50,6 +50,7 @@ class MatriculaCreate(BaseModel):
     denominacao: Optional[str] = None
     denominacao_gleba: Optional[str] = None
     georreferenciamento: Optional[str] = None
+    matricula_origem_desenho_id: Optional[int] = None
 
 class PayloadAssociarBase(BaseModel):
     ponto_id_selecionado: int
@@ -111,9 +112,12 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
                     for r in rows:
                         update_data.append((nova_ordem, r["id"]))
                         nova_ordem += 1
-                    cursor.executemany("UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?", update_data)
+                    cursor.executemany(
+                        "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
+                        update_data
+                    )
 
-            # 2. Sanitizar pontos sem matrícula (avulsos)
+            # 2. Sanitizar pontos órfãos (matricula_id IS NULL), ignorando tipo 'B'
             cursor.execute(
                 """
                 SELECT id, ordem_caminhamento, tipo_ponto
@@ -123,24 +127,26 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
                 """,
                 (levantamento_id,)
             )
-            rows_avulsos = cursor.fetchall()
-            
-            ordens_avulsas = [r["ordem_caminhamento"] for r in rows_avulsos if r["ordem_caminhamento"] is not None]
-            tem_duplicidade_avulsa = len(ordens_avulsas) != len(set(ordens_avulsas))
-            tem_nulo_avulso = any(r["ordem_caminhamento"] is None for r in rows_avulsos)
+            rows_orfaos = cursor.fetchall()
+            ordens_orfaos = [r["ordem_caminhamento"] for r in rows_orfaos if r["ordem_caminhamento"] is not None]
+            tem_dup_orf = len(ordens_orfaos) != len(set(ordens_orfaos))
+            tem_nul_orf = any(r["ordem_caminhamento"] is None for r in rows_orfaos)
 
-            if tem_duplicidade_avulsa or tem_nulo_avulso:
-                logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens avulsas para levantamento={levantamento_id}")
+            if tem_dup_orf or tem_nul_orf:
+                logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, pontos orfaos")
                 update_data = []
                 nova_ordem = 1
-                for r in rows_avulsos:
+                for r in rows_orfaos:
                     update_data.append((nova_ordem, r["id"]))
                     nova_ordem += 1
-                cursor.executemany("UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?", update_data)
-
+                cursor.executemany(
+                    "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
+                    update_data
+                )
+                
             conn.commit()
     except Exception as e:
-        logger.error(f"[SANITIZACAO_ORDEM] Falha ao sanitizar ordens: {e}")
+        logger.error(f"[SANITIZACAO_ORDEM] Erro ao sanitizar ordens do levantamento {levantamento_id}: {e}")
 
 # ── Rotas de Matrículas do Levantamento ────────────────────────────────────────
 
@@ -167,8 +173,8 @@ def create_matricula(id: int, m: MatriculaCreate):
             raise HTTPException(status_code=404, detail="Levantamento não encontrado")
         propriedade_id = row['propriedade_id']
         
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(propriedade_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento), commit=True)
+        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(propriedade_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento, m.matricula_origem_desenho_id), commit=True)
         
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
@@ -200,10 +206,10 @@ def update_matricula(mid: int, m: MatriculaCreate):
 
         query = """
             UPDATE matriculas 
-            SET numero_matricula = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?
+            SET numero_matricula = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?, matricula_origem_desenho_id = ?
             WHERE id = ?
         """
-        execute_query(query, params=(m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, mid), commit=True)
+        execute_query(query, params=(m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, m.matricula_origem_desenho_id, mid), commit=True)
         
         campos_monitorados = [
             ("numero_matricula", m.numero_matricula, str),
@@ -211,7 +217,8 @@ def update_matricula(mid: int, m: MatriculaCreate):
             ("area_ha", area, float),
             ("valor_itr", m.valor_itr, float),
             ("denominacao", denominacao_val, str),
-            ("georreferenciamento", m.georreferenciamento, str)
+            ("georreferenciamento", m.georreferenciamento, str),
+            ("matricula_origem_desenho_id", m.matricula_origem_desenho_id, int)
         ]
         
         logs_historico = []
@@ -220,6 +227,8 @@ def update_matricula(mid: int, m: MatriculaCreate):
             if val_antigo is not None:
                 if tipo == float:
                     val_antigo_cmp = float(val_antigo)
+                elif tipo == int:
+                    val_antigo_cmp = int(val_antigo)
                 else:
                     val_antigo_cmp = str(val_antigo).strip()
             else:
@@ -228,6 +237,8 @@ def update_matricula(mid: int, m: MatriculaCreate):
             if novo_valor is not None:
                 if tipo == float:
                     novo_valor_cmp = float(novo_valor)
+                elif tipo == int:
+                    novo_valor_cmp = int(novo_valor)
                 else:
                     novo_valor_cmp = str(novo_valor).strip()
             else:
@@ -251,6 +262,19 @@ def update_matricula(mid: int, m: MatriculaCreate):
         return {"message": "Matrícula atualizada e sincronizada com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/matriculas/{mid}/vincular-desenho")
+def vincular_desenho_matricula(mid: int, payload: dict):
+    try:
+        origem_id = payload.get("matricula_origem_desenho_id")
+        if origem_id is not None:
+            origem_id = int(origem_id)
+            if origem_id == mid:
+                origem_id = None  # Apontar para si mesma equivale a desvincular
+        execute_query("UPDATE matriculas SET matricula_origem_desenho_id = ? WHERE id = ?", params=(origem_id, mid), commit=True)
+        return {"message": "Vínculo de desenho territorial atualizado com sucesso", "matricula_id": mid, "matricula_origem_desenho_id": origem_id}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/matriculas/{mid}")

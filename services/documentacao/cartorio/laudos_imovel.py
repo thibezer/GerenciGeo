@@ -50,18 +50,11 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         
     qualificacao_completa = ";<br>".join(qualificacoes)
     
-    # 1. Recuperar todas as matrículas cadastradas para a propriedade
-    prop_id = dados["prop"]["id"]
-    query_mats = """
-        SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
-               m.valor_itr, m.denominacao, m.georreferenciamento
-        FROM matriculas m
-        JOIN propriedades pr ON m.propriedade_id = pr.id
-        WHERE m.propriedade_id = ?
-        ORDER BY m.numero_matricula
-    """
-    rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
-    mats = [dict(m) for m in rows_mats]
+    # 1. Recuperar matrículas: se for unificada, usa o grupo unificado; caso contrário, a matrícula individual
+    if dados.get("is_unificada"):
+        mats = dados["grupo_matriculas"]
+    else:
+        mats = [dados["mat"]]
     
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
     data_extenso = obter_data_extenso()
@@ -78,8 +71,8 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
             area_m_str = f"{area_m:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
             num_mat = m["numero_matricula"] or "_____"
             lista_mats.append(num_mat)
-            sigef_m = m["georreferenciamento"] or "Não Certificado"
-            denominacao_m = m["denominacao"] or dados["prop"]["nome_propriedade"]
+            sigef_m = m.get("georreferenciamento") or "Não Certificado"
+            denominacao_m = m.get("denominacao") or dados["prop"]["nome_propriedade"]
             
             linhas_tabela += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
@@ -91,18 +84,15 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
             """
         
         area_total_str = f"{area_total_acumulada:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        
-        if len(lista_mats) == 2:
-            lista_mats_str = f"{lista_mats[0]} e {lista_mats[1]}"
-        else:
-            lista_mats_str = ", ".join(lista_mats[:-1]) + f" e {lista_mats[-1]}"
+        lista_mats_str = dados.get("numeros_matricula_str") or (" e ".join(lista_mats) if len(lista_mats) == 2 else ", ".join(lista_mats))
+        rotulo_mat = dados.get("rotulo_matricula") or "Matrículas nºs"
             
-        nome_lote = f"{dados['prop']['nome_propriedade']} (Glebas: {', '.join(lista_mats)})"
+        nome_lote = f"{dados['prop']['nome_propriedade']} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
         
         itens_iniciais_requerimento_html = f"""
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">1.</span>
-                <span class="w-full">Os requerentes são os legítimos proprietários e possuidores dos imóveis rurais situados no município de <strong class="text-slate-900">{dados["prop"]["municipio"]}/{dados["prop"]["uf"]}</strong>, denominados e caracterizados conforme a tabela de glebas abaixo descrita:
+                <span class="w-full">Os requerentes são os legítimos proprietários e possuidores dos imóveis rurais contíguos situados no município de <strong class="text-slate-900">{dados["prop"]["municipio"]}/{dados["prop"]["uf"]}</strong>, denominados e caracterizados conforme a tabela de glebas abaixo descrita, as quais formam uma <strong>gleba territorial contínua e unificada</strong>:
                     
                     <div class="overflow-x-auto mt-3 border border-slate-200 rounded-lg shadow-sm w-full break-inside-avoid">
                         <table class="w-full text-left border-collapse">
@@ -124,20 +114,20 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
 
             <li class="flex items-start gap-2 mt-4">
                 <span class="font-bold text-slate-900">2.</span>
-                <span>As referidas áreas, somadas, perfazem uma extensão territorial total de <strong>{area_total_str} ha</strong> de direito, registradas conforme as antigas descrições precárias de limites nos assentos imobiliários originários descritos.</span>
+                <span>As referidas áreas contíguas, somadas, perfazem uma extensão territorial total de <strong>{area_total_str} ha</strong> de direito, registradas conforme as antigas descrições precárias de limites nos assentos imobiliários originários descritos.</span>
             </li>
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">3.</span>
-                <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão dos imóveis para fins de obtenção da certificação técnica junto ao INCRA, constatou-se formalmente que os dados descritivos e as áreas históricas contidos nas matrículas descritas não correspondem à exata, fidedigna e atual realidade de fato existente e consolidada em campo.</span>
+                <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão do perímetro unificado das glebas para fins de obtenção da certificação técnica junto ao INCRA, constatou-se formalmente que os dados descritivos e as áreas históricas contidos nas matrículas descritas não correspondem à exata, fidedigna e atual realidade de fato existente e consolidada em campo.</span>
             </li>
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">4.</span>
-                <span>Em cumprimento às normas vigentes, o <strong>INCRA aprovou os projetos de georreferenciamento</strong> das glebas, emitindo as respectivas Certificações SIGEF com os protocolos técnicos e códigos identificadores individuais constantes na tabela descrita no Item 1.</span>
+                <span>Em cumprimento às normas vigentes, o <strong>INCRA aprovou o projeto de georreferenciamento</strong> da gleba contínua, emitindo a respectiva Certificação SIGEF com os protocolos técnicos e código identificador perimétrico.</span>
             </li>
         """
-        texto_encerramento_html = f"<strong>ENCERRAMENTO DAS MATRÍCULAS ORIGINÁRIAS DE NÚMEROS {lista_mats_str.upper()}</strong> e as subsequentes <strong>ABERTURAS DE NOVAS MATRÍCULAS GEORREFERENCIADAS</strong>"
+        texto_encerramento_html = f"<strong>ENCERRAMENTO DAS MATRÍCULAS ORIGINÁRIAS DE NÚMEROS {lista_mats_str.upper()}</strong> e a subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA E UNIFICADA</strong>"
     
     else:
         # Caso de matrícula única (preserva comportamento original de forma isolada)
@@ -249,18 +239,11 @@ def gerar_declaracao_responsabilidade_html(lev_id: int, matricula_id: int) -> st
     qualificacao_completa = " e ".join(qualificacoes)
     data_extenso = obter_data_extenso()
     
-    # 1. Recuperar todas as matrículas cadastradas para a propriedade
-    prop_id = dados["prop"]["id"]
-    query_mats = """
-        SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
-               m.valor_itr, m.denominacao, m.georreferenciamento
-        FROM matriculas m
-        JOIN propriedades pr ON m.propriedade_id = pr.id
-        WHERE m.propriedade_id = ?
-        ORDER BY m.numero_matricula
-    """
-    rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
-    mats = [dict(m) for m in rows_mats]
+    # 1. Recuperar matrículas: se for unificada, usa o grupo unificado; caso contrário, a matrícula individual
+    if dados.get("is_unificada"):
+        mats = dados["grupo_matriculas"]
+    else:
+        mats = [dados["mat"]]
     
     # Se houver múltiplas matrículas, consolidamos os dados em uma tabela
     if len(mats) > 1:
@@ -272,8 +255,8 @@ def gerar_declaracao_responsabilidade_html(lev_id: int, matricula_id: int) -> st
             area_m_str = f"{area_m:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
             num_mat = m["numero_matricula"] or "_____"
             lista_mats.append(num_mat)
-            denominacao_m = m["denominacao"] or dados["prop"]["nome_propriedade"]
-            cri_comarca_m = m["cri_comarca"] or dados["prop"]["municipio"]
+            denominacao_m = m.get("denominacao") or dados["prop"]["nome_propriedade"]
+            cri_comarca_m = m.get("cri_comarca") or dados["prop"]["municipio"]
             
             linhas_tabela += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
@@ -284,10 +267,12 @@ def gerar_declaracao_responsabilidade_html(lev_id: int, matricula_id: int) -> st
             </tr>
             """
         
-        nome_lote = f"{dados['prop']['nome_propriedade']} (Glebas: {', '.join(lista_mats)})"
+        lista_mats_str = dados.get("numeros_matricula_str") or (" e ".join(lista_mats) if len(lista_mats) == 2 else ", ".join(lista_mats))
+        rotulo_mat = dados.get("rotulo_matricula") or "Matrículas nºs"
+        nome_lote = f"{dados['prop']['nome_propriedade']} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
         
         texto_inicial_declaracao_html = f"""
-            <p>Os abaixo assinados, {qualificacao_completa}, na qualidade de legítimos proprietários dos imóveis rurais situados no município de <strong class="text-slate-900">{dados["prop"]["municipio"]}/{dados["prop"]["uf"]}</strong>, declaram sob as penas da lei, em especial as sanções previstas no art. 299 do Código Penal Brasileiro, ser de sua inteira responsabilidade as divisas físicas e a posse pacífica das seguintes glebas/matrículas descritas abaixo:
+            <p>Os abaixo assinados, {qualificacao_completa}, na qualidade de legítimos proprietários dos imóveis rurais contíguos situados no município de <strong class="text-slate-900">{dados["prop"]["municipio"]}/{dados["prop"]["uf"]}</strong>, declaram sob as penas da lei, em especial as sanções previstas no art. 299 do Código Penal Brasileiro, ser de sua inteira responsabilidade as divisas físicas e a posse pacífica da gleba contínua e unificada constituída pelas seguintes matrículas descritas abaixo:
                 
                 <div class="overflow-x-auto mt-3 border border-slate-200 rounded-lg shadow-sm w-full break-inside-avoid">
                     <table class="w-full text-left border-collapse">
@@ -376,18 +361,13 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
 
     equipamento_f = equipamento if (equipamento and equipamento.strip()) else "Receptor GNSS Hi-Target V30 / RTK de Dupla Frequência (L1/L2)"
 
-    # 1. Recuperar todas as matrículas cadastradas para a propriedade
-    prop_id = dados["prop"]["id"]
-    query_mats = """
-        SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
-               m.valor_itr, m.denominacao, m.georreferenciamento
-        FROM matriculas m
-        JOIN propriedades pr ON m.propriedade_id = pr.id
-        WHERE m.propriedade_id = ?
-        ORDER BY m.numero_matricula
-    """
-    rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
-    mats = [dict(m) for m in rows_mats]
+    # 1. Recuperar matrículas: se for unificada, usa o grupo unificado; caso contrário, a matrícula individual
+    if dados.get("is_unificada"):
+        mats = dados["grupo_matriculas"]
+    else:
+        mats = [dados["mat"]]
+        
+    mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
     
     # Se houver múltiplas matrículas, consolidamos os dados em formato de tabela
     if len(mats) > 1:
@@ -400,8 +380,8 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
             area_m_str = f"{area_m:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
             num_mat = m["numero_matricula"] or "_____"
             lista_mats.append(num_mat)
-            denominacao_m = m["denominacao"] or dados["prop"]["nome_propriedade"]
-            cri_comarca_m = m["cri_comarca"] or dados["prop"]["municipio"]
+            denominacao_m = m.get("denominacao") or dados["prop"]["nome_propriedade"]
+            cri_comarca_m = m.get("cri_comarca") or dados["prop"]["municipio"]
             
             linhas_resumo += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
@@ -412,11 +392,13 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
             </tr>
             """
             
-        nome_lote = f"{dados['prop']['nome_propriedade']} (Glebas: {', '.join(lista_mats)})"
+        lista_mats_str = dados.get("numeros_matricula_str") or (" e ".join(lista_mats) if len(lista_mats) == 2 else ", ".join(lista_mats))
+        rotulo_mat = dados.get("rotulo_matricula") or "Matrículas nºs"
+        nome_lote = f"{dados['prop']['nome_propriedade']} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
         
         texto_inicial_laudo_html = f"""
             <p>O presente Laudo Técnico tem por objetivo descrever e justificar as operações de campo e escritório
-                realizadas para o Georreferenciamento e Retificação Territorial dos imóveis rurais pertencentes a
+                realizadas para o Georreferenciamento e Retificação Territorial do perímetro unificado dos imóveis rurais pertencentes a
                 <strong>{proprietarios_str}</strong>, localizados no município de {dados["prop"]["municipio"] or "_____"}/{dados["prop"]["uf"] or "PR"}, caracterizados e denominados conforme detalhado a seguir:
                 
                 <div class="overflow-x-auto mt-3 border border-slate-200 rounded-lg shadow-sm w-full break-inside-avoid">
@@ -517,7 +499,7 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
         
         rows_pontos = execute_query(
             "SELECT codigo_completo, norte, este, altitude, tipo_ponto, numero FROM banco_pontos WHERE levantamento_id = ? AND matricula_id = ? ORDER BY tipo_ponto, numero",
-            params=(lev_id, matricula_id),
+            params=(lev_id, mat_desenho_id),
             fetch_all=True
         )
         pontos_list = [dict(p) for p in rows_pontos]
@@ -592,18 +574,11 @@ def gerar_termo_responsabilidade_sigef_html(lev_id: int, matricula_id: int, nume
 
     municipio_cartorio = dados["mat"].get("cri_comarca") or dados["prop"]["municipio"] or "_____"
 
-    # 1. Recuperar todas as matrículas cadastradas para a propriedade do levantamento
-    prop_id = dados["prop"]["id"]
-    query_mats = """
-        SELECT m.id, m.numero_matricula, pr.codigo_ccir as ccir, m.itr, m.area_ha, m.cri_comarca, m.cri_circunscricao, m.livro_registro, m.folha_registro,
-               m.valor_itr, m.denominacao, m.georreferenciamento
-        FROM matriculas m
-        JOIN propriedades pr ON m.propriedade_id = pr.id
-        WHERE m.propriedade_id = ?
-        ORDER BY m.numero_matricula
-    """
-    rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
-    mats = [dict(m) for m in rows_mats]
+    # 1. Recuperar matrículas: se for unificada, usa o grupo unificado; caso contrário, a matrícula individual
+    if dados.get("is_unificada"):
+        mats = dados["grupo_matriculas"]
+    else:
+        mats = [dados["mat"]]
 
     # Se houver múltiplas matrículas, consolidamos os dados em formato de tabela
     if len(mats) > 1:
@@ -617,8 +592,8 @@ def gerar_termo_responsabilidade_sigef_html(lev_id: int, matricula_id: int, nume
             area_m_str = f"{area_m:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             num_mat = m["numero_matricula"] or "_____"
             lista_mats.append(num_mat)
-            sigef_m = m["georreferenciamento"] or "Não Certificado"
-            denominacao_m = m["denominacao"] or dados["prop"]["nome_propriedade"]
+            sigef_m = m.get("georreferenciamento") or "Não Certificado"
+            denominacao_m = m.get("denominacao") or dados["prop"]["nome_propriedade"]
             
             linhas_tabela += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
@@ -630,7 +605,9 @@ def gerar_termo_responsabilidade_sigef_html(lev_id: int, matricula_id: int, nume
             """
         
         area_total_str = f"{area_total_acumulada:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        nome_lote = f"{dados['prop']['nome_propriedade']} (Glebas: {', '.join(lista_mats)})"
+        lista_mats_str = dados.get("numeros_matricula_str") or (" e ".join(lista_mats) if len(lista_mats) == 2 else ", ".join(lista_mats))
+        rotulo_mat = dados.get("rotulo_matricula") or "Matrículas nºs"
+        nome_lote = f"{dados['prop']['nome_propriedade']} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
         
         texto_declaracao_imoveis_html = f"""
             <p>
@@ -727,15 +704,16 @@ def gerar_manual_proprietario_html(lev_id: int, matricula_id: int) -> str:
     # Tenta buscar comarca ou município da matrícula/propriedade
     municipio_cartorio = dados["mat"].get("cri_comarca") or dados["prop"]["municipio"] or "_____"
     
-    # Múltiplas glebas / matrícula única
-    prop_id = dados["prop"]["id"]
-    query_mats = "SELECT id, numero_matricula, denominacao FROM matriculas WHERE propriedade_id = ? ORDER BY numero_matricula"
-    rows_mats = execute_query(query_mats, params=(prop_id,), fetch_all=True)
-    mats = [dict(m) for m in rows_mats]
+    # Múltiplas glebas unificadas / matrícula única
+    if dados.get("is_unificada"):
+        mats = dados["grupo_matriculas"]
+    else:
+        mats = [dados["mat"]]
     
     if len(mats) > 1:
         lista_mats = [m["numero_matricula"] or "_____" for m in mats]
-        nome_lote = f"{dados['prop']['nome_propriedade']} (Glebas: {', '.join(lista_mats)})"
+        rotulo_mat = dados.get("rotulo_matricula") or "Matrículas"
+        nome_lote = f"{dados['prop']['nome_propriedade']} ({rotulo_mat}: {dados.get('numeros_matricula_str') or ', '.join(lista_mats)})"
     else:
         nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
 
