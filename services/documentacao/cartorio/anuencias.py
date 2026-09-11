@@ -167,34 +167,34 @@ def gerar_declaracao_anuencia_html(
 
     tabela_divisas_html = gerar_tabela_divisas_html(mat_desenho_id, confrontante_id)
 
-    bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
+    bloco_assinaturas = '<div class="mt-3 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">'
     
     # 1. Assinatura dos Proprietários Requerentes (Imóvel que está sendo georreferenciado)
     for owner in dados["owners"]:
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{owner["nome_completo"]}</div>
-            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
         </div>
         """
 
     # 2. Assinatura do Confrontante Anuente
     bloco_assinaturas += f"""
-    <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-        <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-        <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{c_nome}</div>
-        <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+        <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+        <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{c_nome}</div>
+        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
     </div>
     """
     # Só assina se for casado e NÃO for sob o regime de separação de bens.
     if is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower()):
         conj_n = conf.get("nome_conjuge") or "Cônjuge do Confrontante"
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{conj_n}</div>
-            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_n}</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
         </div>
         """
     bloco_assinaturas += "</div>"
@@ -517,7 +517,7 @@ def gerar_anexo_grafico_html(
         
         html = f"""
 <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
-<div class="page bg-white text-slate-800 pt-8 pb-16 px-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
+<div class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
     <!-- CABEÇALHO DA EMPRESA -->
     <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
         <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>

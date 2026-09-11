@@ -100,7 +100,7 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
 
     if is_unificada:
         clausula_unificacao_html = f"""
-        <div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-justify text-xs text-slate-700 break-inside-avoid">
+        <div class="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-justify text-[11px] leading-snug text-slate-700 break-inside-avoid">
             <p><strong>Parágrafo Único – Da Unificação e Continuidade Territorial:</strong> Declaram os signatários que as divisas e limites perimétricos objeto do presente reconhecimento confrontam com a <strong>gleba contínua e unificada</strong> formada conjuntamente pelas <strong>{rotulo_matricula} {numeros_matricula_str}</strong> (compreendendo os imóveis denominados <em>{denominacoes_str}</em>), perante o Serviço de Registro de Imóveis da Comarca de {comarca}, totalizando a área registrada conjunta de <strong>{area_total_str} ha</strong>, reconhecendo que tais confrontações e vértices perimétricos constituem divisa única, contínua e incontroversa perante os imóveis lindeiros.</p>
         </div>
         """
@@ -188,7 +188,7 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int) -> str:
         """
 
     table_html = f"""
-    <div class="my-2 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+    <div class="my-1.5 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
         <table class="w-full text-left border-collapse bg-slate-50/50">
             <thead>
                 <tr class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">

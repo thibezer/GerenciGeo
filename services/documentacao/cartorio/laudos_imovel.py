@@ -180,23 +180,23 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         except:
             data_trt_f = raw_data_trt
             
-    bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
+    bloco_assinaturas = '<div class="mt-3 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">'
     for owner in dados["owners"]:
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{owner["nome_completo"]}</div>
-            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
         </div>
         """
         e_civil = str(owner.get("estado_civil", "")).strip().lower()
         if "casad" in e_civil or "estável" in e_civil or "estavel" in e_civil:
             conj_nome = owner.get("nome_conjuge") or "Cônjuge"
             bloco_assinaturas += f"""
-            <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-                <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-                <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{conj_nome}</div>
-                <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Cônjuge Requerente</div>
+            <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+                <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+                <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_nome}</div>
+                <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge Requerente</div>
             </div>
             """
     bloco_assinaturas += "</div>"
@@ -308,13 +308,13 @@ def gerar_declaracao_responsabilidade_html(lev_id: int, matricula_id: int) -> st
                 previstas no art. 299 do Código Penal Brasileiro, que:</p>
         """
 
-    bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
+    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-center gap-x-4 gap-y-3 w-full">'
     for owner in dados["owners"]:
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{owner["nome_completo"]}</div>
-            <div class="text-[10px] text-slate-500 text-center font-medium mt-0.5">Declarante Proprietário</div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
+            <div class="text-[9.5px] text-slate-500 text-center font-medium mt-0.5">Declarante Proprietário</div>
         </div>
         """
     bloco_assinaturas += "</div>"
@@ -926,14 +926,14 @@ def gerar_declaracao_anuencia_desmembramento_html(lev_id: int, matricula_id: int
 
     data_extenso = obter_data_extenso()
 
-    bloco_assinaturas = '<div class="mt-6 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
+    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-center gap-x-4 gap-y-3 w-full">'
     for owner in dados["owners"]:
         cpf_f = formatar_cpf(owner["cpf_cnpj"])
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-            <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-            <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{owner["nome_completo"]}</div>
-            <div class="text-[10px] text-slate-600 text-center font-medium mt-0.5 font-mono">CPF: {cpf_f}</div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
+            <div class="text-[9.5px] text-slate-600 text-center font-medium mt-0.5 font-mono">CPF: {cpf_f}</div>
         </div>
         """
         e_civil = str(owner.get("estado_civil", "")).strip().lower()
@@ -941,10 +941,10 @@ def gerar_declaracao_anuencia_desmembramento_html(lev_id: int, matricula_id: int
             conj_nome = owner.get("nome_conjuge") or "Cônjuge"
             conj_cpf_f = formatar_cpf(owner.get("cpf_conjuge")) or "_____"
             bloco_assinaturas += f"""
-            <div class="flex flex-col items-center min-w-[250px] flex-1 max-w-[300px]">
-                <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
-                <div class="text-xs font-bold text-slate-900 text-center uppercase tracking-wide">{conj_nome}</div>
-                <div class="text-[10px] text-slate-600 text-center font-medium mt-0.5 font-mono">CPF: {conj_cpf_f}</div>
+            <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
+                <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+                <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_nome}</div>
+                <div class="text-[9.5px] text-slate-600 text-center font-medium mt-0.5 font-mono">CPF: {conj_cpf_f}</div>
             </div>
             """
     bloco_assinaturas += "</div>"
