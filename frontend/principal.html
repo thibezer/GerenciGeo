@@ -71,10 +71,15 @@
             <p class="text-[10px] text-white/40 truncate">Licença Profissional</p>
           </div>
         </div>
-        <button class="w-full btn-secondary text-sm py-1.5 flex items-center justify-center gap-2" id="btn-sidebar-settings">
-          <i data-lucide="settings" class="w-4 h-4 shrink-0"></i>
-          <span class="sidebar-text">Configurações</span>
-        </button>
+        <div class="flex gap-2">
+          <button class="flex-1 btn-secondary text-sm py-1.5 flex items-center justify-center gap-2" id="btn-sidebar-settings">
+            <i data-lucide="settings" class="w-4 h-4 shrink-0"></i>
+            <span class="sidebar-text">Configurações</span>
+          </button>
+          <button class="px-2.5 py-1.5 btn-secondary text-white/40 hover:text-red-400 hover:border-red-400/40 rounded flex items-center justify-center transition" id="btn-sidebar-logout" title="Sair do Sistema">
+            <i data-lucide="log-out" class="w-4 h-4 shrink-0"></i>
+          </button>
+        </div>
       </div>
     </aside>
 

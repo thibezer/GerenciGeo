@@ -405,3 +405,15 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   1. Em templates de impressão cartorial (`declaracao_anuencia.html`), a página (`.page`) deve seguir fluxo natural (`display: block !important;` no `@media print` e `flex flex-col` sem `justify-between` na tela).
   2. O bloco de fechamento (`.bloco-assinaturas-fechamento`) deve utilizar margem superior harmônica (`mt-8` / `margin-top: 1.2cm !important;`) com `break-inside: avoid !important;`, assegurando que a data e as assinaturas sigam imediatamente após o texto e tabelas de confrontação com espaçamento equilibrado.
   3. No bloco de assinaturas (`anuencias.py`), utilizar `mt-6 mb-1.5` nas linhas de assinatura para assegurar área livre vertical confortável para aposição de assinatura manual ou certificado digital.
+
+---
+
+## 25. Módulo de Autenticação e Controle de Sessão (UI_Componentes ⇆ GerenciGeo)
+- **Problema**: 
+  1. A importação do módulo de login do ecossistema privado `UI_Componentes` para o GerenciGeo precisava conciliar a arquitetura server-side em Express/EJS com o frontend SPA em Vite/TypeScript e o backend duplo (FastAPI local e MySQL na nuvem Hostinger).
+  2. Endpoints de login tradicionais sofrem de vulnerabilidade de Timing Attack para enumeração de usuários cadastrados quando a comparação de bcrypt só é disparada se o e-mail existir no banco.
+- **Regra Obrigatória**:
+  1. **Mitigação Estrita de Timing Attacks**: Em caso de usuário inexistente no endpoint `/auth/login` (tanto em Python quanto no `api.php`), sempre executar `bcrypt.checkpw(password, DUMMY_HASH)` ou `password_verify($password, $dummyHash)` para equalizar a latência da resposta.
+  2. **Sanitização de Payloads de Usuário**: O hash de senha (`password`), `reset_password_token` e `reset_password_expires` nunca devem ser transmitidos para o frontend ou persistidos em sessões.
+  3. **Adesão aos Web Components**: A tela de login SPA deve empregar `<ui-campo-texto>` e `<ui-botao-primario>` da biblioteca `ui-components-kit`, gerenciando a sessão centralmente via `AuthService` com suporte a persistência por 30 dias (`remember_me`).
+  4. **Proteção de Rotas SPA**: Em `main.ts`, qualquer tentativa de navegação desautenticada em rotas protegidas deve redirecionar instantaneamente para `#login`, ocultando a barra lateral.

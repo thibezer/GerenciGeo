@@ -17,6 +17,8 @@ import { configuracoesRoute } from './views/configuracoes';
 import { fronteiraRoute } from './views/fronteira';
 import { ccirRoute } from './views/ccir';
 import { compartilhadoRoute } from './views/compartilhado';
+import { loginRoute } from './views/login';
+import { AuthService } from './utils/auth_service';
 
 // Detecção se o app está executando no desktop local ou na nuvem Hostinger
 const isLocal = window.location.origin.includes('localhost') || 
@@ -26,6 +28,7 @@ const isLocal = window.location.origin.includes('localhost') ||
 const localOnlyRoutes = ['levantamentos', 'hgo', 'fronteira', 'ccir', 'mesa_trabalho'];
 
 const routes: Record<string, RouteDef> = {
+  login: loginRoute,
   dashboard: dashboardRoute,
   clientes: clientesRoute,
   levantamentos: levantamentosRoute,
@@ -43,6 +46,18 @@ const routes: Record<string, RouteDef> = {
 let activeRoute: RouteDef | null = null;
 
 const navigate = (route: string, param: string | null = null) => {
+  // Autenticação: se deslogado e tentando acessar rota interna, redireciona para login
+  if (!AuthService.isAuthenticated() && route !== 'login') {
+    window.location.hash = '#login';
+    return;
+  }
+
+  // Se já logado e tentar abrir tela de login, redireciona para dashboard
+  if (AuthService.isAuthenticated() && route === 'login') {
+    window.location.hash = '#dashboard';
+    return;
+  }
+
   // Se for ambiente Web (nuvem) e for uma rota local-only, bloqueia o acesso
   if (!isLocal && localOnlyRoutes.includes(route)) {
     showToast("Operação restrita ao Software Desktop Local.", "error");
@@ -53,7 +68,7 @@ const navigate = (route: string, param: string | null = null) => {
   // Exibição condicional da barra lateral (Sidebar)
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-    if (route === 'mesa_trabalho' || route === 'compartilhado') {
+    if (route === 'mesa_trabalho' || route === 'compartilhado' || route === 'login') {
       sidebar.classList.add('hidden');
     } else {
       sidebar.classList.remove('hidden');
@@ -64,8 +79,8 @@ const navigate = (route: string, param: string | null = null) => {
   const breadcrumbCurrent = document.getElementById('breadcrumb-current');
   if (!container) return;
 
-  // Ajusta padding e overflow do view-container quando entra na mesa_trabalho para evitar scroll na Ribbon
-  if (route === 'mesa_trabalho' || route === 'compartilhado') {
+  // Ajusta padding e overflow do view-container quando entra na mesa_trabalho ou login
+  if (route === 'mesa_trabalho' || route === 'compartilhado' || route === 'login') {
     container.className = 'flex-1 overflow-hidden p-0 min-w-0';
   } else {
     container.className = 'flex-1 overflow-y-auto p-6 min-w-0';
@@ -133,6 +148,23 @@ const initApp = () => {
   const param = parts.length > 1 ? parts[1] : null;
   navigate(baseRoute, param);
   initIcons();
+
+  // Atualiza informações do usuário na barra lateral caso autenticado
+  const currentUser = AuthService.getUser();
+  if (currentUser) {
+    const userNameEl = document.querySelector('#sidebar-footer .text-sm.font-semibold');
+    const userAvatarEl = document.querySelector('#sidebar-footer .w-8.h-8');
+    if (userNameEl) userNameEl.textContent = currentUser.name;
+    if (userAvatarEl) userAvatarEl.textContent = AuthService.getInitials(currentUser.name);
+  }
+
+  // Configuração do botão de logout da barra lateral
+  const btnLogout = document.getElementById('btn-sidebar-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      AuthService.logout();
+    });
+  }
 
   // Redirecionamento do botão de Configurações do menu lateral
   const btnSettings = document.getElementById('btn-sidebar-settings');

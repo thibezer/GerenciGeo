@@ -404,6 +404,30 @@ def create_tables(conn):
         """,
         """
         CREATE INDEX IF NOT EXISTS idx_ccir_municipio ON ccir_cadastros(municipio);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'admin',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reset_password_token TEXT,
+            reset_password_expires DATETIME,
+            is_blocked INTEGER DEFAULT 0,
+            profile_image TEXT,
+            cep TEXT,
+            logradouro TEXT,
+            numero TEXT,
+            complemento TEXT,
+            bairro TEXT,
+            cidade TEXT,
+            estado TEXT
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         """
     ]
 
@@ -412,6 +436,24 @@ def create_tables(conn):
         for script in scripts:
             cursor.execute(script)
         logger.info("Tabelas SQLite verificadas/criadas com sucesso.")
+
+        # Seed inicial de usuário padrão na tabela users (se vazia)
+        try:
+            cursor.execute("SELECT COUNT(*) FROM users")
+            row_count = cursor.fetchone()
+            if row_count and row_count[0] == 0:
+                import bcrypt
+                hashed_pwd = bcrypt.hashpw("admin123".encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
+                cursor.execute(
+                    """
+                    INSERT INTO users (name, email, password, role, is_blocked)
+                    VALUES (?, ?, ?, 'admin', 0)
+                    """,
+                    ("Administrador", "admin@gerencigeo.com.br", hashed_pwd)
+                )
+                logger.info("Usuário administrador padrão criado com sucesso: admin@gerencigeo.com.br")
+        except Exception as seed_err:
+            logger.warning(f"Não foi possível criar o seed de usuário inicial: {seed_err}")
         
         # Migração Automática Avançada (Manifesto v2.2.0)
         # Adiciona dinamicamente as colunas do "Antes e Depois" geodésico se elas não existirem no banco físico

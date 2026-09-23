@@ -6,8 +6,10 @@ from routes.ccir import router as ccir_router
 from routes.processamento import router as processamento_router
 from routes.levantamento import router as levantamento_router
 from routes.cloud_sync import router as cloud_sync_router
+from routes.auth import router as auth_router
 
 router = APIRouter()
+router.include_router(auth_router)
 router.include_router(clientes_router)
 router.include_router(propriedades_router)
 router.include_router(dashboard_router)

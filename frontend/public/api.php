@@ -321,12 +321,41 @@ function ensureSchema(PDO $pdo): void {
             chave VARCHAR(100) PRIMARY KEY,
             valor TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            role ENUM('admin', 'moderator', 'user') DEFAULT 'admin',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reset_password_token VARCHAR(255) NULL,
+            reset_password_expires DATETIME NULL,
+            is_blocked TINYINT(1) DEFAULT 0,
+            profile_image VARCHAR(255) NULL,
+            cep VARCHAR(10) NULL,
+            logradouro VARCHAR(255) NULL,
+            numero VARCHAR(30) NULL,
+            complemento VARCHAR(100) NULL,
+            bairro VARCHAR(100) NULL,
+            cidade VARCHAR(100) NULL,
+            estado VARCHAR(10) NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     ];
 
     foreach ($queries as $sql) {
         try { $pdo->exec($sql); } catch (Exception $e) {}
     }
+
+    try {
+        $countUsers = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+        if ($countUsers === 0) {
+            $initialHash = password_hash('admin123', PASSWORD_BCRYPT);
+            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, ?, 'admin', 0)");
+            $stmt->execute(['Administrador', 'admin@gerencigeo.com.br', $initialHash]);
+        }
+    } catch (Exception $e) {}
 
     // Garante colunas de compatibilidade se tabelas antigas existiam no MySQL
     addColumnSafe($pdo, 'propriedades', 'nome', 'VARCHAR(255) NULL');
@@ -481,6 +510,78 @@ if ($route === '/' || $route === '/status' || (isset($_GET['action']) && $_GET['
         'version' => '2.0.0',
         'database' => 'MySQL Conectado',
         'timestamp' => time()
+    ]);
+}
+
+// 1.1 Autenticação e Controle de Sessão
+if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === 'login')) {
+    if ($method !== 'POST') {
+        jsonResponse(['error' => 'Método não permitido.'], 405);
+    }
+    $input = getJsonInput();
+    $email = trim(strtolower((string)($input['email'] ?? '')));
+    $password = (string)($input['password'] ?? '');
+
+    if (empty($email) || empty($password)) {
+        jsonResponse(['error' => 'Informe seu e-mail e sua senha.'], 400);
+    }
+
+    $pdo = getDb();
+    $stmt = $pdo->prepare("SELECT id, name, email, password, role, is_blocked, profile_image, created_at FROM users WHERE LOWER(email) = ? LIMIT 1");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+
+    // Mitigação de timing attack
+    $dummyHash = '$2y$10$e8wF4nQ1l2D3k4j5h6g7f8e9d0c1b2a3s4d5f6g7h8j9k0l1z2x3c';
+    if (!$user) {
+        password_verify($password, $dummyHash);
+        jsonResponse(['error' => 'E-mail ou senha incorretos.'], 401);
+    }
+
+    if (!empty($user['is_blocked'])) {
+        jsonResponse(['error' => 'Os administradores bloquearam o seu acesso.'], 403);
+    }
+
+    if (!password_verify($password, $user['password'])) {
+        jsonResponse(['error' => 'E-mail ou senha incorretos.'], 401);
+    }
+
+    $token = bin2hex(random_bytes(32));
+    jsonResponse([
+        'status' => 'success',
+        'token' => $token,
+        'user' => [
+            'id' => (int)$user['id'],
+            'name' => $user['name'],
+            'email' => $user['email'],
+            'role' => $user['role'] ?? 'admin',
+            'profile_image' => $user['profile_image'] ?? null,
+            'created_at' => $user['created_at'] ?? null
+        ],
+        'message' => 'Login realizado com sucesso.'
+    ]);
+}
+
+if ($route === '/auth/logout' || (isset($_GET['action']) && $_GET['action'] === 'logout')) {
+    jsonResponse(['status' => 'success', 'message' => 'Logout realizado com sucesso.']);
+}
+
+if ($route === '/auth/me' || (isset($_GET['action']) && $_GET['action'] === 'me')) {
+    $pdo = getDb();
+    $user = $pdo->query("SELECT id, name, email, role, profile_image, created_at FROM users WHERE is_blocked = 0 ORDER BY id ASC LIMIT 1")->fetch();
+    if (!$user) {
+        jsonResponse(['error' => 'Não autenticado.'], 401);
+    }
+    jsonResponse([
+        'status' => 'success',
+        'user' => [
+            'id' => (int)$user['id'],
+            'name' => $user['name'],
+            'email' => $user['email'],
+            'role' => $user['role'] ?? 'admin',
+            'profile_image' => $user['profile_image'] ?? null,
+            'created_at' => $user['created_at'] ?? null
+        ]
     ]);
 }
 
