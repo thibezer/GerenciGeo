@@ -89,6 +89,9 @@ class TestMatriculasCompartilhadas(unittest.TestCase):
         self.assertIn("V1", html)
         self.assertIn("V2", html)
         self.assertIn("map_confrontante_50", html)
+        self.assertNotIn("mt-auto", html)
+        self.assertNotIn("page flex flex-col justify-between", html)
+        self.assertIn("bloco-assinaturas-fechamento", html)
 
     def test_gerar_anuencia_lote_matricula_compartilhada(self):
         """Gera o lote de cartas de anuência para a matrícula compartilhada"""

@@ -395,3 +395,13 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
        - Soma das áreas registradas consolidadas de todas as matrículas do grupo
        - Injeção obrigatória do **Parágrafo Único – Da Unificação e Continuidade Territorial** nas Cartas de Anuência e consolidação das tabelas de glebas nos Requerimentos de Cartório, Declarações de Responsabilidade, Laudos Técnicos e Termos do SIGEF.
   3. **Importação ODS Inteligente**: Ao importar planilhas em lote, caso o nome da aba mencione múltiplas matrículas (ex: `679 e 682.ODS`), o sistema detecta e associa a gleba unificada automaticamente, vinculando as matrículas secundárias à principal.
+
+---
+
+## 24. Layout e Posicionamento de Assinaturas em Documentos e Declarações Cartoriais (Declaração de Anuência)
+- **Problema**: 
+  O uso de `flex flex-col justify-between` e `mt-auto` no container principal de impressão A4 da declaração de anuência forçava o bloco de data e assinaturas para o limite absoluto inferior da folha A4 (29.7cm). Em declarações com poucos vértices ou tabelas curtas, isso gerava um abismo de espaço vazio no centro do documento, deixando a data e as assinaturas coladas no rodapé da folha de forma desarmônica e sem espaço vertical adequado (`mt-3`) para a aposição da assinatura física/digital.
+- **Regra Obrigatória**:
+  1. Em templates de impressão cartorial (`declaracao_anuencia.html`), a página (`.page`) deve seguir fluxo natural (`display: block !important;` no `@media print` e `flex flex-col` sem `justify-between` na tela).
+  2. O bloco de fechamento (`.bloco-assinaturas-fechamento`) deve utilizar margem superior harmônica (`mt-8` / `margin-top: 1.2cm !important;`) com `break-inside: avoid !important;`, assegurando que a data e as assinaturas sigam imediatamente após o texto e tabelas de confrontação com espaçamento equilibrado.
+  3. No bloco de assinaturas (`anuencias.py`), utilizar `mt-6 mb-1.5` nas linhas de assinatura para assegurar área livre vertical confortável para aposição de assinatura manual ou certificado digital.

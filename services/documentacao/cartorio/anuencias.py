@@ -167,13 +167,13 @@ def gerar_declaracao_anuencia_html(
 
     tabela_divisas_html = gerar_tabela_divisas_html(mat_desenho_id, confrontante_id)
 
-    bloco_assinaturas = '<div class="mt-3 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">'
+    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-4 w-full">'
     
     # 1. Assinatura dos Proprietários Requerentes (Imóvel que está sendo georreferenciado)
     for owner in dados["owners"]:
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
-            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
             <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
             <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
         </div>
@@ -181,8 +181,8 @@ def gerar_declaracao_anuencia_html(
 
     # 2. Assinatura do Confrontante Anuente
     bloco_assinaturas += f"""
-    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
-        <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
         <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{c_nome}</div>
         <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
     </div>
@@ -191,8 +191,8 @@ def gerar_declaracao_anuencia_html(
     if is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower()):
         conj_n = conf.get("nome_conjuge") or "Cônjuge do Confrontante"
         bloco_assinaturas += f"""
-        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[250px]">
-            <div class="w-full border-t border-slate-400 mt-3 mb-1"></div>
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
             <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_n}</div>
             <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
         </div>
