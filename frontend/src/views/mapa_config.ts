@@ -14,6 +14,7 @@ export interface MapaConfiguracoes {
   preferCanvas: boolean;
   crosshair?: boolean;
   satOpacity?: number;
+  sateliteAtivo?: boolean;
   magnetSnap?: boolean;
 }
 
@@ -33,6 +34,7 @@ const DEFAULT_CONFIG: MapaConfiguracoes = {
   preferCanvas: true,
   crosshair: false,
   satOpacity: 1.0,
+  sateliteAtivo: true,
   magnetSnap: false
 };
 

@@ -461,3 +461,21 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   3. **Resolução de Conflitos UNIQUE em Atualizações de CPF**: No update_confrontante, se o CPF informado já existir em pessoas sob outro ID, a rota deve vincular c.pessoa_id ao registro existente e atualizar seus dados, em vez de tentar um UPDATE pessoas direto que viole a restrição única.
   4. **Feedback Visual e Sanitização de Erros**: Toda resposta de erro da API deve extrair data.detail (suportando strings e arrays do Pydantic) e exibir feedback visual via showToast(msg, 'error') ou 'success'.
   5. **Sincronização Inter-Abas**: O cadastro ou edição de confrontantes (seja rápido na Aba 2 ou detalhado na Aba 3) deve obrigatoriamente chamar await ctx.carregarConfrontantesAtivosSelect() e recarregar os dados do levantamento, mantendo seletores e tabelas perfeitamente sincronizados.
+
+---
+
+## 28. Camada de Satélite de Fundo Opcional na Mesa de Trabalho (Leaflet Overlays ⇆ BaseLayers)
+- **Problema**:
+  1. No Leaflet, a primeira chave passada para `L.control.layers(baseLayers, overlays)` é interpretada como conjunto de camadas-base mutuamente exclusivas (renderizadas como botões do tipo `radio`). Como "Satélite Google" era a única camada-base registrada, tornava-se impossível desmarcá-la na interface.
+  2. Isso impunha uma obrigatoriedade visual forçada: topógrafos e agrimensores que desejavam trabalhar com fundo neutro/escuro estilo AutoCAD (Canvas limpo com vetores e vértices em destaque, ou para economizar consumo de dados e carregamento de centenas de tiles na visualização em campo) não tinham como desativar o satélite.
+  3. A rotina `preCarregarTilesRegiao` consumia conexões e largura de banda requisitando centenas de tiles de satélite do Google mesmo quando o usuário não necessitava de imagens aéreas.
+- **Regra Obrigatória**:
+  1. **Satélite como Camada de Sobreposição (Overlay/Checkbox)**:
+     - No `L.control.layers({}, { "Satélite de Fundo (Google)": googleSat, ... })`, passe `{}` como `baseLayers` e registre o satélite como sobreposição (`overlay`). Dessa forma, ele é renderizado com um checkbox nativo independente e pode ser ligado/desligado a qualquer momento.
+  2. **Botão de Acesso Rápido na Barra Unificada (Unified Toolbar)**:
+     - Disponibilize um botão de alternância imediata (`btnSat` / `#btn-toggle-satelite`) na barra de ferramentas do mapa, exibindo estado visual ativo (azul/globo) ou inativo (esmaecido/desligado) sincronizado com os eventos `layeradd` e `layerremove` do mapa.
+  3. **Guarda de Desempenho e Economia de Banda**:
+     - No método `preCarregarTilesRegiao(bounds)`, verifique sempre `if (this.satelliteLayer && !this.map.hasLayer(this.satelliteLayer)) return;`, evitando chamadas de rede para carregamento prévio de tiles caso o satélite esteja desativado.
+  4. **Controle Persistente e Janela de Configuração**:
+     - A preferência do usuário deve ser respeitada tanto pelo `localStorage` (`LS_KEY_CAMADAS`) quanto pela chave `sateliteAtivo` em `MapaConfiguracoes` e no modal CAD (`config_mapa.html`), com broadcast bidirecional via `BroadcastChannel('gerencigeo_map_config')`.
+

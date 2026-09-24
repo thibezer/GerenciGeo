@@ -46,67 +46,7 @@ export class MapaCore {
       position: 'bottomleft'
     }).addTo(this.map);
 
-    const UnifiedToolbarControl = L.Control.extend({
-      options: { position: 'topright' },
-      onAdd: (_map: any) => {
-        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control unified-toolbar');
-        div.style.display = 'flex';
-        div.style.flexDirection = 'column';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.style.gap = '4px';
-        div.style.background = 'rgba(12, 21, 16, 0.95)';
-        div.style.backdropFilter = 'blur(12px)';
-        div.style.border = '1px solid rgba(255, 255, 255, 0.15)';
-        div.style.borderRadius = '8px';
-        div.style.padding = '4px';
-        div.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.5)';
-        div.style.pointerEvents = 'auto';
-        div.style.marginBottom = '0px';
-
-        // Botão Configurações (Engrenagem)
-        const btnConfig = L.DomUtil.create('button', 'p-1.5 rounded hover:bg-[#121c16] text-white/50 hover:text-white transition-all group flex items-center justify-center cursor-pointer', div);
-        btnConfig.title = 'Opções de Visualização (Canvas)';
-        btnConfig.type = 'button';
-        btnConfig.style.background = 'transparent';
-        btnConfig.style.border = 'none';
-        btnConfig.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-90 transition-transform duration-500"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
-        L.DomEvent.on(btnConfig, 'click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          if((window as any).pywebview && (window as any).pywebview.api) { (window as any).pywebview.api.open_map_settings(); } else { alert('Configuração nativa indisponível. Abra via PyWebview.'); }
-        });
-
-        const sep = L.DomUtil.create('div', '', div);
-        sep.style.width = '20px';
-        sep.style.height = '1px';
-        sep.style.background = 'rgba(255,255,255,0.1)';
-        sep.style.margin = '2px 0';
-
-        // Botão Bússola (Norte) - Sem Rotação, apenas Recentraliza
-        const btnCompass = L.DomUtil.create('button', 'p-1.5 rounded hover:bg-[#121c16] text-white/50 hover:text-white transition-all group flex flex-col items-center justify-center cursor-pointer', div);
-        btnCompass.title = 'Centralizar no Levantamento';
-        btnCompass.type = 'button';
-        btnCompass.style.background = 'transparent';
-        btnCompass.style.border = 'none';
-        btnCompass.innerHTML = `
-          <div id="compass-icon-container" style="display:flex; flex-direction:column; align-items:center; transition: transform 0.1s linear;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:-2px;"><path d="m12 2 4 9H8z"/></svg>
-            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; color:#fff; letter-spacing:1px; margin-top:-2px;">N</span>
-          </div>
-        `;
-        L.DomEvent.on(btnCompass, 'click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          // Opcional: disparar evento de fitBounds
-          const evt = new CustomEvent('gerencigeo:recenter');
-          window.dispatchEvent(evt);
-        });
-        
-        L.DomEvent.disableClickPropagation(div);
-        return div;
-      }
-    });
-    new UnifiedToolbarControl().addTo(this.map);
-
+    // Camada de Satélite Google (Opcional)
     const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
       maxZoom: 24,
       maxNativeZoom: 20,
@@ -117,9 +57,14 @@ export class MapaCore {
       updateWhenIdle: true,
       className: 'smooth-zoom-layer',
       opacity: this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0
-    }).addTo(this.map);
+    });
 
     this.satelliteLayer = googleSat;
+
+    // Se sateliteAtivo for explicitamente false nas configurações, não adiciona inicialmente
+    if (this.config.sateliteAtivo !== false) {
+      googleSat.addTo(this.map);
+    }
 
     this.gridGroup = L.layerGroup().addTo(this.map);
     this.bancoPontosGroup = L.layerGroup().addTo(this.map);
@@ -163,9 +108,109 @@ export class MapaCore {
 
     this.sigefLayer = sigef;
 
+    const self = this;
+    const UnifiedToolbarControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: (_map: any) => {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control unified-toolbar');
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.gap = '4px';
+        div.style.background = 'rgba(12, 21, 16, 0.95)';
+        div.style.backdropFilter = 'blur(12px)';
+        div.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+        div.style.borderRadius = '8px';
+        div.style.padding = '4px';
+        div.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.5)';
+        div.style.pointerEvents = 'auto';
+        div.style.marginBottom = '0px';
+
+        // Botão Configurações (Engrenagem)
+        const btnConfig = L.DomUtil.create('button', 'p-1.5 rounded hover:bg-[#121c16] text-white/50 hover:text-white transition-all group flex items-center justify-center cursor-pointer', div);
+        btnConfig.title = 'Opções de Visualização (Canvas)';
+        btnConfig.type = 'button';
+        btnConfig.style.background = 'transparent';
+        btnConfig.style.border = 'none';
+        btnConfig.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-90 transition-transform duration-500"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+        L.DomEvent.on(btnConfig, 'click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          if((window as any).pywebview && (window as any).pywebview.api) { (window as any).pywebview.api.open_map_settings(); } else { alert('Configuração nativa indisponível. Abra via PyWebview.'); }
+        });
+
+        // Botão Alternar Satélite de Fundo
+        const btnSat = L.DomUtil.create('button', 'p-1.5 rounded hover:bg-[#121c16] transition-all group flex items-center justify-center cursor-pointer', div);
+        btnSat.id = 'btn-toggle-satelite';
+        btnSat.type = 'button';
+        btnSat.style.background = 'transparent';
+        btnSat.style.border = 'none';
+
+        const atualizarIconeSat = () => {
+          const ativo = self.map && self.satelliteLayer && self.map.hasLayer(self.satelliteLayer);
+          if (ativo) {
+            btnSat.style.color = '#38bdf8';
+            btnSat.title = 'Satélite de Fundo: ATIVO (Clique para desativar e usar tela CAD limpa)';
+            btnSat.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+          } else {
+            btnSat.style.color = 'rgba(255, 255, 255, 0.4)';
+            btnSat.title = 'Satélite de Fundo: DESATIVADO (Clique para ativar)';
+            btnSat.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5A2.5 2.5 0 0 0 11 11"/><line x1="2" y1="2" x2="22" y2="22" stroke="#ef4444" stroke-width="2"/></svg>`;
+          }
+        };
+
+        L.DomEvent.on(btnSat, 'click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          if (!self.map || !self.satelliteLayer) return;
+          if (self.map.hasLayer(self.satelliteLayer)) {
+            self.map.removeLayer(self.satelliteLayer);
+          } else {
+            self.satelliteLayer.addTo(self.map);
+          }
+          atualizarIconeSat();
+        });
+
+        if (self.map) {
+          self.map.on('layeradd layerremove', () => atualizarIconeSat());
+        }
+        atualizarIconeSat();
+
+        const sep = L.DomUtil.create('div', '', div);
+        sep.style.width = '20px';
+        sep.style.height = '1px';
+        sep.style.background = 'rgba(255,255,255,0.1)';
+        sep.style.margin = '2px 0';
+
+        // Botão Bússola (Norte) - Sem Rotação, apenas Recentraliza
+        const btnCompass = L.DomUtil.create('button', 'p-1.5 rounded hover:bg-[#121c16] text-white/50 hover:text-white transition-all group flex flex-col items-center justify-center cursor-pointer', div);
+        btnCompass.title = 'Centralizar no Levantamento';
+        btnCompass.type = 'button';
+        btnCompass.style.background = 'transparent';
+        btnCompass.style.border = 'none';
+        btnCompass.innerHTML = `
+          <div id="compass-icon-container" style="display:flex; flex-direction:column; align-items:center; transition: transform 0.1s linear;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:-2px;"><path d="m12 2 4 9H8z"/></svg>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; color:#fff; letter-spacing:1px; margin-top:-2px;">N</span>
+          </div>
+        `;
+        L.DomEvent.on(btnCompass, 'click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          // Opcional: disparar evento de fitBounds
+          const evt = new CustomEvent('gerencigeo:recenter');
+          window.dispatchEvent(evt);
+        });
+        
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+      }
+    });
+    new UnifiedToolbarControl().addTo(this.map);
+
+    // Controle de Camadas do Leaflet: Satélite como Sobreposição Opcional (Checkbox)
     L.control.layers(
-      { "Satélite Google": googleSat },
+      {},
       {
+        "Satélite de Fundo (Google)": googleSat,
         "Imóveis SIGEF (PR)": sigef,
         "Poligonal Homologada (INCRA)": this.bancoPontosGroup,
         "Imóveis Vizinhos (SIGEF/CSV)": this.pontosVizinhosGroup!
@@ -255,7 +300,16 @@ export class MapaCore {
       if (event.data === 'RELOAD_REQUIRED') {
         this.config = this.configManager.getConfig();
         if (this.satelliteLayer) {
-          this.satelliteLayer.setOpacity(this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0);
+          if (this.config.sateliteAtivo === false) {
+            if (this.map && this.map.hasLayer(this.satelliteLayer)) {
+              this.map.removeLayer(this.satelliteLayer);
+            }
+          } else {
+            if (this.map && !this.map.hasLayer(this.satelliteLayer)) {
+              this.satelliteLayer.addTo(this.map);
+            }
+            this.satelliteLayer.setOpacity(this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0);
+          }
         }
         this.applyMapStyles();
         window.dispatchEvent(new CustomEvent('gerencigeo:map_config_changed', { detail: this.config }));
@@ -265,6 +319,8 @@ export class MapaCore {
 
   public preCarregarTilesRegiao(bounds: L.LatLngBounds): void {
     if (!this.map) return;
+    // Se o satélite estiver desativado/opcional desligado, não consome dados baixando tiles
+    if (this.satelliteLayer && !this.map.hasLayer(this.satelliteLayer)) return;
 
     const currentZoom = this.map.getZoom();
     const minZoom = Math.max(Math.floor(currentZoom) - 2, 10);
@@ -322,7 +378,7 @@ export class MapaCore {
       }
 
       if (zoom > 20) {
-        if (this.satelliteLayer) {
+        if (this.satelliteLayer && this.map.hasLayer(this.satelliteLayer)) {
           this.satelliteLayer.setOpacity(0);
         }
 
@@ -360,7 +416,7 @@ export class MapaCore {
         }
       }
     } else {
-      if (this.satelliteLayer) {
+      if (this.satelliteLayer && this.map.hasLayer(this.satelliteLayer)) {
         this.satelliteLayer.setOpacity(this.config.satOpacity !== undefined ? this.config.satOpacity : 1.0);
       }
     }

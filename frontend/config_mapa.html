@@ -198,12 +198,16 @@
                     <div style="flex: 1;">
                         <fieldset class="cad-fieldset">
                             <legend class="cad-legend">Controle de Esmaecimento (Fade)</legend>
+                            <div class="cad-row">
+                                <input type="checkbox" id="chk-sat-ativo" checked>
+                                <label for="chk-sat-ativo">Habilitar Satélite de Fundo</label>
+                            </div>
                             <div class="cad-row" style="margin-top: 8px;">
                                 <div style="display: flex; flex-direction: column; width: 100%;">
                                     <span style="font-size: 11px; margin-bottom: 4px;">Exibição Xref (Opacidade do Satélite)</span>
                                     <div style="display: flex; align-items: center;">
                                         <div class="cad-value-box" id="val-sat-opacity">100</div>
-                                        <input type="range" id="sld-sat-opacity" min="10" max="100" value="100">
+                                        <input type="range" id="sld-sat-opacity" min="0" max="100" value="100">
                                     </div>
                                 </div>
                             </div>

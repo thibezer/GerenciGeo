@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const panes = document.querySelectorAll('.tab-pane');
 
   const chkCrosshair = document.getElementById('chk-crosshair') as HTMLInputElement;
+  const chkSatAtivo = document.getElementById('chk-sat-ativo') as HTMLInputElement;
   const sldSatOpacity = document.getElementById('sld-sat-opacity') as HTMLInputElement;
   const valSatOpacity = document.getElementById('val-sat-opacity') as HTMLElement;
   
@@ -54,6 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Init values
   const initForm = () => {
     chkCrosshair.checked = config.crosshair || false;
+    if (chkSatAtivo) {
+      chkSatAtivo.checked = config.sateliteAtivo !== false;
+    }
     
     const opacityVal = (config.satOpacity !== undefined ? config.satOpacity : 1.0) * 100;
     sldSatOpacity.value = opacityVal.toString();
@@ -109,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveToManager = () => {
     configManager.saveConfig({
       crosshair: chkCrosshair.checked,
+      sateliteAtivo: chkSatAtivo ? chkSatAtivo.checked : true,
       satOpacity: parseInt(sldSatOpacity.value) / 100.0,
       magnetSnap: chkMagnet.checked,
       markerSizeBase: parseInt(sldMarkerSize.value),
