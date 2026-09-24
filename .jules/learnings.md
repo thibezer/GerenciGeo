@@ -415,5 +415,25 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
 - **Regra Obrigatória**:
   1. **Mitigação Estrita de Timing Attacks**: Em caso de usuário inexistente no endpoint `/auth/login` (tanto em Python quanto no `api.php`), sempre executar `bcrypt.checkpw(password, DUMMY_HASH)` ou `password_verify($password, $dummyHash)` para equalizar a latência da resposta.
   2. **Sanitização de Payloads de Usuário**: O hash de senha (`password`), `reset_password_token` e `reset_password_expires` nunca devem ser transmitidos para o frontend ou persistidos em sessões.
-  3. **Adesão aos Web Components**: A tela de login SPA deve empregar `<ui-campo-texto>` e `<ui-botao-primario>` da biblioteca `ui-components-kit`, gerenciando a sessão centralmente via `AuthService` com suporte a persistência por 30 dias (`remember_me`).
+  3. **Adesão aos Web Components**: A tela de login SPA deve empregar `<ui-campo-texto>`, `<ui-checkbox>` e `<ui-botao>` da biblioteca `ui-components-kit`, gerenciando a sessão centralmente via `AuthService` com suporte a persistência por 30 dias (`remember_me`).
   4. **Proteção de Rotas SPA**: Em `main.ts`, qualquer tentativa de navegação desautenticada em rotas protegidas deve redirecionar instantaneamente para `#login`, ocultando a barra lateral.
+
+---
+
+## 26. Heurística de Detecção Óptica de Ícone em `ui-botao` e Padronização da Tela de Login
+- **Problema**:
+  1. **Efeito Moldura Dupla no Botão de Ação**: Aplicar classes utilitárias de padding vertical (`py-3`) e sombras (`shadow-[...]`) diretamente na tag do Custom Element `<ui-botao>` estilizava o elemento `:host` (bloco escuro) em vez do `<button>` interno da Shadow DOM, gerando uma moldura cinza/escura com o botão verde achatado no interior.
+  2. **Contração para 1:1 (Bug de Botão Quadrado com Texto Quebrado)**: A heurística interna de `opticalState` do `ui-components-kit` avalia os nós atribuídos ao slot. Ao encapsular o ícone e o texto dentro de um único elemento contêiner (`<span><i data-lucide="log-in"></i>Texto</span>`), o navegador computa `children.length === 1` (o SVG), ignorando o nó de texto (que não reside em `.children`). A lib classificava o botão incorretamente como `ui-botao-primario--icon-only`, forçando `aspect-ratio: 1` e largura de 46px.
+  3. **Ícones Ausentes no Lucide**: Ícones como `mail`, `eye-off` e `log-in` não eram exibidos na interface caso não estivessem mapeados explicitamente no dicionário do `createIcons` em `utils.ts`.
+- **Regra Obrigatória**:
+  1. **Nós Irmãos Separados no `<ui-botao>`**: Nunca envolver ícone e texto de botão em uma única tag `<span>`. Declarar sempre como irmãos diretos no slot do `<ui-botao>`:
+     ```html
+     <ui-botao tipo-submit variante="primario" altura="46" class="w-full">
+       <i data-lucide="log-in" class="w-4 h-4"></i>
+       <span>Entrar no Sistema</span>
+     </ui-botao>
+     ```
+  2. **Controle de Dimensão sem Padding no Host**: A altura de `<ui-botao>` e `<ui-campo-texto>` deve ser controlada via atributo `altura="44"` / `altura="46"` (que injeta `--ui-campo-altura`), sem classes como `py-*` aplicadas diretamente ao Custom Element.
+  3. **Campos com Ícones em Slots Nativos**: Utilizar `slot="icone-esquerda"` e `slot="icone-direita"` nativos do `<ui-campo-texto>` para ícones de e-mail, senha e alternância de visibilidade.
+  4. **Importação Centralizada em `utils.ts`**: Qualquer novo ícone adicionado ao projeto via Lucide (`data-lucide="..."`) deve ser obrigatoriamente importado e registrado na função `initIcons()` em `frontend/src/utils.ts`.
+
