@@ -503,7 +503,7 @@ $route = '/' . trim($route, '/');
 // --- A. Endpoints Públicos / Legados de Hub Cloud ---
 
 // 1. Healthcheck / Status
-if ($route === '/' || $route === '/status' || (isset($_GET['action']) && $_GET['action'] === 'status')) {
+if ((($route === '/' || $route === '') && empty($_GET['action'])) || $route === '/status' || (isset($_GET['action']) && $_GET['action'] === 'status')) {
     jsonResponse([
         'status' => 'online',
         'service' => 'GerenciGeo Cloud Hub (MySQL)',

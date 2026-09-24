@@ -377,13 +377,14 @@ export const loginRoute: RouteDef = {
           }
 
           const user = await AuthService.login(email, password, rememberMe);
-          showToast(`Bem-vindo, ${user.name}!`, 'success');
+          const userName = (user && user.name) ? user.name : 'Usuário';
+          showToast(`Bem-vindo, ${userName}!`, 'success');
 
           // Atualiza as informações do usuário no rodapé da Sidebar
           const userNameEl = document.querySelector('#sidebar-footer .text-sm.font-semibold');
           const userAvatarEl = document.querySelector('#sidebar-footer .w-8.h-8');
-          if (userNameEl) userNameEl.textContent = user.name;
-          if (userAvatarEl) userAvatarEl.textContent = AuthService.getInitials(user.name);
+          if (userNameEl) userNameEl.textContent = userName;
+          if (userAvatarEl) userAvatarEl.textContent = AuthService.getInitials(userName);
 
           // Redireciona para o dashboard
           window.location.hash = '#dashboard';
@@ -430,13 +431,14 @@ export const loginRoute: RouteDef = {
           }
 
           const user = await AuthService.register(name, email, password);
-          showToast(`Conta criada com sucesso! Bem-vindo, ${user.name}!`, 'success');
+          const userName = (user && user.name) ? user.name : (name || 'Usuário');
+          showToast(`Conta criada com sucesso! Bem-vindo, ${userName}!`, 'success');
 
           // Atualiza as informações do usuário no rodapé da Sidebar
           const userNameEl = document.querySelector('#sidebar-footer .text-sm.font-semibold');
           const userAvatarEl = document.querySelector('#sidebar-footer .w-8.h-8');
-          if (userNameEl) userNameEl.textContent = user.name;
-          if (userAvatarEl) userAvatarEl.textContent = AuthService.getInitials(user.name);
+          if (userNameEl) userNameEl.textContent = userName;
+          if (userAvatarEl) userAvatarEl.textContent = AuthService.getInitials(userName);
 
           // Redireciona para o dashboard
           window.location.hash = '#dashboard';

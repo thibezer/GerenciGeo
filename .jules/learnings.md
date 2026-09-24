@@ -437,5 +437,9 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   3. **Campos com Ícones em Slots Nativos**: Utilizar `slot="icone-esquerda"` e `slot="icone-direita"` nativos do `<ui-campo-texto>` para ícones de e-mail, senha e alternância de visibilidade.
   4. **Importação Centralizada em `utils.ts`**: Qualquer novo ícone adicionado ao projeto via Lucide (`data-lucide="..."`) deve ser obrigatoriamente importado e registrado na função `initIcons()` em `frontend/src/utils.ts`.
   5. **Fluxo de Auto-Cadastro Unificado**: O endpoint `/auth/register` (em Python e no `api.php`) valida unicidade de e-mail, comprimento mínimo de senha e cria a conta gerando a sessão e logando imediatamente, permitindo que a tela de login alterne dinamicamente entre login e cadastro.
-
+   6. **Resiliência de Resposta de Autenticação e Roteamento de Healthcheck**:
+      - Em AuthService, o retorno da API nunca deve ser lido assumindo cegamente a existência da chave data.user (ex: const rawUser = data.user || data.data || (data.name ? data : null)). Se o usuário for inválido ou ausente, deve lançar exceção informativa impedindo que a função retorne undefined.
+      - Em views de login e no main.ts, todas as referências ao nome do usuário devem utilizar fallback defensivo ((user && user.name) ? user.name : 'Usuário') para mitigar Cannot read properties of undefined (reading 'name').
+      - No pi.php de produção/nuvem, rotas de healthcheck com $route === '/' devem ser condicionadas a empty(['action']) para que endpoints acionados via query parameters (pi.php?action=login ou 
+egister) não sejam precipitadamente interceptados pelo status healthcheck com HTTP 200.
 

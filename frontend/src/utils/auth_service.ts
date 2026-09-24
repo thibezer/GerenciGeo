@@ -20,7 +20,17 @@ export class AuthService {
   static getUser(): AuthUser | null {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_USER) || sessionStorage.getItem(STORAGE_KEY_USER);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw || raw === 'undefined' || raw === 'null') return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        id: Number(parsed.id) || 1,
+        name: String(parsed.name || parsed.email || 'Usuário'),
+        email: String(parsed.email || ''),
+        role: String(parsed.role || 'admin'),
+        profile_image: parsed.profile_image || null,
+        created_at: parsed.created_at || ''
+      };
     } catch {
       return null;
     }
@@ -65,10 +75,23 @@ export class AuthService {
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.detail || data.error || 'Erro ao criar conta.');
+      throw new Error(data.detail || data.error || data.message || 'Erro ao criar conta.');
     }
 
-    const user: AuthUser = data.user;
+    const rawUser = data.user || data.data || (data.name ? data : null);
+    if (!rawUser || typeof rawUser !== 'object') {
+      throw new Error(data.message || data.detail || 'Resposta de autenticação inválida do servidor.');
+    }
+
+    const user: AuthUser = {
+      id: Number(rawUser.id) || 1,
+      name: String(rawUser.name || rawUser.email || name || 'Usuário'),
+      email: String(rawUser.email || email),
+      role: String(rawUser.role || 'admin'),
+      profile_image: rawUser.profile_image || null,
+      created_at: rawUser.created_at || ''
+    };
+
     const token: string = data.token || 'session_token';
 
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
@@ -103,10 +126,23 @@ export class AuthService {
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.detail || data.error || 'Credenciais inválidas.');
+      throw new Error(data.detail || data.error || data.message || 'Credenciais inválidas.');
     }
 
-    const user: AuthUser = data.user;
+    const rawUser = data.user || data.data || (data.name ? data : null);
+    if (!rawUser || typeof rawUser !== 'object') {
+      throw new Error(data.message || data.detail || 'Resposta de autenticação inválida do servidor.');
+    }
+
+    const user: AuthUser = {
+      id: Number(rawUser.id) || 1,
+      name: String(rawUser.name || rawUser.email || 'Usuário'),
+      email: String(rawUser.email || email),
+      role: String(rawUser.role || 'admin'),
+      profile_image: rawUser.profile_image || null,
+      created_at: rawUser.created_at || ''
+    };
+
     const token: string = data.token || 'session_token';
 
     const storage = rememberMe ? localStorage : sessionStorage;
