@@ -1,5 +1,5 @@
 import { API_BASE } from '../../config';
-import { initIcons } from '../../utils';
+import { initIcons, showToast } from '../../utils';
 import { renderLinhaPontoCartorioHtml, renderLinhaSegmentoHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { latLonToUTM } from './mesa_geodesica';
@@ -381,13 +381,21 @@ export function setupOrganizadorPerimetro(ctx: MesaTrabalhoContext) {
 
         if (res.ok) {
           input.value = '';
+          showToast("Confrontante adicionado com sucesso!", "success");
           await ctx.loadLevantamentoDetails();
+          if (typeof ctx.carregarConfrontantesAtivosSelect === 'function') {
+            await ctx.carregarConfrontantesAtivosSelect();
+          }
         } else {
-          const data = await res.json();
-          alert(data.error || "Erro ao adicionar confrontante.");
+          const data = await res.json().catch(() => ({}));
+          const errMsg = data.detail
+            ? (Array.isArray(data.detail) ? data.detail.map((d: any) => d.msg).join('; ') : data.detail)
+            : (data.error || "Erro ao adicionar confrontante.");
+          showToast(errMsg, "error");
         }
       } catch (err) {
         console.error("Erro ao cadastrar confrontante:", err);
+        showToast("Erro de conexão ao adicionar confrontante.", "error");
       } finally {
         btn.disabled = false;
         btn.innerHTML = `<i data-lucide="plus" class="w-3 h-3"></i> Adicionar`;

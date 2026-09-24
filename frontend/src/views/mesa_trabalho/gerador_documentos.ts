@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { API_BASE } from '../../config';
-import { initIcons } from '../../utils';
+import { initIcons, showToast } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
@@ -677,10 +677,78 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
 
     const selectAnuencia = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
+    const containerForm = document.getElementById('container-form-confrontante') as HTMLElement;
+    const inputConfId = document.getElementById('input-conf-id') as HTMLInputElement;
+    const txtConfIdEdicao = document.getElementById('txt-conf-id-edicao') as HTMLElement;
+    const badgeConfStatus = document.getElementById('badge-conf-status') as HTMLElement;
+    const formConfrontante = document.getElementById('form-edicao-confrontante') as HTMLFormElement;
+    const btnNovoConf = document.getElementById('btn-novo-confrontante-cartorio') as HTMLElement;
+    const btnFecharCard = document.getElementById('btn-fechar-card-confrontante') as HTMLElement;
+    const btnCancelarConf = document.getElementById('btn-cancelar-confrontante-qualificacao') as HTMLElement;
+    const btnSalvarConf = document.getElementById('btn-salvar-confrontante-qualificacao') as HTMLElement;
+    const inputCpf = document.getElementById('input-conf-cpf') as any;
+    const inputCpfConjuge = document.getElementById('input-conf-conjuge-cpf') as any;
+    const fileInputMatricula = document.getElementById('file-matricula-conf') as HTMLInputElement;
+    const statusBuscaCpf = document.getElementById('status-busca-cpf') as HTMLElement;
+
+    const abrirFormularioNovoConfrontante = () => {
+      if (!containerForm) return;
+      containerForm.classList.remove('hidden');
+      if (inputConfId) inputConfId.value = '';
+      containerForm.dataset.confrontanteId = '';
+      if (txtConfIdEdicao) txtConfIdEdicao.innerText = 'NOVO';
+      if (badgeConfStatus) {
+        badgeConfStatus.innerText = 'NOVO CADASTRO';
+        badgeConfStatus.className = 'text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20';
+      }
+
+      // Limpar todos os campos e aplicar defaults
+      (document.getElementById('input-conf-nome') as any).value = '';
+      if (inputCpf) inputCpf.value = '';
+      (document.getElementById('conf-genero') as any).value = 'M';
+      (document.getElementById('input-conf-rg') as any).value = '';
+      (document.getElementById('input-conf-nacionalidade') as any).value = 'brasileiro(a)';
+      (document.getElementById('input-conf-profissao') as any).value = '';
+      (document.getElementById('conf-estado-civil') as any).value = 'solteiro';
+      (document.getElementById('conf-regime-bens') as any).value = '';
+      (document.getElementById('input-conf-conjuge-nome') as any).value = '';
+      if (inputCpfConjuge) inputCpfConjuge.value = '';
+      (document.getElementById('input-conf-conjuge-rg') as any).value = '';
+      (document.getElementById('conf-conjuge-genero') as any).value = 'F';
+      (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = 'brasileiro(a)';
+      (document.getElementById('input-conf-conjuge-profissao') as any).value = '';
+      (document.getElementById('input-conf-endereco') as any).value = '';
+      (document.getElementById('input-conf-matricula-imovel') as any).value = '';
+
+      configurarMaquinadeEstadosCivil(containerForm);
+      renderizarStatusAnexoMatricula(null);
+      initIcons();
+
+      setTimeout(() => {
+        (document.getElementById('input-conf-nome') as any)?.focus?.();
+      }, 100);
+    };
+
+    const fecharFormularioConfrontante = () => {
+      if (containerForm) containerForm.classList.add('hidden');
+      if (inputConfId) inputConfId.value = '';
+      if (containerForm) containerForm.dataset.confrontanteId = '';
+      if (selectAnuencia) selectAnuencia.value = '';
+    };
+
+    if (btnNovoConf) {
+      btnNovoConf.onclick = abrirFormularioNovoConfrontante;
+    }
+    if (btnFecharCard) {
+      btnFecharCard.onclick = fecharFormularioConfrontante;
+    }
+    if (btnCancelarConf) {
+      btnCancelarConf.onclick = fecharFormularioConfrontante;
+    }
+
     if (selectAnuencia) {
       selectAnuencia.addEventListener('change', async () => {
         const confIdVal = selectAnuencia.value;
-        const containerForm = document.getElementById('container-form-confrontante');
         if (!confIdVal || confIdVal === "lote" || !ctx.currentLevId) {
           if (containerForm) containerForm.classList.add('hidden');
           return;
@@ -693,212 +761,218 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           
           if (selectedConf && containerForm) {
             containerForm.classList.remove('hidden');
+            if (inputConfId) inputConfId.value = String(selectedConf.id);
+            containerForm.dataset.confrontanteId = String(selectedConf.id);
+            if (txtConfIdEdicao) txtConfIdEdicao.innerText = `ID: ${selectedConf.id}`;
+            if (badgeConfStatus) {
+              badgeConfStatus.innerText = 'EDIÇÃO';
+              badgeConfStatus.className = 'text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20';
+            }
             
-            (document.getElementById('txt-conf-id-edicao') as HTMLElement).innerText = `ID: ${selectedConf.id}`;
-            (document.getElementById('input-conf-nome') as HTMLInputElement).value = selectedConf.nome || '';
-            (document.getElementById('input-conf-cpf') as HTMLInputElement).value = selectedConf.cpf_cnpj ? formatarCpfCnpjDinamico(selectedConf.cpf_cnpj) : '';
-            (document.getElementById('conf-genero') as HTMLSelectElement).value = selectedConf.genero || 'M';
-            (document.getElementById('input-conf-rg') as HTMLInputElement).value = selectedConf.rg || '';
-            (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade || 'brasileiro(a)';
-            (document.getElementById('input-conf-profissao') as HTMLInputElement).value = selectedConf.profissao || '';
-            (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = normalizarEstadoCivil(selectedConf.estado_civil);
-            (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = normalizarRegimeBens(selectedConf.regime_bens);
-            (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = selectedConf.nome_conjuge || '';
-            (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = selectedConf.cpf_conjuge ? formatarCpfCnpjDinamico(selectedConf.cpf_conjuge) : '';
-            (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = selectedConf.rg_conjuge || '';
-            (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value = selectedConf.genero_conjuge || 'F';
-            (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value = selectedConf.nacionalidade_conjuge || 'brasileiro(a)';
-            (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value = selectedConf.profissao_conjuge || '';
-            (document.getElementById('input-conf-endereco') as HTMLInputElement).value = selectedConf.endereco_completo || '';
-            (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value = selectedConf.matricula_imovel || '';
+            (document.getElementById('input-conf-nome') as any).value = selectedConf.nome || '';
+            if (inputCpf) inputCpf.value = selectedConf.cpf_cnpj ? formatarCpfCnpjDinamico(selectedConf.cpf_cnpj) : '';
+            (document.getElementById('conf-genero') as any).value = selectedConf.genero || 'M';
+            (document.getElementById('input-conf-rg') as any).value = selectedConf.rg || '';
+            (document.getElementById('input-conf-nacionalidade') as any).value = selectedConf.nacionalidade || 'brasileiro(a)';
+            (document.getElementById('input-conf-profissao') as any).value = selectedConf.profissao || '';
+            (document.getElementById('conf-estado-civil') as any).value = normalizarEstadoCivil(selectedConf.estado_civil);
+            (document.getElementById('conf-regime-bens') as any).value = normalizarRegimeBens(selectedConf.regime_bens);
+            (document.getElementById('input-conf-conjuge-nome') as any).value = selectedConf.nome_conjuge || '';
+            if (inputCpfConjuge) inputCpfConjuge.value = selectedConf.cpf_conjuge ? formatarCpfCnpjDinamico(selectedConf.cpf_conjuge) : '';
+            (document.getElementById('input-conf-conjuge-rg') as any).value = selectedConf.rg_conjuge || '';
+            (document.getElementById('conf-conjuge-genero') as any).value = selectedConf.genero_conjuge || 'F';
+            (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = selectedConf.nacionalidade_conjuge || 'brasileiro(a)';
+            (document.getElementById('input-conf-conjuge-profissao') as any).value = selectedConf.profissao_conjuge || '';
+            (document.getElementById('input-conf-endereco') as any).value = selectedConf.endereco_completo || '';
+            (document.getElementById('input-conf-matricula-imovel') as any).value = selectedConf.matricula_imovel || '';
             
-            // Inicia máquina de estados reativa para visibilidade de cônjuge
             configurarMaquinadeEstadosCivil(containerForm);
-
             renderizarStatusAnexoMatricula(selectedConf);
-
             initIcons();
           }
         } catch (err) {
           console.error("Erro ao carregar qualificacoes do confrontante:", err);
+          showToast("Erro ao carregar dados do confrontante.", "error");
         }
       });
     }
 
-    const inputCpf = document.getElementById('input-conf-cpf') as HTMLInputElement;
-    if (inputCpf) {
-      inputCpf.addEventListener('blur', async () => {
-        const cpfVal = inputCpf.value.trim();
-        if (!cpfVal) return;
-        
-        // Limpa pontuações para checagem rápida de tamanho (CPF ou CNPJ)
-        const cpfLimpo = cpfVal.replace(/\D/g, '');
-        if (cpfLimpo.length < 11) return; // Menor que CPF completo
-        
-        const loadingEl = document.createElement('span');
-        loadingEl.id = 'loading-cpf-busca';
-        loadingEl.className = 'text-[10px] text-mint-vibrant/70 font-semibold mt-1 flex items-center gap-1';
-        loadingEl.innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Buscando...';
-        
-        const oldLoading = document.getElementById('loading-cpf-busca');
-        if (oldLoading) oldLoading.remove();
-        
-        inputCpf.parentNode?.appendChild(loadingEl);
-        initIcons();
+    const buscarPreenchimentoCpf = async (cpfVal: string) => {
+      if (!cpfVal) return;
+      const cpfLimpo = cpfVal.replace(/\D/g, '');
+      if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) return;
+      
+      if (statusBuscaCpf) {
+        statusBuscaCpf.innerText = 'Buscando cadastro...';
+        statusBuscaCpf.classList.remove('hidden');
+      }
 
-        try {
-          const res = await fetch(`${API_BASE}/confrontantes/buscar-por-cpf?cpf=${encodeURIComponent(cpfLimpo)}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.nome) {
-              // Preenche os campos do formulário
-              (document.getElementById('input-conf-nome') as HTMLInputElement).value = data.nome || '';
-              (document.getElementById('conf-genero') as HTMLSelectElement).value = data.genero || 'M';
-              (document.getElementById('input-conf-rg') as HTMLInputElement).value = data.rg || '';
-              (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value = data.nacionalidade || 'brasileiro(a)';
-              (document.getElementById('input-conf-profissao') as HTMLInputElement).value = data.profissao || '';
-              (document.getElementById('conf-estado-civil') as HTMLSelectElement).value = normalizarEstadoCivil(data.estado_civil);
-              (document.getElementById('conf-regime-bens') as HTMLSelectElement).value = normalizarRegimeBens(data.regime_bens);
-              (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value = data.nome_conjuge || '';
-              (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value = data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '';
-              (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value = data.rg_conjuge || '';
-              (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value = data.genero_conjuge || 'F';
-              (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value = data.nacionalidade_conjuge || 'brasileiro(a)';
-              (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value = data.profissao_conjuge || '';
-              (document.getElementById('input-conf-endereco') as HTMLInputElement).value = data.endereco_completo || '';
-              if (data.matricula_imovel) {
-                const inputMat = document.getElementById('input-conf-matricula-imovel') as HTMLInputElement;
-                if (inputMat && !inputMat.value.trim()) {
-                  inputMat.value = data.matricula_imovel;
-                }
+      try {
+        const res = await fetch(`${API_BASE}/confrontantes/buscar-por-cpf?cpf=${encodeURIComponent(cpfLimpo)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.nome) {
+            (document.getElementById('input-conf-nome') as any).value = data.nome || '';
+            (document.getElementById('conf-genero') as any).value = data.genero || 'M';
+            (document.getElementById('input-conf-rg') as any).value = data.rg || '';
+            (document.getElementById('input-conf-nacionalidade') as any).value = data.nacionalidade || 'brasileiro(a)';
+            (document.getElementById('input-conf-profissao') as any).value = data.profissao || '';
+            (document.getElementById('conf-estado-civil') as any).value = normalizarEstadoCivil(data.estado_civil);
+            (document.getElementById('conf-regime-bens') as any).value = normalizarRegimeBens(data.regime_bens);
+            (document.getElementById('input-conf-conjuge-nome') as any).value = data.nome_conjuge || '';
+            if (inputCpfConjuge) inputCpfConjuge.value = data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '';
+            (document.getElementById('input-conf-conjuge-rg') as any).value = data.rg_conjuge || '';
+            (document.getElementById('conf-conjuge-genero') as any).value = data.genero_conjuge || 'F';
+            (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = data.nacionalidade_conjuge || 'brasileiro(a)';
+            (document.getElementById('input-conf-conjuge-profissao') as any).value = data.profissao_conjuge || '';
+            (document.getElementById('input-conf-endereco') as any).value = data.endereco_completo || '';
+            if (data.matricula_imovel) {
+              const inputMat = document.getElementById('input-conf-matricula-imovel') as any;
+              if (inputMat && !inputMat.value.trim()) {
+                inputMat.value = data.matricula_imovel;
               }
-              
-              // Executa a máquina de estados reativa para atualizar visibilidade do cônjuge
-              const containerForm = document.getElementById('container-form-confrontante');
-              if (containerForm) {
-                configurarMaquinadeEstadosCivil(containerForm);
-              }
-              
-              // Exibe um aviso visual temporário de auto-preenchimento
-              const msgEl = document.createElement('span');
-              msgEl.id = 'alert-cpf-auto-complete';
-              msgEl.className = 'text-[10px] text-mint-vibrant font-semibold mt-1 block animate-pulse';
-              msgEl.innerText = '✨ Dados de qualificação carregados automaticamente do banco de dados!';
-              
-              // Remove alerta antigo se houver
-              const oldMsg = document.getElementById('alert-cpf-auto-complete');
-              if (oldMsg) oldMsg.remove();
-              
-              inputCpf.parentNode?.appendChild(msgEl);
-              setTimeout(() => {
-                msgEl.remove();
-              }, 5000);
             }
+            
+            if (containerForm) {
+              configurarMaquinadeEstadosCivil(containerForm);
+            }
+            
+            showToast("✨ Dados de qualificação carregados automaticamente pelo CPF/CNPJ!", "success");
           }
-        } catch (err) {
-          console.error("Erro ao buscar confrontante por CPF:", err);
-        } finally {
-          const l = document.getElementById('loading-cpf-busca');
-          if (l) l.remove();
         }
+      } catch (err) {
+        console.error("Erro ao buscar confrontante por CPF:", err);
+      } finally {
+        if (statusBuscaCpf) statusBuscaCpf.classList.add('hidden');
+      }
+    };
+
+    if (inputCpf) {
+      inputCpf.addEventListener('input', () => {
+        inputCpf.value = formatarCpfCnpjDinamico(inputCpf.value);
+        const limpo = inputCpf.value.replace(/\D/g, '');
+        if (limpo.length === 11 || limpo.length === 14) {
+          buscarPreenchimentoCpf(inputCpf.value);
+        }
+      });
+      inputCpf.addEventListener('blur', () => {
+        buscarPreenchimentoCpf(inputCpf.value);
       });
     }
 
-    const inputCpfConjuge = document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement;
     if (inputCpfConjuge) {
       inputCpfConjuge.addEventListener('input', () => {
         inputCpfConjuge.value = formatarCpfCnpjDinamico(inputCpfConjuge.value);
       });
     }
 
-    if (inputCpf) {
-      inputCpf.addEventListener('input', () => {
-        inputCpf.value = formatarCpfCnpjDinamico(inputCpf.value);
+    const executarSalvarQualificacao = async () => {
+      let confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId || (selectAnuencia ? selectAnuencia.value : '');
+      if (confIdVal === 'lote' || confIdVal === 'novo') confIdVal = '';
+      
+      if (!ctx.currentLevId) {
+        showToast("Nenhum levantamento ativo selecionado.", "info");
+        return;
+      }
+
+      const inputNome = document.getElementById('input-conf-nome') as any;
+      const nome = (inputNome?.value || '').trim();
+      if (!nome) {
+        showToast("O Nome Completo / Razão Social do confrontante é obrigatório.", "info");
+        inputNome?.focus?.();
+        return;
+      }
+
+      const payload = {
+        nome: nome,
+        cpf_cnpj: (document.getElementById('input-conf-cpf') as any)?.value?.trim() || null,
+        genero: (document.getElementById('conf-genero') as any)?.value || 'M',
+        rg: (document.getElementById('input-conf-rg') as any)?.value?.trim() || null,
+        nacionalidade: (document.getElementById('input-conf-nacionalidade') as any)?.value?.trim() || 'brasileiro(a)',
+        profissao: (document.getElementById('input-conf-profissao') as any)?.value?.trim() || null,
+        estado_civil: (document.getElementById('conf-estado-civil') as any)?.value || null,
+        regime_bens: (document.getElementById('conf-regime-bens') as any)?.value || null,
+        nome_conjuge: (document.getElementById('input-conf-conjuge-nome') as any)?.value?.trim() || null,
+        cpf_conjuge: (document.getElementById('input-conf-conjuge-cpf') as any)?.value?.trim() || null,
+        rg_conjuge: (document.getElementById('input-conf-conjuge-rg') as any)?.value?.trim() || null,
+        genero_conjuge: (document.getElementById('conf-conjuge-genero') as any)?.value || null,
+        nacionalidade_conjuge: (document.getElementById('input-conf-conjuge-nacionalidade') as any)?.value?.trim() || null,
+        profissao_conjuge: (document.getElementById('input-conf-conjuge-profissao') as any)?.value?.trim() || null,
+        endereco_completo: (document.getElementById('input-conf-endereco') as any)?.value?.trim() || null,
+        matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as any)?.value?.trim() || null,
+        tipo_relacao: null
+      };
+
+      if (btnSalvarConf) {
+        btnSalvarConf.setAttribute('carregando', '');
+        btnSalvarConf.setAttribute('disabled', '');
+      }
+
+      try {
+        const url = confIdVal 
+          ? `${API_BASE}/confrontantes/${confIdVal}` 
+          : `${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`;
+        const method = confIdVal ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          showToast(confIdVal ? "Qualificação do confrontante salva com sucesso!" : "Novo confrontante cadastrado com sucesso!", "success");
+          
+          await ctx.carregarConfrontantesAtivosSelect();
+          await ctx.loadLevantamentoDetails();
+
+          fecharFormularioConfrontante();
+        } else {
+          let errorMsg = "Erro ao salvar qualificações do confrontante.";
+          if (data.detail) {
+            if (Array.isArray(data.detail)) {
+              errorMsg = data.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+            } else {
+              errorMsg = String(data.detail);
+            }
+          } else if (data.error) {
+            errorMsg = String(data.error);
+          } else if (data.message) {
+            errorMsg = String(data.message);
+          }
+          showToast(errorMsg, "error");
+        }
+      } catch (err) {
+        console.error("Erro ao salvar qualificações:", err);
+        showToast("Erro de rede ao salvar qualificações do confrontante.", "error");
+      } finally {
+        if (btnSalvarConf) {
+          btnSalvarConf.removeAttribute('carregando');
+          btnSalvarConf.removeAttribute('disabled');
+        }
+        initIcons();
+      }
+    };
+
+    if (btnSalvarConf) {
+      btnSalvarConf.onclick = executarSalvarQualificacao;
+      btnSalvarConf.addEventListener('ui-click', executarSalvarQualificacao);
+    }
+
+    if (formConfrontante) {
+      formConfrontante.addEventListener('submit', (e) => {
+        e.preventDefault();
+        executarSalvarQualificacao();
       });
     }
 
-    const btnSalvarConf = document.getElementById('btn-salvar-confrontante-qualificacao') as HTMLButtonElement;
-    if (btnSalvarConf) {
-      btnSalvarConf.onclick = async () => {
-        const confIdVal = selectAnuencia ? selectAnuencia.value : '';
-        if (!confIdVal || !ctx.currentLevId) return;
-
-        const nome = (document.getElementById('input-conf-nome') as HTMLInputElement).value.trim();
-        if (!nome) {
-          alert("O nome do confrontante é obrigatório.");
-          return;
-        }
-
-        const payload = {
-          nome: nome,
-          cpf_cnpj: (document.getElementById('input-conf-cpf') as HTMLInputElement).value.trim() || null,
-          genero: (document.getElementById('conf-genero') as HTMLSelectElement).value || 'M',
-          rg: (document.getElementById('input-conf-rg') as HTMLInputElement).value.trim() || null,
-          nacionalidade: (document.getElementById('input-conf-nacionalidade') as HTMLInputElement).value.trim() || null,
-          profissao: (document.getElementById('input-conf-profissao') as HTMLInputElement).value.trim() || null,
-          estado_civil: (document.getElementById('conf-estado-civil') as HTMLSelectElement).value || null,
-          regime_bens: (document.getElementById('conf-regime-bens') as HTMLSelectElement).value || null,
-          nome_conjuge: (document.getElementById('input-conf-conjuge-nome') as HTMLInputElement).value.trim() || null,
-          cpf_conjuge: (document.getElementById('input-conf-conjuge-cpf') as HTMLInputElement).value.trim() || null,
-          rg_conjuge: (document.getElementById('input-conf-conjuge-rg') as HTMLInputElement).value.trim() || null,
-          genero_conjuge: (document.getElementById('conf-conjuge-genero') as HTMLSelectElement).value || null,
-          nacionalidade_conjuge: (document.getElementById('input-conf-conjuge-nacionalidade') as HTMLInputElement).value.trim() || null,
-          profissao_conjuge: (document.getElementById('input-conf-conjuge-profissao') as HTMLInputElement).value.trim() || null,
-          endereco_completo: (document.getElementById('input-conf-endereco') as HTMLInputElement).value.trim() || null,
-          matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as HTMLInputElement).value.trim() || null,
-          tipo_relacao: null
-        };
-
-        btnSalvarConf.disabled = true;
-        const originalHTML = btnSalvarConf.innerHTML;
-        btnSalvarConf.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Salvando...`;
-        initIcons();
-
-        try {
-          const res = await fetch(`${API_BASE}/confrontantes/${confIdVal}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (res.ok) {
-            alert("Qualificação do confrontante salva com sucesso!");
-            const containerForm = document.getElementById('container-form-confrontante');
-            if (containerForm) containerForm.classList.add('hidden');
-            if (selectAnuencia) selectAnuencia.value = '';
-            
-            await ctx.loadLevantamentoDetails();
-          } else {
-            const data = await res.json();
-            alert(data.error || "Erro ao salvar qualificações do confrontante.");
-          }
-        } catch (err) {
-          console.error("Erro ao salvar qualificações:", err);
-          alert("Erro de rede ao salvar qualificações.");
-        } finally {
-          btnSalvarConf.disabled = false;
-          btnSalvarConf.innerHTML = originalHTML;
-          initIcons();
-        }
-      };
-    }
-
-    const btnCancelarConf = document.getElementById('btn-cancelar-confrontante-qualificacao');
-    if (btnCancelarConf) {
-      btnCancelarConf.onclick = () => {
-        const containerForm = document.getElementById('container-form-confrontante');
-        if (containerForm) containerForm.classList.add('hidden');
-        if (selectAnuencia) selectAnuencia.value = '';
-      };
-    }
-
-    const fileInputMatricula = document.getElementById('file-matricula-conf') as HTMLInputElement;
     if (fileInputMatricula) {
       fileInputMatricula.onchange = async (e: any) => {
-        const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
-        const confId = select ? select.value : '';
+        let confId = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId || (selectAnuencia ? selectAnuencia.value : '');
         if (!confId) {
-          alert("Nenhum confrontante selecionado.");
+          showToast("Nenhum confrontante selecionado para anexar matrícula.", "info");
           return;
         }
 
@@ -913,9 +987,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               body: formData
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-              alert("Matrícula anexada com sucesso!");
+              showToast("Matrícula anexada com sucesso!", "success");
               
               // Buscar o confrontante atualizado e renderizar
               const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`);
@@ -927,11 +1001,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               
               await ctx.loadLevantamentoDetails();
             } else {
-              alert(data.detail || data.error || "Erro ao fazer upload da matrícula.");
+              showToast(data.detail || data.error || "Erro ao fazer upload da matrícula.", "error");
             }
           } catch (err) {
             console.error("Erro no upload da matrícula:", err);
-            alert("Erro de rede ao fazer upload da matrícula.");
+            showToast("Erro de rede ao fazer upload da matrícula.", "error");
           } finally {
             fileInputMatricula.value = '';
           }
@@ -1277,11 +1351,13 @@ export function normalizarRegimeBens(val: string | null | undefined): string {
 
 // Máquina de Estados Reativa para a Qualificação de Cônjuge
 export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
-  const selectEstadoCivil = cardElement.querySelector('#conf-estado-civil') as HTMLSelectElement;
-  const selectRegime = cardElement.querySelector('#conf-regime-bens') as HTMLSelectElement;
+  const selectEstadoCivil = cardElement.querySelector('#conf-estado-civil') as any;
+  const selectRegime = cardElement.querySelector('#conf-regime-bens') as any;
   const groupConjuge = (cardElement.querySelector('#box-conjuge') || cardElement.querySelector('#group-dados-conjuge')) as HTMLElement;
-  const inputConjugeNome = cardElement.querySelector('#input-conf-conjuge-nome') as HTMLInputElement;
-  const inputsCamposExtra = cardElement.querySelectorAll('#input-conf-conjuge-cpf, #input-conf-conjuge-rg') as NodeListOf<HTMLInputElement>;
+  const inputConjugeNome = cardElement.querySelector('#input-conf-conjuge-nome') as any;
+  const inputsCamposExtra = cardElement.querySelectorAll(
+    '#input-conf-conjuge-cpf, #input-conf-conjuge-rg, #conf-conjuge-genero, #input-conf-conjuge-nacionalidade, #input-conf-conjuge-profissao'
+  ) as NodeListOf<any>;
 
   const atualizarCampos = () => {
     if (!selectEstadoCivil || !groupConjuge) return;
@@ -1292,41 +1368,47 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
 
     if (!precisaConjuge) {
       if (selectRegime) {
-        selectRegime.disabled = true;
+        selectRegime.setAttribute('disabled', '');
         selectRegime.value = "";
       }
       groupConjuge.classList.add('hidden');
     } else {
       if (selectRegime) {
-        selectRegime.disabled = false;
+        selectRegime.removeAttribute('disabled');
       }
       groupConjuge.classList.remove('hidden');
       
       if (inputConjugeNome) {
-        inputConjugeNome.disabled = false;
-        inputConjugeNome.placeholder = "Nome completo";
+        inputConjugeNome.removeAttribute('disabled');
+        if (inputConjugeNome.placeholder !== undefined) {
+          inputConjugeNome.placeholder = "Nome completo";
+        }
       }
       
-      if (regime.includes('separac') || regime.includes('separaç') || regime === 'separacao_total') {
-        inputsCamposExtra.forEach(input => {
-          input.placeholder = input.id.includes('cpf') ? "CPF (Opcional na Separação)" : "RG (Opcional na Separação)";
+      const isSeparacao = regime.includes('separac') || regime.includes('separaç') || regime === 'separacao_total';
+      inputsCamposExtra.forEach(input => {
+        if (input.removeAttribute) {
+          input.removeAttribute('disabled');
+        } else {
           input.disabled = false;
-        });
-      } else {
-        inputsCamposExtra.forEach(input => {
-          input.placeholder = input.id.includes('cpf') ? "000.000.000-00" : "RG";
-          input.disabled = false;
-        });
-      }
+        }
+        if (input.id?.includes('cpf') && input.placeholder !== undefined) {
+          input.placeholder = isSeparacao ? "CPF (Opcional na Separação)" : "000.000.000-00";
+        } else if (input.id?.includes('rg') && input.placeholder !== undefined) {
+          input.placeholder = isSeparacao ? "RG (Opcional na Separação)" : "RG / Órgão";
+        }
+      });
     }
   };
 
   if (selectEstadoCivil) {
-    selectEstadoCivil.onchange = atualizarCampos;
+    selectEstadoCivil.addEventListener('change', atualizarCampos);
+    selectEstadoCivil.addEventListener('ui-selecionar', atualizarCampos);
   }
   if (selectRegime) {
-    selectRegime.onchange = atualizarCampos;
-    selectRegime.oninput = atualizarCampos;
+    selectRegime.addEventListener('change', atualizarCampos);
+    selectRegime.addEventListener('ui-selecionar', atualizarCampos);
+    selectRegime.addEventListener('input', atualizarCampos);
   }
   
   atualizarCampos();

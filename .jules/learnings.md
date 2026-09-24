@@ -443,3 +443,21 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
       - No pi.php de produção/nuvem, rotas de healthcheck com $route === '/' devem ser condicionadas a empty(['action']) para que endpoints acionados via query parameters (pi.php?action=login ou 
 egister) não sejam precipitadamente interceptados pelo status healthcheck com HTTP 200.
 
+---
+
+## 27. Módulo de Confrontantes: Qualificação Completa, Integridade de Pessoas e Ciclo de Vida do Formulário
+- **Problema**:
+  1. O botão de salvar qualificação do confrontante na Aba 3 (Cartório/Anuência) falhava ou não respondia silenciosamente devido ao binding frágil em selectAnuencia.value, retornando antecipadamente sem feedback ao usuário.
+  2. O elemento btnSalvarConf é um Custom Element <ui-botao>. A manipulação de .innerHTML e a propriedade .disabled = true interferiam na Shadow DOM do componente.
+  3. No backend (segmentos.py), a atualização via PUT /confrontantes/{cid} disparava sqlite3.IntegrityError: UNIQUE constraint failed: pessoas.cpf_cnpj quando o confrontante era atualizado para um CPF já cadastrado em outra linha da tabela pessoas.
+  4. O endpoint GET /levantamentos/{id}/confrontantes usava INNER JOIN pessoas, ocultando confrontantes com pessoa_id = NULL e omitia os campos genero, genero_conjuge, nacionalidade_conjuge e profissao_conjuge.
+  5. A tabela confrontantes não possui a coluna genero (armazenada em pessoas.genero). A tentativa de selecionar c.genero no gerador de anuências cartoriais causava erro operacional sqlite3.OperationalError: no such column: c.genero.
+- **Regra Obrigatória**:
+  1. **Controle de Estado em <ui-botao>**: Para indicar estado de processamento/carregamento em componentes <ui-botao>, utilize estritamente btn.setAttribute('carregando', '') e btn.setAttribute('disabled', ''). Remova os atributos no finally. Escute tanto o evento nativo click quanto o Custom Event ui-click.
+  2. **Persistência em Duas Camadas (confrontantes ⇆ pessoas)**:
+     - Atributos pessoais e do cônjuge (genero, genero_conjuge, nacionalidade_conjuge, profissao_conjuge) residem na tabela pessoas.
+     - Atributos espaciais e notariais (matricula_imovel, cns_confrontante, caminho_matricula_pdf, tipo_relacao) residem na tabela confrontantes.
+     - Consultas devem usar LEFT JOIN pessoas p ON c.pessoa_id = p.id com COALESCE(p.campo, c.campo) para garantir que registros legados não sejam perdidos.
+  3. **Resolução de Conflitos UNIQUE em Atualizações de CPF**: No update_confrontante, se o CPF informado já existir em pessoas sob outro ID, a rota deve vincular c.pessoa_id ao registro existente e atualizar seus dados, em vez de tentar um UPDATE pessoas direto que viole a restrição única.
+  4. **Feedback Visual e Sanitização de Erros**: Toda resposta de erro da API deve extrair data.detail (suportando strings e arrays do Pydantic) e exibir feedback visual via showToast(msg, 'error') ou 'success'.
+  5. **Sincronização Inter-Abas**: O cadastro ou edição de confrontantes (seja rápido na Aba 2 ou detalhado na Aba 3) deve obrigatoriamente chamar await ctx.carregarConfrontantesAtivosSelect() e recarregar os dados do levantamento, mantendo seletores e tabelas perfeitamente sincronizados.

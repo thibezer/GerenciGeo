@@ -70,34 +70,51 @@ def buscar_confrontante_por_cpf(cpf: str):
         
     try:
         query = """
-            SELECT c.id, p.nome, p.cpf_cnpj, c.tipo_relacao, p.rg, p.nacionalidade, p.profissao,
-                   p.estado_civil, p.regime_bens, p.endereco_completo, p.nome_conjuge,
-                   p.cpf_conjuge, p.rg_conjuge, c.matricula_imovel, c.cns_confrontante,
+            SELECT c.id,
+                   COALESCE(p.nome, c.nome) AS nome,
+                   COALESCE(p.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj,
+                   c.tipo_relacao,
+                   COALESCE(p.rg, c.rg) AS rg,
+                   COALESCE(p.genero, 'M') AS genero,
+                   COALESCE(p.nacionalidade, c.nacionalidade, 'brasileiro(a)') AS nacionalidade,
+                   COALESCE(p.profissao, c.profissao) AS profissao,
+                   COALESCE(p.estado_civil, c.estado_civil) AS estado_civil,
+                   COALESCE(p.regime_bens, c.regime_bens) AS regime_bens,
+                   COALESCE(p.endereco_completo, c.endereco_completo) AS endereco_completo,
+                   COALESCE(p.nome_conjuge, c.nome_conjuge) AS nome_conjuge,
+                   COALESCE(p.cpf_conjuge, c.cpf_conjuge) AS cpf_conjuge,
+                   COALESCE(p.rg_conjuge, c.rg_conjuge) AS rg_conjuge,
+                   COALESCE(p.genero_conjuge, 'F') AS genero_conjuge,
+                   COALESCE(p.nacionalidade_conjuge, 'brasileiro(a)') AS nacionalidade_conjuge,
+                   p.profissao_conjuge AS profissao_conjuge,
+                   c.matricula_imovel, c.cns_confrontante,
                    c.levantamento_id
             FROM confrontantes c
-            JOIN pessoas p ON c.pessoa_id = p.id
-            WHERE REPLACE(REPLACE(REPLACE(p.cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
-              AND p.nome IS NOT NULL AND p.nome != ''
+            LEFT JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE (
+              REPLACE(REPLACE(REPLACE(p.cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+              OR REPLACE(REPLACE(REPLACE(c.cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+            )
+            AND COALESCE(p.nome, c.nome) IS NOT NULL AND COALESCE(p.nome, c.nome) != ''
             ORDER BY c.id DESC LIMIT 1
         """
-        row = execute_query(query, params=(cpf_limpo,), fetch_one=True)
+        row = execute_query(query, params=(cpf_limpo, cpf_limpo), fetch_one=True)
         if row:
             return dict(row)
             
         # Se não achou na relação de confrontantes, busca apenas em pessoas para autopreencher
         query_pessoa = """
-            SELECT id as pessoa_id, nome, cpf_cnpj, rg, nacionalidade, profissao,
+            SELECT id as pessoa_id, nome, cpf_cnpj, rg, genero, nacionalidade, profissao,
                    estado_civil, regime_bens, endereco_completo, nome_conjuge,
-                   cpf_conjuge, rg_conjuge
+                   cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge,
+                   profissao_conjuge
             FROM pessoas
             WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
             LIMIT 1
         """
         row_p = execute_query(query_pessoa, params=(cpf_limpo,), fetch_one=True)
         if row_p:
-            res = dict(row_p)
-            res["nome"] = res.pop("nome")  # Renomeia nome para bater com form
-            return res
+            return dict(row_p)
             
         return {}
     except Exception as e:
@@ -107,15 +124,30 @@ def buscar_confrontante_por_cpf(cpf: str):
 def get_confrontantes(id: int):
     try:
         query = """
-            SELECT c.id, c.levantamento_id, p.nome, p.cpf_cnpj, c.tipo_relacao, p.rg,
-                   p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
-                   p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+            SELECT c.id, c.levantamento_id,
+                   COALESCE(p.nome, c.nome) AS nome,
+                   COALESCE(p.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj,
+                   c.tipo_relacao,
+                   COALESCE(p.rg, c.rg) AS rg,
+                   COALESCE(p.genero, 'M') AS genero,
+                   COALESCE(p.nacionalidade, c.nacionalidade, 'brasileiro(a)') AS nacionalidade,
+                   COALESCE(p.profissao, c.profissao) AS profissao,
+                   COALESCE(p.estado_civil, c.estado_civil) AS estado_civil,
+                   COALESCE(p.regime_bens, c.regime_bens) AS regime_bens,
+                   COALESCE(p.endereco_completo, c.endereco_completo) AS endereco_completo,
+                   COALESCE(p.nome_conjuge, c.nome_conjuge) AS nome_conjuge,
+                   COALESCE(p.cpf_conjuge, c.cpf_conjuge) AS cpf_conjuge,
+                   COALESCE(p.rg_conjuge, c.rg_conjuge) AS rg_conjuge,
+                   COALESCE(p.genero_conjuge, 'F') AS genero_conjuge,
+                   COALESCE(p.nacionalidade_conjuge, 'brasileiro(a)') AS nacionalidade_conjuge,
+                   p.profissao_conjuge AS profissao_conjuge,
                    c.matricula_imovel, c.cns_confrontante, c.caminho_matricula_pdf,
                    c.nome_propriedade, c.codigo_incra_imovel, c.poligono_wkt,
                    c.confrontacoes_json, c.created_at
             FROM confrontantes c
-            JOIN pessoas p ON c.pessoa_id = p.id
+            LEFT JOIN pessoas p ON c.pessoa_id = p.id
             WHERE c.levantamento_id = ?
+            ORDER BY c.id ASC
         """
         return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
@@ -144,27 +176,37 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                     # Atualiza os dados civis da pessoa se houver novos dados informados
                     cursor.execute("""
                         UPDATE pessoas
-                        SET nome = ?, rg = ?, nacionalidade = ?, profissao = ?, estado_civil = ?,
+                        SET nome = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?, estado_civil = ?,
                             regime_bens = ?, endereco_completo = ?, nome_conjuge = ?,
-                            cpf_conjuge = ?, rg_conjuge = ?
+                            cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
+                            nacionalidade_conjuge = ?, profissao_conjuge = ?
                         WHERE id = ?
-                    """, (c.nome, c.rg, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, pessoa_id))
+                    """, (c.nome, c.rg, c.genero or 'M', c.nacionalidade or 'brasileiro(a)', c.profissao, c.estado_civil,
+                          c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge,
+                          c.genero_conjuge or 'F', c.nacionalidade_conjuge or 'brasileiro(a)', c.profissao_conjuge, pessoa_id))
             
             if not pessoa_id:
                 cursor.execute("""
                     INSERT INTO pessoas (
                         nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens,
-                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge,
+                        nacionalidade_conjuge, profissao_conjuge
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (c.nome, cpf_cnpj, c.rg, c.genero, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.genero_conjuge, c.nacionalidade_conjuge, c.profissao_conjuge))
+                """, (c.nome, cpf_cnpj, c.rg, c.genero or 'M', c.nacionalidade or 'brasileiro(a)', c.profissao,
+                      c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge,
+                      c.rg_conjuge, c.genero_conjuge or 'F', c.nacionalidade_conjuge or 'brasileiro(a)', c.profissao_conjuge))
                 pessoa_id = cursor.lastrowid
                 
             cursor.execute("""
                 INSERT INTO confrontantes (
-                    pessoa_id, levantamento_id, nome, tipo_relacao, matricula_imovel, cns_confrontante,
-                    nome_propriedade, codigo_incra_imovel
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (pessoa_id, id, c.nome, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel))
+                    pessoa_id, levantamento_id, nome, cpf_cnpj, rg, nacionalidade, profissao,
+                    estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
+                    tipo_relacao, matricula_imovel, cns_confrontante, nome_propriedade, codigo_incra_imovel
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (pessoa_id, id, c.nome, cpf_cnpj, c.rg, c.nacionalidade or 'brasileiro(a)',
+                  c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
+                  c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
+                  c.nome_propriedade, c.codigo_incra_imovel))
             confrontante_id = cursor.lastrowid
             conn.commit()
             
@@ -190,28 +232,94 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # Atualiza os dados civis na tabela única pessoas
             cpf_cnpj_norm = c.cpf_cnpj if (c.cpf_cnpj and str(c.cpf_cnpj).strip()) else None
-            cursor.execute("""
-                UPDATE pessoas
-                SET nome = ?, cpf_cnpj = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?,
-                    estado_civil = ?, regime_bens = ?, endereco_completo = ?,
-                    nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
-                    nacionalidade_conjuge = ?, profissao_conjuge = ?
-                WHERE id = ?
-            """, (c.nome, cpf_cnpj_norm, c.rg, c.genero, c.nacionalidade, c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge, c.rg_conjuge, c.genero_conjuge, c.nacionalidade_conjuge, c.profissao_conjuge, pessoa_id))
+            cpf_limpo = "".join(char for char in cpf_cnpj_norm if char.isdigit()) if cpf_cnpj_norm else ""
+
+            # Verifica se já existe outra pessoa cadastrada com esse CPF
+            existing_pessoa_id = None
+            if cpf_limpo:
+                cursor.execute("""
+                    SELECT id FROM pessoas 
+                    WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?
+                """, (cpf_limpo,))
+                row_found = cursor.fetchone()
+                if row_found:
+                    existing_pessoa_id = row_found[0]
+
+            if existing_pessoa_id:
+                # Usa a pessoa já cadastrada e atualiza seus dados
+                pessoa_id = existing_pessoa_id
+                cursor.execute("""
+                    UPDATE pessoas
+                    SET nome = ?, cpf_cnpj = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?,
+                        estado_civil = ?, regime_bens = ?, endereco_completo = ?,
+                        nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
+                        nacionalidade_conjuge = ?, profissao_conjuge = ?
+                    WHERE id = ?
+                """, (c.nome, cpf_cnpj_norm, c.rg, c.genero or 'M', c.nacionalidade or 'brasileiro(a)', c.profissao,
+                      c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge,
+                      c.rg_conjuge, c.genero_conjuge or 'F', c.nacionalidade_conjuge or 'brasileiro(a)',
+                      c.profissao_conjuge, pessoa_id))
+            elif pessoa_id:
+                # Atualiza a pessoa vinculada atualmente
+                cursor.execute("""
+                    UPDATE pessoas
+                    SET nome = ?, cpf_cnpj = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?,
+                        estado_civil = ?, regime_bens = ?, endereco_completo = ?,
+                        nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
+                        nacionalidade_conjuge = ?, profissao_conjuge = ?
+                    WHERE id = ?
+                """, (c.nome, cpf_cnpj_norm, c.rg, c.genero or 'M', c.nacionalidade or 'brasileiro(a)', c.profissao,
+                      c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge,
+                      c.rg_conjuge, c.genero_conjuge or 'F', c.nacionalidade_conjuge or 'brasileiro(a)',
+                      c.profissao_conjuge, pessoa_id))
+            else:
+                # Se não havia pessoa_id vinculado, cria uma nova pessoa
+                cursor.execute("""
+                    INSERT INTO pessoas (
+                        nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens,
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge,
+                        nacionalidade_conjuge, profissao_conjuge
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (c.nome, cpf_cnpj_norm, c.rg, c.genero or 'M', c.nacionalidade or 'brasileiro(a)', c.profissao,
+                      c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge, c.cpf_conjuge,
+                      c.rg_conjuge, c.genero_conjuge or 'F', c.nacionalidade_conjuge or 'brasileiro(a)',
+                      c.profissao_conjuge))
+                pessoa_id = cursor.lastrowid
             
-            # Atualiza metadados específicos da divisa na tabela confrontantes
+            # Atualiza metadados completos na tabela confrontantes também
             cursor.execute("""
                 UPDATE confrontantes
-                SET tipo_relacao = ?, matricula_imovel = ?, cns_confrontante = ?,
-                    nome_propriedade = ?, codigo_incra_imovel = ?
+                SET pessoa_id = ?,
+                    nome = ?,
+                    cpf_cnpj = ?,
+                    rg = ?,
+                    nacionalidade = ?,
+                    profissao = ?,
+                    estado_civil = ?,
+                    regime_bens = ?,
+                    endereco_completo = ?,
+                    nome_conjuge = ?,
+                    cpf_conjuge = ?,
+                    rg_conjuge = ?,
+                    tipo_relacao = ?,
+                    matricula_imovel = ?,
+                    cns_confrontante = ?,
+                    nome_propriedade = ?,
+                    codigo_incra_imovel = ?
                 WHERE id = ?
-            """, (c.tipo_relacao, c.matricula_imovel, c.cns_confrontante, c.nome_propriedade, c.codigo_incra_imovel, cid))
+            """, (pessoa_id, c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade or 'brasileiro(a)',
+                  c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
+                  c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
+                  c.nome_propriedade, c.codigo_incra_imovel, cid))
             
             conn.commit()
 
-        return {"message": "Confrontante atualizado com sucesso"}
+        return {
+            "message": "Confrontante atualizado com sucesso",
+            "id": cid,
+            "pessoa_id": pessoa_id
+        }
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))

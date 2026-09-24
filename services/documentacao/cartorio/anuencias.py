@@ -36,10 +36,25 @@ def gerar_declaracao_anuencia_html(
 
     row_conf = execute_query(
         """
-        SELECT c.id, p.nome, p.cpf_cnpj, p.rg, p.genero, p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens, 
-               p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge, c.matricula_imovel
+        SELECT c.id,
+               COALESCE(p.nome, c.nome) AS nome,
+               COALESCE(p.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj,
+               COALESCE(p.rg, c.rg) AS rg,
+               COALESCE(p.genero, 'M') AS genero,
+               COALESCE(p.nacionalidade, c.nacionalidade, 'brasileiro(a)') AS nacionalidade,
+               COALESCE(p.profissao, c.profissao) AS profissao,
+               COALESCE(p.estado_civil, c.estado_civil) AS estado_civil,
+               COALESCE(p.regime_bens, c.regime_bens) AS regime_bens, 
+               COALESCE(p.endereco_completo, c.endereco_completo) AS endereco_completo,
+               COALESCE(p.nome_conjuge, c.nome_conjuge) AS nome_conjuge,
+               COALESCE(p.cpf_conjuge, c.cpf_conjuge) AS cpf_conjuge,
+               COALESCE(p.rg_conjuge, c.rg_conjuge) AS rg_conjuge,
+               COALESCE(p.genero_conjuge, 'F') AS genero_conjuge,
+               COALESCE(p.nacionalidade_conjuge, 'brasileiro(a)') AS nacionalidade_conjuge,
+               p.profissao_conjuge,
+               c.matricula_imovel
         FROM confrontantes c
-        JOIN pessoas p ON c.pessoa_id = p.id
+        LEFT JOIN pessoas p ON c.pessoa_id = p.id
         WHERE c.id = ? AND c.levantamento_id = ?
         """,
         params=(confrontante_id, lev_id),

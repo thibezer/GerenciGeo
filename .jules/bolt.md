@@ -55,6 +55,6 @@
 **Learning:** No MySQL/InnoDB, campos com índice `UNIQUE` (como `pessoas.cpf_cnpj`) permitem múltiplos registros com valor `NULL`, mas tratam a string vazia `''` como um valor não-nulo e único, disparando o erro fatal `1062 Duplicate entry '' for key 'cpf_cnpj'` ao cadastrar um segundo registro sem documento.
 **Action:** Criada função `emptyToNull()` no `api.php` para normalizar todas as strings vazias ou com apenas espaços em `null` antes de gravar no banco, adicionada migração idempotente em `ensureSchema` para converter registros preexistentes corrompidos com `''` em `NULL`, e sanitizado o envio no frontend (`clientes.ts`) para despachar `null` explicitamente.
 
-
-
-
+## 2026-09-24 - Qualificação de Confrontantes, Integridade de Pessoas e Ciclo de Vida do Form
+**Learning:** O botão de salvar qualificação do confrontante falhava silenciosamente por leitura dependente do selectAnuencia.value e por manipulação indevida de .innerHTML no Web Component <ui-botao>. No backend, ao atualizar um confrontante para um CPF já existente, ocorria violação de restrição UNIQUE em pessoas.cpf_cnpj, e queries de anuência quebravam com OperationalError: no such column: c.genero devido à ausência dessa coluna na tabela confrontantes (armazenada em pessoas).
+**Action:** O form agora possui ID explícito no dataset/hidden input, suporte a modo Novo e Edição, feedback com showToast, controle de loading via atributos nativos do <ui-botao> (carregando/disabled), e reatividade completa em <ui-lista-flutuante>. O backend agora trata colisões de CPF reutilizando o ID da pessoa já existente sem quebrar UNIQUE, utiliza LEFT JOIN com COALESCE nas rotas de confrontantes e anuências, sincronizando instantaneamente seletores e tabelas inter-abas.

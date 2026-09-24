@@ -628,168 +628,187 @@ export const renderMesaTrabalho = (): string => {
                      <i data-lucide="heart-handshake" class="w-4 h-4 text-mint-vibrant"></i>
                      Averbação de Casamento
                    </button>
-                   <div class="flex gap-2 sm:col-span-2 lg:col-span-1">
-                     <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 text-xs text-white focus:outline-none transition-all font-medium">
-                       <option value="" class="bg-[#0c1510]">Anuência Confrontante...</option>
-                     </select>
-                     <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95 shrink-0" id="btn-emitir-anuencia" type="button">
-                       <i data-lucide="check" class="w-4 h-4 text-mint-vibrant"></i>
-                       Gerar
-                     </button>
-                   </div>
-                 </div>
-
-                 <!-- Formulário de Edição do Confrontante Selecionado -->
-                  <div id="container-form-confrontante" class="bg-forest-deep/20 border border-white/10 rounded-xl p-5 space-y-4 hidden animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl">
-                     <div class="flex justify-between items-center border-b border-white/10 pb-3">
-                        <div class="flex items-center gap-2">
-                           <i data-lucide="user-check" class="w-4 h-4 text-mint-vibrant"></i>
-                           <h6 class="font-bold text-xs text-white/80 uppercase tracking-wider">
-                              Qualificação Completa do Confrontante
-                           </h6>
-                        </div>
-                        <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/40" id="txt-conf-id-edicao">ID: -</span>
-                     </div>
-                     
-                     <form id="form-edicao-confrontante" class="space-y-4 text-xs" onsubmit="event.preventDefault();">
-                        <!-- Bloco 1: Identificação Principal (4 colunas) -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
-                           <div class="col-span-1">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF / CNPJ</label>
-                              <ui-campo-texto type="text" id="input-conf-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
-                           </div>
-                           <div class="col-span-1 sm:col-span-2 lg:col-span-2">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome Completo / Razão Social *</label>
-                              <ui-campo-texto type="text" id="input-conf-nome" class="w-full" placeholder="Nome completo do confrontante" required></ui-campo-texto>
-                           </div>
-                           <div class="col-span-1">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG / Inscrição Estadual</label>
-                              <ui-campo-texto type="text" id="input-conf-rg" class="w-full" placeholder="RG ou I.E."></ui-campo-texto>
-                           </div>
-                        </div>
-                        
-                        <!-- Bloco 2: Qualificação Civil e Profissional (4 colunas) -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
-                           <div>
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
-                              <ui-lista-flutuante id="conf-genero" class="w-full">
-                                 <option value="M">Homem</option>
-                                 <option value="F">Mulher</option>
-                              </ui-lista-flutuante>
-                           </div>
-                           <div>
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
-                              <ui-campo-texto type="text" id="input-conf-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
-                           </div>
-                           <div>
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão</label>
-                              <ui-campo-texto type="text" id="input-conf-profissao" class="w-full" placeholder="Ex: Pecuarista / Servidor Público"></ui-campo-texto>
-                           </div>
-                           <div>
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
-                              <ui-lista-flutuante id="conf-estado-civil" class="w-full">
-                                 <option value="solteiro">Solteiro(a)</option>
-                                 <option value="casado">Casado(a)</option>
-                                 <option value="divorciado">Divorciado(a)</option>
-                                 <option value="viuvo">Viúvo(a)</option>
-                                 <option value="uniao_estavel">União Estável</option>
-                              </ui-lista-flutuante>
-                           </div>
-                        </div>
-
-                        <!-- Bloco 3: Regime de Bens, Matrícula e Endereço (Harmonioso 4 colunas) -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
-                           <div class="col-span-1">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
-                              <ui-lista-flutuante id="conf-regime-bens" class="w-full">
-                                 <option value="">Não se aplica</option>
-                                 <option value="comunhao_parcial">Comunhão Parcial</option>
-                                 <option value="comunhao_universal">Comunhão Universal</option>
-                                 <option value="separacao_total">Separação Total</option>
-                                 <option value="participacao_final">Participação Final nos Aquestos</option>
-                              </ui-lista-flutuante>
-                           </div>
-                           <div class="col-span-1">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Matrícula (Nº / CRI / Comarca)</label>
-                              <ui-campo-texto type="text" id="input-conf-matricula-imovel" class="w-full" placeholder="Ex: Mat. 12.345 - CRI Umuarama"></ui-campo-texto>
-                           </div>
-                           <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço de Correspondência</label>
-                              <ui-campo-texto type="text" id="input-conf-endereco" class="w-full" placeholder="Rua, Número, Bairro, Cidade - UF"></ui-campo-texto>
-                           </div>
-                        </div>
-                        
-                        <!-- Bloco 4: Dados do Cônjuge (Reativo em 4 colunas equilibradas) -->
-                        <div class="p-4 bg-white/[0.02] border border-white/10 rounded-technical space-y-3 hidden" id="box-conjuge">
-                           <div class="flex items-center gap-2 border-b border-white/5 pb-2">
-                              <i data-lucide="users" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-                              <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Qualificação do Cônjuge / Companheiro(a)</span>
-                           </div>
-                           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
-                              <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Cônjuge</label>
-                                 <ui-campo-texto type="text" id="input-conf-conjuge-nome" class="w-full" placeholder="Nome completo"></ui-campo-texto>
-                              </div>
-                              <div class="col-span-1">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF do Cônjuge</label>
-                                 <ui-campo-texto type="text" id="input-conf-conjuge-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
-                              </div>
-                              <div class="col-span-1">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG do Cônjuge</label>
-                                 <ui-campo-texto type="text" id="input-conf-conjuge-rg" class="w-full" placeholder="RG"></ui-campo-texto>
-                              </div>
-                              <div class="col-span-1">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero do Cônjuge</label>
-                                 <ui-lista-flutuante id="conf-conjuge-genero" class="w-full">
-                                    <option value="M">Homem</option>
-                                    <option value="F">Mulher</option>
-                                 </ui-lista-flutuante>
-                              </div>
-                              <div class="col-span-1">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade do Cônjuge</label>
-                                 <ui-campo-texto type="text" id="input-conf-conjuge-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
-                              </div>
-                              <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
-                                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão do Cônjuge</label>
-                                 <ui-campo-texto type="text" id="input-conf-conjuge-profissao" class="w-full" placeholder="Ex: Do lar / Autônoma"></ui-campo-texto>
-                              </div>
-                           </div>
-                        </div>
-                        
-                        <!-- Upload de Matrícula PDF -->
-                        <div class="p-3.5 bg-white/[0.02] border border-white/10 rounded-technical flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                           <div class="flex-grow">
-                              <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-0.5">Matrícula Anexada (PDF/IMG)</label>
-                              <div id="status-matricula-anexo" class="text-xs text-white/60 font-mono">Nenhum arquivo anexado.</div>
-                           </div>
-                           <div class="shrink-0 flex items-center gap-2">
-                              <label for="file-matricula-conf" class="cursor-pointer bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white text-xs px-3.5 py-2 rounded-technical transition-all flex items-center gap-1.5 font-medium active:scale-95">
-                                 <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-                                 Anexar Arquivo
-                              </label>
-                              <input type="file" id="file-matricula-conf" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
-                              <button type="button" id="btn-ver-matricula-conf" class="hidden bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/30 px-3.5 py-2 rounded-technical text-xs transition-all flex items-center gap-1.5 font-medium active:scale-95">
-                                 <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                 Visualizar
-                              </button>
-                              <button type="button" id="btn-remover-matricula-conf" class="hidden bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 px-3.5 py-2 rounded-technical text-xs transition-all flex items-center gap-1.5 font-medium active:scale-95">
-                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                 Remover
-                              </button>
-                           </div>
-                        </div>
-                        
-                        <!-- Ações do Rodapé -->
-                        <div class="flex justify-end items-center gap-3 pt-3 border-t border-white/10">
-                           <ui-botao-primario variante="secondary" id="btn-cancelar-confrontante-qualificacao" type="button" class="min-w-[120px]">
-                              Cancelar
-                           </ui-botao-primario>
-                           <ui-botao-primario variante="primary" id="btn-salvar-confrontante-qualificacao" type="button" class="min-w-[180px]">
-                              <i data-lucide="save" class="w-4 h-4 mr-2"></i> Salvar Qualificação
-                           </ui-botao-primario>
-                        </div>
-                     </form>
+                   <div class="flex gap-2 sm:col-span-2 lg:col-span-1 items-center">
+                      <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2.5 py-2 text-xs text-white focus:outline-none transition-all font-medium">
+                        <option value="" class="bg-[#0c1510]">Selecione um Confrontante...</option>
+                      </select>
+                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/10 text-mint-vibrant active:scale-95 shrink-0" id="btn-novo-confrontante-cartorio" type="button" title="Cadastrar Novo Confrontante">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Novo</span>
+                      </button>
+                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95 shrink-0" id="btn-emitir-anuencia" type="button" title="Gerar Declaração de Anuência">
+                        <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
+                        <span>Gerar</span>
+                      </button>
+                    </div>
                   </div>
+
+                  <!-- Formulário de Qualificação do Confrontante -->
+                   <div id="container-form-confrontante" class="bg-forest-deep/20 border border-white/10 rounded-xl p-5 space-y-4 hidden animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl" data-confrontante-id="">
+                      <input type="hidden" id="input-conf-id" value="" />
+                      <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                         <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-technical bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center shrink-0">
+                               <i data-lucide="user-check" class="w-4 h-4 text-mint-vibrant"></i>
+                            </div>
+                            <div>
+                               <h6 class="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                                  Qualificação Completa do Confrontante
+                                  <span id="badge-conf-status" class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">EDIÇÃO</span>
+                               </h6>
+                               <span class="text-[10px] text-white/40 block">Vínculo com matrícula, certidões e cartas de anuência expressa</span>
+                            </div>
+                         </div>
+                         <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-mono font-semibold px-2.5 py-1 rounded bg-white/5 border border-white/10 text-white/60" id="txt-conf-id-edicao">ID: -</span>
+                            <button type="button" id="btn-fechar-card-confrontante" class="text-white/40 hover:text-white p-1 hover:bg-white/10 rounded transition-all" title="Fechar formulário">
+                               <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                         </div>
+                      </div>
+                      
+                      <form id="form-edicao-confrontante" class="space-y-4 text-xs" onsubmit="event.preventDefault();">
+                         <!-- Bloco 1: Identificação Principal (4 colunas) -->
+                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                            <div class="col-span-1">
+                               <div class="flex justify-between items-center mb-1">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF / CNPJ</label>
+                                  <span id="status-busca-cpf" class="text-[10px] text-mint-vibrant font-medium hidden"></span>
+                               </div>
+                               <ui-campo-texto type="text" id="input-conf-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
+                            </div>
+                            <div class="col-span-1 sm:col-span-2 lg:col-span-2">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome Completo / Razão Social *</label>
+                               <ui-campo-texto type="text" id="input-conf-nome" class="w-full" placeholder="Nome completo do titular confrontante" required></ui-campo-texto>
+                            </div>
+                            <div class="col-span-1">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG / Inscrição Estadual</label>
+                               <ui-campo-texto type="text" id="input-conf-rg" class="w-full" placeholder="RG ou I.E."></ui-campo-texto>
+                            </div>
+                         </div>
+                         
+                         <!-- Bloco 2: Qualificação Civil e Profissional (4 colunas) -->
+                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                            <div>
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                               <ui-lista-flutuante id="conf-genero" class="w-full">
+                                  <option value="M">Homem</option>
+                                  <option value="F">Mulher</option>
+                               </ui-lista-flutuante>
+                            </div>
+                            <div>
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                               <ui-campo-texto type="text" id="input-conf-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
+                            </div>
+                            <div>
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão</label>
+                               <ui-campo-texto type="text" id="input-conf-profissao" class="w-full" placeholder="Ex: Pecuarista / Lavrador / Servidor"></ui-campo-texto>
+                            </div>
+                            <div>
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
+                               <ui-lista-flutuante id="conf-estado-civil" class="w-full">
+                                  <option value="solteiro">Solteiro(a)</option>
+                                  <option value="casado">Casado(a)</option>
+                                  <option value="uniao_estavel">União Estável</option>
+                                  <option value="divorciado">Divorciado(a)</option>
+                                  <option value="viuvo">Viúvo(a)</option>
+                               </ui-lista-flutuante>
+                            </div>
+                         </div>
+
+                         <!-- Bloco 3: Regime de Bens, Matrícula e Endereço (Harmonioso 4 colunas) -->
+                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                            <div class="col-span-1">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
+                               <ui-lista-flutuante id="conf-regime-bens" class="w-full">
+                                  <option value="">Não se aplica</option>
+                                  <option value="comunhao_parcial">Comunhão Parcial</option>
+                                  <option value="comunhao_universal">Comunhão Universal</option>
+                                  <option value="separacao_total">Separação Total</option>
+                                  <option value="participacao_final">Participação Final nos Aquestos</option>
+                               </ui-lista-flutuante>
+                            </div>
+                            <div class="col-span-1">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Matrícula (Nº / CRI / Comarca)</label>
+                               <ui-campo-texto type="text" id="input-conf-matricula-imovel" class="w-full" placeholder="Ex: Mat. 12.345 - CRI Umuarama"></ui-campo-texto>
+                            </div>
+                            <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço de Correspondência</label>
+                               <ui-campo-texto type="text" id="input-conf-endereco" class="w-full" placeholder="Rua, Número, Bairro, Cidade - UF"></ui-campo-texto>
+                            </div>
+                         </div>
+                         
+                         <!-- Bloco 4: Dados do Cônjuge (Reativo em 4 colunas equilibradas) -->
+                         <div class="p-4 bg-white/[0.02] border border-white/10 rounded-technical space-y-3 hidden transition-all duration-300" id="box-conjuge">
+                            <div class="flex items-center gap-2 border-b border-white/5 pb-2">
+                               <i data-lucide="users" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                               <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Qualificação do Cônjuge / Companheiro(a)</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                               <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Cônjuge</label>
+                                  <ui-campo-texto type="text" id="input-conf-conjuge-nome" class="w-full" placeholder="Nome completo"></ui-campo-texto>
+                               </div>
+                               <div class="col-span-1">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF do Cônjuge</label>
+                                  <ui-campo-texto type="text" id="input-conf-conjuge-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto>
+                               </div>
+                               <div class="col-span-1">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG do Cônjuge</label>
+                                  <ui-campo-texto type="text" id="input-conf-conjuge-rg" class="w-full" placeholder="RG"></ui-campo-texto>
+                               </div>
+                               <div class="col-span-1">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero do Cônjuge</label>
+                                  <ui-lista-flutuante id="conf-conjuge-genero" class="w-full">
+                                     <option value="M">Homem</option>
+                                     <option value="F">Mulher</option>
+                                  </ui-lista-flutuante>
+                               </div>
+                               <div class="col-span-1">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade do Cônjuge</label>
+                                  <ui-campo-texto type="text" id="input-conf-conjuge-nacionalidade" class="w-full" placeholder="brasileiro(a)" value="brasileiro(a)"></ui-campo-texto>
+                               </div>
+                               <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
+                                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão do Cônjuge</label>
+                                  <ui-campo-texto type="text" id="input-conf-conjuge-profissao" class="w-full" placeholder="Ex: Do lar / Autônoma"></ui-campo-texto>
+                               </div>
+                            </div>
+                         </div>
+                         
+                         <!-- Upload de Matrícula PDF -->
+                         <div class="p-3.5 bg-white/[0.02] border border-white/10 rounded-technical flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex-grow">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-0.5">Matrícula Anexada (PDF/IMG)</label>
+                               <div id="status-matricula-anexo" class="text-xs text-white/60 font-mono">Nenhum arquivo anexado.</div>
+                            </div>
+                            <div class="shrink-0 flex items-center gap-2">
+                               <label for="file-matricula-conf" class="cursor-pointer bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white text-xs px-3.5 py-2 rounded-technical transition-all flex items-center gap-1.5 font-medium active:scale-95">
+                                  <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                  Anexar Arquivo
+                               </label>
+                               <input type="file" id="file-matricula-conf" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
+                               <button type="button" id="btn-ver-matricula-conf" class="hidden bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/30 px-3.5 py-2 rounded-technical text-xs transition-all flex items-center gap-1.5 font-medium active:scale-95">
+                                  <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                  Visualizar
+                               </button>
+                               <button type="button" id="btn-remover-matricula-conf" class="hidden bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 px-3.5 py-2 rounded-technical text-xs transition-all flex items-center gap-1.5 font-medium active:scale-95">
+                                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                  Remover
+                               </button>
+                            </div>
+                         </div>
+                         
+                         <!-- Ações do Rodapé -->
+                         <div class="flex justify-end items-center gap-3 pt-3 border-t border-white/10">
+                            <ui-botao-primario variante="secondary" id="btn-cancelar-confrontante-qualificacao" type="button" class="min-w-[120px]">
+                               Cancelar
+                            </ui-botao-primario>
+                            <ui-botao-primario variante="primary" id="btn-salvar-confrontante-qualificacao" type="button" class="min-w-[190px]">
+                               <i data-lucide="save" class="w-4 h-4 mr-2"></i> Salvar Qualificação
+                            </ui-botao-primario>
+                         </div>
+                      </form>
+                   </div>
                </div>
              </div>
           </div>
