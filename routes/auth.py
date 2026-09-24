@@ -25,8 +25,77 @@ class LoginRequest(BaseModel):
     remember_me: Optional[bool] = False
 
 
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+
+@router.post("/register")
+def register(payload: RegisterRequest):
+    name = payload.name.strip()
+    email = payload.email.strip().lower()
+    password = payload.password or ""
+
+    if not name or not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe seu nome completo, e-mail e senha."
+        )
+
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A senha deve conter no mínimo 6 caracteres."
+        )
+
+    existing = execute_query(
+        "SELECT id FROM users WHERE LOWER(email) = ?",
+        params=(email,),
+        fetch_one=True
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este e-mail já está cadastrado no sistema."
+        )
+
+    hashed_pwd = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
+
+    with DatabaseManager() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO users (name, email, password, role, is_blocked)
+            VALUES (?, ?, ?, 'admin', 0)
+            """,
+            (name, email, hashed_pwd)
+        )
+        user_id = cursor.lastrowid
+        conn.commit()
+
+    token = secrets.token_urlsafe(32)
+    active_sessions[token] = user_id
+
+    safe_user = {
+        "id": user_id,
+        "name": name,
+        "email": email,
+        "role": "admin",
+        "profile_image": None,
+        "created_at": ""
+    }
+
+    return {
+        "status": "success",
+        "token": token,
+        "user": safe_user,
+        "message": "Conta criada com sucesso!"
+    }
 
 
 @router.post("/login")

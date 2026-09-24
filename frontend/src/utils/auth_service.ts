@@ -41,6 +41,44 @@ export class AuthService {
   }
 
   /**
+   * Realiza o cadastro de um novo usuário via API
+   */
+  static async register(name: string, email: string, password: string): Promise<AuthUser> {
+    const isCloudHost = window.location.origin.includes('hostingersite.com');
+    const endpoint = isCloudHost 
+      ? `${window.location.origin}/api.php?action=register`
+      : `${API_BASE}/auth/register`;
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || data.error || 'Erro ao criar conta.');
+    }
+
+    const user: AuthUser = data.user;
+    const token: string = data.token || 'session_token';
+
+    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_REMEMBER, 'true');
+
+    return user;
+  }
+
+  /**
    * Realiza a autenticação via API (FastAPI local ou Hub Web Cloud na Hostinger)
    */
   static async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthUser> {

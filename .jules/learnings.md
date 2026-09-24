@@ -436,4 +436,6 @@ Este arquivo registra lições aprendidas e padrões obrigatórios para evitar r
   2. **Controle de Dimensão sem Padding no Host**: A altura de `<ui-botao>` e `<ui-campo-texto>` deve ser controlada via atributo `altura="44"` / `altura="46"` (que injeta `--ui-campo-altura`), sem classes como `py-*` aplicadas diretamente ao Custom Element.
   3. **Campos com Ícones em Slots Nativos**: Utilizar `slot="icone-esquerda"` e `slot="icone-direita"` nativos do `<ui-campo-texto>` para ícones de e-mail, senha e alternância de visibilidade.
   4. **Importação Centralizada em `utils.ts`**: Qualquer novo ícone adicionado ao projeto via Lucide (`data-lucide="..."`) deve ser obrigatoriamente importado e registrado na função `initIcons()` em `frontend/src/utils.ts`.
+  5. **Fluxo de Auto-Cadastro Unificado**: O endpoint `/auth/register` (em Python e no `api.php`) valida unicidade de e-mail, comprimento mínimo de senha e cria a conta gerando a sessão e logando imediatamente, permitindo que a tela de login alterne dinamicamente entre login e cadastro.
+
 

@@ -514,6 +514,51 @@ if ($route === '/' || $route === '/status' || (isset($_GET['action']) && $_GET['
 }
 
 // 1.1 Autenticação e Controle de Sessão
+if ($route === '/auth/register' || (isset($_GET['action']) && $_GET['action'] === 'register')) {
+    if ($method !== 'POST') {
+        jsonResponse(['error' => 'Método não permitido.'], 405);
+    }
+    $input = getJsonInput();
+    $name = trim((string)($input['name'] ?? ''));
+    $email = trim(strtolower((string)($input['email'] ?? '')));
+    $password = (string)($input['password'] ?? '');
+
+    if (empty($name) || empty($email) || empty($password)) {
+        jsonResponse(['error' => 'Informe seu nome completo, e-mail e senha.'], 400);
+    }
+
+    if (strlen($password) < 6) {
+        jsonResponse(['error' => 'A senha deve conter no mínimo 6 caracteres.'], 400);
+    }
+
+    $pdo = getDb();
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1");
+    $stmt->execute([$email]);
+    if ($stmt->fetch()) {
+        jsonResponse(['error' => 'Este e-mail já está cadastrado no sistema.'], 400);
+    }
+
+    $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, ?, 'admin', 0)");
+    $stmt->execute([$name, $email, $hashedPassword]);
+    $userId = (int)$pdo->lastInsertId();
+
+    $token = bin2hex(random_bytes(32));
+    jsonResponse([
+        'status' => 'success',
+        'token' => $token,
+        'user' => [
+            'id' => $userId,
+            'name' => $name,
+            'email' => $email,
+            'role' => 'admin',
+            'profile_image' => null,
+            'created_at' => date('Y-m-d H:i:s')
+        ],
+        'message' => 'Conta criada com sucesso!'
+    ]);
+}
+
 if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === 'login')) {
     if ($method !== 'POST') {
         jsonResponse(['error' => 'Método não permitido.'], 405);

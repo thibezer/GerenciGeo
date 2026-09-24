@@ -92,6 +92,54 @@ class TestAuth(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "success")
 
+    def test_register_sucesso(self):
+        res = client.post("/auth/register", json={
+            "name": "Novo Usuário",
+            "email": "novo@gerencigeo.com.br",
+            "password": "senha_segura_123"
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "success")
+        self.assertIn("token", data)
+        self.assertEqual(data["user"]["name"], "Novo Usuário")
+        self.assertEqual(data["user"]["email"], "novo@gerencigeo.com.br")
+
+        # Testa login subsequente com o novo usuário
+        login_res = client.post("/auth/login", json={
+            "email": "novo@gerencigeo.com.br",
+            "password": "senha_segura_123"
+        })
+        self.assertEqual(login_res.status_code, 200)
+        self.assertEqual(login_res.json()["user"]["email"], "novo@gerencigeo.com.br")
+
+    def test_register_email_duplicado(self):
+        res = client.post("/auth/register", json={
+            "name": "Outro Nome",
+            "email": "teste@gerencigeo.com.br",
+            "password": "senha_segura_123"
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("já está cadastrado", res.json()["detail"])
+
+    def test_register_senha_curta(self):
+        res = client.post("/auth/register", json={
+            "name": "Nome Válido",
+            "email": "curto@gerencigeo.com.br",
+            "password": "123"
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("no mínimo 6 caracteres", res.json()["detail"])
+
+    def test_register_campos_obrigatorios(self):
+        res = client.post("/auth/register", json={
+            "name": "",
+            "email": "semnome@gerencigeo.com.br",
+            "password": "senha_segura_123"
+        })
+        self.assertEqual(res.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
+
