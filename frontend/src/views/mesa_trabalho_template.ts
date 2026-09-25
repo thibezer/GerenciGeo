@@ -404,8 +404,8 @@ export const renderMesaTrabalho = (): string => {
                </div>
                <span class="text-[8px] font-mono text-white/20 uppercase tracking-widest">Baseado no Banco de Pontos</span>
              </div>
-             <!-- Botão flutuante removido e realocado no header superior -->
-             <div id="mapa-triagem" class="mapa-leaflet-canvas"></div>
+             <!-- Mesa CAD via Web Component nativo do UI-Kit -->
+             <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id"></ui-canvas-cad>
           </div>
 
           <!-- Splitter de redimensionamento -->

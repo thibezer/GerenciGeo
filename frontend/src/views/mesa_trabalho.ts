@@ -15,6 +15,7 @@ import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/a
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
 import { abrirModalUnificacaoSobrepostos } from './mesa_trabalho/unificador_sobrepostos';
 import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
+import { consultarEPlotarSigef } from '../utils/sigef_consultor';
 import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
 import { registerFluentComponents } from '../ui/fluent_setup';
 
@@ -323,17 +324,76 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     const inicializarMapOnce = () => {
       if (!ctx.triagemMap) {
-        ctx.triagemMap = ctx.mapaController.init('mapa-triagem');
-        
-        // Ativa interações AutoCAD no Canvas (Pan com botão do meio, janelas de seleção, etc)
-        const canvasInteracao = new CanvasInteracao(ctx);
-        canvasInteracao.ativar(ctx.mapaController);
-        ctx.mapaController.canvasInteracao = canvasInteracao;
-        ctx.canvasInteracao = canvasInteracao;
+        const canvasEl = document.getElementById('mapa-triagem') as any;
+        const isUICanvas = canvasEl && (canvasEl.tagName === 'UI-CANVAS-CAD' || typeof canvasEl.getMap === 'function');
+
+        if (isUICanvas) {
+          ctx.mapaController = canvasEl;
+          ctx.triagemMap = canvasEl.getMap();
+          ctx.canvasInteracao = canvasEl.controller?.canvasInteracao;
+
+          if (!ctx.triagemMap && canvasEl.controller) {
+            ctx.triagemMap = canvasEl.controller.getMap();
+          }
+
+          // Escuta eventos customizados agnósticos do ui-canvas-cad
+          canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
+            const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
+            if (pId) {
+              if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
+                ctx.lidarCliqueMarcadorSequencial(pId);
+              } else {
+                ctx.selectPontoFromTabela(pId);
+              }
+            }
+          });
+
+          canvasEl.addEventListener('ui-clique-sequencial', (e: any) => {
+            const pId = e.detail?.id || e.detail?.pontoId;
+            if (pId && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
+              ctx.lidarCliqueMarcadorSequencial(pId);
+            }
+          });
+
+          canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
+            if (ctx.triagemMap && e.detail?.eventoOriginal) {
+              consultarEPlotarSigef(ctx.triagemMap, e.detail.eventoOriginal, { permitirImportarConfrontante: true });
+            }
+          });
+
+          canvasEl.addEventListener('ui-acao-popup', (e: any) => {
+            const { acaoId, elementoId } = e.detail || {};
+            if (acaoId === 'integrar' && elementoId) {
+              const btn = document.querySelector(`.btn-integrar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
+              if (btn) btn.click();
+            } else if (acaoId === 'ocultar' && elementoId) {
+              const btn = document.querySelector(`.btn-ocultar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
+              if (btn) btn.click();
+            }
+          });
+
+          // Sincronização da seleção em lote (Window / Crossing)
+          window.addEventListener('gerencigeo:ponto-selecionado', (e: any) => {
+            if (e.detail?.selectedPontoIds) {
+              ctx.selectedPontoIds = e.detail.selectedPontoIds;
+              ctx.selectedVizinhoPontoIds = e.detail.selectedVizinhoPontoIds || [];
+              ctx.lastSelectedPontoId = e.detail.lastSelectedPontoId || (ctx.selectedPontoIds.length > 0 ? ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1] : null);
+              ctx.atualizarDestaqueLinhasTabela();
+            }
+          });
+        } else {
+          ctx.triagemMap = ctx.mapaController.init('mapa-triagem');
+          
+          // Ativa interações AutoCAD no Canvas legado
+          const canvasInteracao = new CanvasInteracao(ctx);
+          canvasInteracao.ativar(ctx.mapaController);
+          ctx.mapaController.canvasInteracao = canvasInteracao;
+          ctx.canvasInteracao = canvasInteracao;
+        }
 
         // Listener para recentralização sob demanda (Bússola / Atalhos / Zoom Extents)
         window.addEventListener('gerencigeo:recenter', () => {
-          if (ctx.triagemMap && ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
+          if (ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
             let pontosParaCentralizar = [];
             if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
               pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
@@ -2202,11 +2262,15 @@ export const mesaTrabalhoRoute: RouteDef = {
         activeDragCleanup = null;
       }
       if (ctx.canvasInteracao) {
-        ctx.canvasInteracao.desativar();
+        ctx.canvasInteracao.desativar?.();
         ctx.canvasInteracao = null;
       }
       if (ctx.triagemMap) {
-        ctx.triagemMap.remove();
+        const canvasEl = document.getElementById('mapa-triagem');
+        const isUICanvas = canvasEl && (canvasEl.tagName === 'UI-CANVAS-CAD');
+        if (!isUICanvas) {
+          try { ctx.triagemMap.remove(); } catch (e) {}
+        }
         ctx.triagemMap = null;
       }
     };
