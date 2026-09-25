@@ -3,7 +3,6 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
-import { MesaTrabalhoMapa } from './mesa_trabalho/mapa/mapa_controller';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
@@ -14,7 +13,6 @@ import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
 import { abrirModalUnificacaoSobrepostos } from './mesa_trabalho/unificador_sobrepostos';
-import { CanvasInteracao } from './mesa_trabalho/canvas_interacao';
 import { consultarEPlotarSigef } from '../utils/sigef_consultor';
 import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
 import { registerFluentComponents } from '../ui/fluent_setup';
@@ -30,7 +28,7 @@ window.addEventListener('unhandledrejection', (event) => {
   alert(`[Erro de Promessa]: ${event.reason?.message || event.reason}\nStack: ${event.reason?.stack}`);
 });
 
-export let activeMapaController: MesaTrabalhoMapa | null = null;
+export let activeMapaController: any = null;
 let ctxClickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 let ctxScrollHandler: (() => void) | null = null;
 let activeDragCleanup: (() => void) | null = null;
@@ -46,9 +44,11 @@ export const mesaTrabalhoRoute: RouteDef = {
       return;
     }
 
-    const mapaController = new MesaTrabalhoMapa();
+    const mapaController: any = document.getElementById('mapa-triagem') as any;
     activeMapaController = mapaController;
-    mapaController.levantamentoId = parseInt(activeId);
+    if (mapaController) {
+      mapaController.levantamentoId = parseInt(activeId);
+    }
 
     const ctx: MesaTrabalhoContext = {
       currentLevId: parseInt(activeId),
@@ -326,71 +326,59 @@ export const mesaTrabalhoRoute: RouteDef = {
     const inicializarMapOnce = () => {
       if (!ctx.triagemMap) {
         const canvasEl = document.getElementById('mapa-triagem') as any;
-        const isUICanvas = canvasEl && (canvasEl.tagName === 'UI-CANVAS-CAD' || typeof canvasEl.getMap === 'function');
+        if (!canvasEl) return;
 
-        if (isUICanvas) {
-          ctx.mapaController = canvasEl;
-          ctx.triagemMap = canvasEl.getMap();
-          ctx.canvasInteracao = canvasEl.controller?.canvasInteracao;
+        ctx.mapaController = canvasEl;
+        activeMapaController = canvasEl;
+        canvasEl.levantamentoId = ctx.currentLevId;
+        ctx.triagemMap = typeof canvasEl.getMap === 'function' ? canvasEl.getMap() : (canvasEl.controller?.getMap() || null);
+        ctx.canvasInteracao = canvasEl.controller?.canvasInteracao;
 
-          if (!ctx.triagemMap && canvasEl.controller) {
-            ctx.triagemMap = canvasEl.controller.getMap();
-          }
-
-          // Escuta eventos customizados agnósticos do ui-canvas-cad
-          canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
-            const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
-            if (pId) {
-              if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
-                ctx.lidarCliqueMarcadorSequencial(pId);
-              } else {
-                ctx.selectPontoFromTabela(pId);
-              }
-            }
-          });
-
-          canvasEl.addEventListener('ui-clique-sequencial', (e: any) => {
-            const pId = e.detail?.id || e.detail?.pontoId;
-            if (pId && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
+        // Escuta eventos customizados agnósticos do ui-canvas-cad
+        canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
+          const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
+          if (pId) {
+            if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
               ctx.lidarCliqueMarcadorSequencial(pId);
+            } else {
+              ctx.selectPontoFromTabela(pId);
             }
-          });
+          }
+        });
 
-          canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
-            if (ctx.triagemMap && e.detail?.eventoOriginal) {
-              consultarEPlotarSigef(ctx.triagemMap, e.detail.eventoOriginal, { permitirImportarConfrontante: true });
-            }
-          });
+        canvasEl.addEventListener('ui-clique-sequencial', (e: any) => {
+          const pId = e.detail?.id || e.detail?.pontoId;
+          if (pId && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
+            ctx.lidarCliqueMarcadorSequencial(pId);
+          }
+        });
 
-          canvasEl.addEventListener('ui-acao-popup', (e: any) => {
-            const { acaoId, elementoId } = e.detail || {};
-            if (acaoId === 'integrar' && elementoId) {
-              const btn = document.querySelector(`.btn-integrar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
-              if (btn) btn.click();
-            } else if (acaoId === 'ocultar' && elementoId) {
-              const btn = document.querySelector(`.btn-ocultar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
-              if (btn) btn.click();
-            }
-          });
+        canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
+          if (ctx.triagemMap && e.detail?.eventoOriginal) {
+            consultarEPlotarSigef(ctx.triagemMap, e.detail.eventoOriginal, { permitirImportarConfrontante: true });
+          }
+        });
 
-          // Sincronização da seleção em lote (Window / Crossing)
-          window.addEventListener('gerencigeo:ponto-selecionado', (e: any) => {
-            if (e.detail?.selectedPontoIds) {
-              ctx.selectedPontoIds = e.detail.selectedPontoIds;
-              ctx.selectedVizinhoPontoIds = e.detail.selectedVizinhoPontoIds || [];
-              ctx.lastSelectedPontoId = e.detail.lastSelectedPontoId || (ctx.selectedPontoIds.length > 0 ? ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1] : null);
-              ctx.atualizarDestaqueLinhasTabela();
-            }
-          });
-        } else {
-          ctx.triagemMap = ctx.mapaController.init('mapa-triagem');
-          
-          // Ativa interações AutoCAD no Canvas legado
-          const canvasInteracao = new CanvasInteracao(ctx);
-          canvasInteracao.ativar(ctx.mapaController);
-          ctx.mapaController.canvasInteracao = canvasInteracao;
-          ctx.canvasInteracao = canvasInteracao;
-        }
+        canvasEl.addEventListener('ui-acao-popup', (e: any) => {
+          const { acaoId, elementoId } = e.detail || {};
+          if (acaoId === 'integrar' && elementoId) {
+            const btn = document.querySelector(`.btn-integrar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
+            if (btn) btn.click();
+          } else if (acaoId === 'ocultar' && elementoId) {
+            const btn = document.querySelector(`.btn-ocultar-vizinho-mapa[data-ponto-id="${elementoId}"]`) as HTMLElement;
+            if (btn) btn.click();
+          }
+        });
+
+        // Sincronização da seleção em lote (Window / Crossing)
+        window.addEventListener('gerencigeo:ponto-selecionado', (e: any) => {
+          if (e.detail?.selectedPontoIds) {
+            ctx.selectedPontoIds = e.detail.selectedPontoIds;
+            ctx.selectedVizinhoPontoIds = e.detail.selectedVizinhoPontoIds || [];
+            ctx.lastSelectedPontoId = e.detail.lastSelectedPontoId || (ctx.selectedPontoIds.length > 0 ? ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1] : null);
+            ctx.atualizarDestaqueLinhasTabela();
+          }
+        });
 
         // Listener para recentralização sob demanda (Bússola / Atalhos / Zoom Extents)
         window.addEventListener('gerencigeo:recenter', () => {
@@ -2262,18 +2250,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         activeDragCleanup();
         activeDragCleanup = null;
       }
-      if (ctx.canvasInteracao) {
-        ctx.canvasInteracao.desativar?.();
-        ctx.canvasInteracao = null;
-      }
-      if (ctx.triagemMap) {
-        const canvasEl = document.getElementById('mapa-triagem');
-        const isUICanvas = canvasEl && (canvasEl.tagName === 'UI-CANVAS-CAD');
-        if (!isUICanvas) {
-          try { ctx.triagemMap.remove(); } catch (e) {}
-        }
-        ctx.triagemMap = null;
-      }
+      ctx.canvasInteracao = null;
+      ctx.triagemMap = null;
+      ctx.mapaController = null;
+      activeMapaController = null;
     };
 
     routeCleanup = cleanup;
@@ -2442,6 +2422,10 @@ function setupRibbonInteractions(ctx: any): void {
         const novaZona = e.detail?.id || selectUtm.value;
         if (novaZona) {
           localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
+          if (ctx.mapaController) {
+            ctx.mapaController.fusoUtm = parseInt(novaZona);
+            ctx.mapaController.zonaProjecao = parseInt(novaZona);
+          }
           showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");
           ctx.loadLevantamentoDetails();
         }

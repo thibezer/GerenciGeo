@@ -479,3 +479,17 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   4. **Controle Persistente e Janela de Configuração**:
      - A preferência do usuário deve ser respeitada tanto pelo `localStorage` (`LS_KEY_CAMADAS`) quanto pela chave `sateliteAtivo` em `MapaConfiguracoes` e no modal CAD (`config_mapa.html`), com broadcast bidirecional via `BroadcastChannel('gerencigeo_map_config')`.
 
+
+
+---
+
+## 29. Substituição do Motor de Canvas CAD por Web Component Agnóstico (`<ui-canvas-cad>`)
+- **Problema**:
+  1. O motor cartográfico original era fortemente acoplado ao domínio de negócio (`MesaTrabalhoMapa`, `mapa_core.ts`, `mapa_linhas.ts`, `mapa_marcadores.ts`, `canvas_interacao.ts`), dependendo diretamente de tabelas e terminologias de cartório (SIGEF, confrontantes, matrículas).
+  2. Inicialização manual do Leaflet espalhada nas views provocava duplicações de instâncias, vazamento de memória e erros de redimensionamento (`invalidateSize` com `_leaflet_pos of undefined`).
+- **Regra Obrigatória**:
+  1. **Agnosticismo Total**: O componente `<ui-canvas-cad>` é 100% genérico e W3C padrão, sem menção a regras de negócio de cartório/SIGEF. Toda interação específica do GerenciGeo ocorre via escuta de eventos customizados (`ui-ponto-selecionado`, `ui-clique-sequencial`, `ui-canvas-clique`, `ui-acao-popup`, `gerencigeo:ponto-selecionado`).
+  2. **Fachada de Métodos e Aliases**: O componente expõe métodos canônicos (`plotarPontos`, `plotarConexoes`, `plotarPolilinhaSequencial`, `plotarPoligonos`, `destacarElemento`, `limparCamadas`, `obterMarcadores`) e mantém aliases transparentes (`plotPontos`, `plotSegmentos`, `plotPolilinhaTemporaria`, `plotPoligonalHomologada`, `plotPontosVizinhos`, `plotPoligonosVizinhos`, `clearOverlays`, `getMarkers`).
+  3. **Auto-ajuste via ResizeObserver**: Redimensionamento de splitters e layouts é gerenciado internamente com tratamento de erro defensivo (`invalidateSizeSafely`), eliminando a necessidade de invocações síncronas manuais suscetíveis a pane.
+  4. **Projeção e Barramento Reativo**: A sincronização de fusos/zonas e preferências do usuário opera via atributo/propriedade `zonaProjecao` e barramento `canal-configuracao="gerencigeo_map_config"`.
+  5. **Código Legado Purgado**: As classes legadas em `mesa_trabalho/mapa/` e `canvas_interacao.ts` foram definitivamente eliminadas, garantindo uma única fonte de verdade arquitetural.

@@ -53,7 +53,7 @@ export const renderCompartilhado = (): string => {
 
           <!-- Superior: Canvas do Mapa Leaflet -->
           <div class="map-container-wrapper relative flex-1 min-h-[220px]" id="container-mapa-publico">
-             <div id="map-container" class="mapa-leaflet-canvas w-full h-full"></div>
+             <ui-canvas-cad id="map-container" class="mapa-leaflet-canvas w-full h-full" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
           </div>
 
           <!-- Splitter de redimensionamento de tabelas -->

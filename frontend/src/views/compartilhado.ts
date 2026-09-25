@@ -2,14 +2,9 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, showToast, formatUTM } from '../utils';
 import { renderCompartilhado } from './compartilhado_template';
-import { MesaTrabalhoMapa } from './mesa_trabalho/mapa/mapa_controller';
-import L from 'leaflet';
-
-let mapController: MesaTrabalhoMapa | null = null;
+let mapController: any = null;
 let currentPublicData: any = null;
 let currentSelectedPointId: number | null = null;
-let mapPulseMarker: L.CircleMarker | null = null;
-let mapPulseRing: L.CircleMarker | null = null;
 
 const setupTabs = () => {
     const tabBtns = document.querySelectorAll('.tab-btn-publico');
@@ -256,39 +251,12 @@ const renderTabelas = () => {
  * Destaca e pulsa o ponto selecionado no mapa (Localizador Visual Canvas)
  */
 const highlightPointOnCanvas = (p: any) => {
-    if (!mapController?.core?.map || !p || !p.lat || !p.lon) return;
-    const map = mapController.core.map;
-
-    // Remove os marcadores de efeito anteriores
-    if (mapPulseMarker) {
-        map.removeLayer(mapPulseMarker);
-        mapPulseMarker = null;
+    if (!mapController || !p) return;
+    if (typeof mapController.destacarElemento === 'function') {
+        mapController.destacarElemento(p.id, { pan: true, zoom: 21, duracaoMs: 4000 });
+    } else if (typeof mapController.selectPonto === 'function') {
+        mapController.selectPonto(p.id, 21);
     }
-    if (mapPulseRing) {
-        map.removeLayer(mapPulseRing);
-        mapPulseRing = null;
-    }
-
-    // Pan centralizado no ponto
-    map.panTo([p.lat, p.lon], { animate: true, duration: 0.5 });
-
-    // Desenha o círculo do localizador (Anel pulsante em tom Mint)
-    mapPulseRing = L.circleMarker([p.lat, p.lon], {
-        radius: 20,
-        color: '#00ffaa',
-        weight: 2,
-        fillColor: '#00ffaa',
-        fillOpacity: 0.15,
-        className: 'animate-ping-once'
-    }).addTo(map);
-
-    mapPulseMarker = L.circleMarker([p.lat, p.lon], {
-        radius: 7,
-        color: '#ffffff',
-        weight: 2,
-        fillColor: '#00ffaa',
-        fillOpacity: 0.9,
-    }).addTo(map);
 };
 
 /**
@@ -434,7 +402,7 @@ const plotMapData = () => {
     let segmentos = currentPublicData.segmentos || [];
     
     mapController.clearOverlays();
-    mapController.plotPontos(pontos, (id) => (window as any).selecionarPontoPublico(id));
+    mapController.plotPontos(pontos, (id: number) => (window as any).selecionarPontoPublico(id));
     
     const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
     if (orgPontos.length > 0) {
@@ -451,39 +419,7 @@ const plotMapData = () => {
  * mas oculta as opções de camadas desnecessárias (Homologada e Vizinhos).
  */
 const cleanPublicMapLayers = () => {
-    if (!mapController?.core?.map) return;
-    const map = mapController.core.map;
-    const core = mapController.core;
-
-    // Remove grupos de banco de pontos e vizinhos do mapa público
-    if (core.bancoPontosGroup && map.hasLayer(core.bancoPontosGroup)) {
-        map.removeLayer(core.bancoPontosGroup);
-    }
-    if (core.pontosVizinhosGroup && map.hasLayer(core.pontosVizinhosGroup)) {
-        map.removeLayer(core.pontosVizinhosGroup);
-    }
-
-    // Por padrão na abertura, mantém a camada SIGEF desativada para a área abrir limpa
-    if (core.sigefLayer && map.hasLayer(core.sigefLayer)) {
-        map.removeLayer(core.sigefLayer);
-    }
-
-    // Exibe o controle de camadas da direita (Satélite + SIGEF)
-    const layerControl = document.querySelector('.leaflet-control-layers');
-    if (layerControl) {
-        (layerControl as HTMLElement).style.display = 'block';
-    }
-
-    // Oculta do controle apenas as opções "Poligonal Homologada" e "Imóveis Vizinhos"
-    const layerLabels = document.querySelectorAll('.leaflet-control-layers-overlays label');
-    layerLabels.forEach(label => {
-        const text = (label as HTMLElement).innerText || '';
-        if (text.includes('Homologada') || text.includes('Vizinhos')) {
-            (label as HTMLElement).style.display = 'none';
-        } else {
-            (label as HTMLElement).style.display = 'flex';
-        }
-    });
+    // Com o ui-canvas-cad, camadas e ferramentas são auto-gerenciadas
 };
 
 const updateUI = () => {
@@ -526,20 +462,7 @@ export const compartilhadoRoute: RouteDef = {
     setupResizers();
     setupLocalizadorPontos();
 
-    mapController = new MesaTrabalhoMapa();
-    mapController.init('map-container');
-    
-    setTimeout(() => {
-        // Oculta o botão de engrenagem da barra de ferramentas do mapa na visão pública
-        const gearBtn = document.querySelector('.unified-toolbar button');
-        if (gearBtn) (gearBtn as HTMLElement).style.display = 'none';
-        const sep = document.querySelector('.unified-toolbar div');
-        if (sep) (sep as HTMLElement).style.display = 'none';
-        
-        // Limpa camadas WMS e vizinhos
-        cleanPublicMapLayers();
-        mapController?.invalidateSize();
-    }, 120);
+    mapController = document.getElementById('map-container') as any;
 
     const isLocal = window.location.origin.includes('localhost') || 
                     window.location.origin.includes('127.0.0.1') || 
