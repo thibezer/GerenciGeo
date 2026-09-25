@@ -1221,6 +1221,125 @@ export const renderMesaTrabalho = (): string => {
           </div>
        </div>
 
+       <!-- MODAL: SINCRONIZAÇÃO NUVEM HUB (HOSTINGER) -->
+       <div id="modal-nuvem-sync" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
+          <div class="bg-[#0c1510] border border-white/15 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+             
+             <!-- Header do Modal -->
+             <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                <div class="flex items-center gap-3">
+                   <div class="w-9 h-9 rounded-xl bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center text-mint-vibrant shadow-inner">
+                      <i data-lucide="cloud" class="w-5 h-5"></i>
+                   </div>
+                   <div>
+                      <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                         <span>Nuvem Hub GerenciGeo</span>
+                         <span id="badge-nuvem-status" class="text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold bg-white/5 text-white/50 border border-white/10">Verificando...</span>
+                      </h3>
+                      <p class="text-[11px] text-white/40">Sincronização protegida entre computadores via Hostinger</p>
+                   </div>
+                </div>
+                <button type="button" id="btn-fechar-modal-nuvem" class="text-white/40 hover:text-white hover:bg-white/10 rounded-lg p-1.5 transition-colors">
+                   <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+             </div>
+
+             <!-- Corpo do Modal -->
+             <div class="p-6 space-y-4">
+                
+                <!-- ESTADO 1: FORMULÁRIO DE LOGIN (quando desconectado) -->
+                <div id="container-nuvem-desconectado" class="space-y-4">
+                   <div class="bg-white/[0.02] border border-white/10 rounded-xl p-4 text-xs text-white/70 space-y-1">
+                      <strong class="text-white block font-semibold flex items-center gap-1.5">
+                         <i data-lucide="shield-check" class="w-4 h-4 text-mint-vibrant"></i>
+                         Acesso Protegido por Login
+                      </strong>
+                      <p class="text-[11px] text-white/50 leading-relaxed">
+                         Para sincronizar seus dados com outro computador da sua equipe, informe suas credenciais da Nuvem GerenciGeo.
+                      </p>
+                   </div>
+
+                   <form id="form-nuvem-login" class="space-y-3">
+                      <div>
+                         <label class="block text-[11px] font-semibold text-white/70 uppercase mb-1">E-mail de Acesso</label>
+                         <input type="email" id="input-nuvem-email" required placeholder="ex: thiago@exemplo.com.br" value="admin@gerencigeo.com.br"
+                            class="w-full bg-white/5 border border-white/15 focus:border-mint-vibrant rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/20 outline-none transition-all" />
+                      </div>
+                      <div>
+                         <label class="block text-[11px] font-semibold text-white/70 uppercase mb-1">Senha</label>
+                         <input type="password" id="input-nuvem-senha" required placeholder="Sua senha da Nuvem" value="admin123"
+                            class="w-full bg-white/5 border border-white/15 focus:border-mint-vibrant rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/20 outline-none transition-all" />
+                      </div>
+
+                      <div id="alerta-nuvem-login-erro" class="hidden text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5"></div>
+
+                      <button type="submit" id="btn-submeter-nuvem-login" class="btn-primary w-full py-2.5 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-mint-vibrant/10 active:scale-98">
+                         <i data-lucide="log-in" class="w-4 h-4"></i>
+                         <span>Conectar à Nuvem</span>
+                      </button>
+                   </form>
+                </div>
+
+                <!-- ESTADO 2: PAINEL DE SINCRONIZAÇÃO (quando autenticado) -->
+                <div id="container-nuvem-conectado" class="space-y-4 hidden">
+                   
+                   <!-- Card do Usuário Logado -->
+                   <div class="bg-white/[0.03] border border-white/10 rounded-xl p-3.5 flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                         <div class="w-10 h-10 rounded-full bg-mint-vibrant/10 border border-mint-vibrant/30 flex items-center justify-center font-bold text-mint-vibrant text-sm shadow-inner">
+                            <span id="label-nuvem-avatar">U</span>
+                         </div>
+                         <div>
+                            <strong id="label-nuvem-nome-usuario" class="text-xs text-white block">Operador</strong>
+                            <span id="label-nuvem-email-usuario" class="text-[10px] font-mono text-white/50 block">-</span>
+                         </div>
+                      </div>
+                      <button type="button" id="btn-nuvem-logout" class="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg border border-red-500/20 transition-all flex items-center gap-1">
+                         <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                         <span>Sair</span>
+                      </button>
+                   </div>
+
+                   <!-- Info da Última Sincronização -->
+                   <div class="flex items-center justify-between text-[11px] px-1 text-white/50">
+                      <span>Última sincronização:</span>
+                      <strong id="label-nuvem-ultima-sinc" class="font-mono text-white/80">Nunca sincronizado</strong>
+                   </div>
+
+                   <!-- Ação Principal: Sincronização Bidirecional -->
+                   <button type="button" id="btn-nuvem-sincronizar-tudo" class="btn-primary w-full py-3 font-bold text-xs flex items-center justify-center gap-2 shadow-xl shadow-mint-vibrant/15 active:scale-98">
+                      <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                      <span>Sincronizar Tudo (Receber e Enviar)</span>
+                   </button>
+
+                   <!-- Ações Manuais (Push / Pull individuais) -->
+                   <div class="grid grid-cols-2 gap-2 pt-1">
+                      <button type="button" id="btn-nuvem-pull-manual" class="btn-secondary py-2 text-xs flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 text-white/80 hover:text-white" title="Baixa os dados mais recentes cadastrados em outros computadores">
+                         <i data-lucide="download-cloud" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                         <span>Baixar da Nuvem</span>
+                      </button>
+                      <button type="button" id="btn-nuvem-push-manual" class="btn-secondary py-2 text-xs flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 text-white/80 hover:text-white" title="Envia todos os dados deste computador para a Nuvem">
+                         <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                         <span>Enviar para Nuvem</span>
+                      </button>
+                   </div>
+
+                   <!-- Caixa de Log e Resultados da Sincronização -->
+                   <div id="container-nuvem-resultado-sync" class="hidden bg-white/[0.02] border border-white/10 rounded-xl p-3 text-[11px] space-y-1 font-mono">
+                      <div class="flex items-center justify-between text-mint-vibrant font-bold">
+                         <span id="label-nuvem-resultado-status">✓ Concluído</span>
+                         <span id="label-nuvem-resultado-hora" class="text-[9px] text-white/40"></span>
+                      </div>
+                      <p id="label-nuvem-resultado-msg" class="text-white/80 text-[10px] break-words"></p>
+                   </div>
+
+                </div>
+
+             </div>
+
+          </div>
+       </div>
+
 </div>
   `;
 };

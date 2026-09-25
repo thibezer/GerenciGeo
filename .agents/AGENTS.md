@@ -41,3 +41,12 @@
    - Todos os testes unitários e de integração executam estritamente na base isolada `gerencigeo_test.db` (configurada automaticamente via `config.py` e `tests/__init__.py`).
    - O sistema gera backups atômicos automáticos na pasta `backups/` e em `gerencigeo.db.backup`.
    - O driver de conexão (`database/connection.py`) bloqueia qualquer tentativa de `DELETE` global sem cláusula `WHERE` na base de produção.
+
+8. **Comando/Gatilho "Atualizar o Sistema" (Sincronização em Outro Computador)**:
+   - Sempre que o usuário solicitar para "atualizar o sistema", "baixar o sistema" ou "sincronizar dados" em qualquer computador da equipe, o agente deve seguir o workflow `.agents/workflows/atualizar-sistema.md` e as diretrizes de `Arquivos .md/GUIA_ANTIGRAVITY_OUTRO_COMPUTADOR.md`:
+     1. Executar `git pull origin main` para trazer as implementações mais recentes.
+     2. Recompilar o frontend se houver alterações (`cd frontend && npm run build && cd ..`).
+     3. Executar a sincronização bidirecional do banco de dados com a Nuvem Hub Hostinger:
+        `python -c "import asyncio; from services.gestores.nuvem_sync import sincronizar_tudo; print(asyncio.run(sincronizar_tudo()))"`
+     4. Executar a suíte de testes unitários para validar a integridade (`python -m unittest discover -s tests -p "test_*.py"`).
+

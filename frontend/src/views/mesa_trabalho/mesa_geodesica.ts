@@ -2,6 +2,7 @@ import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from './mesa_trabalho_tabela';
 import { registrarEventosExportacao } from './exportacao_cad';
+import { initNuvemSyncModal } from './nuvem_sync_modal';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
@@ -1078,47 +1079,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     }
   });
 
-  document.getElementById('btn-sincronizar-nuvem')?.addEventListener('click', async () => {
-    if (!ctx.currentLevId || !ctx.currentMatriculaId) {
-      alert("Selecione uma matrícula ativa antes de sincronizar!");
-      return;
-    }
-
-    const btn = document.getElementById('btn-sincronizar-nuvem') as HTMLButtonElement;
-    let originalHtml = '';
-    if (btn) {
-      btn.disabled = true;
-      originalHtml = btn.innerHTML;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 mr-1 animate-spin"></i> Sincronizando...`;
-      initIcons();
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/sincronizar/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-        initIcons();
-      }
-
-      if (!res.ok) {
-        alert(`Erro na sincronização: ${data.detail || data.error || 'Falha desconhecida'}`);
-      } else {
-        alert("✓ Sincronizado com a nuvem com sucesso!");
-      }
-    } catch (e: any) {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-        initIcons();
-      }
-      alert("Erro ao conectar com o servidor local: " + e.message);
-    }
-  });
+  // Inicializa o modal de sincronização e login da Nuvem Hostinger
+  initNuvemSyncModal(ctx);
 
 
   document.getElementById('btn-reordenar-caminhamento')?.addEventListener('click', async () => {

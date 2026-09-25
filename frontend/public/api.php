@@ -420,6 +420,8 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
     addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
+    addColumnSafe($pdo, 'users', 'api_token', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'users', 'token_created_at', 'DATETIME NULL');
 
     // Limpeza de campos UNIQUE com string vazia para NULL (evita erro 1062 no MySQL)
     try {
@@ -491,6 +493,45 @@ function emptyToNull($val) {
     return $val;
 }
 
+/**
+ * Obtém o usuário atualmente autenticado a partir do token
+ */
+function getAuthenticatedUser(PDO $pdo): ?array {
+    $token = null;
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!$authHeader && function_exists('getallheaders')) {
+        $h = getallheaders();
+        $authHeader = $h['Authorization'] ?? ($h['authorization'] ?? '');
+    }
+    if ($authHeader && preg_match('/Bearer\s+(\S+)/i', $authHeader, $m)) {
+        $token = $m[1];
+    } elseif (!empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
+        $token = trim($_SERVER['HTTP_X_AUTH_TOKEN']);
+    } elseif (!empty($_GET['token'])) {
+        $token = trim($_GET['token']);
+    }
+
+    if (!$token) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("SELECT id, name, email, role, is_blocked, profile_image, created_at FROM users WHERE api_token = ? AND is_blocked = 0 LIMIT 1");
+    $stmt->execute([$token]);
+    $user = $stmt->fetch();
+    return $user ?: null;
+}
+
+/**
+ * Garante que a requisição está autenticada, retornando os dados do usuário ou encerrando com 401
+ */
+function requireAuth(PDO $pdo): array {
+    $user = getAuthenticatedUser($pdo);
+    if (!$user) {
+        jsonResponse(['error' => 'Acesso negado: faça login ou forneça um token de autenticação válido.'], 401);
+    }
+    return $user;
+}
+
 // 3. Determinação da Rota e Método HTTP
 $method = $_SERVER['REQUEST_METHOD'];
 $requestUri = $_SERVER['REQUEST_URI'];
@@ -544,6 +585,10 @@ if ($route === '/auth/register' || (isset($_GET['action']) && $_GET['action'] ==
     $userId = (int)$pdo->lastInsertId();
 
     $token = bin2hex(random_bytes(32));
+    try {
+        $pdo->prepare("UPDATE users SET api_token = ?, token_created_at = NOW() WHERE id = ?")->execute([$token, $userId]);
+    } catch (Exception $e) {}
+
     jsonResponse([
         'status' => 'success',
         'token' => $token,
@@ -592,6 +637,10 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
     }
 
     $token = bin2hex(random_bytes(32));
+    try {
+        $pdo->prepare("UPDATE users SET api_token = ?, token_created_at = NOW() WHERE id = ?")->execute([$token, (int)$user['id']]);
+    } catch (Exception $e) {}
+
     jsonResponse([
         'status' => 'success',
         'token' => $token,
@@ -608,15 +657,19 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
 }
 
 if ($route === '/auth/logout' || (isset($_GET['action']) && $_GET['action'] === 'logout')) {
+    $pdo = getDb();
+    $user = getAuthenticatedUser($pdo);
+    if ($user) {
+        try {
+            $pdo->prepare("UPDATE users SET api_token = NULL WHERE id = ?")->execute([$user['id']]);
+        } catch (Exception $e) {}
+    }
     jsonResponse(['status' => 'success', 'message' => 'Logout realizado com sucesso.']);
 }
 
 if ($route === '/auth/me' || (isset($_GET['action']) && $_GET['action'] === 'me')) {
     $pdo = getDb();
-    $user = $pdo->query("SELECT id, name, email, role, profile_image, created_at FROM users WHERE is_blocked = 0 ORDER BY id ASC LIMIT 1")->fetch();
-    if (!$user) {
-        jsonResponse(['error' => 'Não autenticado.'], 401);
-    }
+    $user = requireAuth($pdo);
     jsonResponse([
         'status' => 'success',
         'user' => [
@@ -1496,6 +1549,8 @@ function syncTableRows(PDO $pdo, string $table, array $rows): void {
 
 // 7. ROTA DE CARGA EM MASSA / MIGRAÇÃO INICIAL (Sync do PC para a Nuvem)
 if ($route === '/sync/batch' && $method === 'POST') {
+    $pdo = getDb();
+    $authUser = requireAuth($pdo);
     $input = getJsonInput();
     if (!isset($input['data'])) {
         jsonResponse(['error' => 'Payload de sincronização inválido.'], 400);
@@ -1577,15 +1632,60 @@ if ($route === '/sync/batch' && $method === 'POST') {
         if (!empty($data['pendencias'])) {
             syncTableRows($pdo, 'pendencias', $data['pendencias']);
         }
+        if (!empty($data['confrontantes'])) {
+            syncTableRows($pdo, 'confrontantes', $data['confrontantes']);
+        }
 
         $pdo->commit();
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
-        jsonResponse(['message' => 'Todos os dados foram sincronizados com o MySQL com sucesso!']);
+        jsonResponse([
+            'status' => 'success',
+            'usuario' => $authUser['email'],
+            'message' => 'Todos os dados foram sincronizados com o MySQL com sucesso!'
+        ]);
     } catch (Exception $e) {
         $pdo->rollBack();
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
         jsonResponse(['error' => 'Falha na sincronização em lote: ' . $e->getMessage()], 500);
     }
+}
+
+// 8. ROTA DE DOWNLOAD / PULL DE DADOS (Sync da Nuvem para o PC Local)
+if ($route === '/sync/pull' && $method === 'GET') {
+    $pdo = getDb();
+    $authUser = requireAuth($pdo);
+
+    $tables = [
+        'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
+        'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes'
+    ];
+
+    $payload = [];
+    foreach ($tables as $t) {
+        try {
+            $stmt = $pdo->query("SELECT * FROM `{$t}`");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($t === 'clientes') {
+                foreach ($rows as &$c) {
+                    if (!empty($c['senha_gov'])) {
+                        $c['senha_gov'] = decryptGovPassword($c['senha_gov']);
+                    }
+                }
+                unset($c);
+            }
+            $payload[$t] = $rows;
+        } catch (Exception $e) {
+            $payload[$t] = [];
+        }
+    }
+
+    jsonResponse([
+        'status' => 'success',
+        'timestamp' => time(),
+        'usuario' => $authUser['email'],
+        'data' => $payload
+    ]);
 }
 
 // Rota não encontrada

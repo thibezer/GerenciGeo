@@ -37,6 +37,7 @@ ENV/
 .env.*
 *.key
 app_secrets.key
+nuvem_session.json
 
 # Rascunhos e saídas de teste temporárias
 saida.txt

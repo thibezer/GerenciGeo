@@ -50,9 +50,13 @@ IBGE_SIGEF_LIMITES = {
 EMPRESA_NOME_FANTASIA = "COMPLETA"
 EMPRESA_RAZAO_SOCIAL = "Agrimensura e Projetos Agropecuários LTDA"
 
-# ── Arquitetura Edge-First v2.4 ──────────────────────────────────────────────
+# ── Arquitetura Edge-First v2.4 (Nuvem Hostinger) ─────────────────────────────
 RUNNING_LOCAL = True  # Setado como False exclusivamente no servidor da Hostinger
-CLOUD_SYNC_URL = "https://gerencigeo-seu-site.com.br/api/v1/sync/imovel"
+CLOUD_BASE_URL = os.environ.get("GERENCIGEO_CLOUD_URL", "https://darkgray-duck-674813.hostingersite.com/api.php")
+CLOUD_SYNC_URL = f"{CLOUD_BASE_URL}?__route=/sync/batch"
+CLOUD_PULL_URL = f"{CLOUD_BASE_URL}?__route=/sync/pull"
+CLOUD_LOGIN_URL = f"{CLOUD_BASE_URL}?__route=/auth/login"
+CLOUD_STATUS_URL = f"{CLOUD_BASE_URL}?__route=/status"
 CLOUD_API_KEY = "G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C"
 
 
