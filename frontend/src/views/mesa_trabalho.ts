@@ -354,8 +354,12 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
 
         canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
-          if (ctx.triagemMap && e.detail?.eventoOriginal) {
-            consultarEPlotarSigef(ctx.triagemMap, e.detail.eventoOriginal, { permitirImportarConfrontante: true });
+          if (ctx.triagemMap && e.detail) {
+            const ev = e.detail.eventoOriginal || e.detail;
+            const latlng = ev.latlng || (e.detail.coordenadas ? L.latLng(e.detail.coordenadas.lat, e.detail.coordenadas.lon || e.detail.coordenadas.lng) : null);
+            if (latlng) {
+              consultarEPlotarSigef(ctx.triagemMap, { ...ev, latlng }, { permitirImportarConfrontante: true });
+            }
           }
         });
 
@@ -868,7 +872,14 @@ export const mesaTrabalhoRoute: RouteDef = {
       ctx.selectedVizinhoPontoIds = [];
       ctx.lastSelectedPontoId = pontoId;
 
-      const row = document.getElementById(`tr-ponto-${pontoId}`);
+      let row = document.getElementById(`tr-ponto-${pontoId}`);
+      if (!row) {
+        const uiTabelaEl = document.getElementById('ui-tbl-pontos-triagem') as (HTMLElement & { shadowRoot?: ShadowRoot }) | null;
+        if (uiTabelaEl?.shadowRoot) {
+          const el = uiTabelaEl.shadowRoot.querySelector(`[data-ponto-id="${pontoId}"]`);
+          row = (el?.closest('tr') || el || null) as HTMLElement | null;
+        }
+      }
       if (row) {
          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }

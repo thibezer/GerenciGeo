@@ -56,10 +56,13 @@ export async function consultarSigefData(
 
 export async function consultarEPlotarSigef(
   map: L.Map,
-  e: L.LeafletMouseEvent,
+  e: L.LeafletMouseEvent | any,
   options: SigefConsultaOptions = {}
 ): Promise<void> {
   if (!map) return;
+
+  const latlng = e.latlng || (e.lat && e.lng ? L.latLng(e.lat, e.lng) : null);
+  if (!latlng) return;
 
   const size = map.getSize();
   const bounds = map.getBounds();
@@ -68,8 +71,13 @@ export async function consultarEPlotarSigef(
   const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
   
   // Utiliza as coordenadas de container relativas ao mapa para precisão absoluta
-  const x = Math.round(e.containerPoint ? e.containerPoint.x : map.layerPointToContainerPoint(e.layerPoint).x);
-  const y = Math.round(e.containerPoint ? e.containerPoint.y : map.layerPointToContainerPoint(e.layerPoint).y);
+  const pt = e.containerPoint 
+    || (map.latLngToContainerPoint ? map.latLngToContainerPoint(latlng) : null)
+    || (e.layerPoint && map.layerPointToContainerPoint ? map.layerPointToContainerPoint(e.layerPoint) : null)
+    || { x: Math.round(size.x / 2), y: Math.round(size.y / 2) };
+
+  const x = Math.round(pt.x);
+  const y = Math.round(pt.y);
 
   const mapContainer = map.getContainer();
   if (mapContainer) mapContainer.style.cursor = 'wait';
@@ -78,7 +86,7 @@ export async function consultarEPlotarSigef(
     className: 'compact-sigef-popup',
     maxWidth: 280
   })
-    .setLatLng(e.latlng)
+    .setLatLng(latlng)
     .setContent(`
       <div style="font-family:var(--geo-font-sans, sans-serif); display:flex; align-items:center; gap:8px; color:rgba(255,255,255,0.9); font-size:12px; padding:4px;">
         <svg style="animation:spin 1s linear infinite; width:14px; height:14px; flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
