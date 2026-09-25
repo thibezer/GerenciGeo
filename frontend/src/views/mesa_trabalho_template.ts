@@ -405,7 +405,7 @@ export const renderMesaTrabalho = (): string => {
                <span class="text-[8px] font-mono text-white/20 uppercase tracking-widest">Baseado no Banco de Pontos</span>
              </div>
              <!-- Mesa CAD via Web Component nativo do UI-Kit -->
-             <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id"></ui-canvas-cad>
+             <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
           </div>
 
           <!-- Splitter de redimensionamento -->

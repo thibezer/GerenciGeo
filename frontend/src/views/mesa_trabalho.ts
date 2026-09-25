@@ -272,6 +272,7 @@ export const mesaTrabalhoRoute: RouteDef = {
             const fusoVal = parseInt(target.value || '22');
             if (ctx.mapaController) {
               ctx.mapaController.fusoUtm = fusoVal;
+              ctx.mapaController.zonaProjecao = fusoVal;
             }
           });
         }

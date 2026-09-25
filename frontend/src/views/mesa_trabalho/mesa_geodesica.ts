@@ -326,7 +326,11 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
             btn.addEventListener('click', (e) => {
               e.stopPropagation();
               ctx.selectPontoFromTabela(item.id);
-              ctx.mapaController.selectPonto(item.id, 21);
+              if (typeof ctx.mapaController?.destacarElemento === 'function') {
+                ctx.mapaController.destacarElemento(item.id, { pan: true, zoom: 21, duracaoMs: 4000 });
+              } else if (typeof ctx.mapaController?.selectPonto === 'function') {
+                ctx.mapaController.selectPonto(item.id, 21);
+              }
             });
           }
           return div;

@@ -55,7 +55,11 @@ export function inicializarEventosTabela(
         const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
         if (pId) {
           ctx.selectPontoFromTabela(pId);
-          ctx.mapaController.selectPonto(pId, 21);
+          if (typeof ctx.mapaController?.destacarElemento === 'function') {
+            ctx.mapaController.destacarElemento(pId, { pan: true, zoom: 21, duracaoMs: 4000 });
+          } else if (typeof ctx.mapaController?.selectPonto === 'function') {
+            ctx.mapaController.selectPonto(pId, 21);
+          }
         }
         return;
       }
