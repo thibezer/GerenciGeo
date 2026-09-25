@@ -4,6 +4,7 @@ import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customCon
 
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
+let keydownHandlerModal: ((e: KeyboardEvent) => void) | null = null;
 
 export const propriedadesRoute: RouteDef = {
   render: () => `
@@ -90,16 +91,16 @@ export const propriedadesRoute: RouteDef = {
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-white/[0.01]">
-                <th class="py-3 px-4 w-10">
-                  <input type="checkbox" id="check-all-propriedades" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer" />
+              <tr class="border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40 bg-white/[0.01]">
+                <th class="py-2 px-3 w-10">
+                  <input type="checkbox" id="check-all-propriedades" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5" />
                 </th>
-                <th class="py-3 px-4">Imóvel Rural</th>
-                <th class="py-3 px-4">Localidade</th>
-                <th class="py-3 px-4">Proprietário Principal</th>
-                <th class="py-3 px-4 text-center">Matrículas</th>
-                <th class="py-3 px-4 text-center">Projetos</th>
-                <th class="py-3 px-4 text-right">Ações</th>
+                <th class="py-2 px-3">Imóvel Rural</th>
+                <th class="py-2 px-3">Localidade</th>
+                <th class="py-2 px-3">Proprietário Principal</th>
+                <th class="py-2 px-3 text-center">Matrículas</th>
+                <th class="py-2 px-3 text-center">Projetos</th>
+                <th class="py-2 px-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody id="tabela-propriedades-body" class="divide-y divide-white/[0.02]">
@@ -146,253 +147,287 @@ export const propriedadesRoute: RouteDef = {
       </div>
     </div>
 
-    <!-- MODAL DE CADASTRO / EDIÇÃO COMPACTO -->
-    <div id="modal-propriedade" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-       <div class="glass-card w-full max-w-md border border-mint-vibrant/10 shadow-2xl">
-          <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-             <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                <i data-lucide="home" class="w-4.5 h-4.5 text-mint-vibrant"></i>
-                <span id="modal-prop-titulo">Nova Propriedade</span>
-             </h3>
-             <button class="text-white/40 hover:text-white transition-colors" id="btn-fechar-modal-prop">
-                <i data-lucide="x" class="w-4.5 h-4.5"></i>
-             </button>
-          </div>
-          <form id="form-propriedade" class="p-4 space-y-3.5">
-             <div>
-                <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nome da Propriedade *</label>
-                <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-8" placeholder="Ex: Fazenda Três Barras">
-             </div>
-             <div>
-                <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código do CAR</label>
-                <input type="text" name="codigo_car" class="glass-input w-full text-xs h-8 font-mono" placeholder="PR-4128104-58A2...">
-             </div>
-             <div>
-                <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código do CCIR</label>
-                <input type="text" name="codigo_ccir" class="glass-input w-full text-xs h-8 font-mono" placeholder="000.000.000.000-0">
-             </div>
-             <div class="grid grid-cols-3 gap-3">
-                <div class="col-span-2">
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Município *</label>
-                   <input type="text" name="municipio" required class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
-                </div>
-                <div>
-                   <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">UF *</label>
-                   <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase" placeholder="PR">
-                </div>
-             </div>
-             <div class="flex justify-end gap-2 pt-4 border-t border-white/5">
-                <button type="button" class="btn-secondary h-8 text-xs py-0 px-4" id="btn-cancelar-prop">Cancelar</button>
-                <button type="submit" class="btn-primary h-8 text-xs py-0 px-4" id="btn-submit-prop">Salvar Propriedade</button>
-             </div>
-          </form>
-       </div>
-    </div>
-
-    <!-- MODAL DE DETALHES COMPLETO MULTITABS -->
-    <div id="modal-detalhes-propriedade" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-       <div class="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-mint-vibrant/20 shadow-2xl">
-          <div class="p-4.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+    <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
+    <div id="modal-propriedade" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+       <div class="glass-card w-full max-w-3xl max-h-[92vh] flex flex-col border border-mint-vibrant/20 shadow-2xl overflow-hidden bg-[#0c1510]/98">
+          <!-- Header do Modal -->
+          <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
              <div class="flex items-center gap-3 min-w-0">
-                <div class="w-8.5 h-8.5 rounded-full bg-mint-vibrant/10 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
-                   <i data-lucide="home" class="w-4 h-4 text-mint-vibrant"></i>
+                <div class="w-8.5 h-8.5 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/20 flex items-center justify-center text-mint-vibrant shrink-0">
+                   <i data-lucide="home" class="w-4.5 h-4.5 text-mint-vibrant"></i>
                 </div>
                 <div class="min-w-0">
-                   <h3 class="text-sm font-bold text-white truncate" id="det-prop-titulo">Nome da Propriedade</h3>
-                   <p class="text-[9px] text-white/40 font-mono leading-none mt-1" id="det-prop-subtitulo">Município/UF</p>
+                   <h3 class="text-sm sm:text-base font-bold text-white truncate" id="modal-prop-titulo">Nova Propriedade</h3>
+                   <p class="text-[10px] text-white/40 font-mono leading-none mt-1 truncate" id="modal-prop-subtitulo">Preencha os dados cadastrais do imóvel rural</p>
                 </div>
              </div>
              <div class="flex items-center gap-1.5 shrink-0">
-                <button class="text-white/40 hover:text-mint-vibrant transition-colors p-2 rounded hover:bg-white/5 cursor-pointer" id="btn-det-editar-prop" title="Editar Propriedade">
-                    <i data-lucide="edit" class="w-4 h-4"></i>
+                <button class="text-white/40 hover:text-red-400 transition-colors p-2 rounded hover:bg-red-500/10 cursor-pointer hidden" id="btn-prop-excluir" title="Excluir Propriedade">
+                   <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
-                <button class="text-white/40 hover:text-red-400 transition-colors p-2 rounded hover:bg-white/5 cursor-pointer" id="btn-det-excluir-prop" title="Excluir Propriedade">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-                <button class="text-white/40 hover:text-white transition-colors p-2 rounded hover:bg-white/5 cursor-pointer" id="btn-fechar-detalhes-prop">
+                <button class="text-white/40 hover:text-white transition-colors p-2 rounded hover:bg-white/5 cursor-pointer" id="btn-fechar-modal-prop" title="Fechar (Esc)">
                    <i data-lucide="x" class="w-4.5 h-4.5"></i>
                 </button>
              </div>
           </div>
           
-          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none">
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det-prop whitespace-nowrap" data-tab-prop="tab-prop-dados">Dados Gerais & Anexos</button>
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det-prop whitespace-nowrap" data-tab-prop="tab-prop-proprietarios">Proprietários</button>
-             <button class="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det-prop whitespace-nowrap" data-tab-prop="tab-prop-matriculas">Matrículas</button>
+          <!-- Abas de Navegação -->
+          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none px-2 shrink-0">
+             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
+                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                Dados Gerais & Anexos
+             </button>
+             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
+                <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                Proprietários
+                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
+             </button>
+             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
+                <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                Glebas & Matrículas
+                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
+             </button>
           </div>
           
-          <div class="p-4.5 space-y-4">
-             <!-- ABA DADOS GERAIS & ANEXOS -->
-             <div id="tab-prop-dados" class="tab-content-det-prop space-y-4">
-                <div class="grid grid-cols-2 gap-3 bg-white/[0.01] p-3 border border-white/5 rounded-technical">
+          <!-- Conteúdo com Scroll -->
+          <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+             <!-- ABA 1: DADOS GERAIS & ANEXOS -->
+             <div id="tab-prop-dados" class="tab-content-prop space-y-4">
+                <!-- Formulário de Dados Cadastrais -->
+                <form id="form-propriedade" class="space-y-3.5 bg-white/[0.01] p-3.5 sm:p-4 rounded-technical border border-white/5">
+                   <div class="flex items-center justify-between pb-1 border-b border-white/5">
+                      <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Identificação Cadastral</span>
+                      <span class="text-[9px] text-white/30 font-mono">* Campos obrigatórios</span>
+                   </div>
+
                    <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Código do CAR</p>
-                      <p class="text-xs text-mint-vibrant font-mono font-bold mt-0.5" id="det-prop-car">-</p>
+                      <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Nome da Propriedade *</label>
+                      <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-8 font-medium" placeholder="Ex: Fazenda Três Barras">
                    </div>
-                   <div>
-                      <p class="text-[9px] text-white/40 uppercase tracking-widest font-bold">Código do CCIR</p>
-                      <p class="text-xs text-blue-400 font-mono font-bold mt-0.5" id="det-prop-ccir">-</p>
-                   </div>
-                </div>
 
-                <!-- MESA DE ANEXOS FÍSICOS (CAR & CCIR) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <!-- Bloco CAR -->
-                   <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
-                      <span class="text-[8.5px] font-mono font-bold text-mint-vibrant bg-mint-vibrant/10 px-2 py-0.5 rounded border border-mint-vibrant/20 w-max">DOCUMENTO DO CAR</span>
-                      
-                      <!-- Área de Upload do CAR -->
-                      <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-5 group relative" id="dropzone-car">
-                         <input type="file" id="input-file-car" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.dwg" />
-                         <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-mint-vibrant group-hover:scale-110 transition-all mb-1.5"></i>
-                         <p class="text-[10px] font-bold">Anexar arquivo do CAR</p>
-                         <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique</p>
+                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div class="sm:col-span-2">
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Município *</label>
+                         <input type="text" name="municipio" required class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
                       </div>
-
-                      <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-car">
-                         <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
-                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant shrink-0"></i>
-                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-mint-vibrant font-bold" id="txt-anexo-car-nome" title="Clique para abrir o documento">Arquivo</span>
-                         </div>
-                         <div class="flex gap-1 shrink-0">
-                            <button class="text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all cursor-pointer" id="btn-download-car" title="Baixar arquivo">
-                               <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                            </button>
-                            <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-car" title="Excluir CAR">
-                               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                            </button>
-                         </div>
+                      <div>
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">UF *</label>
+                         <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase font-mono" placeholder="PR">
                       </div>
                    </div>
 
-                   <!-- Bloco CCIR -->
-                   <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
-                      <span class="text-[8.5px] font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 w-max">DOCUMENTO DO CCIR</span>
-                      
-                      <!-- Área de Upload do CCIR -->
-                      <div class="border-2 border-dashed border-white/10 hover:border-blue-500/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-5 group relative" id="dropzone-ccir">
-                         <input type="file" id="input-file-ccir" class="hidden" accept=".pdf,.png,.jpg,.jpeg" />
-                         <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-blue-400 group-hover:scale-110 transition-all mb-1.5"></i>
-                         <p class="text-[10px] font-bold">Anexar arquivo do CCIR</p>
-                         <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique</p>
+                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CAR</label>
+                         <input type="text" name="codigo_car" class="glass-input w-full text-xs h-8 font-mono text-mint-vibrant" placeholder="PR-4128104-58A2...">
+                      </div>
+                      <div>
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CCIR</label>
+                         <input type="text" name="codigo_ccir" class="glass-input w-full text-xs h-8 font-mono text-blue-400" placeholder="000.000.000.000-0">
+                      </div>
+                   </div>
+
+                   <div class="flex justify-end gap-2 pt-3 border-t border-white/5">
+                      <button type="button" class="btn-secondary h-8 text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
+                      <button type="submit" class="btn-primary h-8 text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
+                         Salvar Alterações
+                      </button>
+                   </div>
+                </form>
+
+                <!-- Seção de Anexos Físicos (CAR & CCIR) -->
+                <div id="secao-anexos-propriedade" class="space-y-3 pt-1">
+                   <div class="flex items-center justify-between pb-1 border-b border-white/5">
+                      <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Documentos Digitais & Certidões</span>
+                      <span class="text-[9px] text-white/30 font-mono">Upload e gestão de arquivos</span>
+                   </div>
+
+                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <!-- Bloco CAR -->
+                      <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
+                         <div class="flex items-center justify-between">
+                            <span class="text-[8.5px] font-mono font-bold text-mint-vibrant bg-mint-vibrant/10 px-2 py-0.5 rounded border border-mint-vibrant/20 w-max">DOCUMENTO DO CAR</span>
+                         </div>
+                         
+                         <!-- Área de Upload do CAR -->
+                         <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-4 group relative" id="dropzone-car">
+                            <input type="file" id="input-file-car" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.dwg" />
+                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-mint-vibrant group-hover:scale-110 transition-all mb-1"></i>
+                            <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CAR</p>
+                            <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique para selecionar</p>
+                         </div>
+
+                         <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-car">
+                            <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
+                               <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant shrink-0"></i>
+                               <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-mint-vibrant font-bold" id="txt-anexo-car-nome" title="Clique para abrir o documento">Arquivo</span>
+                            </div>
+                            <div class="flex gap-1 shrink-0">
+                               <button class="text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all cursor-pointer" id="btn-download-car" title="Baixar arquivo">
+                                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                               </button>
+                               <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-car" title="Excluir CAR">
+                                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                               </button>
+                            </div>
+                         </div>
                       </div>
 
-                      <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-ccir">
-                         <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
-                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
-                            <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-blue-400 font-bold" id="txt-anexo-ccir-nome" title="Clique para abrir o documento">Arquivo</span>
+                      <!-- Bloco CCIR -->
+                      <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
+                         <div class="flex items-center justify-between">
+                            <span class="text-[8.5px] font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 w-max">DOCUMENTO DO CCIR</span>
                          </div>
-                         <div class="flex gap-1 shrink-0">
-                            <button class="text-blue-400 hover:text-white p-1 hover:bg-blue-500/20 rounded transition-all cursor-pointer" id="btn-download-ccir" title="Baixar arquivo">
-                               <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                            </button>
-                            <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-ccir" title="Excluir CCIR">
-                               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                            </button>
+                         
+                         <!-- Área de Upload do CCIR -->
+                         <div class="border-2 border-dashed border-white/10 hover:border-blue-500/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-4 group relative" id="dropzone-ccir">
+                            <input type="file" id="input-file-ccir" class="hidden" accept=".pdf,.png,.jpg,.jpeg" />
+                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-blue-400 group-hover:scale-110 transition-all mb-1"></i>
+                            <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CCIR</p>
+                            <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique para selecionar</p>
+                         </div>
+
+                         <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-ccir">
+                            <div class="min-w-0 flex-1 flex items-center gap-1.5 pr-2 select-none">
+                               <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400 shrink-0"></i>
+                               <span class="truncate font-mono text-[10px] cursor-pointer hover:underline hover:text-blue-400 font-bold" id="txt-anexo-ccir-nome" title="Clique para abrir o documento">Arquivo</span>
+                            </div>
+                            <div class="flex gap-1 shrink-0">
+                               <button class="text-blue-400 hover:text-white p-1 hover:bg-blue-500/20 rounded transition-all cursor-pointer" id="btn-download-ccir" title="Baixar arquivo">
+                                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                               </button>
+                               <button class="text-white/40 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer" id="btn-delete-ccir" title="Excluir CCIR">
+                                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                               </button>
+                            </div>
                          </div>
                       </div>
                    </div>
                 </div>
              </div>
              
-             <!-- ABA PROPRIETÁRIOS -->
-             <div id="tab-prop-proprietarios" class="tab-content-det-prop hidden space-y-4">
-                <!-- Formulário de vínculo compacto -->
-                <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
-                   <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular Novo Proprietário</h5>
-                   <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                      <div class="relative">
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente</label>
-                         <input type="text" id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." class="glass-input w-full text-xs h-8 pr-7" autocomplete="off" required>
-                         <input type="hidden" id="vinc-cliente-id" required>
-                         <div id="lista-vinc-clientes" class="absolute left-0 right-0 mt-1 max-h-36 overflow-y-auto bg-[#0a100d] border border-white/10 rounded shadow-2xl z-50 hidden divide-y divide-white/5">
-                            <!-- Opções dinâmicas -->
-                         </div>
-                      </div>
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Participação (%)</label>
-                         <input type="number" id="vinc-participacao" min="0.01" max="100" step="0.01" placeholder="Ex: 50.00" required class="glass-input w-full text-xs h-8">
-                      </div>
-                      <button type="submit" class="btn-primary h-8 text-xs font-bold w-full cursor-pointer">Vincular Proprietário</button>
-                   </form>
-                   <p class="text-[9px] text-white/30 font-mono uppercase leading-none mt-1">Quota Restante Disponível: <span class="text-mint-vibrant font-bold" id="lbl-quota-restante">100.00%</span></p>
+             <!-- ABA 2: PROPRIETÁRIOS -->
+             <div id="tab-prop-proprietarios" class="tab-content-prop hidden space-y-4">
+                <!-- Aviso se propriedade for nova -->
+                <div id="aviso-proprietarios-nova" class="hidden p-6 text-center bg-white/[0.01] border border-white/5 rounded-technical">
+                   <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
+                   <h4 class="text-xs font-bold text-white">Cadastre a propriedade primeiro</h4>
+                   <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para habilitar o vínculo de coproprietários e quotas.</p>
                 </div>
 
-                <!-- Tabela de Proprietários -->
-                <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
-                   <table class="w-full text-left text-xs border-collapse">
-                      <thead>
-                         <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
-                            <th class="py-2 px-3">Proprietário</th>
-                            <th class="py-2 px-3">CPF/CNPJ</th>
-                            <th class="py-2 px-3 text-right">Participação</th>
-                            <th class="py-2 px-3 text-center w-16">Ação</th>
-                         </tr>
-                      </thead>
-                      <tbody id="tbl-prop-proprietarios-corpo" class="divide-y divide-white/5">
-                         <!-- Proprietários via JS -->
-                      </tbody>
-                   </table>
+                <div id="conteudo-tab-proprietarios" class="space-y-4">
+                   <!-- Formulário de vínculo compacto -->
+                   <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
+                      <div class="flex items-center justify-between">
+                         <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular Proprietário</h5>
+                         <div id="badge-status-composicao"></div>
+                      </div>
+                      <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                         <div class="relative">
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente</label>
+                            <input type="text" id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." class="glass-input w-full text-xs h-8 pr-7" autocomplete="off" required>
+                            <input type="hidden" id="vinc-cliente-id" required>
+                            <div id="lista-vinc-clientes" class="absolute left-0 right-0 mt-1 max-h-36 overflow-y-auto bg-[#0a100d] border border-white/10 rounded shadow-2xl z-50 hidden divide-y divide-white/5">
+                               <!-- Opções dinâmicas -->
+                            </div>
+                         </div>
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Participação (%)</label>
+                            <input type="number" id="vinc-participacao" min="0.01" max="100" step="0.01" placeholder="Ex: 50.00" required class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <button type="submit" class="btn-primary h-8 text-xs font-bold w-full cursor-pointer" id="btn-submit-vinc-prop">Vincular Proprietário</button>
+                      </form>
+                      <div class="flex items-center justify-between text-[9px] text-white/30 font-mono uppercase pt-1">
+                         <p>Quota Restante Disponível: <span class="text-mint-vibrant font-bold" id="lbl-quota-restante">100.00%</span></p>
+                         <p id="lbl-aviso-vinculo-existente" class="text-amber-400 font-bold hidden"></p>
+                      </div>
+                   </div>
+
+                   <!-- Tabela de Proprietários -->
+                   <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
+                      <table class="w-full text-left text-xs border-collapse">
+                         <thead>
+                            <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
+                               <th class="py-2 px-3">Proprietário</th>
+                               <th class="py-2 px-3">CPF/CNPJ</th>
+                               <th class="py-2 px-3 text-right">Participação</th>
+                               <th class="py-2 px-3 text-center w-16">Ação</th>
+                            </tr>
+                         </thead>
+                         <tbody id="tbl-prop-proprietarios-corpo" class="divide-y divide-white/5">
+                            <!-- Proprietários via JS -->
+                         </tbody>
+                      </table>
+                   </div>
                 </div>
              </div>
              
-             <!-- ABA MATRÍCULAS -->
-             <div id="tab-prop-matriculas" class="tab-content-det-prop hidden space-y-4">
-                <!-- Cadastro de Matrícula Compacto -->
-                <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
-                   <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none" id="form-matricula-titulo">Cadastrar Gleba / Matrícula</h5>
-                   <form id="form-cadastrar-matricula-prop" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nº Matrícula *</label>
-                         <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div class="col-span-1">
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Denominação *</label>
-                         <input type="text" id="input-new-mat-denominacao" required placeholder="Ex: Lote 12-A" class="glass-input w-full text-xs h-8">
-                      </div>
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Área (Ha) *</label>
-                         <input type="text" id="input-new-mat-area" required placeholder="Ex: 45,1234" class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código CCIR</label>
-                         <input type="text" id="input-new-mat-ccir" placeholder="950.082..." class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
-                         <input type="text" id="input-new-mat-itr" placeholder="1.234.567-8" class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div>
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Valor ITR (R$)</label>
-                         <input type="number" step="0.01" id="input-new-mat-valor-itr" placeholder="Ex: 1500.00" class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div class="col-span-2">
-                         <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">SIGEF (UUID do Georreferenciamento)</label>
-                         <input type="text" id="input-new-mat-georreferenciamento" placeholder="a5b4c3d2-..." class="glass-input w-full text-xs h-8 font-mono">
-                      </div>
-                      <div class="col-span-2 md:col-span-4 flex justify-end gap-2">
-                         <button type="button" class="btn-secondary h-8 text-xs font-bold px-4 hidden cursor-pointer" id="btn-cancelar-edicao-mat">Cancelar</button>
-                         <button type="submit" class="btn-primary h-8 text-xs font-bold px-6 cursor-pointer" id="btn-submit-mat">Salvar Matrícula</button>
-                      </div>
-                   </form>
+             <!-- ABA 3: MATRÍCULAS -->
+             <div id="tab-prop-matriculas" class="tab-content-prop hidden space-y-4">
+                <!-- Aviso se propriedade for nova -->
+                <div id="aviso-matriculas-nova" class="hidden p-6 text-center bg-white/[0.01] border border-white/5 rounded-technical">
+                   <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
+                   <h4 class="text-xs font-bold text-white">Cadastre a propriedade primeiro</h4>
+                   <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para cadastrar matrículas, glebas e certidões em PDF.</p>
                 </div>
 
-                <!-- Tabela de Matrículas -->
-                <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
-                   <table class="w-full text-left text-xs border-collapse">
-                      <thead>
-                         <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
-                            <th class="py-2 px-3">Número e Denominação</th>
-                            <th class="py-2 px-3 text-right">Área Registrada</th>
-                            <th class="py-2 px-3">CCIR / ITR / SIGEF</th>
-                            <th class="py-2 px-3 text-center">Certidão PDF</th>
-                            <th class="py-2 px-3 text-right w-24">Ações</th>
-                         </tr>
-                      </thead>
-                      <tbody id="tbl-prop-matriculas-corpo" class="divide-y divide-white/5">
-                         <!-- Matrículas via JS -->
-                      </tbody>
-                   </table>
+                <div id="conteudo-tab-matriculas" class="space-y-4">
+                   <!-- Cadastro de Matrícula Compacto -->
+                   <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
+                      <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none" id="form-matricula-titulo">Cadastrar Gleba / Matrícula</h5>
+                      <form id="form-cadastrar-matricula-prop" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nº Matrícula *</label>
+                            <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div class="col-span-1">
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Denominação *</label>
+                            <input type="text" id="input-new-mat-denominacao" required placeholder="Ex: Lote 12-A" class="glass-input w-full text-xs h-8">
+                         </div>
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Área (Ha) *</label>
+                            <input type="text" id="input-new-mat-area" required placeholder="Ex: 45,1234" class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código CCIR</label>
+                            <input type="text" id="input-new-mat-ccir" placeholder="950.082..." class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
+                            <input type="text" id="input-new-mat-itr" placeholder="1.234.567-8" class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Valor ITR (R$)</label>
+                            <input type="number" step="0.01" id="input-new-mat-valor-itr" placeholder="Ex: 1500.00" class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div class="col-span-2">
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">SIGEF (UUID do Georreferenciamento)</label>
+                            <input type="text" id="input-new-mat-georreferenciamento" placeholder="a5b4c3d2-..." class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div class="col-span-2 md:col-span-4 flex justify-end gap-2">
+                            <button type="button" class="btn-secondary h-8 text-xs font-bold px-4 hidden cursor-pointer" id="btn-cancelar-edicao-mat">Cancelar</button>
+                            <button type="submit" class="btn-primary h-8 text-xs font-bold px-6 cursor-pointer" id="btn-submit-mat">Salvar Matrícula</button>
+                         </div>
+                      </form>
+                   </div>
+
+                   <!-- Tabela de Matrículas -->
+                   <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
+                      <table class="w-full text-left text-xs border-collapse">
+                         <thead>
+                            <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
+                               <th class="py-2 px-3">Número e Denominação</th>
+                               <th class="py-2 px-3 text-right">Área Registrada</th>
+                               <th class="py-2 px-3">CCIR / ITR / SIGEF</th>
+                               <th class="py-2 px-3 text-center">Certidão PDF</th>
+                               <th class="py-2 px-3 text-right w-24">Ações</th>
+                            </tr>
+                         </thead>
+                         <tbody id="tbl-prop-matriculas-corpo" class="divide-y divide-white/5">
+                            <!-- Matrículas via JS -->
+                         </tbody>
+                      </table>
+                   </div>
                 </div>
              </div>
           </div>
@@ -525,41 +560,70 @@ export const propriedadesRoute: RouteDef = {
        t.value = aplicarMascaraUUIDMat(t.value);
     });
 
-    // --- MODAIS ---
-    const modalCadastro = document.getElementById('modal-propriedade');
-    const modalDetalhes = document.getElementById('modal-detalhes-propriedade');
+    // --- MODAL UNIFICADO E ABAS ---
+    const modalPropriedade = document.getElementById('modal-propriedade');
     const modalHistMat = document.getElementById('modal-historico-matricula');
 
-    document.getElementById('btn-abrir-modal-propriedade')?.addEventListener('click', () => {
-      propriedadeSelecionadaId = null;
-      formProp?.reset();
-      
-      const modalTitulo = document.getElementById('modal-prop-titulo');
-      if (modalTitulo) modalTitulo.innerText = "Nova Propriedade";
-      
-      const submitBtn = document.getElementById('btn-submit-prop');
-      if (submitBtn) submitBtn.innerText = "Cadastrar Propriedade";
-      
-      modalCadastro?.classList.remove('hidden');
-    });
+    const ativarAba = (targetTab: string) => {
+       document.querySelectorAll('.tab-btn-prop').forEach(btn => {
+          const isTarget = btn.getAttribute('data-tab-prop') === targetTab;
+          if (isTarget) {
+             btn.classList.add('border-mint-vibrant', 'text-mint-vibrant');
+             btn.classList.remove('border-transparent', 'text-white/40');
+          } else {
+             btn.classList.remove('border-mint-vibrant', 'text-mint-vibrant');
+             btn.classList.add('border-transparent', 'text-white/40');
+          }
+       });
+       document.querySelectorAll('.tab-content-prop').forEach(tc => {
+          if (tc.id === targetTab) {
+             tc.classList.remove('hidden');
+          } else {
+             tc.classList.add('hidden');
+          }
+       });
+       initIcons();
+    };
 
-    document.getElementById('btn-fechar-modal-prop')?.addEventListener('click', () => modalCadastro?.classList.add('hidden'));
-    document.getElementById('btn-cancelar-prop')?.addEventListener('click', () => modalCadastro?.classList.add('hidden'));
-    document.getElementById('btn-fechar-detalhes-prop')?.addEventListener('click', () => modalDetalhes?.classList.add('hidden'));
-    document.getElementById('btn-fechar-modal-hist-mat')?.addEventListener('click', () => modalHistMat?.classList.add('hidden'));
-
-    // --- ABAS DO MODAL DE DETALHES ---
-    document.querySelectorAll('.tab-btn-det-prop').forEach(btn => {
+    document.querySelectorAll('.tab-btn-prop').forEach(btn => {
        btn.addEventListener('click', (e) => {
-          const targetTab = (e.target as HTMLElement).getAttribute('data-tab-prop');
-          document.querySelectorAll('.tab-btn-det-prop').forEach(b => b.classList.replace('border-mint-vibrant', 'border-transparent'));
-          document.querySelectorAll('.tab-btn-det-prop').forEach(b => b.classList.replace('text-mint-vibrant', 'text-white/40'));
-          (e.target as HTMLElement).classList.replace('border-transparent', 'border-mint-vibrant');
-          (e.target as HTMLElement).classList.replace('text-white/40', 'text-mint-vibrant');
-          document.querySelectorAll('.tab-content-det-prop').forEach(tc => tc.classList.add('hidden'));
-          document.getElementById(targetTab || '')?.classList.remove('hidden');
+          const targetTab = (e.currentTarget as HTMLElement).getAttribute('data-tab-prop');
+          if (targetTab) ativarAba(targetTab);
        });
     });
+
+    const fecharModalPropriedade = () => {
+       modalPropriedade?.classList.add('hidden');
+       propriedadeSelecionadaId = null;
+    };
+
+    document.getElementById('btn-fechar-modal-prop')?.addEventListener('click', fecharModalPropriedade);
+    document.getElementById('btn-cancelar-prop')?.addEventListener('click', fecharModalPropriedade);
+    document.getElementById('btn-fechar-modal-hist-mat')?.addEventListener('click', () => modalHistMat?.classList.add('hidden'));
+
+    document.getElementById('btn-abrir-modal-propriedade')?.addEventListener('click', () => {
+       abrirModalPropriedade(null);
+    });
+
+    document.getElementById('btn-prop-excluir')?.addEventListener('click', () => {
+       if (propriedadeSelecionadaId) {
+          excluirPropriedadeIndividual(propriedadeSelecionadaId);
+       }
+    });
+
+    const handleKeyDownModal = (e: KeyboardEvent) => {
+       if (e.key === 'Escape') {
+          if (modalHistMat && !modalHistMat.classList.contains('hidden')) {
+             modalHistMat.classList.add('hidden');
+             return;
+          }
+          if (modalPropriedade && !modalPropriedade.classList.contains('hidden')) {
+             fecharModalPropriedade();
+          }
+       }
+    };
+    keydownHandlerModal = handleKeyDownModal;
+    document.addEventListener('keydown', keydownHandlerModal);
 
     // --- CONTROLE DAS SELEÇÕES EM LOTE ---
     const updateBatchActionBar = () => {
@@ -748,32 +812,31 @@ export const propriedadesRoute: RouteDef = {
 
        body.innerHTML = visiveis.map(p => {
           const isSel = propriedadesSelecionadas.has(p.id);
-          const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.01]';
+          const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.015]';
 
           return `
              <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${p.id}">
-                <td class="py-2.5 px-4">
-                   <input type="checkbox" data-id="${p.id}" class="check-propriedade rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer" ${isSel ? 'checked' : ''} />
+                <td class="py-1.5 px-3 w-10">
+                   <input type="checkbox" data-id="${p.id}" class="check-propriedade rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5" ${isSel ? 'checked' : ''} />
                 </td>
-                <td class="py-2.5 px-4 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72" onclick="window.abrirDetalhesPropriedade(${p.id})">
-                   <div class="w-7 h-7 rounded-full bg-mint-vibrant/10 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
-                      <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                <td class="py-1.5 px-3 font-medium text-white cursor-pointer hover:text-mint-vibrant truncate max-w-xs" onclick="window.abrirModalPropriedade(${p.id})">
+                   <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-md bg-mint-vibrant/10 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
+                         <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                      </div>
+                      <span class="truncate font-semibold text-xs">${escapeHtml(p.nome_propriedade)}</span>
                    </div>
-                   <span class="truncate font-semibold">${escapeHtml(p.nome_propriedade)}</span>
                 </td>
-                <td class="py-2.5 px-4 text-white/70">${escapeHtml(p.municipio)} / ${escapeHtml(p.uf)}</td>
-                <td class="py-2.5 px-4">${obterProprietarioPrincipalTexto(p.clientes)}</td>
-                <td class="py-2.5 px-4 text-center font-mono font-medium text-white/70">${p.total_matriculas || 0}</td>
-                <td class="py-2.5 px-4 text-center font-mono font-medium text-white/70">${p.total_levantamentos || 0}</td>
-                <td class="py-2.5 px-4 text-right">
-                   <div class="flex items-center justify-end gap-1">
-                      <button class="p-1.5 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.abrirDetalhesPropriedade(${p.id})" title="Ver Detalhes">
-                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                      </button>
-                      <button class="p-1.5 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.abrirEdicaoPropriedade(${p.id})" title="Editar">
+                <td class="py-1.5 px-3 text-white/70 text-xs">${escapeHtml(p.municipio)} / ${escapeHtml(p.uf)}</td>
+                <td class="py-1.5 px-3 text-xs">${obterProprietarioPrincipalTexto(p.clientes)}</td>
+                <td class="py-1.5 px-3 text-center font-mono font-medium text-white/70 text-xs">${p.total_matriculas || 0}</td>
+                <td class="py-1.5 px-3 text-center font-mono font-medium text-white/70 text-xs">${p.total_levantamentos || 0}</td>
+                <td class="py-1.5 px-3 text-right">
+                   <div class="flex items-center justify-end gap-0.5">
+                      <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.abrirModalPropriedade(${p.id}, 'tab-prop-dados')" title="Ver e Editar Propriedade">
                          <i data-lucide="edit" class="w-3.5 h-3.5"></i>
                       </button>
-                      <button class="p-1.5 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.excluirPropriedadeIndividual(${p.id})" title="Excluir">
+                      <button class="p-1 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.excluirPropriedadeIndividual(${p.id})" title="Excluir">
                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                       </button>
                    </div>
@@ -978,44 +1041,87 @@ export const propriedadesRoute: RouteDef = {
        document.addEventListener('click', clickOutsideHandlerClientes);
     };
 
-    // --- DETALHES DE PROPRIEDADE ---
-    (window as any).abrirDetalhesPropriedade = (id: number) => {
-       const p = todasPropriedades.find(x => String(x.id) === String(id));
-       if (!p) return;
-
+    // --- GESTÃO DO MODAL UNIFICADO DE PROPRIEDADE ---
+    const abrirModalPropriedade = (id: number | null, abaInicial: string = 'tab-prop-dados') => {
        propriedadeSelecionadaId = id;
 
-       const titulo = document.getElementById('det-prop-titulo');
-       const subtitulo = document.getElementById('det-prop-subtitulo');
-       if (titulo) titulo.innerText = p.nome_propriedade;
-       if (subtitulo) subtitulo.innerText = `${p.municipio} / ${p.uf}`;
+       const modalTitulo = document.getElementById('modal-prop-titulo');
+       const modalSubtitulo = document.getElementById('modal-prop-subtitulo');
+       const submitBtn = document.getElementById('btn-submit-prop');
+       const btnExcluir = document.getElementById('btn-prop-excluir');
+       const secaoAnexos = document.getElementById('secao-anexos-propriedade');
+       const avisoProp = document.getElementById('aviso-proprietarios-nova');
+       const conteudoProp = document.getElementById('conteudo-tab-proprietarios');
+       const avisoMat = document.getElementById('aviso-matriculas-nova');
+       const conteudoMat = document.getElementById('conteudo-tab-matriculas');
+       const badgeProp = document.getElementById('tab-badge-proprietarios');
+       const badgeMat = document.getElementById('tab-badge-matriculas');
 
-       const setDetVal = (elId: string, val: string) => {
-          const el = document.getElementById(elId);
-          if (el) el.innerText = val || '-';
-       };
-
-       setDetVal('det-prop-car', p.codigo_car);
-       setDetVal('det-prop-ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '-');
-
-       // Configura anexos
-       configurarExibicaoArquivo('car', p.caminho_arquivo_car);
-       configurarExibicaoArquivo('ccir', p.caminho_arquivo_ccir);
-
-       // Proprietários
-       renderProprietariosTabela(p.clientes || []);
-       
-       // Reseta edição de matrícula
        resetaFormularioMatricula();
 
-       // Matrículas
-       loadMatriculasDaPropriedade(id);
+       if (id === null) {
+          // Novo Cadastro
+          formProp?.reset();
+          if (modalTitulo) modalTitulo.innerText = "Nova Propriedade";
+          if (modalSubtitulo) modalSubtitulo.innerText = "Preencha os dados cadastrais do imóvel rural";
+          if (submitBtn) submitBtn.innerText = "Cadastrar Propriedade";
+          btnExcluir?.classList.add('hidden');
+          secaoAnexos?.classList.add('hidden');
 
-       const activeTabBtn = document.querySelector('.tab-btn-det-prop[data-tab-prop="tab-prop-dados"]') as HTMLElement;
-       if (activeTabBtn) activeTabBtn.click();
+          avisoProp?.classList.remove('hidden');
+          conteudoProp?.classList.add('hidden');
+          avisoMat?.classList.remove('hidden');
+          conteudoMat?.classList.add('hidden');
 
-       modalDetalhes?.classList.remove('hidden');
+          if (badgeProp) badgeProp.innerText = '0';
+          if (badgeMat) badgeMat.innerText = '0';
+
+          ativarAba('tab-prop-dados');
+       } else {
+          // Edição / Detalhes de Propriedade Existente
+          const p = todasPropriedades.find(x => String(x.id) === String(id));
+          if (!p) return;
+
+          if (modalTitulo) modalTitulo.innerText = p.nome_propriedade;
+          if (modalSubtitulo) modalSubtitulo.innerText = `${p.municipio} / ${p.uf} • Cadastro ID: #${p.id}`;
+          if (submitBtn) submitBtn.innerText = "Salvar Alterações";
+          btnExcluir?.classList.remove('hidden');
+          secaoAnexos?.classList.remove('hidden');
+
+          avisoProp?.classList.add('hidden');
+          conteudoProp?.classList.remove('hidden');
+          avisoMat?.classList.add('hidden');
+          conteudoMat?.classList.remove('hidden');
+
+          const setFormVal = (name: string, val: string) => {
+             const input = formProp.querySelector(`[name="${name}"]`) as HTMLInputElement;
+             if (input) input.value = val || '';
+          };
+          setFormVal('nome_propriedade', p.nome_propriedade);
+          setFormVal('codigo_car', p.codigo_car ? formatarCAR(p.codigo_car) : '');
+          setFormVal('codigo_ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '');
+          setFormVal('municipio', p.municipio);
+          setFormVal('uf', p.uf);
+
+          if (badgeProp) badgeProp.innerText = String((p.clientes || []).length);
+          if (badgeMat) badgeMat.innerText = String(p.total_matriculas || 0);
+
+          configurarExibicaoArquivo('car', p.caminho_arquivo_car);
+          configurarExibicaoArquivo('ccir', p.caminho_arquivo_ccir);
+
+          renderProprietariosTabela(p.clientes || []);
+          loadMatriculasDaPropriedade(id);
+
+          ativarAba(abaInicial);
+       }
+
+       modalPropriedade?.classList.remove('hidden');
+       initIcons();
     };
+
+    (window as any).abrirModalPropriedade = (id: number | null, aba?: string) => abrirModalPropriedade(id, aba);
+    (window as any).abrirDetalhesPropriedade = (id: number) => abrirModalPropriedade(id, 'tab-prop-dados');
+    (window as any).abrirEdicaoPropriedade = (id: number) => abrirModalPropriedade(id, 'tab-prop-dados');
 
     // --- DELEÇÃO DE ANEXO DE PROPRIEDADE ---
     const excluirArquivoPropriedade = async (tipo: 'car' | 'ccir') => {
@@ -1505,6 +1611,12 @@ export const propriedadesRoute: RouteDef = {
        const formData = new FormData(e.target as HTMLFormElement);
        const payload = Object.fromEntries(formData.entries());
 
+       const submitBtn = document.getElementById('btn-submit-prop') as HTMLButtonElement;
+       if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.7';
+       }
+
        try {
           const url = propriedadeSelecionadaId ? `${API_BASE}/propriedades/${propriedadeSelecionadaId}` : `${API_BASE}/propriedades`;
           const method = propriedadeSelecionadaId ? 'PUT' : 'POST';
@@ -1519,49 +1631,29 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) {
              customAlert(data.error);
           } else {
-             showToast("Propriedade salva com sucesso.", "success");
-             modalCadastro?.classList.add('hidden');
-             formProp.reset();
-             loadPropriedades().then(() => {
-                if (propriedadeSelecionadaId) {
-                   (window as any).abrirDetalhesPropriedade(propriedadeSelecionadaId);
-                }
-             });
+             const idFinal = propriedadeSelecionadaId || data.id;
+             showToast(propriedadeSelecionadaId ? "Propriedade atualizada com sucesso." : "Propriedade cadastrada com sucesso.", "success");
+             
+             await loadPropriedades();
+             
+             if (idFinal) {
+                abrirModalPropriedade(idFinal, 'tab-prop-dados');
+             } else {
+                fecharModalPropriedade();
+             }
           }
        } catch (err) {
           showToast("Erro de conexão ao salvar propriedade.", "error");
+       } finally {
+          if (submitBtn) {
+             submitBtn.disabled = false;
+             submitBtn.style.opacity = '';
+          }
        }
     });
 
-    // --- AÇÕES INDIVIDUAIS DA TABELA ---
-    (window as any).abrirEdicaoPropriedade = (id: number) => {
-       const p = todasPropriedades.find(x => String(x.id) === String(id));
-       if (!p) return;
-
-       propriedadeSelecionadaId = id;
-
-       const modalTitulo = document.getElementById('modal-prop-titulo');
-       if (modalTitulo) modalTitulo.innerText = "Editar Propriedade";
-       
-       const submitBtn = document.getElementById('btn-submit-prop');
-       if (submitBtn) submitBtn.innerText = "Salvar Alterações";
-
-       const setFormVal = (name: string, val: string) => {
-          const input = formProp.querySelector(`[name="${name}"]`) as HTMLInputElement;
-          if (input) input.value = val || '';
-       };
-
-       setFormVal('nome_propriedade', p.nome_propriedade);
-       setFormVal('codigo_car', p.codigo_car ? formatarCAR(p.codigo_car) : '');
-       setFormVal('codigo_ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '');
-       setFormVal('municipio', p.municipio);
-       setFormVal('uf', p.uf);
-
-       modalDetalhes?.classList.add('hidden');
-       modalCadastro?.classList.remove('hidden');
-    };
-
-    (window as any).excluirPropriedadeIndividual = async (id: number) => {
+    // --- EXCLUSÃO DE PROPRIEDADE ---
+    const excluirPropriedadeIndividual = async (id: number) => {
        const p = todasPropriedades.find(x => String(x.id) === String(id));
        if (!p || !(await customConfirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas, levantamentos e vínculos correspondentes de forma definitiva.`))) return;
 
@@ -1571,7 +1663,7 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) customAlert(data.error);
           else {
              showToast("Propriedade excluída com sucesso.", "success");
-             modalDetalhes?.classList.add('hidden');
+             fecharModalPropriedade();
              propriedadesSelecionadas.delete(id);
              updateBatchActionBar();
              loadPropriedades();
@@ -1581,17 +1673,7 @@ export const propriedadesRoute: RouteDef = {
        }
     };
 
-    document.getElementById('btn-det-editar-prop')?.addEventListener('click', () => {
-       if (propriedadeSelecionadaId) {
-          (window as any).abrirEdicaoPropriedade(propriedadeSelecionadaId);
-       }
-    });
-
-    document.getElementById('btn-det-excluir-prop')?.addEventListener('click', () => {
-       if (propriedadeSelecionadaId) {
-          (window as any).excluirPropriedadeIndividual(propriedadeSelecionadaId);
-       }
-    });
+    (window as any).excluirPropriedadeIndividual = excluirPropriedadeIndividual;
 
     // --- UPLOADS CAR & CCIR (DRAG & DROP) ---
     const configurarDropzone = (tipo: 'car' | 'ccir') => {
@@ -1673,6 +1755,10 @@ export const propriedadesRoute: RouteDef = {
     if (clickOutsideHandlerClientes) {
       document.removeEventListener('click', clickOutsideHandlerClientes);
       clickOutsideHandlerClientes = null;
+    }
+    if (keydownHandlerModal) {
+      document.removeEventListener('keydown', keydownHandlerModal);
+      keydownHandlerModal = null;
     }
   }
 };
