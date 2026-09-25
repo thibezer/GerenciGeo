@@ -593,3 +593,224 @@ def gerar_anexo_grafico_html(
         logger.warning(f"Falha ao gerar anexo gráfico para confrontante {confrontante_id}: {e}")
         return "", {}
 
+
+def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontante_id: int) -> dict:
+    """Retorna os dados geométricos e cadastrais para a pré-visualização interativa do trecho da divisa a ser anuído."""
+    # 1. Obter dados comuns (propriedade, matrícula e limites)
+    dados = obter_dados_comuns(lev_id, matricula_id)
+    mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
+    num_matricula_exibicao = dados.get("numeros_matricula_str") or str(dados["mat"].get("numero_matricula") or "")
+    nome_lote = dados.get("denominacoes_str") or dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
+
+    # 2. Obter dados cadastrais do confrontante
+    row_conf = execute_query(
+        """
+        SELECT c.id,
+               COALESCE(p.nome, c.nome) AS nome,
+               COALESCE(p.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj,
+               COALESCE(p.rg, c.rg) AS rg,
+               c.matricula_imovel,
+               COALESCE(p.endereco_completo, c.endereco_completo) AS endereco_completo
+        FROM confrontantes c
+        LEFT JOIN pessoas p ON c.pessoa_id = p.id
+        WHERE c.id = ? AND c.levantamento_id = ?
+        """,
+        params=(confrontante_id, lev_id),
+        fetch_one=True
+    )
+    if not row_conf:
+        raise ValueError(f"Confrontante ID {confrontante_id} não encontrado para este levantamento.")
+    conf = dict(row_conf)
+
+    # 3. Carregar todos os pontos da matrícula
+    todos_pontos = execute_query(
+        """
+        SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
+        FROM pontos
+        WHERE levantamento_id = ? AND matricula_id = ?
+        ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+        """,
+        params=(lev_id, mat_desenho_id),
+        fetch_all=True
+    )
+    pts_validos = []
+    for row in (todos_pontos or []):
+        pt = dict(row)
+        lat = pt["lat_corrigido"] if pt["lat_corrigido"] is not None else pt["lat"]
+        lon = pt["lon_corrigido"] if pt["lon_corrigido"] is not None else pt["lon"]
+        if lat is not None and lon is not None:
+            pt["_lat"] = lat
+            pt["_lon"] = lon
+            pts_validos.append(pt)
+
+    pts_coords = {pt["id"]: (pt["_lat"], pt["_lon"], pt["nome_vertice"]) for pt in pts_validos}
+
+    # 4. Poligonal principal do imóvel (Limite Geral)
+    rows_segs_mat = execute_query(
+        """
+        SELECT s.ponto_inicio_id, s.ponto_fim_id
+        FROM segmentos s
+        WHERE s.levantamento_id = ? AND s.matricula_id = ?
+        ORDER BY s.id ASC
+        """,
+        params=(lev_id, mat_desenho_id),
+        fetch_all=True
+    )
+    poligono_coords = []
+    if rows_segs_mat:
+        adj_mat = {r["ponto_inicio_id"]: r["ponto_fim_id"] for r in rows_segs_mat}
+        inicio = rows_segs_mat[0]["ponto_inicio_id"]
+        curr = inicio
+        visitados_anel = set()
+        while curr not in visitados_anel:
+            visitados_anel.add(curr)
+            if curr in pts_coords:
+                poligono_coords.append([pts_coords[curr][0], pts_coords[curr][1]])
+            curr = adj_mat.get(curr)
+            if not curr or curr == inicio:
+                break
+
+    if len(poligono_coords) < 3:
+        pts_filtrados = [p for p in pts_validos if (p.get("ignorar_poligono") or 0) == 0 and p.get("tipo_ponto") != 'B']
+        tem_homologado = any(p.get("origem_homologada") == 1 for p in pts_filtrados)
+        if tem_homologado:
+            pts_filtrados = [p for p in pts_filtrados if p.get("origem_homologada") == 1]
+        poligono_coords = [[p["_lat"], p["_lon"]] for p in pts_filtrados]
+
+    # 5. Segmentos do confrontante ordenados topologicamente
+    rows_segs = execute_query(
+        """
+        SELECT s.id, s.ponto_inicio_id, s.ponto_fim_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
+               pi.nome_vertice as ini_nome, pi.lat as ini_lat, pi.lon as ini_lon, pi.ordem_caminhamento as ini_ordem,
+               pf.nome_vertice as fim_nome, pf.lat as fim_lat, pf.lon as fim_lon
+        FROM segmentos s
+        JOIN pontos pi ON s.ponto_inicio_id = pi.id
+        JOIN pontos pf ON s.ponto_fim_id = pf.id
+        WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
+        ORDER BY s.id ASC
+        """,
+        params=(lev_id, mat_desenho_id, confrontante_id),
+        fetch_all=True
+    )
+
+    segs = [dict(r) for r in (rows_segs or [])]
+    
+    lindeira_coords = []
+    lindeira_pontos = []
+    segmentos_detalhados = []
+    extensao_total = 0.0
+    ext_ini_nome = "-"
+    ext_fim_nome = "-"
+
+    if segs:
+        inicios = {s["ponto_inicio_id"] for s in segs}
+        fins = {s["ponto_fim_id"] for s in segs}
+        pontas_ini = [s for s in segs if s["ponto_inicio_id"] not in fins]
+
+        adj_conf = {s["ponto_inicio_id"]: s for s in segs}
+        start_seg = pontas_ini[0] if pontas_ini else segs[0]
+        start_node = start_seg["ponto_inicio_id"]
+
+        segs_ordenados = []
+        curr = start_node
+        visitados_segs = set()
+        while curr in adj_conf and curr not in visitados_segs:
+            visitados_segs.add(curr)
+            s_obj = adj_conf[curr]
+            segs_ordenados.append(s_obj)
+            curr = s_obj["ponto_fim_id"]
+            if curr == start_node:
+                break
+
+        if len(segs_ordenados) < len(segs):
+            segs_restantes = [s for s in segs if s not in segs_ordenados]
+            segs_ordenados.extend(segs_restantes)
+
+        ext_ini_id = segs_ordenados[0]["ponto_inicio_id"]
+        ext_fim_id = segs_ordenados[-1]["ponto_fim_id"]
+        ext_ini_nome = segs_ordenados[0]["ini_nome"]
+        ext_fim_nome = segs_ordenados[-1]["fim_nome"]
+
+        pts_vistos = set()
+        from services.documentacao.cartorio.utils import calcular_azimute_e_distancia
+        from pyproj import Geod
+        geod = Geod(ellps="GRS80")
+
+        for s in segs_ordenados:
+            p_ini_id = s["ponto_inicio_id"]
+            p_fim_id = s["ponto_fim_id"]
+            lat1 = s["ini_lat"]
+            lon1 = s["ini_lon"]
+            lat2 = s["fim_lat"]
+            lon2 = s["fim_lon"]
+
+            if lat1 is not None and lon1 is not None and lat2 is not None and lon2 is not None:
+                lindeira_coords.append([[lat1, lon1], [lat2, lon2]])
+                
+                # Distância geodésica em metros
+                _, _, dist_m = geod.inv(lon1, lat1, lon2, lat2)
+                extensao_total += dist_m
+                azimute_str, dist_str = calcular_azimute_e_distancia(lat1, lon1, lat2, lon2)
+
+                segmentos_detalhados.append({
+                    "id": s["id"],
+                    "de": s["ini_nome"],
+                    "para": s["fim_nome"],
+                    "azimute": azimute_str,
+                    "distancia_m": round(dist_m, 2),
+                    "distancia_str": dist_str,
+                    "tipo_limite": s.get("tipo_limite_sigef") or "Não especificado",
+                    "metodo": s.get("metodo_posicionamento_sigef") or "Não especificado",
+                    "ini_coords": [lat1, lon1],
+                    "fim_coords": [lat2, lon2]
+                })
+
+            if p_ini_id not in pts_vistos and lat1 is not None and lon1 is not None:
+                lindeira_pontos.append({
+                    "id": p_ini_id,
+                    "nome": s["ini_nome"],
+                    "coords": [lat1, lon1],
+                    "is_extremo": (p_ini_id == ext_ini_id or p_ini_id == ext_fim_id)
+                })
+                pts_vistos.add(p_ini_id)
+
+            if p_fim_id not in pts_vistos and lat2 is not None and lon2 is not None:
+                lindeira_pontos.append({
+                    "id": p_fim_id,
+                    "nome": s["fim_nome"],
+                    "coords": [lat2, lon2],
+                    "is_extremo": (p_fim_id == ext_ini_id or p_fim_id == ext_fim_id)
+                })
+                pts_vistos.add(p_fim_id)
+
+    return {
+        "confrontante": {
+            "id": conf["id"],
+            "nome": conf["nome"],
+            "cpf_cnpj": formatar_cpf(conf.get("cpf_cnpj") or ""),
+            "rg": formatar_rg(conf.get("rg") or ""),
+            "matricula_imovel": conf.get("matricula_imovel") or "Não informada",
+            "endereco_completo": conf.get("endereco_completo") or "Não informado"
+        },
+        "imovel": {
+            "id": mat_desenho_id,
+            "nome": nome_lote,
+            "matricula": num_matricula_exibicao,
+            "municipio": dados["prop"].get("municipio") or "",
+            "uf": dados["prop"].get("uf") or ""
+        },
+        "poligono_imovel": poligono_coords,
+        "lindeira_coords": lindeira_coords,
+        "lindeira_pontos": lindeira_pontos,
+        "metricas": {
+            "vertice_inicial": ext_ini_nome,
+            "vertice_final": ext_fim_nome,
+            "extensao_total_m": round(extensao_total, 2),
+            "extensao_total_str": f"{extensao_total:.2f} m",
+            "qtd_segmentos": len(segmentos_detalhados),
+            "qtd_vertices": len(lindeira_pontos)
+        },
+        "segmentos": segmentos_detalhados
+    }
+
+

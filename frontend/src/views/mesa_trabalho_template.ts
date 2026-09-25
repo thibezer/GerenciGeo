@@ -636,6 +636,10 @@ export const renderMesaTrabalho = (): string => {
                         <i data-lucide="user-plus" class="w-4 h-4"></i>
                         <span class="hidden sm:inline">Novo</span>
                       </button>
+                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-blue-500/20 hover:border-blue-400/40 hover:bg-blue-500/10 text-blue-400 active:scale-95 shrink-0" id="btn-preview-anuencia" type="button" title="Pré-visualizar Pedaço da Propriedade (Divisa Lindeira)">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Ver Trecho</span>
+                      </button>
                       <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95 shrink-0" id="btn-emitir-anuencia" type="button" title="Gerar Declaração de Anuência">
                         <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
                         <span>Gerar</span>
@@ -660,6 +664,10 @@ export const renderMesaTrabalho = (): string => {
                             </div>
                          </div>
                          <div class="flex items-center gap-2">
+                            <button type="button" id="btn-preview-divisa-form" class="btn-secondary py-1 px-2.5 text-[11px] font-bold flex items-center gap-1.5 border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded transition-all active:scale-95" title="Pré-visualizar Pedaço da Propriedade no Mapa">
+                               <i data-lucide="map" class="w-3.5 h-3.5"></i>
+                               <span class="hidden sm:inline">Ver no Mapa</span>
+                            </button>
                             <span class="text-[10px] font-mono font-semibold px-2.5 py-1 rounded bg-white/5 border border-white/10 text-white/60" id="txt-conf-id-edicao">ID: -</span>
                             <button type="button" id="btn-fechar-card-confrontante" class="text-white/40 hover:text-white p-1 hover:bg-white/10 rounded transition-all" title="Fechar formulário">
                                <i data-lucide="x" class="w-4 h-4"></i>
@@ -1036,6 +1044,183 @@ export const renderMesaTrabalho = (): string => {
            </div>
          </div>
       </div>
+
+       <!-- MODAL DE PRÉ-VISUALIZAÇÃO DA DIVISA DE ANUÊNCIA -->
+       <div id="modal-preview-divisa-anuencia" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[var(--geo-z-modal)] hidden flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
+          <div class="glass-card w-full max-w-5xl rounded-technical shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-mint-vibrant/30 bg-[#0c1510]/95 text-white">
+             
+             <!-- Cabeçalho do Modal -->
+             <div class="px-6 py-4 border-b border-white/10 flex justify-between items-center shrink-0 bg-white/[0.02]">
+               <div class="flex items-center gap-3">
+                 <div class="w-9 h-9 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/30 flex items-center justify-center shrink-0">
+                   <i data-lucide="map-pin" class="w-5 h-5 text-mint-vibrant"></i>
+                 </div>
+                 <div>
+                   <h3 class="text-sm md:text-base font-bold text-white flex items-center gap-2">
+                     Pré-visualização da Divisa de Anuência
+                     <span id="preview-anuencia-badge-conf" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 uppercase">
+                       Carregando...
+                     </span>
+                   </h3>
+                   <span id="preview-anuencia-subtitulo" class="text-[11px] text-white/50 block">
+                     Confira exatamente qual pedaço da propriedade compõe a declaração antes de emiti-la.
+                   </span>
+                 </div>
+               </div>
+               <button class="text-white/40 hover:text-white p-1.5 hover:bg-white/10 rounded-lg transition-colors" id="btn-fechar-modal-preview-anuencia" type="button" title="Fechar Visualização">
+                 <i data-lucide="x" class="w-5 h-5"></i>
+               </button>
+             </div>
+
+             <!-- Corpo em Split-View (Mapa Interativo + Painel Técnico) -->
+             <div class="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+               
+               <!-- Coluna Esquerda: Mapa Interativo com Leaflet (7 colunas no LG) -->
+               <div class="lg:col-span-7 flex flex-col gap-3">
+                 <div class="relative w-full h-[360px] md:h-[460px] rounded-xl overflow-hidden border border-white/10 bg-[#070b09] shadow-inner group">
+                   
+                   <!-- Container do Leaflet -->
+                   <div id="mapa-preview-anuencia-divisa" class="w-full h-full z-0"></div>
+
+                   <!-- Overlay de Carregamento -->
+                   <div id="loader-mapa-preview-anuencia" class="absolute inset-0 bg-[#0c1510]/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20">
+                     <i data-lucide="loader-2" class="w-8 h-8 text-mint-vibrant animate-spin"></i>
+                     <span class="text-xs font-semibold text-white/70 tracking-wider uppercase">Carregando geometria da divisa...</span>
+                   </div>
+
+                   <!-- Legenda Flutuante sobre o Mapa -->
+                   <div class="absolute bottom-3 left-3 bg-[#0c1510]/90 backdrop-blur-md border border-white/15 rounded-lg px-3 py-2 z-10 text-[10px] space-y-1.5 shadow-lg select-none">
+                     <div class="flex items-center gap-2">
+                       <div class="w-5 h-0.5 border-t-2 border-dashed border-slate-400"></div>
+                       <span class="text-white/70">Contorno do Imóvel</span>
+                     </div>
+                     <div class="flex items-center gap-2">
+                       <div class="w-5 h-1 bg-[#00f5a0] rounded-full shadow-[0_0_8px_#00f5a0]"></div>
+                       <span class="text-mint-vibrant font-bold">Pedaço da Divisa (Anuência)</span>
+                     </div>
+                     <div class="flex items-center gap-2">
+                       <div class="w-2.5 h-2.5 rounded-full border border-mint-vibrant bg-white"></div>
+                       <span class="text-white/70">Vértices da Divisa</span>
+                     </div>
+                   </div>
+
+                   <!-- Controle de Camadas / Basemap Rápido -->
+                   <div class="absolute top-3 right-3 flex gap-1 bg-[#0c1510]/90 backdrop-blur-md border border-white/15 rounded-lg p-1 z-10 shadow-lg">
+                     <button type="button" id="btn-preview-tile-satelite" class="px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-slate-900 transition-all shadow-sm">Satélite</button>
+                     <button type="button" id="btn-preview-tile-escuro" class="px-2 py-1 text-[10px] font-bold rounded text-white/70 hover:text-white transition-all">Dark</button>
+                   </div>
+                 </div>
+
+                 <!-- Dica no rodapé do mapa -->
+                 <div class="text-[10px] text-white/40 flex items-center gap-1.5 italic px-1">
+                   <i data-lucide="info" class="w-3.5 h-3.5 text-mint-vibrant/70 shrink-0"></i>
+                   <span>Dica: Clique ou passe o cursor sobre os marcadores e a linha para inspecionar os vértices e medidas.</span>
+                 </div>
+               </div>
+
+               <!-- Coluna Direita: Painel Técnico e Dados Topográficos (5 colunas no LG) -->
+               <div class="lg:col-span-5 flex flex-col gap-4">
+                 
+                 <!-- Card de Métricas do Trecho -->
+                 <div class="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-3">
+                   <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                     <span class="text-[11px] font-bold uppercase text-white/70 tracking-wider">Métricas do Trecho Lindeiro</span>
+                     <span id="preview-anuencia-status-geo" class="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">VÁLIDO</span>
+                   </div>
+
+                   <div class="grid grid-cols-2 gap-3">
+                     <div class="bg-white/5 border border-white/5 rounded-lg p-2.5">
+                       <span class="text-[9px] text-white/40 uppercase block font-semibold">Extensão da Divisa</span>
+                       <span id="preview-anuencia-extensao" class="text-sm font-bold font-mono text-mint-vibrant">-</span>
+                     </div>
+                     <div class="bg-white/5 border border-white/5 rounded-lg p-2.5">
+                       <span class="text-[9px] text-white/40 uppercase block font-semibold">Caminhamento</span>
+                       <span id="preview-anuencia-caminhamento" class="text-sm font-bold font-mono text-white">-</span>
+                     </div>
+                   </div>
+
+                   <div class="grid grid-cols-2 gap-3 text-[11px]">
+                     <div>
+                       <span class="text-[9px] text-white/40 block">Vértices no Trecho:</span>
+                       <strong id="preview-anuencia-qtd-vertices" class="text-white font-mono">-</strong>
+                     </div>
+                     <div>
+                       <span class="text-[9px] text-white/40 block">Segmentos Lineares:</span>
+                       <strong id="preview-anuencia-qtd-segmentos" class="text-white font-mono">-</strong>
+                     </div>
+                   </div>
+                 </div>
+
+                 <!-- Card do Confrontante & Imóvel -->
+                 <div class="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-2 text-xs">
+                   <span class="text-[11px] font-bold uppercase text-white/70 tracking-wider block border-b border-white/10 pb-2">Dados da Anuência</span>
+                   <div>
+                     <span class="text-[10px] text-white/40 block">Confrontante Anuente:</span>
+                     <strong id="preview-anuencia-nome-conf" class="text-white">-</strong>
+                   </div>
+                   <div class="grid grid-cols-2 gap-2 text-[11px]">
+                     <div>
+                       <span class="text-[9px] text-white/40 block">CPF / CNPJ:</span>
+                       <span id="preview-anuencia-cpf-conf" class="font-mono text-white/80">-</span>
+                     </div>
+                     <div>
+                       <span class="text-[9px] text-white/40 block">Matrícula Confrontante:</span>
+                       <span id="preview-anuencia-mat-conf" class="font-mono text-white/80">-</span>
+                     </div>
+                   </div>
+                   <div class="pt-1">
+                     <span class="text-[9px] text-white/40 block">Imóvel Requerente:</span>
+                     <span id="preview-anuencia-imovel-req" class="text-white/80">-</span>
+                   </div>
+                 </div>
+
+                 <!-- Tabela de Segmentos do Trecho -->
+                 <div class="bg-white/[0.02] border border-white/10 rounded-xl p-3 flex-1 flex flex-col min-h-[160px] max-h-[220px]">
+                   <span class="text-[10px] font-bold uppercase text-white/50 tracking-wider mb-2 block">Segmentos Mapeados no Trecho</span>
+                   <div class="overflow-y-auto flex-1 pr-1">
+                     <table class="w-full text-left border-collapse text-[10px]">
+                       <thead>
+                         <tr class="border-b border-white/10 text-white/40 uppercase font-semibold">
+                           <th class="py-1 px-1.5">De ➔ Para</th>
+                           <th class="py-1 px-1.5 text-right">Azimute</th>
+                           <th class="py-1 px-1.5 text-right">Distância</th>
+                         </tr>
+                       </thead>
+                       <tbody id="preview-anuencia-tbody-segmentos">
+                         <tr>
+                           <td colspan="3" class="py-4 text-center text-white/30 italic">Carregando segmentos...</td>
+                         </tr>
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+
+               </div>
+
+             </div>
+
+             <!-- Rodapé com Ações -->
+             <div class="px-6 py-3.5 border-t border-white/10 flex flex-wrap justify-between items-center gap-3 shrink-0 bg-white/[0.01]">
+               <div class="flex items-center gap-2">
+                 <button class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5 border-white/10 text-white/70 hover:text-white" id="btn-preview-cancelar" type="button">
+                   Fechar
+                 </button>
+               </div>
+               <div class="flex items-center gap-2.5">
+                 <button class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 text-white active:scale-95" id="btn-preview-focar-cad" type="button" title="Destacar e centralizar este trecho no Canvas CAD principal">
+                   <i data-lucide="locate" class="w-4 h-4 text-mint-vibrant"></i>
+                   <span>Ver no CAD Principal</span>
+                 </button>
+                 <button class="btn-primary text-xs px-4 py-2 flex items-center gap-1.5 font-bold shadow-lg shadow-mint-vibrant/10 active:scale-95" id="btn-preview-gerar-anuencia" type="button">
+                   <i data-lucide="file-check" class="w-4 h-4"></i>
+                   <span>Gerar Anuência Oficial</span>
+                 </button>
+               </div>
+             </div>
+
+          </div>
+       </div>
+
 </div>
   `;
 };

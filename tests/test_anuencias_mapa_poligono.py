@@ -131,5 +131,38 @@ class TestAnuenciasMapaPoligono(unittest.TestCase):
         self.assertEqual(set(nomes_com_rotulo), {"V4", "V2"})
         self.assertEqual(map_data["lindeira_pontos"][1]["nome"], "V1")
 
+    def test_obter_preview_divisa_confrontante(self):
+        """Valida que a rota e a função de preview retornam polígono geral, lindeira e métricas estruturadas"""
+        from services.documentacao.cartorio.anuencias import obter_preview_divisa_confrontante
+        dados_preview = obter_preview_divisa_confrontante(1, 10, 100)
+        
+        self.assertIn("confrontante", dados_preview)
+        self.assertIn("imovel", dados_preview)
+        self.assertIn("poligono_imovel", dados_preview)
+        self.assertIn("lindeira_coords", dados_preview)
+        self.assertIn("metricas", dados_preview)
+        self.assertIn("segmentos", dados_preview)
+
+        # Confrontante e Imóvel
+        self.assertEqual(dados_preview["confrontante"]["nome"], "Vizinho Confrontante")
+        self.assertEqual(dados_preview["imovel"]["matricula"], "42859")
+
+        # Métricas do trecho
+        self.assertEqual(dados_preview["metricas"]["qtd_segmentos"], 2)
+        self.assertEqual(dados_preview["metricas"]["qtd_vertices"], 3)
+        self.assertGreater(dados_preview["metricas"]["extensao_total_m"], 0)
+
+        # Validar endpoint HTTP via TestClient
+        from fastapi.testclient import TestClient
+        from api import app
+        client = TestClient(app)
+        res = client.get("/levantamentos/1/matriculas/10/confrontantes/100/preview-divisa")
+        self.assertEqual(res.status_code, 200)
+        json_data = res.json()
+        self.assertEqual(json_data["confrontante"]["nome"], "Vizinho Confrontante")
+        self.assertEqual(len(json_data["lindeira_coords"]), 2)
+        self.assertEqual(json_data["metricas"]["qtd_segmentos"], 2)
+
 if __name__ == "__main__":
     unittest.main()
+

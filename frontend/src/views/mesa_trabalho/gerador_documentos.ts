@@ -676,6 +676,286 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
+    // =========================================================================
+    // PRÉ-VISUALIZAÇÃO DA DIVISA DE ANUÊNCIA (MAPA + CROQUI + DADOS TÉCNICOS)
+    // =========================================================================
+    let previewAnuenciaMap: L.Map | null = null;
+    let currentPreviewConfId: string | number | null = null;
+    let tileLayerSatelite: L.TileLayer | null = null;
+    let tileLayerDark: L.TileLayer | null = null;
+
+    const modalPreview = document.getElementById('modal-preview-divisa-anuencia') as HTMLElement;
+    const loaderMapaPreview = document.getElementById('loader-mapa-preview-anuencia') as HTMLElement;
+
+    const fecharModalPreview = () => {
+      if (modalPreview) modalPreview.classList.add('hidden');
+      if (previewAnuenciaMap) {
+        previewAnuenciaMap.remove();
+        previewAnuenciaMap = null;
+      }
+      currentPreviewConfId = null;
+    };
+
+    const btnFecharPreview = document.getElementById('btn-fechar-modal-preview-anuencia');
+    const btnCancelarPreview = document.getElementById('btn-preview-cancelar');
+    if (btnFecharPreview) btnFecharPreview.onclick = fecharModalPreview;
+    if (btnCancelarPreview) btnCancelarPreview.onclick = fecharModalPreview;
+
+    const btnGerarOficialPreview = document.getElementById('btn-preview-gerar-anuencia');
+    if (btnGerarOficialPreview) {
+      btnGerarOficialPreview.onclick = () => {
+        if (!currentPreviewConfId || !ctx.currentLevId || !ctx.currentMatriculaId) return;
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${currentPreviewConfId}/anuencia-html`;
+        window.open(url, '_blank');
+      };
+    }
+
+    const btnFocarCad = document.getElementById('btn-preview-focar-cad');
+    if (btnFocarCad) {
+      btnFocarCad.onclick = () => {
+        fecharModalPreview();
+        const tabGeodesica = document.querySelector('[data-tab="mesa_geodesica"]') as HTMLElement;
+        if (tabGeodesica) tabGeodesica.click();
+        showToast("Visualizando perímetro no Canvas CAD.", "info");
+      };
+    }
+
+    const abrirPreviewDivisaAnuencia = async (confrontanteId: string | number) => {
+      if (!ctx.currentLevId || !ctx.currentMatriculaId) {
+        showToast("Selecione um levantamento e matrícula válidos.", "info");
+        return;
+      }
+      if (!confrontanteId || confrontanteId === "lote") {
+        showToast("Selecione um confrontante individual para visualizar o pedaço da propriedade.", "info");
+        return;
+      }
+
+      currentPreviewConfId = confrontanteId;
+      if (!modalPreview) return;
+      modalPreview.classList.remove('hidden');
+      if (loaderMapaPreview) loaderMapaPreview.classList.remove('hidden');
+
+      const badgeConf = document.getElementById('preview-anuencia-badge-conf');
+      const txtSubtitulo = document.getElementById('preview-anuencia-subtitulo');
+      const txtExtensao = document.getElementById('preview-anuencia-extensao');
+      const txtCaminhamento = document.getElementById('preview-anuencia-caminhamento');
+      const txtQtdVertices = document.getElementById('preview-anuencia-qtd-vertices');
+      const txtQtdSegmentos = document.getElementById('preview-anuencia-qtd-segmentos');
+      const txtNomeConf = document.getElementById('preview-anuencia-nome-conf');
+      const txtCpfConf = document.getElementById('preview-anuencia-cpf-conf');
+      const txtMatConf = document.getElementById('preview-anuencia-mat-conf');
+      const txtImovelReq = document.getElementById('preview-anuencia-imovel-req');
+      const tbodySegs = document.getElementById('preview-anuencia-tbody-segmentos');
+      const statusGeo = document.getElementById('preview-anuencia-status-geo');
+
+      if (badgeConf) badgeConf.innerText = "CARREGANDO...";
+      if (tbodySegs) {
+        tbodySegs.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-white/40 italic">Buscando dados da divisa...</td></tr>`;
+      }
+
+      try {
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${confrontanteId}/preview-divisa`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: "Falha ao obter geometria." }));
+          throw new Error(err.detail || "Falha ao obter dados do trecho da divisa.");
+        }
+        const data = await res.json();
+
+        if (badgeConf) badgeConf.innerText = data.confrontante.nome || "CONFRONTANTE";
+        if (txtSubtitulo) {
+          txtSubtitulo.innerText = `Confrontação com ${data.imovel.nome} (${data.imovel.matricula ? `Matrícula ${data.imovel.matricula}` : 'Área do Projeto'})`;
+        }
+        if (txtNomeConf) txtNomeConf.innerText = data.confrontante.nome || "-";
+        if (txtCpfConf) txtCpfConf.innerText = data.confrontante.cpf_cnpj || "Não informado";
+        if (txtMatConf) txtMatConf.innerText = data.confrontante.matricula_imovel || "Não informada";
+        if (txtImovelReq) {
+          txtImovelReq.innerText = `${data.imovel.nome} - Matrícula ${data.imovel.matricula || 'S/N'}`;
+        }
+
+        const metricas = data.metricas || {};
+        if (txtExtensao) txtExtensao.innerText = metricas.extensao_total_str || "0.00 m";
+        if (txtCaminhamento) {
+          txtCaminhamento.innerText = (metricas.vertice_inicial && metricas.vertice_final && metricas.vertice_inicial !== "-") 
+            ? `${metricas.vertice_inicial} ➔ ${metricas.vertice_final}` 
+            : "Não encadeado";
+        }
+        if (txtQtdVertices) txtQtdVertices.innerText = `${metricas.qtd_vertices || 0} vértices`;
+        if (txtQtdSegmentos) txtQtdSegmentos.innerText = `${metricas.qtd_segmentos || 0} segmentos`;
+
+        if (statusGeo) {
+          if ((metricas.qtd_segmentos || 0) > 0) {
+            statusGeo.innerText = "TRECHO VÁLIDO";
+            statusGeo.className = "text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold";
+          } else {
+            statusGeo.innerText = "SEM SEGMENTOS";
+            statusGeo.className = "text-[9px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold";
+          }
+        }
+
+        // Tabela de segmentos
+        if (tbodySegs) {
+          if (Array.isArray(data.segmentos) && data.segmentos.length > 0) {
+            tbodySegs.innerHTML = data.segmentos.map((s: any) => `
+              <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-colors font-mono">
+                <td class="py-1.5 px-1.5 font-bold text-white">${s.de} <span class="text-mint-vibrant">➔</span> ${s.para}</td>
+                <td class="py-1.5 px-1.5 text-right text-white/80">${s.azimute}</td>
+                <td class="py-1.5 px-1.5 text-right font-bold text-mint-vibrant">${s.distancia_str}</td>
+              </tr>
+            `).join('');
+          } else {
+            tbodySegs.innerHTML = `
+              <tr>
+                <td colspan="3" class="py-4 text-center text-amber-400/80 italic">
+                  Nenhum segmento da matrícula foi vinculado a este confrontante na Etapa 2 de Definição de Limites.
+                </td>
+              </tr>
+            `;
+          }
+        }
+
+        // Mapa Leaflet
+        const mapContainer = document.getElementById('mapa-preview-anuencia-divisa');
+        if (mapContainer) {
+          if (previewAnuenciaMap) {
+            previewAnuenciaMap.remove();
+            previewAnuenciaMap = null;
+          }
+
+          previewAnuenciaMap = L.map(mapContainer, {
+            attributionControl: false,
+            zoomControl: true,
+            maxZoom: 22
+          });
+
+          tileLayerSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 20
+          });
+
+          tileLayerDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20,
+            subdomains: 'abcd'
+          });
+
+          tileLayerSatelite.addTo(previewAnuenciaMap);
+
+          const btnSat = document.getElementById('btn-preview-tile-satelite');
+          const btnDark = document.getElementById('btn-preview-tile-escuro');
+          if (btnSat && btnDark) {
+            btnSat.onclick = () => {
+              if (tileLayerDark && previewAnuenciaMap?.hasLayer(tileLayerDark)) previewAnuenciaMap.removeLayer(tileLayerDark);
+              if (tileLayerSatelite && previewAnuenciaMap && !previewAnuenciaMap.hasLayer(tileLayerSatelite)) tileLayerSatelite.addTo(previewAnuenciaMap);
+              btnSat.className = "px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-slate-900 transition-all shadow-sm";
+              btnDark.className = "px-2 py-1 text-[10px] font-bold rounded text-white/70 hover:text-white transition-all";
+            };
+            btnDark.onclick = () => {
+              if (tileLayerSatelite && previewAnuenciaMap?.hasLayer(tileLayerSatelite)) previewAnuenciaMap.removeLayer(tileLayerSatelite);
+              if (tileLayerDark && previewAnuenciaMap && !previewAnuenciaMap.hasLayer(tileLayerDark)) tileLayerDark.addTo(previewAnuenciaMap);
+              btnDark.className = "px-2 py-1 text-[10px] font-bold rounded bg-mint-vibrant text-slate-900 transition-all shadow-sm";
+              btnSat.className = "px-2 py-1 text-[10px] font-bold rounded text-white/70 hover:text-white transition-all";
+            };
+          }
+
+          const boundsGroup = L.featureGroup();
+
+          // Desenha polígono geral
+          if (Array.isArray(data.poligono_imovel) && data.poligono_imovel.length >= 3) {
+            const polyImovel = L.polygon(data.poligono_imovel, {
+              color: '#94a3b8',
+              weight: 2,
+              dashArray: '5, 5',
+              fillColor: '#00f5a0',
+              fillOpacity: 0.04
+            }).addTo(previewAnuenciaMap);
+            polyImovel.bindTooltip("Limite Geral do Imóvel", { sticky: true });
+            boundsGroup.addLayer(polyImovel);
+          }
+
+          // Desenha divisa lindeira em destaque
+          if (Array.isArray(data.lindeira_coords) && data.lindeira_coords.length > 0) {
+            const polylineLindeira = L.polyline(data.lindeira_coords, {
+              color: '#00f5a0',
+              weight: 6,
+              opacity: 0.95
+            }).addTo(previewAnuenciaMap);
+
+            polylineLindeira.bindTooltip(`Divisa: ${data.confrontante.nome} (${metricas.extensao_total_str || ''})`, {
+              sticky: true,
+              className: 'bg-[#0c1510] text-mint-vibrant font-bold font-mono text-[10px] border border-mint-vibrant/30 rounded px-2 py-1 shadow-xl'
+            });
+            boundsGroup.addLayer(polylineLindeira);
+          }
+
+          // Marcadores circulares nos vértices
+          if (Array.isArray(data.lindeira_pontos)) {
+            data.lindeira_pontos.forEach((p: any) => {
+              if (p.coords && p.coords.length === 2) {
+                const marker = L.circleMarker(p.coords, {
+                  radius: p.is_extremo ? 6 : 4,
+                  color: '#00f5a0',
+                  fillColor: p.is_extremo ? '#ffffff' : '#0c1510',
+                  fillOpacity: 1,
+                  weight: 2
+                }).addTo(previewAnuenciaMap!);
+
+                marker.bindTooltip(`Vértice ${p.nome}`, {
+                  permanent: p.is_extremo,
+                  direction: 'top',
+                  className: 'bg-[#0c1510] text-white font-bold font-mono text-[9px] border border-white/20 rounded px-1.5 py-0.5'
+                });
+                boundsGroup.addLayer(marker);
+              }
+            });
+          }
+
+          setTimeout(() => {
+            if (previewAnuenciaMap) {
+              previewAnuenciaMap.invalidateSize();
+              if (boundsGroup.getLayers().length > 0) {
+                previewAnuenciaMap.fitBounds(boundsGroup.getBounds(), { padding: [40, 40], maxZoom: 19 });
+              }
+            }
+            if (loaderMapaPreview) loaderMapaPreview.classList.add('hidden');
+          }, 250);
+        }
+      } catch (err: any) {
+        console.error("Erro ao carregar pré-visualização da divisa:", err);
+        showToast(err.message || "Erro ao carregar pré-visualização da divisa.", "error");
+        if (loaderMapaPreview) loaderMapaPreview.classList.add('hidden');
+      }
+
+      initIcons();
+    };
+
+    (window as any).abrirPreviewDivisaAnuenciaGlobal = abrirPreviewDivisaAnuencia;
+
+    const btnPreviewAnuencia = document.getElementById('btn-preview-anuencia');
+    if (btnPreviewAnuencia) {
+      btnPreviewAnuencia.onclick = () => {
+        const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
+        const confId = select ? select.value : '';
+        if (!confId || confId === 'lote') {
+          showToast("Selecione um confrontante da lista para pré-visualizar a divisa.", "info");
+          return;
+        }
+        abrirPreviewDivisaAnuencia(confId);
+      };
+    }
+
+    const btnPreviewDivisaForm = document.getElementById('btn-preview-divisa-form');
+    if (btnPreviewDivisaForm) {
+      btnPreviewDivisaForm.onclick = () => {
+        const inputConf = document.getElementById('input-conf-id') as HTMLInputElement;
+        const containerF = document.getElementById('container-form-confrontante') as HTMLElement;
+        const confId = inputConf ? inputConf.value : (containerF ? containerF.dataset.confrontanteId : '');
+        if (!confId) {
+          showToast("Selecione ou salve o confrontante primeiro para pré-visualizar sua divisa.", "info");
+          return;
+        }
+        abrirPreviewDivisaAnuencia(confId);
+      };
+    }
+
     const selectAnuencia = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
     const containerForm = document.getElementById('container-form-confrontante') as HTMLElement;
     const inputConfId = document.getElementById('input-conf-id') as HTMLInputElement;

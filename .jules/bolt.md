@@ -63,3 +63,23 @@
 **Learning:** O Leaflet trata o primeiro parâmetro de `L.control.layers` como `baseLayers` de seleção exclusiva (`radio`). Por ter apenas a imagem do Google cadastrada, o satélite de fundo tornava-se obrigatório na UI, impedindo topógrafos de desativá-lo para trabalhar na tela limpa CAD/vetorial e consumindo requisições de tiles em `preCarregarTilesRegiao`.
 **Action:** A camada de satélite foi convertida para sobreposição (`overlay`), ganhando checkbox no controle de camadas, um botão de alternância rápida na barra de ferramentas unificada (`UnifiedToolbarControl`), sincronização bidirecional com a janela de configurações CAD (`config_mapa.html`), salvamento em `localStorage` (`LS_KEY_CAMADAS`) e salvaguarda em `preCarregarTilesRegiao` para pausar o download de tiles quando inativo.
 
+
+---
+
+## 30. Pré-visualização Interativa do Trecho da Divisa de Anuência (Leaflet + Topologia Lindeira)
+- **Problema**:
+  1. No fluxo cartorial de emissão de Anuência de Confrontantes, o profissional agrimensor emitia a declaração sem ter conferência visual prévia de qual trecho exato da propriedade (quais vértices, qual extensão em metros e quais azimutes) compunha a divisa com aquele confrontante específico.
+  2. Caso houvesse algum erro de mapeamento na cadeia de segmentos ou confrontantes trocados, o erro só era percebido após abrir o PDF ou documento gerado, gerando retrabalho e risco notarial.
+- **Regra Obrigatória**:
+  1. **Separação Geométrica de Contexto vs. Foco**: A rota de preview (`GET /levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/preview-divisa`) retorna separadamente:
+     - `poligono_imovel`: o contorno geral completo do imóvel, renderizado como polígono sutil com linha tracejada e preenchimento discreto;
+     - `lindeira_coords`: a polilinha dos segmentos que confrontam com o vizinho selecionado, destacada em cor vibrante neon (`#00f5a0`) com marcadores circulares nos nós;
+     - `metricas` e `segmentos`: vértice inicial e final do trecho, extensão total métrica rigorosa (GRS80/SIRGAS 2000) e lista de azimutes e distâncias de cada segmento.
+  2. **Ciclo de Vida do Leaflet em Modais**: Toda instância do Leaflet criada em modais flutuantes deve:
+     - Destruir a instância anterior com `previewMap.remove()` antes de reinstanciar para evitar vazamento de memória e conflitos de canvas;
+     - Invocar `previewMap.invalidateSize()` após 250ms de exibição do modal para que o Leaflet recalcule as dimensões reais do contêiner;
+     - Fazer `fitBounds()` com margem de segurança (`padding: [40, 40]`) para que o trecho lindeiro e seu contexto fiquem centralizados.
+  3. **Acesso Unificado**: O recurso de pré-visualização deve ser acessível por múltiplos pontos de entrada:
+     - Botão "Ver Trecho" (`#btn-preview-anuencia`) no seletor de anuências cartoriais;
+     - Botão "Ver no Mapa" (`#btn-preview-divisa-form`) no formulário de qualificação do confrontante;
+     - Botão de anuência rápida (`.btn-emitir-anuencia-rapida`) em cada linha da tabela de divisas perimétricas.

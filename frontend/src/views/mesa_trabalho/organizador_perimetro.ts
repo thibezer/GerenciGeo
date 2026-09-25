@@ -340,6 +340,38 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
           }
         });
       });
+
+      document.querySelectorAll('.btn-emitir-anuencia-rapida').forEach((btn: any) => {
+        btn.addEventListener('click', (e: Event) => {
+          e.stopPropagation();
+          const confId = btn.getAttribute('data-confrontante-id');
+          if (!confId) {
+            showToast("Esta divisa ainda não possui confrontante vinculado.", "info");
+            return;
+          }
+          if (typeof (window as any).abrirPreviewDivisaAnuenciaGlobal === 'function') {
+            (window as any).abrirPreviewDivisaAnuenciaGlobal(confId);
+          }
+        });
+      });
+
+      document.querySelectorAll('.btn-emitir-requerimento-rapido').forEach((btn: any) => {
+        btn.addEventListener('click', (e: Event) => {
+          e.stopPropagation();
+          if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+          const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/requerimento-cartorio-html`;
+          window.open(url, '_blank');
+        });
+      });
+
+      document.querySelectorAll('.btn-emitir-laudo-rapido').forEach((btn: any) => {
+        btn.addEventListener('click', (e: Event) => {
+          e.stopPropagation();
+          if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+          const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/laudo-tecnico-html`;
+          window.open(url, '_blank');
+        });
+      });
     }
   }
 

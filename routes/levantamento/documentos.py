@@ -506,6 +506,20 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/preview-divisa")
+def get_preview_divisa_confrontante(id: int, matricula_id: int, confrontante_id: int):
+    try:
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
+        return CartorioReportGenerator.obter_preview_divisa_confrontante(
+            lev_id=id,
+            matricula_id=matricula_id,
+            confrontante_id=confrontante_id
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/anuencia-lote-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_ids: Optional[str] = Query(None)):
     try:
