@@ -872,16 +872,27 @@ export const mesaTrabalhoRoute: RouteDef = {
       ctx.selectedVizinhoPontoIds = [];
       ctx.lastSelectedPontoId = pontoId;
 
-      let row = document.getElementById(`tr-ponto-${pontoId}`);
-      if (!row) {
-        const uiTabelaEl = document.getElementById('ui-tbl-pontos-triagem') as (HTMLElement & { shadowRoot?: ShadowRoot }) | null;
-        if (uiTabelaEl?.shadowRoot) {
+      const uiTabelaEl = document.getElementById('ui-tbl-pontos-triagem') as any;
+      let rolouViaComponente = false;
+      if (uiTabelaEl) {
+        if (typeof uiTabelaEl.rolarPara === 'function') {
+          rolouViaComponente = uiTabelaEl.rolarPara(pontoId, { comportamento: 'smooth', selecionar: true }) !== false;
+        } else if (typeof uiTabelaEl.rolarParaItem === 'function') {
+          rolouViaComponente = uiTabelaEl.rolarParaItem(pontoId, { comportamento: 'smooth', selecionar: true }) !== false;
+        } else if (typeof uiTabelaEl.rolarParaId === 'function') {
+          rolouViaComponente = uiTabelaEl.rolarParaId(pontoId) !== false;
+        }
+      }
+
+      if (!rolouViaComponente) {
+        let row = document.getElementById(`tr-ponto-${pontoId}`);
+        if (!row && uiTabelaEl?.shadowRoot) {
           const el = uiTabelaEl.shadowRoot.querySelector(`[data-ponto-id="${pontoId}"]`);
           row = (el?.closest('tr') || el || null) as HTMLElement | null;
         }
-      }
-      if (row) {
-         row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       }
 
       ctx.atualizarDestaqueLinhasTabela();
