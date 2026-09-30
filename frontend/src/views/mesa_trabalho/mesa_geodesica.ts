@@ -1286,6 +1286,14 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     ctx.ferramentaCaneta.alternar();
   });
 
+  document.getElementById('btn-mapa-caneta-flutuante')?.addEventListener('click', () => {
+    if (!ctx.ferramentaCaneta) {
+      ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+    }
+    ctx.ferramentaCaneta.alternar();
+  });
+  initIcons();
+
   // Atalho de teclado 'P' para alternar a Caneta de Seleção quando não estiver digitando
   window.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {

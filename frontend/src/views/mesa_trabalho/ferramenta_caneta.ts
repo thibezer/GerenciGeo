@@ -482,6 +482,17 @@ export class FerramentaCanetaSelecao {
       }
     }
 
+    const btnFlutuante = document.getElementById('btn-mapa-caneta-flutuante');
+    if (btnFlutuante) {
+      if (ativo) {
+        btnFlutuante.classList.add('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btnFlutuante.classList.remove('text-white/70');
+      } else {
+        btnFlutuante.classList.remove('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btnFlutuante.classList.add('text-white/70');
+      }
+    }
+
     // Botão no ShadowRoot do Canvas se existir
     const canvasEl = document.getElementById('mapa-triagem') as any;
     if (canvasEl && canvasEl.shadowRoot) {

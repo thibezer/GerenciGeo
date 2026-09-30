@@ -404,6 +404,13 @@ export const renderMesaTrabalho = (): string => {
                </div>
                <span class="text-[8px] font-mono text-white/20 uppercase tracking-widest">Baseado no Banco de Pontos</span>
              </div>
+             <!-- Toolbar Flutuante do Mapa (Caneta de Seleção) -->
+             <div class="absolute top-3 left-3 z-[400] flex items-center gap-1.5 bg-[#0c1510]/85 backdrop-blur-md border border-white/10 p-1 rounded-technical shadow-2xl" id="map-cad-floating-toolbar">
+               <button id="btn-mapa-caneta-flutuante" class="px-2 py-1 text-white/70 hover:text-mint-vibrant hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Caneta de Seleção Poligonal (Atalho: P)">
+                 <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                 <span>Caneta</span>
+               </button>
+             </div>
              <!-- Mesa CAD via Web Component nativo do UI-Kit -->
              <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
           </div>
