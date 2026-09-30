@@ -1,8 +1,79 @@
 import './style.css';
 import './design-engine.css';
 import 'ui-components-kit';
+import { carregarModuloCanvas } from 'ui-components-kit';
 
-// Componentes globais de UI são carregados via ui-components-kit
+// Adapters de compatibilidade para métodos legados chamados pelas views da Mesa de Trabalho
+export const aplicarAdaptersCAD = (cadProto: any) => {
+  if (!cadProto) return;
+  if (!cadProto.plotPontos) {
+    cadProto.plotPontos = function(pontos: any[]) {
+      this.pontos = pontos;
+    };
+  }
+  if (!cadProto.plotSegmentos) {
+    cadProto.plotSegmentos = function(segmentos: any[], pontos?: any[]) {
+      if (pontos) this.pontos = pontos;
+      this.segmentos = segmentos;
+    };
+  }
+  if (!cadProto.plotPolilinhaTemporaria) {
+    cadProto.plotPolilinhaTemporaria = function(pontos: any[]) {
+      if (!this.segmentos || this.segmentos.length === 0) {
+        this.pontos = pontos;
+      }
+    };
+  }
+  if (!cadProto.plotPoligonalHomologada) {
+    cadProto.plotPoligonalHomologada = function(bancoPontos: any[]) {
+      this.bancoPontos = bancoPontos;
+    };
+  }
+  if (!cadProto.plotPontosVizinhos) {
+    cadProto.plotPontosVizinhos = function(pontosVizinhos: any[]) {
+      const ctrl = typeof this.getController === 'function' ? this.getController() : this.controller;
+      if (ctrl?.layerManager) {
+        ctrl.layerManager.updateContext({ pontosVizinhos });
+      }
+    };
+  }
+  if (!cadProto.plotPoligonosVizinhos) {
+    cadProto.plotPoligonosVizinhos = function(confrontantes: any[]) {
+      this.confrontantes = confrontantes;
+    };
+  }
+  if (!cadProto.clearOverlays) {
+    cadProto.clearOverlays = function(_bpAtivo?: boolean) {
+      // Camadas no ui-canvas-cad são reativas
+    };
+  }
+  if (!cadProto.destacarElemento) {
+    cadProto.destacarElemento = function(id: any, opts?: any) {
+      this.selectPonto(id, opts?.zoom);
+    };
+  }
+};
+
+// Registra e ativa o módulo de Canvas CAD no CustomElementRegistry
+if (typeof carregarModuloCanvas === 'function') {
+  carregarModuloCanvas().then((mod: any) => {
+    const CadClass = mod?.UICanvasCAD || customElements.get('ui-canvas-cad');
+    if (CadClass?.prototype) {
+      aplicarAdaptersCAD(CadClass.prototype);
+    }
+  }).catch((err: any) => {
+    console.error('[GerenciGeo] Erro ao carregar módulo CAD do UI Kit:', err);
+  });
+}
+
+if (typeof customElements !== 'undefined') {
+  customElements.whenDefined('ui-canvas-cad').then((CadClass: any) => {
+    if (CadClass?.prototype) {
+      aplicarAdaptersCAD(CadClass.prototype);
+    }
+  });
+}
+
 
 import type { RouteDef } from './types';
 import { initIcons, clearTimeoutsAndIntervals, showToast } from './utils';
