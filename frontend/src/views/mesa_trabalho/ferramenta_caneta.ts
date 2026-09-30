@@ -175,8 +175,7 @@ export class FerramentaCanetaSelecao {
       fillColor: isPrimeiro ? '#00f5a0' : '#38bdf8',
       color: '#ffffff',
       weight: 1.5,
-      fillOpacity: 1,
-      pane: 'perimetroPane'
+      fillOpacity: 1
     });
 
     if (this.camadaDesenho) {
@@ -203,54 +202,58 @@ export class FerramentaCanetaSelecao {
   private onMapMouseMove(e: L.LeafletMouseEvent): void {
     if (!this.ativo || this.vertices.length === 0) return;
 
-    const map = this.obterMapa();
-    if (!map) return;
+    try {
+      const map = this.obterMapa();
+      if (!map) return;
 
-    const mouseLatLng = e.latlng;
+      const mouseLatLng = e.latlng;
+      if (!mouseLatLng || typeof mouseLatLng.lat !== 'number' || typeof mouseLatLng.lng !== 'number') return;
 
-    // Verifica se está com snap próximo ao ponto de partida
-    if (this.vertices.length >= 3 && this.marcadorInicio) {
-      const pontoPixelMouse = map.latLngToContainerPoint(mouseLatLng);
-      const pontoPixelInicio = map.latLngToContainerPoint(this.vertices[0]);
-      const dist = pontoPixelMouse.distanceTo(pontoPixelInicio);
+      // Verifica se está com snap próximo ao ponto de partida
+      if (this.vertices.length >= 3 && this.marcadorInicio) {
+        const pontoPixelMouse = map.latLngToContainerPoint(mouseLatLng);
+        const pontoPixelInicio = map.latLngToContainerPoint(this.vertices[0]);
+        const dist = pontoPixelMouse.distanceTo(pontoPixelInicio);
 
-      if (dist <= 18) {
-        this.marcadorInicio.setStyle({
-          radius: 9,
-          fillColor: '#facc15', // Amarelo de destaque
-          color: '#ffffff',
-          weight: 2
+        if (dist <= 18) {
+          this.marcadorInicio.setStyle({
+            radius: 9,
+            fillColor: '#facc15', // Amarelo de destaque
+            color: '#ffffff',
+            weight: 2
+          });
+        } else {
+          this.marcadorInicio.setStyle({
+            radius: 6,
+            fillColor: '#00f5a0',
+            color: '#ffffff',
+            weight: 1.5
+          });
+        }
+      }
+
+      // Linha elástica: quando há 1 vértice, liga o vértice 0 ao mouse.
+      // Quando há 2 ou mais, fecha o loop visual: último vértice -> mouse -> primeiro vértice.
+      const coordsGuia = this.vertices.length >= 2
+        ? [this.vertices[this.vertices.length - 1], mouseLatLng, this.vertices[0]]
+        : [this.vertices[0], mouseLatLng];
+
+      if (!this.linhaGuia) {
+        this.linhaGuia = L.polyline(coordsGuia, {
+          color: '#00f5a0',
+          weight: 1.5,
+          opacity: 0.85,
+          dashArray: '4, 4'
         });
+        if (this.camadaDesenho) {
+          this.linhaGuia.addTo(this.camadaDesenho);
+        }
       } else {
-        this.marcadorInicio.setStyle({
-          radius: 6,
-          fillColor: '#00f5a0',
-          color: '#ffffff',
-          weight: 1.5
-        });
+        this.linhaGuia.setLatLngs(coordsGuia);
       }
-    }
-
-    // Desenha a linha guia temporária: último vértice -> mouse -> primeiro vértice
-    const coordsGuia = [
-      this.vertices[this.vertices.length - 1],
-      mouseLatLng,
-      this.vertices[0]
-    ];
-
-    if (!this.linhaGuia) {
-      this.linhaGuia = L.polyline(coordsGuia, {
-        color: '#00f5a0',
-        weight: 1.5,
-        opacity: 0.85,
-        dashArray: '4, 4',
-        pane: 'perimetroPane'
-      });
-      if (this.camadaDesenho) {
-        this.linhaGuia.addTo(this.camadaDesenho);
-      }
-    } else {
-      this.linhaGuia.setLatLngs(coordsGuia);
+    } catch (err) {
+      // Ignora pequenos erros de projeção de pixel em movimento rápido
+      console.warn('[Caneta] Erro ao atualizar linha guia:', err);
     }
   }
 
@@ -342,8 +345,7 @@ export class FerramentaCanetaSelecao {
           weight: 2,
           opacity: 0.9,
           fillColor: '#00f5a0',
-          fillOpacity: 0.16,
-          pane: 'perimetroPane'
+          fillOpacity: 0.16
         }).addTo(this.camadaDesenho);
       } else {
         this.poligonoTemp.setLatLngs(this.vertices);
