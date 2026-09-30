@@ -432,6 +432,10 @@ export const renderMesaTrabalho = (): string => {
                   <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-ativar-reordenacao" type="button">
                     Reordenar Manual
                   </button>
+                  <button class="text-[9px] px-2.5 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1 flex items-center gap-1" id="btn-ferramenta-caneta" type="button" title="Seleção Poligonal / Caneta estilo Photoshop (Atalho: P)">
+                    <i data-lucide="pen-tool" class="w-3 h-3"></i>
+                    Caneta de Seleção
+                  </button>
                   <div class="relative inline-block ml-1" id="dropdown-filtro-arquivos-parent">
                     <button class="text-[9px] px-2.5 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant flex items-center gap-1" id="btn-filtro-arquivos" type="button">
                       <i data-lucide="filter" class="w-3 h-3"></i>

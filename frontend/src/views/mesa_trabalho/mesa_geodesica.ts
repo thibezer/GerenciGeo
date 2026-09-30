@@ -3,6 +3,7 @@ import { initIcons, showToast } from '../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from './mesa_trabalho_tabela';
 import { registrarEventosExportacao } from './exportacao_cad';
 import { initNuvemSyncModal } from './nuvem_sync_modal';
+import { FerramentaCanetaSelecao } from './ferramenta_caneta';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
@@ -1270,6 +1271,33 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       showToast("Por favor, vá para a aba 'Org. de Perímetro' para reordenar.", "info");
       const tabCartorio = document.getElementById('tab-perimetro');
       if (tabCartorio) tabCartorio.click();
+    }
+  });
+
+  // Ferramenta Caneta de Seleção Poligonal (Estilo Pen Tool / Photoshop)
+  if (!ctx.ferramentaCaneta) {
+    ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+  }
+
+  document.getElementById('btn-ferramenta-caneta')?.addEventListener('click', () => {
+    if (!ctx.ferramentaCaneta) {
+      ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+    }
+    ctx.ferramentaCaneta.alternar();
+  });
+
+  // Atalho de teclado 'P' para alternar a Caneta de Seleção quando não estiver digitando
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const tag = activeEl?.tagName?.toLowerCase();
+      if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !activeEl?.isContentEditable) {
+        e.preventDefault();
+        if (!ctx.ferramentaCaneta) {
+          ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+        }
+        ctx.ferramentaCaneta.alternar();
+      }
     }
   });
 

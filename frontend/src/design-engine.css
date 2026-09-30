@@ -2415,4 +2415,31 @@ button,
   -webkit-user-select: none !important;
 }
 
+/* ====================================================
+   Ferramenta Caneta de Seleção Poligonal (Photoshop-like)
+   ==================================================== */
+.modo-caneta-cursor,
+.modo-caneta-cursor .leaflet-container,
+.modo-caneta-cursor .leaflet-grab,
+.modo-caneta-cursor .leaflet-pane {
+  cursor: crosshair !important;
+}
+
+.tooltip-caneta-snap {
+  background: rgba(12, 21, 16, 0.95) !important;
+  border: 1px solid #00f5a0 !important;
+  color: #00f5a0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 10px rgba(0, 245, 160, 0.4) !important;
+  pointer-events: none !important;
+}
+
+.tooltip-caneta-snap::before {
+  border-top-color: #00f5a0 !important;
+}
+
+
 
