@@ -2,6 +2,21 @@ import L from 'leaflet';
 import { showToast } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
+// Salvaguarda global para robustez do Leaflet contra bounds não-inicializados em Canvas
+if (typeof L !== 'undefined' && L.Bounds && L.Bounds.prototype) {
+  const proto = L.Bounds.prototype as any;
+  if (!proto.__gerencigeo_bounds_patched) {
+    proto.__gerencigeo_bounds_patched = true;
+    const originalIntersects = proto.intersects;
+    proto.intersects = function(other: any): boolean {
+      if (!this.min || !this.max) return false;
+      const b = (other instanceof L.Bounds) ? other : (L.bounds ? L.bounds(other) : other);
+      if (!b || !b.min || !b.max) return false;
+      return originalIntersects.call(this, b);
+    };
+  }
+}
+
 /**
  * Ferramenta Caneta de Seleção Poligonal (Estilo Pen Tool / Photoshop)
  * Permite ao operador clicar no mapa sucessivamente para definir os vértices
@@ -14,6 +29,7 @@ export class FerramentaCanetaSelecao {
   
   // Elementos do Leaflet
   private camadaDesenho: L.LayerGroup | null = null;
+  private svgRenderer: L.SVG | null = null;
   private poligonoTemp: L.Polygon | null = null;
   private linhaGuia: L.Polyline | null = null;
   private marcadoresVertices: L.CircleMarker[] = [];
@@ -21,6 +37,7 @@ export class FerramentaCanetaSelecao {
   private bannerFlutuante: HTMLElement | null = null;
 
   // Handlers vinculados para desregistro seguro
+  private mouseMoveRaf: number | null = null;
   private onMapClickBound: (e: L.LeafletMouseEvent) => void;
   private onMapMouseMoveBound: (e: L.LeafletMouseEvent) => void;
   private onMapDblClickBound: (e: L.LeafletMouseEvent) => void;
@@ -70,6 +87,11 @@ export class FerramentaCanetaSelecao {
     }
     this.ctx.modoCliqueSequencialAtivo = false;
 
+    // Instancia renderer SVG isolado para evitar qualquer conflito com o Canvas global do mapa
+    if (!this.svgRenderer) {
+      this.svgRenderer = L.svg();
+    }
+
     // Garante LayerGroup no mapa
     if (!this.camadaDesenho) {
       this.camadaDesenho = L.layerGroup().addTo(map);
@@ -105,6 +127,20 @@ export class FerramentaCanetaSelecao {
   public desativar(): void {
     this.ativo = false;
     this.limparDesenho();
+
+    if (this.mouseMoveRaf) {
+      cancelAnimationFrame(this.mouseMoveRaf);
+      this.mouseMoveRaf = null;
+    }
+
+    if (this.svgRenderer) {
+      try {
+        this.svgRenderer.remove();
+      } catch {
+        // Ignora
+      }
+      this.svgRenderer = null;
+    }
 
     const map = this.obterMapa();
     if (map) {
@@ -175,7 +211,8 @@ export class FerramentaCanetaSelecao {
       fillColor: isPrimeiro ? '#00f5a0' : '#38bdf8',
       color: '#ffffff',
       weight: 1.5,
-      fillOpacity: 1
+      fillOpacity: 1,
+      renderer: this.svgRenderer || undefined
     });
 
     if (this.camadaDesenho) {
@@ -201,60 +238,67 @@ export class FerramentaCanetaSelecao {
    */
   private onMapMouseMove(e: L.LeafletMouseEvent): void {
     if (!this.ativo || this.vertices.length === 0) return;
+    if (this.mouseMoveRaf !== null) return;
 
-    try {
-      const map = this.obterMapa();
-      if (!map) return;
+    const mouseLatLng = e.latlng;
+    if (!mouseLatLng || typeof mouseLatLng.lat !== 'number' || typeof mouseLatLng.lng !== 'number' || isNaN(mouseLatLng.lat) || isNaN(mouseLatLng.lng)) return;
 
-      const mouseLatLng = e.latlng;
-      if (!mouseLatLng || typeof mouseLatLng.lat !== 'number' || typeof mouseLatLng.lng !== 'number') return;
+    this.mouseMoveRaf = requestAnimationFrame(() => {
+      this.mouseMoveRaf = null;
+      if (!this.ativo || this.vertices.length === 0) return;
 
-      // Verifica se está com snap próximo ao ponto de partida
-      if (this.vertices.length >= 3 && this.marcadorInicio) {
-        const pontoPixelMouse = map.latLngToContainerPoint(mouseLatLng);
-        const pontoPixelInicio = map.latLngToContainerPoint(this.vertices[0]);
-        const dist = pontoPixelMouse.distanceTo(pontoPixelInicio);
+      try {
+        const map = this.obterMapa();
+        if (!map) return;
 
-        if (dist <= 18) {
-          this.marcadorInicio.setStyle({
-            radius: 9,
-            fillColor: '#facc15', // Amarelo de destaque
-            color: '#ffffff',
-            weight: 2
+        // Verifica se está com snap próximo ao ponto de partida
+        if (this.vertices.length >= 3 && this.marcadorInicio) {
+          const pontoPixelMouse = map.latLngToContainerPoint(mouseLatLng);
+          const pontoPixelInicio = map.latLngToContainerPoint(this.vertices[0]);
+          const dist = pontoPixelMouse.distanceTo(pontoPixelInicio);
+
+          if (dist <= 18) {
+            this.marcadorInicio.setStyle({
+              radius: 9,
+              fillColor: '#facc15', // Amarelo de destaque
+              color: '#ffffff',
+              weight: 2
+            });
+          } else {
+            this.marcadorInicio.setStyle({
+              radius: 6,
+              fillColor: '#00f5a0',
+              color: '#ffffff',
+              weight: 1.5
+            });
+          }
+        }
+
+        // Linha elástica: quando há 1 vértice, liga o vértice 0 ao mouse.
+        // Quando há 2 ou mais, fecha o loop visual: último vértice -> mouse -> primeiro vértice.
+        const coordsGuia = this.vertices.length >= 2
+          ? [this.vertices[this.vertices.length - 1], mouseLatLng, this.vertices[0]]
+          : [this.vertices[0], mouseLatLng];
+
+        if (!this.linhaGuia) {
+          this.linhaGuia = L.polyline(coordsGuia, {
+            color: '#00f5a0',
+            weight: 1.5,
+            opacity: 0.85,
+            dashArray: '4, 4',
+            renderer: this.svgRenderer || undefined
           });
+          if (this.camadaDesenho) {
+            this.linhaGuia.addTo(this.camadaDesenho);
+          }
         } else {
-          this.marcadorInicio.setStyle({
-            radius: 6,
-            fillColor: '#00f5a0',
-            color: '#ffffff',
-            weight: 1.5
-          });
+          this.linhaGuia.setLatLngs(coordsGuia);
         }
+      } catch (err) {
+        // Ignora pequenos erros de projeção de pixel em movimento rápido
+        console.warn('[Caneta] Erro ao atualizar linha guia:', err);
       }
-
-      // Linha elástica: quando há 1 vértice, liga o vértice 0 ao mouse.
-      // Quando há 2 ou mais, fecha o loop visual: último vértice -> mouse -> primeiro vértice.
-      const coordsGuia = this.vertices.length >= 2
-        ? [this.vertices[this.vertices.length - 1], mouseLatLng, this.vertices[0]]
-        : [this.vertices[0], mouseLatLng];
-
-      if (!this.linhaGuia) {
-        this.linhaGuia = L.polyline(coordsGuia, {
-          color: '#00f5a0',
-          weight: 1.5,
-          opacity: 0.85,
-          dashArray: '4, 4'
-        });
-        if (this.camadaDesenho) {
-          this.linhaGuia.addTo(this.camadaDesenho);
-        }
-      } else {
-        this.linhaGuia.setLatLngs(coordsGuia);
-      }
-    } catch (err) {
-      // Ignora pequenos erros de projeção de pixel em movimento rápido
-      console.warn('[Caneta] Erro ao atualizar linha guia:', err);
-    }
+    });
   }
 
   /**
@@ -345,7 +389,8 @@ export class FerramentaCanetaSelecao {
           weight: 2,
           opacity: 0.9,
           fillColor: '#00f5a0',
-          fillOpacity: 0.16
+          fillOpacity: 0.16,
+          renderer: this.svgRenderer || undefined
         }).addTo(this.camadaDesenho);
       } else {
         this.poligonoTemp.setLatLngs(this.vertices);
