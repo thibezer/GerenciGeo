@@ -16,8 +16,12 @@ from utils.transformer_cache import get_transformer
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
-from services.parsers.txt_parser import TxtGeodesicParser
-from services.gestores.levantamento_manager import salvar_ordem_caminhamento
+from services.gestores.levantamento_manager import (
+    salvar_ordem_caminhamento,
+    atualizar_ponto_geodesico,
+    analisar_duplicatas_e_sobreposicoes,
+    vincular_ponto_matricula,
+)
 from routes.deps import verificar_levantamento_arquivado
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
@@ -372,37 +376,56 @@ def get_matricula_historico(mid: int):
 # ── Rotas de Pontos ────────────────────────────────────────────────────────────
 
 @router.get("/levantamentos/{id}/pontos")
-def get_pontos(id: int):
+def get_pontos(id: int, camada: Optional[str] = None):
     try:
-        sanitizar_ordens_duplicadas(id)
-        query = """
+        if not camada or camada.upper() in ("CAMPO", "PERIMETRO"):
+            sanitizar_ordens_duplicadas(id)
+
+        filtros = ["p.levantamento_id = ?"]
+        params = [id]
+
+        if camada:
+            camada_upper = camada.upper()
+            if camada_upper == "TODOS":
+                pass
+            elif camada_upper in ("CAMPO", "PERIMETRO", "HOMOLOGADO", "VIZINHO"):
+                filtros.append("p.camada_ciclo_vida = ?")
+                params.append(camada_upper)
+            else:
+                raise HTTPException(status_code=400, detail=f"Camada inválida: '{camada}'. Opções: CAMPO, PERIMETRO, HOMOLOGADO, VIZINHO, TODOS")
+        else:
+            filtros.append("(p.origem_homologada IS NULL OR p.origem_homologada = 0)")
+            filtros.append("(p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)")
+
+        where_clause = " AND ".join(filtros)
+        query = f"""
             SELECT p.*, m.numero_matricula 
             FROM pontos p
             LEFT JOIN matriculas m ON p.matricula_id = m.id
-            WHERE p.levantamento_id = ?
-              AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
-              AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
+            WHERE {where_clause}
             ORDER BY CASE WHEN p.matricula_id IS NULL THEN 1 ELSE 0 END ASC, p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
-        rows = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        rows = [dict(r) for r in execute_query(query, params=tuple(params), fetch_all=True)]
         
         for p in rows:
-            p["e_corrigido"] = None
-            p["n_corrigido"] = None
-            lat_c = p.get("lat_corrigido") or p.get("lat")
-            lon_c = p.get("lon_corrigido") or p.get("lon")
-            if lat_c and lon_c:
-                try:
-                    zona_utm = int((lon_c + 180) / 6) + 1
-                    epsg_code = f"319{60 + zona_utm}"
-                    transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
-                    e_corr, n_corr = transformer.transform(lon_c, lat_c)
-                    p["e_corrigido"] = round(e_corr, 3)
-                    p["n_corrigido"] = round(n_corr, 3)
-                except Exception:
-                    pass
+            if p.get("e_corrigido") is None or p.get("n_corrigido") is None:
+                lat_c = p.get("lat_corrigido") or p.get("lat")
+                lon_c = p.get("lon_corrigido") or p.get("lon")
+                if lat_c and lon_c:
+                    try:
+                        zona_utm = p.get("fuso_utm") or (int((lon_c + 180) / 6) + 1)
+                        epsg_code = f"319{60 + zona_utm}"
+                        transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
+                        e_corr, n_corr = transformer.transform(lon_c, lat_c)
+                        if p.get("e_corrigido") is None:
+                            p["e_corrigido"] = round(e_corr, 3)
+                        if p.get("n_corrigido") is None:
+                            p["n_corrigido"] = round(n_corr, 3)
+                    except Exception:
+                        pass
         return rows
     except Exception as e:
+        if isinstance(e, HTTPException): raise e
         logging.getLogger(__name__).error(f"Erro ao buscar pontos: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro interno de banco de dados: {str(e)}")
 
@@ -674,6 +697,7 @@ class PontoBatchUpdatePayload(BaseModel):
 class PontoUpdate(BaseModel):
     nome_vertice: Optional[str] = None
     tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
+    camada_ciclo_vida: Optional[Literal['CAMPO', 'PERIMETRO', 'HOMOLOGADO', 'VIZINHO']] = None
     metodo_posicionamento: Optional[str] = None
     matricula_id: Optional[int] = None
     ponto_base_id: Optional[int] = None
@@ -688,8 +712,48 @@ class PontoUpdate(BaseModel):
     n_corrigido: Optional[float] = None
     e_corrigido: Optional[float] = None
     alt_corrigido: Optional[float] = None
+    fuso_utm: Optional[int] = None
+    hemisferio: Optional[Literal['N', 'S']] = None
     fuso: Optional[str] = None
+    codigo_sigef: Optional[str] = None
+    ponto_origem_id: Optional[int] = None
     sequencia_travada_id: Optional[str] = None
+
+class PontoPatchPayload(BaseModel):
+    nome_vertice: Optional[str] = None
+    tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
+    camada_ciclo_vida: Optional[Literal['CAMPO', 'PERIMETRO', 'HOMOLOGADO', 'VIZINHO']] = None
+    metodo_posicionamento: Optional[str] = None
+    matricula_id: Optional[int] = None
+    ponto_base_id: Optional[int] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    alt: Optional[float] = None
+    lat_corrigido: Optional[float] = None
+    lon_corrigido: Optional[float] = None
+    alt_corrigido: Optional[float] = None
+    n_corrigido: Optional[float] = None
+    e_corrigido: Optional[float] = None
+    fuso_utm: Optional[int] = None
+    hemisferio: Optional[Literal['N', 'S']] = None
+    fuso: Optional[str] = None
+    delta_n: Optional[float] = None
+    delta_e: Optional[float] = None
+    delta_h: Optional[float] = None
+    delta_3d: Optional[float] = None
+    codigo_sigef: Optional[str] = None
+    ponto_origem_id: Optional[int] = None
+    sigma_lat: Optional[float] = None
+    sigma_lon: Optional[float] = None
+    sigma_alt: Optional[float] = None
+    status_ponto: Optional[str] = None
+    ignorar_poligono: Optional[int] = None
+    ordem_caminhamento: Optional[int] = None
+
+class PontoVincularMatriculaPayload(BaseModel):
+    ponto_id: int
+    matricula_id: Optional[int] = None
+    modo: Literal['mover', 'compartilhar'] = 'mover'
 
 @router.put("/levantamentos/{id}/pontos/batch")
 def update_pontos_batch(id: int, payload: PontoBatchUpdatePayload):
@@ -721,7 +785,6 @@ def update_ponto(pid: int, payload: PontoUpdate):
             
         verificar_levantamento_arquivado(row["levantamento_id"])
         
-        from services.gestores.levantamento_manager import atualizar_ponto_geodesico
         res = atualizar_ponto_geodesico(pid, payload.dict())
         if "error" in res:
             status = res.get("status_code", 400)
@@ -734,6 +797,80 @@ def update_ponto(pid: int, payload: PontoUpdate):
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao atualizar ponto: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.patch("/pontos/{pid}")
+def patch_ponto(pid: int, payload: PontoPatchPayload):
+    """
+    Atualização atômica e ágil para auto-save contínuo do Painel de Propriedades.
+    Salva sem perda de foco e calcula deltas milimétricos instantaneamente.
+    """
+    try:
+        row = execute_query("SELECT levantamento_id, ponto_vizinho, matricula_id, ordem_caminhamento FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Ponto não encontrado.")
+            
+        if row["ponto_vizinho"] == 1 and payload.camada_ciclo_vida != "VIZINHO":
+            raise HTTPException(status_code=403, detail="Pontos de confrontantes/vizinhos são imutáveis.")
+            
+        verificar_levantamento_arquivado(row["levantamento_id"])
+        
+        dados = payload.dict(exclude_unset=True)
+        if not dados:
+            return {"success": True, "message": "Nenhum campo fornecido para atualização."}
+
+        res = atualizar_ponto_geodesico(pid, dados)
+        if "error" in res:
+            status = res.get("status_code", 400)
+            raise HTTPException(status_code=status, detail=res["error"])
+            
+        # Só executa sanitização pesada se alterou explicitamente matrícula ou ordem
+        if "ordem_caminhamento" in dados or "matricula_id" in dados:
+            sanitizar_ordens_duplicadas(row["levantamento_id"])
+            
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro no PATCH do ponto {pid}: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/levantamentos/{id}/pontos/analise-duplicatas")
+def get_analise_duplicatas(id: int, tolerancia_metros: float = 0.05):
+    """
+    Analisa espacialmente e semanticamente os pontos de um levantamento para identificar:
+    1. Sobreposições espaciais (distância <= tolerância em metros).
+    2. Conflitos de nomenclatura em vértices.
+    """
+    try:
+        verificar_levantamento_arquivado(id)
+        resultado = analisar_duplicatas_e_sobreposicoes(id, tolerancia_metros=tolerancia_metros)
+        if not resultado.get("sucesso"):
+            raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao analisar duplicatas"))
+        return resultado
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao analisar duplicatas do levantamento {id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/levantamentos/{id}/pontos/vincular-matricula")
+def post_vincular_ponto_matricula(id: int, payload: PontoVincularMatriculaPayload):
+    """
+    Vincula um ponto a uma matrícula com suporte a mover ou compartilhar vértices entre glebas/matrículas.
+    """
+    try:
+        verificar_levantamento_arquivado(id)
+        resultado = vincular_ponto_matricula(id, payload.ponto_id, payload.matricula_id, payload.modo)
+        if not resultado.get("sucesso"):
+            raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao vincular ponto à matrícula"))
+            
+        sanitizar_ordens_duplicadas(id)
+        return resultado
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao vincular ponto à matrícula no levantamento {id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/matriculas/{mid}/auditoria")
 def auditar_perimetro_matricula(mid: int):

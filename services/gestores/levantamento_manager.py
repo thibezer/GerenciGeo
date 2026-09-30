@@ -616,24 +616,24 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             pt_antigo["metodo_posicionamento"] = metodo_posicionamento
             
         # B. Valida e Prepara Matrícula
-        matricula_id = data.get("matricula_id")
         matriculas_para_reordenar = set()
-        if matricula_id is not None and matricula_id != pt_antigo["matricula_id"]:
-            m_id = matricula_id if matricula_id > 0 else None
-            
-            # Validação de unicidade na matrícula de destino
-            pt_nome_val = data.get("nome_vertice") or pt_antigo["nome_vertice"]
-            pt_tipo_val = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
-            exists_dest = execute_query(
-                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
-                params=(levantamento_id, m_id, pt_nome_val, pt_tipo_val, pid),
-                fetch_one=True
-            )
-            if exists_dest:
-                return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_nome_val}' do tipo '{pt_tipo_val}' na matrícula de destino.", "status_code": 400}
+        if "matricula_id" in data:
+            raw_mid = data.get("matricula_id")
+            m_id = raw_mid if (raw_mid is not None and raw_mid > 0) else None
+            if m_id != pt_antigo["matricula_id"]:
+                # Validação de unicidade na matrícula de destino
+                pt_nome_val = data.get("nome_vertice") or pt_antigo["nome_vertice"]
+                pt_tipo_val = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
+                exists_dest = execute_query(
+                    "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id IS ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                    params=(levantamento_id, m_id, pt_nome_val, pt_tipo_val, pid),
+                    fetch_one=True
+                )
+                if exists_dest:
+                    return {"error": f"Conflito de unicidade: já existe um vértice com nome '{pt_nome_val}' do tipo '{pt_tipo_val}' na matrícula de destino.", "status_code": 400}
 
-            campos_update.append("matricula_id = ?")
-            valores_update.append(m_id)
+                campos_update.append("matricula_id = ?")
+                valores_update.append(m_id)
             
             # Limpa segmentos órfãos na matrícula antiga
             if pt_antigo["matricula_id"]:
@@ -673,22 +673,70 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             recalcular_rover = True
             pt_antigo["ponto_base_id"] = new_base_id
             
-        # D. Coordenadas Espaciais e Status
+        # D. Coordenadas Espaciais, Metadados e Ciclo de Vida
         atualizar_coordenadas = False
         
-        for campo in ["lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt", "status_ponto", "status_correcao", "ignorar_poligono", "sequencia_travada_id"]:
+        campos_permitidos = [
+            "lat", "lon", "alt", "sigma_lat", "sigma_lon", "sigma_alt",
+            "status_ponto", "status_correcao", "ignorar_poligono", "sequencia_travada_id",
+            "n_corrigido", "e_corrigido", "alt_corrigido", "fuso_utm", "hemisferio",
+            "codigo_sigef", "camada_ciclo_vida", "ponto_origem_id"
+        ]
+        
+        for campo in campos_permitidos:
             val = data.get(campo)
-            # Usa .get() para tolerância a colunas ausentes em bancos de dados antigos
             val_antigo = pt_antigo.get(campo)
             if val is not None and val != val_antigo:
                 campos_update.append(f"{campo} = ?")
                 valores_update.append(val)
-                atualizar_coordenadas = True
+                if campo in ["lat", "lon", "alt", "n_corrigido", "e_corrigido", "alt_corrigido"]:
+                    atualizar_coordenadas = True
+
+        # Sincronização e Cálculo de Deltas Espaciais Milimétricos
+        n_corr_final = data.get("n_corrigido") or pt_antigo.get("n_corrigido")
+        e_corr_final = data.get("e_corrigido") or pt_antigo.get("e_corrigido")
+        alt_corr_final = data.get("alt_corrigido") or data.get("alt") or pt_antigo.get("alt_corrigido") or pt_antigo.get("alt")
+
+        n_orig = pt_antigo.get("n_original")
+        e_orig = pt_antigo.get("e_original")
+        alt_orig = pt_antigo.get("alt_original")
+
+        if n_corr_final is not None and e_corr_final is not None and n_orig is not None and e_orig is not None:
+            dn = round((float(n_corr_final) - float(n_orig)) * 1000, 2)
+            de = round((float(e_corr_final) - float(e_orig)) * 1000, 2)
+            dh = round((float(alt_corr_final) - float(alt_orig)) * 1000, 2) if (alt_corr_final is not None and alt_orig is not None) else 0.0
+            d3d = round(math.sqrt(dn * dn + de * de + dh * dh), 2)
+
+            for campo_delta, val_delta in [("delta_n", dn), ("delta_e", de), ("delta_h", dh), ("delta_3d", d3d)]:
+                if val_delta != pt_antigo.get(campo_delta):
+                    campos_update.append(f"{campo_delta} = ?")
+                    valores_update.append(val_delta)
+
+        # Atualização inteligente de camada_ciclo_vida caso não fornecida explicitamente
+        if "camada_ciclo_vida" not in data:
+            mat_id_atual = data.get("matricula_id") if "matricula_id" in data else pt_antigo.get("matricula_id")
+            ign_atual = data.get("ignorar_poligono") if "ignorar_poligono" in data else pt_antigo.get("ignorar_poligono")
+            tipo_atual_ponto = data.get("tipo_ponto") or pt_antigo.get("tipo_ponto")
+            is_viz = pt_antigo.get("ponto_vizinho") == 1
+            is_homolog = pt_antigo.get("origem_homologada") == 1
+
+            if is_viz:
+                nova_camada = "VIZINHO"
+            elif is_homolog:
+                nova_camada = "HOMOLOGADO"
+            elif mat_id_atual and (ign_atual is None or ign_atual == 0) and tipo_atual_ponto != 'B':
+                nova_camada = "PERIMETRO"
+            else:
+                nova_camada = "CAMPO"
+
+            if nova_camada != pt_antigo.get("camada_ciclo_vida"):
+                campos_update.append("camada_ciclo_vida = ?")
+                valores_update.append(nova_camada)
                 
         if atualizar_coordenadas:
             lat_val = data.get("lat")
             lon_val = data.get("lon")
-            alt_val = data.get("alt")
+            alt_val = data.get("alt") or data.get("alt_corrigido")
             status_val = data.get("status_ponto")
             ignorar_val = data.get("ignorar_poligono")
 
@@ -747,8 +795,6 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 except Exception as ex_reorder_mat:
                     logger.warning(f"Falha ao reordenar matrícula {mat_afetada} reativamente: {ex_reorder_mat}")
 
-        # BUGFIX: esses blocos estavam indevidamente dentro do if reordenar_poligono_reativo,
-        # causando que a função retornasse None implicitamente quando o flag era False.
         if propagar_base_bloco:
             rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
             logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
@@ -757,11 +803,209 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             new_base_id = pt_antigo.get("ponto_base_id")
             recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
 
-        # Sempre retorna sucesso após executar todas as lógicas reativas
-        return {"success": True, "message": "Ponto atualizado e sincronizado geodésicamente com sucesso."}
+        # Recupera o registro atualizado final para retorno atômico
+        ponto_atualizado = execute_query("SELECT * FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+
+        return {
+            "success": True,
+            "message": "Ponto atualizado e sincronizado geodésicamente com sucesso.",
+            "ponto": dict(ponto_atualizado) if ponto_atualizado else None
+        }
     except Exception as e:
         logger.error(f"Erro ao atualizar ponto {pid}: {e}", exc_info=True)
         return {"error": str(e), "status_code": 400}
+
+def analisar_duplicatas_e_sobreposicoes(levantamento_id: int, tolerancia_metros: float = 0.05) -> dict:
+    """
+    Analisa espacialmente e semanticamente os pontos de um levantamento para identificar:
+    1. Sobreposições espaciais (pontos distintos com distância <= tolerância).
+    2. Conflitos de nomenclatura (mesmo nome_vertice em tipos diferentes ou matrículas distintas).
+    """
+    try:
+        query = """
+            SELECT id, nome_vertice, tipo_ponto, matricula_id, camada_ciclo_vida,
+                   lat, lon, alt, n_corrigido, e_corrigido, n_original, e_original,
+                   status_ponto, ponto_base_id, ignorar_poligono
+            FROM pontos
+            WHERE levantamento_id = ?
+            ORDER BY id ASC
+        """
+        rows = [dict(r) for r in execute_query(query, params=(levantamento_id,), fetch_all=True)]
+        
+        pontos_com_coords = []
+        for p in rows:
+            e = p.get("e_corrigido") or p.get("e_original")
+            n = p.get("n_corrigido") or p.get("n_original")
+            if (e is None or n is None) and p.get("lat") and p.get("lon"):
+                try:
+                    zona = int((p["lon"] + 180) / 6) + 1
+                    epsg_code = f"319{60 + zona}"
+                    transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
+                    e_calc, n_calc = transformer.transform(p["lon"], p["lat"])
+                    e, n = e_calc, n_calc
+                except Exception:
+                    pass
+            if e is not None and n is not None:
+                p["_e"] = float(e)
+                p["_n"] = float(n)
+                pontos_com_coords.append(p)
+
+        sobreposicoes = []
+        visitados = set()
+        
+        for i in range(len(pontos_com_coords)):
+            p1 = pontos_com_coords[i]
+            if p1["id"] in visitados:
+                continue
+            cluster = [p1]
+            for j in range(i + 1, len(pontos_com_coords)):
+                p2 = pontos_com_coords[j]
+                if p2["id"] in visitados:
+                    continue
+                dx = p1["_e"] - p2["_e"]
+                dy = p1["_n"] - p2["_n"]
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist <= tolerancia_metros:
+                    cluster.append({**p2, "_distancia": round(dist, 4)})
+                    visitados.add(p2["id"])
+                    
+            if len(cluster) > 1:
+                visitados.add(p1["id"])
+                p1_copy = {**p1, "_distancia": 0.0}
+                cluster[0] = p1_copy
+                sobreposicoes.append({
+                    "cluster_id": f"SOBREPOSICAO_{p1['id']}",
+                    "distancia_maxima_m": round(max(pt.get("_distancia", 0.0) for pt in cluster), 4),
+                    "pontos": [
+                        {
+                            "id": pt["id"],
+                            "nome_vertice": pt["nome_vertice"],
+                            "tipo_ponto": pt["tipo_ponto"],
+                            "matricula_id": pt["matricula_id"],
+                            "camada": pt.get("camada_ciclo_vida"),
+                            "status": pt.get("status_ponto"),
+                            "distancia_m": pt.get("_distancia", 0.0)
+                        } for pt in cluster
+                    ]
+                })
+
+        nomes_map = {}
+        for p in rows:
+            nome = (p.get("nome_vertice") or "").strip().upper()
+            if not nome:
+                continue
+            if nome not in nomes_map:
+                nomes_map[nome] = []
+            nomes_map[nome].append(p)
+            
+        conflitos_nomes = []
+        for nome, pts in nomes_map.items():
+            if len(pts) > 1:
+                conflitos_nomes.append({
+                    "nome": nome,
+                    "ocorrencias": len(pts),
+                    "pontos": [
+                        {
+                            "id": pt["id"],
+                            "tipo_ponto": pt["tipo_ponto"],
+                            "matricula_id": pt["matricula_id"],
+                            "camada": pt.get("camada_ciclo_vida")
+                        } for pt in pts
+                    ]
+                })
+
+        return {
+            "sucesso": True,
+            "success": True,
+            "total_pontos": len(rows),
+            "tolerancia_metros": tolerancia_metros,
+            "total_sobreposicoes": len(sobreposicoes),
+            "sobreposicoes": sobreposicoes,
+            "total_conflitos_nomes": len(conflitos_nomes),
+            "conflitos_nomes": conflitos_nomes
+        }
+    except Exception as e:
+        logger.error(f"Erro na análise de duplicatas do levantamento {levantamento_id}: {e}", exc_info=True)
+        return {"sucesso": False, "success": False, "error": str(e), "total_pontos": 0, "sobreposicoes": [], "conflitos_nomes": []}
+
+def vincular_ponto_matricula(levantamento_id: int, ponto_id: int, matricula_id: int, modo: str = "mover") -> dict:
+    """
+    Associa um vértice a uma matrícula:
+    - modo 'mover': transfere o ponto alterando seu matricula_id e definindo camada_ciclo_vida = 'PERIMETRO'.
+    - modo 'compartilhar': cria um vértice derivado (clone vinculado via ponto_origem_id) para a nova matrícula.
+    """
+    try:
+        pt_row = execute_query("SELECT * FROM pontos WHERE id = ? AND levantamento_id = ?", params=(ponto_id, levantamento_id), fetch_one=True)
+        if not pt_row:
+            return {"sucesso": False, "success": False, "error": "Ponto de origem não localizado neste levantamento.", "status_code": 404}
+            
+        pt = dict(pt_row)
+        
+        if modo == "mover":
+            nova_camada = "PERIMETRO" if (matricula_id and pt.get("tipo_ponto") != "B") else "CAMPO"
+            res = atualizar_ponto_geodesico(ponto_id, {
+                "matricula_id": matricula_id,
+                "camada_ciclo_vida": nova_camada,
+                "ignorar_poligono": 0
+            })
+            if "error" not in res:
+                res["sucesso"] = True
+                res["success"] = True
+                res["ponto_id"] = ponto_id
+            return res
+            
+        elif modo == "compartilhar":
+            nome_derivado = pt["nome_vertice"]
+            
+            exists = execute_query(
+                "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ?",
+                params=(levantamento_id, matricula_id, nome_derivado, pt["tipo_ponto"]),
+                fetch_one=True
+            )
+            if exists:
+                return {"sucesso": False, "success": False, "error": f"Já existe um vértice '{nome_derivado}' na matrícula de destino.", "status_code": 400}
+                
+            query_insert = """
+                INSERT INTO pontos (
+                    levantamento_id, matricula_id, nome_vertice, nome_original, tipo_ponto,
+                    lat, lon, alt, sigma_lat, sigma_lon, sigma_alt,
+                    n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
+                    n_corrigido, e_corrigido, fuso_utm, hemisferio,
+                    delta_n, delta_e, delta_h, delta_3d,
+                    status_ponto, status_correcao, ponto_base_id, metodo_posicionamento,
+                    arquivo_origem, camada_ciclo_vida, ponto_origem_id, ignorar_poligono
+                ) VALUES (
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, 'PERIMETRO', ?, 0
+                )
+            """
+            params_insert = (
+                levantamento_id, matricula_id, nome_derivado, pt.get("nome_original") or pt["nome_vertice"], pt["tipo_ponto"],
+                pt.get("lat"), pt.get("lon"), pt.get("alt"), pt.get("sigma_lat"), pt.get("sigma_lon"), pt.get("sigma_alt"),
+                pt.get("n_original"), pt.get("e_original"), pt.get("alt_original"), pt.get("lat_corrigido"), pt.get("lon_corrigido"), pt.get("alt_corrigido"),
+                pt.get("n_corrigido"), pt.get("e_corrigido"), pt.get("fuso_utm") or 22, pt.get("hemisferio") or "S",
+                pt.get("delta_n"), pt.get("delta_e"), pt.get("delta_h"), pt.get("delta_3d"),
+                pt.get("status_ponto"), pt.get("status_correcao"), pt.get("ponto_base_id"), pt.get("metodo_posicionamento"),
+                pt.get("arquivo_origem"), ponto_id
+            )
+            new_id = execute_query(query_insert, params=params_insert, commit=True)
+            return {
+                "sucesso": True,
+                "success": True,
+                "message": f"Vértice '{nome_derivado}' compartilhado com sucesso para a matrícula ID {matricula_id}.",
+                "ponto_id": new_id,
+                "novo_ponto_id": new_id
+            }
+        else:
+            return {"sucesso": False, "success": False, "error": f"Modo '{modo}' não reconhecido. Use 'mover' ou 'compartilhar'.", "status_code": 400}
+    except Exception as e:
+        logger.error(f"Erro ao vincular ponto à matrícula: {e}", exc_info=True)
+        return {"sucesso": False, "success": False, "error": str(e), "status_code": 500}
 
 def gerar_requerimento_html(levantamento_id: int, matricula_id: int) -> str:
     """Gera um requerimento em HTML formatado para retificação de registro endereçado ao CRI"""

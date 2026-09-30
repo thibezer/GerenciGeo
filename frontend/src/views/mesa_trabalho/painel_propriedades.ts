@@ -215,11 +215,19 @@ export function atualizarPainelPropriedades(ctx: any): void {
         if (basePt) nomeBaseApoio = basePt.nome_vertice || `ID ${p.ponto_base_id}`;
       }
 
-      let origemTexto = 'Vértice de Campo';
-      let badgeClass = 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20';
-      if (isPontoVizinho) {
-        origemTexto = 'Vizinho (Não Integrado)';
+      let origemTexto = 'Campo (Bruto)';
+      let badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+
+      const camada = p.camada_ciclo_vida || (p.matricula_id ? 'PERIMETRO' : 'CAMPO');
+      if (isPontoVizinho || camada === 'VIZINHO' || p.ponto_vizinho === 1) {
+        origemTexto = 'Confrontante / Vizinho';
         badgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      } else if (camada === 'HOMOLOGADO' || (p as any).origem_homologada === 1) {
+        origemTexto = 'Homologado SIGEF';
+        badgeClass = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      } else if (camada === 'PERIMETRO') {
+        origemTexto = 'Perímetro Ativo';
+        badgeClass = 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20';
       } else if (p.confrontante_id) {
         origemTexto = 'Vizinho Integrado';
         badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
@@ -228,14 +236,21 @@ export function atualizarPainelPropriedades(ctx: any): void {
       panelContent.innerHTML = `
       <!-- GRUPO 1: GERAL -->
       <div class="props-section" id="sec-props-geral">
-        <div class="props-section-header" id="header-props-geral">
-          <i data-lucide="chevron-down"></i> Geral
+        <div class="props-section-header flex items-center justify-between" id="header-props-geral">
+          <div class="flex items-center gap-1.5"><i data-lucide="chevron-down"></i> Geral</div>
+          <div id="props-save-indicator" class="text-[9px] font-mono mr-2"></div>
         </div>
         <div class="props-section-body" id="body-props-geral">
           <div class="props-field mb-3 flex items-center justify-between">
-            <span class="text-[9px] uppercase font-bold tracking-wider text-white/40">Origem</span>
+            <span class="text-[9px] uppercase font-bold tracking-wider text-white/40">Ciclo de Vida</span>
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${origemTexto}</span>
           </div>
+          ${p.ponto_origem_id ? `
+          <div class="props-field mb-2 flex items-center justify-between bg-cyan-500/5 px-2 py-1 rounded border border-cyan-500/20">
+            <span class="text-[9px] uppercase font-bold text-cyan-400">Vértice Compartilhado</span>
+            <span class="text-[10px] font-mono text-cyan-300">Origem: #${p.ponto_origem_id}</span>
+          </div>
+          ` : ''}
           <div class="props-field">
             <label class="props-field-label">Nome Original (Campo)</label>
             <input type="text" value="${escapeHtml(p.ponto_nome || p.arquivo_nome || p.nome_vertice || '-')}" class="props-field-value opacity-50 cursor-not-allowed text-white/50" readonly disabled title="Nome original importado do equipamento GPS" />
@@ -250,6 +265,10 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 </button>
               ` : ''}
             </div>
+          </div>
+          <div class="props-field">
+            <label class="props-field-label">Cód. SIGEF</label>
+            <input type="text" id="prop-codigo-sigef" value="${escapeHtml(p.codigo_sigef || '')}" placeholder="Ex: ABC-M-0001" class="props-field-value font-mono" ${isDisabled ? 'disabled' : ''} />
           </div>
 
           <div class="props-field">
@@ -431,7 +450,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       <!-- GRUPO 4: DADOS -->
       <div class="props-section mt-2" id="sec-props-dados">
         <div class="props-section-header" id="header-props-dados">
-          <i data-lucide="chevron-down"></i> Dados
+          <i data-lucide="chevron-down"></i> Dados & Variações
         </div>
         <div class="props-section-body" id="body-props-dados">
           <div class="props-field">
@@ -442,6 +461,16 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <label class="props-field-label">Correção</label>
             <input type="text" value="${escapeHtml(p.status_correcao || p.status_ponto || 'BRUTO')}" class="props-field-value font-mono" readonly />
           </div>
+          ${p.delta_3d != null ? `
+          <div class="props-field">
+            <label class="props-field-label">Delta 3D</label>
+            <input type="text" value="${p.delta_3d.toFixed(1)} mm" class="props-field-value font-mono font-bold text-mint-vibrant" readonly title="Variação espacial 3D em milímetros em relação ao bruto" />
+          </div>
+          <div class="props-field">
+            <label class="props-field-label">dN / dE / dH</label>
+            <input type="text" value="${(p.delta_n ?? 0).toFixed(1)} / ${(p.delta_e ?? 0).toFixed(1)} / ${(p.delta_h ?? 0).toFixed(1)} mm" class="props-field-value font-mono text-white/70 text-[9px]" readonly title="Delta Norte / Delta Este / Delta Altitude (mm)" />
+          </div>
+          ` : ''}
           <div class="props-field">
             <label class="props-field-label">Base Apoio</label>
             <input type="text" value="${escapeHtml(nomeBaseApoio)}" class="props-field-value font-mono" readonly />
@@ -487,6 +516,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       // Registra os valores originais para detecção de alteração ("dirty")
       const valoresOriginais = {
         nome_vertice: p.nome_vertice || '',
+        codigo_sigef: p.codigo_sigef || '',
         matricula_id: p.matricula_id != null ? String(p.matricula_id) : '',
         tipo_ponto: p.tipo_ponto || p.tipo || '',
         metodo: (p as any).metodo_posicionamento || '',
@@ -503,7 +533,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       };
 
       const inputs = [
-        'prop-nome-vertice', 'prop-matricula', 'prop-tipo-ponto', 'prop-alt-corrigido',
+        'prop-nome-vertice', 'prop-codigo-sigef', 'prop-matricula', 'prop-tipo-ponto', 'prop-alt-corrigido',
         'prop-confrontante', 'prop-confrontante-matricula', 'prop-confrontante-cartorio',
         'prop-ignorar-poligono', 'prop-metodo', 'prop-tipo-limite'
       ];
@@ -513,6 +543,127 @@ export function atualizarPainelPropriedades(ctx: any): void {
       } else {
         inputs.push('prop-lat-corrigido', 'prop-lon-corrigido');
       }
+
+      let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const dispararAutoSave = (imediato = false) => {
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+        const delay = imediato ? 50 : 600;
+
+        autoSaveTimer = setTimeout(async () => {
+          if (signal.aborted) return;
+          const indicator = document.getElementById('props-save-indicator');
+          if (indicator) {
+            indicator.innerHTML = '<span class="text-amber-400 font-mono text-[9px] flex items-center gap-1">⟳ Salvando...</span>';
+          }
+
+          const nomeInput = document.getElementById('prop-nome-vertice') as HTMLInputElement;
+          const codSigefInput = document.getElementById('prop-codigo-sigef') as HTMLInputElement;
+          const matSelect = document.getElementById('prop-matricula') as HTMLSelectElement;
+          const tipoSelect = document.getElementById('prop-tipo-ponto') as HTMLSelectElement;
+          const altInput = document.getElementById('prop-alt-corrigido') as HTMLInputElement;
+          const ignorarCheck = document.getElementById('prop-ignorar-poligono') as HTMLInputElement;
+          const metodoSelect = document.getElementById('prop-metodo') as HTMLSelectElement;
+
+          const patchPayload: any = {};
+          if (nomeInput && nomeInput.value.trim() !== valoresOriginais.nome_vertice) {
+            patchPayload.nome_vertice = nomeInput.value.trim();
+          }
+          if (codSigefInput && codSigefInput.value.trim() !== valoresOriginais.codigo_sigef) {
+            patchPayload.codigo_sigef = codSigefInput.value.trim();
+          }
+          if (matSelect && matSelect.value !== valoresOriginais.matricula_id) {
+            patchPayload.matricula_id = matSelect.value ? parseInt(matSelect.value) : null;
+          }
+          if (tipoSelect && tipoSelect.value !== valoresOriginais.tipo_ponto) {
+            patchPayload.tipo_ponto = tipoSelect.value;
+          }
+          if (metodoSelect && metodoSelect.value !== valoresOriginais.metodo) {
+            patchPayload.metodo_posicionamento = metodoSelect.value;
+          }
+          if (ignorarCheck && (ignorarCheck.checked ? 0 : 1) !== p!.ignorar_poligono) {
+            patchPayload.ignorar_poligono = ignorarCheck.checked ? 0 : 1;
+          }
+
+          if (altInput && !isNaN(parseFloat(altInput.value))) {
+            const altVal = parseFloat(altInput.value);
+            if (altVal !== parseNumberOrNull(valoresOriginais.alt_corrigido)) {
+              patchPayload.alt_corrigido = altVal;
+            }
+          }
+
+          if (ctx.modoCoordenadas === 'utm') {
+            const eInput = document.getElementById('prop-e-corrigido') as HTMLInputElement;
+            const nInput = document.getElementById('prop-n-corrigido') as HTMLInputElement;
+            if (eInput && !isNaN(parseFloat(eInput.value)) && parseFloat(eInput.value) !== parseNumberOrNull(valoresOriginais.e_corrigido)) {
+              patchPayload.e_corrigido = parseFloat(eInput.value);
+            }
+            if (nInput && !isNaN(parseFloat(nInput.value)) && parseFloat(nInput.value) !== parseNumberOrNull(valoresOriginais.n_corrigido)) {
+              patchPayload.n_corrigido = parseFloat(nInput.value);
+            }
+          } else {
+            const latInput = document.getElementById('prop-lat-corrigido') as HTMLInputElement;
+            const lonInput = document.getElementById('prop-lon-corrigido') as HTMLInputElement;
+            if (latInput && !isNaN(parseFloat(latInput.value)) && parseFloat(latInput.value) !== parseNumberOrNull(valoresOriginais.lat_corrigido)) {
+              patchPayload.lat = parseFloat(latInput.value);
+            }
+            if (lonInput && !isNaN(parseFloat(lonInput.value)) && parseFloat(lonInput.value) !== parseNumberOrNull(valoresOriginais.lon_corrigido)) {
+              patchPayload.lon = parseFloat(lonInput.value);
+            }
+          }
+
+          if (Object.keys(patchPayload).length === 0) {
+            if (indicator) indicator.innerHTML = '';
+            return;
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/pontos/${p!.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patchPayload)
+            });
+
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.detail || err.error || "Erro no auto-save");
+            }
+
+            const data = await res.json();
+            if (data.ponto) {
+              Object.assign(p!, data.ponto);
+            }
+
+            if (patchPayload.nome_vertice !== undefined) valoresOriginais.nome_vertice = patchPayload.nome_vertice;
+            if (patchPayload.codigo_sigef !== undefined) valoresOriginais.codigo_sigef = patchPayload.codigo_sigef;
+            if (patchPayload.matricula_id !== undefined) valoresOriginais.matricula_id = String(patchPayload.matricula_id ?? '');
+            if (patchPayload.tipo_ponto !== undefined) valoresOriginais.tipo_ponto = patchPayload.tipo_ponto;
+            if (patchPayload.metodo_posicionamento !== undefined) valoresOriginais.metodo = patchPayload.metodo_posicionamento;
+            if (patchPayload.e_corrigido !== undefined) valoresOriginais.e_corrigido = formatCoordinate(patchPayload.e_corrigido, 3);
+            if (patchPayload.n_corrigido !== undefined) valoresOriginais.n_corrigido = formatCoordinate(patchPayload.n_corrigido, 3);
+            if (patchPayload.alt_corrigido !== undefined) valoresOriginais.alt_corrigido = formatCoordinate(patchPayload.alt_corrigido, 3);
+            if (patchPayload.lat !== undefined) valoresOriginais.lat_corrigido = formatCoordinate(patchPayload.lat, 9);
+            if (patchPayload.lon !== undefined) valoresOriginais.lon_corrigido = formatCoordinate(patchPayload.lon, 9);
+
+            verificarAlteracoes();
+
+            if (indicator) {
+              indicator.innerHTML = '<span class="text-mint-vibrant font-mono text-[9px] flex items-center gap-1">✓ Salvo</span>';
+              setTimeout(() => { if (indicator) indicator.innerHTML = ''; }, 2500);
+            }
+
+            ctx.atualizarPolilinhaMapaTemp?.();
+            if (patchPayload.matricula_id !== undefined || patchPayload.ignorar_poligono !== undefined) {
+              ctx.renderMatriculaDados?.();
+            }
+          } catch (err) {
+            console.error("Erro no auto-save do ponto:", err);
+            if (indicator) {
+              indicator.innerHTML = '<span class="text-rose-400 font-mono text-[9px] flex items-center gap-1">⚠️ Erro ao salvar</span>';
+            }
+          }
+        }, delay);
+      };
 
       const verificarAlteracoes = () => {
         let modificado = false;
@@ -528,6 +679,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         };
 
         checkDirty('prop-nome-vertice', valoresOriginais.nome_vertice);
+        checkDirty('prop-codigo-sigef', valoresOriginais.codigo_sigef);
         checkDirty('prop-matricula', valoresOriginais.matricula_id);
         checkDirty('prop-tipo-ponto', valoresOriginais.tipo_ponto);
         checkDirty('prop-metodo', valoresOriginais.metodo);
@@ -555,8 +707,20 @@ export function atualizarPainelPropriedades(ctx: any): void {
       inputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-          el.addEventListener('input', verificarAlteracoes, { signal });
-          el.addEventListener('change', verificarAlteracoes, { signal });
+          el.addEventListener('input', () => {
+            verificarAlteracoes();
+            // Dispara auto-save debounced apenas para os campos diretos do ponto
+            if (!id.startsWith('prop-confrontante') && id !== 'prop-tipo-limite') {
+              dispararAutoSave(false);
+            }
+          }, { signal });
+
+          el.addEventListener('change', () => {
+            verificarAlteracoes();
+            if (!id.startsWith('prop-confrontante') && id !== 'prop-tipo-limite') {
+              dispararAutoSave(true);
+            }
+          }, { signal });
         }
       });
 
@@ -583,6 +747,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
                 nomeInput.value = sug.codigo_sugerido;
                 nomeInput.classList.add('dirty');
                 verificarAlteracoes();
+                dispararAutoSave(true);
                 showToast(`Sugestão aplicada: ${sug.codigo_sugerido}`, "success");
               }
             }

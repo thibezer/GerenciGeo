@@ -227,10 +227,24 @@ def create_tables(conn):
             dados_vizinho_json TEXT,
             sequencia_travada_id TEXT,
             
+            -- Separação do Ciclo de Vida e Coordenadas Canônicas UTM (V3.0)
+            camada_ciclo_vida TEXT DEFAULT 'CAMPO' CHECK(camada_ciclo_vida IN ('CAMPO', 'PERIMETRO', 'HOMOLOGADO', 'VIZINHO')),
+            n_corrigido REAL,
+            e_corrigido REAL,
+            fuso_utm INTEGER DEFAULT 22,
+            hemisferio TEXT DEFAULT 'S',
+            delta_n REAL,
+            delta_e REAL,
+            delta_h REAL,
+            delta_3d REAL,
+            codigo_sigef TEXT,
+            ponto_origem_id INTEGER,
+            
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
             FOREIGN KEY (ponto_base_id) REFERENCES pontos(id) ON DELETE SET NULL,
             FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL,
+            FOREIGN KEY (ponto_origem_id) REFERENCES pontos(id) ON DELETE SET NULL,
             UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)
         );
         """,
@@ -480,7 +494,18 @@ def create_tables(conn):
             ("confrontante_id", "INTEGER"),
             ("ponto_vizinho", "INTEGER DEFAULT 0"),
             ("dados_vizinho_json", "TEXT"),
-            ("sequencia_travada_id", "TEXT")
+            ("sequencia_travada_id", "TEXT"),
+            ("camada_ciclo_vida", "TEXT DEFAULT 'CAMPO'"),
+            ("n_corrigido", "REAL"),
+            ("e_corrigido", "REAL"),
+            ("fuso_utm", "INTEGER DEFAULT 22"),
+            ("hemisferio", "TEXT DEFAULT 'S'"),
+            ("delta_n", "REAL"),
+            ("delta_e", "REAL"),
+            ("delta_h", "REAL"),
+            ("delta_3d", "REAL"),
+            ("codigo_sigef", "TEXT"),
+            ("ponto_origem_id", "INTEGER")
         ]
         
         cursor.execute("PRAGMA table_info(pontos)")
@@ -501,6 +526,29 @@ def create_tables(conn):
         except Exception as ex_init:
             logger.warning(f"Erro ao inicializar nome_original na tabela pontos: {ex_init}")
 
+        # Inicializa a camada_ciclo_vida e coordenadas UTM para registros legados
+        try:
+            cursor.execute("""
+            UPDATE pontos 
+            SET camada_ciclo_vida = CASE
+                WHEN ponto_vizinho = 1 THEN 'VIZINHO'
+                WHEN origem_homologada = 1 THEN 'HOMOLOGADO'
+                WHEN matricula_id IS NOT NULL AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) AND tipo_ponto != 'B' THEN 'PERIMETRO'
+                ELSE 'CAMPO'
+            END
+            WHERE camada_ciclo_vida IS NULL;
+            """)
+            
+            # Se n_corrigido / e_corrigido estiverem nulos mas houver n_original / e_original, inicializa-os
+            cursor.execute("""
+            UPDATE pontos 
+            SET n_corrigido = n_original, e_corrigido = e_original, alt_corrigido = alt_original
+            WHERE n_corrigido IS NULL AND n_original IS NOT NULL;
+            """)
+            logger.info("Ciclo de vida e coordenadas canônicas inicializados com sucesso na tabela pontos.")
+        except Exception as ex_ciclo:
+            logger.warning(f"Erro ao inicializar ciclo de vida na tabela pontos: {ex_ciclo}")
+
         # Cria o trigger que garante nome_original = nome_vertice no insert
         try:
             cursor.execute("""
@@ -515,6 +563,15 @@ def create_tables(conn):
             logger.info("Trigger trg_pontos_nome_original verificado/criado com sucesso.")
         except Exception as ex_trg:
             logger.warning(f"Erro ao criar trigger trg_pontos_nome_original: {ex_trg}")
+
+        # Cria índices de performance para consultas de ciclo de vida e coordenadas
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pontos_levantamento_camada ON pontos (levantamento_id, camada_ciclo_vida);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pontos_matricula_ordem ON pontos (matricula_id, ordem_caminhamento) WHERE matricula_id IS NOT NULL;")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pontos_origem_ref ON pontos (ponto_origem_id) WHERE ponto_origem_id IS NOT NULL;")
+            logger.info("Índices de ciclo de vida criados com sucesso na tabela pontos.")
+        except Exception as ex_idx:
+            logger.warning(f"Erro ao criar índices de ciclo de vida na tabela pontos: {ex_idx}")
         
         # Migração dinâmica para a tabela propriedades (codigo_ccir)
         colunas_propriedades = [

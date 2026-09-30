@@ -44,6 +44,15 @@ export interface Ponto {
   arquivo_origem?: string;
   ignorar_poligono?: number;
   fuso?: string;
+  camada_ciclo_vida?: 'CAMPO' | 'PERIMETRO' | 'HOMOLOGADO' | 'VIZINHO' | string;
+  delta_n?: number | null;
+  delta_e?: number | null;
+  delta_h?: number | null;
+  delta_3d?: number | null;
+  codigo_sigef?: string | null;
+  ponto_origem_id?: number | null;
+  fuso_utm?: number | null;
+  hemisferio?: string | null;
 }
 
 export interface Segmento {
