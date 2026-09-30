@@ -514,17 +514,6 @@ export const renderMesaTrabalho = (): string => {
                   </table>
                 </div>
 
-                <!-- Elementos ocultos para compatibilidade com listeners legados -->
-                <div class="hidden" style="display: none !important;">
-                  <div id="container-ordenador-manual-parent"></div>
-                  <div id="splitter-inferior"></div>
-                  <div id="painel-workspace-gnss">
-                    <button id="btn-atualizar-arquivos-list"></button>
-                    <button id="btn-testar-busca-rinex"></button>
-                    <div id="container-workspace-arquivos"></div>
-                    <div id="btn-toggle-workspace-collapse"></div>
-                  </div>
-                </div>
              </div>
           </div>
 
@@ -881,36 +870,6 @@ export const renderMesaTrabalho = (): string => {
            conflitos de overflow e stacking context
            ========================================================= -->
 
-      <!-- MODAL IMPORTAR LIMITES -->
-      <div id="modal-importar-limites" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">
-         <div class="glass-card w-full max-w-lg overflow-hidden flex flex-col">
-            <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-               <h3 class="text-base font-bold flex items-center gap-2">
-                  <i data-lucide="file-check" class="w-5 h-5 text-mint-vibrant"></i>
-                  Importar Confrontantes (Limites)
-               </h3>
-               <button class="text-white/40 hover:text-white" id="btn-fechar-modal-limites" type="button">
-                  <i data-lucide="x" class="w-5 h-5"></i>
-               </button>
-            </div>
-            
-            <form id="form-importar-limites" class="p-6 space-y-4">
-               <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1.5">Selecione o arquivo de confrontantes (.csv) *</label>
-                  <input type="file" id="input-limites-file" accept=".csv" required class="glass-input w-full text-xs" />
-               </div>
-               <div class="bg-forest-deep/30 border border-white/5 p-3 rounded-lg text-[10px] text-white/50 space-y-1.5">
-                  <p class="font-bold text-mint-vibrant">Informações do Layout:</p>
-                  <p>• O CSV deve conter as colunas: <strong>do_vertice</strong>, <strong>tipo_limite</strong> (ex: Cerca, Muro, Valo) e <strong>confrontante_desc</strong>.</p>
-                  <p>• O sistema associará os confrontantes correspondentes de forma determinística aos segmentos de divisa criados pela ordenação do caminhamento.</p>
-               </div>
-               <div class="flex justify-end gap-3 pt-2">
-                  <button type="button" class="btn-secondary text-xs" id="btn-cancelar-limites">Cancelar</button>
-                  <button type="submit" class="btn-primary text-xs" id="btn-submit-limites">Importar e Associar</button>
-               </div>
-            </form>
-         </div>
-      </div>
 
       <!-- MODAL UNIFICAR SIGEF (1A) -->
       <div id="modal-unificar-sigef" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[var(--geo-z-modal)] hidden flex items-center justify-center p-4">

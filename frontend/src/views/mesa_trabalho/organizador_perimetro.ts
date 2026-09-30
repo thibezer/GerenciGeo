@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
-import { renderLinhaPontoCartorioHtml, renderLinhaSegmentoHtml } from './mesa_trabalho_tabela';
+import { renderLinhaSegmentoHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { latLonToUTM } from './mesa_geodesica';
 
@@ -133,107 +133,6 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     }
   }
 
-  const tblHeader = document.getElementById('tbl-pontos-header');
-  if (tblHeader) {
-    tblHeader.innerHTML = `
-      <th class="px-4 py-1 text-center resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-ordem" data-col-id="col_vertice_ordem" style="width: 75px;">Ordem ${ctx.currentSortColumn === 'ordem' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-nome" data-col-id="col_vertice_nome">Vértice ${ctx.currentSortColumn === 'nome' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-tipo" data-col-id="col_vertice_tipo" style="width: 42px;">Tipo ${ctx.currentSortColumn === 'tipo' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-este" data-col-id="col_vertice_este_lat">${ctx.modoCoordenadas === 'geodesico' ? 'Latitude' : 'Este (E)'} ${ctx.currentSortColumn === 'este' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-norte" data-col-id="col_vertice_norte_lon">${ctx.modoCoordenadas === 'geodesico' ? 'Longitude' : 'Norte (N)'} ${ctx.currentSortColumn === 'norte' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 text-right resizable-col cursor-pointer hover:bg-white/5 transition-colors select-none" id="header-sort-altitude" data-col-id="col_vertice_altitude">Altitude (m) ${ctx.currentSortColumn === 'altitude' ? (ctx.currentSortDirection === 'asc' ? '▲' : '▼') : ''}</th>
-      <th class="px-4 py-1 text-left resizable-col hover:bg-white/5 transition-colors select-none" style="width: 130px;">Origem</th>
-    `;
-
-    const setupSortHeader = (id: string, column: string) => {
-      const btn = document.getElementById(id);
-      if (btn) {
-        btn.onclick = () => {
-          if (ctx.currentSortColumn === column) {
-            ctx.currentSortDirection = ctx.currentSortDirection === 'asc' ? 'desc' : 'asc';
-          } else {
-            ctx.currentSortColumn = column;
-            ctx.currentSortDirection = 'asc';
-          }
-          ctx.renderMatriculaDados();
-        };
-      }
-    };
-
-    setupSortHeader('header-sort-ordem', 'ordem');
-    setupSortHeader('header-sort-nome', 'nome');
-    setupSortHeader('header-sort-tipo', 'tipo');
-    setupSortHeader('header-sort-este', 'este');
-    setupSortHeader('header-sort-norte', 'norte');
-    setupSortHeader('header-sort-altitude', 'altitude');
-  }
-
-  const listPt = document.getElementById('tbl-pontos-triagem');
-  if (listPt) {
-    if (pontosMat.length === 0) {
-      listPt.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-white/30">Nenhum ponto atrelado a esta matrícula.</td></tr>`;
-    } else {
-      pontosMat.sort((a, b) => {
-        let valA: any;
-        let valB: any;
-        let isNumeric = false;
-
-        if (ctx.currentSortColumn === 'ordem') {
-          const isIgnA = isIgnoradoOuBase(a) ? 1 : 0;
-          const isIgnB = isIgnoradoOuBase(b) ? 1 : 0;
-          if (isIgnA !== isIgnB) {
-            return isIgnB - isIgnA;
-          }
-          if (isIgnA === 1) {
-            return a.nome_vertice.localeCompare(b.nome_vertice);
-          }
-          const valAOrdem = a.ordem_caminhamento;
-          const valBOrdem = b.ordem_caminhamento;
-          const numA = Number(valAOrdem ?? 999999);
-          const numB = Number(valBOrdem ?? 999999);
-          return ctx.currentSortDirection === 'asc' ? numA - numB : numB - numA;
-        } else if (ctx.currentSortColumn === 'nome') {
-          valA = a.nome_vertice;
-          valB = b.nome_vertice;
-        } else if (ctx.currentSortColumn === 'tipo') {
-          valA = a.tipo_ponto || a.tipo || '';
-          valB = b.tipo_ponto || b.tipo || '';
-        } else if (ctx.currentSortColumn === 'este') {
-          isNumeric = true;
-          valA = a.e_corrigido !== undefined && a.e_corrigido !== null ? a.e_corrigido : (a.e_original || a.lon || 0);
-          valB = b.e_corrigido !== undefined && b.e_corrigido !== null ? b.e_corrigido : (b.e_original || b.lon || 0);
-        } else if (ctx.currentSortColumn === 'norte') {
-          isNumeric = true;
-          valA = a.n_corrigido !== undefined && a.n_corrigido !== null ? a.n_corrigido : (a.n_original || a.lat || 0);
-          valB = b.n_corrigido !== undefined && b.n_corrigido !== null ? b.n_corrigido : (b.n_original || b.lat || 0);
-        } else if (ctx.currentSortColumn === 'altitude') {
-          isNumeric = true;
-          valA = a.alt !== undefined && a.alt !== null ? a.alt : (a.alt_original || 0);
-          valB = b.alt !== undefined && b.alt !== null ? b.alt : (b.alt_original || 0);
-        }
-
-        if (isNumeric) {
-          const numA = Number(valA) || 0;
-          const numB = Number(valB) || 0;
-          return ctx.currentSortDirection === 'asc' ? numA - numB : numB - numA;
-        } else {
-          if (valA === null || valA === undefined) valA = '';
-          if (valB === null || valB === undefined) valB = '';
-          const strA = String(valA).toLowerCase();
-          const strB = String(valB).toLowerCase();
-          return ctx.currentSortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
-        }
-      });
-
-      listPt.innerHTML = pontosMat.map((p) => {
-        const isSelected = ctx.selectedPontoIds.includes(p.id);
-        const ordemExibida = mapaOrdemReal.get(p.id) || '-';
-        return renderLinhaPontoCartorioHtml(p, ordemExibida, ctx.modoCoordenadas, isSelected, latLonToUTM);
-      }).join('');
-
-      initIcons();
-    }
-  }
 
   const containerLateral = document.getElementById('container-tabela-lateral-content');
   if (containerLateral) {

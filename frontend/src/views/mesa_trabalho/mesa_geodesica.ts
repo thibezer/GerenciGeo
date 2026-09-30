@@ -943,63 +943,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     window.location.hash = '#levantamentos';
   });
 
-  document.getElementById('btn-atualizar-arquivos-list')?.addEventListener('click', () => {
-    ctx.loadWorkspaceArquivos();
-  });
 
-  document.getElementById('btn-testar-busca-rinex')?.addEventListener('click', async () => {
-    if (!ctx.currentLevId) return;
-
-    const btn = document.getElementById('btn-testar-busca-rinex') as HTMLButtonElement;
-    let originalHtml = "";
-    if (btn) {
-      btn.disabled = true;
-      originalHtml = btn.innerHTML;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 mr-1 animate-spin"></i> Buscando...`;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/testar-busca-rinex`, { method: 'POST' });
-      const data = await res.json();
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
-
-      if (data.success) {
-        let detalhes = `📂 Resultado da Busca de RINEX\n\n${data.message}\n\n`;
-        if (data.arquivos_rinex_encontrados && data.arquivos_rinex_encontrados.length > 0) {
-          detalhes += `🔍 Encontrados no PC (${data.arquivos_rinex_encontrados.length}):\n` + data.arquivos_rinex_encontrados.map((item: any) => `  • ${item.rinex}\n    em: ${item.origem}`).join('\n') + `\n\n`;
-        }
-        if (data.arquivos_copiados && data.arquivos_copiados.length > 0) {
-          detalhes += `✅ Copiados para o Workspace (${data.arquivos_copiados.length}):\n` + data.arquivos_copiados.map((f: string) => `  • ${f}`).join('\n') + `\n\n`;
-        }
-        if (data.arquivos_ja_existentes && data.arquivos_ja_existentes.length > 0) {
-          detalhes += `ℹ️ Já existiam no Workspace (${data.arquivos_ja_existentes.length}):\n` + data.arquivos_ja_existentes.map((f: string) => `  • ${f}`).join('\n') + `\n\n`;
-        }
-        if (data.arquivos_registrados && data.arquivos_registrados.length > 0) {
-          detalhes += `💾 Registrados no Banco (${data.arquivos_registrados.length}):\n` + data.arquivos_registrados.map((f: string) => `  • ${f}`).join('\n') + `\n\n`;
-        }
-        if (data.erros && data.erros.length > 0) {
-          detalhes += `❌ Erros:\n` + data.erros.join('\n');
-        }
-        if (data.arquivos_rinex_encontrados?.length === 0) {
-          detalhes += `⚠️ Nenhum arquivo RINEX encontrado nas pastas conhecidas.\nVerifique se a conversão HGO foi executada antes de buscar.`;
-        }
-        alert(detalhes);
-        ctx.loadWorkspaceArquivos();
-      } else {
-        alert("Falha: " + data.message);
-      }
-    } catch (e: any) {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
-      alert("Erro de comunicação com o servidor: " + e.message);
-    }
-  });
 
   document.getElementById('btn-download-rinex-zip')?.addEventListener('click', async () => {
     if (!ctx.currentLevId) return;

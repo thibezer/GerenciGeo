@@ -5,14 +5,12 @@ import { showToast } from '../../utils';
  * Inicializa todos os eventos de clique, duplo clique e alterações
  * relacionados à tabela inferior de pontos (Mesa Geodésica e Cartório).
  */
-export function inicializarEventosTabela(
-  ctx: any, 
-  abrirModalEditarPonto: (pId: number) => void
-): void {
-  const uiTabela = document.getElementById('ui-tbl-pontos-triagem');
-  const tblTriagem = document.getElementById('tbl-pontos-triagem');
-  const painelInferior = document.getElementById('container-tabelas-inferiores');
-  const containerTabela = uiTabela || painelInferior || tblTriagem;
+/**
+ * Inicializa todos os eventos de clique, duplo clique e alterações
+ * relacionados à tabela inferior de pontos (Mesa Geodésica).
+ */
+export function inicializarEventosTabela(ctx: any): void {
+  const containerTabela = document.getElementById('ui-tbl-pontos-triagem');
 
   if (containerTabela) {
     // 1. Cliques Curtos (Seleção, focar no mapa, subir/descer na ordem)
@@ -109,7 +107,7 @@ export function inicializarEventosTabela(
       }
     });
 
-    // 2. Duplo Clique (Abre edição individual)
+    // 2. Duplo Clique (Abre edição no Painel de Propriedades)
     containerTabela.addEventListener('dblclick', (e: Event) => {
       const path = (e.composedPath ? e.composedPath() : [e.target]) as HTMLElement[];
       for (const el of path) {
@@ -117,7 +115,12 @@ export function inicializarEventosTabela(
           const pId = parseInt(el.getAttribute('data-ponto-id') || '0');
           if (pId) {
             e.stopPropagation();
-            abrirModalEditarPonto(pId);
+            ctx.selectPontoFromTabela(pId);
+            const panel = document.getElementById('painel-propriedades');
+            if (panel?.classList.contains('collapsed')) {
+              const btnToggle = document.getElementById('btn-toggle-props');
+              btnToggle?.click();
+            }
             break;
           }
         }

@@ -79,5 +79,4 @@ export interface MesaTrabalhoContext {
   expandirIngestao?: () => void;
   colapsarIngestao?: () => void;
   atualizarPainelPropriedades?: () => void;
-  inicializarRedimensionamentoColunas?: () => void;
 }

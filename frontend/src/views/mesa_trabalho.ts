@@ -29,8 +29,6 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 export let activeMapaController: any = null;
-let ctxClickOutsideHandler: ((e: MouseEvent) => void) | null = null;
-let ctxScrollHandler: (() => void) | null = null;
 let activeDragCleanup: (() => void) | null = null;
 let routeCleanup: (() => void) | null = null;
 
@@ -130,37 +128,6 @@ export const mesaTrabalhoRoute: RouteDef = {
     setupGeradorDocumentos(ctx);
     setupAuditoriaHistorico(ctx);
     setupRibbonInteractions(ctx);
-
-    // 3. Estilos de Resizers individuais
-    setTimeout(() => {
-      const styleId = 'gerencigeo-column-resizer-styles';
-      if (!document.getElementById(styleId)) {
-        const styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        styleEl.innerHTML = `
-            th.resizable-col {
-               position: relative !important;
-            }
-            .col-resizer {
-               position: absolute;
-               top: 0;
-               right: 0;
-               width: 6px;
-               height: 100%;
-               cursor: col-resize;
-               user-select: none;
-               z-index: 10;
-               background-color: transparent;
-               transition: background-color 0.2s;
-            }
-            .col-resizer:hover, .col-resizer.resizing {
-               background-color: #00f5a0 !important;
-               width: 3px;
-            }
-         `;
-        document.head.appendChild(styleEl);
-      }
-    }, 50);
 
     // 4. Implementação de Funções Centrais / Globais
     ctx.loadLevantamentoDetails = async () => {
@@ -521,10 +488,23 @@ export const mesaTrabalhoRoute: RouteDef = {
           }
           initIcons();
         }, 30);
+
+        ctx.carregarSugestoesNumeracao();
+        if (typeof ctx.verificarRascunhoLocal === 'function') {
+          ctx.verificarRascunhoLocal();
+        }
       } else {
         if (propsPanelTitle) propsPanelTitle.innerHTML = ' Propriedades';
         if (propsPanelOrdenador) propsPanelOrdenador.style.display = 'none';
         if (propsPanelContent) propsPanelContent.style.display = '';
+      }
+
+      if (etapa === 'documentos') {
+        if (ctx.currentProfissionalId) {
+          ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
+        }
+      } else if (etapa === 'auditoria') {
+        renderHistoricoCampo(ctx);
       }
 
       if (etapa === 'geoprocessamento' || etapa === 'cartorio') {
@@ -540,133 +520,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       } else {
         containerMapa?.classList.add('hidden');
         splitterMapa?.classList.add('hidden');
-      }
-
-      const btnGeo = document.getElementById('btn-etapa-geoprocessamento');
-      const btnCart = document.getElementById('btn-etapa-cartorio');
-      const btnDoc = document.getElementById('btn-etapa-documentos');
-      const btnAud = document.getElementById('btn-etapa-auditoria');
-      const containerIngestao = document.getElementById('container-ingestao-arquivos');
-      const gridSuperior = document.getElementById('grid-superior-detalhe');
-      const containerTabelas = document.getElementById('container-tabelas-inferiores');
-      const containerDivisas = document.getElementById('container-tabela-divisas');
-      const btnSalvarPerimetro = document.getElementById('btn-salvar-perimetro-custom');
-      const containerAuditoriaCampo = document.getElementById('container-etapa-auditoria-campo');
-      const bannerSugestao = document.getElementById('banner-sugestao-numeracao');
-      const panelHomologacao = document.getElementById('panel-homologacao-incra');
-      const painelWorkspace = document.getElementById('painel-workspace-gnss');
-
-      const lblTituloLateral = document.getElementById('lbl-titulo-tabela-lateral');
-      const badgeLateral = document.getElementById('badge-tabela-lateral');
-
-      const containerAbasMatriculas = document.getElementById('container-abas-matriculas');
-      const containerInfoMatricula = document.getElementById('container-info-matricula-ativa');
-      if (containerAbasMatriculas) {
-        if (etapa === 'cartorio' || etapa === 'documentos') {
-          containerAbasMatriculas.classList.remove('hidden');
-        } else {
-          containerAbasMatriculas.classList.add('hidden');
-        }
-      }
-      if (containerInfoMatricula) {
-        if (etapa === 'cartorio' || etapa === 'documentos') {
-          containerInfoMatricula.classList.remove('hidden');
-        } else {
-          containerInfoMatricula.classList.add('hidden');
-        }
-      }
-
-      if (etapa === 'geoprocessamento') {
-        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-
-        if (gridSuperior) gridSuperior.classList.remove('hidden');
-        const splitterInf = document.getElementById('splitter-inferior');
-        if (splitterInf) splitterInf.classList.add('hidden');
-
-        if (containerDivisas) containerDivisas.classList.add('hidden');
-        if (containerTabelas) containerTabelas.classList.remove('hidden');
-        if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
-        if (painelWorkspace) painelWorkspace.classList.remove('hidden');
-        if (lblTituloLateral) lblTituloLateral.innerText = "Auditoria de Translação Geodésica";
-        if (badgeLateral) {
-          badgeLateral.innerText = "VETOR DELTA ECEF";
-          badgeLateral.className = "text-[9px] text-blue-400 font-mono bg-blue-500/10 px-2 py-0.5 rounded-full font-bold";
-        }
-        if (btnSalvarPerimetro) btnSalvarPerimetro.classList.add('hidden');
-        if (bannerSugestao) bannerSugestao.classList.add('hidden');
-        if (panelHomologacao) panelHomologacao.classList.add('hidden');
-      } else if (etapa === 'cartorio') {
-        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-
-        if (containerIngestao) containerIngestao.classList.add('hidden');
-        if (gridSuperior) gridSuperior.classList.remove('hidden');
-        
-        const splitterInf = document.getElementById('splitter-inferior');
-        if (splitterInf) splitterInf.classList.remove('hidden');
-
-        if (containerDivisas) containerDivisas.classList.remove('hidden');
-        if (containerTabelas) containerTabelas.classList.remove('hidden');
-        if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
-        if (painelWorkspace) painelWorkspace.classList.remove('hidden');
-        if (lblTituloLateral) lblTituloLateral.innerText = "Segmentos de Divisa (Confrontantes)";
-        if (badgeLateral) {
-          badgeLateral.innerText = "EDICAO REAL-TIME";
-          badgeLateral.className = "text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold";
-        }
-        if (btnSalvarPerimetro) btnSalvarPerimetro.classList.remove('hidden');
-        if (panelHomologacao) panelHomologacao.classList.add('hidden'); // Oculto na Etapa 2
-        ctx.carregarSugestoesNumeracao();
-        if (typeof ctx.verificarRascunhoLocal === 'function') {
-          ctx.verificarRascunhoLocal();
-        }
-      } else if (etapa === 'documentos') {
-        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-
-        if (containerIngestao) containerIngestao.classList.add('hidden');
-        if (gridSuperior) gridSuperior.classList.remove('hidden');
-        const containerReordenar = document.getElementById('container-reordenar-manual');
-        if (containerReordenar) containerReordenar.classList.add('hidden');
-        
-        const splitterInf = document.getElementById('splitter-inferior');
-        if (splitterInf) splitterInf.classList.add('hidden');
-
-        if (containerDivisas) containerDivisas.classList.add('hidden');
-        if (containerTabelas) containerTabelas.classList.add('hidden');
-        if (containerAuditoriaCampo) containerAuditoriaCampo.classList.add('hidden');
-        if (painelWorkspace) painelWorkspace.classList.add('hidden');
-        if (btnSalvarPerimetro) btnSalvarPerimetro.classList.add('hidden');
-        if (bannerSugestao) bannerSugestao.classList.add('hidden');
-        if (panelHomologacao) panelHomologacao.classList.remove('hidden'); // Visível na Etapa 3
-        
-        if (ctx.currentProfissionalId) {
-          ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
-        }
-      } else if (etapa === 'auditoria') {
-        if (bannerSugestao) bannerSugestao.classList.add('hidden');
-        if (panelHomologacao) panelHomologacao.classList.add('hidden');
-        if (btnGeo) btnGeo.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnCart) btnCart.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnDoc) btnDoc.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab text-white/40 hover:text-white hover:bg-white/[0.03] border border-transparent flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-        if (btnAud) btnAud.className = 'flex-grow py-3 px-4 md:py-1.5 md:px-3.5 text-xs font-bold text-center rounded-lg transition-all btn-etapa-tab bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 shadow-[0_0_12px_rgba(0,245,160,0.06)] flex items-center justify-center gap-2 whitespace-nowrap active:scale-95';
-
-        if (containerIngestao) containerIngestao.classList.add('hidden');
-        if (gridSuperior) gridSuperior.classList.add('hidden');
-        
-        if (containerTabelas) containerTabelas.classList.add('hidden');
-        const splitterInf = document.getElementById('splitter-inferior');
-        if (splitterInf) splitterInf.classList.add('hidden');
-        if (containerAuditoriaCampo) containerAuditoriaCampo.classList.remove('hidden');
-        if (painelWorkspace) painelWorkspace.classList.add('hidden');
-        renderHistoricoCampo(ctx);
       }
 
       const tabBtn = document.querySelector(`.rl3-tab[data-tab="${etapa}"]`) as HTMLButtonElement;
@@ -898,247 +751,12 @@ export const mesaTrabalhoRoute: RouteDef = {
       ctx.atualizarDestaqueLinhasTabela();
     };
 
-    // 5. Configuração de Event Delegation (Tabelas de Campo/Matrícula)
+    // 5. Configuração de Event Delegation da Tabela de Vértices
     const setupEventDelegation = () => {
-      const containerWorkspace = document.getElementById('container-workspace-arquivos');
-
-      // Inicializa os eventos de clique, duplo clique e mudança da tabela inferior via tabela_dados.ts
-      inicializarEventosTabela(ctx, abrirModalEditarPonto);
-
-      if (containerWorkspace) {
-        containerWorkspace.addEventListener('click', async (e) => {
-          const target = e.target as HTMLElement;
-
-          const btnVis = target.closest('.btn-visualizar-workspace');
-          const btnDownload = target.closest('.btn-download-workspace');
-          const btnDeletar = target.closest('.btn-deletar-workspace');
-
-          if (btnVis || btnDownload) {
-            const btn = (btnVis || btnDownload)!;
-            const cat = btn.getAttribute('data-cat') || '';
-            const nome = btn.getAttribute('data-nome') || '';
-            window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=${cat}&nome=${encodeURIComponent(nome)}`, '_blank');
-            return;
-          }
-
-          if (btnDeletar) {
-            const cat = btnDeletar.getAttribute('data-cat') || '';
-            const nome = btnDeletar.getAttribute('data-nome') || '';
-
-            let confirmMsg = `Tem certeza que deseja excluir o arquivo '${nome}' do repositório físico?`;
-            if (cat === 'Processados' && nome.toLowerCase().endsWith('.txt')) {
-              confirmMsg += `\n\nATENÇÃO: A exclusão desta caderneta purgará automaticamente todos os pontos importados dela no banco de dados.`;
-            }
-
-            if (!await customConfirm(confirmMsg)) return;
-
-            try {
-              const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/deletar?categoria=${cat}&nome=${encodeURIComponent(nome)}`, {
-                method: 'DELETE'
-              });
-              const resData = await res.json();
-              if (resData.success) {
-                showToast(resData.message, 'success');
-                ctx.loadWorkspaceArquivos();
-                if (resData.pontos_removidos > 0) {
-                  ctx.loadLevantamentoDetails();
-                }
-              } else {
-                showToast(`Erro ao excluir: ${resData.error || resData.detail || 'Falha desconhecida'}`, 'error');
-              }
-            } catch (err) {
-              console.error("Erro ao deletar arquivo:", err);
-              showToast("Erro de comunicação com o servidor API.", 'error');
-            }
-          }
-        });
-      }
+      inicializarEventosTabela(ctx);
     };
 
-    // 6. Modal de Edição de Ponto e Menu de Contexto
-    let pontoSelecionadoContextoId: number | null = null;
-
-    const abrirModalEditarPonto = (pId: number) => {
-      const pt = ctx.pontosList.find(x => x.id === pId);
-      if (!pt) return;
-
-      const modalPt = document.getElementById('modal-editar-ponto');
-      if (!modalPt) return;
-
-      pontoSelecionadoContextoId = pId;
-
-      const elTitulo = document.getElementById('modal-pt-titulo-nome');
-      if (elTitulo) elTitulo.innerText = pt.nome_vertice;
-
-      const inputId = document.getElementById('input-pt-id') as HTMLInputElement;
-      if (inputId) inputId.value = pt.id.toString();
-
-      const inputNome = document.getElementById('input-pt-nome') as HTMLInputElement;
-      if (inputNome) inputNome.value = pt.nome_vertice;
-
-      const selectTipo = document.getElementById('select-pt-tipo') as HTMLSelectElement;
-      if (selectTipo) selectTipo.value = pt.tipo_ponto || 'P';
-
-      const selectStatus = document.getElementById('select-pt-status') as HTMLSelectElement;
-      if (selectStatus) selectStatus.value = pt.status_ponto || 'BRUTO';
-
-      const selectMetodo = document.getElementById('select-pt-metodo') as HTMLSelectElement;
-      if (selectMetodo) selectMetodo.value = pt.metodo_posicionamento || 'PG1';
-
-      const inputLat = document.getElementById('input-pt-lat') as HTMLInputElement;
-      if (inputLat) inputLat.value = pt.lat ? pt.lat.toFixed(9) : '';
-
-      const inputLon = document.getElementById('input-pt-lon') as HTMLInputElement;
-      if (inputLon) inputLon.value = pt.lon ? pt.lon.toFixed(9) : '';
-
-      const inputAlt = document.getElementById('input-pt-alt') as HTMLInputElement;
-      if (inputAlt) inputAlt.value = pt.alt ? pt.alt.toFixed(4) : '';
-
-      const inputSigLat = document.getElementById('input-pt-sigma-lat') as HTMLInputElement;
-      if (inputSigLat) inputSigLat.value = pt.sigma_lat ? pt.sigma_lat.toFixed(4) : '0.0000';
-
-      const inputSigLon = document.getElementById('input-pt-sigma-lon') as HTMLInputElement;
-      if (inputSigLon) inputSigLon.value = pt.sigma_lon ? pt.sigma_lon.toFixed(4) : '0.0000';
-
-      const inputSigAlt = document.getElementById('input-pt-sigma-alt') as HTMLInputElement;
-      if (inputSigAlt) inputSigAlt.value = pt.sigma_alt ? pt.sigma_alt.toFixed(4) : '0.0000';
-
-      const txtPtE = document.getElementById('txt-pt-e-orig');
-      if (txtPtE) txtPtE.innerText = pt.e_original ? pt.e_original.toFixed(4) + ' m' : 'N/A';
-
-      const txtPtN = document.getElementById('txt-pt-n-orig');
-      if (txtPtN) txtPtN.innerText = pt.n_original ? pt.n_original.toFixed(4) + ' m' : 'N/A';
-
-      const txtPtAlt = document.getElementById('txt-pt-alt-orig');
-      if (txtPtAlt) txtPtAlt.innerText = pt.alt_original ? pt.alt_original.toFixed(4) + ' m' : 'N/A';
-
-      const txtPtArq = document.getElementById('txt-pt-arquivo-origem');
-      if (txtPtArq) txtPtArq.innerText = pt.arquivo_rinex ? `Origem: ${pt.arquivo_rinex}` : 'Origem: Ingestão Manual';
-
-      const selectBase = document.getElementById('select-pt-base') as HTMLSelectElement;
-      if (selectBase) {
-        const basesDoLev = ctx.pontosList.filter(x => {
-          if (pt.tipo_ponto === 'B') {
-            return x.tipo_ponto === 'M' && x.id !== pId;
-          } else {
-            return (x.tipo_ponto === 'M' || x.tipo_ponto === 'B') && x.id !== pId;
-          }
-        });
-
-        let baseOptionsHtml = '<option value="">[Sem Base Apoio]</option>';
-        baseOptionsHtml += basesDoLev.map(b => `<option value="${b.id}" ${b.id === pt.ponto_base_id ? 'selected' : ''}>Base: ${b.nome_vertice}</option>`).join('');
-
-        selectBase.innerHTML = baseOptionsHtml;
-        selectBase.disabled = (pt.tipo_ponto === 'M');
-      }
-
-      const sectionBaseControle = document.getElementById('section-pt-base-controle');
-      const inputNBase = document.getElementById('input-pt-n-corr-base') as HTMLInputElement;
-      const inputEBase = document.getElementById('input-pt-e-corr-base') as HTMLInputElement;
-      const inputAltBase = document.getElementById('input-pt-alt-corr-base') as HTMLInputElement;
-      const selectFusoBase = document.getElementById('select-pt-fuso-base') as HTMLSelectElement;
-
-      const lblDn = document.getElementById('lbl-pt-dn-base');
-      const lblDe = document.getElementById('lbl-pt-de-base');
-      const lblDh = document.getElementById('lbl-pt-dh-base');
-      const lblD3D = document.getElementById('lbl-pt-d3d-base');
-
-      const atualizarDeltasRealtimeModal = () => {
-        if (!pt.n_original || !pt.e_original || !pt.alt_original || !lblDn || !lblDe || !lblDh || !lblD3D) return;
-        const nCorr = parseFloat(inputNBase.value);
-        const eCorr = parseFloat(inputEBase.value);
-        const altCorr = parseFloat(inputAltBase.value);
-
-        if (isNaN(nCorr) || isNaN(eCorr) || isNaN(altCorr)) {
-          lblDn.innerText = '-';
-          lblDe.innerText = '-';
-          lblDh.innerText = '-';
-          lblD3D.innerText = '-';
-          return;
-        }
-
-        const dN = (nCorr - pt.n_original) * 1000;
-        const dE = (eCorr - pt.e_original) * 1000;
-        const dH = (altCorr - pt.alt_original) * 1000;
-        const d3D = Math.sqrt(dN * dN + dE * dE + dH * dH);
-
-        lblDn.innerText = (dN >= 0 ? '+' : '') + dN.toFixed(1) + ' mm';
-        lblDe.innerText = (dE >= 0 ? '+' : '') + dE.toFixed(1) + ' mm';
-        lblDh.innerText = (dH >= 0 ? '+' : '') + dH.toFixed(1) + ' mm';
-        lblD3D.innerText = d3D.toFixed(1) + ' mm';
-      };
-
-      const alternarVisualizacaoSeçãoBase = () => {
-        const tipo = (document.getElementById('select-pt-tipo') as HTMLSelectElement).value;
-        const sectionGeo = document.getElementById('section-pt-ajustadas-geo');
-        if ((tipo === 'M' || tipo === 'B') && sectionBaseControle && inputNBase && inputEBase && inputAltBase && selectFusoBase) {
-          sectionBaseControle.classList.remove('hidden');
-          if (sectionGeo) sectionGeo.classList.add('hidden');
-
-          if (pt.e_corrigido !== undefined && pt.e_corrigido !== null && pt.n_corrigido !== undefined && pt.n_corrigido !== null) {
-            inputNBase.value = pt.n_corrigido.toFixed(3);
-            inputEBase.value = pt.e_corrigido.toFixed(3);
-            inputAltBase.value = (pt.alt !== undefined && pt.alt !== null ? pt.alt : (pt.alt_original || 0)).toFixed(3);
-
-            if (pt.lon) {
-              const zone = Math.floor((pt.lon + 180) / 6) + 1;
-              selectFusoBase.value = zone + 'S';
-            } else {
-              selectFusoBase.value = '22S';
-            }
-          } else if (pt.lat && pt.lon) {
-            const utm = ctx.latLonToUTM(pt.lat, pt.lon);
-            inputNBase.value = utm.n.toFixed(3);
-            inputEBase.value = utm.e.toFixed(3);
-            inputAltBase.value = (pt.alt !== undefined && pt.alt !== null ? pt.alt : (pt.alt_original || 0)).toFixed(3);
-            selectFusoBase.value = utm.zone + 'S';
-          } else {
-            inputNBase.value = pt.n_original ? pt.n_original.toFixed(3) : '';
-            inputEBase.value = pt.e_original ? pt.e_original.toFixed(3) : '';
-            inputAltBase.value = pt.alt_original ? pt.alt_original.toFixed(3) : '';
-
-            if (pt.lon_original) {
-              const zone = Math.floor((pt.lon_original + 180) / 6) + 1;
-              selectFusoBase.value = zone + 'S';
-            } else if (pt.lon) {
-              const zone = Math.floor((pt.lon + 180) / 6) + 1;
-              selectFusoBase.value = zone + 'S';
-            } else {
-              selectFusoBase.value = '22S';
-            }
-          }
-          atualizarDeltasRealtimeModal();
-        } else if (sectionBaseControle) {
-          sectionBaseControle.classList.add('hidden');
-          if (sectionGeo) sectionGeo.classList.remove('hidden');
-        }
-      };
-
-      if (inputNBase && inputEBase && inputAltBase) {
-        inputNBase.oninput = atualizarDeltasRealtimeModal;
-        inputEBase.oninput = atualizarDeltasRealtimeModal;
-        inputAltBase.oninput = atualizarDeltasRealtimeModal;
-      }
-
-      const selectTipoPonto = document.getElementById('select-pt-tipo') as HTMLSelectElement;
-      if (selectTipoPonto) {
-        selectTipoPonto.onchange = () => {
-          if (selectBase) {
-            selectBase.disabled = (selectTipoPonto.value === 'M');
-            if (selectTipoPonto.value === 'M') {
-              selectBase.value = '';
-            }
-          }
-          alternarVisualizacaoSeçãoBase();
-        };
-      }
-
-      alternarVisualizacaoSeçãoBase();
-
-      modalPt.classList.remove('hidden');
-      initIcons();
-    };
-
+    // 6. Exclusão de Vértices (Individual e em Lote)
     const confirmarExclusaoPonto = async (pId: number) => {
       if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
          await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
@@ -1203,218 +821,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
-    const salvarPontoModal = async () => {
-      if (!pontoSelecionadoContextoId) return;
-
-      const pId = pontoSelecionadoContextoId;
-      const nome_vertice = (document.getElementById('input-pt-nome') as HTMLInputElement).value.trim();
-      const tipo_ponto = (document.getElementById('select-pt-tipo') as HTMLSelectElement).value;
-      const status_ponto = (document.getElementById('select-pt-status') as HTMLSelectElement).value;
-      const metodo_posicionamento = (document.getElementById('select-pt-metodo') as HTMLSelectElement).value;
-      const ponto_base_id_val = (document.getElementById('select-pt-base') as HTMLSelectElement).value;
-      const ponto_base_id = ponto_base_id_val ? parseInt(ponto_base_id_val) : 0;
-
-      const lat_val = (document.getElementById('input-pt-lat') as HTMLInputElement).value;
-      const lon_val = (document.getElementById('input-pt-lon') as HTMLInputElement).value;
-      const alt_val = (document.getElementById('input-pt-alt') as HTMLInputElement).value;
-
-      const lat = lat_val ? parseFloat(lat_val) : null;
-      const lon = lon_val ? parseFloat(lon_val) : null;
-      const alt = alt_val ? parseFloat(alt_val) : null;
-
-      const sigma_lat_val = (document.getElementById('input-pt-sigma-lat') as HTMLInputElement).value;
-      const sigma_lon_val = (document.getElementById('input-pt-sigma-lon') as HTMLInputElement).value;
-      const sigma_alt_val = (document.getElementById('input-pt-sigma-alt') as HTMLInputElement).value;
-
-      const sigma_lat = sigma_lat_val ? parseFloat(sigma_lat_val) : 0;
-      const sigma_lon = sigma_lon_val ? parseFloat(sigma_lon_val) : 0;
-      const sigma_alt = sigma_alt_val ? parseFloat(sigma_alt_val) : 0;
-
-      const payload: any = {
-        nome_vertice,
-        tipo_ponto,
-        status_ponto,
-        metodo_posicionamento,
-        ponto_base_id,
-        lat,
-        lon,
-        alt,
-        sigma_lat,
-        sigma_lon,
-        sigma_alt
-      };
-
-      if (tipo_ponto === 'M' || tipo_ponto === 'B') {
-        const nCorr = parseFloat((document.getElementById('input-pt-n-corr-base') as HTMLInputElement).value);
-        const eCorr = parseFloat((document.getElementById('input-pt-e-corr-base') as HTMLInputElement).value);
-        const altCorr = parseFloat((document.getElementById('input-pt-alt-corr-base') as HTMLInputElement).value);
-        const fuso = (document.getElementById('select-pt-fuso-base') as HTMLSelectElement).value;
-
-        if (!isNaN(nCorr) && !isNaN(eCorr) && !isNaN(altCorr)) {
-          payload.n_corrigido = nCorr;
-          payload.e_corrigido = eCorr;
-          payload.alt_corrigido = altCorr;
-          payload.fuso = fuso;
-        }
-      }
-
-      // Desabilita botão submit para evitar double-submit
-      const btnSubmitPt = document.getElementById('btn-salvar-pt') as HTMLButtonElement ||
-        document.querySelector('#form-editar-ponto [type="submit"]') as HTMLButtonElement;
-      if (btnSubmitPt) { btnSubmitPt.disabled = true; btnSubmitPt.textContent = 'Salvando...'; }
-
-      try {
-        const res = await fetch(`${API_BASE}/pontos/${pId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.error || (data.detail && typeof data.detail === 'string')) {
-          await customAlert(`Erro ao salvar: ${data.error || data.detail}`);
-        } else if (data.detail && typeof data.detail === 'object') {
-          await customAlert(`Erro ao salvar: ${JSON.stringify(data.detail)}`);
-        } else {
-          document.getElementById('modal-editar-ponto')?.classList.add('hidden');
-          showToast("Vértice geodésico atualizado com sucesso!", 'success');
-          await ctx.loadLevantamentoDetails();
-        }
-      } catch (err) {
-        console.error("Erro ao salvar alterações no ponto:", err);
-        showToast("Erro de comunicação com o servidor.", 'error');
-      } finally {
-        if (btnSubmitPt) { btnSubmitPt.disabled = false; btnSubmitPt.textContent = 'Salvar Alterações'; }
-      }
-    };
-
-    const inicializarMenuContextoEPontoModal = () => {
-      const menuCtx = document.getElementById('menu-contexto-ponto');
-      const modalPt = document.getElementById('modal-editar-ponto');
-
-      if (!menuCtx || !modalPt) return;
-
-      const tabelaCorpo = document.getElementById('tbl-pontos-triagem');
-      if (tabelaCorpo) {
-        tabelaCorpo.addEventListener('contextmenu', (e) => {
-          const targetRow = (e.target as HTMLElement).closest('.linha-ponto-tbl');
-          if (!targetRow) return;
-
-          e.preventDefault();
-          const pId = parseInt(targetRow.getAttribute('data-ponto-id') || '0');
-          if (!pId) return;
-
-          pontoSelecionadoContextoId = pId;
-          ctx.selectPontoFromTabela(pId);
-
-          menuCtx.style.left = `${e.pageX}px`;
-          menuCtx.style.top = `${e.pageY}px`;
-          menuCtx.classList.remove('hidden');
-        });
-      }
-
-      ctxClickOutsideHandler = (e: MouseEvent) => {
-        if (!menuCtx.contains(e.target as Node)) {
-          menuCtx.classList.add('hidden');
-        }
-      };
-
-      ctxScrollHandler = () => {
-        menuCtx.classList.add('hidden');
-      };
-
-      document.addEventListener('click', ctxClickOutsideHandler);
-      document.addEventListener('scroll', ctxScrollHandler, true);
-
-      document.getElementById('menu-ctx-editar')?.addEventListener('click', () => {
-        menuCtx.classList.add('hidden');
-        if (pontoSelecionadoContextoId) {
-          abrirModalEditarPonto(pontoSelecionadoContextoId);
-        }
-      });
-
-      document.getElementById('menu-ctx-excluir')?.addEventListener('click', () => {
-        menuCtx.classList.add('hidden');
-        if (pontoSelecionadoContextoId) {
-          confirmarExclusaoPonto(pontoSelecionadoContextoId);
-        }
-      });
-
-      document.getElementById('btn-fechar-modal-pt')?.addEventListener('click', () => {
-        modalPt.classList.add('hidden');
-      });
-      document.getElementById('btn-cancelar-pt')?.addEventListener('click', () => {
-        modalPt.classList.add('hidden');
-      });
-
-      document.getElementById('form-editar-ponto')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        salvarPontoModal();
-      });
-
-      document.getElementById('btn-excluir-ponto-modal')?.addEventListener('click', () => {
-        if (pontoSelecionadoContextoId) {
-          confirmarExclusaoPonto(pontoSelecionadoContextoId);
-          modalPt.classList.add('hidden');
-        }
-      });
-
-      const selectTipo = document.getElementById('select-pt-tipo') as HTMLSelectElement;
-      const selectBase = document.getElementById('select-pt-base') as HTMLSelectElement;
-      selectTipo?.addEventListener('change', () => {
-        if (selectBase && selectTipo) {
-          const tipo = selectTipo.value;
-          selectBase.disabled = (tipo === 'M');
-          if (tipo === 'M') {
-            selectBase.value = '';
-          }
-        }
-      });
-    };
-
-    // 7. Outros inicializadores de UI (Filtros, Buscas, Collapses, Splitters)
-    const inicializarWorkspaceCollapse = () => {
-      const panelCollapseBtn = document.getElementById('btn-toggle-workspace-collapse');
-      const containerArquivos = document.getElementById('container-workspace-arquivos');
-      const seta = document.getElementById('seta-workspace-collapse');
-      const painel = document.getElementById('painel-workspace-gnss');
-
-      if (!panelCollapseBtn || !containerArquivos || !seta || !painel) return;
-
-      const ajustarClassesPainel = (collapsed: boolean) => {
-        if (collapsed) {
-          painel.classList.remove('p-4', 'space-y-4', 'p-6', 'space-y-6');
-          painel.classList.add('p-2', 'px-3');
-          panelCollapseBtn.classList.remove('border-b', 'border-white/5', 'pb-4', 'pb-2.5');
-          panelCollapseBtn.classList.add('pb-0');
-        } else {
-          painel.classList.remove('p-2', 'px-3', 'px-6', 'py-3');
-          painel.classList.add('p-4', 'space-y-4');
-          panelCollapseBtn.classList.add('border-b', 'border-white/5', 'pb-2.5');
-          panelCollapseBtn.classList.remove('pb-0');
-        }
-      };
-
-      const isCollapsed = localStorage.getItem('workspace_gnss_collapsed') === 'true';
-      if (isCollapsed) {
-        containerArquivos.classList.add('hidden');
-        seta.classList.remove('rotate-90');
-        ajustarClassesPainel(true);
-      }
-
-      panelCollapseBtn.addEventListener('click', () => {
-        const currentlyHidden = containerArquivos.classList.toggle('hidden');
-        if (currentlyHidden) {
-          seta.classList.remove('rotate-90');
-          localStorage.setItem('workspace_gnss_collapsed', 'true');
-          ajustarClassesPainel(true);
-        } else {
-          seta.classList.add('rotate-90');
-          localStorage.setItem('workspace_gnss_collapsed', 'false');
-          ajustarClassesPainel(false);
-        }
-      });
-    };
-
     const inicializarBuscaPonto = () => {
       const searchInput = document.getElementById('input-search-ponto') as HTMLInputElement;
       const btnClearSearch = document.getElementById('btn-clear-search');
@@ -1433,30 +839,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           ctx.renderMatriculaDados();
         });
       }
-    };
-
-    const inicializarScrollCollapseHeader = () => {
-      const viewContainer = document.getElementById('view-container');
-      const header = document.getElementById('mesa-trabalho-header');
-      if (!viewContainer || !header) return;
-
-      viewContainer.addEventListener('scroll', () => {
-        if (viewContainer.scrollTop > 0) {
-          if (!header.classList.contains('header-condensed')) {
-            header.classList.add('header-condensed');
-            if (ctx.triagemMap) {
-              setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 310);
-            }
-          }
-        } else {
-          if (header.classList.contains('header-condensed')) {
-            header.classList.remove('header-condensed');
-            if (ctx.triagemMap) {
-              setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 310);
-            }
-          }
-        }
-      });
     };
 
     let _filtroArquivosClickHandler: ((e: MouseEvent) => void) | null = null;
@@ -1481,51 +863,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       };
       document.addEventListener('click', _filtroArquivosClickHandler);
     };
-
-    const inicializarRedimensionamentoColunas = () => {
-      const headerRow = document.getElementById('tbl-pontos-header');
-      if (!headerRow) return;
-
-      const ths = headerRow.querySelectorAll('th');
-      ths.forEach(th => {
-        const widthStyle = th.style.width;
-        if (widthStyle) {
-          // Cria o elemento resizer
-          const resizer = document.createElement('div');
-          resizer.className = 'vtx-col-resizer';
-          th.appendChild(resizer);
-
-          let startX = 0;
-          let startWidth = 0;
-
-          const onMouseMove = (e: MouseEvent) => {
-            const width = startWidth + (e.clientX - startX);
-            if (width > 25) { // Largura mínima para segurança
-              th.style.width = `${width}px`;
-            }
-          };
-
-          const onMouseUp = () => {
-            resizer.classList.remove('resizing');
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-          };
-
-          resizer.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            startX = e.clientX;
-            startWidth = th.offsetWidth;
-            resizer.classList.add('resizing');
-
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-          });
-        }
-      });
-    };
-
-    ctx.inicializarRedimensionamentoColunas = inicializarRedimensionamentoColunas;
 
     const inicializarIngestaoCollapse = () => {
       const containerIngestao = document.getElementById('container-ingestao-arquivos');
@@ -1595,18 +932,6 @@ export const mesaTrabalhoRoute: RouteDef = {
     };
 
     const aplicarLargurasSalvas = () => {
-      const savedSupWidth = localStorage.getItem('gerencigeo_split_sup_width');
-      if (savedSupWidth) {
-        const widthPx = parseInt(savedSupWidth);
-        const containerReordenar = document.getElementById('container-reordenar-manual');
-        if (containerReordenar) containerReordenar.style.width = `${widthPx}px`;
-      }
-      const savedInfWidth = localStorage.getItem('gerencigeo_split_inf_width');
-      if (savedInfWidth) {
-        const widthPx = parseInt(savedInfWidth);
-        const containerDivisas = document.getElementById('container-tabela-divisas');
-        if (containerDivisas) containerDivisas.style.width = `${widthPx}px`;
-      }
       const savedPropsWidth = localStorage.getItem('gerencigeo_props_panel_width') || '280px';
       const panelProps = document.getElementById('painel-propriedades');
       const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
@@ -1630,95 +955,6 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.aplicarLargurasSplitters = aplicarLargurasSalvas;
 
     const inicializarSplitters = () => {
-      const splitterSup = document.getElementById('splitter-superior');
-      const containerReordenar = document.getElementById('container-reordenar-manual');
-      const gridSuperior = document.getElementById('grid-superior-detalhe');
-
-      const splitterInf = document.getElementById('splitter-inferior');
-      const containerDivisas = document.getElementById('container-tabela-divisas');
-
-      if (splitterSup && gridSuperior) {
-        let isDraggingSup = false;
-        let startX = 0;
-        let startWidthRight = 0;
-
-        const onMouseMoveSup = (e: MouseEvent) => {
-          if (!isDraggingSup) return;
-          const rectGrid = gridSuperior.getBoundingClientRect();
-          const deltaX = startX - e.clientX;
-          const newWidthRight = Math.max(250, Math.min(rectGrid.width - 350, startWidthRight + deltaX));
-
-          if (containerReordenar && !containerReordenar.classList.contains('hidden')) {
-            containerReordenar.style.width = `${newWidthRight}px`;
-            localStorage.setItem('gerencigeo_split_sup_width', `${newWidthRight}`);
-          }
-
-          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
-        };
-
-        const onMouseUpSup = () => {
-          isDraggingSup = false;
-          document.removeEventListener('mousemove', onMouseMoveSup);
-          document.removeEventListener('mouseup', onMouseUpSup);
-          document.body.classList.remove('cursor-col-resize', 'select-none');
-          if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 50);
-          }
-        };
-
-        splitterSup.addEventListener('mousedown', (e: MouseEvent) => {
-          e.preventDefault();
-          isDraggingSup = true;
-          startX = e.clientX;
-
-          const activePanel = containerReordenar;
-
-          if (activePanel) {
-            startWidthRight = activePanel.getBoundingClientRect().width;
-          }
-
-          document.addEventListener('mousemove', onMouseMoveSup);
-          document.addEventListener('mouseup', onMouseUpSup);
-          document.body.classList.add('cursor-col-resize', 'select-none');
-        });
-      }
-
-      if (splitterInf && containerDivisas) {
-        let isDraggingInf = false;
-        let startX = 0;
-        let startWidthRight = 0;
-
-        const onMouseMoveInf = (e: MouseEvent) => {
-          if (!isDraggingInf) return;
-          const containerParent = splitterInf.parentElement;
-          if (!containerParent) return;
-          const rectParent = containerParent.getBoundingClientRect();
-          const deltaX = startX - e.clientX;
-          const newWidthRight = Math.max(250, Math.min(rectParent.width - 350, startWidthRight + deltaX));
-
-          containerDivisas.style.width = `${newWidthRight}px`;
-          localStorage.setItem('gerencigeo_split_inf_width', `${newWidthRight}`);
-        };
-
-        const onMouseUpInf = () => {
-          isDraggingInf = false;
-          document.removeEventListener('mousemove', onMouseMoveInf);
-          document.removeEventListener('mouseup', onMouseUpInf);
-          document.body.classList.remove('cursor-col-resize', 'select-none');
-        };
-
-        splitterInf.addEventListener('mousedown', (e: MouseEvent) => {
-          e.preventDefault();
-          isDraggingInf = true;
-          startX = e.clientX;
-          startWidthRight = containerDivisas.getBoundingClientRect().width;
-
-          document.addEventListener('mousemove', onMouseMoveInf);
-          document.addEventListener('mouseup', onMouseUpInf);
-          document.body.classList.add('cursor-col-resize', 'select-none');
-        });
-      }
-
       // Redimensionador de Altura do Mapa vs Tabela (Splitter Horizontal)
       const splitterMapa = document.getElementById('splitter-mapa-tabela');
       const mainContent = document.querySelector('.workspace-main-content') as HTMLElement;
@@ -1730,7 +966,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         const onMouseMoveMapa = (e: MouseEvent) => {
           if (!isDraggingMapa) return;
-          const deltaY = startY - e.clientY; // Arrastar para cima aumenta a altura da tabela/view inferior
+          const deltaY = startY - e.clientY;
           const newHeight = Math.max(150, Math.min(window.innerHeight - 300, startHeight + deltaY));
 
           mainContent.style.setProperty('--table-area-h', `${newHeight}px`);
@@ -1760,7 +996,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           isDraggingMapa = true;
           startY = e.clientY;
           
-          // Lê a altura da view-panel ativa no momento
           const activePanel = document.querySelector('.view-panel.active-view') as HTMLElement;
           startHeight = activePanel ? activePanel.getBoundingClientRect().height : 280;
 
@@ -1805,7 +1040,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         };
 
         resizerProps.addEventListener('mousedown', (e: MouseEvent) => {
-          if (panelProps.classList.contains('collapsed')) return; // Protege se estiver colapsado
+          if (panelProps.classList.contains('collapsed')) return;
 
           e.preventDefault();
           isDraggingProps = true;
@@ -2240,25 +1475,15 @@ export const mesaTrabalhoRoute: RouteDef = {
     // 9. Lança Inicializadores
     setupEventDelegation();
     ctx.loadLevantamentoDetails();
-    inicializarMenuContextoEPontoModal();
-    inicializarWorkspaceCollapse();
     inicializarBuscaPonto();
-    inicializarScrollCollapseHeader();
     inicializarIngestaoCollapse();
     inicializarFiltroArquivos();
-    inicializarRedimensionamentoColunas();
     inicializarSplitters();
     ctx.inicializarEventosCartorio();
     activeDragCleanup = inicializarDragDropGlobal();
 
     // Registra destruidor de eventos ao desmontar a página
     const cleanup = () => {
-      if (ctxClickOutsideHandler) {
-        document.removeEventListener('click', ctxClickOutsideHandler);
-      }
-      if (ctxScrollHandler) {
-        document.removeEventListener('scroll', ctxScrollHandler, true);
-      }
       // Remove listener do filtro de arquivos (previne memory leak — MT-09)
       if (_filtroArquivosClickHandler) {
         document.removeEventListener('click', _filtroArquivosClickHandler);
