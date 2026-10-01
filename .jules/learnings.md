@@ -527,3 +527,20 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   2. **Registro Imediato na Exclusão**: Sempre que um registro for excluído (DELETE) em cliente_manager.py ou api.php, registrar imediatamente o ID na tabela registros_excluidos.
   3. **Proteção Anti-Ressuscitação no Upsert**: A rotina _upsert_tabela_local deve consultar os IDs de registros_excluidos para a respectiva tabela e ignorar/descartar qualquer linha que já tenha sido excluída localmente.
   4. **Propagação no Push/Pull**: O payload do push_dados_nuvem envia o array 'exclusoes', fazendo com que o MySQL execute DELETE e atualize o timestamp em tempo real. O pull_dados_nuvem recebe as exclusões remotas e aplica DELETE no SQLite local.
+
+---
+
+## 32. Modernização do Painel de Propriedades com Web Component W3C (<ui-tabela-propriedades>)
+- **Contexto e Problema**:
+  1. O arquivo monolítico `painel_propriedades.ts` (com mais de 1.640 linhas) misturava lógica de DOM Vanilla, renderização em string HTML imperativa, formatação de dados, listeners duplicados e regras de salvamento em lote e debounced.
+  2. Cada alteração de seleção no mapa ou na tabela gerava reconstrução destrutiva com `innerHTML`, perdendo estado de focagem, scroll e disparando vazamento de listeners se o `AbortController` falhasse.
+- **Regra Obrigatória**:
+  1. **Componente Nativo W3C**: O container `#props-panel-content` utiliza estritamente o Web Component padronizado `<ui-tabela-propriedades>` (`estilo-visual="autocad"`, `densidade="compacta"`).
+  2. **Isolamento Modular em `painel_propriedades/`**:
+     - `adaptador_geral.ts`: Monta a árvore de propriedades para o projeto/matrícula quando não há seleção ativa;
+     - `adaptador_vertice.ts`: Monta as categorias (Identificação, UTM, Geodésicas, Precisão & Sigmas, SIGEF, Confrontação, Polígono) e o seletor superior de tipos (M/V/P/O) para um vértice individual;
+     - `adaptador_multi.ts`: Monta a paleta de edição em lote para múltiplos vértices com `modo-aplicar="manual"`;
+     - `servico_salvamento.ts`: Centraliza o auto-save debounced (`PATCH /pontos/{id}`) e o salvamento em lote (`PUT /levantamentos/{id}/pontos/batch`);
+     - `index.ts`: Orquestra o ciclo de vida, reutiliza a instância do componente e vincula os eventos (`ui-propriedade-alterada`, `ui-tipo-alterado`, `ui-aplicar`, `ui-desfazer`, `ui-acao-clique`).
+  3. **Preservação do Ordenador Manual**: O container `#props-panel-ordenador` permanece totalmente inalterado e isolado, sendo ativado apenas quando a etapa for `cartorio`, conforme a regra 4 deste guia.
+

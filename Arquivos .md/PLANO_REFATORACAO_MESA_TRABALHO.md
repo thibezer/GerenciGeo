@@ -39,18 +39,25 @@ Garante estabilidade imediata antes do desmembramento dos arquivos.
 
 ---
 
-### Fase 2: Modularização de `painel_propriedades.ts` (1.486 linhas)
-Decomposição do painel lateral em 3 submódulos altamente especializados:
+### Fase 2: Modernização e Substituição pelo Web Component `<ui-tabela-propriedades>` (✅ CONCLUÍDA)
+Substituição completa do monólito `painel_propriedades.ts` (1.642 linhas) pelo componente nativo W3C da biblioteca `ui-components-kit` (`<ui-tabela-propriedades estilo-visual="autocad" densidade="compacta">`):
 
 ```
 frontend/src/views/mesa_trabalho/painel_propriedades/
-├── index.ts                      (Orquestrador: gerencia seleção, ciclo de vida e AbortController)
-├── painel_geral.ts               (Visão sem seleção: resumo do levantamento, CAR, INCRA, matrícula ativa)
-├── painel_vertice_individual.ts  (Visão 1 vértice: coordenadas UTM/Geo, sigmas, método SIGEF, divisa)
-└── painel_multi_vertices.ts      (Visão multi-seleção: alteração em lote de atributos e exclusão segura)
+├── index.ts                      (Orquestrador: instância do Web Component, AbortController, eventos e roteamento)
+├── tipos.ts                      (Contratos de dados e tipagens estritas locais para isolamento seguro)
+├── adaptador_geral.ts            (Geração declarativa de categorias para Levantamento e Matrícula ativa)
+├── adaptador_vertice.ts          (Geração declarativa de categorias e seletor superior de tipo para 1 vértice)
+├── adaptador_multi.ts            (Geração de categorias para edição em lote com modo-aplicar="manual")
+└── servico_salvamento.ts         (Auto-save debounced PATCH e persistência em lote PUT /pontos/batch)
 ```
 
-- **Invariante visual**: Preservar rigorosamente as diretrizes visuais dos 10px de margem lateral, 18px de altura de campos e 23px nos headers de seção.
+- **Ponto de Entrada**: `frontend/src/views/mesa_trabalho/painel_propriedades.ts` foi reduzido a um barril limpo reexportando `atualizarPainelPropriedades`.
+- **Benefícios Imediatos**:
+  - Eliminação de manipulação imperativa de strings HTML e destruição contínua da árvore DOM.
+  - Busca/filtro interno nativo por propriedades, splitter embutido de largura de rótulo e colapso de categorias.
+  - Seletor de tipo superior integrado (M/V/P/O).
+  - Preservação intacta de `#props-panel-ordenador` na etapa de cartório/ordenação perimetral.
 
 ---
 
