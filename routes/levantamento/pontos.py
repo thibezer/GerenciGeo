@@ -679,17 +679,30 @@ def post_ordenar_vizinhos_global(id: int):
 # ── Atualização Manual e Auditoria Topológica ──────────────────────────────────
 
 class ConfrontanteUpdateBatch(BaseModel):
+    id: Optional[int] = None
     nome: Optional[str] = None
     matricula_imovel: Optional[str] = None
     cns_confrontante: Optional[str] = None
+    tipo_relacao: Optional[str] = "Divisa"
+
+class SegmentoUpdateBatch(BaseModel):
+    id: Optional[int] = None
+    tipo_limite_sigef: Optional[str] = None
+    tipo_limite: Optional[str] = None
+    metodo_posicionamento_sigef: Optional[str] = None
+    metodo_posicionamento: Optional[str] = None
+    anuencia_assinada: Optional[int] = None
+    confrontante_id: Optional[int] = None
 
 class PontoUpdateBatchItem(BaseModel):
     id: int
     tipo_ponto: Optional[Literal['M', 'P', 'V', 'B']] = None
+    metodo_posicionamento: Optional[str] = None
     ignorar_poligono: Optional[int] = None
     sequencia_travada_id: Optional[str] = None
     matricula_id: Optional[int] = None
     confrontante: Optional[ConfrontanteUpdateBatch] = None
+    segmento: Optional[SegmentoUpdateBatch] = None
 
 class PontoBatchUpdatePayload(BaseModel):
     pontos: List[PontoUpdateBatchItem]
@@ -718,6 +731,8 @@ class PontoUpdate(BaseModel):
     codigo_sigef: Optional[str] = None
     ponto_origem_id: Optional[int] = None
     sequencia_travada_id: Optional[str] = None
+    confrontante: Optional[ConfrontanteUpdateBatch] = None
+    segmento: Optional[SegmentoUpdateBatch] = None
 
 class PontoPatchPayload(BaseModel):
     nome_vertice: Optional[str] = None
@@ -760,7 +775,7 @@ def update_pontos_batch(id: int, payload: PontoBatchUpdatePayload):
     try:
         verificar_levantamento_arquivado(id)
         from services.gestores.levantamento_manager import atualizar_pontos_geodesicos_batch
-        res = atualizar_pontos_geodesicos_batch(id, payload.dict())
+        res = atualizar_pontos_geodesicos_batch(id, payload.model_dump(exclude_unset=True))
         if "error" in res:
             status = res.get("status_code", 400)
             raise HTTPException(status_code=status, detail=res["error"])
@@ -774,6 +789,7 @@ def update_pontos_batch(id: int, payload: PontoBatchUpdatePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/pontos/{pid}")
+@router.put("/pontos/{pid}/transacional")
 def update_ponto(pid: int, payload: PontoUpdate):
     try:
         row = execute_query("SELECT levantamento_id, ponto_vizinho FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
@@ -785,7 +801,7 @@ def update_ponto(pid: int, payload: PontoUpdate):
             
         verificar_levantamento_arquivado(row["levantamento_id"])
         
-        res = atualizar_ponto_geodesico(pid, payload.dict())
+        res = atualizar_ponto_geodesico(pid, payload.model_dump(exclude_unset=True))
         if "error" in res:
             status = res.get("status_code", 400)
             raise HTTPException(status_code=status, detail=res["error"])

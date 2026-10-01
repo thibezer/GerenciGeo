@@ -304,11 +304,11 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
             return {"success": True}
 
         segmentos_map = {}
-        # Pre-fetch segmentos for points that have confrontante updates
-        confrontante_pids = [p['id'] for p in pontos if p.get('confrontante') and p['id'] in valid_ids]
-        if confrontante_pids:
-            conf_placeholders = ', '.join(['?'] * len(confrontante_pids))
-            seg_rows = execute_query(f"SELECT id, confrontante_id, matricula_id, ponto_fim_id, tipo_limite_sigef, metodo_posicionamento_sigef, ponto_inicio_id FROM segmentos WHERE ponto_inicio_id IN ({conf_placeholders})", params=tuple(confrontante_pids), fetch_all=True)
+        # Pre-fetch segmentos para pontos que possuem atualização de confrontante ou segmento
+        needed_seg_pids = [p['id'] for p in pontos if (p.get('confrontante') or p.get('segmento')) and p['id'] in valid_ids]
+        if needed_seg_pids:
+            conf_placeholders = ', '.join(['?'] * len(needed_seg_pids))
+            seg_rows = execute_query(f"SELECT id, confrontante_id, matricula_id, ponto_fim_id, tipo_limite_sigef, metodo_posicionamento_sigef, ponto_inicio_id FROM segmentos WHERE ponto_inicio_id IN ({conf_placeholders})", params=tuple(needed_seg_pids), fetch_all=True)
             for seg in seg_rows:
                 segmentos_map[seg['ponto_inicio_id']] = dict(seg)
 
@@ -348,6 +348,10 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
 
                     update_fields.append("tipo_ponto = ?")
                     update_values.append(tipo_ponto)
+
+                if 'metodo_posicionamento' in p_update and p_update['metodo_posicionamento'] is not None:
+                    update_fields.append("metodo_posicionamento = ?")
+                    update_values.append(p_update['metodo_posicionamento'])
 
                 if 'matricula_id' in p_update:
                     raw_mat = p_update['matricula_id']
@@ -396,46 +400,90 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
 
                 # Tratar confrontante
                 conf_data = p_update.get('confrontante')
-                if conf_data:
-                    # Encontrar segmentos que iniciam com esse ponto
-                    segmento = segmentos_map.get(pid)
+                segmento = segmentos_map.get(pid)
+                if conf_data is not None:
+                    conf_id = conf_data.get('id') or (segmento['confrontante_id'] if segmento else None)
+                    nome_conf = (conf_data.get('nome') or '').strip()
 
-                    if segmento:
-                        conf_id = segmento['confrontante_id']
-                        if conf_id:
-                            # Update existing
-                            conf_fields = []
-                            conf_values = []
+                    if nome_conf == '':
+                        # Remoção do confrontante
+                        if segmento:
+                            cursor.execute("UPDATE segmentos SET confrontante_id = NULL WHERE id = ?", (segmento['id'],))
+                        cursor.execute("UPDATE pontos SET confrontante_id = NULL WHERE id = ?", (pid,))
+                    elif conf_id:
+                        # Atualização de confrontante existente
+                        conf_fields = []
+                        conf_values = []
 
-                            if conf_data.get('nome') is not None:
-                                conf_fields.append("nome = ?")
-                                conf_values.append(conf_data['nome'])
-                            if conf_data.get('matricula_imovel') is not None:
-                                conf_fields.append("matricula_imovel = ?")
-                                conf_values.append(conf_data['matricula_imovel'])
-                            if conf_data.get('cns_confrontante') is not None:
-                                conf_fields.append("cns_confrontante = ?")
-                                conf_values.append(conf_data['cns_confrontante'])
+                        if conf_data.get('nome') is not None:
+                            conf_fields.append("nome = ?")
+                            conf_values.append(conf_data['nome'])
+                        if conf_data.get('matricula_imovel') is not None:
+                            conf_fields.append("matricula_imovel = ?")
+                            conf_values.append(conf_data['matricula_imovel'])
+                        if conf_data.get('cns_confrontante') is not None:
+                            conf_fields.append("cns_confrontante = ?")
+                            conf_values.append(conf_data['cns_confrontante'])
 
-                            if conf_fields:
-                                conf_values.append(conf_id)
-                                cursor.execute(f"UPDATE confrontantes SET {', '.join(conf_fields)} WHERE id = ?", conf_values)
-                        elif conf_data.get('nome') or conf_data.get('matricula_imovel') or conf_data.get('cns_confrontante'):
-                            # Create new
-                            nome = conf_data.get('nome') or conf_data.get('matricula_imovel') or 'Confrontante'
-                            mat = conf_data.get('matricula_imovel')
-                            cns = conf_data.get('cns_confrontante')
-                            
-                            cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome,))
-                            pessoa_id = cursor.lastrowid
+                        if conf_fields:
+                            conf_values.append(conf_id)
+                            cursor.execute(f"UPDATE confrontantes SET {', '.join(conf_fields)} WHERE id = ?", conf_values)
+                        if conf_data.get('nome'):
+                            cursor.execute("UPDATE pessoas SET nome = ? WHERE id = (SELECT pessoa_id FROM confrontantes WHERE id = ?)", (conf_data['nome'], conf_id))
+                        if segmento:
+                            cursor.execute("UPDATE segmentos SET confrontante_id = ? WHERE id = ?", (conf_id, segmento['id']))
+                    elif conf_data.get('nome') or conf_data.get('matricula_imovel') or conf_data.get('cns_confrontante'):
+                        # Criação de novo confrontante
+                        nome = conf_data.get('nome') or conf_data.get('matricula_imovel') or 'Confrontante'
+                        mat = conf_data.get('matricula_imovel')
+                        cns = conf_data.get('cns_confrontante')
 
-                            cursor.execute("""
-                                INSERT INTO confrontantes (pessoa_id, levantamento_id, tipo_relacao, nome, matricula_imovel, cns_confrontante)
-                                VALUES (?, ?, 'Divisa', ?, ?, ?)
-                            """, (pessoa_id, levantamento_id, nome, mat, cns))
-                            new_conf_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome,))
+                        pessoa_id = cursor.lastrowid
 
+                        cursor.execute("""
+                            INSERT INTO confrontantes (pessoa_id, levantamento_id, tipo_relacao, nome, matricula_imovel, cns_confrontante)
+                            VALUES (?, ?, 'Divisa', ?, ?, ?)
+                        """, (pessoa_id, levantamento_id, nome, mat, cns))
+                        new_conf_id = cursor.lastrowid
+
+                        if segmento:
                             cursor.execute("UPDATE segmentos SET confrontante_id = ? WHERE id = ?", (new_conf_id, segmento['id']))
+
+                # Tratar segmento de divisa no lote
+                seg_data = p_update.get('segmento')
+                if seg_data:
+                    seg_id = seg_data.get('id') or (segmento['id'] if segmento else None)
+                    if not seg_id:
+                        cursor.execute("SELECT id FROM segmentos WHERE ponto_inicio_id = ?", (pid,))
+                        row_s = cursor.fetchone()
+                        if row_s:
+                            seg_id = row_s[0]
+
+                    if seg_id:
+                        seg_fields = []
+                        seg_values = []
+                        limite = seg_data.get('tipo_limite_sigef') or seg_data.get('tipo_limite')
+                        metodo = seg_data.get('metodo_posicionamento_sigef') or seg_data.get('metodo_posicionamento')
+                        anuencia = seg_data.get('anuencia_assinada')
+                        conf_link = seg_data.get('confrontante_id')
+
+                        if limite is not None:
+                            seg_fields.append("tipo_limite_sigef = ?")
+                            seg_values.append(limite)
+                        if metodo is not None:
+                            seg_fields.append("metodo_posicionamento_sigef = ?")
+                            seg_values.append(metodo)
+                        if anuencia is not None:
+                            seg_fields.append("anuencia_assinada = ?")
+                            seg_values.append(anuencia)
+                        if conf_link is not None:
+                            seg_fields.append("confrontante_id = ?")
+                            seg_values.append(conf_link if conf_link > 0 else None)
+
+                        if seg_fields:
+                            seg_values.append(seg_id)
+                            cursor.execute(f"UPDATE segmentos SET {', '.join(seg_fields)} WHERE id = ?", seg_values)
             conn.commit()
 
         # Reflete nas malhas se poligono foi alterado
@@ -617,6 +665,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             
         # B. Valida e Prepara Matrícula
         matriculas_para_reordenar = set()
+        deletar_segs_antigos_mat = None
         if "matricula_id" in data:
             raw_mid = data.get("matricula_id")
             m_id = raw_mid if (raw_mid is not None and raw_mid > 0) else None
@@ -635,17 +684,13 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 campos_update.append("matricula_id = ?")
                 valores_update.append(m_id)
             
-            # Limpa segmentos órfãos na matrícula antiga
-            if pt_antigo["matricula_id"]:
-                execute_query(
-                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND (ponto_inicio_id = ? OR ponto_fim_id = ?)",
-                    params=(levantamento_id, pt_antigo["matricula_id"], pid, pid),
-                    commit=True
-                )
-                matriculas_para_reordenar.add(pt_antigo["matricula_id"])
+                # Limpa segmentos órfãos na matrícula antiga dentro da transação atômica
+                if pt_antigo["matricula_id"]:
+                    deletar_segs_antigos_mat = pt_antigo["matricula_id"]
+                    matriculas_para_reordenar.add(pt_antigo["matricula_id"])
                 
-            if m_id:
-                matriculas_para_reordenar.add(m_id)
+                if m_id:
+                    matriculas_para_reordenar.add(m_id)
                 
             desc_mat = f"Vértice {pt_antigo['nome_vertice']} atrelado à matrícula ID {m_id} (anteriormente ID {pt_antigo['matricula_id']})."
             HistoricoCampoLogger.registrar_evento(
@@ -770,14 +815,99 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             if pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
                 propagar_base_bloco = True
 
-        # E. Executa o UPDATE acumulado sob uma única transação no SQLite
-        if campos_update:
-            query_update = f"UPDATE pontos SET {', '.join(campos_update)} WHERE id = ?"
-            valores_update.append(pid)
-            
-            with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query_update, tuple(valores_update))
+        # E. Executa o UPDATE do ponto, confrontante e segmento sob uma única transação atômica
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+
+            # 1. Limpa segmentos órfãos da matrícula anterior se a matrícula mudou
+            if deletar_segs_antigos_mat:
+                cursor.execute(
+                    "DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ? AND (ponto_inicio_id = ? OR ponto_fim_id = ?)",
+                    (levantamento_id, deletar_segs_antigos_mat, pid, pid)
+                )
+
+            # 2. Executa o UPDATE acumulado do ponto
+            if campos_update:
+                query_update = f"UPDATE pontos SET {', '.join(campos_update)} WHERE id = ?"
+                cursor.execute(query_update, tuple(valores_update + [pid]))
+
+            # 3. Tratamento transacional de confrontante e segmento
+            conf_data = data.get("confrontante")
+            seg_data = data.get("segmento")
+
+            # Localiza segmento que parte deste vértice
+            seg_id = None
+            if seg_data and seg_data.get("id"):
+                seg_id = seg_data["id"]
+            else:
+                cursor.execute("SELECT id, confrontante_id FROM segmentos WHERE ponto_inicio_id = ?", (pid,))
+                row_s = cursor.fetchone()
+                if row_s:
+                    seg_id = row_s[0]
+
+            if conf_data is not None:
+                nome_conf = (conf_data.get("nome") or "").strip()
+                mat_conf = conf_data.get("matricula_imovel")
+                cns_conf = conf_data.get("cns_confrontante")
+                conf_id = conf_data.get("id")
+
+                if nome_conf == "":
+                    # Remoção de confrontante
+                    if seg_id:
+                        cursor.execute("UPDATE segmentos SET confrontante_id = NULL WHERE id = ?", (seg_id,))
+                    cursor.execute("UPDATE pontos SET confrontante_id = NULL WHERE id = ?", (pid,))
+                elif conf_id:
+                    # Atualização de confrontante existente
+                    cursor.execute(
+                        "UPDATE confrontantes SET nome = COALESCE(?, nome), matricula_imovel = ?, cns_confrontante = ? WHERE id = ?",
+                        (nome_conf, mat_conf, cns_conf, conf_id)
+                    )
+                    cursor.execute(
+                        "UPDATE pessoas SET nome = ? WHERE id = (SELECT pessoa_id FROM confrontantes WHERE id = ?)",
+                        (nome_conf, conf_id)
+                    )
+                    if seg_id:
+                        cursor.execute("UPDATE segmentos SET confrontante_id = ? WHERE id = ?", (conf_id, seg_id))
+                elif conf_data.get("nome") or conf_data.get("matricula_imovel") or conf_data.get("cns_confrontante"):
+                    # Criação de novo confrontante
+                    nome = conf_data.get("nome") or conf_data.get("matricula_imovel") or "Confrontante"
+                    cursor.execute("INSERT INTO pessoas (nome) VALUES (?)", (nome,))
+                    pessoa_id = cursor.lastrowid
+                    cursor.execute(
+                        "INSERT INTO confrontantes (pessoa_id, levantamento_id, tipo_relacao, nome, matricula_imovel, cns_confrontante) VALUES (?, ?, 'Divisa', ?, ?, ?)",
+                        (pessoa_id, levantamento_id, nome, mat_conf, cns_conf)
+                    )
+                    new_conf_id = cursor.lastrowid
+                    if seg_id:
+                        cursor.execute("UPDATE segmentos SET confrontante_id = ? WHERE id = ?", (new_conf_id, seg_id))
+
+            # 4. Tratamento transacional de segmento
+            if seg_data and seg_id:
+                seg_fields = []
+                seg_vals = []
+                limite = seg_data.get("tipo_limite_sigef") or seg_data.get("tipo_limite")
+                metodo = seg_data.get("metodo_posicionamento_sigef") or seg_data.get("metodo_posicionamento")
+                anuencia = seg_data.get("anuencia_assinada")
+                conf_link = seg_data.get("confrontante_id")
+
+                if limite is not None:
+                    seg_fields.append("tipo_limite_sigef = ?")
+                    seg_vals.append(limite)
+                if metodo is not None:
+                    seg_fields.append("metodo_posicionamento_sigef = ?")
+                    seg_vals.append(metodo)
+                if anuencia is not None:
+                    seg_fields.append("anuencia_assinada = ?")
+                    seg_vals.append(anuencia)
+                if conf_link is not None:
+                    seg_fields.append("confrontante_id = ?")
+                    seg_vals.append(conf_link if conf_link > 0 else None)
+
+                if seg_fields:
+                    seg_vals.append(seg_id)
+                    cursor.execute(f"UPDATE segmentos SET {', '.join(seg_fields)} WHERE id = ?", tuple(seg_vals))
+
+            conn.commit()
 
         # F. Lógicas pós-atualização reativas de geoprocessamento
         if reordenar_poligono_reativo:

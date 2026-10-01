@@ -798,6 +798,37 @@ export function atualizarPainelPropriedades(ctx: any): void {
           }
 
           try {
+            const confNomeVal = (document.getElementById('prop-confrontante') as HTMLInputElement).value;
+            const confMatriculaVal = (document.getElementById('prop-confrontante-matricula') as HTMLInputElement).value;
+            const confCartorioVal = (document.getElementById('prop-confrontante-cartorio') as HTMLInputElement).value;
+
+            const confrontanteAlterado =
+              confNomeVal !== valoresOriginais.confrontante ||
+              confMatriculaVal !== valoresOriginais.confrontante_matricula ||
+              confCartorioVal !== valoresOriginais.confrontante_cartorio;
+
+            const limiteAlterado = limiteSelect && limiteSelect.value !== valoresOriginais.limite;
+            const metodoAlterado = metodoSelect && metodoSelect.value !== valoresOriginais.metodo;
+
+            if (confrontanteAlterado) {
+              const confrontanteIdAtual = p!.confrontante_id || (seg && seg.confrontante_id);
+              payload.confrontante = {
+                id: confrontanteIdAtual || null,
+                nome: confNomeVal,
+                matricula_imovel: confMatriculaVal,
+                cns_confrontante: confCartorioVal,
+                tipo_relacao: confObj?.tipo_relacao || 'Divisa'
+              };
+            }
+
+            if (seg && (confrontanteAlterado || limiteAlterado || metodoAlterado)) {
+              payload.segmento = {
+                id: seg.id,
+                tipo_limite_sigef: limiteSelect.value,
+                metodo_posicionamento_sigef: metodoSelect.value
+              };
+            }
+
             const res = await fetch(`${API_BASE}/pontos/${p!.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -808,127 +839,10 @@ export function atualizarPainelPropriedades(ctx: any): void {
             }
             if (!res.ok) {
               const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.detail || errData.error || "Falha ao salvar vértice");
+              throw new Error(errData.detail || errData.error || "Falha ao salvar vértice de forma transacional");
             }
 
-            const confNomeVal = (document.getElementById('prop-confrontante') as HTMLInputElement).value;
-            const confMatriculaVal = (document.getElementById('prop-confrontante-matricula') as HTMLInputElement).value;
-            const confCartorioVal = (document.getElementById('prop-confrontante-cartorio') as HTMLInputElement).value;
-
-            const confrontanteAlterado =
-              confNomeVal !== valoresOriginais.confrontante ||
-              confMatriculaVal !== valoresOriginais.confrontante_matricula ||
-              confCartorioVal !== valoresOriginais.confrontante_cartorio;
-
-            if (confrontanteAlterado) {
-              const confrontanteIdAtual = p!.confrontante_id || (seg && seg.confrontante_id);
-
-              if (confNomeVal.trim() === '') {
-                if (seg && seg.confrontante_id) {
-                  await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      matricula_id: seg.matricula_id,
-                      ponto_inicio_id: seg.ponto_inicio_id,
-                      ponto_fim_id: seg.ponto_fim_id,
-                      confrontante_id: null,
-                      tipo_limite_sigef: limiteSelect.value,
-                      metodo_posicionamento_sigef: metodoSelect.value
-                    })
-                  });
-                } else if (p!.confrontante_id) {
-                  throw new Error(
-                    "Não é possível remover o confrontante deste vértice pelo painel: " +
-                    "o vínculo está gravado diretamente no ponto (vértice integrado de " +
-                    "vizinho) e não há endpoint de API para desvincular esse campo."
-                  );
-                }
-              } else if (confrontanteIdAtual) {
-                const resConf = await fetch(`${API_BASE}/confrontantes/${confrontanteIdAtual}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    ...confObj,
-                    nome: confNomeVal,
-                    matricula_imovel: confMatriculaVal,
-                    cns_confrontante: confCartorioVal,
-                    tipo_relacao: confObj?.tipo_relacao || 'Divisa'
-                  })
-                });
-                if (!resConf.ok) {
-                  throw new Error(`Erro ao atualizar confrontante: HTTP ${resConf.status}`);
-                }
-                const resConfData = await resConf.json().catch(() => ({}));
-                if (resConfData.error) {
-                  throw new Error(`Erro ao atualizar confrontante: ${resConfData.error}`);
-                }
-              } else {
-                // GEO-03: Trata ausência de segmento perimetral antes da tentativa de salvar
-                if (!seg) {
-                  throw new Error(
-                    "Não foi possível salvar o confrontante: este vértice não possui um " +
-                    "segmento de divisa associado em memória. Rode 'Reordenar Perimetral' " +
-                    "na matrícula para regenerar os segmentos e tente novamente."
-                  );
-                }
-                const resConf = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    nome: confNomeVal,
-                    matricula_imovel: confMatriculaVal,
-                    cns_confrontante: confCartorioVal,
-                    tipo_relacao: 'Divisa'
-                  })
-                });
-                if (!resConf.ok) {
-                  throw new Error(`Erro ao criar confrontante: HTTP ${resConf.status}`);
-                }
-                const resConfData = await resConf.json().catch(() => ({}));
-                if (resConfData.error) {
-                  throw new Error(`Erro ao criar confrontante: ${resConfData.error}`);
-                }
-                const confId = resConfData.id || resConfData.confrontante_id;
-                if (confId) {
-                  const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      matricula_id: seg.matricula_id,
-                      ponto_inicio_id: seg.ponto_inicio_id,
-                      ponto_fim_id: seg.ponto_fim_id,
-                      confrontante_id: confId,
-                      tipo_limite_sigef: limiteSelect.value,
-                      metodo_posicionamento_sigef: metodoSelect.value
-                    })
-                  });
-                  if (!resSeg.ok) {
-                    throw new Error(`Erro ao associar confrontante ao segmento: HTTP ${resSeg.status}`);
-                  }
-                  const resSegData = await resSeg.json().catch(() => ({}));
-                  if (resSegData.error) {
-                    throw new Error(`Erro ao associar confrontante ao segmento: ${resSegData.error}`);
-                  }
-                }
-              }
-            } else if (seg && (limiteSelect.value !== valoresOriginais.limite || metodoSelect.value !== valoresOriginais.metodo)) {
-              const resSeg = await fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  matricula_id: seg.matricula_id,
-                  ponto_inicio_id: seg.ponto_inicio_id,
-                  ponto_fim_id: seg.ponto_fim_id,
-                  confrontante_id: seg.confrontante_id,
-                  tipo_limite_sigef: limiteSelect.value,
-                  metodo_posicionamento_sigef: metodoSelect.value
-                })
-              });
-              if (!resSeg.ok) throw new Error(`Erro ao atualizar segmento: HTTP ${resSeg.status}`);
-            }
-
-            showToast("Vértice salvo com sucesso!", "success");
+            showToast("Vértice e divisa salvos com sucesso!", "success");
             await ctx.loadLevantamentoDetails();
             ctx.renderMatriculaDados();
             ctx.atualizarPolilinhaMapaTemp();
@@ -1414,7 +1328,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
             initIcons();
 
             const batchPayload: any = { pontos: [] };
-            const segmentoPromises: Promise<Response>[] = [];
 
             for (const pObj of pontosMulti) {
               const pid = pObj.id;
@@ -1428,21 +1341,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
               if (limiteAlterado || metodoAlterado) {
                 const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === pid);
                 if (seg) {
-                  // ARQ-01: Armazena promessa para execução paralela via Promise.all
-                  segmentoPromises.push(
-                    fetch(`${API_BASE}/segmentos/${seg.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        matricula_id: seg.matricula_id,
-                        ponto_inicio_id: seg.ponto_inicio_id,
-                        ponto_fim_id: seg.ponto_fim_id,
-                        confrontante_id: seg.confrontante_id,
-                        tipo_limite_sigef: limiteAlterado ? limiteEl.value : seg.tipo_limite_sigef,
-                        metodo_posicionamento_sigef: metodoAlterado ? metodoEl.value : seg.metodo_posicionamento_sigef
-                      })
-                    })
-                  );
+                  itemPayload.segmento = {
+                    id: seg.id,
+                    tipo_limite_sigef: limiteAlterado ? limiteEl.value : seg.tipo_limite_sigef,
+                    metodo_posicionamento_sigef: metodoAlterado ? metodoEl.value : seg.metodo_posicionamento_sigef
+                  };
                 }
               }
 
@@ -1461,6 +1364,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
                 if ((finalNome !== '' || finalMat !== '' || finalCns !== '') && (cId || seg)) {
                   itemPayload.confrontante = {
+                    id: cId || null,
                     nome: finalNome || finalMat || 'Confrontante',
                     matricula_imovel: finalMat || null,
                     cns_confrontante: finalCns || null,
@@ -1470,15 +1374,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
               if (Object.keys(itemPayload).length > 1) {
                 batchPayload.pontos.push(itemPayload);
-              }
-            }
-
-            // ARQ-01: Dispara todas as atualizações de segmento em paralelo
-            if (segmentoPromises.length > 0) {
-              const resSegs = await Promise.all(segmentoPromises);
-              const falhas = resSegs.filter(r => !r.ok);
-              if (falhas.length > 0) {
-                throw new Error(`Falha ao atualizar ${falhas.length} segmentos perimetrais.`);
               }
             }
 

@@ -143,5 +143,92 @@ class TestSegmentosUpdate(unittest.TestCase):
         self.assertIsNotNone(seg)
         self.assertEqual(seg.get("anuencia_assinada"), 1)
 
+    def test_update_ponto_transacional_sucesso(self):
+        # Atualiza ponto, cria novo confrontante e atualiza segmento numa única chamada atômica
+        payload = {
+            "nome_vertice": "V-01-TRANS",
+            "confrontante": {
+                "nome": "Confrontante Transacional",
+                "matricula_imovel": "7890",
+                "cns_confrontante": "111222"
+            },
+            "segmento": {
+                "id": self.seg_id,
+                "tipo_limite_sigef": "LA1",
+                "metodo_posicionamento_sigef": "PG2"
+            }
+        }
+        res = client.put(f"/pontos/{self.p1_id}", json=payload)
+        self.assertEqual(res.status_code, 200, res.text)
+
+        # Valida ponto
+        row_pt = execute_query("SELECT nome_vertice FROM pontos WHERE id = ?", params=(self.p1_id,), fetch_one=True)
+        self.assertEqual(row_pt["nome_vertice"], "V-01-TRANS")
+
+        # Valida segmento
+        row_seg = execute_query("SELECT confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef FROM segmentos WHERE id = ?", params=(self.seg_id,), fetch_one=True)
+        self.assertEqual(row_seg["tipo_limite_sigef"], "LA1")
+        self.assertEqual(row_seg["metodo_posicionamento_sigef"], "PG2")
+        self.assertIsNotNone(row_seg["confrontante_id"])
+
+        # Valida confrontante criado
+        row_conf = execute_query("SELECT nome, matricula_imovel, cns_confrontante FROM confrontantes WHERE id = ?", params=(row_seg["confrontante_id"],), fetch_one=True)
+        self.assertEqual(row_conf["nome"], "Confrontante Transacional")
+        self.assertEqual(row_conf["matricula_imovel"], "7890")
+        self.assertEqual(row_conf["cns_confrontante"], "111222")
+
+    def test_update_ponto_transacional_rollback_se_falhar(self):
+        # Tenta atualizar com tipo de ponto inválido para forçar falha no Pydantic / domínio
+        payload = {
+            "nome_vertice": "V-01-FAIL",
+            "tipo_ponto": "INVALIDO",
+            "segmento": {
+                "id": self.seg_id,
+                "tipo_limite_sigef": "LI1"
+            }
+        }
+        res = client.put(f"/pontos/{self.p1_id}", json=payload)
+        self.assertIn(res.status_code, [400, 422])
+
+        # Garante que NADA foi alterado no banco (atomicidade / rollback)
+        row_pt = execute_query("SELECT nome_vertice FROM pontos WHERE id = ?", params=(self.p1_id,), fetch_one=True)
+        self.assertNotEqual(row_pt["nome_vertice"], "V-01-FAIL")
+
+        row_seg = execute_query("SELECT tipo_limite_sigef FROM segmentos WHERE id = ?", params=(self.seg_id,), fetch_one=True)
+        self.assertNotEqual(row_seg["tipo_limite_sigef"], "LI1")
+
+    def test_update_pontos_batch_transacional(self):
+        # Atualiza múltiplos pontos com segmentos e confrontantes numa única transação de lote
+        payload = {
+            "pontos": [
+                {
+                    "id": self.p1_id,
+                    "metodo_posicionamento": "PT1",
+                    "segmento": {
+                        "id": self.seg_id,
+                        "tipo_limite_sigef": "LI2",
+                        "metodo_posicionamento_sigef": "PT1"
+                    },
+                    "confrontante": {
+                        "id": self.conf_id,
+                        "nome": "Vizinho Atualizado em Lote"
+                    }
+                }
+            ]
+        }
+        res = client.put(f"/levantamentos/{self.lev_id}/pontos/batch", json=payload)
+        self.assertEqual(res.status_code, 200, res.text)
+
+        row_pt = execute_query("SELECT metodo_posicionamento FROM pontos WHERE id = ?", params=(self.p1_id,), fetch_one=True)
+        self.assertEqual(row_pt["metodo_posicionamento"], "PT1")
+
+        row_seg = execute_query("SELECT tipo_limite_sigef, metodo_posicionamento_sigef, confrontante_id FROM segmentos WHERE id = ?", params=(self.seg_id,), fetch_one=True)
+        self.assertEqual(row_seg["tipo_limite_sigef"], "LI2")
+        self.assertEqual(row_seg["metodo_posicionamento_sigef"], "PT1")
+        self.assertEqual(row_seg["confrontante_id"], self.conf_id)
+
+        row_conf = execute_query("SELECT nome FROM confrontantes WHERE id = ?", params=(self.conf_id,), fetch_one=True)
+        self.assertEqual(row_conf["nome"], "Vizinho Atualizado em Lote")
+
 if __name__ == '__main__':
     unittest.main()
