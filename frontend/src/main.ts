@@ -2,6 +2,10 @@ import './style.css';
 import './design-engine.css';
 import 'ui-components-kit';
 import { carregarModuloCanvas } from 'ui-components-kit';
+import { aplicarPatchesUI } from './utils/ui_adapters';
+
+// Aplica patches nos Web Components para dimensões de modais e respiro interno dos campos
+aplicarPatchesUI();
 
 // Adapters de compatibilidade para métodos legados chamados pelas views da Mesa de Trabalho
 export const aplicarAdaptersCAD = (cadProto: any) => {

@@ -134,8 +134,8 @@ export const renderClientesTemplate = (): string => `
     </div>
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
-    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" class="modal-compact-header">
-       <form id="form-cliente" class="space-y-1.5" style="--ui-altura-minima: 25px; --ui-campo-altura: 25px;">
+    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" tamanho="grande" class="modal-compact-header modal-cliente-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 28px;">
+       <form id="form-cliente" class="space-y-2" style="--ui-altura-minima: 28px; --ui-campo-altura: 28px; --ui-campo-padding-x: 12px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
           <!-- Linha Superior: Alternador PF / PJ Compacto e Sempre Visível -->
@@ -479,9 +479,9 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
        </form>
-       <div slot="rodape" class="flex justify-end gap-2 w-full py-0.5">
-          <ui-botao variante="primario" id="btn-salvar-cliente">Salvar Cliente</ui-botao>
-          <ui-botao variante="secundario" id="btn-cancelar-cliente">Cancelar</ui-botao>
+       <div slot="rodape" class="flex justify-end items-center gap-3 w-full py-1">
+          <ui-botao variante="secundario" id="btn-cancelar-cliente" class="min-w-[120px]">Cancelar</ui-botao>
+          <ui-botao variante="primario" id="btn-salvar-cliente" class="min-w-[150px]">Salvar Cliente</ui-botao>
        </div>
     </ui-modal>
 
