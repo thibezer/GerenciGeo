@@ -394,7 +394,6 @@ def get_pontos(id: int, camada: Optional[str] = None):
             else:
                 raise HTTPException(status_code=400, detail=f"Camada inválida: '{camada}'. Opções: CAMPO, PERIMETRO, HOMOLOGADO, VIZINHO, TODOS")
         else:
-            filtros.append("(p.origem_homologada IS NULL OR p.origem_homologada = 0)")
             filtros.append("(p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)")
 
         where_clause = " AND ".join(filtros)

@@ -228,6 +228,26 @@ export const mesaTrabalhoRoute: RouteDef = {
         }).catch(err => console.warn('Erro ao pré-carregar banco de pontos homologados:', err));
 
         ctx.carregarConfrontantesAtivosSelect();
+
+        // 1. Restaurar ou selecionar matrícula padrão
+        const storageKeyMat = `ultima_matricula_lev_${ctx.currentLevId}`;
+        const savedMatId = localStorage.getItem(storageKeyMat);
+        let targetMatId: number | null = null;
+
+        if (savedMatId && ctx.matriculasList.some((m: any) => String(m.id) === String(savedMatId))) {
+          targetMatId = parseInt(savedMatId, 10);
+        } else if (ctx.matriculasList.length > 0) {
+          // Prioriza matrícula que possua segmentos cadastrados
+          const matComSeg = ctx.matriculasList.find((m: any) => 
+            ctx.segmentosList.some((s: any) => String(s.matricula_id) === String(m.id))
+          );
+          targetMatId = matComSeg ? matComSeg.id : ctx.matriculasList[0].id;
+        }
+
+        if (targetMatId) {
+          ctx.currentMatriculaId = targetMatId;
+        }
+
         const dropdownMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
         if (dropdownMat) {
           const formatAreaHa = (val: any) => {
@@ -456,8 +476,11 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     ctx.switchMatriculaTab = (matriculaId: number) => {
       ctx.currentMatriculaId = matriculaId;
+      try {
+        localStorage.setItem(`ultima_matricula_lev_${ctx.currentLevId}`, String(matriculaId));
+      } catch (e) {}
 
-      const selectMat = document.getElementById('select-matricula-ribbon') as HTMLElement & { value: string };
+      const selectMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
       if (selectMat) {
         selectMat.value = matriculaId.toString();
       }
@@ -627,8 +650,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
       }
 
-      const segmentosMat = ctx.currentMatriculaId
-        ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(ctx.currentMatriculaId))
+      const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
+      const effectiveMatId = (matAtiva && matAtiva.matricula_origem_desenho_id) ? matAtiva.matricula_origem_desenho_id : ctx.currentMatriculaId;
+      const segmentosMat = effectiveMatId
+        ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
         : (ctx.segmentosList || []);
 
       const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0;

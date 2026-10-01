@@ -103,8 +103,10 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     );
   }
 
-  let segmentosMat = ctx.currentMatriculaId
-    ? ctx.segmentosList.filter((s: any) => String(s.matricula_id) === String(ctx.currentMatriculaId))
+  const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
+  const effectiveMatId = (matAtiva && matAtiva.matricula_origem_desenho_id) ? matAtiva.matricula_origem_desenho_id : ctx.currentMatriculaId;
+  let segmentosMat = effectiveMatId
+    ? ctx.segmentosList.filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
     : ctx.segmentosList;
 
   const containerTabelaDivisas = document.getElementById('container-tabela-divisas');

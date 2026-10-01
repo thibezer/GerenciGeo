@@ -458,7 +458,6 @@ def deletar_confrontante_matricula(cid: int):
 @router.get("/levantamentos/{id}/segmentos")
 def get_segmentos(id: int):
     try:
-        # Retorna apenas segmentos de campo (origem_homologada=0 ou NULL)
         query = """
             SELECT s.*, 
                    p_ini.nome_vertice as nome_ponto_inicio, 
@@ -472,7 +471,6 @@ def get_segmentos(id: int):
             LEFT JOIN confrontantes c ON s.confrontante_id = c.id
             LEFT JOIN pessoas p ON c.pessoa_id = p.id
             WHERE s.levantamento_id = ?
-              AND (s.origem_homologada IS NULL OR s.origem_homologada = 0)
         """
         return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
     except Exception as e:
