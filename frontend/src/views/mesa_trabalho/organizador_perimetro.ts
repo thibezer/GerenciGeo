@@ -9,6 +9,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
   const isIgnoradoOuBase = (p: any) => p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B';
 
   let pontosMat = ctx.obterPontosParaOrdenacao();
+  if (ctx.currentMatriculaId) {
+    pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
+  }
 
   if (ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0) {
     pontosMat = ctx.bancoPontosList.map((bp: any) => ({

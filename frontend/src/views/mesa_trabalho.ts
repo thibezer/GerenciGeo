@@ -303,9 +303,9 @@ export const mesaTrabalhoRoute: RouteDef = {
               
               // Na mesa geodésica o usuário vê os pontos brutos/ordenados, se tiver matrícula ele filtra.
               if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
-                pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
+                pontosParaCentralizar = ctx.obterPontosParaOrdenacao().filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
               } else if (ctx.currentMatriculaId) {
-                pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+                pontosParaCentralizar = ctx.pontosList.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
               } else {
                 pontosParaCentralizar = ctx.pontosList;
               }
@@ -404,9 +404,9 @@ export const mesaTrabalhoRoute: RouteDef = {
           if (ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
             let pontosParaCentralizar = [];
             if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
-              pontosParaCentralizar = ctx.obterPontosParaOrdenacao();
+              pontosParaCentralizar = ctx.obterPontosParaOrdenacao().filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
             } else if (ctx.currentMatriculaId) {
-              pontosParaCentralizar = ctx.pontosList.filter((p: any) => p.matricula_id === ctx.currentMatriculaId);
+              pontosParaCentralizar = ctx.pontosList.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
             } else {
               pontosParaCentralizar = ctx.pontosList;
             }
@@ -482,7 +482,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           try {
             ctx.triagemMap.invalidateSize();
           } catch (e) {}
-          const pontosMat = ctx.pontosList.filter(p => p.matricula_id === ctx.currentMatriculaId);
+          const pontosMat = ctx.pontosList.filter(p => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
           const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map(p => L.latLng(p.lat, p.lon));
           if (validCoords.length > 0 && ctx.triagemMap) {
             const bounds = L.latLngBounds(validCoords);
@@ -619,11 +619,20 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (!ctx.triagemMap) return;
       if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
-      const pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
+      let pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
         ? ctx.obterPontosParaOrdenacao()
         : (ctx.pontosList || []).filter(p => p && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)));
 
-      ctx.mapaController.clearOverlays();
+      if (ctx.currentMatriculaId) {
+        pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
+      }
+
+      const segmentosMat = ctx.currentMatriculaId
+        ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(ctx.currentMatriculaId))
+        : (ctx.segmentosList || []);
+
+      const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0;
+      ctx.mapaController.clearOverlays(bpAtivo);
       ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
         if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
           ctx.lidarCliqueMarcadorSequencial(pId);
@@ -631,7 +640,16 @@ export const mesaTrabalhoRoute: RouteDef = {
           ctx.selectPontoFromTabela(pId);
         }
       });
-      ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+
+      if (segmentosMat && segmentosMat.length > 0) {
+        ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+      } else {
+        ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+      }
+
+      if (bpAtivo) {
+        ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+      }
       if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
         ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
       }

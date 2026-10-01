@@ -544,3 +544,20 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - `index.ts`: Orquestra o ciclo de vida, reutiliza a instância do componente e vincula os eventos (`ui-propriedade-alterada`, `ui-tipo-alterado`, `ui-aplicar`, `ui-desfazer`, `ui-acao-clique`).
   3. **Preservação do Ordenador Manual**: O container `#props-panel-ordenador` permanece totalmente inalterado e isolado, sendo ativado apenas quando a etapa for `cartorio`, conforme a regra 4 deste guia.
 
+---
+
+## 33. Hierarquia da Verdade Topológica no Mapa: Segmentos Salvos vs. Polilinha Temporária
+- **Contexto e Problema**:
+  1. No levantamento da Fazenda Serra dos Dourados (e similares com múltiplas glebas/matrículas ou centenas de pontos), após o agrimensor ajustar e salvar a ordem perimetral das divisas no Organizador de Perímetro, o perímetro aparecia perfeito na etapa `cartorio` (com as divisas seguindo os segmentos salvos), mas ao alternar para `geoprocessamento` ou clicar em qualquer ponto na tabela/mapa (disparando `ctx.atualizarPolilinhaMapaTemp`), as linhas eram replotadas em ziguezague/cruzamento em "X" (estrela) cortando a propriedade.
+  2. **Causa Raiz Identificada**:
+     - O módulo `mesa_geodesica.ts` e a função `ctx.atualizarPolilinhaMapaTemp` chamavam cegamente `ctx.mapaController.plotPolilinhaTemporaria(pontosMat)` sem checar a existência de `segmentosMat` salvos para aquela matrícula.
+     - `plotPolilinhaTemporaria` zera os segmentos na memória do canvas (`this._segmentos = []`) e tenta reconstruir uma polilinha unindo os pontos pela ordem da lista bruta de campo.
+     - Além disso, `ctx.obterPontosParaOrdenacao()` retorna todos os pontos do levantamento (inclusive de outras matrículas e pontos soltos sem matrícula). Sem o filtro `String(p.matricula_id) === String(ctx.currentMatriculaId)`, pontos de matrículas distintas eram passados juntos para a polilinha temporária, gerando linhas diagonais cruzando os talhões.
+- **Regra Obrigatória**:
+  1. **Hierarquia da Topologia**: A tabela `segmentos` é a verdade cartorial e topológica definitiva. Em **TODAS as views e métodos de auto-update** (`mesa_geodesica.ts`, `mesa_trabalho.ts`, `organizador_perimetro.ts`, `compartilhado.ts`):
+     - Sempre verificar `const segmentosMat = ctx.currentMatriculaId ? ctx.segmentosList.filter(s => String(s.matricula_id) === String(ctx.currentMatriculaId)) : ctx.segmentosList;`
+     - Se `segmentosMat.length > 0`, **invocar obrigatoriamente** `ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);`
+     - Apenas se `segmentosMat.length === 0`, usar o fallback `ctx.mapaController.plotPolilinhaTemporaria(pontosMat);`
+  2. **Isolamento de Matrícula**: Sempre que `ctx.currentMatriculaId` estiver preenchida, filtrar estritamente `pontosMat` usando `String(p.matricula_id) === String(ctx.currentMatriculaId)` antes de repassá-lo para plotagem de pontos ou centralização `fitBounds`.
+
+

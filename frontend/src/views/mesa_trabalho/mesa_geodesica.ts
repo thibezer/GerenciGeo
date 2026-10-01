@@ -59,6 +59,10 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     ? ctx.obterPontosParaOrdenacao()
     : [...ctx.pontosList];
 
+  if (ctx.currentMatriculaId) {
+    pontosMat = pontosMat.filter(p => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
+  }
+
   if (ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0) {
     pontosMat = ctx.bancoPontosList.map((bp: any) => ({
       id: bp.id,
@@ -208,7 +212,15 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       ctx.selectPontoFromTabela(pId);
     });
 
-    ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+    const segmentosMat = ctx.currentMatriculaId
+      ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(ctx.currentMatriculaId))
+      : (ctx.segmentosList || []);
+
+    if (segmentosMat && segmentosMat.length > 0) {
+      ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+    } else {
+      ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+    }
 
     if (bpAtivo) {
       ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);

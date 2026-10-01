@@ -404,11 +404,11 @@ const plotMapData = () => {
     mapController.clearOverlays();
     mapController.plotPontos(pontos, (id: number) => (window as any).selecionarPontoPublico(id));
     
-    const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
-    if (orgPontos.length > 0) {
-        mapController.plotPolilinhaTemporaria(orgPontos);
-    } else {
+    if (segmentos && segmentos.length > 0) {
         mapController.plotSegmentos(segmentos, pontos);
+    } else {
+        const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
+        mapController.plotPolilinhaTemporaria(orgPontos.length > 0 ? orgPontos : pontos);
     }
     
     mapController.fitBounds(pontos);
