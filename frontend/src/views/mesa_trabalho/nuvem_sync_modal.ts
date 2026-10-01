@@ -3,6 +3,7 @@
  */
 
 import { initIcons, showToast } from '../../utils';
+import { API_BASE } from '../../config';
 import { realtimeSyncClient } from '../../utils/realtime_sync_client';
 import type { SyncEventItem, SyncStatusPayload } from '../../utils/realtime_sync_client';
 
@@ -158,7 +159,7 @@ export function initNuvemSyncModal(ctx?: any) {
         badgeStatus.className = "text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold bg-white/5 text-white/50 border border-white/10";
       }
 
-      const res = await fetch(`/nuvem/realtime/status`);
+      const res = await fetch(`${API_BASE}/nuvem/realtime/status`);
       const data: SyncStatusPayload = await res.json();
 
       if (data.status !== 'OFFLINE' && data.status !== 'UNAUTHENTICATED') {
@@ -244,7 +245,7 @@ export function initNuvemSyncModal(ctx?: any) {
       initIcons();
 
       try {
-        const res = await fetch(`/nuvem/login`, {
+        const res = await fetch(`${API_BASE}/nuvem/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -282,7 +283,7 @@ export function initNuvemSyncModal(ctx?: any) {
     btnLogout.onclick = async () => {
       if (!confirm("Deseja realmente desconectar deste computador?")) return;
       try {
-        await fetch(`/nuvem/logout`, { method: 'POST' });
+        await fetch(`${API_BASE}/nuvem/logout`, { method: 'POST' });
         showToast("Sessão desconectada.", "info");
         await verificarStatusNuvem();
       } catch (err: any) {
@@ -320,7 +321,7 @@ export function initNuvemSyncModal(ctx?: any) {
       initIcons();
 
       try {
-        const res = await fetch(`/nuvem/sincronizar`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/nuvem/sincronizar`, { method: 'POST' });
         const data = await res.json();
 
         if (res.ok && data.sucesso) {
@@ -363,7 +364,7 @@ export function initNuvemSyncModal(ctx?: any) {
       initIcons();
 
       try {
-        const res = await fetch(`/nuvem/pull`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/nuvem/pull`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.sucesso) {
           showToast(`✓ Download concluído: ${data.total_recebidos} registros atualizados!`, "success");
@@ -396,7 +397,7 @@ export function initNuvemSyncModal(ctx?: any) {
       initIcons();
 
       try {
-        const res = await fetch(`/nuvem/push`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/nuvem/push`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.sucesso) {
           showToast(`✓ Envio concluído: ${data.total_registros} registros transmitidos!`, "success");

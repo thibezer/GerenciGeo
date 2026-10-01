@@ -4,6 +4,7 @@
  */
 
 import { showToast } from '../utils';
+import { API_BASE } from '../config';
 
 export interface SyncStatusPayload {
   status: 'SYNCED' | 'SYNCING' | 'PENDING_PUSH' | 'OFFLINE' | 'UNAUTHENTICATED' | 'PAUSED';
@@ -181,7 +182,7 @@ class RealtimeSyncClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action: 'sync_now' }));
     } else {
-      fetch('/nuvem/sincronizar', { method: 'POST' }).catch(console.error);
+      fetch(`${API_BASE}/nuvem/sincronizar`, { method: 'POST' }).catch(console.error);
     }
   }
 
@@ -189,7 +190,7 @@ class RealtimeSyncClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action: 'toggle_enabled', enabled }));
     } else {
-      fetch('/nuvem/realtime/toggle', {
+      fetch(`${API_BASE}/nuvem/realtime/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled })

@@ -7,6 +7,7 @@ import type {
   ClienteDocumento
 } from '../types';
 import { initIcons } from '../utils';
+import { API_BASE } from '../config';
 import { renderClientesTemplate } from './clientes/clientes_template';
 import {
   fetchTodosClientes,
@@ -1149,7 +1150,7 @@ export const clientesRoute: RouteDef = {
           initIcons();
         }
 
-        const res = await fetch(`/clientes/${id}/importar-identidade-pdf`, {
+        const res = await fetch(`${API_BASE}/clientes/${id}/importar-identidade-pdf`, {
           method: 'POST',
           body: formData
         });
