@@ -57,6 +57,17 @@ class SegmentoCreate(BaseModel):
     tipo_limite_sigef: str
     metodo_posicionamento_sigef: str
 
+class SegmentoUpdate(BaseModel):
+    matricula_id: Optional[int] = None
+    ponto_inicio_id: Optional[int] = None
+    ponto_fim_id: Optional[int] = None
+    confrontante_id: Optional[int] = None
+    tipo_limite_sigef: Optional[str] = None
+    tipo_limite: Optional[str] = None
+    metodo_posicionamento_sigef: Optional[str] = None
+    metodo_posicionamento: Optional[str] = None
+    anuencia_assinada: Optional[int] = None
+
 # ── Rotas de Confrontantes ─────────────────────────────────────────────────────
 
 @router.get("/confrontantes/buscar-por-cpf")
@@ -482,18 +493,53 @@ def create_segmento(id: int, s: SegmentoCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/segmentos/{sid}")
-def update_segmento(sid: int, s: SegmentoCreate):
+@router.patch("/segmentos/{sid}")
+def update_segmento(sid: int, s: SegmentoUpdate):
     try:
         row = execute_query("SELECT levantamento_id FROM segmentos WHERE id = ?", params=(sid,), fetch_one=True)
-        if row:
-            verificar_levantamento_arquivado(row["levantamento_id"])
+        if not row:
+            raise HTTPException(status_code=404, detail="Segmento não encontrado")
             
-        query = """
-            UPDATE segmentos 
-            SET matricula_id = ?, ponto_inicio_id = ?, ponto_fim_id = ?, confrontante_id = ?, tipo_limite_sigef = ?, metodo_posicionamento_sigef = ?
-            WHERE id = ?
-        """
-        execute_query(query, params=(s.matricula_id, s.ponto_inicio_id, s.ponto_fim_id, s.confrontante_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef, sid), commit=True)
+        verificar_levantamento_arquivado(row["levantamento_id"])
+
+        fields = s.model_dump(exclude_unset=True)
+        if not fields:
+            return {"message": "Nenhum campo informado para atualização"}
+
+        # Tratar aliases para compatibilidade com payloads legados/alternativos
+        if "tipo_limite" in fields and "tipo_limite_sigef" not in fields:
+            fields["tipo_limite_sigef"] = fields.pop("tipo_limite")
+        else:
+            fields.pop("tipo_limite", None)
+
+        if "metodo_posicionamento" in fields and "metodo_posicionamento_sigef" not in fields:
+            fields["metodo_posicionamento_sigef"] = fields.pop("metodo_posicionamento")
+        else:
+            fields.pop("metodo_posicionamento", None)
+
+        allowed_cols = {
+            "matricula_id",
+            "ponto_inicio_id",
+            "ponto_fim_id",
+            "confrontante_id",
+            "tipo_limite_sigef",
+            "metodo_posicionamento_sigef",
+            "anuencia_assinada",
+        }
+
+        updates = []
+        params = []
+        for col, val in fields.items():
+            if col in allowed_cols:
+                updates.append(f"{col} = ?")
+                params.append(val)
+
+        if not updates:
+            return {"message": "Nenhum campo válido para atualização"}
+
+        params.append(sid)
+        query = f"UPDATE segmentos SET {', '.join(updates)} WHERE id = ?"
+        execute_query(query, params=tuple(params), commit=True)
         return {"message": "Segmento atualizado com sucesso"}
     except Exception as e:
         if isinstance(e, HTTPException): raise e

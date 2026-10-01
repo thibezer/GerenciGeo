@@ -286,6 +286,7 @@ def create_tables(conn):
             tipo_limite_sigef TEXT NOT NULL,
             metodo_posicionamento_sigef TEXT NOT NULL,
             origem_homologada INTEGER DEFAULT 0,
+            anuencia_assinada INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
             FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
@@ -751,7 +752,8 @@ def create_tables(conn):
 
         # Migração dinâmica para a tabela segmentos
         colunas_segmentos = [
-            ("origem_homologada", "INTEGER DEFAULT 0")
+            ("origem_homologada", "INTEGER DEFAULT 0"),
+            ("anuencia_assinada", "INTEGER DEFAULT 0")
         ]
         cursor.execute("PRAGMA table_info(segmentos)")
         colunas_segmentos_existentes = {row[1] for row in cursor.fetchall()}

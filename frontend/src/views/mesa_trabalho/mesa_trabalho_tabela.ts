@@ -46,6 +46,8 @@ interface Segmento {
   tipo_limite_sigef: string;
   metodo_posicionamento_sigef: string;
   anuencia_assinada?: number;
+  tipo_limite?: string;
+  metodo_posicionamento?: string;
 }
 
 export const obterCorArquivo = (nomeArquivo: string): string => {
@@ -189,19 +191,21 @@ export const renderLinhaSegmentoHtml = (
   `);
   confOptions.unshift(`<option value="" ${!s.confrontante_id ? 'selected' : ''}>[Sem Confrontante]</option>`);
 
+  const limiteVal = s.tipo_limite_sigef || s.tipo_limite || 'LN1';
   const limiteOptions = [
     { val: 'LN1', txt: 'Cerca (LN1)' },
     { val: 'LA1', txt: 'Muro/Parede (LA1)' },
     { val: 'LI1', txt: 'Córrego/Vala (LI1)' },
     { val: 'LI2', txt: 'Estrada (LI2)' }
-  ].map(o => `<option value="${o.val}" ${o.val === s.tipo_limite_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
+  ].map(o => `<option value="${o.val}" ${o.val === limiteVal ? 'selected' : ''}>${o.txt}</option>`).join('');
 
+  const metodoVal = s.metodo_posicionamento_sigef || s.metodo_posicionamento || 'PG1';
   const metodoOptions = [
     { val: 'PG1', txt: 'PG1 - Posicionamento GNSS - Relativo' },
     { val: 'PG2', txt: 'PG2 - Posicionamento GNSS - Absoluto' },
     { val: 'PT1', txt: 'PT1 - Poligonação' },
     { val: 'PT2', txt: 'PT2 - Irradiação' }
-  ].map(o => `<option value="${o.val}" ${o.val === s.metodo_posicionamento_sigef ? 'selected' : ''}>${o.txt}</option>`).join('');
+  ].map(o => `<option value="${o.val}" ${o.val === metodoVal ? 'selected' : ''}>${o.txt}</option>`).join('');
 
   return `
     <tr class="linha-segmento-tbl hover:bg-white/[0.02] border-b border-white/5" data-seg-id="${s.id}">
