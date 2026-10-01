@@ -532,6 +532,19 @@ function requireAuth(PDO $pdo): array {
     return $user;
 }
 
+/**
+ * Atualiza o timestamp global de mutações para que outros computadores detectem alterações em tempo real
+ */
+function touchCloudSyncTimestamp(PDO $pdo): int {
+    $ts = time();
+    try {
+        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('cloud_last_sync_ts', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+        $stmt->execute([(string)$ts]);
+    } catch (Exception $e) {}
+    return $ts;
+}
+
+
 // 3. Determinação da Rota e Método HTTP
 $method = $_SERVER['REQUEST_METHOD'];
 $requestUri = $_SERVER['REQUEST_URI'];
@@ -1062,6 +1075,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null
             ]);
             $clienteId = (int)$pdo->lastInsertId();
+            touchCloudSyncTimestamp($pdo);
             $pdo->commit();
             jsonResponse(['id' => $clienteId, 'message' => 'Cliente cadastrado com sucesso!'], 201);
         } catch (Exception $e) {
@@ -1185,6 +1199,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             $sqlUp .= " WHERE id = ?";
             $pdo->prepare($sqlUp)->execute($params);
 
+            touchCloudSyncTimestamp($pdo);
             $pdo->commit();
             jsonResponse(['id' => $id, 'message' => 'Cliente atualizado com sucesso!']);
         } catch (Exception $e) {
@@ -1197,6 +1212,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     if ($method === 'DELETE' && $id) {
         $stmt = $pdo->prepare("DELETE FROM clientes WHERE id = ?");
         $stmt->execute([$id]);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Cliente excluído com sucesso!']);
     }
 }
@@ -1636,11 +1652,14 @@ if ($route === '/sync/batch' && $method === 'POST') {
             syncTableRows($pdo, 'confrontantes', $data['confrontantes']);
         }
 
+        $nowTs = touchCloudSyncTimestamp($pdo);
+
         $pdo->commit();
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
         jsonResponse([
             'status' => 'success',
             'usuario' => $authUser['email'],
+            'cloud_timestamp' => $nowTs,
             'message' => 'Todos os dados foram sincronizados com o MySQL com sucesso!'
         ]);
     } catch (Exception $e) {
@@ -1648,6 +1667,27 @@ if ($route === '/sync/batch' && $method === 'POST') {
         $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
         jsonResponse(['error' => 'Falha na sincronização em lote: ' . $e->getMessage()], 500);
     }
+}
+
+// 7.1 ROTA DE CHECAGEM RÁPIDA DE ALTERAÇÕES EM TEMPO REAL (Heartbeat de Sincronização)
+if (($route === '/sync/check' || (isset($_GET['action']) && $_GET['action'] === 'sync_check')) && $method === 'GET') {
+    $pdo = getDb();
+    $authUser = requireAuth($pdo);
+
+    $cloudTs = 0;
+    try {
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'cloud_last_sync_ts' LIMIT 1");
+        $st->execute();
+        $val = $st->fetchColumn();
+        if ($val) $cloudTs = (int)$val;
+    } catch (Exception $e) {}
+
+    jsonResponse([
+        'status' => 'success',
+        'cloud_timestamp' => $cloudTs,
+        'server_time' => time(),
+        'usuario' => $authUser['email']
+    ]);
 }
 
 // 8. ROTA DE DOWNLOAD / PULL DE DADOS (Sync da Nuvem para o PC Local)
@@ -1680,9 +1720,18 @@ if ($route === '/sync/pull' && $method === 'GET') {
         }
     }
 
+    $cloudTs = time();
+    try {
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'cloud_last_sync_ts' LIMIT 1");
+        $st->execute();
+        $val = $st->fetchColumn();
+        if ($val) $cloudTs = (int)$val;
+    } catch (Exception $e) {}
+
     jsonResponse([
         'status' => 'success',
         'timestamp' => time(),
+        'cloud_timestamp' => $cloudTs,
         'usuario' => $authUser['email'],
         'data' => $payload
     ]);
@@ -1690,3 +1739,4 @@ if ($route === '/sync/pull' && $method === 'GET') {
 
 // Rota não encontrada
 jsonResponse(['error' => 'Rota não encontrada: ' . $route], 404);
+

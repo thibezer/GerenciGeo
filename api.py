@@ -1,16 +1,17 @@
 import os
 import logging
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from config import EXPORT_BASE_FOLDER
+from config import EXPORT_BASE_FOLDER, _is_test_environment
 from database.connection import DatabaseManager
 from database.models import create_tables
 from routes.deps import verificar_tranca_read_only
 from routes import router as api_router
+from services.gestores.realtime_sync import realtime_sync_engine
 from utils.logger import tracer
 import time
 
@@ -18,6 +19,18 @@ import time
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="GerenciGeo API", dependencies=[Depends(verificar_tranca_read_only)])
+
+@app.on_event("startup")
+async def startup_event():
+    """Inicia o motor de sincronização contínua em tempo real com a Nuvem (exceto em suíte de testes)."""
+    if not _is_test_environment():
+        await realtime_sync_engine.start()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Finaliza o motor de sincronização em tempo real."""
+    await realtime_sync_engine.stop()
+
 
 # Garante que as tabelas de banco de dados e pastas padrão existam
 try:
@@ -67,6 +80,15 @@ async def log_requests(request: Request, call_next):
             duration_ms=process_time,
             status_code=response.status_code
         )
+        # Detecta mutações bem-sucedidas em dados locais e aciona o motor de tempo real com debounce
+        if request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code in (200, 201, 204):
+            if not (path.startswith("/nuvem") or path.startswith("/api/nuvem") or 
+                    path.startswith("/auth") or path.startswith("/api/auth") or
+                    path.startswith("/assets/")):
+                partes = [p for p in path.split("/") if p and p != "api"]
+                tabela = partes[0] if partes else "geral"
+                realtime_sync_engine.marcar_mutacao_local(tabela)
+
     return response
 
 @app.exception_handler(Exception)
@@ -77,8 +99,15 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": f"Erro interno do servidor: {str(exc)}"}
     )
 
-# Inclui todas as rotas centralizadas do diretório routes/
+# Canal WebSocket para transmissão bidirecional em tempo real para as abas do frontend
+@app.websocket("/ws/realtime-sync")
+async def websocket_realtime_sync(websocket: WebSocket):
+    await realtime_sync_engine.handle_websocket(websocket)
+
+# Inclui todas as rotas centralizadas do diretório routes/ (suportando chamadas com ou sem prefixo /api)
 app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
+
 
 # Monta o frontend Vite compilado para ser servido na raiz
 frontend_dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")

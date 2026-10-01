@@ -15,6 +15,7 @@ from config import (
     CLOUD_BASE_URL,
     CLOUD_SYNC_URL,
     CLOUD_PULL_URL,
+    CLOUD_CHECK_URL,
     CLOUD_LOGIN_URL,
     CLOUD_STATUS_URL
 )
@@ -201,11 +202,14 @@ async def push_dados_nuvem() -> dict:
         if res.status_code in (200, 201):
             res_data = res.json()
             sessao["last_sync"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            if "cloud_timestamp" in res_data:
+                sessao["last_cloud_ts"] = int(res_data["cloud_timestamp"])
             salvar_sessao(sessao)
             return {
                 "sucesso": True,
                 "mensagem": res_data.get("message") or "Dados enviados para a nuvem com sucesso!",
                 "total_registros": total_reg,
+                "cloud_timestamp": sessao.get("last_cloud_ts"),
                 "detalhes": {t: len(rows) for t, rows in payload.items()}
             }
         else:
@@ -275,9 +279,20 @@ async def pull_dados_nuvem() -> dict:
             err_msg = res.json().get("error") if res.headers.get("content-type", "").startswith("application/json") else res.text
             return {"sucesso": False, "mensagem": f"Erro ao baixar da nuvem ({res.status_code}): {err_msg}"}
 
-        data_cloud = res.json().get("data", {})
+        cloud_json = res.json()
+        data_cloud = cloud_json.get("data", {})
+        cloud_ts = cloud_json.get("cloud_timestamp")
         if not data_cloud:
-            return {"sucesso": True, "mensagem": "Nenhum dado pendente na nuvem.", "total_recebidos": 0}
+            sessao["last_sync"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            if cloud_ts:
+                sessao["last_cloud_ts"] = int(cloud_ts)
+            salvar_sessao(sessao)
+            return {
+                "sucesso": True,
+                "mensagem": "Nenhum dado pendente na nuvem.",
+                "total_recebidos": 0,
+                "cloud_timestamp": sessao.get("last_cloud_ts")
+            }
 
         # Conecta no SQLite local para aplicar a importação de forma atômica
         with DatabaseManager() as conn:
@@ -310,18 +325,61 @@ async def pull_dados_nuvem() -> dict:
             conn.commit()
 
         sessao["last_sync"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        if cloud_ts:
+            sessao["last_cloud_ts"] = int(cloud_ts)
         salvar_sessao(sessao)
 
         return {
             "sucesso": True,
             "mensagem": f"Download concluído! {total_baixados} registros atualizados no banco local.",
             "total_recebidos": total_baixados,
+            "cloud_timestamp": sessao.get("last_cloud_ts"),
             "detalhes": resumo
         }
 
     except Exception as e:
         logger.exception("Falha ao puxar dados da nuvem:")
         return {"sucesso": False, "mensagem": f"Falha de conexão durante o download: {str(e)}"}
+
+
+async def checar_novidades_nuvem() -> dict:
+    """
+    Heartbeat ultrarrápido (< 50ms) que verifica se outro computador publicou
+    novos dados ou alterações na Nuvem Hostinger.
+    """
+    sessao = carregar_sessao()
+    token = sessao.get("token")
+    if not token:
+        return {"online": False, "autenticado": False, "novidades": False, "mensagem": "Sem sessão ativa"}
+
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            res = await client.get(CLOUD_CHECK_URL, headers=headers)
+
+        if res.status_code == 200:
+            data = res.json()
+            cloud_ts = int(data.get("cloud_timestamp", 0))
+            last_ts = int(sessao.get("last_cloud_ts", 0))
+            tem_novidades = (cloud_ts > last_ts) if (cloud_ts > 0 and last_ts > 0) else False
+
+            return {
+                "online": True,
+                "autenticado": True,
+                "novidades": tem_novidades,
+                "cloud_timestamp": cloud_ts,
+                "last_cloud_ts": last_ts,
+                "server_time": data.get("server_time")
+            }
+        elif res.status_code == 401:
+            limpar_sessao()
+            return {"online": True, "autenticado": False, "novidades": False, "mensagem": "Sessão expirada"}
+        else:
+            return {"online": False, "autenticado": True, "novidades": False, "mensagem": f"Status HTTP {res.status_code}"}
+    except Exception as e:
+        logger.debug(f"Falha ao checar heartbeat na nuvem: {e}")
+        return {"online": False, "autenticado": True, "novidades": False, "erro": str(e)}
+
 
 
 async def sincronizar_tudo() -> dict:

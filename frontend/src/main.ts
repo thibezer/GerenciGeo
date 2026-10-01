@@ -90,6 +90,8 @@ import { ccirRoute } from './views/ccir';
 import { compartilhadoRoute } from './views/compartilhado';
 import { loginRoute } from './views/login';
 import { AuthService } from './utils/auth_service';
+import { realtimeSyncClient } from './utils/realtime_sync_client';
+import { initNuvemSyncModal } from './views/mesa_trabalho/nuvem_sync_modal';
 
 // Detecção se o app está executando no desktop local ou na nuvem Hostinger
 const isLocal = window.location.origin.includes('localhost') || 
@@ -219,6 +221,24 @@ const initApp = () => {
   const param = parts.length > 1 ? parts[1] : null;
   navigate(baseRoute, param);
   initIcons();
+
+  // Inicializa o motor de sincronização em tempo real e o modal global da nuvem
+  realtimeSyncClient.init();
+  initNuvemSyncModal();
+
+  // Escuta dados recebidos da Nuvem em tempo real para recarregar a visualização ativa suavemente
+  window.addEventListener('gerencigeo:data_updated', () => {
+    const hash = window.location.hash.replace('#', '') || 'dashboard';
+    const base = hash.split('/')[0];
+    
+    // Atualiza a tela se o operador estiver em dashboard, clientes ou propriedades
+    if (base === 'dashboard' || base === 'clientes' || base === 'propriedades') {
+      const current = routes[base];
+      if (current && typeof current.setup === 'function') {
+        current.setup(null);
+      }
+    }
+  });
 
   // Atualiza informações do usuário na barra lateral caso autenticado
   const currentUser = AuthService.getUser();
