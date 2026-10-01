@@ -79,6 +79,7 @@ export function inicializarEventosTabela(ctx: any): void {
             ctx.selectedPontoIds.push(pId);
             ctx.lastSelectedPontoId = pId;
           }
+          ctx.atualizarDestaqueLinhasTabela();
         } else if (mouseEvent.shiftKey && ctx.lastSelectedPontoId !== null) {
           // Seleção sequencial por intervalo (Shift + Click)
           const pontosMat = ctx.etapaAtiva === 'geoprocessamento' ? [...ctx.pontosList] : ctx.pontosList.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B');
@@ -96,14 +97,11 @@ export function inicializarEventosTabela(ctx: any): void {
               }
             });
           }
+          ctx.atualizarDestaqueLinhasTabela();
         } else {
           // Seleção simples de ponto único
-          ctx.selectedPontoIds = [pId];
-          ctx.lastSelectedPontoId = pId;
+          ctx.selectPontoFromTabela(pId);
         }
-
-        ctx.atualizarDestaqueLinhasTabela();
-        ctx.selectPontoFromTabela(pId);
       }
     });
 

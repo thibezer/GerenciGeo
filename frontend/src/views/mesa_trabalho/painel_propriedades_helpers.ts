@@ -53,6 +53,17 @@ export interface Ponto {
   ponto_origem_id?: number | null;
   fuso_utm?: number | null;
   hemisferio?: string | null;
+  origem_homologada?: number;
+  is_homologado_sigef?: boolean;
+  tipo_limite_sigef?: string;
+  tipo_limite?: string;
+  metodo_posicionamento?: string;
+  confrontante_descritivo?: string;
+  matricula_confrontante?: string;
+  cns_confrontante?: string;
+  confrontante_nome?: string;
+  confrontante_matricula?: string;
+  confrontante_cartorio?: string;
 }
 
 export interface Segmento {

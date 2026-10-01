@@ -32,6 +32,52 @@ import type { Ponto, Segmento, Confrontante } from './painel_propriedades_helper
 let panelAbortController: AbortController | null = null;
 let collapseTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+function converterBancoPontoParaPonto(bp: any): Ponto {
+  const eVal = bp.este != null ? Number(bp.este) : (bp.e_corrigido != null ? Number(bp.e_corrigido) : null);
+  const nVal = bp.norte != null ? Number(bp.norte) : (bp.n_corrigido != null ? Number(bp.n_corrigido) : null);
+  const hVal = bp.altitude != null ? Number(bp.altitude) : (bp.alt != null ? Number(bp.alt) : null);
+
+  return {
+    id: bp.id,
+    levantamento_id: bp.levantamento_id,
+    matricula_id: bp.matricula_id,
+    nome_vertice: bp.codigo_completo || bp.nome_vertice || `VRT-${bp.numero || bp.id}`,
+    ponto_nome: bp.codigo_completo || bp.nome_vertice || `VRT-${bp.numero || bp.id}`,
+    codigo_sigef: bp.codigo_completo || bp.nome_vertice || '',
+    tipo_ponto: bp.tipo_ponto || 'M',
+    tipo: bp.tipo_ponto || 'M',
+    lat: bp.lat != null ? Number(bp.lat) : null,
+    lon: bp.lon != null ? Number(bp.lon) : null,
+    lat_corrigido: bp.lat != null ? Number(bp.lat) : null,
+    lon_corrigido: bp.lon != null ? Number(bp.lon) : null,
+    alt: hVal,
+    alt_corrigido: hVal,
+    alt_original: hVal,
+    e_original: eVal,
+    e_corrigido: eVal,
+    n_original: nVal,
+    n_corrigido: nVal,
+    sigma_e: bp.sigma_e != null ? Number(bp.sigma_e) : 0.05,
+    sigma_n: bp.sigma_n != null ? Number(bp.sigma_n) : 0.05,
+    sigma_z: bp.sigma_z != null ? Number(bp.sigma_z) : (bp.sigma_alt != null ? Number(bp.sigma_alt) : 0.08),
+    status_correcao: 'HOMOLOGADO',
+    status_ponto: 'HOMOLOGADO',
+    camada_ciclo_vida: 'HOMOLOGADO',
+    origem_homologada: 1,
+    arquivo_origem: bp.planilha_origem || 'Planilha Homologada SIGEF',
+    metodo_posicionamento: bp.metodo_posicionamento,
+    tipo_limite_sigef: bp.tipo_limite,
+    tipo_limite: bp.tipo_limite,
+    confrontante_descritivo: bp.confrontante_descritivo,
+    matricula_confrontante: bp.matricula_confrontante,
+    cns_confrontante: bp.cns_confrontante,
+    confrontante_nome: bp.confrontante_descritivo,
+    confrontante_matricula: bp.matricula_confrontante,
+    confrontante_cartorio: bp.cns_confrontante,
+    is_homologado_sigef: true
+  } as any;
+}
+
 export function atualizarPainelPropriedades(ctx: any): void {
   const panelContent = document.getElementById('props-panel-content');
   const panelActions = document.getElementById('props-panel-actions');
@@ -132,22 +178,25 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (panelActions) panelActions.classList.add('hidden');
     }
     else if (selectedCount === 1 || (selectedCount === 0 && selectedVizinhoCount === 1)) {
-      // Caso 2: Um Vértice Selecionado (Normal ou Vizinho)
+      // Caso 2: Um Vértice Selecionado (Normal, Homologado SIGEF ou Vizinho)
       let p: Ponto | undefined;
       let isPontoVizinho = false;
 
       if (selectedCount === 1) {
         const pId = selectedPontoIds[0];
-        p = pontosList.find((pt: Ponto) => pt.id === pId);
+        p = pontosList.find((pt: Ponto) => String(pt.id) === String(pId));
+        if (!p && ctx.bancoPontosList) {
+          const bp = ctx.bancoPontosList.find((pt: any) => String(pt.id) === String(pId));
+          if (bp) {
+            p = converterBancoPontoParaPonto(bp);
+          }
+        }
         isPontoVizinho = p ? p.ponto_vizinho === 1 : false;
       } else {
         const pId = selectedVizinhoPontoIds[0];
-        p = pontosVizinhosList.find((pt: Ponto) => pt.id === pId);
+        p = pontosVizinhosList.find((pt: Ponto) => String(pt.id) === String(pId));
         isPontoVizinho = true;
       }
-
-      const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
-      const isDisabled = isPontoVizinho || isArquivado;
 
       if (!p) {
         panelContent.innerHTML = `<div class="p-4 text-white/40 italic">Ponto não encontrado.</div>`;
@@ -155,7 +204,11 @@ export function atualizarPainelPropriedades(ctx: any): void {
         return;
       }
 
-      const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO';
+      const isHomologado = Boolean(p.camada_ciclo_vida === 'HOMOLOGADO' || p.origem_homologada === 1 || (p as any).is_homologado_sigef);
+      const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
+      const isDisabled = isPontoVizinho || isArquivado || Boolean((p as any).is_homologado_sigef);
+
+      const isCorrigido = p.status_correcao === 'CORRIGIDO' || p.status_ponto === 'CORRIGIDO' || isHomologado;
 
       let latVal: number | null = null;
       let lonVal: number | null = null;
@@ -199,15 +252,20 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       const confrontanteId = p.confrontante_id || (seg && seg.confrontante_id);
       if (confrontanteId) {
-        confObj = confrontantesList.find((c: Confrontante) => c.id === confrontanteId);
+        confObj = confrontantesList.find((c: Confrontante) => String(c.id) === String(confrontanteId));
         if (confObj) {
           confNome = confObj.nome || '';
           confMatricula = confObj.matricula_imovel || '';
           confCartorio = confObj.cns_confrontante || '';
         }
       }
+      if (!confNome && ((p as any).confrontante_descritivo || (p as any).matricula_confrontante || (p as any).cns_confrontante || (p as any).confrontante_nome)) {
+        confNome = (p as any).confrontante_descritivo || (p as any).confrontante_nome || '';
+        confMatricula = (p as any).matricula_confrontante || (p as any).confrontante_matricula || '';
+        confCartorio = (p as any).cns_confrontante || (p as any).confrontante_cartorio || '';
+      }
 
-      const temCoordenadasBrutas = isCorrigido && (p.e_original != null || p.lat != null || p.lon != null);
+      const temCoordenadasBrutas = !isHomologado && isCorrigido && (p.e_original != null || p.lat != null || p.lon != null);
 
       let nomeBaseApoio = 'Nenhuma';
       if (p.ponto_base_id) {
@@ -222,7 +280,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (isPontoVizinho || camada === 'VIZINHO' || p.ponto_vizinho === 1) {
         origemTexto = 'Confrontante / Vizinho';
         badgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-      } else if (camada === 'HOMOLOGADO' || (p as any).origem_homologada === 1) {
+      } else if (camada === 'HOMOLOGADO' || (p as any).origem_homologada === 1 || isHomologado) {
         origemTexto = 'Homologado SIGEF';
         badgeClass = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
       } else if (camada === 'PERIMETRO') {
@@ -234,6 +292,19 @@ export function atualizarPainelPropriedades(ctx: any): void {
       }
 
       panelContent.innerHTML = `
+      <!-- CABEÇALHO DO VÉRTICE SELECIONADO -->
+      <div class="props-field mb-2 flex items-center justify-between bg-white/[0.04] px-2 py-1.5 rounded border border-white/10">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0 ${isHomologado ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : isPontoVizinho ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-mint-vibrant shadow-[0_0_8px_#00E08A]'}"></span>
+          <span class="text-[11px] font-bold font-mono text-white truncate" title="${escapeHtml(p.nome_vertice || p.codigo_sigef || String(p.id))}">
+            ${escapeHtml(p.nome_vertice || p.codigo_sigef || String(p.id))}
+          </span>
+        </div>
+        <button type="button" id="btn-desmarcar-vertice-unico" class="text-[9px] text-white/40 hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-colors shrink-0" title="Desmarcar vértice">
+          ✕ Desmarcar
+        </button>
+      </div>
+
       <!-- GRUPO 1: GERAL -->
       <div class="props-section" id="sec-props-geral">
         <div class="props-section-header flex items-center justify-between" id="header-props-geral">
@@ -243,7 +314,9 @@ export function atualizarPainelPropriedades(ctx: any): void {
         <div class="props-section-body" id="body-props-geral">
           <div class="props-field mb-3 flex items-center justify-between">
             <span class="text-[9px] uppercase font-bold tracking-wider text-white/40">Ciclo de Vida</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">${origemTexto}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">
+              ${isHomologado ? '⭐ ' : ''}${origemTexto}
+            </span>
           </div>
           ${p.ponto_origem_id ? `
           <div class="props-field mb-2 flex items-center justify-between bg-cyan-500/5 px-2 py-1 rounded border border-cyan-500/20">
@@ -298,7 +371,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
             <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
               <select id="prop-metodo" class="props-field-value flex-1 min-w-0" ${isDisabled ? 'disabled' : ''}>
                 <option class="bg-[#111113] text-white/90" value="">Selecione...</option>
-                ${METODOS_SIGEF.map(m => `<option class="bg-[#111113] text-white/90" value="${escapeHtml(m.codigo)}" ${p.tipo_ponto === m.codigo || (p as any).metodo_posicionamento === m.codigo ? 'selected' : ''}>${escapeHtml(m.codigo)} - ${escapeHtml(m.nome)}</option>`).join('')}
+                ${METODOS_SIGEF.map(m => `<option class="bg-[#111113] text-white/90" value="${escapeHtml(m.codigo)}" ${p!.tipo_ponto === m.codigo || (p as any).metodo_posicionamento === m.codigo ? 'selected' : ''}>${escapeHtml(m.codigo)} - ${escapeHtml(m.nome)}</option>`).join('')}
               </select>
               <button type="button" id="btn-ajuda-metodo" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Métodos SIGEF">
                 <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
@@ -309,9 +382,9 @@ export function atualizarPainelPropriedades(ctx: any): void {
           <div class="props-field">
             <label class="props-field-label">Limite</label>
             <div class="flex items-center gap-1 flex-1 min-w-0 pr-1 text-left justify-start">
-              <select id="prop-tipo-limite" class="props-field-value flex-1 min-w-0" ${isDisabled || !seg ? 'disabled' : ''} title="${!seg ? 'Sem segmento de divisa associado' : ''}">
-                <option class="bg-[#111113] text-white/90" value="">${seg ? 'Selecione...' : 'Sem Divisa'}</option>
-                ${LIMITES_SIGEF.map(l => `<option class="bg-[#111113] text-white/90" value="${escapeHtml(l.codigo)}" ${(seg && seg.tipo_limite_sigef === l.codigo) ? 'selected' : ''}>${escapeHtml(l.codigo)} - ${escapeHtml(l.nome)}</option>`).join('')}
+              <select id="prop-tipo-limite" class="props-field-value flex-1 min-w-0" ${isDisabled || (!seg && !(p as any).tipo_limite_sigef && !(p as any).tipo_limite) ? 'disabled' : ''} title="${!seg && !(p as any).tipo_limite_sigef && !(p as any).tipo_limite ? 'Sem segmento de divisa associado' : ''}">
+                <option class="bg-[#111113] text-white/90" value="">${(seg || (p as any).tipo_limite_sigef || (p as any).tipo_limite) ? 'Selecione...' : 'Sem Divisa'}</option>
+                ${LIMITES_SIGEF.map(l => `<option class="bg-[#111113] text-white/90" value="${escapeHtml(l.codigo)}" ${(seg && seg.tipo_limite_sigef === l.codigo) || (p as any).tipo_limite_sigef === l.codigo || (p as any).tipo_limite === l.codigo ? 'selected' : ''}>${escapeHtml(l.codigo)} - ${escapeHtml(l.nome)}</option>`).join('')}
               </select>
               <button type="button" id="btn-ajuda-limite" class="p-0.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 rounded text-mint-vibrant transition-colors active:scale-95 flex items-center justify-center shrink-0 w-4 h-4" title="Catálogo de Tipos de Limite">
                 <i data-lucide="help-circle" class="w-2.5 h-2.5"></i>
@@ -482,10 +555,10 @@ export function atualizarPainelPropriedades(ctx: any): void {
         </div>
       </div>
 
-      ${isPontoVizinho || isArquivado ? `
+      ${isPontoVizinho || isArquivado || isHomologado ? `
       <div class="props-info-container">
-        <div class="text-[9px] text-yellow-500/80 italic text-center">
-           ⚠️ ${isArquivado ? 'Este projeto está ARQUIVADO (Modo Somente Leitura).' : 'Pontos de confrontantes/vizinhos são protegidos contra escrita.'}
+        <div class="text-[9px] ${isHomologado ? 'text-cyan-400 bg-cyan-950/20 border border-cyan-500/20 rounded p-1.5' : 'text-yellow-500/80'} italic text-center">
+           ${isHomologado ? '⭐ Ponto Homologado SIGEF / INCRA (Certificado Oficial).' : isArquivado ? '⚠️ Este projeto está ARQUIVADO (Modo Somente Leitura).' : '⚠️ Pontos de confrontantes/vizinhos são protegidos contra escrita.'}
         </div>
       </div>
       ` : ''}
@@ -493,6 +566,16 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'dados'], signal);
       initIcons();
+
+      const btnDesmarcarUnico = document.getElementById('btn-desmarcar-vertice-unico');
+      if (btnDesmarcarUnico) {
+        btnDesmarcarUnico.addEventListener('click', () => {
+          ctx.selectedPontoIds = [];
+          ctx.selectedVizinhoPontoIds = [];
+          ctx.lastSelectedPontoId = null;
+          ctx.atualizarDestaqueLinhasTabela();
+        }, { signal });
+      }
 
       const btnAjudaMetodo = document.getElementById('btn-ajuda-metodo');
       if (btnAjudaMetodo) {
@@ -508,7 +591,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         }, { signal });
       }
 
-      if (isPontoVizinho || isArquivado) {
+      if (isPontoVizinho || isArquivado || Boolean((p as any).is_homologado_sigef)) {
         if (panelActions) panelActions.classList.add('hidden');
         return;
       }
@@ -871,10 +954,22 @@ export function atualizarPainelPropriedades(ctx: any): void {
       // Caso 3: Múltiplos Vértices Selecionados — Painel Unificado
       const isArquivado = ctx.currentLevantamento?.status === 'ARQUIVADO';
 
-      // SEC-02: Filtra e impede a escrita em pontos protegidos de vizinhos
-      const pontosMulti: Ponto[] = selectedPontoIds
-        .map((id: number) => pontosList.find((pt: Ponto) => pt.id === id))
-        .filter((pt?: Ponto): pt is Ponto => Boolean(pt) && pt!.ponto_vizinho !== 1);
+      // Mapeia todos os pontos selecionados (campo, homologados e vizinhos)
+      const todosPontosSelecionados = selectedPontoIds.map((id: number) => {
+        let pt = pontosList.find((p: Ponto) => String(p.id) === String(id));
+        if (!pt && ctx.bancoPontosList) {
+          const bp = ctx.bancoPontosList.find((p: any) => String(p.id) === String(id));
+          if (bp) pt = converterBancoPontoParaPonto(bp);
+        }
+        if (!pt && pontosVizinhosList) {
+          pt = pontosVizinhosList.find((p: Ponto) => String(p.id) === String(id));
+        }
+        return pt;
+      }).filter((pt?: Ponto): pt is Ponto => Boolean(pt));
+
+      // SEC-02: Filtra e impede a escrita em pontos protegidos de vizinhos e homologados oficiais
+      const pontosMulti: Ponto[] = todosPontosSelecionados
+        .filter((pt: Ponto) => pt.ponto_vizinho !== 1 && !(pt as any).is_homologado_sigef);
 
       const resolveField = (extractor: (p: Ponto) => string): string => {
         const vals = pontosMulti.map(extractor);
@@ -1021,6 +1116,43 @@ export function atualizarPainelPropriedades(ctx: any): void {
     `).join('');
 
       panelContent.innerHTML = `
+      <!-- SEÇÃO 0: VÉRTICES SELECIONADOS (CHIPS / TAGS) -->
+      <div class="props-section mb-2" id="sec-props-selecao">
+        <div class="props-section-header flex items-center justify-between" id="header-props-selecao">
+          <div class="flex items-center gap-1.5 font-bold">
+            <i data-lucide="check-square" class="text-mint-vibrant"></i>
+            <span>Vértices Selecionados (${todosPontosSelecionados.length})</span>
+          </div>
+          <button type="button" id="btn-limpar-selecao-multi" class="text-[9px] text-white/50 hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-colors" title="Desmarcar todos os vértices">
+            ✕ Limpar
+          </button>
+        </div>
+        <div class="props-section-body p-2" id="body-props-selecao">
+          <div class="flex flex-wrap gap-1 max-h-[130px] overflow-y-auto pr-1">
+            ${todosPontosSelecionados.map(pt => {
+              const isHomolog = pt.camada_ciclo_vida === 'HOMOLOGADO' || pt.origem_homologada === 1 || (pt as any).is_homologado_sigef;
+              const isViz = pt.ponto_vizinho === 1;
+              const badgeStyle = isHomolog
+                ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                : isViz
+                ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                : 'bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/30';
+
+              return `
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border ${badgeStyle}">
+                  <span class="cursor-pointer hover:underline" data-action="focar-ponto-sel" data-ponto-id="${pt.id}" title="Clique para focar o vértice ${escapeHtml(pt.nome_vertice || String(pt.id))}">
+                    ${isHomolog ? '⭐ ' : ''}${escapeHtml(pt.nome_vertice || pt.codigo_sigef || String(pt.id))}
+                  </span>
+                  <button type="button" data-action="remover-ponto-sel" data-ponto-id="${pt.id}" class="text-white/40 hover:text-rose-400 p-0.5 rounded-full leading-none transition-colors" title="Remover da seleção">
+                    ×
+                  </button>
+                </span>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+
       <!-- GRUPO 1: GERAL -->
       <div class="props-section" id="sec-props-geral">
         <div class="props-section-header" id="header-props-geral">
@@ -1028,9 +1160,9 @@ export function atualizarPainelPropriedades(ctx: any): void {
         </div>
         <div class="props-section-body" id="body-props-geral">
           <div class="props-field mb-3 flex items-center justify-between">
-            <span class="text-[9px] uppercase font-bold tracking-wider text-white/40">Seleção</span>
+            <span class="text-[9px] uppercase font-bold tracking-wider text-white/40">Total Selecionado</span>
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold border bg-mint-vibrant/10 text-mint-vibrant border-mint-vibrant/20">
-              ${escapeHtml(String(selectedCount))} vértices
+              ${escapeHtml(String(todosPontosSelecionados.length))} vértices
             </span>
           </div>
 
@@ -1171,8 +1303,50 @@ export function atualizarPainelPropriedades(ctx: any): void {
       ` : ''}
     `;
 
-      setupCollapsibleSections(['geral', 'confrontantes', 'brutos', 'info', 'dados'], signal);
+      setupCollapsibleSections(['selecao', 'geral', 'confrontantes', 'brutos', 'info', 'dados'], signal);
       initIcons();
+
+      const btnLimparMulti = document.getElementById('btn-limpar-selecao-multi');
+      if (btnLimparMulti) {
+        btnLimparMulti.addEventListener('click', () => {
+          ctx.selectedPontoIds = [];
+          ctx.selectedVizinhoPontoIds = [];
+          ctx.lastSelectedPontoId = null;
+          ctx.atualizarDestaqueLinhasTabela();
+        }, { signal });
+      }
+
+      const bodySelecao = document.getElementById('body-props-selecao');
+      if (bodySelecao) {
+        bodySelecao.addEventListener('click', (e: Event) => {
+          const target = e.target as HTMLElement;
+          const btnRemover = target.closest('[data-action="remover-ponto-sel"]') as HTMLElement;
+          if (btnRemover) {
+            e.stopPropagation();
+            const pId = parseInt(btnRemover.getAttribute('data-ponto-id') || '0');
+            if (pId) {
+              ctx.selectedPontoIds = ctx.selectedPontoIds.filter((id: number) => id !== pId);
+              ctx.selectedVizinhoPontoIds = ctx.selectedVizinhoPontoIds.filter((id: number) => id !== pId);
+              ctx.atualizarDestaqueLinhasTabela();
+            }
+            return;
+          }
+
+          const btnFocar = target.closest('[data-action="focar-ponto-sel"]') as HTMLElement;
+          if (btnFocar) {
+            e.stopPropagation();
+            const pId = parseInt(btnFocar.getAttribute('data-ponto-id') || '0');
+            if (pId) {
+              if (typeof ctx.mapaController?.destacarElemento === 'function') {
+                ctx.mapaController.destacarElemento(pId, { pan: true, zoom: 21, duracaoMs: 4000 });
+              } else if (typeof ctx.mapaController?.selectPonto === 'function') {
+                ctx.mapaController.selectPonto(pId, 21);
+              }
+            }
+            return;
+          }
+        }, { signal });
+      }
 
       const btnAjudaMetodoMulti = document.getElementById('btn-ajuda-metodo-multi');
       if (btnAjudaMetodoMulti) {

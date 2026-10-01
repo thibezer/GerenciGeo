@@ -221,6 +221,14 @@ export const mesaTrabalhoRoute: RouteDef = {
         const vizData = await resViz.json();
         ctx.pontosVizinhosList = Array.isArray(vizData) ? vizData : [];
 
+        // Pré-carrega o banco de pontos homologados do SIGEF em background
+        fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/banco-pontos`).then(async res => {
+          if (res.ok) {
+            const bpData = await res.json();
+            ctx.bancoPontosList = Array.isArray(bpData) ? bpData : [];
+          }
+        }).catch(err => console.warn('Erro ao pré-carregar banco de pontos homologados:', err));
+
         ctx.carregarConfrontantesAtivosSelect();
         const dropdownMat = document.getElementById('select-matricula-ribbon') as HTMLSelectElement;
         if (dropdownMat) {
