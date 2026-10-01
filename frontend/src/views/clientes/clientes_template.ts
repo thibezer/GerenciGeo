@@ -134,8 +134,8 @@ export const renderClientesTemplate = (): string => `
     </div>
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
-    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" tamanho="grande" class="modal-compact-header modal-cliente-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 28px;">
-       <form id="form-cliente" class="space-y-2" style="--ui-altura-minima: 28px; --ui-campo-altura: 28px; --ui-campo-padding-x: 12px;">
+    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" tamanho="grande" class="modal-compact-header modal-cliente-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 22px;">
+       <form id="form-cliente" class="space-y-1.5" style="--ui-altura-minima: 25px; --ui-campo-altura: 25px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
           <!-- Linha Superior: Alternador PF / PJ Compacto e Sempre Visível -->
