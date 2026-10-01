@@ -341,6 +341,14 @@ function ensureSchema(PDO $pdo): void {
             bairro VARCHAR(100) NULL,
             cidade VARCHAR(100) NULL,
             estado VARCHAR(10) NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS registros_excluidos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tabela VARCHAR(50) NOT NULL,
+            registro_id INT NOT NULL,
+            excluido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_reg_exc (tabela, registro_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     ];
 
@@ -990,6 +998,58 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
         jsonResponse($clientes);
     }
 
+    // POST /clientes/excluir-lote
+    if ($method === 'POST' && $subAction === 'excluir-lote') {
+        $input = getJsonInput();
+        $ids = $input['cliente_ids'] ?? [];
+        $sucessos = 0;
+        $erros = [];
+        $pdo->beginTransaction();
+        try {
+            foreach ($ids as $cid) {
+                $cid = (int)$cid;
+                if (!$cid) continue;
+                $stLev = $pdo->prepare("SELECT COUNT(*) FROM propriedade_proprietarios pp JOIN levantamentos l ON pp.propriedade_id = l.propriedade_id WHERE pp.cliente_id = ?");
+                $stLev->execute([$cid]);
+                if ((int)$stLev->fetchColumn() > 0) {
+                    $erros[] = "Cliente ID {$cid}: possui levantamentos vinculados.";
+                    continue;
+                }
+                $stP = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
+                $stP->execute([$cid]);
+                $pId = $stP->fetchColumn();
+
+                $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$cid]);
+                $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$cid]);
+                $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$cid]);
+                $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$cid]);
+                $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$cid]);
+                $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)")->execute([$cid]);
+
+                if ($pId) {
+                    $stOutro = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
+                    $stOutro->execute([$pId]);
+                    if ((int)$stOutro->fetchColumn() === 0) {
+                        $pdo->prepare("DELETE FROM pessoas WHERE id = ?")->execute([$pId]);
+                        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)")->execute([$pId]);
+                    }
+                }
+                $sucessos++;
+            }
+            $pdo->commit();
+            touchCloudSyncTimestamp($pdo);
+            jsonResponse([
+                'sucessos' => $sucessos,
+                'erros' => $erros,
+                'total_processado' => count($ids),
+                'message' => "{$sucessos} cliente(s) excluído(s) com sucesso!"
+            ]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(['error' => 'Erro ao excluir clientes em lote: ' . $e->getMessage()], 500);
+        }
+    }
+
     // POST /clientes
     if ($method === 'POST' && !$id) {
         $input = getJsonInput();
@@ -1210,8 +1270,26 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
 
     // DELETE /clientes/{id}
     if ($method === 'DELETE' && $id) {
-        $stmt = $pdo->prepare("DELETE FROM clientes WHERE id = ?");
-        $stmt->execute([$id]);
+        $stP = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
+        $stP->execute([$id]);
+        $pId = $stP->fetchColumn();
+
+        $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$id]);
+        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)")->execute([$id]);
+
+        if ($pId) {
+            $stOutro = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
+            $stOutro->execute([$pId]);
+            if ((int)$stOutro->fetchColumn() === 0) {
+                $pdo->prepare("DELETE FROM pessoas WHERE id = ?")->execute([$pId]);
+                $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)")->execute([$pId]);
+            }
+        }
+
         touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Cliente excluído com sucesso!']);
     }
@@ -1652,6 +1730,20 @@ if ($route === '/sync/batch' && $method === 'POST') {
             syncTableRows($pdo, 'confrontantes', $data['confrontantes']);
         }
 
+        // Aplica exclusões vindas do cliente local
+        if (!empty($input['exclusoes'])) {
+            foreach ($input['exclusoes'] as $exc) {
+                $t = preg_replace('/[^a-zA-Z0-9_]/', '', (string)($exc['tabela'] ?? ''));
+                $rid = (int)($exc['registro_id'] ?? 0);
+                if ($t && $rid) {
+                    try {
+                        $pdo->prepare("DELETE FROM `{$t}` WHERE id = ?")->execute([$rid]);
+                        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES (?, ?)")->execute([$t, $rid]);
+                    } catch (Exception $e) {}
+                }
+            }
+        }
+
         $nowTs = touchCloudSyncTimestamp($pdo);
 
         $pdo->commit();
@@ -1728,12 +1820,19 @@ if ($route === '/sync/pull' && $method === 'GET') {
         if ($val) $cloudTs = (int)$val;
     } catch (Exception $e) {}
 
+    $exclusoesCloud = [];
+    try {
+        $stExc = $pdo->query("SELECT tabela, registro_id FROM registros_excluidos ORDER BY id DESC LIMIT 500");
+        $exclusoesCloud = $stExc->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+
     jsonResponse([
         'status' => 'success',
         'timestamp' => time(),
         'cloud_timestamp' => $cloudTs,
         'usuario' => $authUser['email'],
-        'data' => $payload
+        'data' => $payload,
+        'exclusoes' => $exclusoesCloud
     ]);
 }
 

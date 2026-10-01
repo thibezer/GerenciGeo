@@ -184,6 +184,22 @@ def _extrair_dados_locais() -> dict:
     return payload
 
 
+def _extrair_exclusoes_locais() -> list:
+    """Extrai os registros marcados como excluídos localmente para sincronização."""
+    if not os.path.exists(DB_PATH):
+        return []
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        cursor = conn.cursor()
+        cursor.execute("SELECT tabela, registro_id FROM registros_excluidos")
+        rows = cursor.fetchall()
+        conn.close()
+        return [{"tabela": r[0], "registro_id": r[1]} for r in rows]
+    except Exception as e:
+        logger.warning(f"Falha ao ler registros_excluidos: {e}")
+        return []
+
+
 async def push_dados_nuvem() -> dict:
     """Envia todos os dados locais do SQLite para o MySQL da Nuvem (Hostinger)."""
     sessao = carregar_sessao()
@@ -192,6 +208,7 @@ async def push_dados_nuvem() -> dict:
         return {"sucesso": False, "mensagem": "Usuário não autenticado na nuvem. Faça login primeiro."}
 
     payload = _extrair_dados_locais()
+    exclusoes = _extrair_exclusoes_locais()
     total_reg = sum(len(v) for v in payload.values())
 
     headers = {
@@ -201,7 +218,11 @@ async def push_dados_nuvem() -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
-            res = await client.post(CLOUD_SYNC_URL, json={"data": payload}, headers=headers)
+            res = await client.post(
+                CLOUD_SYNC_URL,
+                json={"data": payload, "exclusoes": exclusoes},
+                headers=headers
+            )
 
         if res.status_code in (200, 201):
             res_data = res.json()
@@ -249,8 +270,22 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
         except Exception:
             pass
 
+    # Carrega IDs de registros que foram excluídos localmente para NUNCA ressuscitá-los
+    ids_excluidos = set()
+    try:
+        cur_exc = conn.cursor()
+        cur_exc.execute("SELECT registro_id FROM registros_excluidos WHERE tabela = ?", (tabela,))
+        ids_excluidos = {r[0] for r in cur_exc.fetchall()}
+    except Exception:
+        pass
+
     inseridos = 0
     for r in rows:
+        # Pula registros que foram intencionalmente excluídos neste computador
+        reg_id = r.get("id")
+        if reg_id is not None and reg_id in ids_excluidos:
+            continue
+
         # Filtra apenas as colunas que realmente existem na tabela local
         dados_validos = {k: v for k, v in r.items() if k in cols_locais}
         if not dados_validos:
@@ -420,6 +455,18 @@ async def pull_dados_nuvem() -> dict:
             
             resumo = {}
             total_baixados = 0
+
+            # Processa exclusões vindas da nuvem para remover registros deletados em outros computadores
+            exclusoes_remotas = cloud_json.get("exclusoes") or []
+            for exc in exclusoes_remotas:
+                t_exc = exc.get("tabela")
+                id_exc = exc.get("registro_id")
+                if t_exc and id_exc and t_exc in SYNC_TABLES:
+                    try:
+                        cursor.execute(f"DELETE FROM {t_exc} WHERE id = ?", (id_exc,))
+                        cursor.execute("INSERT OR IGNORE INTO registros_excluidos (tabela, registro_id) VALUES (?, ?)", (t_exc, id_exc))
+                    except Exception as e_del:
+                        logger.warning(f"Aviso ao aplicar exclusão remota {t_exc}:{id_exc}: {e_del}")
 
             # Ordem hierárquica para respeitar integridade
             ordem_tabelas = [

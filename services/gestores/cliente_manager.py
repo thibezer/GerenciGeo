@@ -811,10 +811,12 @@ def excluir_cliente(cliente_id: int) -> dict:
             pessoa_id = row[0]
 
             # 3. Limpa dependências diretas do cliente
+            cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
             cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
             cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cliente_id,))
             cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cliente_id,))
             cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
+            cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cliente_id,))
 
             # 4. Limpeza cirúrgica de pessoa: remove apenas se não pertencer a outro cliente ou confrontante
             if pessoa_id:
@@ -824,6 +826,7 @@ def excluir_cliente(cliente_id: int) -> dict:
                 outro_conf = cursor.fetchone()
                 if not outro_cli and not outro_conf:
                     cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
+                    cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
 
             conn.commit()
 
@@ -880,10 +883,12 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
                 pessoa_id = row[0]
 
                 # 3. Limpa dependências
+                cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
                 cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cid,))
                 cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cid,))
                 cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cid,))
                 cursor.execute("DELETE FROM clientes WHERE id = ?", (cid,))
+                cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cid,))
 
                 # 4. Limpeza cirúrgica da pessoa
                 if pessoa_id:
@@ -893,6 +898,7 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
                     outro_conf = cursor.fetchone()
                     if not outro_cli and not outro_conf:
                         cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
+                        cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
 
                 sucessos += 1
 

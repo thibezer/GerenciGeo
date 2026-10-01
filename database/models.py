@@ -443,6 +443,17 @@ def create_tables(conn):
         """,
         """
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS registros_excluidos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tabela TEXT NOT NULL,
+            registro_id INTEGER NOT NULL,
+            excluido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_reg_excluidos ON registros_excluidos(tabela, registro_id);
         """
     ]
 
