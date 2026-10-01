@@ -23,6 +23,7 @@ export class GerenciadorHistoricoMesa {
   private undoStack: HistoricoSnapshot[] = [];
   private redoStack: HistoricoSnapshot[] = [];
   private maxHistory: number = 50;
+  private _tecladoHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor(ctx: MesaTrabalhoContext) {
     this.ctx = ctx;
@@ -161,7 +162,11 @@ export class GerenciadorHistoricoMesa {
   }
 
   public inicializarAtalhosTeclado(): void {
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (this._tecladoHandler) {
+      window.removeEventListener('keydown', this._tecladoHandler);
+    }
+
+    this._tecladoHandler = (e: KeyboardEvent) => {
       // Ignora atalhos se o foco estiver num input de texto ou textarea (exceto se for apenas input-ordem-manual com blur)
       const target = e.target as HTMLElement;
       const isTextInput = target && (
@@ -186,7 +191,9 @@ export class GerenciadorHistoricoMesa {
         e.preventDefault();
         this.refazer();
       }
-    });
+    };
+
+    window.addEventListener('keydown', this._tecladoHandler);
 
     const btnUndo = document.getElementById('btn-historico-undo');
     if (btnUndo) {
@@ -205,6 +212,15 @@ export class GerenciadorHistoricoMesa {
     this.undoStack = [];
     this.redoStack = [];
     this.atualizarBotoesUI();
+  }
+
+  public destroy(): void {
+    if (this._tecladoHandler) {
+      window.removeEventListener('keydown', this._tecladoHandler);
+      this._tecladoHandler = null;
+    }
+    this.undoStack = [];
+    this.redoStack = [];
   }
 }
 

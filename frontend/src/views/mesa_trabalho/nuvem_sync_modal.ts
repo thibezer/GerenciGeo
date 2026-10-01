@@ -7,11 +7,25 @@ import { realtimeSyncClient } from '../../utils/realtime_sync_client';
 import type { SyncEventItem, SyncStatusPayload } from '../../utils/realtime_sync_client';
 
 
+let activeCtx: any = null;
+let isInitialized = false;
+
+export function setNuvemSyncContext(ctx: any) {
+  activeCtx = ctx;
+}
+
 export function initNuvemSyncModal(ctx?: any) {
+  if (ctx) {
+    activeCtx = ctx;
+  }
+  if (isInitialized) {
+    return;
+  }
+
   const modal = document.getElementById('modal-nuvem-sync') as HTMLElement;
   if (!modal) return;
+  isInitialized = true;
 
-  const btnAbrirMesa = document.getElementById('btn-sincronizar-nuvem') as HTMLButtonElement;
   const btnPill = document.getElementById('btn-global-sync-pill') as HTMLButtonElement;
   const btnFecharModal = document.getElementById('btn-fechar-modal-nuvem') as HTMLButtonElement;
 
@@ -56,12 +70,13 @@ export function initNuvemSyncModal(ctx?: any) {
     renderizarFeedEventos();
   };
 
-  if (btnAbrirMesa) {
-    btnAbrirMesa.onclick = (e) => {
+  document.addEventListener('click', (e) => {
+    const target = (e.target as HTMLElement)?.closest('#btn-sincronizar-nuvem, .btn-abrir-nuvem');
+    if (target) {
       e.preventDefault();
       abrirModal();
-    };
-  }
+    }
+  });
 
   if (btnPill) {
     btnPill.onclick = (e) => {
@@ -317,8 +332,8 @@ export function initNuvemSyncModal(ctx?: any) {
           exibirResultadoSync(true, "Sincronização Completa", msg);
           if (labelUltimaSinc) labelUltimaSinc.innerText = data.last_sync || "Agora";
 
-          if (ctx && ctx.loadLevantamentoDetails) {
-            await ctx.loadLevantamentoDetails();
+          if (activeCtx && typeof activeCtx.loadLevantamentoDetails === 'function') {
+            await activeCtx.loadLevantamentoDetails();
           }
           renderizarFeedEventos();
         } else {
@@ -353,7 +368,9 @@ export function initNuvemSyncModal(ctx?: any) {
         if (res.ok && data.sucesso) {
           showToast(`✓ Download concluído: ${data.total_recebidos} registros atualizados!`, "success");
           exibirResultadoSync(true, "Download Concluído", data.mensagem);
-          if (ctx && ctx.loadLevantamentoDetails) await ctx.loadLevantamentoDetails();
+          if (activeCtx && typeof activeCtx.loadLevantamentoDetails === 'function') {
+            await activeCtx.loadLevantamentoDetails();
+          }
           renderizarFeedEventos();
         } else {
           showToast(data.detail || data.mensagem || "Erro ao baixar dados.", "error");

@@ -16,6 +16,11 @@ import { abrirModalUnificacaoSobrepostos } from './mesa_trabalho/unificador_sobr
 import { consultarEPlotarSigef } from '../utils/sigef_consultor';
 import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
 import { registerFluentComponents } from '../ui/fluent_setup';
+import { setNuvemSyncContext } from './mesa_trabalho/nuvem_sync_modal';
+
+let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
+let _recenterHandler: (() => void) | null = null;
+let activeBroadcastChannel: BroadcastChannel | null = null;
 
 // Interceptadores globais de erros para depuração do pywebview
 window.addEventListener('error', (event) => {
@@ -342,17 +347,24 @@ export const mesaTrabalhoRoute: RouteDef = {
         });
 
         // Sincronização da seleção em lote (Window / Crossing)
-        window.addEventListener('gerencigeo:ponto-selecionado', (e: any) => {
+        if (_pontoSelecionadoHandler) {
+          window.removeEventListener('gerencigeo:ponto-selecionado', _pontoSelecionadoHandler);
+        }
+        _pontoSelecionadoHandler = (e: any) => {
           if (e.detail?.selectedPontoIds) {
             ctx.selectedPontoIds = e.detail.selectedPontoIds;
             ctx.selectedVizinhoPontoIds = e.detail.selectedVizinhoPontoIds || [];
             ctx.lastSelectedPontoId = e.detail.lastSelectedPontoId || (ctx.selectedPontoIds.length > 0 ? ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1] : null);
             ctx.atualizarDestaqueLinhasTabela();
           }
-        });
+        };
+        window.addEventListener('gerencigeo:ponto-selecionado', _pontoSelecionadoHandler);
 
         // Listener para recentralização sob demanda (Bússola / Atalhos / Zoom Extents)
-        window.addEventListener('gerencigeo:recenter', () => {
+        if (_recenterHandler) {
+          window.removeEventListener('gerencigeo:recenter', _recenterHandler);
+        }
+        _recenterHandler = () => {
           if (ctx.mapaController && ctx.pontosList && ctx.pontosList.length > 0) {
             let pontosParaCentralizar = [];
             if (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao) {
@@ -366,7 +378,8 @@ export const mesaTrabalhoRoute: RouteDef = {
               ctx.mapaController.fitBounds(pontosParaCentralizar);
             }
           }
-        });
+        };
+        window.addEventListener('gerencigeo:recenter', _recenterHandler);
         
         // Listener de cliques sequenciais no mapa Leaflet
         ctx.triagemMap?.on('popupopen', (e: any) => {
@@ -1497,6 +1510,50 @@ export const mesaTrabalhoRoute: RouteDef = {
         activeDragCleanup();
         activeDragCleanup = null;
       }
+
+      // Limpa eventos globais de seleção e recentralização do mapa
+      if (_pontoSelecionadoHandler) {
+        window.removeEventListener('gerencigeo:ponto-selecionado', _pontoSelecionadoHandler);
+        _pontoSelecionadoHandler = null;
+      }
+      if (_recenterHandler) {
+        window.removeEventListener('gerencigeo:recenter', _recenterHandler);
+        _recenterHandler = null;
+      }
+
+      // Fecha BroadcastChannel de configuração do mapa
+      if (activeBroadcastChannel) {
+        activeBroadcastChannel.close();
+        activeBroadcastChannel = null;
+      }
+
+      // Destrói atalhos de teclado e histórico (Ctrl+Z / Ctrl+Y)
+      if (ctx.gerenciadorHistorico && typeof ctx.gerenciadorHistorico.destroy === 'function') {
+        ctx.gerenciadorHistorico.destroy();
+        ctx.gerenciadorHistorico = null;
+      }
+
+      // Limpa listener global de ações de popup no document
+      if ((ctx as any)._popupActionsListener) {
+        document.removeEventListener('click', (ctx as any)._popupActionsListener);
+        (ctx as any)._popupActionsListener = null;
+      }
+
+      // Desativa a ferramenta Caneta se estiver ativa e limpa o atalho 'P'
+      if (ctx.ferramentaCaneta) {
+        if (ctx.ferramentaCaneta.ativo && typeof ctx.ferramentaCaneta.desativar === 'function') {
+          ctx.ferramentaCaneta.desativar();
+        }
+        ctx.ferramentaCaneta = null;
+      }
+      if ((ctx as any)._canetaKeydownListener) {
+        window.removeEventListener('keydown', (ctx as any)._canetaKeydownListener);
+        (ctx as any)._canetaKeydownListener = null;
+      }
+
+      // Desvincula o contexto ativo do modal de sincronização da nuvem
+      setNuvemSyncContext(null);
+
       ctx.canvasInteracao = null;
       ctx.triagemMap = null;
       ctx.mapaController = null;
@@ -1611,7 +1668,12 @@ function setupRibbonInteractions(ctx: any): void {
   }
 
   // Recarrega os marcadores e a geometria ao mudar as opções visuais
+  if (activeBroadcastChannel) {
+    activeBroadcastChannel.close();
+    activeBroadcastChannel = null;
+  }
   const bcConfig = new BroadcastChannel('gerencigeo_map_config');
+  activeBroadcastChannel = bcConfig;
   bcConfig.onmessage = (event) => {
     if (event.data === 'RELOAD_REQUIRED' && typeof ctx.renderMatriculaDados === 'function') {
       setTimeout(() => {

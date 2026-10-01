@@ -2,7 +2,7 @@ import { API_BASE } from '../../config';
 import { initIcons, showToast } from '../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from './mesa_trabalho_tabela';
 import { registrarEventosExportacao } from './exportacao_cad';
-import { initNuvemSyncModal } from './nuvem_sync_modal';
+import { setNuvemSyncContext } from './nuvem_sync_modal';
 import { FerramentaCanetaSelecao } from './ferramenta_caneta';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
@@ -1024,8 +1024,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     }
   });
 
-  // Inicializa o modal de sincronização e login da Nuvem Hostinger
-  initNuvemSyncModal(ctx);
+  // Vincula o contexto da mesa ativa ao modal global da Nuvem Hostinger
+  setNuvemSyncContext(ctx);
 
 
   document.getElementById('btn-reordenar-caminhamento')?.addEventListener('click', async () => {
@@ -1239,7 +1239,10 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   initIcons();
 
   // Atalho de teclado 'P' para alternar a Caneta de Seleção quando não estiver digitando
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
+  if ((ctx as any)._canetaKeydownListener) {
+    window.removeEventListener('keydown', (ctx as any)._canetaKeydownListener);
+  }
+  (ctx as any)._canetaKeydownListener = (e: KeyboardEvent) => {
     if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const activeEl = document.activeElement as HTMLElement | null;
       const tag = activeEl?.tagName?.toLowerCase();
@@ -1251,7 +1254,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
         ctx.ferramentaCaneta.alternar();
       }
     }
-  });
+  };
+  window.addEventListener('keydown', (ctx as any)._canetaKeydownListener);
 
   document.getElementById('btn-override-base-manual')?.addEventListener('click', () => {
     alert("Para sobrescrever a base manualmente, clique com o botão direito sobre o vértice base na tabela e selecione 'Editar / Detalhes do Ponto'.");
