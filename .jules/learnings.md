@@ -513,3 +513,17 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - Botão "Ver Trecho" (`#btn-preview-anuencia`) no seletor de anuências cartoriais;
      - Botão "Ver no Mapa" (`#btn-preview-divisa-form`) no formulário de qualificação do confrontante;
      - Botão de anuência rápida (`.btn-emitir-anuencia-rapida`) em cada linha da tabela de divisas perimétricas.
+
+
+---
+
+## 31. Sincronização Bidirecional de Exclusões e Padrão Tombstone (registros_excluidos)
+- **Problema**:
+  1. Em arquiteturas híbridas Edge-First (SQLite local + MySQL na nuvem Hostinger), comandos de exclusão (DELETE) apagavam o registro no banco local, mas o motor de sincronização (push_dados_nuvem) apenas enviava as linhas existentes restantes para o MySQL via ON DUPLICATE KEY UPDATE.
+  2. Como o MySQL não era notificado da remoção, o registro continuava vivo na nuvem. No ciclo seguinte de download (pull_dados_nuvem), o _upsert_tabela_local baixava o registro novamente do MySQL e o reinseria no SQLite local (efeito fantasma).
+  3. Além disso, o endpoint /clientes/excluir-lote não estava roteado explicitamente no PHP da nuvem (api.php), caindo na validação de criação de cliente e retornando erro 400.
+- **Regra Obrigatória**:
+  1. **Tabela de Tombstones**: Ambos os bancos (SQLite e MySQL) devem possuir a tabela registros_excluidos (tabela, registro_id, excluido_em).
+  2. **Registro Imediato na Exclusão**: Sempre que um registro for excluído (DELETE) em cliente_manager.py ou api.php, registrar imediatamente o ID na tabela registros_excluidos.
+  3. **Proteção Anti-Ressuscitação no Upsert**: A rotina _upsert_tabela_local deve consultar os IDs de registros_excluidos para a respectiva tabela e ignorar/descartar qualquer linha que já tenha sido excluída localmente.
+  4. **Propagação no Push/Pull**: O payload do push_dados_nuvem envia o array 'exclusoes', fazendo com que o MySQL execute DELETE e atualize o timestamp em tempo real. O pull_dados_nuvem recebe as exclusões remotas e aplica DELETE no SQLite local.

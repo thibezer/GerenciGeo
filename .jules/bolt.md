@@ -83,3 +83,8 @@
      - Botão "Ver Trecho" (`#btn-preview-anuencia`) no seletor de anuências cartoriais;
      - Botão "Ver no Mapa" (`#btn-preview-divisa-form`) no formulário de qualificação do confrontante;
      - Botão de anuência rápida (`.btn-emitir-anuencia-rapida`) em cada linha da tabela de divisas perimétricas.
+
+
+## 2026-10-01 - Sincronização Bidirecional de Exclusões com Tombstones e Endpoint de Lote
+**Learning:** Excluir clientes ou registros no app local removia do SQLite, mas no próximo ciclo de sincronização automática com a nuvem, o pull baixava novamente o registro do MySQL da Hostinger e o reinseria (efeito fantasma), pois o motor de sincronização operava apenas com UPSERT sem rastreamento de remoções. Além disso, o botão de exclusão em lote no frontend (/clientes/excluir-lote) não existia no PHP da Hostinger, caindo na validação de criação de clientes com erro 400.
+**Action:** Criada a tabela registros_excluidos no SQLite e no MySQL para gravação de tombstones. Atualizado cliente_manager.py para registrar exclusões, nuvem_sync.py para ignorar IDs excluídos no upsert e propagar array de exclusoes no push e pull, e implementado o endpoint /clientes/excluir-lote e suporte a tombstones no api.php da Hostinger.
