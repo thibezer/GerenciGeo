@@ -168,6 +168,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       document.querySelectorAll('.select-segmento-confrontante').forEach((sel: any) => {
         sel.addEventListener('change', async () => {
           const segId = sel.getAttribute('data-segmento-id');
+          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+          const valorAnterior = seg?.confrontante_id ?? null;
           const confId = sel.value ? parseInt(sel.value) : null;
           try {
             const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
@@ -180,7 +182,6 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
               throw new Error(errData.detail || "Erro ao salvar confrontante no segmento");
             }
             // Atualiza localmente sem recarregar tudo do servidor
-            const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
             if (seg) seg.confrontante_id = confId;
 
             // Atualiza o atributo data-confrontante-id no botão de emissão rápida da mesma linha
@@ -192,6 +193,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
 
             ctx.carregarConfrontantesAtivosSelect();
           } catch (err: any) {
+            // Reverte elemento na interface para evitar falsa confirmação visual
+            sel.value = valorAnterior !== null ? String(valorAnterior) : '';
             console.error("Erro ao salvar confrontante no segmento:", err);
             showToast(err.message || "Erro ao salvar confrontante no segmento", "error");
           }
@@ -201,6 +204,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       document.querySelectorAll('.select-segmento-limite').forEach((sel: any) => {
         sel.addEventListener('change', async () => {
           const segId = sel.getAttribute('data-segmento-id');
+          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+          const valorAnterior = seg?.tipo_limite_sigef || seg?.tipo_limite || 'LN1';
           const tipoLimite = sel.value || null;
           try {
             const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
@@ -212,12 +217,12 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
               const errData = await res.json().catch(() => ({}));
               throw new Error(errData.detail || "Erro ao salvar limite no segmento");
             }
-            const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
             if (seg) {
               seg.tipo_limite_sigef = tipoLimite;
               seg.tipo_limite = tipoLimite;
             }
           } catch (err: any) {
+            sel.value = valorAnterior;
             console.error("Erro ao salvar limite no segmento:", err);
             showToast(err.message || "Erro ao salvar limite no segmento", "error");
           }
@@ -227,6 +232,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       document.querySelectorAll('.select-segmento-posicionamento').forEach((sel: any) => {
         sel.addEventListener('change', async () => {
           const segId = sel.getAttribute('data-segmento-id');
+          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+          const valorAnterior = seg?.metodo_posicionamento_sigef || seg?.metodo_posicionamento || 'PG1';
           const metodoPos = sel.value || null;
           try {
             const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
@@ -238,12 +245,12 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
               const errData = await res.json().catch(() => ({}));
               throw new Error(errData.detail || "Erro ao salvar posicionamento no segmento");
             }
-            const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
             if (seg) {
               seg.metodo_posicionamento_sigef = metodoPos;
               seg.metodo_posicionamento = metodoPos;
             }
           } catch (err: any) {
+            sel.value = valorAnterior;
             console.error("Erro ao salvar posicionamento no segmento:", err);
             showToast(err.message || "Erro ao salvar posicionamento no segmento", "error");
           }
@@ -253,6 +260,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       document.querySelectorAll('.chk-segmento-anuente').forEach((chk: any) => {
         chk.addEventListener('change', async () => {
           const segId = chk.getAttribute('data-segmento-id');
+          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+          const valorAnterior = seg?.anuencia_assinada === 1;
           const anuidadeVal = chk.checked ? 1 : 0;
           try {
             const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
@@ -264,10 +273,10 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
               const errData = await res.json().catch(() => ({}));
               throw new Error(errData.detail || "Erro ao salvar status de anuência no segmento");
             }
-            const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
             if (seg) seg.anuencia_assinada = anuidadeVal;
             ctx.carregarConfrontantesAtivosSelect();
           } catch (err: any) {
+            chk.checked = valorAnterior;
             console.error("Erro ao salvar status de anuência no segmento:", err);
             showToast(err.message || "Erro ao salvar status de anuência no segmento", "error");
           }
