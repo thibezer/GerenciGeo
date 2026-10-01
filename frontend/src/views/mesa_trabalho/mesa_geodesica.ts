@@ -191,7 +191,6 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
           }
 
           ctx.renderMatriculaDados();
-          ctx.atualizarPolilinhaMapaTemp();
         });
       });
     }
@@ -574,7 +573,11 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
   }
 
   const containerLateral = document.getElementById('container-tabela-lateral-content');
-  if (containerLateral) {
+  const viewParent = containerLateral?.closest('.view-panel');
+  const lateralVisivel = containerLateral && (!viewParent || !viewParent.classList.contains('hidden'));
+
+  const renderAuditoriaLateral = () => {
+    if (!containerLateral) return;
     if (pontosMat.length === 0) {
       containerLateral.innerHTML = `
            <table class="w-full text-left border-collapse">
@@ -603,6 +606,11 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
             </table>
           `;
     }
+  };
+
+  (ctx as any).renderAuditoriaLateral = renderAuditoriaLateral;
+  if (lateralVisivel) {
+    renderAuditoriaLateral();
   }
 };
 

@@ -844,8 +844,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
             showToast("Vértice e divisa salvos com sucesso!", "success");
             await ctx.loadLevantamentoDetails();
-            ctx.renderMatriculaDados();
-            ctx.atualizarPolilinhaMapaTemp();
             atualizarPainelPropriedades(ctx);
           } catch (err) {
             console.error(err);
@@ -1396,8 +1394,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
               showToast(`${batchPayload.pontos.length} vértices atualizados com sucesso!`, "success");
               await ctx.loadLevantamentoDetails();
-              ctx.renderMatriculaDados();
-              ctx.atualizarPolilinhaMapaTemp();
               atualizarPainelPropriedades(ctx);
             } else {
               showToast("Nenhuma alteração detectada para salvar.", "info");

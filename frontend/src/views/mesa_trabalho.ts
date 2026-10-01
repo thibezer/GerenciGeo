@@ -9,10 +9,8 @@ import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context'
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
 import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
 import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
-import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
-import { abrirModalUnificacaoSobrepostos } from './mesa_trabalho/unificador_sobrepostos';
 import { consultarEPlotarSigef } from '../utils/sigef_consultor';
 import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
 import { registerFluentComponents } from '../ui/fluent_setup';
@@ -21,6 +19,7 @@ import { setNuvemSyncContext } from './mesa_trabalho/nuvem_sync_modal';
 let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
 let _recenterHandler: (() => void) | null = null;
 let activeBroadcastChannel: BroadcastChannel | null = null;
+let _geradorDocumentosLoaded = false;
 
 // Interceptadores globais de erros para depuração do pywebview
 window.addEventListener('error', (event) => {
@@ -126,11 +125,30 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     // 2. Registra os submódulos no contexto comum
     setupMesaTrabalhoHistorico(ctx);
-    ctx.abrirModalUnificacaoSobrepostos = () => abrirModalUnificacaoSobrepostos(ctx);
+    ctx.abrirModalUnificacaoSobrepostos = async () => {
+      const { abrirModalUnificacaoSobrepostos } = await import('./mesa_trabalho/unificador_sobrepostos');
+      return abrirModalUnificacaoSobrepostos(ctx);
+    };
     setupMesaGeodesica(ctx);
     setupOrganizadorPerimetro(ctx);
     setupOrdenadorManual(ctx);
-    setupGeradorDocumentos(ctx);
+
+    const carregarGeradorDocumentos = async () => {
+      if (!_geradorDocumentosLoaded) {
+        _geradorDocumentosLoaded = true;
+        const { setupGeradorDocumentos } = await import('./mesa_trabalho/gerador_documentos');
+        setupGeradorDocumentos(ctx);
+      }
+    };
+    (ctx as any).carregarGeradorDocumentos = carregarGeradorDocumentos;
+
+    ctx.carregarHomologacaoDados = async (profissionalId: number) => {
+      await carregarGeradorDocumentos();
+      if (typeof ctx.carregarHomologacaoDados === 'function') {
+        return ctx.carregarHomologacaoDados(profissionalId);
+      }
+    };
+
     setupAuditoriaHistorico(ctx);
     setupRibbonInteractions(ctx);
 
@@ -139,13 +157,20 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (!ctx.currentLevId) return;
 
       try {
-        const resLev = await fetch(`${API_BASE}/levantamentos`);
-        if (!resLev.ok) throw new Error(`HTTP ${resLev.status} ao carregar levantamentos`);
-        const allLevs = await resLev.json();
-        const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
-        ctx.currentLevantamento = levObj;
+        const [resLev, resMat, resPt, resSeg, resConf, resViz] = await Promise.all([
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/segmentos`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-vizinhos`)
+        ]);
 
-        if (levObj) {
+        let levObj: any = null;
+        if (resLev.ok) {
+          levObj = await resLev.json();
+          ctx.currentLevantamento = levObj;
+
           const badgeStatus = document.getElementById('badge-status-lev');
           if (badgeStatus) {
             badgeStatus.innerText = levObj.status;
@@ -180,14 +205,6 @@ export const mesaTrabalhoRoute: RouteDef = {
             txtCodCar.innerText = levObj.codigo_car || 'Não Informado';
           }
         }
-
-        const [resMat, resPt, resSeg, resConf, resViz] = await Promise.all([
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas`),
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos`),
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/segmentos`),
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`),
-          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos-vizinhos`)
-        ]);
 
         const matData = await resMat.json();
         ctx.matriculasList = Array.isArray(matData) ? matData : [];
@@ -286,7 +303,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.carregarSugestoesNumeracao();
         if (levObj && levObj.profissional_id) {
           ctx.currentProfissionalId = levObj.profissional_id;
-          ctx.carregarHomologacaoDados(levObj.profissional_id);
+          if (ctx.etapaAtiva === 'documentos') {
+            ctx.carregarHomologacaoDados(levObj.profissional_id);
+          }
         }
 
       } catch (e) {
@@ -436,7 +455,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       ctx.renderMatriculaDados();
       ctx.carregarConfrontantesAtivosSelect();
-      if (ctx.currentProfissionalId !== null) {
+      if (ctx.currentProfissionalId !== null && ctx.etapaAtiva === 'documentos') {
         ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
       }
 
@@ -837,16 +856,21 @@ export const mesaTrabalhoRoute: RouteDef = {
     const inicializarBuscaPonto = () => {
       const searchInput = document.getElementById('input-search-ponto') as HTMLInputElement;
       const btnClearSearch = document.getElementById('btn-clear-search');
+      let searchDebounceTimeout: any = null;
 
       if (searchInput) {
         searchInput.addEventListener('input', () => {
-          ctx.searchFilterValue = searchInput.value.trim().toLowerCase();
-          ctx.renderMatriculaDados();
+          if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+          searchDebounceTimeout = setTimeout(() => {
+            ctx.searchFilterValue = searchInput.value.trim().toLowerCase();
+            ctx.renderMatriculaDados();
+          }, 150);
         });
       }
 
       if (btnClearSearch) {
         btnClearSearch.addEventListener('click', () => {
+          if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
           if (searchInput) searchInput.value = '';
           ctx.searchFilterValue = '';
           ctx.renderMatriculaDados();
@@ -1553,6 +1577,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       // Desvincula o contexto ativo do modal de sincronização da nuvem
       setNuvemSyncContext(null);
+      _geradorDocumentosLoaded = false;
 
       ctx.canvasInteracao = null;
       ctx.triagemMap = null;

@@ -17,6 +17,19 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         principal: resolve(__dirname, 'principal.html'),
         config: resolve(__dirname, 'config_mapa.html')
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/leaflet')) {
+            return 'leaflet-vendor';
+          }
+          if (id.includes('node_modules/@fluentui')) {
+            return 'fluent-vendor';
+          }
+          if (id.includes('node_modules/lucide')) {
+            return 'icons-vendor';
+          }
+        }
       }
     }
   }

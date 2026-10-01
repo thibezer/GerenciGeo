@@ -91,6 +91,39 @@ def get_levantamentos():
         logging.getLogger(__name__).error(f"Erro ao listar levantamentos: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar levantamentos.")
 
+@router.get("/levantamentos/{id}")
+def get_levantamento_por_id(id: int):
+    try:
+        query = """
+            SELECT l.*, 
+                   p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf,
+                   (SELECT COUNT(*) FROM pontos p_pts WHERE p_pts.levantamento_id = l.id) as total_pontos,
+                   (SELECT COUNT(*) FROM segmentos s WHERE s.levantamento_id = l.id) as total_segmentos
+            FROM levantamentos l
+            JOIN propriedades p ON l.propriedade_id = p.id
+            WHERE l.id = ?
+        """
+        row = execute_query(query, params=(id,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        
+        lev = dict(row)
+        clients_query = """
+            SELECT pc.propriedade_id, c.id, p.nome as nome_completo, p.cpf_cnpj, pc.percentual_participacao
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id = ?
+        """
+        clients = [dict(r) for r in execute_query(clients_query, params=(lev['propriedade_id'],), fetch_all=True)]
+        lev['clientes'] = clients
+        return lev
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao buscar levantamento {id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar levantamento.")
+
 @router.post("/levantamentos")
 def create_levantamento(lev: LevantamentoCreate):
     try:

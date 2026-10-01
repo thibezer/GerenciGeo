@@ -81,18 +81,6 @@ if (typeof customElements !== 'undefined') {
 
 import type { RouteDef } from './types';
 import { initIcons, clearTimeoutsAndIntervals, showToast } from './utils';
-import { dashboardRoute } from './views/dashboard';
-import { clientesRoute } from './views/clientes';
-import { levantamentosRoute } from './views/levantamentos';
-import { mesaTrabalhoRoute } from './views/mesa_trabalho';
-import { propriedadesRoute } from './views/propriedades';
-import { hgoRoute } from './views/hgo';
-import { pendenciasRoute } from './views/pendencias';
-import { configuracoesRoute } from './views/configuracoes';
-import { fronteiraRoute } from './views/fronteira';
-import { ccirRoute } from './views/ccir';
-import { compartilhadoRoute } from './views/compartilhado';
-import { loginRoute } from './views/login';
 import { AuthService } from './utils/auth_service';
 import { realtimeSyncClient } from './utils/realtime_sync_client';
 import { initNuvemSyncModal } from './views/mesa_trabalho/nuvem_sync_modal';
@@ -104,25 +92,28 @@ const isLocal = window.location.origin.includes('localhost') ||
 
 const localOnlyRoutes = ['levantamentos', 'hgo', 'fronteira', 'ccir', 'mesa_trabalho'];
 
-const routes: Record<string, RouteDef> = {
-  login: loginRoute,
-  dashboard: dashboardRoute,
-  clientes: clientesRoute,
-  levantamentos: levantamentosRoute,
-  mesa_trabalho: mesaTrabalhoRoute,
-  propriedades: propriedadesRoute,
-  hgo: hgoRoute,
-  pendencias: pendenciasRoute,
-  configuracoes: configuracoesRoute,
-  fronteira: fronteiraRoute,
-  ccir: ccirRoute,
-  compartilhado: compartilhadoRoute
+// Code-splitting: rotas carregadas sob demanda via Dynamic Import
+const routeLoaders: Record<string, () => Promise<RouteDef>> = {
+  login: () => import('./views/login').then(m => m.loginRoute),
+  dashboard: () => import('./views/dashboard').then(m => m.dashboardRoute),
+  clientes: () => import('./views/clientes').then(m => m.clientesRoute),
+  levantamentos: () => import('./views/levantamentos').then(m => m.levantamentosRoute),
+  mesa_trabalho: () => import('./views/mesa_trabalho').then(m => m.mesaTrabalhoRoute),
+  propriedades: () => import('./views/propriedades').then(m => m.propriedadesRoute),
+  hgo: () => import('./views/hgo').then(m => m.hgoRoute),
+  pendencias: () => import('./views/pendencias').then(m => m.pendenciasRoute),
+  configuracoes: () => import('./views/configuracoes').then(m => m.configuracoesRoute),
+  fronteira: () => import('./views/fronteira').then(m => m.fronteiraRoute),
+  ccir: () => import('./views/ccir').then(m => m.ccirRoute),
+  compartilhado: () => import('./views/compartilhado').then(m => m.compartilhadoRoute)
 };
+
+const routeCache: Record<string, RouteDef> = {};
 
 
 let activeRoute: RouteDef | null = null;
 
-const navigate = (route: string, param: string | null = null) => {
+const navigate = async (route: string, param: string | null = null) => {
   // Autenticação: se deslogado e tentando acessar rota interna, redireciona para login
   if (!AuthService.isAuthenticated() && route !== 'login') {
     window.location.hash = '#login';
@@ -176,7 +167,16 @@ const navigate = (route: string, param: string | null = null) => {
      breadcrumbCurrent.textContent = route.charAt(0).toUpperCase() + route.slice(1);
   }
   
-  const currentRoute = routes[route];
+  let currentRoute = routeCache[route];
+  if (!currentRoute && routeLoaders[route]) {
+    try {
+      currentRoute = await routeLoaders[route]();
+      routeCache[route] = currentRoute;
+    } catch (e) {
+      console.error(`Erro ao carregar módulo da rota '${route}':`, e);
+    }
+  }
+
   activeRoute = currentRoute || null;
   if (currentRoute) {
     container.innerHTML = currentRoute.render();
@@ -237,7 +237,7 @@ const initApp = () => {
     
     // Atualiza a tela se o operador estiver em dashboard, clientes ou propriedades
     if (base === 'dashboard' || base === 'clientes' || base === 'propriedades') {
-      const current = routes[base];
+      const current = routeCache[base];
       if (current && typeof current.setup === 'function') {
         current.setup(null);
       }
