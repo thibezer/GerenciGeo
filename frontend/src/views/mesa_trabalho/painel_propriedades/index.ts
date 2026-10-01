@@ -88,11 +88,20 @@ export function atualizarPainelPropriedades(ctx: any): void {
     let tabelaEl = panelContent.querySelector('ui-tabela-propriedades') as UITabelaPropriedadesElement | null;
     if (!tabelaEl) {
       panelContent.innerHTML = '';
+      panelContent.style.overflow = 'hidden';
+      panelContent.style.display = 'flex';
+      panelContent.style.flexDirection = 'column';
+      panelContent.style.height = '100%';
+      panelContent.style.minHeight = '0';
+      panelContent.style.padding = '0';
       tabelaEl = document.createElement('ui-tabela-propriedades') as unknown as UITabelaPropriedadesElement;
       tabelaEl.setAttribute('id', 'ui-props-tree');
       tabelaEl.setAttribute('estilo-visual', 'autocad');
       tabelaEl.setAttribute('densidade', 'compacta');
       tabelaEl.style.height = '100%';
+      tabelaEl.style.width = '100%';
+      tabelaEl.style.flex = '1';
+      tabelaEl.style.minHeight = '0';
       tabelaEl.style.display = 'flex';
       tabelaEl.style.flexDirection = 'column';
       panelContent.appendChild(tabelaEl);
