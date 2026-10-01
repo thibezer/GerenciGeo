@@ -109,7 +109,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
     if (selectedCount === 0 && selectedVizinhoCount === 0) {
       // Caso 1: Sem Seleção
-      const matObj = matriculasList.find((m: any) => m.id === ctx.currentMatriculaId);
+      const matObj = matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
       const pontosAtivosCount = pontosList.filter((p: Ponto) => p.ignorar_poligono !== 1).length;
       const confrontantesCount = confrontantesList.length;
 
@@ -244,7 +244,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
         corResultanteClass = 'text-rose-400';
       }
 
-      const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === p!.id);
+      const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(p!.id));
       let confNome = '';
       let confMatricula = '';
       let confCartorio = '';
@@ -269,7 +269,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       let nomeBaseApoio = 'Nenhuma';
       if (p.ponto_base_id) {
-        const basePt = pontosList.find((pt: Ponto) => pt.id === p!.ponto_base_id);
+        const basePt = pontosList.find((pt: Ponto) => String(pt.id) === String(p!.ponto_base_id));
         if (basePt) nomeBaseApoio = basePt.nome_vertice || `ID ${p.ponto_base_id}`;
       }
 
@@ -987,7 +987,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const matriculaResolvidaMulti = resolveField(p => p.matricula_id != null ? String(p.matricula_id) : '');
       const metodoResolvidoMulti = resolveField(p => (p as any).metodo_posicionamento || '');
       const limiteResolvidoMulti = resolveField(p => {
-        const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === p.id);
+        const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(p.id));
         return seg ? (seg.tipo_limite_sigef || '') : '';
       });
 
@@ -1034,10 +1034,10 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
       const resolveConf = (field: 'nome' | 'matricula_imovel' | 'cns_confrontante'): string => {
         const vals = pontosMulti.map(p => {
-          const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === p.id);
+          const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(p.id));
           const cId = p.confrontante_id || (seg && seg.confrontante_id);
           if (!cId) return '';
-          const cObj = confrontantesList.find((c: Confrontante) => c.id === cId);
+          const cObj = confrontantesList.find((c: Confrontante) => String(c.id) === String(cId));
           return cObj ? (cObj[field] || '') : '';
         });
         const unique = [...new Set(vals)];
@@ -1057,7 +1057,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const correcaoResolvida = resolveField(p => p.status_correcao || p.status_ponto || 'BRUTO');
       const baseApoioResolvida = resolveField(p => {
         if (!p.ponto_base_id) return 'Nenhuma';
-        const basePt = pontosList.find((pt: Ponto) => pt.id === p.ponto_base_id);
+        const basePt = pontosList.find((pt: Ponto) => String(pt.id) === String(p.ponto_base_id));
         return basePt ? (basePt.nome_vertice || `ID ${p.ponto_base_id}`) : 'Nenhuma';
       });
 
@@ -1511,7 +1511,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
               if (poliAlterado) itemPayload.ignorar_poligono = poliEl.checked ? 0 : 1;
 
               if (limiteAlterado || metodoAlterado) {
-                const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === pid);
+                const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(pid));
                 if (seg) {
                   itemPayload.segmento = {
                     id: seg.id,
@@ -1522,9 +1522,9 @@ export function atualizarPainelPropriedades(ctx: any): void {
               }
 
               if (confAlterado) {
-                const seg = segmentosList.find((s: Segmento) => s.ponto_inicio_id === pid);
+                const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(pid));
                 const cId = pObj.confrontante_id || (seg && seg.confrontante_id);
-                const cObj = cId ? confrontantesList.find((c: Confrontante) => c.id === cId) : null;
+                const cObj = cId ? confrontantesList.find((c: Confrontante) => String(c.id) === String(cId)) : null;
 
                 const confNomeInput = confEl.value.trim();
                 const confMatInput = confMatEl.value.trim();

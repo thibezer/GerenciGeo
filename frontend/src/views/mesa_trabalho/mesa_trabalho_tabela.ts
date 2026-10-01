@@ -134,8 +134,8 @@ export const renderLinhaSegmentoHtml = (
   pontosList: any[],
   latLonToUTM: (lat: number, lon: number) => { e: number; n: number }
 ): string => {
-  const pIni = pontosList.find(p => p.id === s.ponto_inicio_id);
-  const pFim = pontosList.find(p => p.id === s.ponto_fim_id);
+  const pIni = pontosList.find(p => String(p.id) === String(s.ponto_inicio_id));
+  const pFim = pontosList.find(p => String(p.id) === String(s.ponto_fim_id));
 
   const obterCoordenadas = (p: any) => {
     if (!p) return null;
@@ -187,7 +187,7 @@ export const renderLinhaSegmentoHtml = (
   }
 
   const confOptions = confrontantesList.map(c => `
-    <option value="${c.id}" ${c.id === s.confrontante_id ? 'selected' : ''}>${c.nome}</option>
+    <option value="${c.id}" ${String(c.id) === String(s.confrontante_id) ? 'selected' : ''}>${c.nome}</option>
   `);
   confOptions.unshift(`<option value="" ${!s.confrontante_id ? 'selected' : ''}>[Sem Confrontante]</option>`);
 

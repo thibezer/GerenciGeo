@@ -164,156 +164,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
         </table>
       `;
 
-      // Bindar eventos de alteração de confrontante e divisa em tempo real
-      document.querySelectorAll('.select-segmento-confrontante').forEach((sel: any) => {
-        sel.addEventListener('change', async () => {
-          const segId = sel.getAttribute('data-segmento-id');
-          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
-          const valorAnterior = seg?.confrontante_id ?? null;
-          const confId = sel.value ? parseInt(sel.value) : null;
-          try {
-            const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ confrontante_id: confId })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.detail || "Erro ao salvar confrontante no segmento");
-            }
-            // Atualiza localmente sem recarregar tudo do servidor
-            if (seg) seg.confrontante_id = confId;
-
-            // Atualiza o atributo data-confrontante-id no botão de emissão rápida da mesma linha
-            const tr = sel.closest('tr');
-            const btnAnuencia = tr?.querySelector('.btn-emitir-anuencia-rapida');
-            if (btnAnuencia) {
-              btnAnuencia.setAttribute('data-confrontante-id', confId ? String(confId) : '');
-            }
-
-            ctx.carregarConfrontantesAtivosSelect();
-          } catch (err: any) {
-            // Reverte elemento na interface para evitar falsa confirmação visual
-            sel.value = valorAnterior !== null ? String(valorAnterior) : '';
-            console.error("Erro ao salvar confrontante no segmento:", err);
-            showToast(err.message || "Erro ao salvar confrontante no segmento", "error");
-          }
-        });
-      });
-
-      document.querySelectorAll('.select-segmento-limite').forEach((sel: any) => {
-        sel.addEventListener('change', async () => {
-          const segId = sel.getAttribute('data-segmento-id');
-          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
-          const valorAnterior = seg?.tipo_limite_sigef || seg?.tipo_limite || 'LN1';
-          const tipoLimite = sel.value || null;
-          try {
-            const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tipo_limite_sigef: tipoLimite })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.detail || "Erro ao salvar limite no segmento");
-            }
-            if (seg) {
-              seg.tipo_limite_sigef = tipoLimite;
-              seg.tipo_limite = tipoLimite;
-            }
-          } catch (err: any) {
-            sel.value = valorAnterior;
-            console.error("Erro ao salvar limite no segmento:", err);
-            showToast(err.message || "Erro ao salvar limite no segmento", "error");
-          }
-        });
-      });
-
-      document.querySelectorAll('.select-segmento-posicionamento').forEach((sel: any) => {
-        sel.addEventListener('change', async () => {
-          const segId = sel.getAttribute('data-segmento-id');
-          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
-          const valorAnterior = seg?.metodo_posicionamento_sigef || seg?.metodo_posicionamento || 'PG1';
-          const metodoPos = sel.value || null;
-          try {
-            const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ metodo_posicionamento_sigef: metodoPos })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.detail || "Erro ao salvar posicionamento no segmento");
-            }
-            if (seg) {
-              seg.metodo_posicionamento_sigef = metodoPos;
-              seg.metodo_posicionamento = metodoPos;
-            }
-          } catch (err: any) {
-            sel.value = valorAnterior;
-            console.error("Erro ao salvar posicionamento no segmento:", err);
-            showToast(err.message || "Erro ao salvar posicionamento no segmento", "error");
-          }
-        });
-      });
-
-      document.querySelectorAll('.chk-segmento-anuente').forEach((chk: any) => {
-        chk.addEventListener('change', async () => {
-          const segId = chk.getAttribute('data-segmento-id');
-          const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
-          const valorAnterior = seg?.anuencia_assinada === 1;
-          const anuidadeVal = chk.checked ? 1 : 0;
-          try {
-            const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ anuencia_assinada: anuidadeVal })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.detail || "Erro ao salvar status de anuência no segmento");
-            }
-            if (seg) seg.anuencia_assinada = anuidadeVal;
-            ctx.carregarConfrontantesAtivosSelect();
-          } catch (err: any) {
-            chk.checked = valorAnterior;
-            console.error("Erro ao salvar status de anuência no segmento:", err);
-            showToast(err.message || "Erro ao salvar status de anuência no segmento", "error");
-          }
-        });
-      });
-
-      document.querySelectorAll('.btn-emitir-anuencia-rapida').forEach((btn: any) => {
-        btn.addEventListener('click', (e: Event) => {
-          e.stopPropagation();
-          const confId = btn.getAttribute('data-confrontante-id');
-          if (!confId) {
-            showToast("Esta divisa ainda não possui confrontante vinculado.", "info");
-            return;
-          }
-          if (typeof (window as any).abrirPreviewDivisaAnuenciaGlobal === 'function') {
-            (window as any).abrirPreviewDivisaAnuenciaGlobal(confId);
-          }
-        });
-      });
-
-      document.querySelectorAll('.btn-emitir-requerimento-rapido').forEach((btn: any) => {
-        btn.addEventListener('click', (e: Event) => {
-          e.stopPropagation();
-          if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
-          const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/requerimento-cartorio-html`;
-          window.open(url, '_blank');
-        });
-      });
-
-      document.querySelectorAll('.btn-emitir-laudo-rapido').forEach((btn: any) => {
-        btn.addEventListener('click', (e: Event) => {
-          e.stopPropagation();
-          if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
-          const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/laudo-tecnico-html`;
-          window.open(url, '_blank');
-        });
-      });
+      vincularEventosDelegadosSegmentos(containerLateral, ctx);
     }
   }
 
@@ -322,6 +173,172 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     ctx.renderListaReordenarSimplificada();
   }
 };
+
+function vincularEventosDelegadosSegmentos(containerLateral: HTMLElement, ctx: MesaTrabalhoContext): void {
+  if (containerLateral.getAttribute('data-has-delegated-listeners') === 'true') {
+    return;
+  }
+  containerLateral.setAttribute('data-has-delegated-listeners', 'true');
+
+  containerLateral.addEventListener('change', async (e: Event) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+
+    // 1. Confrontante
+    if (target.classList.contains('select-segmento-confrontante')) {
+      const sel = target as HTMLSelectElement;
+      const segId = sel.getAttribute('data-segmento-id');
+      const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+      const valorAnterior = seg?.confrontante_id ?? null;
+      const confId = sel.value ? parseInt(sel.value) : null;
+      try {
+        const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confrontante_id: confId })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Erro ao salvar confrontante no segmento");
+        }
+        if (seg) seg.confrontante_id = confId;
+        const tr = sel.closest('tr');
+        const btnAnuencia = tr?.querySelector('.btn-emitir-anuencia-rapida');
+        if (btnAnuencia) {
+          btnAnuencia.setAttribute('data-confrontante-id', confId ? String(confId) : '');
+        }
+        ctx.carregarConfrontantesAtivosSelect();
+      } catch (err: any) {
+        sel.value = valorAnterior !== null ? String(valorAnterior) : '';
+        console.error("Erro ao salvar confrontante no segmento:", err);
+        showToast(err.message || "Erro ao salvar confrontante no segmento", "error");
+      }
+      return;
+    }
+
+    // 2. Limite SIGEF
+    if (target.classList.contains('select-segmento-limite')) {
+      const sel = target as HTMLSelectElement;
+      const segId = sel.getAttribute('data-segmento-id');
+      const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+      const valorAnterior = seg?.tipo_limite_sigef || seg?.tipo_limite || 'LN1';
+      const tipoLimite = sel.value || null;
+      try {
+        const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo_limite_sigef: tipoLimite })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Erro ao salvar limite no segmento");
+        }
+        if (seg) {
+          seg.tipo_limite_sigef = tipoLimite;
+          seg.tipo_limite = tipoLimite;
+        }
+      } catch (err: any) {
+        sel.value = valorAnterior;
+        console.error("Erro ao salvar limite no segmento:", err);
+        showToast(err.message || "Erro ao salvar limite no segmento", "error");
+      }
+      return;
+    }
+
+    // 3. Posicionamento
+    if (target.classList.contains('select-segmento-posicionamento')) {
+      const sel = target as HTMLSelectElement;
+      const segId = sel.getAttribute('data-segmento-id');
+      const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+      const valorAnterior = seg?.metodo_posicionamento_sigef || seg?.metodo_posicionamento || 'PG1';
+      const metodoPos = sel.value || null;
+      try {
+        const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metodo_posicionamento_sigef: metodoPos })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Erro ao salvar posicionamento no segmento");
+        }
+        if (seg) {
+          seg.metodo_posicionamento_sigef = metodoPos;
+          seg.metodo_posicionamento = metodoPos;
+        }
+      } catch (err: any) {
+        sel.value = valorAnterior;
+        console.error("Erro ao salvar posicionamento no segmento:", err);
+        showToast(err.message || "Erro ao salvar posicionamento no segmento", "error");
+      }
+      return;
+    }
+
+    // 4. Anuência
+    if (target.classList.contains('chk-segmento-anuente')) {
+      const chk = target as HTMLInputElement;
+      const segId = chk.getAttribute('data-segmento-id');
+      const seg = ctx.segmentosList.find(s => String(s.id) === String(segId));
+      const valorAnterior = seg?.anuencia_assinada === 1;
+      const anuidadeVal = chk.checked ? 1 : 0;
+      try {
+        const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ anuencia_assinada: anuidadeVal })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Erro ao salvar status de anuência no segmento");
+        }
+        if (seg) seg.anuencia_assinada = anuidadeVal;
+        ctx.carregarConfrontantesAtivosSelect();
+      } catch (err: any) {
+        chk.checked = valorAnterior;
+        console.error("Erro ao salvar status de anuência no segmento:", err);
+        showToast(err.message || "Erro ao salvar status de anuência no segmento", "error");
+      }
+      return;
+    }
+  });
+
+  containerLateral.addEventListener('click', (e: Event) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+
+    const btnAnuencia = target.closest('.btn-emitir-anuencia-rapida') as HTMLElement;
+    if (btnAnuencia) {
+      e.stopPropagation();
+      const confId = btnAnuencia.getAttribute('data-confrontante-id');
+      if (!confId) {
+        showToast("Esta divisa ainda não possui confrontante vinculado.", "info");
+        return;
+      }
+      if (typeof (window as any).abrirPreviewDivisaAnuenciaGlobal === 'function') {
+        (window as any).abrirPreviewDivisaAnuenciaGlobal(confId);
+      }
+      return;
+    }
+
+    const btnReq = target.closest('.btn-emitir-requerimento-rapido') as HTMLElement;
+    if (btnReq) {
+      e.stopPropagation();
+      if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+      const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/requerimento-cartorio-html`;
+      window.open(url, '_blank');
+      return;
+    }
+
+    const btnLaudo = target.closest('.btn-emitir-laudo-rapido') as HTMLElement;
+    if (btnLaudo) {
+      e.stopPropagation();
+      if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+      const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/laudo-tecnico-html`;
+      window.open(url, '_blank');
+      return;
+    }
+  });
+}
 
 export function setupOrganizadorPerimetro(ctx: MesaTrabalhoContext) {
   // 1. Inicializador do cadastro rápido de confrontantes na Etapa 2

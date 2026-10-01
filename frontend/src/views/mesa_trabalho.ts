@@ -21,15 +21,13 @@ let _recenterHandler: (() => void) | null = null;
 let activeBroadcastChannel: BroadcastChannel | null = null;
 let _geradorDocumentosLoaded = false;
 
-// Interceptadores globais de erros para depuração do pywebview
+// Interceptadores globais de erros para diagnóstico estruturado
 window.addEventListener('error', (event) => {
-  console.error("Exceção global capturada:", event.error);
-  alert(`[Erro de Script]: ${event.message}\nArquivo: ${event.filename}\nLinha: ${event.lineno}:${event.colno}\nStack: ${event.error?.stack}`);
+  console.error("[MesaTrabalho] Exceção global capturada:", event.error || event.message);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error("Promessa não tratada capturada:", event.reason);
-  alert(`[Erro de Promessa]: ${event.reason?.message || event.reason}\nStack: ${event.reason?.stack}`);
+  console.error("[MesaTrabalho] Promessa não tratada capturada:", event.reason);
 });
 
 export let activeMapaController: any = null;
@@ -262,16 +260,27 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
 
         const dropdownFuso = document.getElementById('select-fuso-ribbon') as HTMLSelectElement;
-        if (dropdownFuso && !dropdownFuso.getAttribute('data-has-listener')) {
-          dropdownFuso.setAttribute('data-has-listener', 'true');
-          dropdownFuso.addEventListener('change', (e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            const fusoVal = parseInt(target.value || '22');
-            if (ctx.mapaController) {
-              ctx.mapaController.fusoUtm = fusoVal;
-              ctx.mapaController.zonaProjecao = fusoVal;
-            }
-          });
+        if (dropdownFuso) {
+          const savedZone = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22';
+          dropdownFuso.value = savedZone;
+          if (ctx.mapaController) {
+            ctx.mapaController.fusoUtm = parseInt(savedZone);
+            ctx.mapaController.zonaProjecao = parseInt(savedZone);
+          }
+          if (!dropdownFuso.getAttribute('data-has-listener')) {
+            dropdownFuso.setAttribute('data-has-listener', 'true');
+            dropdownFuso.addEventListener('change', (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              const fusoVal = parseInt(target.value || '22');
+              localStorage.setItem(`utm_zone_${ctx.currentLevId}`, String(fusoVal));
+              if (ctx.mapaController) {
+                ctx.mapaController.fusoUtm = fusoVal;
+                ctx.mapaController.zonaProjecao = fusoVal;
+              }
+              showToast(`Zona UTM alterada para ${fusoVal}S. Recalculando coordenadas...`, "info");
+              ctx.loadLevantamentoDetails();
+            });
+          }
         }
 
         inicializarMapOnce();
@@ -1748,32 +1757,6 @@ function setupRibbonInteractions(ctx: any): void {
     });
   }
 
-  const selectUtm = document.getElementById('select-fuso-ribbon') as any;
-  if (selectUtm) {
-    selectUtm.itens = [
-      { id: '21', label: '21S' },
-      { id: '22', label: '22S' },
-      { id: '23', label: '23S' }
-    ];
-    const savedZone = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22';
-    selectUtm.value = savedZone;
-
-    if (!selectUtm._hasChangeListener) {
-      selectUtm._hasChangeListener = true;
-      selectUtm.addEventListener('gg-selecionar', (e: CustomEvent) => {
-        const novaZona = e.detail?.id || selectUtm.value;
-        if (novaZona) {
-          localStorage.setItem(`utm_zone_${ctx.currentLevId}`, novaZona);
-          if (ctx.mapaController) {
-            ctx.mapaController.fusoUtm = parseInt(novaZona);
-            ctx.mapaController.zonaProjecao = parseInt(novaZona);
-          }
-          showToast(`Zona UTM alterada para ${novaZona}. Recalculando coordenadas...`, "info");
-          ctx.loadLevantamentoDetails();
-        }
-      });
-    }
-  }
 
   // AutoCAD Titlebar Window Actions via pywebview js_api
   const winBtnMin = document.getElementById('win-btn-minimize');

@@ -84,8 +84,8 @@ export function inicializarEventosTabela(ctx: any): void {
           // Seleção sequencial por intervalo (Shift + Click)
           const pontosMat = ctx.etapaAtiva === 'geoprocessamento' ? [...ctx.pontosList] : ctx.pontosList.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B');
           
-          const index1 = pontosMat.findIndex((pt: any) => pt.id === ctx.lastSelectedPontoId);
-          const index2 = pontosMat.findIndex((pt: any) => pt.id === pId);
+          const index1 = pontosMat.findIndex((pt: any) => String(pt.id) === String(ctx.lastSelectedPontoId));
+          const index2 = pontosMat.findIndex((pt: any) => String(pt.id) === String(pId));
 
           if (index1 !== -1 && index2 !== -1) {
             const start = Math.min(index1, index2);
@@ -136,7 +136,7 @@ export function inicializarEventosTabela(ctx: any): void {
           const ignorarVal = chk.checked ? 0 : 1;
           try {
             await fetch(`${API_BASE}/pontos/${pId}`, {
-              method: 'PUT',
+              method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ignorar_poligono: ignorarVal })
             });

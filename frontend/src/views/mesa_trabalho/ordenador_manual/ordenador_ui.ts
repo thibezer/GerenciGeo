@@ -51,7 +51,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
 
       container.innerHTML = pontosFiltrados.map((p) => {
         if (!p) return '';
-        const ordemOriginal = pontosMatCompleto.findIndex(orig => orig && orig.id === p.id) + 1;
+        const ordemOriginal = pontosMatCompleto.findIndex(orig => orig && String(orig.id) === String(p.id)) + 1;
         const tipoP = p.tipo_ponto || p.tipo || 'P';
 
         const seqId = p.sequencia_travada_id;
@@ -66,7 +66,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
 
         let matBadgeHtml = '';
         if (p.matricula_id) {
-          const matObj = ctx.matriculasList?.find(m => m.id === p.matricula_id);
+          const matObj = ctx.matriculasList?.find(m => String(m.id) === String(p.matricula_id));
           const matLabel = matObj?.numero_matricula ? `Mat. ${matObj.numero_matricula}` : `Mat. #${p.matricula_id}`;
           matBadgeHtml = `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 shrink-0" title="Pertence à ${matLabel}">${matLabel}</span>`;
         } else {
@@ -276,7 +276,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         });
 
         const indices = pIds
-          .map(pid => pontosMatValidos.findIndex(p => p.id === pid))
+          .map(pid => pontosMatValidos.findIndex(p => String(p.id) === String(pid)))
           .filter(idx => idx !== -1)
           .sort((a, b) => a - b);
 
@@ -335,7 +335,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           showToast(`Sequência '${seqName}' travada com sucesso!`, "success");
 
           pIds.forEach(pid => {
-            const pt = ctx.pontosList.find(p => p.id === pid);
+            const pt = ctx.pontosList.find(p => String(p.id) === String(pid));
             if (pt) pt.sequencia_travada_id = seqName;
           });
 
@@ -391,7 +391,7 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           showToast("Pontos destravados com sucesso!", "success");
 
           pIds.forEach(pid => {
-            const pt = ctx.pontosList.find(p => p.id === pid);
+            const pt = ctx.pontosList.find(p => String(p.id) === String(pid));
             if (pt) pt.sequencia_travada_id = undefined;
           });
 
