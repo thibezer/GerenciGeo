@@ -888,6 +888,10 @@ def create_tables(conn):
         migrar_restricao_unicidade_propriedade_clientes(conn)
         # Executa migração de índices de alta performance e saneamento de clientes
         migrar_indices_e_sanitizacao_clientes(conn)
+        # Executa migração para tornar profissional_id opcional em clientes
+        migrar_profissional_id_opcional_clientes(conn)
+        # Executa migração para tornar matricula_id opcional em segmentos
+        migrar_matricula_id_opcional_segmentos(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -1337,4 +1341,148 @@ def migrar_indices_e_sanitizacao_clientes(conn):
         logger.info("[MIGRAÇÃO] Índices secundários de clientes verificados/criados com sucesso.")
     except Exception as e:
         logger.warning(f"Aviso ao migrar índices de clientes e sanear histórico: {e}")
+
+def migrar_profissional_id_opcional_clientes(conn):
+    """
+    Remove a restrição NOT NULL da coluna profissional_id na tabela clientes
+    de forma segura e retrocompatível, alinhando com o schema oficial v2.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("PRAGMA table_info(clientes)")
+        colunas = cursor.fetchall()
+        prof_is_not_null = False
+        for col in colunas:
+            if col[1] == 'profissional_id' and col[3] == 1:
+                prof_is_not_null = True
+                break
+
+        if not prof_is_not_null:
+            return
+
+        logger.info("[MIGRAÇÃO] Removendo restrição NOT NULL de clientes.profissional_id...")
+
+        cols_nomes = [col[1] for col in colunas]
+
+        cursor.execute("PRAGMA foreign_keys = OFF;")
+        cursor.execute("BEGIN TRANSACTION;")
+
+        cursor.execute("""
+            CREATE TABLE clientes_novo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pessoa_id INTEGER NOT NULL,
+                profissional_id INTEGER,
+                data_nascimento_fundacao DATE,
+                email TEXT,
+                telefone TEXT,
+                cidade TEXT,
+                estado TEXT,
+                cep TEXT,
+                sexo TEXT DEFAULT 'M',
+                senha_gov TEXT,
+                cnh_numero TEXT,
+                cnh_categoria TEXT,
+                cnh_validade TEXT,
+                cnh_orgao_uf TEXT,
+                rg_orgao TEXT,
+                rg_uf TEXT,
+                naturalidade TEXT,
+                certidao_casamento_matricula TEXT,
+                bairro TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE,
+                FOREIGN KEY (profissional_id) REFERENCES profissionais(id) ON DELETE SET NULL
+            );
+        """)
+
+        cursor.execute("PRAGMA table_info(clientes_novo)")
+        cols_novo = {col[1] for col in cursor.fetchall()}
+        cols_comuns = [c for c in cols_nomes if c in cols_novo]
+        cols_comuns_str = ", ".join(cols_comuns)
+
+        cursor.execute(f"""
+            INSERT INTO clientes_novo ({cols_comuns_str})
+            SELECT {cols_comuns_str} FROM clientes;
+        """)
+
+        cursor.execute("DROP TABLE clientes;")
+        cursor.execute("ALTER TABLE clientes_novo RENAME TO clientes;")
+        cursor.execute("COMMIT;")
+        cursor.execute("PRAGMA foreign_keys = ON;")
+        logger.info("[MIGRAÇÃO] Tabela 'clientes' migrada com sucesso (profissional_id agora é opcional).")
+    except Exception as e:
+        try:
+            cursor.execute("ROLLBACK;")
+        except Exception:
+            pass
+        logger.warning(f"Aviso de migração automática para clientes.profissional_id: {e}")
+
+def migrar_matricula_id_opcional_segmentos(conn):
+    """
+    Remove a restrição NOT NULL da coluna matricula_id na tabela segmentos
+    permitindo que segmentos lineares existam antes da vinculação à matrícula.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("PRAGMA table_info(segmentos)")
+        colunas = cursor.fetchall()
+        mat_is_not_null = False
+        for col in colunas:
+            if col[1] == 'matricula_id' and col[3] == 1:
+                mat_is_not_null = True
+                break
+
+        if not mat_is_not_null:
+            return
+
+        logger.info("[MIGRAÇÃO] Removendo restrição NOT NULL de segmentos.matricula_id...")
+
+        cols_nomes = [col[1] for col in colunas]
+
+        cursor.execute("PRAGMA foreign_keys = OFF;")
+        cursor.execute("BEGIN TRANSACTION;")
+
+        cursor.execute("""
+            CREATE TABLE segmentos_novo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                levantamento_id INTEGER NOT NULL,
+                matricula_id INTEGER,
+                ponto_inicio_id INTEGER NOT NULL,
+                ponto_fim_id INTEGER NOT NULL,
+                confrontante_id INTEGER,
+                tipo_limite_sigef TEXT DEFAULT 'LA1',
+                metodo_posicionamento_sigef TEXT DEFAULT 'PG1',
+                origem_homologada INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
+                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
+                FOREIGN KEY (ponto_inicio_id) REFERENCES pontos(id) ON DELETE CASCADE,
+                FOREIGN KEY (ponto_fim_id) REFERENCES pontos(id) ON DELETE CASCADE,
+                FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL
+            );
+        """)
+
+        cursor.execute("PRAGMA table_info(segmentos_novo)")
+        cols_novo = {col[1] for col in cursor.fetchall()}
+        cols_comuns = [c for c in cols_nomes if c in cols_novo]
+        cols_comuns_str = ", ".join(cols_comuns)
+
+        cursor.execute(f"""
+            INSERT INTO segmentos_novo ({cols_comuns_str})
+            SELECT {cols_comuns_str} FROM segmentos;
+        """)
+
+        cursor.execute("DROP TABLE segmentos;")
+        cursor.execute("ALTER TABLE segmentos_novo RENAME TO segmentos;")
+        cursor.execute("COMMIT;")
+        cursor.execute("PRAGMA foreign_keys = ON;")
+        logger.info("[MIGRAÇÃO] Tabela 'segmentos' migrada com sucesso (matricula_id agora é opcional).")
+    except Exception as e:
+        try:
+            cursor.execute("ROLLBACK;")
+        except Exception:
+            pass
+        logger.warning(f"Aviso de migração automática para segmentos.matricula_id: {e}")
+
+
 

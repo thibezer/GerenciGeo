@@ -20,6 +20,10 @@ from config import (
     CLOUD_STATUS_URL
 )
 from database.connection import DatabaseManager
+from database.models import (
+    migrar_profissional_id_opcional_clientes,
+    migrar_matricula_id_opcional_segmentos
+)
 
 logger = logging.getLogger(__name__)
 
@@ -221,16 +225,29 @@ async def push_dados_nuvem() -> dict:
 
 
 def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> int:
-    """Faz o UPSERT atômico das linhas recebidas na tabela do SQLite local."""
+    """Faz o UPSERT atômico das linhas recebidas na tabela do SQLite local com tratamento defensivo."""
     if not rows:
         return 0
 
     cursor = conn.cursor()
-    # Identifica colunas existentes na tabela local
+    # Identifica colunas existentes na tabela local e restrições NOT NULL
     cursor.execute(f"PRAGMA table_info({tabela})")
-    cols_locais = {row[1] for row in cursor.fetchall()}
+    col_info = cursor.fetchall()
+    cols_locais = {row[1] for row in col_info}
+    cols_notnull = {row[1] for row in col_info if row[3] == 1 and row[4] is None and row[5] == 0}
     if not cols_locais:
         return 0
+
+    # Busca profissional padrão para evitar falha de NOT NULL caso a tabela ainda tenha restrição
+    padrao_prof_id = 1
+    if "profissional_id" in cols_notnull or tabela in ("clientes", "levantamentos", "banco_pontos"):
+        try:
+            cursor.execute("SELECT id FROM profissionais ORDER BY id ASC LIMIT 1")
+            p_row = cursor.fetchone()
+            if p_row and p_row[0]:
+                padrao_prof_id = p_row[0]
+        except Exception:
+            pass
 
     inseridos = 0
     for r in rows:
@@ -238,6 +255,101 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
         dados_validos = {k: v for k, v in r.items() if k in cols_locais}
         if not dados_validos:
             continue
+
+        # Tratamento defensivo para colunas NOT NULL que chegam vazias ou None da nuvem
+        for col_name in cols_notnull:
+            if col_name in dados_validos and dados_validos[col_name] is None:
+                if col_name == "profissional_id":
+                    dados_validos[col_name] = padrao_prof_id
+                else:
+                    dados_validos[col_name] = ""
+            elif col_name not in dados_validos:
+                if col_name == "profissional_id":
+                    dados_validos[col_name] = padrao_prof_id
+
+        # Garantia explícita para profissional_id em clientes e levantamentos
+        if tabela in ("clientes", "levantamentos") and not dados_validos.get("profissional_id"):
+            dados_validos["profissional_id"] = padrao_prof_id
+
+        # Resolução defensiva de chave natural para propriedade_clientes
+        if tabela == "propriedade_clientes":
+            p_id = dados_validos.get("propriedade_id")
+            c_id = dados_validos.get("cliente_id")
+            reg_id = dados_validos.get("id")
+            if p_id is not None and c_id is not None:
+                if reg_id is not None:
+                    cursor.execute(
+                        "DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ? AND id != ?",
+                        (p_id, c_id, reg_id)
+                    )
+                else:
+                    cursor.execute(
+                        "DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?",
+                        (p_id, c_id)
+                    )
+
+        # Garantia e resolução defensiva para tabela pontos
+        if tabela == "pontos":
+            if not dados_validos.get("tipo_ponto"):
+                t_cand = str(r.get("tipo") or "").upper().strip()
+                if t_cand in ('M', 'P', 'V', 'B'):
+                    dados_validos["tipo_ponto"] = t_cand
+                else:
+                    nv = str(dados_validos.get("nome_vertice") or "").strip().upper()
+                    dados_validos["tipo_ponto"] = nv[0] if nv.startswith(('M', 'P', 'V', 'B')) else 'V'
+
+            if "alt" in cols_locais and not dados_validos.get("alt") and r.get("altitude"):
+                dados_validos["alt"] = r.get("altitude")
+
+            lev_id = dados_validos.get("levantamento_id")
+            mat_id = dados_validos.get("matricula_id")
+            nv = dados_validos.get("nome_vertice")
+            tp = dados_validos.get("tipo_ponto")
+            p_id = dados_validos.get("id")
+            if lev_id and nv and tp:
+                if mat_id is not None:
+                    cursor.execute(
+                        "DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                        (lev_id, mat_id, nv, tp, p_id or -1)
+                    )
+                else:
+                    cursor.execute(
+                        "DELETE FROM pontos WHERE levantamento_id = ? AND matricula_id IS NULL AND nome_vertice = ? AND tipo_ponto = ? AND id != ?",
+                        (lev_id, nv, tp, p_id or -1)
+                    )
+
+        # Garantia e resolução defensiva para tabela segmentos
+        if tabela == "segmentos":
+            if "tipo_limite_sigef" in cols_locais and not dados_validos.get("tipo_limite_sigef"):
+                dados_validos["tipo_limite_sigef"] = r.get("tipo_limite") or "LA1"
+            if "metodo_posicionamento_sigef" in cols_locais and not dados_validos.get("metodo_posicionamento_sigef"):
+                dados_validos["metodo_posicionamento_sigef"] = "PG1"
+
+            if "matricula_id" in cols_locais and not dados_validos.get("matricula_id"):
+                p_ini = dados_validos.get("ponto_inicio_id")
+                p_fim = dados_validos.get("ponto_fim_id")
+                lev_id = dados_validos.get("levantamento_id")
+                mat_encontrada = None
+                if p_ini or p_fim:
+                    cursor.execute(
+                        "SELECT matricula_id FROM pontos WHERE id IN (?, ?) AND matricula_id IS NOT NULL LIMIT 1",
+                        (p_ini or -1, p_fim or -1)
+                    )
+                    m_row = cursor.fetchone()
+                    if m_row and m_row[0]:
+                        mat_encontrada = m_row[0]
+
+                if not mat_encontrada and lev_id:
+                    cursor.execute(
+                        "SELECT m.id FROM matriculas m JOIN levantamentos l ON m.propriedade_id = l.propriedade_id WHERE l.id = ? LIMIT 1",
+                        (lev_id,)
+                    )
+                    m_row = cursor.fetchone()
+                    if m_row and m_row[0]:
+                        mat_encontrada = m_row[0]
+
+                if mat_encontrada:
+                    dados_validos["matricula_id"] = mat_encontrada
 
         cols = list(dados_validos.keys())
         placeholders = ", ".join(["?"] * len(cols))
@@ -298,6 +410,13 @@ async def pull_dados_nuvem() -> dict:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
+
+            # Executa migrações preventivas para clientes e segmentos
+            try:
+                migrar_profissional_id_opcional_clientes(conn)
+                migrar_matricula_id_opcional_segmentos(conn)
+            except Exception as e_mig:
+                logger.warning(f"Aviso ao executar migrações preventivas: {e_mig}")
             
             resumo = {}
             total_baixados = 0

@@ -693,10 +693,10 @@ ui-modal[tamanho="xl"] {
 ui-modal#modal-cliente,
 ui-modal.modal-cliente-amplo,
 ui-modal[tamanho="grande"] {
-  --ui-modal-largura: 900px !important;
+  --ui-modal-largura: 1000px !important;
   --ui-modal-max-largura: 94vw !important;
-  --ui-modal-padding-x: 28px !important;
-  max-width: 900px !important;
+  --ui-modal-padding-x: 24px !important;
+  max-width: 1000px !important;
 }
 
 @media (min-width: 1024px) {
@@ -706,7 +706,7 @@ ui-modal[tamanho="grande"] {
   }
   ui-modal#modal-cliente,
   ui-modal.modal-cliente-amplo {
-    --ui-modal-largura: 900px !important;
+    --ui-modal-largura: 1000px !important;
   }
 }
 
@@ -749,9 +749,9 @@ ui-modal#modal-cliente::part(footer) {
 ui-modal#modal-cliente ui-campo-texto,
 ui-modal#modal-cliente ui-select,
 ui-modal#modal-cliente ui-lista-flutuante {
-  --ui-altura-minima: 25px !important;
-  --ui-campo-altura: 25px !important;
-  --ui-raio-borda: 4px !important;
+  --ui-altura-minima: 32px !important;
+  --ui-campo-altura: 32px !important;
+  --ui-raio-borda: 5px !important;
 }
 
 ui-modal#modal-cliente ui-campo-texto::part(input),
@@ -759,11 +759,39 @@ ui-modal#modal-cliente ui-campo-texto::part(wrapper),
 ui-modal#modal-cliente ui-campo-texto::part(container),
 ui-modal#modal-cliente ui-select::part(trigger),
 ui-modal#modal-cliente ui-select::part(select) {
-  height: 25px !important;
-  min-height: 25px !important;
-  font-size: 11px !important;
-  line-height: 25px !important;
-  border-radius: 4px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  font-size: 12px !important;
+  line-height: 32px !important;
+  border-radius: 5px !important;
+}
+
+/* Formulário de cliente: leitura confortável e conteúdo rolável em telas baixas. */
+ui-modal#modal-cliente::part(body) {
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+ui-modal#modal-cliente #form-cliente label {
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  margin-bottom: 3px !important;
+}
+
+ui-modal#modal-cliente #form-cliente {
+  --ui-altura-minima: 32px;
+  --ui-campo-altura: 32px;
+}
+
+@media (max-width: 640px) {
+  ui-modal#modal-cliente {
+    --ui-modal-max-largura: calc(100vw - 20px) !important;
+    --ui-modal-padding-x: 14px !important;
+  }
+  ui-modal#modal-cliente::part(body) {
+    max-height: calc(100vh - 130px);
+  }
 }
 
 /* Padronização Padrão de Altura e Bordas de Campos */
