@@ -560,4 +560,19 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - Apenas se `segmentosMat.length === 0`, usar o fallback `ctx.mapaController.plotPolilinhaTemporaria(pontosMat);`
   2. **Isolamento de Matrícula**: Sempre que `ctx.currentMatriculaId` estiver preenchida, filtrar estritamente `pontosMat` usando `String(p.matricula_id) === String(ctx.currentMatriculaId)` antes de repassá-lo para plotagem de pontos ou centralização `fitBounds`.
 
+---
+
+## 34. Bloqueio Inadvertido de Geometrias Homologadas no Backend e Persistência de Matrícula no Frontend
+- **Contexto e Problema**:
+  1. No levantamento da Fazenda Serra dos Dourados (ID 16), o perímetro oficial de 194 segmentos (Matrícula 15) e 66 segmentos (Matrícula 13) foi importado de planilha ODS perimetral (SIGEF), recebendo no banco de dados `origem_homologada = 1`.
+  2. O endpoint backend `GET /levantamentos/{id}/segmentos` continha indevidamente a restrição `AND (s.origem_homologada IS NULL OR s.origem_homologada = 0)`.
+  3. O endpoint `GET /levantamentos/{id}/pontos` sem query string também filtrava `AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)`.
+  4. Como consequência, a API retornava `[]` (zero segmentos) e omitia os pontos da matrícula homologada, forçando o frontend a cair no fallback `plotPolilinhaTemporaria(pontosMat)` com pontos brutos de rio desordenados, resultando em poligonais distorcidas em forma de ampulheta/ziguezague com linhas tracejadas de fechamento atravessando a fazenda.
+  5. Além disso, ao recarregar a tela, `ctx.currentMatriculaId` iniciava como `null` sem persistência em `localStorage`, e matrículas unificadas (`matricula_origem_desenho_id`) não herdavam os segmentos da matrícula pai.
+- **Regras Obrigatórias**:
+  1. **Endpoints de Segmentos e Pontos**: `GET /levantamentos/{id}/segmentos` deve retornar **todos** os segmentos do levantamento (`WHERE s.levantamento_id = ?`) sem descartar `origem_homologada = 1`. A rota padrão de pontos deve retornar todos os pontos do levantamento (excluindo apenas `ponto_vizinho = 1`).
+  2. **Persistência de Matrícula Ativa**: A Mesa de Trabalho deve salvar e restaurar a matrícula selecionada em `localStorage.getItem('ultima_matricula_lev_' + ctx.currentLevId)`. Se não houver matrícula salva, selecionar prioritariamente a que possui segmentos.
+  3. **Suporte a Glebas Unificadas**: Matrículas que apontam para uma gleba unificada (`matricula_origem_desenho_id`) devem utilizar os segmentos da matrícula de origem para exibição do perímetro.
+
+
 
