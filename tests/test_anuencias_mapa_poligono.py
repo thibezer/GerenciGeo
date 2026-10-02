@@ -163,6 +163,38 @@ class TestAnuenciasMapaPoligono(unittest.TestCase):
         self.assertEqual(len(json_data["lindeira_coords"]), 2)
         self.assertEqual(json_data["metricas"]["qtd_segmentos"], 2)
 
+    def test_anuencia_assinatura_esposa_proprietario_comunhao_parcial(self):
+        """Valida que a esposa do proprietário requerente é incluída nas assinaturas da anuência, inclusive sob comunhão parcial de bens."""
+        from services.documentacao.cartorio.anuencias import gerar_declaracao_anuencia_html
+        
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM propriedade_clientes WHERE propriedade_id = 1")
+            cursor.execute("INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (1, 1, 100)")
+            cursor.execute("""
+                UPDATE pessoas 
+                SET estado_civil = 'casado', 
+                    regime_bens = 'comunhao_parcial', 
+                    nome_conjuge = 'Maria da Silva', 
+                    genero_conjuge = 'F'
+                WHERE id = 1
+            """)
+            conn.commit()
+
+        html = gerar_declaracao_anuencia_html(1, 10, 100)
+        
+        # Deve conter a assinatura do proprietário requerente
+        self.assertIn("João da Silva", html)
+        self.assertIn("Proprietário Requerente", html)
+        
+        # Deve conter a assinatura da esposa do proprietário requerente sob comunhão parcial
+        self.assertIn("Maria da Silva", html)
+        self.assertIn("Esposa do Proprietário Requerente", html)
+        
+        # Deve conter a assinatura do confrontante anuente
+        self.assertIn("Confrontante Anuente", html)
+
 if __name__ == "__main__":
     unittest.main()
+
 

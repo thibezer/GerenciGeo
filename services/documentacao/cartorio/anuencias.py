@@ -184,15 +184,40 @@ def gerar_declaracao_anuencia_html(
 
     bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-4 w-full">'
     
-    # 1. Assinatura dos Proprietários Requerentes (Imóvel que está sendo georreferenciado)
+    # 1. Assinatura dos Proprietários Requerentes e Cônjuge (Imóvel que está sendo georreferenciado)
     for owner in dados["owners"]:
+        sexo_prop = str(owner.get("sexo") or "M").strip().upper()
+        rotulo_prop = "Proprietária Requerente" if sexo_prop in ("F", "FEMININO") else "Proprietário Requerente"
         bloco_assinaturas += f"""
         <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
             <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
             <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{owner["nome_completo"]}</div>
-            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">{rotulo_prop}</div>
         </div>
         """
+        
+        # Inclusão da Esposa / Cônjuge do Proprietário Requerente (inclusive sob comunhão parcial de bens)
+        e_civil_prop = str(owner.get("estado_civil") or "").strip().lower()
+        nome_conjuge_prop = str(owner.get("nome_conjuge") or "").strip()
+        is_casado_prop = "casad" in e_civil_prop or "estáv" in e_civil_prop or "estavel" in e_civil_prop or bool(nome_conjuge_prop)
+        
+        if is_casado_prop:
+            conj_n_prop = nome_conjuge_prop if nome_conjuge_prop else "________________________________"
+            gen_conj = str(owner.get("genero_conjuge") or "").strip().upper()
+            if gen_conj == "F" or (sexo_prop.startswith("M") and gen_conj != "M"):
+                rotulo_conj = "Esposa do Proprietário Requerente"
+            elif gen_conj == "M" or (sexo_prop.startswith("F") and gen_conj != "F"):
+                rotulo_conj = "Esposo da Proprietária Requerente"
+            else:
+                rotulo_conj = "Cônjuge do Proprietário Requerente"
+                
+            bloco_assinaturas += f"""
+            <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_n_prop}</div>
+                <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">{rotulo_conj}</div>
+            </div>
+            """
 
     # 2. Assinatura do Confrontante Anuente
     bloco_assinaturas += f"""
