@@ -619,7 +619,9 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
     }
   };
 
-  ctx.inicializarEventosCartorio = () => {
+  ctx.inicializarEventosOrdenador = () => {
     inicializarEventosOrdenador();
   };
+  ctx.inicializarEventosOrdenador();
 }
+

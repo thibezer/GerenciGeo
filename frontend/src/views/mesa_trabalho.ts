@@ -9,6 +9,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context'
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
 import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
 import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
+import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
 import { consultarEPlotarSigef } from '../utils/sigef_consultor';
@@ -19,7 +20,6 @@ import { setNuvemSyncContext } from './mesa_trabalho/nuvem_sync_modal';
 let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
 let _recenterHandler: (() => void) | null = null;
 let activeBroadcastChannel: BroadcastChannel | null = null;
-let _geradorDocumentosLoaded = false;
 
 // Interceptadores globais de erros para diagnóstico estruturado
 window.addEventListener('error', (event) => {
@@ -130,22 +130,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     setupMesaGeodesica(ctx);
     setupOrganizadorPerimetro(ctx);
     setupOrdenadorManual(ctx);
-
-    const carregarGeradorDocumentos = async () => {
-      if (!_geradorDocumentosLoaded) {
-        _geradorDocumentosLoaded = true;
-        const { setupGeradorDocumentos } = await import('./mesa_trabalho/gerador_documentos');
-        setupGeradorDocumentos(ctx);
-      }
-    };
-    (ctx as any).carregarGeradorDocumentos = carregarGeradorDocumentos;
-
-    ctx.carregarHomologacaoDados = async (profissionalId: number) => {
-      await carregarGeradorDocumentos();
-      if (typeof ctx.carregarHomologacaoDados === 'function') {
-        return ctx.carregarHomologacaoDados(profissionalId);
-      }
-    };
+    setupGeradorDocumentos(ctx);
 
     setupAuditoriaHistorico(ctx);
     setupRibbonInteractions(ctx);
@@ -572,8 +557,15 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       if (etapa === 'documentos') {
-        if (ctx.currentProfissionalId) {
+        if (typeof ctx.carregarConfrontantesAtivosSelect === 'function') {
+          ctx.carregarConfrontantesAtivosSelect();
+        }
+        if (ctx.currentProfissionalId && typeof ctx.carregarHomologacaoDados === 'function') {
           ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
+        }
+      } else if (etapa === 'cartorio') {
+        if (typeof ctx.carregarConfrontantesAtivosSelect === 'function') {
+          ctx.carregarConfrontantesAtivosSelect();
         }
       } else if (etapa === 'auditoria') {
         renderHistoricoCampo(ctx);
@@ -1637,7 +1629,6 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       // Desvincula o contexto ativo do modal de sincronização da nuvem
       setNuvemSyncContext(null);
-      _geradorDocumentosLoaded = false;
 
       ctx.canvasInteracao = null;
       ctx.triagemMap = null;

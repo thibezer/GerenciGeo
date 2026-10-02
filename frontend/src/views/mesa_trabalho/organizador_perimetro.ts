@@ -321,6 +321,9 @@ function vincularEventosDelegadosSegmentos(containerLateral: HTMLElement, ctx: M
       }
       if (typeof (window as any).abrirPreviewDivisaAnuenciaGlobal === 'function') {
         (window as any).abrirPreviewDivisaAnuenciaGlobal(confId);
+      } else if (ctx.currentLevId && ctx.currentMatriculaId) {
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${confId}/anuencia-html`;
+        window.open(url, '_blank');
       }
       return;
     }

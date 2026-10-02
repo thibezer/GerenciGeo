@@ -8,7 +8,7 @@ export function setupOrdenadorManual(ctx: MesaTrabalhoContext) {
   setupOrdenadorStorage(ctx);
   setupOrdenadorUI(ctx);
 
-  if (ctx.inicializarEventosCartorio) {
-      ctx.inicializarEventosCartorio();
+  if (ctx.inicializarEventosOrdenador) {
+      ctx.inicializarEventosOrdenador();
   }
 }

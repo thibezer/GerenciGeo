@@ -52,6 +52,7 @@ export interface MesaTrabalhoContext {
   switchMatriculaTab: (matriculaId: number) => void;
   renderFilaArquivos: () => void;
   inicializarEventosCartorio: () => void;
+  inicializarEventosOrdenador?: () => void;
   carregarSugestoesNumeracao: () => void;
   carregarConfrontantesAtivosSelect: () => Promise<void>;
   selectPontoFromTabela: (pontoId: number) => void;

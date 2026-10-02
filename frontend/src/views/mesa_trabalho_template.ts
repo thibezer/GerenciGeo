@@ -583,7 +583,7 @@ export const renderMesaTrabalho = (): string => {
                </div>
 
                <!-- Linha de Peças Técnicas de Cartório (SIGEF) -->
-               <div class="border-t border-white/5 pt-4 space-y-4 hidden" id="container-pecas-cartorio">
+               <div class="border-t border-white/5 pt-4 space-y-4" id="container-pecas-cartorio">
                  <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                    <h5 class="text-xs font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
                      <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>

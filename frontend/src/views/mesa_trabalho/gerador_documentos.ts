@@ -62,11 +62,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         
         const containerPecas = document.getElementById('container-pecas-cartorio');
         if (containerPecas) {
-          if (pontosDoProjeto.length > 0) {
-            containerPecas.classList.remove('hidden');
-          } else {
-            containerPecas.classList.add('hidden');
-          }
+          containerPecas.classList.remove('hidden');
         }
 
         const pontosMat = ctx.pontosList;
@@ -415,14 +411,27 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   // 5. Inicialização principal dos eventos do gerador de documentos para cartório
   const inicializarEventosCartorio = () => {
     const validarPreRequisitosPecas = async (): Promise<boolean> => {
-      if (!ctx.currentMatriculaId) return false;
-      try {
-        const resLev = await fetch(`${API_BASE}/levantamentos`);
-        const allLevs = await resLev.json();
-        const levObj = allLevs.find((l: any) => l.id === ctx.currentLevId);
-        if (levObj) ctx.currentLevantamento = levObj;
-      } catch (e) {
-        console.error("Erro ao recarregar levantamento:", e);
+      if (!ctx.currentMatriculaId) {
+        if (ctx.matriculasList && ctx.matriculasList.length > 0) {
+          ctx.switchMatriculaTab(ctx.matriculasList[0].id);
+        } else {
+          showToast("Selecione uma matrícula ativa para gerar as peças de cartório.", "info");
+          return false;
+        }
+      }
+      if (!ctx.currentLevId) {
+        showToast("Levantamento não selecionado.", "error");
+        return false;
+      }
+      if (!ctx.currentLevantamento && ctx.currentLevId) {
+        try {
+          const resLev = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}`);
+          if (resLev.ok) {
+            ctx.currentLevantamento = await resLev.json();
+          }
+        } catch (e) {
+          console.error("Erro ao recarregar levantamento:", e);
+        }
       }
       if (ctx.currentLevantamento && (!ctx.currentLevantamento.propriedade_id || !ctx.currentLevantamento.profissional_id)) {
         return confirm("Atenção: A Propriedade ou o Profissional Principal não estão vinculados a este levantamento. As peças de cartório poderão conter campos em branco. Deseja emitir mesmo assim?");
@@ -655,6 +664,14 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
 
 
+    const btnRibbonReq = document.getElementById('btn-gerar-requerimento-cri');
+    if (btnRibbonReq) {
+      btnRibbonReq.onclick = () => {
+        const btnReq = document.getElementById('btn-emitir-req-cartorio');
+        if (btnReq) btnReq.click();
+      };
+    }
+
     const btnAnuencia = document.getElementById('btn-emitir-anuencia');
     if (btnAnuencia) {
       btnAnuencia.onclick = async () => {
@@ -662,7 +679,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement;
         const confId = select ? select.value : '';
         if (!confId) {
-          alert("Selecione um confrontante da lista ou a opção de Lote para emitir a anuência.");
+          showToast("Selecione um confrontante da lista ou a opção de Lote para emitir a anuência.", "info");
           return;
         }
         
@@ -1600,13 +1617,15 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     };
   };
 
-  // 8. Reatribui a inicialização de eventos
+  // 8. Reatribui a inicialização de eventos e executa imediatamente
   ctx.inicializarEventosCartorio = () => {
     inicializarEventosCartorio();
     inicializarHomologacaoIncra();
     inicializarAuditoriaBancoPontos();
   };
+  ctx.inicializarEventosCartorio();
 }
+
 
 // Normalizadores para Estado Civil e Regime de Bens
 export function normalizarEstadoCivil(val: string | null | undefined): string {
