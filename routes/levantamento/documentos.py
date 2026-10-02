@@ -506,6 +506,13 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/documentos/anuencia-forcada-james", response_class=HTMLResponse)
+def get_anuencia_forcada_james():
+    caminho = Path("anuencia_james_corradini.html")
+    if caminho.exists():
+        return HTMLResponse(content=caminho.read_text(encoding="utf-8"))
+    raise HTTPException(status_code=404, detail="Arquivo anuencia_james_corradini.html não encontrado")
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/preview-divisa")
 def get_preview_divisa_confrontante(id: int, matricula_id: int, confrontante_id: int):
     try:

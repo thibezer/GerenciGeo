@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Anuência do Confrontante - James Corradini (Requerente)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0.8cm 1.6cm 0.8cm 1.6cm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 29.7cm !important;
+                box-sizing: border-box !important;
+                display: block !important;
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
+            .page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            p,
+            li,
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            p,
+            li {
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+
+            .bloco-assinaturas-fechamento {
+                margin-top: 1.2cm !important;
+                padding-top: 0 !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+            /* Estilos específicos de impressão para Leaflet */
+            .leaflet-tile-container img {
+                mix-blend-mode: normal !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .leaflet-container {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+
+        /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
+        .custom-tooltip {
+            background-color: rgba(15, 23, 42, 0.9) !important;
+            border: 1px solid #0284c7 !important;
+            border-radius: 4px !important;
+            color: #ffffff !important;
+            font-family: monospace !important;
+            font-size: 8px !important;
+            font-weight: bold !important;
+            padding: 2px 6px !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        .custom-tooltip::before {
+            border-top-color: rgba(15, 23, 42, 0.9) !important;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência Forçada - James Corradini
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Proprietário: James Corradini & Alessandra | Confrontantes: João Carlos Pozzobon e outros</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+    <!-- BARRA_ACOES_FIM -->
+
+    <!-- INICIO CORPO CONSOLIDADO -->
+    <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO (PÁGINA 1) -->
+    <div
+        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col justify-between">
+        <div>
+            <!-- CABEÇALHO DA EMPRESA -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários LTDA</div>
+            </div>
+
+            <!-- TÍTULO JURÍDICO -->
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
+                    ANUÊNCIA DE LIMITES</h2>
+            </div>
+
+            <!-- CORPO DO TEXTO DA ANUÊNCIA -->
+            <div class="space-y-2.5 text-xs text-justify leading-relaxed text-slate-700">
+                <p><strong class="text-slate-900">João Carlos Pozzobon</strong>, brasileiro, casado sob o regime de Comunhão Parcial de Bens com <strong class="text-slate-900">Edite Luzia Ruy Pozzobon</strong>, brasileira, ele portador da cédula de identidade RG nº 886.585-SSP-PR e inscrito no CPF sob o nº 277.850.929-15, ela portadora da cédula de identidade RG nº 857.527-4-SSP-PR e inscrita no CPF sob o nº 324.452.619-53, residentes e domiciliados em Umuarama-PR; <strong class="text-slate-900">Ana Paula Barreiros Pozzobom</strong>, brasileira, inscrita no CPF sob o nº 035.943.859-81; e <strong class="text-slate-900">Cezar Pozzobom Neto</strong>, brasileiro, solteiro, comerciante, natural de Umuarama-PR, portador da cédula de identidade RG nº 8.394.333-5-SSP-PR e inscrito no CPF sob o nº 057.790.919-35; todos na qualidade de proprietários e/ou possuidores legítimos da área confrontante registrada sob a <strong>Matrícula nº 42859</strong> (denominada <strong>Lote nº 6-Rem-1</strong> do Serviço de Registro de Imóveis da Comarca de UMUARAMA), e assumindo integralmente as responsabilidades da declaração a seguir (inclusive na condição de representantes legais dos demais condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei Federal nº 6.015 de 1973</strong>), <strong>DECLARAM</strong> não existir nenhuma disputa, litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural vizinho denominado <strong>Lote 6-Rem-2</strong>, de propriedade de <strong class="text-slate-900">James Corradini casado com Alessandra Vignoto Corradini</strong>, objeto da(s) <strong>Matrícula nº 680</strong> do Serviço de Registro de Imóveis da Comarca de UMUARAMA.
+                </p>
+
+                <p>Os declarantes atestam que a linha de divisa comum entre as propriedades corresponde ao
+                    caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico
+                    Local (SGL) oficial do projeto:</p>
+
+                <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
+                <div class="my-1.5 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                    <table class="w-full text-left border-collapse bg-slate-50/50">
+                        <thead>
+                            <tr class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">
+                                <th class="px-3 py-1">De</th>
+                                <th class="px-3 py-1">Para</th>
+                                <th class="px-3 py-1 text-right">Azimute</th>
+                                <th class="px-3 py-1 text-right">Distância</th>
+                                <th class="px-3 py-1 text-right">Lat. Inicial</th>
+                                <th class="px-3 py-1 text-right">Lon. Inicial</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-V-0031</td>
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0048</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">46°10'28"</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">201.98 m</td>
+                                <td class="px-3 py-1 text-right">-23.5903879°</td>
+                                <td class="px-3 py-1 text-right">-53.4771529°</td>
+                            </tr>
+                            <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0048</td>
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-M-0004</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">46°10'18"</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">1632.37 m</td>
+                                <td class="px-3 py-1 text-right">-23.5891250°</td>
+                                <td class="px-3 py-1 text-right">-53.4757253°</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA -->
+                <p class="break-inside-avoid">Declaramos ainda que o profissional responsável técnico
+                    <strong>Dimas de Assis Ribeiro</strong>, inscrito no CFTA sob o registro nº
+                    <strong>36770434920</strong>, credenciado pelo INCRA sob o código
+                    <strong>XRXR</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
+                    Técnica - ART/TRT nº <strong>BR20260705349</strong>, indicou com precisão todas as
+                    demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
+                    gráficas. Os declarantes concordam integralmente com essa demarcação, expressa na planta e
+                    no memorial descritivo em anexo, e reconhecem esta descrição como o limite legal e definitivo entre
+                    as suas propriedades, assinando em plena concordância.
+                </p>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
+        <div class="bloco-assinaturas-fechamento break-inside-avoid w-full mt-4 pt-2">
+            <p class="text-xs font-medium text-slate-900 text-left">Umuarama/PR, 2 de outubro de 2026.</p>
+            <div class="pt-2">
+                <div class="mt-2 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">
+                    <!-- PROPRIETÁRIO REQUERENTE (JAMES CORRADINI) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">James Corradini</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+                    </div>
+                    
+                    <!-- ESPOSA DO PROPRIETÁRIO REQUERENTE (ALESSANDRA) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">Alessandra Vignoto Corradini</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Esposa do Proprietário Requerente</div>
+                    </div>
+
+                    <!-- CONFRONTANTE ANUENTE 1 (JOÃO CARLOS) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">João Carlos Pozzobon</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+                    </div>
+                    
+                    <!-- CONFRONTANTE ANUENTE 2 (EDITE LUZIA) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">Edite Luzia Ruy Pozzobon</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
+                    </div>
+
+                    <!-- CONFRONTANTE ANUENTE 3 (ANA PAULA) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">Ana Paula Barreiros Pozzobom</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+                    </div>
+                    
+                    <!-- CONFRONTANTE ANUENTE 4 (CEZAR NETO) -->
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[240px]">
+                        <div class="w-full border-t border-slate-400 mt-5 mb-1"></div>
+                        <div class="text-[10px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">Cezar Pozzobom Neto</div>
+                        <div class="text-[8px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+    <div class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page mt-6 print:mt-0 flex flex-col justify-between">
+        <div>
+            <!-- CABEÇALHO DA EMPRESA -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários LTDA</div>
+            </div>
+            
+            <div class="text-center mb-3">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">ANEXO GRÁFICO - CROQUI DE LIMITES</h2>
+                <p class="text-[10px] text-slate-600 uppercase tracking-wider mt-1">
+                    Proprietário Requerente: <strong class="text-slate-900">James Corradini</strong> | 
+                    Imóvel: <strong class="text-slate-900">Lote 6-Rem-2 (Matrícula nº 680)</strong>
+                </p>
+                <p class="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">
+                    Confrontantes: <strong class="text-slate-800">João Carlos Pozzobon e outros</strong> | 
+                    Imóvel Confrontante: <strong class="text-slate-800">Lote nº 6-Rem-1 (Matrícula nº 42859)</strong>
+                </p>
+            </div>
+
+            <!-- Container do Mapa Leaflet -->
+            <div id="map_anuencia_forcada" class="w-full h-[580px] border border-slate-300 rounded-xl shadow-sm bg-slate-100 overflow-hidden relative break-inside-avoid">
+                <!-- Indicador de Carregamento -->
+                <div id="loader_map_anuencia_forcada" class="absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
+                    <div class="flex flex-col items-center gap-2">
+                        <svg class="animate-spin h-8 w-8 text-[#0284c7]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Carregando Imagens de Satélite...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legenda do Mapa -->
+            <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex justify-around text-[10px] text-slate-600 font-bold uppercase tracking-wider break-inside-avoid">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-0.5 border-t-2 border-dashed border-[#94a3b8]"></div>
+                    <span>Limite Geral do Imóvel</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-1 bg-[#0284c7] rounded"></div>
+                    <span class="text-[#0284c7]">Divisa Lindeira de Confrontação</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full border-[1.5px] border-[#0284c7] bg-white"></div>
+                    <span>Vértice de Divisa</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 text-[8px] text-slate-400 text-justify leading-relaxed break-inside-avoid">
+            * Este croqui possui caráter ilustrativo para fins de anuência de divisa lindeira, não substituindo o memorial descritivo oficial de georreferenciamento nem as plantas técnicas aprovadas pelo INCRA/SIGEF. As coordenadas apresentadas baseiam-se na projeção UTM Zone 22S sob o datum de referência SIRGAS 2000.
+        </div>
+    </div>
+    <!-- FIM DE FOLHAS CONSOLIDADAS -->
+
+    <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const m = {
+                id: "map_anuencia_forcada",
+                poligono: [
+                    [-23.578917880197, -53.46418905036], [-23.578928997991, -53.464153999806], [-23.579113662326, -53.463376282467],
+                    [-23.57949622544, -53.462101391556], [-23.579847269261, -53.460923649016], [-23.580273847044, -53.459575813742],
+                    [-23.582558926912, -53.462175593473], [-23.584926099914, -53.464849476463], [-23.58742249947, -53.467658884123],
+                    [-23.590461110958, -53.471085441172], [-23.590591835581, -53.47105057281], [-23.590790508584, -53.471136376226],
+                    [-23.590876736336, -53.471452699033], [-23.590847478514, -53.47161778064], [-23.590970851442, -53.471783862263],
+                    [-23.591108025225, -53.472041294667], [-23.591330002852, -53.4721941417], [-23.591437006847, -53.471812190322],
+                    [-23.591518659795, -53.471718417167], [-23.59173011627, -53.471738346647], [-23.591825151155, -53.471660202037],
+                    [-23.59199667006, -53.47168819826], [-23.591945576326, -53.471846994897], [-23.592086526763, -53.471946606634],
+                    [-23.592190602504, -53.471935628556], [-23.592201721757, -53.472274740306], [-23.59208118946, -53.472361123994],
+                    [-23.592002010421, -53.472486580925], [-23.592066943378, -53.472615131975], [-23.592160425536, -53.472668504077],
+                    [-23.592219641906, -53.472991572623], [-23.592059816928, -53.473096514558], [-23.592161027924, -53.473242691559],
+                    [-23.592226029236, -53.473321584294], [-23.59232489589, -53.473416588317], [-23.592469419466, -53.473291867715],
+                    [-23.592621898229, -53.473461045655], [-23.592780925508, -53.47363279558], [-23.592851166902, -53.473813360659],
+                    [-23.592664947814, -53.47389782511], [-23.592716117894, -53.47411388169], [-23.592697848364, -53.474399256652],
+                    [-23.592617205278, -53.474491872346], [-23.592491248356, -53.474601366246], [-23.592383446608, -53.474511972557],
+                    [-23.592151000426, -53.474546006096], [-23.592120970367, -53.474685705106], [-23.592065808642, -53.474980572796],
+                    [-23.591939794821, -53.47501435047], [-23.591870162337, -53.47511275502], [-23.591867005083, -53.47542965716],
+                    [-23.591686785478, -53.475641662222], [-23.591567147448, -53.475598277708], [-23.59147936571, -53.475600743443],
+                    [-23.591437192674, -53.475545198618], [-23.591094167667, -53.475686659964], [-23.590873605218, -53.475779291278],
+                    [-23.590768083, -53.475914926513], [-23.590645401354, -53.476062384816], [-23.59058692833, -53.476247778914],
+                    [-23.590329338799, -53.476403673239], [-23.59030551017, -53.476601569009], [-23.590425750538, -53.476759955412],
+                    [-23.59050053481, -53.477130817721], [-23.590387886775, -53.477152894557], [-23.589125033812, -53.475725305853]
+                ],
+                lindeira: [
+                    [[-23.590387886775, -53.477152894557], [-23.589125033812, -53.475725305853]],
+                    [[-23.589125033812, -53.475725305853], [-23.578917880197, -53.46418905036]]
+                ],
+                lindeira_pontos: [
+                    {coords: [-23.590387886775, -53.477152894557], nome: "XRXR-V-0031", exibir_nome: true},
+                    {coords: [-23.589125033812, -53.475725305853], nome: "XRXR-P-0048", exibir_nome: false},
+                    {coords: [-23.578917880197, -53.46418905036], nome: "XRXR-M-0004", exibir_nome: true}
+                ]
+            };
+
+            try {
+                const map = L.map(m.id, {
+                    zoomControl: false,
+                    attributionControl: false,
+                    fadeAnimation: false,
+                    zoomAnimation: false
+                });
+                
+                const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    crossOrigin: true
+                });
+                googleSat.addTo(map);
+                
+                if (m.poligono && m.poligono.length > 0) {
+                    L.polygon(m.poligono, {
+                        color: '#94a3b8',
+                        fill: false,
+                        weight: 1.5,
+                        dashArray: '4, 4'
+                    }).addTo(map);
+                }
+                
+                const bounds = L.latLngBounds();
+                if (m.lindeira && m.lindeira.length > 0) {
+                    m.lindeira.forEach(function(seg) {
+                        L.polyline(seg, {
+                            color: '#0284c7',
+                            weight: 4.5,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(map);
+                        bounds.extend(seg[0]);
+                        bounds.extend(seg[1]);
+                    });
+                }
+                
+                if (m.lindeira_pontos && m.lindeira_pontos.length > 0) {
+                    m.lindeira_pontos.forEach(function(pt) {
+                        const marker = L.circleMarker(pt.coords, {
+                            radius: 3.0,
+                            color: '#0284c7',
+                            fillColor: '#ffffff',
+                            fillOpacity: 1.0,
+                            weight: 2
+                        }).addTo(map);
+                        
+                        if (pt.exibir_nome) {
+                            marker.bindTooltip(pt.nome, {
+                                permanent: true,
+                                direction: 'top',
+                                className: 'custom-tooltip',
+                                offset: [0, -6]
+                            });
+                        }
+                    });
+                }
+                
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, {
+                        padding: [45, 45],
+                        maxZoom: 18
+                    });
+                } else if (m.poligono && m.poligono.length > 0) {
+                    map.fitBounds(m.poligono, {
+                        padding: [20, 20]
+                    });
+                }
+                
+                let tilesLoaded = 0;
+                map.on('tileload', function() {
+                    tilesLoaded++;
+                    if (tilesLoaded >= 3) {
+                        const loader = document.getElementById("loader_" + m.id);
+                        if (loader) loader.style.display = "none";
+                    }
+                });
+                
+                setTimeout(function() {
+                    const loader = document.getElementById("loader_" + m.id);
+                    if (loader) loader.style.display = "none";
+                }, 1500);
+                
+            } catch (e) {
+                console.error("Erro ao inicializar mapa " + m.id + ": ", e);
+                const loader = document.getElementById("loader_" + m.id);
+                if (loader) {
+                    loader.innerHTML = '<span class="text-xs text-red-500 font-bold">Falha ao carregar imagens do mapa.</span>';
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
