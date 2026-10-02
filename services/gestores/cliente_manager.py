@@ -947,7 +947,7 @@ def vincular_cliente_propriedade(prop_id: int, cliente_id: int, percentual_parti
         # Validação estrita de 100% de participação acumulada
         # 1. Pega a soma das participações dos OUTROS clientes vinculados
         soma_outros_row = execute_query(
-            "SELECT SUM(percentual_participacao) as soma FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id != ?",
+            "SELECT SUM(pc.percentual_participacao) as soma FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ? AND pc.cliente_id != ?",
             params=(prop_id, cliente_id),
             fetch_one=True
         )

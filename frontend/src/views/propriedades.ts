@@ -1206,15 +1206,49 @@ export const propriedadesRoute: RouteDef = {
                    <td class="px-3 py-2 font-mono text-white/60">${escapeHtml(c.cpf_cnpj)}</td>
                    <td class="px-3 py-2 text-right font-mono text-mint-vibrant font-bold">${(c.percentual_participacao || 0).toFixed(2)}%</td>
                    <td class="px-3 py-2 text-center">
-                      <button class="text-white/40 hover:text-red-400 p-1 btn-remover-vinculo cursor-pointer" data-cli-id="${c.id}" title="Desvincular Proprietário">
-                         <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                      </button>
+                      <div class="flex items-center justify-center gap-1.5">
+                         <button class="text-white/40 hover:text-mint-vibrant p-1 btn-editar-vinculo cursor-pointer transition-colors" data-cli-id="${c.id}" data-cli-nome="${escapeHtml(c.nome_completo)}" data-cli-part="${c.percentual_participacao || 0}" title="Editar Participação">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                         </button>
+                         <button class="text-white/40 hover:text-red-400 p-1 btn-remover-vinculo cursor-pointer transition-colors" data-cli-id="${c.id}" title="Desvincular Proprietário">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                         </button>
+                      </div>
                    </td>
                 </tr>
              `;
           }).join('');
 
           initIcons();
+
+          corpo.querySelectorAll('.btn-editar-vinculo').forEach(btn => {
+             btn.addEventListener('click', () => {
+                const cliId = btn.getAttribute('data-cli-id') || '';
+                const cliNome = btn.getAttribute('data-cli-nome') || '';
+                const cliPart = btn.getAttribute('data-cli-part') || '';
+
+                const inputBusca = document.getElementById('busca-proprietario-cliente') as HTMLInputElement;
+                const inputHidden = document.getElementById('vinc-cliente-id') as HTMLInputElement;
+                const inputPart = document.getElementById('vinc-participacao') as HTMLInputElement;
+                const avisoExistente = document.getElementById('lbl-aviso-vinculo-existente');
+                const btnSubmit = document.getElementById('btn-submit-vinc-prop');
+
+                if (inputBusca) inputBusca.value = cliNome;
+                if (inputHidden) inputHidden.value = cliId;
+                if (inputPart) {
+                   inputPart.value = cliPart;
+                   inputPart.focus();
+                   inputPart.select();
+                }
+                if (avisoExistente) {
+                   avisoExistente.innerText = `Editando participação de ${cliNome} (${parseFloat(cliPart || '0').toFixed(2)}%)`;
+                   avisoExistente.classList.remove('hidden');
+                }
+                if (btnSubmit) btnSubmit.innerText = 'Atualizar Participação';
+
+                showToast(`Editando participação de ${cliNome}. Ajuste a porcentagem e confirme.`, "info");
+             });
+          });
 
           corpo.querySelectorAll('.btn-remover-vinculo').forEach(btn => {
              btn.addEventListener('click', async () => {
