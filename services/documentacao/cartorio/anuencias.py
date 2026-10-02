@@ -18,7 +18,26 @@ def gerar_declaracao_anuencia_html(
     dados = dados_comuns if dados_comuns is not None else obter_dados_comuns(lev_id, matricula_id)
     nome_lote = dados.get("denominacoes_str") or dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
-    proprietarios_list = [o["nome_completo"] for o in dados["owners"]]
+    proprietarios_list = []
+    for o in dados["owners"]:
+        nome_owner = o["nome_completo"]
+        e_civil = str(o.get("estado_civil") or "").strip().lower()
+        nome_conj = str(o.get("nome_conjuge") or "").strip()
+        sexo = str(o.get("sexo") or "M").strip().upper()
+
+        is_casado = "casad" in e_civil or "estáv" in e_civil or "estavel" in e_civil or bool(nome_conj)
+
+        if is_casado and nome_conj:
+            if "estáv" in e_civil or "estavel" in e_civil:
+                termo_uniao = "convivente em união estável com"
+            elif sexo in ("F", "FEMININO"):
+                termo_uniao = "casada com"
+            else:
+                termo_uniao = "casado com"
+            proprietarios_list.append(f"{nome_owner} {termo_uniao} {nome_conj}")
+        else:
+            proprietarios_list.append(nome_owner)
+
     proprietarios_str = " e ".join(proprietarios_list)
     
     # Suporte a múltiplas matrículas e unificação territorial

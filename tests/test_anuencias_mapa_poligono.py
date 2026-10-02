@@ -191,6 +191,9 @@ class TestAnuenciasMapaPoligono(unittest.TestCase):
         self.assertIn("Maria da Silva", html)
         self.assertIn("Esposa do Proprietário Requerente", html)
         
+        # Deve conter no corpo do texto o proprietário casado com sua esposa
+        self.assertIn("João da Silva casado com Maria da Silva", html)
+
         # Deve conter a assinatura do confrontante anuente
         self.assertIn("Confrontante Anuente", html)
 
