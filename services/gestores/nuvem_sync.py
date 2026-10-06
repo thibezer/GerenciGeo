@@ -22,7 +22,9 @@ from config import (
 from database.connection import DatabaseManager
 from database.models import (
     migrar_profissional_id_opcional_clientes,
-    migrar_matricula_id_opcional_segmentos
+    migrar_matricula_id_opcional_segmentos,
+    migrar_sincronizacao_updated_at_e_lapides,
+    TABELAS_SINCRONIZAVEIS
 )
 
 logger = logging.getLogger(__name__)
@@ -30,10 +32,7 @@ logger = logging.getLogger(__name__)
 SESSION_FILE = os.path.join(BASE_DIR, "nuvem_session.json")
 
 # Tabelas core sincronizáveis
-SYNC_TABLES = [
-    "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
-    "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes"
-]
+SYNC_TABLES = list(TABELAS_SINCRONIZAVEIS)
 
 
 def carregar_sessao() -> dict:
@@ -185,19 +184,44 @@ def _extrair_dados_locais() -> dict:
 
 
 def _extrair_exclusoes_locais() -> list:
-    """Extrai os registros marcados como excluídos localmente para sincronização."""
+    """
+    Extrai as lápides ainda não confirmadas pela nuvem (enviado_nuvem = 0), deduplicadas.
+    Cada item traz 'local_ids' (ids das linhas locais cobertas) para marcar como enviadas após o push.
+    """
     if not os.path.exists(DB_PATH):
         return []
     try:
         conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
         cursor = conn.cursor()
-        cursor.execute("SELECT tabela, registro_id FROM registros_excluidos")
+        cursor.execute(
+            "SELECT tabela, registro_id, MIN(excluido_em), GROUP_CONCAT(id) "
+            "FROM registros_excluidos WHERE COALESCE(enviado_nuvem, 0) = 0 GROUP BY tabela, registro_id"
+        )
         rows = cursor.fetchall()
         conn.close()
-        return [{"tabela": r[0], "registro_id": r[1]} for r in rows]
+        return [
+            {"tabela": r[0], "registro_id": r[1], "excluido_em": r[2],
+             "local_ids": [int(x) for x in str(r[3]).split(",")]}
+            for r in rows
+        ]
     except Exception as e:
         logger.warning(f"Falha ao ler registros_excluidos: {e}")
         return []
+
+
+def _marcar_exclusoes_enviadas(local_ids: list) -> None:
+    """Marca como confirmadas na nuvem as lápides enviadas com sucesso."""
+    if not local_ids:
+        return
+    try:
+        with DatabaseManager() as conn:
+            for i in range(0, len(local_ids), 500):
+                lote = local_ids[i:i + 500]
+                marcas = ",".join("?" * len(lote))
+                conn.execute(f"UPDATE registros_excluidos SET enviado_nuvem = 1 WHERE id IN ({marcas})", lote)
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Falha ao marcar exclusões como enviadas: {e}")
 
 
 async def push_dados_nuvem() -> dict:
@@ -220,7 +244,10 @@ async def push_dados_nuvem() -> dict:
         async with httpx.AsyncClient(timeout=90.0) as client:
             res = await client.post(
                 CLOUD_SYNC_URL,
-                json={"data": payload, "exclusoes": exclusoes},
+                json={
+                    "data": payload,
+                    "exclusoes": [{k: v for k, v in e.items() if k != "local_ids"} for e in exclusoes],
+                },
                 headers=headers
             )
 
@@ -230,6 +257,9 @@ async def push_dados_nuvem() -> dict:
             if "cloud_timestamp" in res_data:
                 sessao["last_cloud_ts"] = int(res_data["cloud_timestamp"])
             salvar_sessao(sessao)
+            if res_data.get("ignorados"):
+                logger.warning(f"Nuvem ignorou {res_data['ignorados']} linha(s) no push: {res_data.get('ignorados_detalhe')}")
+            _marcar_exclusoes_enviadas([i for e in exclusoes for i in e["local_ids"]])
             return {
                 "sucesso": True,
                 "mensagem": res_data.get("message") or "Dados enviados para a nuvem com sucesso!",
@@ -280,6 +310,7 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
         pass
 
     inseridos = 0
+    ignorados = 0
     for r in rows:
         # Pula registros que foram intencionalmente excluídos neste computador
         reg_id = r.get("id")
@@ -394,18 +425,39 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
         if "id" in cols_locais and "id" in dados_validos:
             update_cols = [f"{c} = excluded.{c}" for c in cols if c != "id"]
             if update_cols:
+                # Merge por registro (último a editar vence): só sobrescreve a linha local se a da nuvem
+                # for mais nova. Linha local sem carimbo (legado) é sempre atualizada. Sem updated_at
+                # vindo da nuvem (servidor antigo) mantém o comportamento legado de sobrescrever.
+                clausula_lww = ""
+                if "updated_at" in cols_locais and "updated_at" in dados_validos:
+                    clausula_lww = (
+                        f" WHERE {tabela}.updated_at IS NULL OR excluded.updated_at > {tabela}.updated_at"
+                    )
                 sql = f"""
                     INSERT INTO {tabela} ({cols_str}) VALUES ({placeholders})
-                    ON CONFLICT(id) DO UPDATE SET {', '.join(update_cols)}
+                    ON CONFLICT(id) DO UPDATE SET {', '.join(update_cols)}{clausula_lww}
                 """
             else:
                 sql = f"INSERT OR IGNORE INTO {tabela} ({cols_str}) VALUES ({placeholders})"
         else:
             sql = f"INSERT OR REPLACE INTO {tabela} ({cols_str}) VALUES ({placeholders})"
 
-        cursor.execute(sql, tuple(dados_validos.values()))
-        inseridos += 1
+        # SAVEPOINT por linha: uma linha inválida (UNIQUE/FK) não pode derrubar o sync inteiro
+        try:
+            cursor.execute("SAVEPOINT sync_linha")
+            cursor.execute(sql, tuple(dados_validos.values()))
+            aplicada = cursor.rowcount != 0
+            cursor.execute("RELEASE sync_linha")
+            if aplicada:
+                inseridos += 1
+        except sqlite3.Error as e_linha:
+            cursor.execute("ROLLBACK TO sync_linha")
+            cursor.execute("RELEASE sync_linha")
+            ignorados += 1
+            logger.warning(f"Linha {tabela}#{dados_validos.get('id')} ignorada no pull: {e_linha}")
 
+    if ignorados:
+        logger.warning(f"{ignorados} linha(s) de {tabela} ignoradas no pull por violarem restrições locais.")
     return inseridos
 
 
@@ -417,10 +469,12 @@ async def pull_dados_nuvem() -> dict:
         return {"sucesso": False, "mensagem": "Usuário não autenticado na nuvem. Faça login primeiro."}
 
     headers = {"Authorization": f"Bearer {token}"}
+    # Lápides incrementais: só pede as exclusões posteriores à última já aplicada neste PC
+    ultimo_exc_id = int(sessao.get("last_exclusao_id") or 0)
 
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
-            res = await client.get(CLOUD_PULL_URL, headers=headers)
+            res = await client.get(f"{CLOUD_PULL_URL}&exclusoes_desde={ultimo_exc_id}", headers=headers)
 
         if res.status_code != 200:
             err_msg = res.json().get("error") if res.headers.get("content-type", "").startswith("application/json") else res.text
@@ -450,8 +504,16 @@ async def pull_dados_nuvem() -> dict:
             try:
                 migrar_profissional_id_opcional_clientes(conn)
                 migrar_matricula_id_opcional_segmentos(conn)
+                # Reconstruções de tabela acima removem triggers/colunas de sincronização: recria
+                migrar_sincronizacao_updated_at_e_lapides(conn)
             except Exception as e_mig:
                 logger.warning(f"Aviso ao executar migrações preventivas: {e_mig}")
+
+            # As migrações religam as FKs e commitam; garante FKs off e transação aberta
+            # (necessária para os SAVEPOINTs por linha serem atômicos com o restante do pull)
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+            if not conn.in_transaction:
+                cursor.execute("BEGIN")
             
             resumo = {}
             total_baixados = 0
@@ -464,14 +526,26 @@ async def pull_dados_nuvem() -> dict:
                 if t_exc and id_exc and t_exc in SYNC_TABLES:
                     try:
                         cursor.execute(f"DELETE FROM {t_exc} WHERE id = ?", (id_exc,))
-                        cursor.execute("INSERT OR IGNORE INTO registros_excluidos (tabela, registro_id) VALUES (?, ?)", (t_exc, id_exc))
+                        # O DELETE acima já gera lápide por trigger; garante a data original da nuvem
+                        # e marca como confirmada (veio da nuvem, não precisa voltar).
+                        cursor.execute(
+                            "INSERT INTO registros_excluidos (tabela, registro_id, excluido_em, enviado_nuvem) "
+                            "SELECT ?, ?, COALESCE(?, CURRENT_TIMESTAMP), 1 "
+                            "WHERE NOT EXISTS (SELECT 1 FROM registros_excluidos WHERE tabela = ? AND registro_id = ?)",
+                            (t_exc, id_exc, exc.get("excluido_em"), t_exc, id_exc)
+                        )
+                        cursor.execute(
+                            "UPDATE registros_excluidos SET enviado_nuvem = 1 WHERE tabela = ? AND registro_id = ?",
+                            (t_exc, id_exc)
+                        )
                     except Exception as e_del:
                         logger.warning(f"Aviso ao aplicar exclusão remota {t_exc}:{id_exc}: {e_del}")
 
             # Ordem hierárquica para respeitar integridade
             ordem_tabelas = [
                 "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
-                "matriculas", "levantamentos", "pontos", "segmentos", "confrontantes", "pendencias"
+                "matriculas", "levantamentos", "pontos", "segmentos", "confrontantes", "pendencias",
+                "banco_pontos", "anuencias_confrontantes"
             ]
 
             for t in ordem_tabelas:
@@ -493,6 +567,9 @@ async def pull_dados_nuvem() -> dict:
         sessao["last_sync"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         if cloud_ts:
             sessao["last_cloud_ts"] = int(cloud_ts)
+        # Só avança o cursor de lápides após o commit local bem-sucedido
+        if cloud_json.get("exclusoes_max_id") is not None:
+            sessao["last_exclusao_id"] = max(ultimo_exc_id, int(cloud_json["exclusoes_max_id"]))
         salvar_sessao(sessao)
 
         return {
@@ -527,7 +604,9 @@ async def checar_novidades_nuvem() -> dict:
             data = res.json()
             cloud_ts = int(data.get("cloud_timestamp", 0))
             last_ts = int(sessao.get("last_cloud_ts", 0))
-            tem_novidades = (cloud_ts > last_ts) if (cloud_ts > 0 and last_ts > 0) else False
+            # last_ts == 0 significa que este computador nunca baixou da nuvem: se a nuvem
+            # já tem dados (cloud_ts > 0), é preciso fazer o pull inicial.
+            tem_novidades = cloud_ts > last_ts
 
             return {
                 "online": True,

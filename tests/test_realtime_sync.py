@@ -47,7 +47,10 @@ class TestRealtimeSyncEngine(unittest.IsolatedAsyncioTestCase):
         salvar_sessao({"token": "fake-jwt", "user": {"email": "test@gerencigeo.com"}})
         self.engine.marcar_mutacao_local("propriedades")
 
-        with patch("services.gestores.realtime_sync.push_dados_nuvem", new_callable=AsyncMock) as mock_push:
+        with patch("services.gestores.realtime_sync.push_dados_nuvem", new_callable=AsyncMock) as mock_push, \
+             patch("services.gestores.realtime_sync.checar_novidades_nuvem", new_callable=AsyncMock) as mock_check, \
+             patch("services.gestores.realtime_sync.pull_dados_nuvem", new_callable=AsyncMock) as mock_pull:
+            mock_check.return_value = {"online": True, "autenticado": True, "novidades": False}
             mock_push.return_value = {
                 "sucesso": True,
                 "total_registros": 4,
@@ -55,10 +58,53 @@ class TestRealtimeSyncEngine(unittest.IsolatedAsyncioTestCase):
             }
             await self.engine._executar_auto_push()
 
+            mock_pull.assert_not_called()
             self.assertFalse(self.engine._pending_push)
             self.assertEqual(len(self.engine._pending_tables), 0)
             self.assertEqual(self.engine.status, STATUS_SYNCED)
             self.assertEqual(len(self.engine._recent_events), 2)  # mutacao + push
+
+    async def test_auto_push_pulls_first_when_cloud_has_news(self):
+        """Pull-before-push: com novidades na nuvem, o pull roda antes do push"""
+        salvar_sessao({"token": "fake-jwt", "user": {"email": "test@gerencigeo.com"}})
+        self.engine.marcar_mutacao_local("pontos")
+        ordem = []
+
+        async def fake_pull():
+            ordem.append("pull")
+            return {"sucesso": True, "total_recebidos": 3, "detalhes": {}}
+
+        async def fake_push():
+            ordem.append("push")
+            return {"sucesso": True, "total_registros": 1}
+
+        with patch("services.gestores.realtime_sync.checar_novidades_nuvem", new_callable=AsyncMock) as mock_check, \
+             patch("services.gestores.realtime_sync.pull_dados_nuvem", side_effect=fake_pull), \
+             patch("services.gestores.realtime_sync.push_dados_nuvem", side_effect=fake_push):
+            mock_check.return_value = {"online": True, "autenticado": True, "novidades": True}
+            await self.engine._executar_auto_push()
+
+        self.assertEqual(ordem, ["pull", "push"])
+        self.assertFalse(self.engine._pending_push)
+        self.assertEqual(self.engine.status, STATUS_SYNCED)
+
+    async def test_auto_push_aborted_when_pull_fails(self):
+        """Se o pull prévio falhar, o push não roda e a mutação continua pendente"""
+        salvar_sessao({"token": "fake-jwt", "user": {"email": "test@gerencigeo.com"}})
+        self.engine.marcar_mutacao_local("pontos")
+
+        with patch("services.gestores.realtime_sync.checar_novidades_nuvem", new_callable=AsyncMock) as mock_check, \
+             patch("services.gestores.realtime_sync.pull_dados_nuvem", new_callable=AsyncMock) as mock_pull, \
+             patch("services.gestores.realtime_sync.push_dados_nuvem", new_callable=AsyncMock) as mock_push:
+            mock_check.return_value = {"online": True, "autenticado": True, "novidades": True}
+            mock_pull.return_value = {"sucesso": False, "mensagem": "timeout"}
+            await self.engine._executar_auto_push()
+
+            mock_push.assert_not_called()
+
+        self.assertTrue(self.engine._pending_push)
+        self.assertEqual(self.engine.status, STATUS_OFFLINE)
+        self.assertEqual(self.engine._last_error, "timeout")
 
     async def test_heartbeat_detection_and_auto_pull(self):
         """Valida que quando checar_novidades_nuvem indica novidades o auto-pull é disparado"""

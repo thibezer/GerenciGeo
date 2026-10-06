@@ -439,7 +439,154 @@ function ensureSchema(PDO $pdo): void {
         $pdo->exec("UPDATE levantamentos SET codigo_compartilhamento = NULL WHERE codigo_compartilhamento = '' OR TRIM(codigo_compartilhamento) = ''");
     } catch (Exception $e) {}
 
+    ensureSyncSchema($pdo);
+
     $checked = true;
+}
+
+/**
+ * Tabelas do MySQL que participam da sincronização com os PCs (no SQLite, propriedade_proprietarios = propriedade_clientes).
+ */
+const SYNC_TABELAS_MYSQL = [
+    'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
+    'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
+    'banco_pontos', 'anuencias_confrontantes'
+];
+
+/**
+ * Prepara o MySQL para o merge por registro (updated_at) e para as tabelas extras da sincronização.
+ * Idempotente e executada uma única vez (flag 'schema_sync_v3' em configuracoes).
+ * Triggers: carimbam updated_at (UTC, ms) em edições feitas direto na nuvem; o /sync/batch define @gg_sync
+ * para que os triggers não sobrescrevam o carimbo vindo do PC.
+ */
+function ensureSyncSchema(PDO $pdo): string {
+    try {
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v3' LIMIT 1");
+        $st->execute();
+        $flag = $st->fetchColumn();
+        if ($flag) return (string)$flag;
+    } catch (Exception $e) {
+        return 'indisponivel';
+    }
+
+    $ddl = [
+        "CREATE TABLE IF NOT EXISTS user_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash CHAR(64) NOT NULL,
+            created_at DATETIME NOT NULL,
+            UNIQUE KEY uq_user_tokens_hash (token_hash),
+            INDEX idx_user_tokens_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+        "CREATE TABLE IF NOT EXISTS banco_pontos (
+            id INT PRIMARY KEY,
+            profissional_id INT NULL,
+            levantamento_id INT NULL,
+            matricula_id INT NULL,
+            tipo_ponto VARCHAR(10) NULL,
+            numero INT NULL,
+            codigo_completo VARCHAR(100) NULL,
+            norte DOUBLE NULL,
+            este DOUBLE NULL,
+            altitude DOUBLE NULL,
+            lat DOUBLE NULL,
+            lon DOUBLE NULL,
+            sigma_n DOUBLE NULL,
+            sigma_e DOUBLE NULL,
+            sigma_z DOUBLE NULL,
+            metodo_posicionamento VARCHAR(50) NULL,
+            tipo_limite VARCHAR(50) NULL,
+            cns_confrontante VARCHAR(50) NULL,
+            matricula_confrontante VARCHAR(100) NULL,
+            confrontante_descritivo TEXT NULL,
+            planilha_origem VARCHAR(255) NULL,
+            created_at TIMESTAMP NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+        "CREATE TABLE IF NOT EXISTS anuencias_confrontantes (
+            id INT PRIMARY KEY,
+            levantamento_id INT NULL,
+            confrontante_id INT NULL,
+            status_anuencia VARCHAR(50) NULL,
+            caminho_documento_assinado TEXT NULL,
+            data_atualizacao TIMESTAMP NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    ];
+    foreach ($ddl as $sql) {
+        try { $pdo->exec($sql); } catch (Exception $e) {}
+    }
+    $resultado = 'ok';
+    foreach (SYNC_TABELAS_MYSQL as $t) {
+        addColumnSafe($pdo, $t, 'updated_at', 'DATETIME(3) NULL');
+        foreach ([
+            "trg_sync_{$t}_bi" => "CREATE TRIGGER `trg_sync_{$t}_bi` BEFORE INSERT ON `{$t}` FOR EACH ROW SET NEW.updated_at = IFNULL(NEW.updated_at, UTC_TIMESTAMP(3))",
+            "trg_sync_{$t}_bu" => "CREATE TRIGGER `trg_sync_{$t}_bu` BEFORE UPDATE ON `{$t}` FOR EACH ROW SET NEW.updated_at = IF(@gg_sync IS NULL AND (NEW.updated_at <=> OLD.updated_at), UTC_TIMESTAMP(3), NEW.updated_at)",
+        ] as $nome => $sqlTrg) {
+            try {
+                $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = ?");
+                $q->execute([$nome]);
+                if ((int)$q->fetchColumn() === 0) {
+                    $pdo->exec($sqlTrg);
+                }
+            } catch (Exception $e) {
+                $resultado = 'sem_triggers';
+            }
+        }
+    }
+
+    try {
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v3', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
+    } catch (Exception $e) {}
+    return $resultado;
+}
+
+/**
+ * Registra uma lápide (exclusão) de forma idempotente. Os PCs chamam a tabela de vínculos
+ * de propriedade_clientes; no MySQL ela é propriedade_proprietarios.
+ */
+function registrarLapide(PDO $pdo, string $tabela, int $id, ?string $quando = null): void {
+    if ($tabela === 'propriedade_proprietarios') $tabela = 'propriedade_clientes';
+    $quando = ($quando && strtotime($quando)) ? date('Y-m-d H:i:s', strtotime($quando)) : date('Y-m-d H:i:s');
+    try {
+        $pdo->prepare(
+            "INSERT INTO registros_excluidos (tabela, registro_id, excluido_em)
+             SELECT ?, ?, ? FROM DUAL
+             WHERE NOT EXISTS (SELECT 1 FROM registros_excluidos WHERE tabela = ? AND registro_id = ?)"
+        )->execute([$tabela, $id, $quando, $tabela, $id]);
+    } catch (Exception $e) {}
+}
+
+/**
+ * Exclui um registro (e seus dependentes) gerando lápides para que os PCs removam o mesmo dado.
+ */
+function excluirComLapide(PDO $pdo, string $tabela, int $id): void {
+    static $filhos = [
+        'propriedades'  => [['matriculas', 'propriedade_id'], ['levantamentos', 'propriedade_id'], ['propriedade_proprietarios', 'propriedade_id']],
+        'levantamentos' => [['pontos', 'levantamento_id'], ['segmentos', 'levantamento_id'], ['confrontantes', 'levantamento_id'], ['anuencias_confrontantes', 'levantamento_id']],
+    ];
+    foreach ($filhos[$tabela] ?? [] as [$tf, $col]) {
+        try {
+            $st = $pdo->prepare("SELECT id FROM `{$tf}` WHERE `{$col}` = ?");
+            $st->execute([$id]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $fid) {
+                excluirComLapide($pdo, $tf, (int)$fid);
+            }
+        } catch (Exception $e) {}
+    }
+    $pdo->prepare("DELETE FROM `{$tabela}` WHERE id = ?")->execute([$id]);
+    registrarLapide($pdo, $tabela, $id);
+}
+
+/**
+ * Lápides para todas as linhas de $tabela com $coluna = $valor (antes de um DELETE em massa).
+ */
+function lapidarPorColuna(PDO $pdo, string $tabela, string $coluna, int $valor): void {
+    try {
+        $st = $pdo->prepare("SELECT id FROM `{$tabela}` WHERE `{$coluna}` = ?");
+        $st->execute([$valor]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) {
+            registrarLapide($pdo, $tabela, (int)$rid);
+        }
+    } catch (Exception $e) {}
 }
 
 /**
@@ -504,7 +651,7 @@ function emptyToNull($val) {
 /**
  * Obtém o usuário atualmente autenticado a partir do token
  */
-function getAuthenticatedUser(PDO $pdo): ?array {
+function lerTokenRequisicao(): ?string {
     $token = null;
     $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     if (!$authHeader && function_exists('getallheaders')) {
@@ -519,10 +666,48 @@ function getAuthenticatedUser(PDO $pdo): ?array {
         $token = trim($_GET['token']);
     }
 
+    return $token ?: null;
+}
+
+/**
+ * Emite um token por dispositivo (armazenado como hash SHA-256). Logar em um computador não derruba
+ * a sessão dos outros. Mantém no máximo 20 tokens por usuário e descarta os com mais de 180 dias.
+ */
+function emitirToken(PDO $pdo, int $userId): string {
+    $token = bin2hex(random_bytes(32));
+    try {
+        $pdo->prepare("INSERT INTO user_tokens (user_id, token_hash, created_at) VALUES (?, ?, NOW())")
+            ->execute([$userId, hash('sha256', $token)]);
+        $pdo->prepare("DELETE FROM user_tokens WHERE user_id = ? AND created_at < (NOW() - INTERVAL 180 DAY)")->execute([$userId]);
+        $pdo->prepare(
+            "DELETE FROM user_tokens WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM (SELECT id FROM user_tokens WHERE user_id = ? ORDER BY id DESC LIMIT 20) t
+            )"
+        )->execute([$userId, $userId]);
+    } catch (Exception $e) {
+        // Fallback legado (um token por usuário) se a tabela de tokens não estiver disponível
+        try {
+            $pdo->prepare("UPDATE users SET api_token = ?, token_created_at = NOW() WHERE id = ?")->execute([$token, $userId]);
+        } catch (Exception $e2) {}
+    }
+    return $token;
+}
+
+function getAuthenticatedUser(PDO $pdo): ?array {
+    $token = lerTokenRequisicao();
     if (!$token) {
         return null;
     }
 
+    $cols = "u.id, u.name, u.email, u.role, u.is_blocked, u.profile_image, u.created_at";
+    try {
+        $stmt = $pdo->prepare("SELECT {$cols} FROM user_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ? AND u.is_blocked = 0 LIMIT 1");
+        $stmt->execute([hash('sha256', $token)]);
+        $user = $stmt->fetch();
+        if ($user) return $user;
+    } catch (Exception $e) {}
+
+    // Sessões antigas (token único em users.api_token) continuam válidas até o próximo login
     $stmt = $pdo->prepare("SELECT id, name, email, role, is_blocked, profile_image, created_at FROM users WHERE api_token = ? AND is_blocked = 0 LIMIT 1");
     $stmt->execute([$token]);
     $user = $stmt->fetch();
@@ -571,6 +756,9 @@ if ((($route === '/' || $route === '') && empty($_GET['action'])) || $route === 
         'service' => 'GerenciGeo Cloud Hub (MySQL)',
         'version' => '2.0.0',
         'database' => 'MySQL Conectado',
+        'sync_schema' => (function () {
+            try { return ensureSyncSchema(getDb()); } catch (Throwable $e) { return 'erro'; }
+        })(),
         'timestamp' => time()
     ]);
 }
@@ -605,10 +793,7 @@ if ($route === '/auth/register' || (isset($_GET['action']) && $_GET['action'] ==
     $stmt->execute([$name, $email, $hashedPassword]);
     $userId = (int)$pdo->lastInsertId();
 
-    $token = bin2hex(random_bytes(32));
-    try {
-        $pdo->prepare("UPDATE users SET api_token = ?, token_created_at = NOW() WHERE id = ?")->execute([$token, $userId]);
-    } catch (Exception $e) {}
+    $token = emitirToken($pdo, $userId);
 
     jsonResponse([
         'status' => 'success',
@@ -657,10 +842,7 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
         jsonResponse(['error' => 'E-mail ou senha incorretos.'], 401);
     }
 
-    $token = bin2hex(random_bytes(32));
-    try {
-        $pdo->prepare("UPDATE users SET api_token = ?, token_created_at = NOW() WHERE id = ?")->execute([$token, (int)$user['id']]);
-    } catch (Exception $e) {}
+    $token = emitirToken($pdo, (int)$user['id']);
 
     jsonResponse([
         'status' => 'success',
@@ -681,8 +863,11 @@ if ($route === '/auth/logout' || (isset($_GET['action']) && $_GET['action'] === 
     $pdo = getDb();
     $user = getAuthenticatedUser($pdo);
     if ($user) {
+        $tk = lerTokenRequisicao();
         try {
-            $pdo->prepare("UPDATE users SET api_token = NULL WHERE id = ?")->execute([$user['id']]);
+            // Encerra apenas a sessão deste computador; os demais continuam conectados
+            $pdo->prepare("DELETE FROM user_tokens WHERE token_hash = ?")->execute([hash('sha256', (string)$tk)]);
+            $pdo->prepare("UPDATE users SET api_token = NULL WHERE id = ? AND api_token = ?")->execute([$user['id'], $tk]);
         } catch (Exception $e) {}
     }
     jsonResponse(['status' => 'success', 'message' => 'Logout realizado com sucesso.']);
@@ -1021,6 +1206,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
 
                 $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$cid]);
                 $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$cid]);
+                lapidarPorColuna($pdo, 'propriedade_proprietarios', 'cliente_id', (int)$cid);
                 $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$cid]);
                 $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$cid]);
                 $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$cid]);
@@ -1276,6 +1462,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
 
         $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$id]);
         $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$id]);
+        lapidarPorColuna($pdo, 'propriedade_proprietarios', 'cliente_id', (int)$id);
         $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$id]);
         $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$id]);
         $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$id]);
@@ -1349,6 +1536,11 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
 
     // DELETE /propriedades/{id}/proprietarios/{cliId}
     if ($method === 'DELETE' && $propId && in_array($subResource, ['proprietarios', 'clientes']) && $subId) {
+        $stLap = $pdo->prepare("SELECT id FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ?");
+        $stLap->execute([$propId, $subId]);
+        foreach ($stLap->fetchAll(PDO::FETCH_COLUMN) as $lapId) {
+            registrarLapide($pdo, 'propriedade_proprietarios', (int)$lapId);
+        }
         $stmt = $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ?");
         $stmt->execute([$propId, $subId]);
         jsonResponse(['message' => 'Proprietário desvinculado!']);
@@ -1401,8 +1593,8 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
 
     // DELETE /propriedades/{id}
     if ($method === 'DELETE' && $propId && !$subResource) {
-        $stmt = $pdo->prepare("DELETE FROM propriedades WHERE id = ?");
-        $stmt->execute([$propId]);
+        excluirComLapide($pdo, 'propriedades', (int)$propId);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Propriedade excluída com sucesso!']);
     }
 }
@@ -1439,8 +1631,8 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
     }
 
     if ($method === 'DELETE' && !$action) {
-        $stmt = $pdo->prepare("DELETE FROM matriculas WHERE id = ?");
-        $stmt->execute([$matId]);
+        excluirComLapide($pdo, 'matriculas', (int)$matId);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Matrícula excluída com sucesso!']);
     }
 }
@@ -1529,8 +1721,8 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // DELETE /levantamentos/{id}
     if ($method === 'DELETE' && $levId && !$action) {
-        $stmt = $pdo->prepare("DELETE FROM levantamentos WHERE id = ?");
-        $stmt->execute([$levId]);
+        excluirComLapide($pdo, 'levantamentos', (int)$levId);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Levantamento excluído com sucesso!']);
     }
 }
@@ -1567,8 +1759,8 @@ if (preg_match('#^/pendencias(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $m
     }
 
     if ($method === 'DELETE' && $penId) {
-        $stmt = $pdo->prepare("DELETE FROM pendencias WHERE id = ?");
-        $stmt->execute([$penId]);
+        excluirComLapide($pdo, 'pendencias', (int)$penId);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Pendência excluída!']);
     }
 }
@@ -1598,8 +1790,8 @@ if (preg_match('#^/profissionais(?:/([0-9]+))?$#', $route, $matches)) {
     }
 
     if ($method === 'DELETE' && $profId) {
-        $stmt = $pdo->prepare("DELETE FROM profissionais WHERE id = ?");
-        $stmt->execute([$profId]);
+        excluirComLapide($pdo, 'profissionais', (int)$profId);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Profissional excluído!']);
     }
 }
@@ -1609,6 +1801,23 @@ if (preg_match('#^/profissionais(?:/([0-9]+))?$#', $route, $matches)) {
  */
 function syncTableRows(PDO $pdo, string $table, array $rows): void {
     if (empty($rows)) return;
+
+    // Nunca ressuscita registros excluídos (lápides em registros_excluidos): um PC desatualizado
+    // reenviando uma linha já apagada em outro computador seria devolvida à nuvem.
+    // No SQLite a tabela de vínculos se chama propriedade_clientes; no MySQL, propriedade_proprietarios.
+    $nomesTabela = [$table];
+    if ($table === 'propriedade_proprietarios') $nomesTabela[] = 'propriedade_clientes';
+    try {
+        $in = implode(',', array_fill(0, count($nomesTabela), '?'));
+        $stT = $pdo->prepare("SELECT DISTINCT registro_id FROM registros_excluidos WHERE tabela IN ({$in})");
+        $stT->execute($nomesTabela);
+        $lapides = array_flip(array_map('intval', $stT->fetchAll(PDO::FETCH_COLUMN)));
+        if (!empty($lapides)) {
+            $rows = array_values(array_filter($rows, fn($r) => !isset($r['id']) || !isset($lapides[(int)$r['id']])));
+            if (empty($rows)) return;
+        }
+    } catch (Exception $e) {}
+
     $colsStmt = $pdo->query("SHOW COLUMNS FROM `{$table}`");
     $existing = [];
     while ($c = $colsStmt->fetch()) {
@@ -1627,17 +1836,31 @@ function syncTableRows(PDO $pdo, string $table, array $rows): void {
         $fields = array_keys($valid);
         $placeholders = array_fill(0, count($fields), '?');
         $updates = [];
+        // Merge por registro (o último a editar vence): com updated_at disponível, a linha existente só é
+        // sobrescrita se a recebida for mais nova (ou se a existente não tiver carimbo). O updated_at é
+        // atribuído por último porque o MySQL avalia as atribuições da esquerda para a direita.
+        $comMerge = isset($existing['updated_at']) && array_key_exists('updated_at', $valid);
+        $cond = "(`updated_at` IS NULL OR VALUES(`updated_at`) > `updated_at`)";
         foreach ($fields as $f) {
-            if ($f !== 'id') {
-                $updates[] = "`{$f}` = VALUES(`{$f}`)";
-            }
+            if ($f === 'id' || ($comMerge && $f === 'updated_at')) continue;
+            $updates[] = $comMerge
+                ? "`{$f}` = IF({$cond}, VALUES(`{$f}`), `{$f}`)"
+                : "`{$f}` = VALUES(`{$f}`)";
+        }
+        if ($comMerge) {
+            $updates[] = "`updated_at` = IF({$cond}, VALUES(`updated_at`), `updated_at`)";
         }
         $sql = "INSERT INTO `{$table}` (`" . implode("`, `", $fields) . "`) VALUES (" . implode(", ", $placeholders) . ")";
         if (!empty($updates)) {
             $sql .= " ON DUPLICATE KEY UPDATE " . implode(", ", $updates);
         }
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute(array_values($valid));
+        try {
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute(array_values($valid));
+        } catch (PDOException $e) {
+            // Uma linha inválida (UNIQUE/tipo) não pode impedir o salvamento de todas as outras
+            $GLOBALS['sync_ignorados'][] = "{$table}#" . ($valid['id'] ?? '?') . ': ' . $e->getMessage();
+        }
     }
 }
 
@@ -1651,7 +1874,9 @@ if ($route === '/sync/batch' && $method === 'POST') {
     }
 
     $data = $input['data'];
+    $GLOBALS['sync_ignorados'] = [];
     $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+    $pdo->exec("SET @gg_sync = 1"); // triggers de updated_at não sobrescrevem o carimbo vindo do PC
     $pdo->beginTransaction();
     try {
         if (!empty($data['pessoas'])) {
@@ -1729,18 +1954,28 @@ if ($route === '/sync/batch' && $method === 'POST') {
         if (!empty($data['confrontantes'])) {
             syncTableRows($pdo, 'confrontantes', $data['confrontantes']);
         }
+        foreach (['banco_pontos', 'anuencias_confrontantes'] as $tExtra) {
+            if (!empty($data[$tExtra])) {
+                syncTableRows($pdo, $tExtra, $data[$tExtra]);
+            }
+        }
 
-        // Aplica exclusões vindas do cliente local
+        // Aplica exclusões (lápides) vindas do PC. Só tabelas sincronizáveis; o PC chama o vínculo
+        // de propriedade_clientes e a nuvem guarda em propriedade_proprietarios (apaga nas duas por segurança).
         if (!empty($input['exclusoes'])) {
             foreach ($input['exclusoes'] as $exc) {
                 $t = preg_replace('/[^a-zA-Z0-9_]/', '', (string)($exc['tabela'] ?? ''));
                 $rid = (int)($exc['registro_id'] ?? 0);
-                if ($t && $rid) {
-                    try {
-                        $pdo->prepare("DELETE FROM `{$t}` WHERE id = ?")->execute([$rid]);
-                        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES (?, ?)")->execute([$t, $rid]);
-                    } catch (Exception $e) {}
-                }
+                $alvos = ($t === 'propriedade_clientes' || $t === 'propriedade_proprietarios')
+                    ? ['propriedade_proprietarios', 'propriedade_clientes']
+                    : [$t];
+                if (!$rid || !in_array($alvos[0], SYNC_TABELAS_MYSQL, true)) continue;
+                try {
+                    foreach ($alvos as $alvo) {
+                        try { $pdo->prepare("DELETE FROM `{$alvo}` WHERE id = ?")->execute([$rid]); } catch (Exception $e) {}
+                    }
+                    registrarLapide($pdo, $t, $rid, isset($exc['excluido_em']) ? (string)$exc['excluido_em'] : null);
+                } catch (Exception $e) {}
             }
         }
 
@@ -1752,6 +1987,8 @@ if ($route === '/sync/batch' && $method === 'POST') {
             'status' => 'success',
             'usuario' => $authUser['email'],
             'cloud_timestamp' => $nowTs,
+            'ignorados' => count($GLOBALS['sync_ignorados']),
+            'ignorados_detalhe' => array_slice($GLOBALS['sync_ignorados'], 0, 20),
             'message' => 'Todos os dados foram sincronizados com o MySQL com sucesso!'
         ]);
     } catch (Exception $e) {
@@ -1789,7 +2026,8 @@ if ($route === '/sync/pull' && $method === 'GET') {
 
     $tables = [
         'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
-        'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes'
+        'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
+        'banco_pontos', 'anuencias_confrontantes'
     ];
 
     $payload = [];
@@ -1820,10 +2058,18 @@ if ($route === '/sync/pull' && $method === 'GET') {
         if ($val) $cloudTs = (int)$val;
     } catch (Exception $e) {}
 
+    // Lápides incrementais: o cliente informa o último id de exclusão que já aplicou
+    // (exclusoes_desde) e recebe todas as posteriores, sem limite. Primeiro pull = desde 0 = todas.
+    $exclusoesDesde = max(0, (int)($_GET['exclusoes_desde'] ?? 0));
     $exclusoesCloud = [];
+    $exclusoesMaxId = $exclusoesDesde;
     try {
-        $stExc = $pdo->query("SELECT tabela, registro_id FROM registros_excluidos ORDER BY id DESC LIMIT 500");
+        $stExc = $pdo->prepare("SELECT id, tabela, registro_id, excluido_em FROM registros_excluidos WHERE id > ? ORDER BY id ASC");
+        $stExc->execute([$exclusoesDesde]);
         $exclusoesCloud = $stExc->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($exclusoesCloud)) {
+            $exclusoesMaxId = (int)end($exclusoesCloud)['id'];
+        }
     } catch (Exception $e) {}
 
     jsonResponse([
@@ -1832,7 +2078,8 @@ if ($route === '/sync/pull' && $method === 'GET') {
         'cloud_timestamp' => $cloudTs,
         'usuario' => $authUser['email'],
         'data' => $payload,
-        'exclusoes' => $exclusoesCloud
+        'exclusoes' => $exclusoesCloud,
+        'exclusoes_max_id' => $exclusoesMaxId
     ]);
 }
 

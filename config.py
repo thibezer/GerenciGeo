@@ -58,7 +58,6 @@ CLOUD_PULL_URL = f"{CLOUD_BASE_URL}?__route=/sync/pull"
 CLOUD_CHECK_URL = f"{CLOUD_BASE_URL}?__route=/sync/check"
 CLOUD_LOGIN_URL = f"{CLOUD_BASE_URL}?__route=/auth/login"
 CLOUD_STATUS_URL = f"{CLOUD_BASE_URL}?__route=/status"
-CLOUD_API_KEY = "G4G2_SECURE_SYNC_TOKEN_7D8E2B9A1C"
 
 # ── Configurações de Conexão em Tempo Real (Realtime Sync Engine) ────────────
 REALTIME_SYNC_ENABLED = os.environ.get("GERENCIGEO_REALTIME_SYNC", "true").lower() in ("1", "true", "yes")

@@ -905,6 +905,8 @@ def create_tables(conn):
         migrar_profissional_id_opcional_clientes(conn)
         # Executa migração para tornar matricula_id opcional em segmentos
         migrar_matricula_id_opcional_segmentos(conn)
+        # Deve ser a última: recria colunas/triggers de sincronização que as reconstruções de tabela acima possam ter removido
+        migrar_sincronizacao_updated_at_e_lapides(conn)
     except Exception as e:
         logger.error(f"Erro ao criar tabelas ou executar migrações: {e}")
         raise e
@@ -1498,4 +1500,66 @@ def migrar_matricula_id_opcional_segmentos(conn):
         logger.warning(f"Aviso de migração automática para segmentos.matricula_id: {e}")
 
 
-
+# Tabelas sincronizadas com a Nuvem (mantida em sincronia com SYNC_TABLES de nuvem_sync.py)
+TABELAS_SINCRONIZAVEIS = [
+    "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
+    "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes",
+    "banco_pontos", "anuencias_confrontantes",
+]
+
+_SQL_AGORA_UTC = "strftime('%Y-%m-%d %H:%M:%f','now')"
+
+
+def migrar_sincronizacao_updated_at_e_lapides(conn):
+    """
+    Prepara o SQLite para o merge por registro com a Nuvem (idempotente):
+    - coluna updated_at (UTC, ms) em cada tabela sincronizada, carimbada por triggers em todo INSERT/UPDATE;
+    - lápide automática em registros_excluidos para todo DELETE (inclusive cascatas por FK),
+      removida se o mesmo id for reinserido;
+    - registros_excluidos.enviado_nuvem para só reenviar à nuvem lápides ainda não confirmadas.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("PRAGMA table_info(registros_excluidos)")
+        cols_exc = {r[1] for r in cursor.fetchall()}
+        if cols_exc and "enviado_nuvem" not in cols_exc:
+            cursor.execute("ALTER TABLE registros_excluidos ADD COLUMN enviado_nuvem INTEGER DEFAULT 0")
+
+        for t in TABELAS_SINCRONIZAVEIS:
+            cursor.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (t,))
+            if not cursor.fetchone():
+                continue
+            cursor.execute(f"PRAGMA table_info({t})")
+            cols = {r[1] for r in cursor.fetchall()}
+            if "id" not in cols:
+                continue
+            if "updated_at" not in cols:
+                cursor.execute(f"ALTER TABLE {t} ADD COLUMN updated_at TEXT")
+
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS trg_sync_{t}_ai AFTER INSERT ON {t}
+                BEGIN
+                    UPDATE {t} SET updated_at = {_SQL_AGORA_UTC} WHERE id = NEW.id AND updated_at IS NULL;
+                    DELETE FROM registros_excluidos WHERE tabela = '{t}' AND registro_id = NEW.id;
+                END;
+            """)
+            # Só carimba quando quem atualizou NÃO definiu um updated_at novo (o pull da nuvem define o dela)
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS trg_sync_{t}_au AFTER UPDATE ON {t}
+                WHEN NEW.updated_at IS OLD.updated_at OR NEW.updated_at IS NULL
+                BEGIN
+                    UPDATE {t} SET updated_at = {_SQL_AGORA_UTC} WHERE id = NEW.id;
+                END;
+            """)
+            cursor.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS trg_sync_{t}_ad AFTER DELETE ON {t}
+                BEGIN
+                    INSERT INTO registros_excluidos (tabela, registro_id, excluido_em, enviado_nuvem)
+                    SELECT '{t}', OLD.id, strftime('%Y-%m-%d %H:%M:%S','now'), 0
+                    WHERE NOT EXISTS (SELECT 1 FROM registros_excluidos WHERE tabela = '{t}' AND registro_id = OLD.id);
+                END;
+            """)
+        conn.commit()
+        logger.info("[MIGRAÇÃO] Colunas updated_at e triggers de sincronização verificados/criados.")
+    except Exception as e:
+        logger.warning(f"Aviso na migração de sincronização (updated_at/lápides): {e}")

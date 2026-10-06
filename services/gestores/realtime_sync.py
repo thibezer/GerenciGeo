@@ -244,6 +244,29 @@ class RealtimeSyncEngine:
             await self._broadcast_status()
             
             tabelas_afetadas = list(self._pending_tables)
+
+            # Pull-before-push: o push envia o banco inteiro, então antes é preciso trazer
+            # o que outro computador publicou, senão linhas antigas daqui sobrescrevem as novas.
+            check_res = await checar_novidades_nuvem()
+            if check_res.get("novidades"):
+                pull_res = await pull_dados_nuvem()
+                if not pull_res.get("sucesso"):
+                    # Mantém o push pendente e tenta de novo no próximo ciclo
+                    self._status = STATUS_OFFLINE
+                    self._last_error = pull_res.get("mensagem")
+                    self.registrar_evento("error", "Push adiado: falha ao baixar novidades da nuvem", str(self._last_error))
+                    await self._broadcast_status()
+                    return
+                qtd_pull = pull_res.get("total_recebidos", 0)
+                self.registrar_evento("pull", "Download antes do upload", f"{qtd_pull} registros recebidos de outro computador")
+                await self._broadcast({
+                    "type": "DATA_UPDATED",
+                    "direction": "pull",
+                    "total_recebidos": qtd_pull,
+                    "detalhes": pull_res.get("detalhes", {}),
+                    "timestamp": datetime.now().isoformat()
+                })
+
             res = await push_dados_nuvem()
 
             if res.get("sucesso"):

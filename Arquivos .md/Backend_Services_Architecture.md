@@ -28,7 +28,7 @@ Arquivos do tipo `Manager`. São os orquestradores de regras de negócio estrita
 - **`confrontante_manager.py`**: Resolve o "Match" algorítmico entre vizinhos detectados no mapa (por exemplo de planilhas ODS) e os vizinhos cadastrados no banco de dados, cuidando para não criar confrontantes duplicados.
 - **`levantamento_manager.py`**: O coração do projeto principal. Gerencia a exclusão e atualização em lote dos pontos do perímetro.
 - **`workspace_manager.py`**: Gerenciamento do disco rígido e pastas dos projetos físicos do usuário (auditoria de espaço, deleção de arquivos inúteis, backup do banco de dados).
-- **`cloud_sync.py`**: (Gestor de Sincronia) Conecta os metadados do projeto local com a nuvem (API externa).
+- **`nuvem_sync.py`** e **`realtime_sync.py`**: (Gestores de Sincronia) Motor push/pull com a Nuvem Hostinger (login por token, pull-before-push, lápides de exclusão incrementais) e o loop em tempo real com heartbeat e WebSocket.
 
 ---
 
