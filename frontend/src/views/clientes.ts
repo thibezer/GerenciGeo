@@ -662,7 +662,7 @@ export const clientesRoute: RouteDef = {
 
     const carregarDocumentosCliente = async (id: number) => {
       const container = document.getElementById('det-cli-documentos');
-      if (container) container.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-white/30">Carregando documentos...</td></tr>';
+      if (container) container.innerHTML = '<tr><td colspan="7" class="det-vazio text-center py-3">Carregando documentos...</td></tr>';
       try {
         documentosAtuais = await fetchClienteDocumentosApi(id);
         if (container) container.innerHTML = renderDocumentosTabelaHtml(documentosAtuais, id);
@@ -674,7 +674,7 @@ export const clientesRoute: RouteDef = {
 
     const carregarHistoricoAlteracoes = async (id: number) => {
       const logsContainer = document.getElementById('det-cli-logs');
-      if (logsContainer) logsContainer.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-white/30">Carregando logs...</td></tr>';
+      if (logsContainer) logsContainer.innerHTML = '<tr><td colspan="4" class="det-vazio text-center py-3">Carregando logs...</td></tr>';
       try {
         const logs: ClienteHistoricoLog[] = await fetchClienteHistorico(id);
         if (logsContainer) logsContainer.innerHTML = renderLogsHistoricoTabelaHtml(logs);
@@ -685,7 +685,7 @@ export const clientesRoute: RouteDef = {
 
     const carregarLogsAcesso = async (id: number) => {
       const acessosContainer = document.getElementById('det-cli-acessos');
-      if (acessosContainer) acessosContainer.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-white/30">Carregando auditoria...</td></tr>';
+      if (acessosContainer) acessosContainer.innerHTML = '<tr><td colspan="5" class="det-vazio text-center py-3">Carregando auditoria...</td></tr>';
       try {
         const acessos: ClienteAcessoLog[] = await fetchClienteAcessosApi(id);
         if (acessosContainer) acessosContainer.innerHTML = renderLogsAcessoTabelaHtml(acessos);

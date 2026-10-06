@@ -215,9 +215,9 @@ export const renderMetadadosTabelaHtml = (metadadosObj: Record<string, string>):
   }
   return entries.map(([k, v]) => `
     <tr class="hover:bg-white/[0.01]">
-      <td class="py-2 px-3 font-semibold text-white/90 font-mono">${escapeHtml(k)}</td>
-      <td class="py-2 px-3 text-white/60 font-mono">${escapeHtml(v)}</td>
-      <td class="py-2 px-3 text-right">
+      <td class="font-semibold text-white/90 font-mono">${escapeHtml(k)}</td>
+      <td class="text-white/60 font-mono">${escapeHtml(v)}</td>
+      <td class="text-right">
         <button data-action="excluir-meta" data-meta-key="${escapeHtml(k)}" class="text-white/45 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action-meta" title="Remover Campo">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
         </button>
@@ -228,16 +228,16 @@ export const renderMetadadosTabelaHtml = (metadadosObj: Record<string, string>):
 
 export const renderLogsHistoricoTabelaHtml = (logs: ClienteHistoricoLog[]): string => {
   if (!Array.isArray(logs) || logs.length === 0) {
-    return '<tr><td colspan="4" class="text-center py-4 text-white/20">Nenhum log de alteração gravado.</td></tr>';
+    return '<tr><td colspan="4" class="det-vazio text-center py-3">Nenhum log de alteração gravado.</td></tr>';
   }
   return logs.map(log => {
     const dataFormatada = new Date(log.data_alteracao).toLocaleString('pt-BR');
     return `
       <tr class="hover:bg-white/[0.01]">
-        <td class="py-2 px-3 font-medium text-white/80">${escapeHtml(log.campo_alterado)}</td>
-        <td class="py-2 px-3 text-red-400 font-mono truncate max-w-[120px]" title="${escapeHtml(log.valor_antigo || '')}">${escapeHtml(log.valor_antigo || '-')}</td>
-        <td class="py-2 px-3 text-mint-vibrant font-mono truncate max-w-[120px]" title="${escapeHtml(log.valor_novo || '')}">${escapeHtml(log.valor_novo || '-')}</td>
-        <td class="py-2 px-3 text-right text-white/40 font-mono">${dataFormatada}</td>
+        <td class="font-medium text-white/80">${escapeHtml(log.campo_alterado)}</td>
+        <td class="text-red-400 font-mono truncate max-w-[120px]" title="${escapeHtml(log.valor_antigo || '')}">${escapeHtml(log.valor_antigo || '-')}</td>
+        <td class="text-mint-vibrant font-mono truncate max-w-[120px]" title="${escapeHtml(log.valor_novo || '')}">${escapeHtml(log.valor_novo || '-')}</td>
+        <td class="text-right text-white/40 font-mono">${dataFormatada}</td>
       </tr>
     `;
   }).join('');
@@ -245,17 +245,17 @@ export const renderLogsHistoricoTabelaHtml = (logs: ClienteHistoricoLog[]): stri
 
 export const renderLogsAcessoTabelaHtml = (acessos: ClienteAcessoLog[]): string => {
   if (!Array.isArray(acessos) || acessos.length === 0) {
-    return '<tr><td colspan="5" class="text-center py-4 text-white/20">Nenhum registro de acesso a dados sensíveis gravado.</td></tr>';
+    return '<tr><td colspan="5" class="det-vazio text-center py-3">Nenhum registro de acesso a dados sensíveis gravado.</td></tr>';
   }
   return acessos.map(ac => {
     const dataFormatada = new Date(ac.data_acesso).toLocaleString('pt-BR');
     return `
       <tr class="hover:bg-white/[0.01]">
-        <td class="py-2 px-3 font-mono text-mint-vibrant">${escapeHtml(ac.tipo_dado)}</td>
-        <td class="py-2 px-3 text-white/80 font-medium">${escapeHtml(ac.acao)}</td>
-        <td class="py-2 px-3 text-white/60">${escapeHtml(ac.usuario || 'Operador')}</td>
-        <td class="py-2 px-3 font-mono text-white/40 text-[10px]">${escapeHtml(ac.ip_origem || 'Local')}</td>
-        <td class="py-2 px-3 text-right text-white/40 font-mono">${dataFormatada}</td>
+        <td class="font-mono text-mint-vibrant">${escapeHtml(ac.tipo_dado)}</td>
+        <td class="text-white/80 font-medium">${escapeHtml(ac.acao)}</td>
+        <td class="text-white/60">${escapeHtml(ac.usuario || 'Operador')}</td>
+        <td class="font-mono text-white/40 text-[10px]">${escapeHtml(ac.ip_origem || 'Local')}</td>
+        <td class="text-right text-white/40 font-mono">${dataFormatada}</td>
       </tr>
     `;
   }).join('');
@@ -263,7 +263,7 @@ export const renderLogsAcessoTabelaHtml = (acessos: ClienteAcessoLog[]): string 
 
 export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[], clienteId?: number): string => {
   if (!Array.isArray(docs) || docs.length === 0) {
-    return '<tr><td colspan="7" class="text-center py-4 text-white/30">Nenhum documento cadastrado.</td></tr>';
+    return '<tr><td colspan="7" class="det-vazio text-center py-3">Nenhum documento cadastrado.</td></tr>';
   }
   return docs.map(doc => {
     const isVencida = doc.tipo_documento === 'CNH' && isCnhVencida(doc.data_validade);
@@ -282,18 +282,18 @@ export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[], clienteId?:
 
     return `
       <tr class="hover:bg-white/[0.01] text-xs">
-        <td class="py-2 px-3 font-bold font-mono text-mint-vibrant">${escapeHtml(doc.tipo_documento)}</td>
-        <td class="py-2 px-3 font-mono text-white/90 font-medium">${escapeHtml(doc.numero)}</td>
-        <td class="py-2 px-3 text-white/60">${escapeHtml(doc.orgao_emissor || '-')}${doc.uf_emissor ? `/${escapeHtml(doc.uf_emissor)}` : ''}</td>
-        <td class="py-2 px-3 font-mono text-white/60">${escapeHtml(doc.categoria_cnh || '-')}</td>
-        <td class="py-2 px-3 font-mono text-white/80">
+        <td class="font-bold font-mono text-mint-vibrant">${escapeHtml(doc.tipo_documento)}</td>
+        <td class="font-mono text-white/90 font-medium">${escapeHtml(doc.numero)}</td>
+        <td class="text-white/60">${escapeHtml(doc.orgao_emissor || '-')}${doc.uf_emissor ? `/${escapeHtml(doc.uf_emissor)}` : ''}</td>
+        <td class="font-mono text-white/60">${escapeHtml(doc.categoria_cnh || '-')}</td>
+        <td class="font-mono text-white/80">
           <div class="flex items-center gap-2">
             <span>${validadeFormatada}</span>
             ${badgeVencida}
           </div>
         </td>
-        <td class="py-2 px-3 text-center">${btnArquivo}</td>
-        <td class="py-2 px-3 text-right">
+        <td class="text-center">${btnArquivo}</td>
+        <td class="text-right">
           <button data-action="excluir-doc" data-doc-id="${doc.id}" class="text-white/40 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action-doc" title="Excluir Documento">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           </button>

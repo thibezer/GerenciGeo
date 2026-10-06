@@ -837,3 +837,15 @@ ui-select::part(select) {
 .det-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, 0.55); padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); }
 .det-chip b { color: #fff; font-family: ui-monospace, monospace; }
 
+/* Tabelas rasas e dropzone horizontal das abas do detalhe do cliente (sem caixas aninhadas) */
+.det-tabela-wrap { max-height: 260px; overflow-y: auto; }
+.det-tabela { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.det-tabela thead th { position: sticky; top: 0; z-index: 1; background: var(--ui-modal-bg, #0d1611); padding: 4px 8px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.det-tabela tbody td { padding: 5px 8px; vertical-align: middle; }
+.det-tabela tbody tr + tr td { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+.det-tabela tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+.det-tabela-sm { font-size: 11px; }
+.det-tabela td.det-vazio { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
+.det-form { display: grid; gap: 8px; align-items: end; }
+.det-dropzone { display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer; border: 1px dashed rgba(0, 224, 138, 0.3); border-radius: 6px; background: rgba(0, 224, 138, 0.02); transition: background 0.15s, border-color 0.15s; }
+.det-dropzone:hover { background: rgba(0, 224, 138, 0.06); border-color: rgba(0, 224, 138, 0.6); }

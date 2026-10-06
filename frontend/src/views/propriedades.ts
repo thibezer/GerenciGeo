@@ -447,17 +447,17 @@ export const propriedadesRoute: RouteDef = {
              </button>
           </div>
           <div class="p-4 max-h-[50vh] overflow-y-auto pr-1">
-             <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
-                <table class="w-full text-left text-[11px] border-collapse">
+             <div class="det-tabela-wrap">
+                <table class="det-tabela det-tabela-sm">
                    <thead>
-                      <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
-                         <th class="py-2 px-3 bg-[#0d1611]">Campo</th>
-                         <th class="py-2 px-3 bg-[#0d1611]">Antigo</th>
-                         <th class="py-2 px-3 bg-[#0d1611]">Novo</th>
-                         <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
+                      <tr>
+                         <th>Campo</th>
+                         <th>Antigo</th>
+                         <th>Novo</th>
+                         <th class="text-right">Data/Hora</th>
                       </tr>
                    </thead>
-                   <tbody id="tbl-hist-mat-corpo" class="divide-y divide-white/5">
+                   <tbody id="tbl-hist-mat-corpo">
                       <!-- Logs de alteração da matrícula -->
                    </tbody>
                 </table>
@@ -1447,7 +1447,7 @@ export const propriedadesRoute: RouteDef = {
        if (tit) tit.innerText = `Histórico de Alterações - Matrícula nº ${m.numero_matricula}`;
 
        const corpoHist = document.getElementById('tbl-hist-mat-corpo');
-       if (corpoHist) corpoHist.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-white/30">Carregando histórico...</td></tr>';
+       if (corpoHist) corpoHist.innerHTML = '<tr><td colspan="4" class="det-vazio text-center py-3">Carregando histórico...</td></tr>';
 
        modalHistMat?.classList.remove('hidden');
 
@@ -1461,15 +1461,15 @@ export const propriedadesRoute: RouteDef = {
                    const dataFormatada = new Date(l.data_alteracao).toLocaleString('pt-BR');
                    return `
                       <tr class="hover:bg-white/[0.01]">
-                         <td class="py-2 px-3 font-medium text-white/80">${l.campo_alterado}</td>
-                         <td class="py-2 px-3 text-red-400 font-mono truncate max-w-[120px]" title="${l.valor_antigo || ''}">${l.valor_antigo || '-'}</td>
-                         <td class="py-2 px-3 text-mint-vibrant font-mono truncate max-w-[120px]" title="${l.valor_novo || ''}">${l.valor_novo || '-'}</td>
-                         <td class="py-2 px-3 text-right text-white/40 font-mono">${dataFormatada}</td>
+                         <td class="font-medium text-white/80">${l.campo_alterado}</td>
+                         <td class="text-red-400 font-mono truncate max-w-[120px]" title="${l.valor_antigo || ''}">${l.valor_antigo || '-'}</td>
+                         <td class="text-mint-vibrant font-mono truncate max-w-[120px]" title="${l.valor_novo || ''}">${l.valor_novo || '-'}</td>
+                         <td class="text-right text-white/40 font-mono">${dataFormatada}</td>
                       </tr>
                    `;
                 }).join('');
              } else {
-                corpoHist.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-white/20">Nenhum log gravado para esta matrícula.</td></tr>';
+                corpoHist.innerHTML = '<tr><td colspan="4" class="det-vazio text-center py-3">Nenhum log gravado para esta matrícula.</td></tr>';
              }
           }
        } catch (e) {

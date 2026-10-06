@@ -664,35 +664,32 @@ export const renderClientesTemplate = (): string => `
                 </section>
              </div>
 
-             <!-- ABA 2: DOCUMENTOS DE IDENTIFICAÇÃO (RG, CNH COM VALIDADE, CONSELHOS, ANEXOS) -->
-             <div id="tab-det-docs" class="tab-content-det hidden space-y-3.5">
-                
-                <!-- Card Dropzone de Importação Rápida de Identidade PDF -->
-                <div id="dropzone-pdf-identidade" class="border border-dashed border-mint-vibrant/30 bg-mint-vibrant/[0.02] hover:bg-mint-vibrant/[0.06] hover:border-mint-vibrant/60 transition-all rounded-technical p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer group">
-                   <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-full bg-mint-vibrant/10 border border-mint-vibrant/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                         <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
-                      </div>
-                      <div>
-                         <h6 class="text-xs font-bold text-white flex items-center gap-2">
-                            Importação Inteligente de Identidade (RG / CNH) via PDF
-                            <span class="text-[8.5px] px-1.5 py-0.2 rounded font-mono font-bold bg-mint-vibrant/20 text-mint-vibrant">Auto-OCR</span>
-                         </h6>
-                         <p class="text-[11px] text-white/50 mt-0.5">Selecione ou arraste o PDF da identidade do cliente para extrair CPF, RG, CNH, Validade e anexar o arquivo original.</p>
-                      </div>
-                   </div>
-                   <button type="button" class="btn-primary text-xs py-1.5 px-3 whitespace-nowrap shrink-0 pointer-events-none">
-                      <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
-                      Selecionar PDF
-                   </button>
-                </div>
+             <!-- ABA 2: DOCUMENTOS — seções contínuas, tabela rasa, sem caixas aninhadas -->
+             <div id="tab-det-docs" class="tab-content-det hidden space-y-4">
 
-                <!-- Formulário de Adicionar Documento -->
-                <div class="bg-white/[0.02] p-3 border border-white/5 rounded-technical space-y-2.5">
-                   <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Adicionar Novo Documento Manual</h6>
-                   <form id="form-add-doc" class="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
+                <section class="det-sec">
+                   <h6 class="det-sec-titulo">Importar Identidade</h6>
+                   <div id="dropzone-pdf-identidade" class="det-dropzone group">
+                      <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant shrink-0"></i>
+                      <div class="min-w-0 flex-1">
+                         <p class="text-xs font-bold text-white flex items-center gap-2">
+                            RG / CNH via PDF
+                            <span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/20 text-mint-vibrant">Auto-OCR</span>
+                         </p>
+                         <p class="text-[11px] text-white/45 mt-0.5 truncate">Selecione ou arraste o PDF para extrair CPF, RG, CNH e validade e anexar o original.</p>
+                      </div>
+                      <button type="button" class="btn-primary text-xs py-1 px-2.5 whitespace-nowrap shrink-0 pointer-events-none">
+                         <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+                         Selecionar PDF
+                      </button>
+                   </div>
+                </section>
+
+                <section class="det-sec">
+                   <h6 class="det-sec-titulo">Adicionar Documento</h6>
+                   <form id="form-add-doc" class="det-form grid-cols-1 sm:grid-cols-6">
                       <div class="sm:col-span-1">
-                         <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Tipo</label>
+                         <label class="det-l block mb-1">Tipo</label>
                          <ui-select id="doc-tipo" value="RG" class="w-full">
                             <option value="RG">RG</option>
                             <option value="CNH">CNH</option>
@@ -704,15 +701,15 @@ export const renderClientesTemplate = (): string => `
                          </ui-select>
                       </div>
                       <div class="sm:col-span-2">
-                         <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Número</label>
+                         <label class="det-l block mb-1">Número</label>
                          <ui-campo-texto id="doc-numero" placeholder="Nº do documento" required class="w-full"></ui-campo-texto>
                       </div>
                       <div class="sm:col-span-1">
-                         <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Órgão / UF</label>
+                         <label class="det-l block mb-1">Órgão / UF</label>
                          <ui-campo-texto id="doc-orgao" placeholder="SSP/PR" class="w-full"></ui-campo-texto>
                       </div>
                       <div class="sm:col-span-1">
-                         <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Validade (CNH)</label>
+                         <label class="det-l block mb-1">Validade (CNH)</label>
                          <ui-campo-texto id="doc-validade" tipo="date" class="w-full"></ui-campo-texto>
                       </div>
                       <div class="sm:col-span-1 flex justify-end">
@@ -722,61 +719,65 @@ export const renderClientesTemplate = (): string => `
                          </ui-botao>
                       </div>
                    </form>
-                </div>
+                </section>
 
-                <!-- Tabela de Documentos -->
-                <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden">
-                   <table class="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
-                           <th class="py-2.5 px-3">Tipo</th>
-                           <th class="py-2.5 px-3">Número</th>
-                           <th class="py-2.5 px-3">Órgão Emissor</th>
-                           <th class="py-2.5 px-3">Categoria</th>
-                           <th class="py-2.5 px-3">Validade</th>
-                           <th class="py-2.5 px-3 text-center">Anexo</th>
-                           <th class="py-2.5 px-3 text-right">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody id="det-cli-documentos" class="divide-y divide-white/5">
-                         <!-- Documentos via JS -->
-                      </tbody>
-                   </table>
-                </div>
+                <section class="det-sec">
+                   <h6 class="det-sec-titulo">Documentos Cadastrados</h6>
+                   <div class="det-tabela-wrap">
+                      <table class="det-tabela">
+                         <thead>
+                           <tr>
+                              <th>Tipo</th>
+                              <th>Número</th>
+                              <th>Órgão Emissor</th>
+                              <th>Categoria</th>
+                              <th>Validade</th>
+                              <th class="text-center">Anexo</th>
+                              <th class="text-right">Ação</th>
+                           </tr>
+                         </thead>
+                         <tbody id="det-cli-documentos">
+                            <!-- Documentos via JS -->
+                         </tbody>
+                      </table>
+                   </div>
+                </section>
              </div>
-             
+
              <!-- ABA 3: METADADOS -->
-             <div id="tab-det-meta" class="tab-content-det hidden space-y-3">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                   <h6 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Campos Adicionais</h6>
-                   <form id="form-add-meta" class="flex gap-1.5 items-center w-full sm:w-auto">
-                      <ui-campo-texto id="meta-key" placeholder="Chave" required class="w-28"></ui-campo-texto>
-                      <ui-campo-texto id="meta-val" placeholder="Valor" required class="w-36"></ui-campo-texto>
-                      <ui-botao tipo-submit variante="primario">
-                         Adicionar
-                      </ui-botao>
-                   </form>
-                </div>
-                <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden">
-                   <table class="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
-                           <th class="py-2 px-3">Chave</th>
-                           <th class="py-2 px-3">Valor</th>
-                           <th class="py-2 px-3 text-right">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody id="det-cli-metadados" class="divide-y divide-white/5">
-                         <!-- Metadados via JS -->
-                      </tbody>
-                   </table>
-                </div>
+             <div id="tab-det-meta" class="tab-content-det hidden space-y-4">
+                <section class="det-sec">
+                   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <h6 class="det-sec-titulo">Campos Adicionais</h6>
+                      <form id="form-add-meta" class="flex gap-1.5 items-center w-full sm:w-auto">
+                         <ui-campo-texto id="meta-key" placeholder="Chave" required class="w-28"></ui-campo-texto>
+                         <ui-campo-texto id="meta-val" placeholder="Valor" required class="w-36"></ui-campo-texto>
+                         <ui-botao tipo-submit variante="primario">
+                            Adicionar
+                         </ui-botao>
+                      </form>
+                   </div>
+                   <div class="det-tabela-wrap">
+                      <table class="det-tabela">
+                         <thead>
+                           <tr>
+                              <th>Chave</th>
+                              <th>Valor</th>
+                              <th class="text-right">Ação</th>
+                           </tr>
+                         </thead>
+                         <tbody id="det-cli-metadados">
+                            <!-- Metadados via JS -->
+                         </tbody>
+                      </table>
+                   </div>
+                </section>
              </div>
-             
+
              <!-- ABA 4: HISTÓRICO & AUDITORIA DE ACESSO -->
-             <div id="tab-det-historico" class="tab-content-det hidden space-y-3">
-                <div class="flex items-center justify-between border-b border-white/5 pb-2">
-                   <div class="flex gap-2">
+             <div id="tab-det-historico" class="tab-content-det hidden space-y-4">
+                <section class="det-sec">
+                   <div class="flex gap-1.5">
                       <button type="button" id="btn-subtab-historico" class="px-2.5 py-1 text-[11px] font-bold rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 cursor-pointer">
                          Edições Cadastrais
                       </button>
@@ -784,46 +785,46 @@ export const renderClientesTemplate = (): string => `
                          Auditoria de Acesso Sensível
                       </button>
                    </div>
-                </div>
 
-                <!-- Sub-aba: Edições -->
-                <div id="subtab-content-historico" class="space-y-2">
-                   <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden max-h-[260px] overflow-y-auto pr-1">
-                      <table class="w-full text-left text-[11px] border-collapse">
-                         <thead>
-                            <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
-                               <th class="py-2 px-3 bg-[#0d1611]">Campo</th>
-                               <th class="py-2 px-3 bg-[#0d1611]">Antigo</th>
-                               <th class="py-2 px-3 bg-[#0d1611]">Novo</th>
-                               <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
-                            </tr>
-                         </thead>
-                         <tbody id="det-cli-logs" class="divide-y divide-white/5">
-                            <!-- Logs via JS -->
-                         </tbody>
-                      </table>
+                   <!-- Sub-aba: Edições -->
+                   <div id="subtab-content-historico">
+                      <div class="det-tabela-wrap">
+                         <table class="det-tabela det-tabela-sm">
+                            <thead>
+                               <tr>
+                                  <th>Campo</th>
+                                  <th>Antigo</th>
+                                  <th>Novo</th>
+                                  <th class="text-right">Data/Hora</th>
+                               </tr>
+                            </thead>
+                            <tbody id="det-cli-logs">
+                               <!-- Logs via JS -->
+                            </tbody>
+                         </table>
+                      </div>
                    </div>
-                </div>
 
-                <!-- Sub-aba: Acessos Sensíveis -->
-                <div id="subtab-content-acessos" class="space-y-2 hidden">
-                   <div class="bg-white/5 rounded-technical border border-white/5 overflow-hidden max-h-[260px] overflow-y-auto pr-1">
-                      <table class="w-full text-left text-[11px] border-collapse">
-                         <thead>
-                            <tr class="bg-white/[0.02] border-b border-white/5 text-[8.5px] uppercase tracking-wider font-bold text-white/40 sticky top-0 z-10">
-                               <th class="py-2 px-3 bg-[#0d1611]">Dado</th>
-                               <th class="py-2 px-3 bg-[#0d1611]">Ação</th>
-                               <th class="py-2 px-3 bg-[#0d1611]">Usuário</th>
-                               <th class="py-2 px-3 bg-[#0d1611]">Origem</th>
-                               <th class="py-2 px-3 text-right bg-[#0d1611]">Data/Hora</th>
-                            </tr>
-                         </thead>
-                         <tbody id="det-cli-acessos" class="divide-y divide-white/5">
-                            <!-- Acessos via JS -->
-                         </tbody>
-                      </table>
+                   <!-- Sub-aba: Acessos Sensíveis -->
+                   <div id="subtab-content-acessos" class="hidden">
+                      <div class="det-tabela-wrap">
+                         <table class="det-tabela det-tabela-sm">
+                            <thead>
+                               <tr>
+                                  <th>Dado</th>
+                                  <th>Ação</th>
+                                  <th>Usuário</th>
+                                  <th>Origem</th>
+                                  <th class="text-right">Data/Hora</th>
+                               </tr>
+                            </thead>
+                            <tbody id="det-cli-acessos">
+                               <!-- Acessos via JS -->
+                            </tbody>
+                         </table>
+                      </div>
                    </div>
-                </div>
+                </section>
              </div>
           </div>
        </div>
