@@ -33,6 +33,55 @@ class AssociarPlanilhaPayload(BaseModel):
     planilha_origem: str
     matricula_id: Optional[int] = None
 
+class EditarVerticesPayload(BaseModel):
+    """Correção de campos descritivos da planilha homologada. Campos ausentes não são alterados."""
+    ids: list[int]
+    confrontante_descritivo: Optional[str] = None
+    matricula_confrontante: Optional[str] = None
+    cns_confrontante: Optional[str] = None
+    tipo_limite: Optional[str] = None
+    metodo_posicionamento: Optional[str] = None
+
+# ── Trilha de alterações em relação ao que está registrado no SIGEF ────────────
+# A planilha importada é a que já foi enviada ao SIGEF. Toda correção feita aqui precisa ser
+# refeita manualmente lá, ponto a ponto, então guardamos o valor original e o novo de cada campo.
+
+CAMPOS_RASTREADOS = ("confrontante_descritivo", "matricula_confrontante", "cns_confrontante", "tipo_limite", "metodo_posicionamento")
+
+def registrar_alteracoes_sigef(cursor, levantamento_id: int, linha_antes: dict, campos_novos: dict):
+    for campo, novo in campos_novos.items():
+        if campo not in CAMPOS_RASTREADOS:
+            continue
+        atual = (linha_antes.get(campo) or "").strip()
+        novo = (novo or "").strip()
+        if atual == novo:
+            continue
+        cursor.execute(
+            """SELECT id, valor_original FROM alteracoes_sigef
+               WHERE levantamento_id = ? AND planilha_origem = ? AND codigo_completo = ? AND campo = ? AND status = 'pendente'""",
+            (levantamento_id, linha_antes["planilha_origem"], linha_antes["codigo_completo"], campo)
+        )
+        aberta = cursor.fetchone()
+        if aberta:
+            if (aberta["valor_original"] or "").strip() == novo:
+                # voltou ao que está no SIGEF: nada a lançar
+                cursor.execute("DELETE FROM alteracoes_sigef WHERE id = ?", (aberta["id"],))
+            else:
+                cursor.execute(
+                    "UPDATE alteracoes_sigef SET valor_novo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (novo, aberta["id"])
+                )
+        else:
+            cursor.execute(
+                """INSERT INTO alteracoes_sigef (levantamento_id, planilha_origem, codigo_completo, campo, valor_original, valor_novo)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (levantamento_id, linha_antes["planilha_origem"], linha_antes["codigo_completo"], campo, atual, novo)
+            )
+
+class MarcarLancadoPayload(BaseModel):
+    ids: list[int]
+    lancado: bool = True
+
 # ── Funções Auxiliares de Parsing ──────────────────────────────────────────────
 
 def parse_csv_sigef(content: bytes, fuso_utm: int):
@@ -428,6 +477,7 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
                 
                 pontos_ordenados = [p_dict[v] for v in o_list if v in p_dict]
                 if pontos_ordenados:
+                    cursor.execute("DELETE FROM alteracoes_sigef WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
                     cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
                     
                     cursor.execute("SELECT id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", (id, nome_planilha))
@@ -561,6 +611,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                         
                 pontos_ordenados = [p_dict[v] for v in o_list if v in p_dict]
                 if pontos_ordenados:
+                    cursor.execute("DELETE FROM alteracoes_sigef WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
                     cursor.execute("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", (id, nome_planilha))
                     
                     cursor.execute("SELECT id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", (id, nome_planilha))
@@ -647,6 +698,7 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
         if not lev: raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
         profissional_id, codigo_credenciado = lev["profissional_id"], lev["codigo_credenciado"] or ""
         
+        execute_query("DELETE FROM alteracoes_sigef WHERE levantamento_id = ? AND planilha_origem = ?", params=(id, planilha_origem), commit=True)
         execute_query("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", params=(id, planilha_origem), commit=True)
         
         pontos_da_planilha = execute_query("SELECT DISTINCT matricula_id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", params=(id, planilha_origem), fetch_all=True)
@@ -760,6 +812,138 @@ def get_pontos_homologados_matricula(id: int, matricula_id: int):
             ORDER BY CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         return [dict(r) for r in execute_query(query, params=(id, target_id), fetch_all=True)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/vertices-confrontantes")
+def get_vertices_confrontantes_matricula(id: int, matricula_id: int):
+    """Planilha homologada da matrícula (ordem de importação) com o confrontante resolvido de cada divisa."""
+    try:
+        row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
+
+        query = """
+            SELECT bp.id, bp.codigo_completo, bp.tipo_ponto, bp.norte, bp.este, bp.altitude,
+                   bp.metodo_posicionamento, bp.tipo_limite, bp.cns_confrontante,
+                   bp.matricula_confrontante, bp.confrontante_descritivo, bp.planilha_origem,
+                   (SELECT s.confrontante_id FROM segmentos s
+                      JOIN pontos p ON p.id = s.ponto_inicio_id
+                     WHERE p.levantamento_id = bp.levantamento_id AND p.matricula_id = bp.matricula_id
+                       AND p.nome_vertice = bp.codigo_completo AND p.origem_homologada = 1
+                     LIMIT 1) AS confrontante_id,
+                   (SELECT COALESCE(c.nome, '') FROM segmentos s
+                      JOIN pontos p ON p.id = s.ponto_inicio_id
+                      JOIN confrontantes c ON c.id = s.confrontante_id
+                     WHERE p.levantamento_id = bp.levantamento_id AND p.matricula_id = bp.matricula_id
+                       AND p.nome_vertice = bp.codigo_completo AND p.origem_homologada = 1
+                     LIMIT 1) AS confrontante_nome
+            FROM banco_pontos bp
+            WHERE bp.levantamento_id = ? AND bp.matricula_id = ?
+            ORDER BY bp.id ASC
+        """
+        linhas = [dict(r) for r in execute_query(query, params=(id, target_id), fetch_all=True)]
+
+        # Campos alterados em relação ao que está no SIGEF: {campo: valor_original}
+        pendentes = {}
+        for a in execute_query(
+            "SELECT planilha_origem, codigo_completo, campo, valor_original FROM alteracoes_sigef WHERE levantamento_id = ? AND status = 'pendente'",
+            params=(id,), fetch_all=True
+        ):
+            pendentes.setdefault((a["planilha_origem"], a["codigo_completo"]), {})[a["campo"]] = a["valor_original"] or ""
+        for l in linhas:
+            l["pendentes"] = pendentes.get((l["planilha_origem"], l["codigo_completo"]), {})
+        return linhas
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/levantamentos/{id}/banco-pontos")
+def editar_vertices_banco_pontos(id: int, payload: EditarVerticesPayload):
+    """Corrige dados da planilha salva e propaga ao segmento (divisa) que parte de cada vértice."""
+    verificar_levantamento_arquivado(id)
+    campos = payload.model_dump(exclude={"ids"}, exclude_none=True)
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="Nenhum vértice informado.")
+    if not campos:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar.")
+    campos = {k: v.strip() for k, v in campos.items()}
+
+    try:
+        from services.gestores.confrontante_manager import resolver_confrontantes_planilha
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" for _ in payload.ids)
+            cursor.execute(
+                f"SELECT * FROM banco_pontos WHERE levantamento_id = ? AND id IN ({placeholders})",
+                [id] + payload.ids
+            )
+            linhas = [dict(r) for r in cursor.fetchall()]
+            if not linhas:
+                raise HTTPException(status_code=404, detail="Vértices não encontrados neste levantamento.")
+
+            sets = ", ".join(f"{k} = ?" for k in campos)
+            for linha in linhas:
+                registrar_alteracoes_sigef(cursor, id, linha, campos)
+                cursor.execute(f"UPDATE banco_pontos SET {sets} WHERE id = ?", list(campos.values()) + [linha["id"]])
+                linha.update(campos)
+
+                cursor.execute(
+                    "SELECT id FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND nome_vertice = ? AND origem_homologada = 1",
+                    (id, linha["matricula_id"], linha["codigo_completo"])
+                )
+                ponto = cursor.fetchone()
+                if not ponto:
+                    continue
+
+                seg_sets, seg_vals = [], []
+                if "tipo_limite" in campos:
+                    seg_sets.append("tipo_limite_sigef = ?")
+                    seg_vals.append(campos["tipo_limite"] or "Limite Não Definido")
+                if "metodo_posicionamento" in campos:
+                    seg_sets.append("metodo_posicionamento_sigef = ?")
+                    seg_vals.append(campos["metodo_posicionamento"] or "PG1")
+                if {"confrontante_descritivo", "matricula_confrontante", "cns_confrontante"} & campos.keys():
+                    mapa = resolver_confrontantes_planilha(id, [linha], cursor)
+                    seg_sets.append("confrontante_id = ?")
+                    seg_vals.append(mapa.get(linha["codigo_completo"]))
+                if seg_sets:
+                    cursor.execute(
+                        f"UPDATE segmentos SET {', '.join(seg_sets)} WHERE ponto_inicio_id = ? AND origem_homologada = 1",
+                        seg_vals + [ponto["id"]]
+                    )
+            conn.commit()
+        return {"sucesso": True, "atualizados": len(linhas)}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Erro ao corrigir planilha: {str(e)}")
+
+@router.get("/levantamentos/{id}/alteracoes-sigef")
+def listar_alteracoes_sigef(id: int, status: Optional[str] = Query(None, pattern="^(pendente|lancado)$")):
+    """Diferenças entre a planilha registrada no SIGEF e o que está salvo aqui."""
+    try:
+        query = "SELECT id, planilha_origem, codigo_completo, campo, valor_original, valor_novo, status, updated_at, lancado_em FROM alteracoes_sigef WHERE levantamento_id = ?"
+        params = [id]
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY planilha_origem, id"
+        return [dict(r) for r in execute_query(query, params=tuple(params), fetch_all=True)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/levantamentos/{id}/alteracoes-sigef/marcar-lancado")
+def marcar_alteracoes_lancadas(id: int, payload: MarcarLancadoPayload):
+    """Marca (ou desmarca) alterações como já refeitas manualmente no SIGEF."""
+    verificar_levantamento_arquivado(id)
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="Nenhuma alteração informada.")
+    try:
+        placeholders = ",".join("?" for _ in payload.ids)
+        if payload.lancado:
+            sql = f"UPDATE alteracoes_sigef SET status = 'lancado', lancado_em = CURRENT_TIMESTAMP WHERE levantamento_id = ? AND id IN ({placeholders})"
+        else:
+            sql = f"UPDATE alteracoes_sigef SET status = 'pendente', lancado_em = NULL WHERE levantamento_id = ? AND id IN ({placeholders})"
+        execute_query(sql, params=tuple([id] + payload.ids), commit=True)
+        return {"sucesso": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

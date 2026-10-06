@@ -266,19 +266,6 @@ export const renderMesaTrabalho = (): string => {
               </div>
             </div>
 
-            <!-- PAINEL: Peças de Cartório -->
-            <div class="rl3-panel hidden" id="panel-cartorio" role="tabpanel">
-              <div class="rl3-group" data-group-id="grp-documentos">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-gerar-requerimento-cri" type="button">
-                    <i data-lucide="file-text"></i>
-                    <span>Requerimento</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Documentos</div>
-              </div>
-            </div>
-
             <!-- PAINEL: Histórico de Auditoria -->
             <div class="rl3-panel hidden" id="panel-auditoria" role="tabpanel">
               <div class="rl3-group" data-group-id="grp-auditoria">
@@ -410,6 +397,15 @@ export const renderMesaTrabalho = (): string => {
                  <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                  <span>Caneta</span>
                </button>
+               <!-- Camadas da etapa Peças de Cartório (visíveis só nela) -->
+               <button id="btn-mapa-toggle-confrontantes" class="btn-mapa-cartorio hidden px-2 py-1 rounded transition-all items-center gap-1.5 text-xs font-bold border" type="button" title="Divisas coloridas por confrontante (preto/branco alternado)">
+                 <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                 <span>Confrontantes</span>
+               </button>
+               <button id="btn-mapa-toggle-sigef" class="btn-mapa-cartorio hidden px-2 py-1 rounded transition-all items-center gap-1.5 text-xs font-bold border" type="button" title="Imóveis certificados no SIGEF (vizinhos) para conferir os pontos">
+                 <i data-lucide="map" class="w-3.5 h-3.5"></i>
+                 <span>SIGEF</span>
+               </button>
              </div>
              <!-- Mesa CAD via Web Component nativo do UI-Kit -->
              <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
@@ -477,175 +473,111 @@ export const renderMesaTrabalho = (): string => {
              </div>
           </div>
 
-          <!-- ABA 2: Org. de Perímetro (Tabela de Divisas / Segmentos + Confrontantes) -->
-          <div class="view-panel hidden h-full w-full overflow-hidden" id="view-org-perimetro">
-             <div class="flex flex-col h-full w-full overflow-hidden bg-white/[0.005]" id="container-tabela-divisas">
-                <div class="px-4 py-2.5 border-b border-white/5 bg-white/[0.01] flex justify-between items-center shrink-0">
-                  <div class="flex items-center gap-2">
-                    <h4 class="text-xs font-bold uppercase tracking-widest text-white/50" id="lbl-titulo-tabela-lateral">Segmentos de Divisa (Confrontantes)</h4>
-                    <span class="text-[9px] text-mint-vibrant font-mono bg-mint-vibrant/10 px-2 py-0.5 rounded-full font-bold" id="badge-tabela-lateral">EDIÇÃO REAL-TIME</span>
-                  </div>
-                </div>
-                <!-- Formulário Rápido de Inclusão de Confrontante -->
-                <div class="px-4 py-2 border-b border-white/5 bg-white/[0.002] flex gap-2 items-center shrink-0" id="container-confrontante-rapido">
-                  <input type="text" id="input-confrontante-nome-rapido" placeholder="Nome do novo confrontante..." class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant focus:ring-mint-vibrant/20 rounded px-2.5 py-1 text-xs text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
-                  <button class="px-3 py-1 text-[10px] font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 hover:bg-mint-vibrant/20 rounded transition-all flex items-center gap-1 shrink-0 active:scale-95" id="btn-confrontante-adicionar-rapido" type="button">
-                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                    Adicionar
-                  </button>
-                </div>
-                <div class="flex-1 overflow-auto" id="container-tabela-lateral-content">
-                  <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr class="bg-white/5 text-[9px] font-bold uppercase tracking-widest text-white/30 border-b border-white/5 sticky top-0 z-[var(--geo-z-sticky)]">
-                        <th class="px-3 py-2">De ➔ Para</th>
-                        <th class="px-2 py-2 text-right">Dist (m)</th>
-                        <th class="px-2 py-2 text-right">Azimute</th>
-                        <th class="px-3 py-2">Confrontante Oficial / Divisa</th>
-                        <th class="px-2 py-2 text-center">Anuên</th>
-                        <th class="px-3 py-2 text-center">Peças</th>
-                      </tr>
-                    </thead>
-                    <tbody id="tbl-segmentos-triagem" class="divide-y divide-white/5 text-white/60">
-                      <tr>
-                        <td colspan="6" class="px-4 py-8 text-center text-white/30">Nenhum segmento atrelado a esta matrícula.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-             </div>
-          </div>
-
-          <!-- ABA 3: Peças de Cartório (Homologação INCRA / SIGEF + Gerador de Peças) -->
+          <!-- ABA 3: Peças de Cartório (Gerador de Peças + Homologação INCRA / SIGEF) -->
           <div class="view-panel hidden" id="view-cartorio">
-             <div class="p-6 overflow-y-auto h-full space-y-6" id="panel-homologacao-incra">
-               <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
-                 <div>
-                   <h4 class="font-bold text-sm flex items-center gap-2">
-                     <i data-lucide="shield-check" class="w-5 h-5 text-mint-vibrant"></i>
-                     Homologação de Pontos Aprovados no INCRA / SIGEF
-                   </h4>
-                   <p class="text-xs text-white/40 mt-1">Envie o arquivo final de vértices homologados pelo SIGEF para registrá-los no seu Banco de Pontos.</p>
+             <div class="p-4 overflow-y-auto h-full space-y-4" id="panel-homologacao-incra">
+
+               <!-- Emissão de documentos (sempre no topo, quebra em linhas conforme a largura) -->
+               <div class="space-y-3" id="container-pecas-cartorio">
+                 <!-- Central de documentos: peças agrupadas por finalidade (esq.) + anuência de confrontante (dir.) -->
+                 <div class="grade-docs-conf grid grid-cols-1 2xl:grid-cols-[1fr_380px] gap-4 items-start">
+                   <details class="doc-card doc-collapsible" data-persist="cartorio-docs" open>
+                     <summary class="doc-card-title doc-summary"><i data-lucide="files"></i> Peças técnicas <span class="doc-summary-count">7 documentos</span><i data-lucide="chevron-down" class="doc-chevron"></i></summary>
+                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4">
+                     <div class="doc-group">
+                       <div class="doc-group-title">Retificação e registro</div>
+                       <button class="doc-row" id="btn-emitir-req-cartorio" type="button" title="Requerimento de Retificação">
+                         <span class="doc-row-icon"><i data-lucide="file-edit"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Requerimento de Retificação</span>
+                           <span class="doc-row-desc">Pedido ao Cartório de Registro de Imóveis</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                       <button class="doc-row" id="btn-emitir-laudo-tec" type="button" title="Laudo Técnico Descritivo">
+                         <span class="doc-row-icon"><i data-lucide="file-signature"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Laudo Técnico Descritivo</span>
+                           <span class="doc-row-desc">Descrição técnica do imóvel</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                       <button class="doc-row" id="btn-emitir-decl-resp" type="button" title="Declaração de Responsabilidade">
+                         <span class="doc-row-icon"><i data-lucide="user-check"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Declaração de Responsabilidade</span>
+                           <span class="doc-row-desc">Responsabilidade do profissional</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                     </div>
+                     <div class="doc-group">
+                       <div class="doc-group-title">SIGEF / INCRA</div>
+                       <button class="doc-row" id="btn-emitir-termo-sigef" type="button" title="Termo Resp. SIGEF">
+                         <span class="doc-row-icon"><i data-lucide="file-check"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Termo Resp. SIGEF</span>
+                           <span class="doc-row-desc">Termo de responsabilidade para o SIGEF</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                       <button class="doc-row" id="btn-emitir-manual-proprietario" type="button" title="Manual do Proprietário">
+                         <span class="doc-row-icon"><i data-lucide="book-open"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Manual do Proprietário</span>
+                           <span class="doc-row-desc">Guia de orientação ao proprietário</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                     </div>
+                     <div class="doc-group">
+                       <div class="doc-group-title">Averbações e desmembramento</div>
+                       <button class="doc-row" id="btn-emitir-anuencia-desmembramento" type="button" title="Anuência de Desmembramento">
+                         <span class="doc-row-icon"><i data-lucide="scissors"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Anuência de Desmembramento</span>
+                           <span class="doc-row-desc">Anuência para desmembrar a matrícula</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                       <button class="doc-row" id="btn-emitir-averbacao-casamento" type="button" title="Averbação de Casamento">
+                         <span class="doc-row-icon"><i data-lucide="heart-handshake"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Averbação de Casamento</span>
+                           <span class="doc-row-desc">Atualiza o estado civil na matrícula</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                     </div>
+                     </div>
+                   </details>
+
+                   <div class="doc-card">
+                     <div class="doc-card-title justify-between">
+                       <span class="flex items-center gap-2"><i data-lucide="users"></i> Confrontantes</span>
+                       <span id="badge-resumo-anuencias" class="font-mono text-[9px] normal-case tracking-normal bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/50 whitespace-nowrap">—</span>
+                     </div>
+                     <div id="lista-resumo-confrontantes" class="lista-resumo-confrontantes max-h-[360px] overflow-auto pr-1">
+                       <div class="text-white/20 italic py-4 text-center text-xs">Nenhum confrontante vinculado às divisas desta matrícula.</div>
+                     </div>
+                     <div class="flex items-center gap-2 mt-3">
+                       <button class="btn-primary flex-1 py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95" id="btn-anuencia-lote" type="button" title="Gera as anuências de todos os confrontantes em um único PDF">
+                         <i data-lucide="file-down" class="w-4 h-4"></i>
+                         <span>Gerar todas (PDF único)</span>
+                       </button>
+                       <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/10 text-mint-vibrant active:scale-95 shrink-0" id="btn-novo-confrontante-cartorio" type="button" title="Cadastrar Novo Confrontante">
+                         <i data-lucide="user-plus" class="w-4 h-4"></i>
+                         <span>Novo</span>
+                       </button>
+                     </div>
+                     <!-- Controles legados usados pelos handlers de geração/pré-visualização (acionados pelas linhas acima) -->
+                     <div class="hidden">
+                       <select id="select-confrontante-anuencia"><option value=""></option></select>
+                       <button id="btn-emitir-anuencia" type="button"></button>
+                       <button id="btn-preview-anuencia" type="button"></button>
+                     </div>
+                   </div>
                  </div>
-                 <span class="text-[9px] font-mono bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/25 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Módulo Regulatório</span>
-               </div>
-
-               <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 <!-- Esquerda: Dropzone de Upload -->
-                 <div class="lg:col-span-1 flex flex-col justify-between space-y-4">
-                   <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-5 text-center cursor-pointer transition-colors flex-1 flex flex-col justify-center items-center group relative overflow-hidden" id="homologacao-dropzone">
-                     <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv,.ods" multiple />
-                     <div class="w-10 h-10 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                       <i data-lucide="file-check" class="w-5 h-5 text-mint-vibrant"></i>
-                     </div>
-                     <p class="text-xs font-bold text-white">Lançar TXT/CSV/ODS Homologado</p>
-                     <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Suporta relatórios .TXT, .CSV ou planilhas .ODS (múltiplos)</p>
-                   </div>
-
-                   <!-- Container de Mapeamento de Abas/Arquivos -->
-                   <div id="container-mapeamento-abas-homologacao" class="hidden space-y-3 bg-white/5 border border-white/10 rounded-xl p-4 mt-2">
-                     <h5 class="text-xs font-bold text-mint-vibrant uppercase tracking-wider flex items-center gap-1.5">
-                       <i data-lucide="layers" class="w-4 h-4"></i>
-                       Mapeamento de Abas ➔ Matrículas
-                     </h5>
-                     <p class="text-[10px] text-white/40">Selecione qual matrícula corresponde a cada trecho/aba identificado:</p>
-                     <div id="lista-abas-mapeamento" class="space-y-3 max-h-[200px] overflow-y-auto pr-1"></div>
-                   </div>
-
-                   <button class="btn-primary w-full py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
-                     <i data-lucide="upload" class="w-4 h-4"></i>
-                     Importar Pontos no Banco
-                   </button>
-                 </div>
-
-                 <!-- Centro/Direita: Painel de Rastreabilidade e Pontos -->
-                 <div class="lg:col-span-2 space-y-4 bg-forest-deep/20 border border-white/5 rounded-xl p-5 flex flex-col min-h-[150px]">
-                   <div class="space-y-2">
-                     <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Arquivos / Planilhas Importadas</span>
-                     </div>
-                     <div id="container-planilhas-homologadas" class="overflow-x-auto text-xs">
-                       <div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>
-                     </div>
-                   </div>
-                   
-                   <div class="space-y-2 flex-grow flex flex-col">
-                     <div class="flex justify-between items-center border-b border-white/5 pb-2">
-                       <span class="text-[10px] font-bold text-white/40 uppercase tracking-wider">Vértices da Matrícula Ativa</span>
-                       <span id="txt-qtd-homologados" class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">0 Pontos</span>
-                     </div>
-                     <div id="container-vertices-homologados" class="flex-grow overflow-y-auto max-h-[200px] space-y-1.5 text-xs font-mono">
-                       <div class="text-white/20 italic py-4 text-center">Selecione uma matrícula com pontos homologados para listar seus vértices.</div>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-
-               <!-- Linha de Peças Técnicas de Cartório (SIGEF) -->
-               <div class="border-t border-white/5 pt-4 space-y-4" id="container-pecas-cartorio">
-                 <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                   <h5 class="text-xs font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
-                     <i data-lucide="file-text" class="w-4 h-4 text-mint-vibrant"></i>
-                     Peças Técnicas e Documentos para Cartório (Registro de Imóveis)
-                   </h5>
-                   <div class="flex items-center gap-2">
-                     <span class="text-[10px] text-white/40 font-mono">Exibir Poligonal no Mapa:</span>
-                     <button class="px-2.5 py-1 text-[9px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 rounded transition-all active:scale-95 flex items-center gap-1.5" id="btn-toggle-mapa-banco" type="button">
-                       <i data-lucide="eye" class="w-3.5 h-3.5" id="icon-toggle-mapa-banco"></i>
-                       <span id="txt-toggle-mapa-banco">Exibir Poligonal</span>
-                     </button>
-                   </div>
-                 </div>
-
-                 <!-- Grid de Botões de Emissão -->
-                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-req-cartorio" type="button">
-                     <i data-lucide="file-edit" class="w-4 h-4 text-mint-vibrant"></i>
-                     Requerimento de Retificação
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-decl-resp" type="button">
-                     <i data-lucide="user-check" class="w-4 h-4 text-mint-vibrant"></i>
-                     Declaração de Responsabilidade
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-laudo-tec" type="button">
-                     <i data-lucide="file-signature" class="w-4 h-4 text-mint-vibrant"></i>
-                     Laudo Técnico Descritivo
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-termo-sigef" type="button">
-                     <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
-                     Termo Resp. SIGEF
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-manual-proprietario" type="button">
-                     <i data-lucide="book-open" class="w-4 h-4 text-mint-vibrant"></i>
-                     Manual Proprietário
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-anuencia-desmembramento" type="button">
-                     <i data-lucide="scissors" class="w-4 h-4 text-mint-vibrant"></i>
-                     Anuência Desmembramento
-                   </button>
-                   <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95" id="btn-emitir-averbacao-casamento" type="button">
-                     <i data-lucide="heart-handshake" class="w-4 h-4 text-mint-vibrant"></i>
-                     Averbação de Casamento
-                   </button>
-                   <div class="flex gap-2 sm:col-span-2 lg:col-span-1 items-center">
-                      <select id="select-confrontante-anuencia" class="flex-grow bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2.5 py-2 text-xs text-white focus:outline-none transition-all font-medium">
-                        <option value="" class="bg-[#0c1510]">Selecione um Confrontante...</option>
-                      </select>
-                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/10 text-mint-vibrant active:scale-95 shrink-0" id="btn-novo-confrontante-cartorio" type="button" title="Cadastrar Novo Confrontante">
-                        <i data-lucide="user-plus" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Novo</span>
-                      </button>
-                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-blue-500/20 hover:border-blue-400/40 hover:bg-blue-500/10 text-blue-400 active:scale-95 shrink-0" id="btn-preview-anuencia" type="button" title="Pré-visualizar Pedaço da Propriedade (Divisa Lindeira)">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Ver Trecho</span>
-                      </button>
-                      <button class="btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 border-white/10 hover:border-mint-vibrant/30 hover:bg-mint-vibrant/5 text-white active:scale-95 shrink-0" id="btn-emitir-anuencia" type="button" title="Gerar Declaração de Anuência">
-                        <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
-                        <span>Gerar</span>
-                      </button>
-                    </div>
-                  </div>
 
                   <!-- Formulário de Qualificação do Confrontante -->
                    <div id="container-form-confrontante" class="bg-forest-deep/20 border border-white/10 rounded-xl p-5 space-y-4 hidden animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl" data-confrontante-id="">
@@ -818,6 +750,104 @@ export const renderMesaTrabalho = (): string => {
                       </form>
                    </div>
                </div>
+
+               <!-- Homologação (recolhível) + Planilha de Vértices e Confrontantes -->
+               <div class="space-y-4 border-t border-white/5 pt-4">
+
+                 <details id="painel-importacao" class="doc-card doc-collapsible" data-persist="cartorio-importacao" open>
+                   <summary class="doc-card-title doc-summary"><i data-lucide="shield-check"></i> Homologação INCRA / SIGEF <span id="resumo-importacao" class="doc-summary-count">—</span><i data-lucide="chevron-down" class="doc-chevron"></i></summary>
+                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                     <div class="space-y-3">
+                   <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center group relative overflow-hidden" id="homologacao-dropzone">
+                     <input type="file" id="homologacao-file-input" class="hidden" accept=".txt,.csv,.ods" multiple />
+                     <div class="w-9 h-9 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                       <i data-lucide="file-check" class="w-4 h-4 text-mint-vibrant"></i>
+                     </div>
+                     <p class="text-xs font-bold text-white">Lançar TXT/CSV/ODS Homologado</p>
+                     <p class="text-[9px] text-white/30 mt-1 uppercase tracking-widest">Relatórios .TXT, .CSV ou planilhas .ODS (múltiplos)</p>
+                   </div>
+
+                   <!-- Container de Mapeamento de Abas/Arquivos -->
+                   <div id="container-mapeamento-abas-homologacao" class="hidden space-y-3 bg-white/5 border border-white/10 rounded-xl p-4">
+                     <h5 class="text-xs font-bold text-mint-vibrant uppercase tracking-wider flex items-center gap-1.5">
+                       <i data-lucide="layers" class="w-4 h-4"></i>
+                       Mapeamento de Abas ➔ Matrículas
+                     </h5>
+                     <p class="text-[10px] text-white/40">Selecione qual matrícula corresponde a cada trecho/aba identificado:</p>
+                     <div id="lista-abas-mapeamento" class="space-y-3 max-h-[200px] overflow-y-auto pr-1"></div>
+                   </div>
+
+                   <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
+                     <i data-lucide="upload" class="w-4 h-4"></i>
+                     Importar Pontos no Banco
+                   </button>
+                     </div>
+                   <div class="bg-forest-deep/20 border border-white/5 rounded-xl p-3 space-y-2">
+                     <span class="block text-[10px] font-bold text-white/40 uppercase tracking-wider border-b border-white/5 pb-2">Arquivos / Planilhas Importadas</span>
+                     <div id="container-planilhas-homologadas" class="overflow-x-auto text-xs">
+                       <div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>
+                     </div>
+                   </div>
+                   </div>
+                 </details>
+
+                 <!-- Direita: Planilha de vértices com confrontantes (editável) -->
+                 <div class="bg-forest-deep/20 border border-white/5 rounded-xl p-4 space-y-3 min-w-0">
+                   <div class="flex flex-wrap items-center justify-between gap-2">
+                     <div class="flex items-center gap-2">
+                       <span class="text-[10px] font-bold text-white/50 uppercase tracking-wider">Vértices e Confrontantes da Matrícula Ativa</span>
+                       <span id="txt-qtd-homologados" class="text-[9px] font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/40">0 Pontos</span>
+                       <span id="txt-qtd-pendentes-conf" class="hidden text-[9px] font-mono bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded text-amber-300"></span>
+                     </div>
+                     <div class="flex items-center gap-2">
+                       <label class="flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer select-none">
+                         <input type="checkbox" id="chk-vertices-so-pendentes" class="accent-emerald-400" /> Só sem confrontante
+                       </label>
+                       <input type="text" id="input-busca-vertices-cartorio" placeholder="Filtrar vértice / confrontante..." class="w-52 bg-white/5 border border-white/10 hover:border-mint-vibrant/30 focus:border-mint-vibrant rounded px-2 py-1 text-[11px] text-white placeholder-white/30 focus:outline-none transition-all font-mono" />
+                     </div>
+                   </div>
+
+                   <!-- Alterações em relação ao que já está registrado no SIGEF (a replicar manualmente, ponto a ponto) -->
+                   <details id="painel-alteracoes-sigef" class="hidden bg-amber-500/[0.04] border border-amber-500/25 rounded-lg" open>
+                     <summary class="flex flex-wrap items-center gap-2 px-3 py-2 cursor-pointer select-none text-[11px]">
+                       <i data-lucide="alert-circle" class="w-4 h-4 text-amber-400"></i>
+                       <span class="font-bold text-amber-300 uppercase tracking-wider text-[10px]">Alterações a lançar no SIGEF</span>
+                       <span id="badge-alteracoes-sigef" class="font-mono text-[9px] bg-amber-500/15 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded">0</span>
+                       <span class="text-white/40 text-[10px]">A planilha importada é a registrada no SIGEF: o que mudou aqui precisa ser refeito lá.</span>
+                     </summary>
+                     <div class="px-3 pb-3 space-y-2">
+                       <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                         <button type="button" id="btn-alt-marcar-lancadas" class="px-2.5 py-1 font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/25 rounded transition-all active:scale-95">Marcar selecionadas como lançadas</button>
+                         <button type="button" id="btn-alt-copiar" class="px-2.5 py-1 bg-white/5 border border-white/10 hover:border-mint-vibrant/30 rounded text-white/80 transition-all">Copiar lista</button>
+                         <button type="button" id="btn-alt-csv" class="px-2.5 py-1 bg-white/5 border border-white/10 hover:border-mint-vibrant/30 rounded text-white/80 transition-all">Baixar CSV</button>
+                         <label class="flex items-center gap-1.5 text-white/50 cursor-pointer select-none ml-auto">
+                           <input type="checkbox" id="chk-alt-mostrar-lancadas" class="accent-emerald-400" /> Mostrar já lançadas
+                         </label>
+                       </div>
+                       <div id="lista-alteracoes-sigef" class="max-h-52 overflow-auto text-xs"></div>
+                     </div>
+                   </details>
+
+                   <!-- Edição em lote (aparece com vértices marcados) -->
+                   <div id="barra-edicao-lote-vertices" class="hidden flex flex-wrap items-center gap-2 bg-mint-vibrant/5 border border-mint-vibrant/20 rounded px-3 py-2 text-[11px]">
+                     <span class="text-white/70 font-mono"><strong id="qtd-vertices-marcados" class="text-mint-vibrant">0</strong> marcados</span>
+                     <input type="text" id="input-lote-confrontante" list="datalist-confrontantes-planilha" placeholder="Confrontante (descritivo)..." class="flex-1 min-w-[200px] bg-white/5 border border-white/10 focus:border-mint-vibrant rounded px-2 py-1 text-white placeholder-white/30 focus:outline-none" />
+                     <input type="text" id="input-lote-matricula" placeholder="Matrícula conf." class="w-32 bg-white/5 border border-white/10 focus:border-mint-vibrant rounded px-2 py-1 text-white placeholder-white/30 focus:outline-none font-mono" />
+                     <button type="button" id="btn-lote-aplicar" class="px-3 py-1 font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/25 rounded transition-all active:scale-95">Aplicar aos marcados</button>
+                     <button type="button" id="btn-lote-limpar" class="px-2 py-1 text-white/50 hover:text-white">Limpar seleção</button>
+                   </div>
+
+                   <datalist id="datalist-confrontantes-planilha"></datalist>
+                   <datalist id="datalist-tipo-limite-planilha"></datalist>
+                   <datalist id="datalist-metodo-planilha"></datalist>
+
+                   <div id="container-vertices-homologados" class="overflow-auto text-xs" style="max-height: calc(100vh - 360px); min-height: 260px;">
+                     <div class="text-white/20 italic py-4 text-center">Selecione uma matrícula com pontos homologados para listar seus vértices.</div>
+                   </div>
+                   <p class="text-[10px] text-white/30">Os campos são editáveis: a alteração é salva ao sair da célula e atualiza a divisa correspondente. Cada confrontante vale para a divisa que parte do vértice.</p>
+                 </div>
+               </div>
+
              </div>
           </div>
 

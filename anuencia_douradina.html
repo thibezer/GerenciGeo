@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Anuência - Fazenda Douradina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0.8cm 1.6cm 0.8cm 1.6cm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 29.7cm !important;
+                box-sizing: border-box !important;
+                display: block !important;
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
+            .page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            p,
+            li,
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            p,
+            li {
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+
+            .bloco-assinaturas-fechamento {
+                margin-top: 1.2cm !important;
+                padding-top: 0 !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+            /* Estilos específicos de impressão para Leaflet */
+            .leaflet-tile-container img {
+                mix-blend-mode: normal !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .leaflet-container {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+
+        /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
+        .custom-tooltip {
+            background-color: rgba(15, 23, 42, 0.9) !important;
+            border: 1px solid #0284c7 !important;
+            border-radius: 4px !important;
+            color: #ffffff !important;
+            font-family: monospace !important;
+            font-size: 8px !important;
+            font-weight: bold !important;
+            padding: 2px 6px !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .custom-tooltip::before {
+            border-top-color: rgba(15, 23, 42, 0.9) !important;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência do Confrontante
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Termo Consolidado de Respeito de Divisas</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+    <!-- BARRA_ACOES_FIM -->
+    <style>
+        #painelConf {
+            max-width: 21cm;
+            width: 100%;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font: 12px/1.4 'Segoe UI', Tahoma, sans-serif;
+            color: #1e293b;
+            box-shadow: 0 4px 12px #0001
+        }
+
+        #painelConf h3 {
+            margin: 0 0 2px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: .05em
+        }
+
+        #painelConf .dica {
+            color: #64748b;
+            font-size: 11px;
+            margin-bottom: 8px
+        }
+
+        #painelConf .grade {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px 8px
+        }
+
+        #painelConf label {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .04em
+        }
+
+        #painelConf input,
+        #painelConf select {
+            width: 100%;
+            font: inherit;
+            padding: 4px 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            background: #fff
+        }
+
+        #painelConf .c2 {
+            grid-column: span 2
+        }
+
+        #painelConf .c3 {
+            grid-column: span 3
+        }
+
+        #painelConf .c4 {
+            grid-column: span 4
+        }
+
+        #painelConf .c6 {
+            grid-column: span 6
+        }
+
+        #painelConf fieldset {
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            margin: 8px 0 0;
+            padding: 6px 8px
+        }
+
+        #painelConf legend {
+            font-size: 10px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            padding: 0 4px
+        }
+
+        #painelConf button {
+            font: inherit;
+            padding: 4px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            background: #f8fafc;
+            cursor: pointer
+        }
+
+        #qualif {
+            outline: none;
+            background: #fef9c3
+        }
+
+        #qualif:focus,
+        [contenteditable]:focus {
+            background: #fef08a;
+            outline: 1px dashed #ca8a04
+        }
+
+        @media print {
+            #painelConf {
+                display: none !important
+            }
+
+            #qualif,
+            [contenteditable],
+            [data-k] {
+                background: none !important;
+                outline: none !important
+            }
+        }
+    </style>
+    <div id="painelConf" class="no-print">
+        <h3>Confrontante anuente — preencha aqui</h3>
+        <div class="dica">O texto da anuência, a assinatura e o anexo atualizam na hora. Vale também clicar direto no
+            parágrafo amarelo, na data e no nº do TRT para ajustar à mão. Os dados ficam salvos neste navegador.</div>
+        <div class="grade">
+            <div class="c3"><label>Nome completo</label><input data-f="nome"></div>
+            <div><label>Sexo</label><select data-f="genero">
+                    <option value="M">Masculino</option>
+                    <option value="F">Feminino</option>
+                </select></div>
+            <div><label>Nacionalidade</label><input data-f="nac" placeholder="brasileiro(a)"></div>
+            <div><label>Profissão</label><input data-f="prof"></div>
+            <div><label>CPF</label><input data-f="cpf"></div>
+            <div><label>RG</label><input data-f="rg"></div>
+            <div><label>Estado civil</label><select data-f="civil">
+                    <option value="solteiro">Solteiro(a)</option>
+                    <option value="casado">Casado(a)</option>
+                    <option value="uniao">União estável</option>
+                    <option value="divorciado">Divorciado(a)</option>
+                    <option value="viuvo">Viúvo(a)</option>
+                </select></div>
+            <div class="c2"><label>Regime de bens</label><select data-f="regime">
+                    <option value="">—</option>
+                    <option>Comunhão Parcial de Bens</option>
+                    <option>Comunhão Universal de Bens</option>
+                    <option>Separação Total de Bens</option>
+                    <option>Participação Final nos Aquestos</option>
+                </select></div>
+            <div><label>Matrícula do imóvel</label><input data-f="mat"></div>
+            <div class="c6"><label>Endereço (residente e domiciliado em)</label><input data-f="end"></div>
+        </div>
+        <fieldset id="fsConj">
+            <legend>Cônjuge (só se casado/união estável fora de separação de bens)</legend>
+            <div class="grade">
+                <div class="c3"><label>Nome do cônjuge</label><input data-f="cNome"></div>
+                <div><label>Sexo</label><select data-f="cGenero">
+                        <option value="F">Feminino</option>
+                        <option value="M">Masculino</option>
+                    </select></div>
+                <div><label>Nacionalidade</label><input data-f="cNac" placeholder="brasileiro(a)"></div>
+                <div><label>Profissão</label><input data-f="cProf"></div>
+                <div class="c3"><label>CPF</label><input data-f="cCpf"></div>
+                <div class="c3"><label>RG</label><input data-f="cRg"></div>
+            </div>
+        </fieldset>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:space-between;align-items:center">
+            <button type="button" id="pLimpar">Limpar formulário</button>
+            <button type="button" id="pImprimir" style="background:#0f766e;color:#fff;border-color:#0f766e"
+                onclick="window.print()">Imprimir</button>
+        </div>
+    </div>
+
+
+    <!-- INICIO CORPO CONSOLIDADO -->
+    <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
+    <div
+        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col">
+        <div>
+            <!-- CABEÇALHO DA EMPRESA -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários LTDA</div>
+            </div>
+
+            <!-- TÍTULO JURÍDICO -->
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
+                    ANUÊNCIA DE LIMITES</h2>
+            </div>
+
+            <!-- CORPO DO TEXTO DA ANUÊNCIA -->
+            <div class="space-y-2.5 text-xs text-justify leading-relaxed text-slate-700">
+                <p><span id="qualif" contenteditable="true" spellcheck="false"></span>, na qualidade de <span
+                        data-k="proprietario"></span> e/ou <span data-k="possuidor"></span> <span
+                        data-k="legitimo"></span> da área
+                    confrontante registrada sob a <strong>Matrícula nº <span data-k="mat"></span></strong>, e assumindo
+                    integralmente
+                    as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
+                    condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
+                        Federal nº 6.015 de 1973</strong>), <strong><span data-k="declara"></span></strong> não existir
+                    nenhuma disputa,
+                    litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
+                    vizinho denominado <strong>Lote A</strong>, de propriedade de
+                    <strong>João Carlos Pozzobon casado com Edite Luzia Ruy Pozzobon</strong>, objeto da(s)
+                    <strong>Matrícula nº 7720</strong> do
+                    Serviço de Registro de Imóveis da Comarca de UMUARAMA.
+                </p>
+
+                <p><span data-k="declarante"></span> <span data-k="atesta"></span> que a linha de divisa comum entre as
+                    propriedades corresponde ao
+                    caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico
+                    Local (SGL) oficial do projeto:</p>
+
+                <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
+
+                <div class="my-1.5 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                    <table class="w-full text-left border-collapse bg-slate-50/50">
+                        <thead>
+                            <tr
+                                class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">
+                                <th class="px-3 py-1">De</th>
+                                <th class="px-3 py-1">Para</th>
+                                <th class="px-3 py-1 text-right">Azimute</th>
+                                <th class="px-3 py-1 text-right">Distância</th>
+                                <th class="px-3 py-1 text-right">Lat. Inicial</th>
+                                <th class="px-3 py-1 text-right">Lon. Inicial</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-V-0036</td>
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0091</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">178°42'58"</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">529.52 m</td>
+                                <td class="px-3 py-1 text-right">-23.4441050°</td>
+                                <td class="px-3 py-1 text-right">-53.2544444°</td>
+                            </tr>
+
+                            <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0091</td>
+                                <td class="px-3 py-1 font-bold text-slate-900">XRXR-V-0037</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">178°43'18"</td>
+                                <td class="px-3 py-1 text-right font-bold text-slate-900">180.66 m</td>
+                                <td class="px-3 py-1 text-right">-23.4488850°</td>
+                                <td class="px-3 py-1 text-right">-53.2543283°</td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+
+
+                <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
+
+
+                <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
+                <p class="break-inside-avoid"><span data-k="declaro_ainda"></span> que o profissional responsável
+                    técnico
+                    <strong>Dimas de Assis Ribeiro</strong>, inscrito no CFTA sob o registro nº
+                    <strong>36770434920</strong>, credenciado pelo INCRA sob o código
+                    <strong>XRXR</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
+                    Técnica - ART/TRT nº <strong contenteditable="true" spellcheck="false">BR20261001600</strong>,
+                    indicou com precisão todas as
+                    demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
+                    gráficas. <span data-k="declarante"></span> <span data-k="concorda"></span> integralmente com essa
+                    demarcação, expressa na planta e
+                    no memorial descritivo em anexo, e <span data-k="reconhece"></span> esta descrição como o limite
+                    legal e definitivo entre
+                    as suas propriedades, assinando em plena concordância.
+                </p>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
+        <div class="bloco-assinaturas-fechamento break-inside-avoid w-full mt-8 pt-2">
+            <p class="text-xs font-medium text-slate-900 text-left" contenteditable="true" spellcheck="false">
+                Umuarama/PR, 5 de outubro de 2026.</p>
+            <div class="pt-3">
+                <div class="mt-4 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-4 w-full">
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                        <div
+                            class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">
+                            João Carlos Pozzobon</div>
+                        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                        <div
+                            class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">
+                            Edite Luzia Ruy Pozzobon</div>
+                        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Esposa do Proprietário
+                            Requerente</div>
+                    </div>
+
+                    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                        <div
+                            class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">
+                            <span data-k="nome_assinatura"></span></div>
+                        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+                    </div>
+                    <div id="assina_conjuge" class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]"
+                        style="display:none">
+                        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                        <div
+                            class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">
+                            <span data-k="conjuge_assinatura"></span></div>
+                        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante
+                            Anuente</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+    <div
+        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
+        <!-- CABEÇALHO DA EMPRESA -->
+        <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+            <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+            <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                Agropecuários LTDA</div>
+        </div>
+
+        <div class="text-center mb-4">
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">ANEXO GRÁFICO - CROQUI DE LIMITES</h2>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Confrontante: <strong
+                    class="text-slate-900"><span data-k="nome"></span></strong> | Imóvel Confrontante: <strong
+                    class="text-slate-900"><span data-k="mat"></span></strong> | Matrícula nº: <strong
+                    class="text-slate-900">7720</strong></p>
+        </div>
+
+        <!-- Container do Mapa Leaflet -->
+        <div id="map_confrontante_132"
+            class="w-full h-[580px] border border-slate-300 rounded-xl shadow-sm bg-slate-100 overflow-hidden relative break-inside-avoid">
+            <!-- Indicador de Carregamento -->
+            <div id="loader_map_confrontante_132"
+                class="absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
+                <div class="flex flex-col items-center gap-2">
+                    <svg class="animate-spin h-8 w-8 text-[#0284c7]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Carregando Imagens
+                        de Satélite...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legenda do Mapa -->
+        <div
+            class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex justify-around text-[10px] text-slate-600 font-bold uppercase tracking-wider break-inside-avoid">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-0.5 border-t-2 border-dashed border-[#94a3b8]"></div>
+                <span>Limite Geral do Imóvel</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-1 bg-[#0284c7] rounded"></div>
+                <span class="text-[#0284c7]">Divisa Lindeira</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full border-[1.5px] border-[#0284c7] bg-white"></div>
+                <span>Vértice de Divisa</span>
+            </div>
+        </div>
+
+        <div class="mt-6 text-[8px] text-slate-400 text-justify leading-relaxed break-inside-avoid">
+            * Este croqui possui caráter puramente ilustrativo para fins de anuência de divisa lindeira, não
+            substituindo o memorial descritivo oficial de georreferenciamento nem as plantas técnicas aprovadas pelo
+            INCRA/SIGEF. As coordenadas apresentadas baseiam-se na projeção UTM Zone 22S sob o datum de referência
+            SIRGAS 2000.
+        </div>
+    </div>
+    <!-- FIM DE FOLHAS CONSOLIDADAS -->
+
+    <!-- FIM CORPO CONSOLIDADO -->
+
+    <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const mapasData = [{ "id": "map_confrontante_132", "poligono": [[-23.444105, -53.254444444444], [-23.448885, -53.254328333333], [-23.450515833333, -53.254288888889], [-23.450515, -53.254328055556], [-23.450424722222, -53.254786388889], [-23.450655, -53.256627222222], [-23.450497222222, -53.256657222222], [-23.449579166667, -53.25662], [-23.449543333333, -53.256621944444], [-23.447857222222, -53.25658], [-23.446751111111, -53.2565475], [-23.445948888889, -53.256516944444], [-23.445195555556, -53.256489722222], [-23.444718055556, -53.256475555556], [-23.444548888889, -53.255874722222], [-23.444381111111, -53.255335555556], [-23.444150277778, -53.254585833333]], "lindeira": [[[-23.444105, -53.254444444444], [-23.448885, -53.254328333333]], [[-23.448885, -53.254328333333], [-23.450515833333, -53.254288888889]]], "lindeira_pontos": [{ "coords": [-23.444105, -53.254444444444], "nome": "XRXR-V-0036", "exibir_nome": true }, { "coords": [-23.448885, -53.254328333333], "nome": "XRXR-P-0091", "exibir_nome": false }, { "coords": [-23.450515833333, -53.254288888889], "nome": "XRXR-V-0037", "exibir_nome": true }] }];
+
+            mapasData.forEach(function (m) {
+                try {
+                    const map = L.map(m.id, {
+                        zoomControl: false,
+                        attributionControl: false,
+                        fadeAnimation: false,
+                        zoomAnimation: false
+                    });
+
+                    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                        maxZoom: 20,
+                        crossOrigin: true
+                    });
+
+                    googleSat.addTo(map);
+
+                    if (m.poligono && m.poligono.length > 0) {
+                        L.polygon(m.poligono, {
+                            color: '#94a3b8',
+                            fill: false,
+                            weight: 1.5,
+                            dashArray: '4, 4'
+                        }).addTo(map);
+                    }
+
+                    const bounds = L.latLngBounds();
+                    if (m.lindeira && m.lindeira.length > 0) {
+                        m.lindeira.forEach(function (seg) {
+                            L.polyline(seg, {
+                                color: '#0284c7',
+                                weight: 4.5,
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }).addTo(map);
+                            bounds.extend(seg[0]);
+                            bounds.extend(seg[1]);
+                        });
+                    }
+
+                    if (m.lindeira_pontos && m.lindeira_pontos.length > 0) {
+                        m.lindeira_pontos.forEach(function (pt) {
+                            const marker = L.circleMarker(pt.coords, {
+                                radius: 2.0,
+                                color: '#0284c7',
+                                fillColor: '#ffffff',
+                                fillOpacity: 1.0,
+                                weight: 1.5
+                            }).addTo(map);
+
+                            if (pt.exibir_nome) {
+                                marker.bindTooltip(pt.nome, {
+                                    permanent: true,
+                                    direction: 'top',
+                                    className: 'custom-tooltip',
+                                    offset: [0, -5]
+                                });
+                            }
+                        });
+                    }
+
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, {
+                            padding: [40, 40],
+                            maxZoom: 18
+                        });
+                    } else if (m.poligono && m.poligono.length > 0) {
+                        map.fitBounds(m.poligono, {
+                            padding: [20, 20]
+                        });
+                    }
+
+                    let tilesLoaded = 0;
+                    map.on('tileload', function () {
+                        tilesLoaded++;
+                        if (tilesLoaded >= 3) {
+                            const loader = document.getElementById("loader_" + m.id);
+                            if (loader) loader.style.display = "none";
+                        }
+                    });
+
+                    setTimeout(function () {
+                        const loader = document.getElementById("loader_" + m.id);
+                        if (loader) loader.style.display = "none";
+                    }, 1500);
+
+                } catch (e) {
+                    console.error("Erro ao inicializar mapa " + m.id + ": ", e);
+                    const loader = document.getElementById("loader_" + m.id);
+                    if (loader) {
+                        loader.innerHTML = '<span class="text-xs text-red-500 font-bold">Falha ao carregar imagens do mapa.</span>';
+                    }
+                }
+            });
+        });
+    </script>
+
+
+    <script>
+        (function () {
+            const CHAVE = 'anuencia_douradina_v0036_v0037_v1', campos = {};
+            document.querySelectorAll('#painelConf [data-f]').forEach(e => campos[e.dataset.f] = e);
+            const VAZIO = { nome: '', genero: 'M', nac: '', prof: '', cpf: '', rg: '', civil: 'solteiro', regime: '', mat: '', end: '', cNome: '', cGenero: 'F', cNac: '', cProf: '', cCpf: '', cRg: '' };
+            Object.assign(VAZIO, { "mat": "1978" });
+            let v = { ...VAZIO };
+            try { Object.assign(v, JSON.parse(localStorage.getItem(CHAVE) || '{}')) } catch (e) { }
+            const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+            const lin = (t, n) => (t || '').trim() ? esc(t.trim()) : '_'.repeat(n);
+            const forte = t => `<strong class="text-slate-900">${t}</strong>`;
+
+            function estado() {
+                const casado = v.civil === 'casado' || v.civil === 'uniao';
+                const separacao = /separa/i.test(v.regime);
+                return { casado, separacao, casal: casado && !separacao };
+            }
+            const F = v => v === 'F';
+            const nacG = (n, f) => { n = (n || '').trim() || 'brasileiro(a)'; return /brasileir/i.test(n) ? (f ? 'brasileira' : 'brasileiro') : n };
+            function qualificacao() {
+                const f = F(v.genero), e = estado();
+                const nome = forte(lin(v.nome, 35)), nac = esc(nacG(v.nac, f)), prof = lin(v.prof, 20), end = lin(v.end, 50), cpf = lin(v.cpf, 18), rg = lin(v.rg, 15);
+                const port = f ? 'portadora' : 'portador', insc = f ? 'inscrita' : 'inscrito';
+                if (e.casal) {
+                    const cf = F(v.cGenero), cn = forte(lin(v.cNome, 35)), cnac = esc(nacG(v.cNac, cf)), cprof = lin(v.cProf, 25), ccpf = lin(v.cCpf, 18), crg = lin(v.cRg, 15);
+                    const reg = lin(v.regime, 25), pc = cf ? 'portadora' : 'portador', ic = cf ? 'inscrita' : 'inscrito';
+                    const rel = cf ? 'sua esposa' : 'seu esposo';
+                    const dados = (portN, inscN, r, c) => `${portN} da cédula de identidade RG nº ${r} e ${inscN} no CPF sob o nº ${c}`;
+                    let fim;
+                    if (f === cf) {
+                        const ambos = f ? 'ambas residentes e domiciliadas' : 'ambos residentes e domiciliados';
+                        fim = `${ambos} em ${end}, ${f ? 'esta' : 'este'} ${dados(port, insc, rg, cpf)}, e ${f ? 'aquela' : 'aquele'} ${dados(pc, ic, crg, ccpf)}`;
+                        return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+                    }
+                    fim = `${f ? 'ela' : 'ele'} ${dados(port, insc, rg, cpf)}, ${cf ? 'ela' : 'ele'} ${dados(pc, ic, crg, ccpf)}, ambos residentes e domiciliados em ${end}`;
+                    return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+                }
+                let civ;
+                if (e.casado && e.separacao) {
+                    civ = `, ${f ? 'casada' : 'casado'} sob o regime de ${esc(v.regime)} com ${lin(v.cNome, 35)}`;
+                } else {
+                    civ = { solteiro: f ? 'solteira' : 'solteiro', casado: f ? 'casada' : 'casado', uniao: 'convivente em união estável', divorciado: f ? 'divorciada' : 'divorciado', viuvo: f ? 'viúva' : 'viúvo' }[v.civil];
+                    civ = ', ' + civ;
+                }
+                return `${nome}, ${nac}, ${prof}${civ}, ${f ? 'residente e domiciliada' : 'residente e domiciliado'} em ${end}, ${insc} no CPF/MF sob o nº ${cpf} e ${port} da cédula de identidade RG nº ${rg}`;
+            }
+            function textos() {
+                const f = F(v.genero), e = estado(), pl = e.casal;
+                return {
+                    declara: pl ? 'DECLARAM' : 'DECLARA',
+                    declarante: pl ? 'Os declarantes' : (f ? 'A declarante' : 'O declarante'),
+                    atesta: pl ? 'atestam' : 'atesta', concorda: pl ? 'concordam' : 'concorda', reconhece: pl ? 'reconhecem' : 'reconhece',
+                    declaro_ainda: pl ? 'Declaramos ainda' : 'Declaro ainda',
+                    proprietario: f ? 'proprietária' : 'proprietário', possuidor: f ? 'possuidora' : 'possuidor', legitimo: f ? 'legítima' : 'legítimo',
+                    nome: lin(v.nome, 35), nome_assinatura: lin(v.nome, 32), mat: lin(v.mat, 24),
+                    conjuge_assinatura: lin(v.cNome, 32)
+                };
+            }
+            function aplicar() {
+                const e = estado(), t = textos();
+                document.getElementById('qualif').innerHTML = qualificacao();
+                document.querySelectorAll('[data-k]').forEach(s => { const x = t[s.dataset.k]; if (x !== undefined) s.innerHTML = x });
+                document.getElementById('assina_conjuge').style.display = e.casal ? 'flex' : 'none';
+                document.getElementById('fsConj').style.opacity = e.casal || !e.casado ? 1 : .5;
+            }
+            function sincronizarForm() { Object.entries(campos).forEach(([k, el]) => el.value = v[k] ?? '') }
+            document.getElementById('painelConf').addEventListener('input', ev => {
+                const k = ev.target.dataset.f; if (!k) return; v[k] = ev.target.value;
+                try { localStorage.setItem(CHAVE, JSON.stringify(v)) } catch (e) { }
+                aplicar();
+            });
+            document.getElementById('pLimpar').onclick = () => {
+                if (!confirm('Limpar todos os campos do confrontante?')) return;
+                v = { ...VAZIO }; try { localStorage.removeItem(CHAVE) } catch (e) { } sincronizarForm(); aplicar()
+            };
+            sincronizarForm(); aplicar();
+        })();
+    </script>
+
+</body>
+
+</html>

@@ -25,7 +25,8 @@ async def verificar_tranca_read_only(request: Request):
     if request.method not in ["POST", "PUT", "DELETE"]:
         return
 
-    if "/desarquivar" in request.url.path:
+    # Desarquivar e gerar link público de leitura são permitidos em levantamentos arquivados
+    if "/desarquivar" in request.url.path or request.url.path.endswith("/compartilhar"):
         return
 
     levantamento_id = None

@@ -216,7 +216,18 @@ class RealtimeSyncClient {
   }
 
   /**
-   * Atualiza as cores e o texto do Pill de sincronização no topo global
+   * Repinta o pill de status (ex.: ao abrir Configurações, onde ele agora vive).
+   */
+  public renderizarStatus() {
+    if (this.currentStatus) {
+      this.atualizarUI();
+    } else if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.atualizarStatusPillFallbackOffline();
+    }
+  }
+
+  /**
+   * Atualiza as cores e o texto do Pill de sincronização
    */
   private atualizarUI() {
     const dot = document.getElementById('sync-pill-dot');

@@ -7,16 +7,19 @@ import csv
 import pandas as pd
 from utils.transformer_cache import get_transformer
 from database.connection import execute_query, DatabaseManager
-from services.processamento.geoprocessamento import geodesic_to_ecef, ecef_to_geodesic
 
 logger = logging.getLogger(__name__)
 
 class TxtGeodesicParser:
-    def __init__(self, levantamento_id: int, matricula_id: int = None, base_escolhida_id: int = None, inverter_ne: bool = False):
+    def __init__(self, levantamento_id: int, matricula_id: int = None, base_escolhida_id: int = None, inverter_ne: bool = False, fuso_utm: int = None):
         self.levantamento_id = levantamento_id
         self.matricula_id = matricula_id
         self.base_escolhida_id = base_escolhida_id
         self.inverter_ne = inverter_ne
+        # Fuso UTM em que as coordenadas do arquivo estão; quando informado tem prioridade sobre a inferência
+        self.fuso_utm = fuso_utm
+        # Layout ('rtk' ou 'topcon') do último arquivo lido por processar_arquivo
+        self.layout_detectado = None
 
     def identificar_layout(self, linhas: list) -> str:
         """
@@ -150,12 +153,12 @@ class TxtGeodesicParser:
             
         return linhas_csv
 
-    def processar_arquivo(self, caminho_arquivo: str) -> list:
+    def ler_arquivo(self, caminho_arquivo: str) -> tuple:
         """
-        Lê o arquivo de texto ou planilha, detecta o layout, calcula o vetor de translação da base
-        no espaço tridimensional cartesiano geocêntrico ECEF e aplica a translação em bloco
-        sobre os rovers, convertendo tudo de volta para lat/lon SIRGAS 2000 Geodésico.
-        Propaga quadraticamente os desvios padrão (Sigmas) da base e rovers.
+        Lê o arquivo de texto ou planilha, normaliza o delimitador, detecta o layout e extrai os
+        pontos brutos (UTM, já com a inversão N/E aplicada). Não acessa o banco de dados, por isso
+        também é usado pela pré-visualização da Área de Triagem.
+        Retorna (layout, pontos_brutos).
         """
         if not os.path.exists(caminho_arquivo):
             raise FileNotFoundError(f"Arquivo não localizado: {caminho_arquivo}")
@@ -249,28 +252,45 @@ class TxtGeodesicParser:
                 logger.warning(f"[PARSER] Linha descartada por inconsistência numérica: {linha_limpa}. Erro: {e}")
                 continue
 
+        return layout, pontos_brutos
+
+    def processar_arquivo(self, caminho_arquivo: str) -> list:
+        """
+        Lê o arquivo de texto ou planilha, detecta o layout e, no layout RTK com base PPP escolhida,
+        aplica a translação plana UTM de corpo rígido (vetor base PPP - base bruta) sobre todos os
+        pontos, convertendo-os para lat/lon SIRGAS 2000 Geodésico.
+        """
+        nome_arquivo = os.path.basename(caminho_arquivo)
+        layout, pontos_brutos = self.ler_arquivo(caminho_arquivo)
+        self.layout_detectado = layout
+
         # 2. Resolução da Zona UTM e Instanciação Dinâmica dos Transformers
+        # Prioridade: fuso informado na importação > longitude da base PPP > ponto já existente > fuso 22
         base_ppp = self.obter_base_ppp(self.base_escolhida_id)
-        if base_ppp:
+        zona_utm = None
+        if self.fuso_utm:
+            zona_utm = int(self.fuso_utm)
+            logger.info(f"[PARSER] Fuso UTM informado na importação: Zona {zona_utm}S")
+        elif base_ppp:
             longitude_base = base_ppp["lon"]
             zona_utm = int((longitude_base + 180) / 6) + 1
-            epsg_dinamico = f"319{60 + zona_utm}"
-            logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com base na longitude {longitude_base:.6f}")
+            logger.info(f"[PARSER] Fuso UTM calculado dinamicamente: Zona {zona_utm}S com base na longitude {longitude_base:.6f}")
         else:
-            epsg_dinamico = "31982"
             try:
                 query_any_pt = "SELECT lon FROM pontos WHERE levantamento_id = ? AND lon IS NOT NULL AND lon != 0.0 LIMIT 1"
                 row_any_pt = execute_query(query_any_pt, params=(self.levantamento_id,), fetch_one=True)
                 if row_any_pt:
                     longitude_pt = row_any_pt["lon"]
                     zona_utm = int((longitude_pt + 180) / 6) + 1
-                    epsg_dinamico = f"319{60 + zona_utm}"
-                    logger.info(f"[PARSER] Fuso UTM inferido a partir de ponto existente no banco: Zona {zona_utm}S (EPSG:{epsg_dinamico}) com longitude {longitude_pt:.6f}")
+                    logger.info(f"[PARSER] Fuso UTM inferido a partir de ponto existente no banco: Zona {zona_utm}S com longitude {longitude_pt:.6f}")
             except Exception as e_fuso:
                 logger.warning(f"[PARSER] Falha ao tentar inferir fuso a partir de pontos do levantamento: {e_fuso}")
-            
-            logger.warning(f"[PARSER] Usando Fuso de Fallback: (EPSG:{epsg_dinamico})")
 
+            if zona_utm is None:
+                zona_utm = 22
+                logger.warning("[PARSER] Usando Fuso de Fallback: Zona 22S")
+
+        epsg_dinamico = f"319{60 + zona_utm}"
         crs_geodesica = "epsg:4674"
         crs_plana = f"epsg:{epsg_dinamico}"
 
@@ -374,11 +394,6 @@ class TxtGeodesicParser:
         pontos_processados = []
         vertices_vistos = set()
 
-        # Incertezas da Base PPP para propagação
-        sigma_base_lat = base_ppp.get("sigma_lat") or 0.0 if base_ppp else 0.0
-        sigma_base_lon = base_ppp.get("sigma_lon") or 0.0 if base_ppp else 0.0
-        sigma_base_alt = base_ppp.get("sigma_alt") or 0.0 if base_ppp else 0.0
-
         for p in pontos_brutos:
             if aplicar_translace_plana:
                 # Aplica translação rigorosa plana UTM de corpo rígido
@@ -470,7 +485,8 @@ class TxtGeodesicParser:
                 "status_ponto": status_ponto_final,
                 "ponto_base_id": self.base_escolhida_id,
                 "arquivo_origem": nome_arquivo,
-                "status_correcao": status_ponto_final
+                "status_correcao": status_ponto_final,
+                "fuso_utm": zona_utm
             }
             pontos_processados.append(ponto_final)
             ordem += 1
@@ -482,45 +498,15 @@ class TxtGeodesicParser:
         Salva os pontos processados na tabela 'pontos' do SQLite de forma transacional e
         retorna uma lista com os IDs inseridos correspondentes.
         """
-        ids_inseridos = []
-        query = """
-            INSERT INTO pontos (
-                levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
-                sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
-                n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
-                sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id,
-                arquivo_origem, status_correcao
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        
         try:
             with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                for p in pontos:
-                    try:
-                        cursor.execute(query, (
-                            p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p["tipo_ponto"],
-                            p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
-                            p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
-                            p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
-                            p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
-                            p["arquivo_origem"], p["status_correcao"]
-                        ))
-                        ids_inseridos.append(cursor.lastrowid)
-                    except sqlite3.IntegrityError as e_integ:
-                        if "UNIQUE constraint failed" in str(e_integ):
-                            raise ValueError(
-                                f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
-                                f"neste levantamento/matrícula. Remova a duplicata antes de prosseguir."
-                            )
-                        raise e_integ
+                ids_inseridos = self._inserir_pontos(conn.cursor(), pontos)
                 conn.commit()
             logger.info(f"[PARSER] {len(pontos)} pontos geodésicos persistidos com sucesso.")
+            return ids_inseridos
         except Exception as e:
             logger.error(f"[PARSER] Erro crítico ao persistir pontos no banco: {e}")
             raise e
-
-        return ids_inseridos
 
     def gerar_topologia_perimetral(self, ids_pontos: list, pontos_processados: list) -> int:
         """
@@ -528,6 +514,102 @@ class TxtGeodesicParser:
         e a divisa de fechamento obrigatória (do último ponto de volta ao primeiro).
         Mantém as regras de domínio no núcleo lógico de negócio de geoprocessamento.
         """
+        try:
+            with DatabaseManager() as conn:
+                total = self._inserir_topologia(conn.cursor(), ids_pontos, pontos_processados)
+                conn.commit()
+            return total
+        except Exception as e:
+            logger.error(f"[PARSER] Erro crítico ao gerar topologia perimetral no banco: {e}")
+            raise e
+
+    def persistir_com_topologia(self, pontos: list) -> tuple:
+        """
+        Grava pontos e topologia perimetral numa ÚNICA transação: se qualquer etapa falhar,
+        nada fica gravado. Usado na importação de um ou vários arquivos de uma vez.
+        Retorna (ids_inseridos, total_segmentos).
+        """
+        try:
+            with DatabaseManager() as conn:
+                cursor = conn.cursor()
+                ids_inseridos = self._inserir_pontos(cursor, pontos)
+                total_segmentos = self._inserir_topologia(cursor, ids_inseridos, pontos)
+                conn.commit()
+            logger.info(f"[PARSER] {len(ids_inseridos)} pontos e {total_segmentos} segmentos persistidos na mesma transação.")
+            return ids_inseridos, total_segmentos
+        except Exception as e:
+            logger.error(f"[PARSER] Erro crítico ao persistir importação (nada foi gravado): {e}")
+            raise e
+
+    @staticmethod
+    def unir_lotes(lotes: list) -> list:
+        """
+        Junta os pontos processados de vários arquivos num único caminhamento: renumera a ordem de
+        forma contínua a partir da ordem inicial do primeiro arquivo (cada arquivo calcula a sua a partir
+        do banco, então elas se sobreporiam) e barra vértices repetidos entre arquivos.
+        """
+        pontos = [p for lote in lotes for p in lote]
+        if not pontos:
+            return pontos
+
+        vistos = {}
+        for p in pontos:
+            chave = (p["nome_vertice"].upper(), p["tipo_ponto"])
+            if chave in vistos:
+                raise ValueError(
+                    f"Vértice duplicado entre arquivos da importação: Código '{p['nome_vertice']}' de Tipo "
+                    f"'{p['tipo_ponto']}' aparece em '{vistos[chave]}' e em '{p['arquivo_origem']}'."
+                )
+            vistos[chave] = p["arquivo_origem"]
+
+        ordem = pontos[0]["ordem_caminhamento"]
+        for p in pontos:
+            p["ordem_caminhamento"] = ordem
+            ordem += 1
+        return pontos
+
+    def _inserir_pontos(self, cursor, pontos: list) -> list:
+        ids_inseridos = []
+        query = """
+            INSERT INTO pontos (
+                levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
+                n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
+                sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id,
+                arquivo_origem, status_correcao, fuso_utm
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        for p in pontos:
+            if p["matricula_id"] is None:
+                cursor.execute(
+                    "SELECT 1 FROM pontos WHERE levantamento_id = ? AND matricula_id IS NULL AND UPPER(nome_vertice) = UPPER(?) AND tipo_ponto = ?",
+                    (p["levantamento_id"], p["nome_vertice"], p["tipo_ponto"])
+                )
+                if cursor.fetchone():
+                    raise ValueError(
+                        f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
+                        f"neste levantamento (sem matrícula). Remova a duplicata antes de prosseguir."
+                    )
+            try:
+                cursor.execute(query, (
+                    p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p["tipo_ponto"],
+                    p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
+                    p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
+                    p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
+                    p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
+                    p["arquivo_origem"], p["status_correcao"], p.get("fuso_utm", 22)
+                ))
+                ids_inseridos.append(cursor.lastrowid)
+            except sqlite3.IntegrityError as e_integ:
+                if "UNIQUE constraint failed" in str(e_integ):
+                    raise ValueError(
+                        f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
+                        f"neste levantamento/matrícula. Remova a duplicata antes de prosseguir."
+                    )
+                raise e_integ
+        return ids_inseridos
+
+    def _inserir_topologia(self, cursor, ids_pontos: list, pontos_processados: list) -> int:
         if not self.matricula_id:
             logger.info("[PARSER] Matrícula não fornecida. Pontos salvos de forma geral sem gerar topologia perimetral.")
             return 0
@@ -546,27 +628,17 @@ class TxtGeodesicParser:
                 confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef
             ) VALUES (?, ?, ?, ?, NULL, 'LN1', ?)
         """
-        
-        try:
-            with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                
-                # Divisas intermediárias (Ponto A -> Ponto B)
-                for i in range(len(ids_pontos) - 1):
-                    cursor.execute(query_seg, (
-                        self.levantamento_id, self.matricula_id, 
-                        ids_pontos[i], ids_pontos[i+1], metodo_padrao
-                    ))
-                    
-                # REGRA ESTRITA: Segmento final de fechamento de polígono (Último -> Primeiro)
-                cursor.execute(query_seg, (
-                    self.levantamento_id, self.matricula_id, 
-                    ids_pontos[-1], ids_pontos[0], metodo_padrao
-                ))
-                conn.commit()
-                
-            logger.info(f"[PARSER] Topologia perimetral criada com sucesso: {len(ids_pontos)} segmentos gerados.")
-            return len(ids_pontos)
-        except Exception as e:
-            logger.error(f"[PARSER] Erro crítico ao gerar topologia perimetral no banco: {e}")
-            raise e
+        # Divisas intermediárias (Ponto A -> Ponto B)
+        for i in range(len(ids_pontos) - 1):
+            cursor.execute(query_seg, (
+                self.levantamento_id, self.matricula_id, 
+                ids_pontos[i], ids_pontos[i+1], metodo_padrao
+            ))
+            
+        # REGRA ESTRITA: Segmento final de fechamento de polígono (Último -> Primeiro)
+        cursor.execute(query_seg, (
+            self.levantamento_id, self.matricula_id, 
+            ids_pontos[-1], ids_pontos[0], metodo_padrao
+        ))
+        logger.info(f"[PARSER] Topologia perimetral criada com sucesso: {len(ids_pontos)} segmentos gerados.")
+        return len(ids_pontos)

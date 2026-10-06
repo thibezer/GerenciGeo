@@ -556,6 +556,105 @@ def delete_segmento(sid: int):
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
+class AnuenciaAssinadaPayload(BaseModel):
+    assinada: bool
+
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/resumo-confrontantes")
+def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
+    """
+    Visão por confrontante: divisas, metragem, trechos contínuos (vértice ➔ vértice) e status da anuência.
+    Divisas sem confrontante vêm agrupadas em `sem_confrontante`.
+    """
+    try:
+        from pyproj import Geod
+        geod = Geod(ellps="GRS80")
+
+        row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
+
+        segs = execute_query(
+            """
+            SELECT s.id, s.confrontante_id, s.tipo_limite_sigef, s.anuencia_assinada,
+                   pi.nome_vertice AS de, pf.nome_vertice AS para,
+                   pi.lat AS lat1, pi.lon AS lon1, pf.lat AS lat2, pf.lon AS lon2,
+                   COALESCE(c.nome, pe.nome, '') AS conf_nome, c.matricula_imovel,
+                   COALESCE(pe.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj, c.caminho_matricula_pdf
+            FROM segmentos s
+            JOIN pontos pi ON pi.id = s.ponto_inicio_id
+            JOIN pontos pf ON pf.id = s.ponto_fim_id
+            LEFT JOIN confrontantes c ON c.id = s.confrontante_id
+            LEFT JOIN pessoas pe ON pe.id = c.pessoa_id
+            WHERE s.levantamento_id = ? AND s.matricula_id = ?
+            ORDER BY CASE WHEN pi.ordem_caminhamento IS NULL OR pi.ordem_caminhamento = 0 THEN 999999 ELSE pi.ordem_caminhamento END, s.id
+            """,
+            params=(id, target_id), fetch_all=True
+        )
+
+        def comprimento(r):
+            if None in (r["lat1"], r["lon1"], r["lat2"], r["lon2"]):
+                return 0.0
+            return geod.inv(r["lon1"], r["lat1"], r["lon2"], r["lat2"])[2]
+
+        grupos = {}      # confrontante_id -> resumo
+        sem_conf = {"qtd_divisas": 0, "comprimento_m": 0.0, "trechos": []}
+        ultimo_conf = object()
+        trecho_atual = None
+        sequencia = []   # trechos na ordem do perímetro (com coordenadas), para desenhar no mapa
+
+        for r in segs:
+            cid = r["confrontante_id"]
+            d = comprimento(r)
+            alvo = sem_conf if cid is None else grupos.setdefault(cid, {
+                "id": cid, "nome": r["conf_nome"] or f"Confrontante {cid}", "matricula_imovel": r["matricula_imovel"],
+                "cpf_cnpj": r["cpf_cnpj"], "tem_matricula_pdf": bool(r["caminho_matricula_pdf"]),
+                "qtd_divisas": 0, "comprimento_m": 0.0, "assinadas": 0, "trechos": []
+            })
+            alvo["qtd_divisas"] += 1
+            alvo["comprimento_m"] += d
+            if cid is not None and r["anuencia_assinada"]:
+                alvo["assinadas"] += 1
+
+            if cid != ultimo_conf:
+                trecho_atual = {"confrontante_id": cid, "nome": alvo.get("nome"), "de": r["de"], "para": r["para"], "qtd_divisas": 0,
+                                "comprimento_m": 0.0, "tipo_limite": r["tipo_limite_sigef"],
+                                "coords": [] if r["lat1"] is None else [[r["lat1"], r["lon1"]]]}
+                alvo["trechos"].append(trecho_atual)
+                sequencia.append(trecho_atual)
+                ultimo_conf = cid
+            if r["lat2"] is not None:
+                trecho_atual["coords"].append([r["lat2"], r["lon2"]])
+            trecho_atual["para"] = r["para"]
+            trecho_atual["qtd_divisas"] += 1
+            trecho_atual["comprimento_m"] += d
+
+        def arredonda(g):
+            g["comprimento_m"] = round(g["comprimento_m"], 2)
+            for t in g["trechos"]:
+                t["comprimento_m"] = round(t["comprimento_m"], 2)
+            return g
+
+        confrontantes = sorted((arredonda(g) for g in grupos.values()), key=lambda g: g["nome"].lower())
+        for t in sequencia:
+            t["comprimento_m"] = round(t["comprimento_m"], 2)
+        return {"confrontantes": confrontantes, "sem_confrontante": arredonda(sem_conf), "total_divisas": len(segs), "sequencia": sequencia}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-assinada")
+def marcar_anuencia_assinada_confrontante(id: int, matricula_id: int, confrontante_id: int, payload: AnuenciaAssinadaPayload):
+    """Marca/desmarca a anuência assinada em todas as divisas do confrontante nesta matrícula."""
+    verificar_levantamento_arquivado(id)
+    try:
+        row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
+        execute_query(
+            "UPDATE segmentos SET anuencia_assinada = ? WHERE levantamento_id = ? AND matricula_id = ? AND confrontante_id = ?",
+            params=(1 if payload.assinada else 0, id, target_id, confrontante_id), commit=True
+        )
+        return {"sucesso": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes-ativos")
 def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
     try:

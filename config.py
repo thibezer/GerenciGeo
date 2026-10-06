@@ -39,6 +39,10 @@ DEFAULT_ANTENNA = "HITV60 NONE"
 # Configurações do Negócio
 DEFAULT_EMAIL = "tsilvabertuchi@outlook.com"
 EXPORT_BASE_FOLDER = r"D:\Desenvolvimento\Geo"
+if os.environ.get("GERENCIGEO_TEST") == "1":
+    # Testes nunca gravam workspaces na pasta real de projetos
+    import tempfile
+    EXPORT_BASE_FOLDER = os.path.join(tempfile.gettempdir(), "gerencigeo_testes_workspace")
 
 IBGE_SIGEF_LIMITES = {
     'artificial': 0.50,

@@ -1,0 +1,122 @@
+<style>
+#painelConf{max-width:21cm;width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:12px 16px;margin-bottom:24px;font:12px/1.4 'Segoe UI',Tahoma,sans-serif;color:#1e293b;box-shadow:0 4px 12px #0001}
+#painelConf h3{margin:0 0 2px;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+#painelConf .dica{color:#64748b;font-size:11px;margin-bottom:8px}
+#painelConf .grade{display:grid;grid-template-columns:repeat(6,1fr);gap:6px 8px}
+#painelConf label{display:block;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+#painelConf input,#painelConf select{width:100%;font:inherit;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;background:#fff}
+#painelConf .c2{grid-column:span 2}#painelConf .c3{grid-column:span 3}#painelConf .c4{grid-column:span 4}#painelConf .c6{grid-column:span 6}
+#painelConf fieldset{border:1px dashed #cbd5e1;border-radius:8px;margin:8px 0 0;padding:6px 8px}
+#painelConf legend{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;padding:0 4px}
+#painelConf button{font:inherit;padding:4px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;cursor:pointer}
+#qualif{outline:none;background:#fef9c3}
+#qualif:focus,[contenteditable]:focus{background:#fef08a;outline:1px dashed #ca8a04}
+@media print{#painelConf{display:none!important}#qualif,[contenteditable],[data-k]{background:none!important;outline:none!important}}
+</style>
+<div id="painelConf" class="no-print">
+  <h3>Confrontante anuente — preencha aqui</h3>
+  <div class="dica">O texto da anuência, a assinatura e o anexo atualizam na hora. Vale também clicar direto no parágrafo amarelo, na data e no nº do TRT para ajustar à mão. Os dados ficam salvos neste navegador.</div>
+  <div class="grade">
+    <div class="c3"><label>Nome completo</label><input data-f="nome"></div>
+    <div><label>Sexo</label><select data-f="genero"><option value="M">Masculino</option><option value="F">Feminino</option></select></div>
+    <div><label>Nacionalidade</label><input data-f="nac" placeholder="brasileiro(a)"></div>
+    <div><label>Profissão</label><input data-f="prof"></div>
+    <div><label>CPF</label><input data-f="cpf"></div>
+    <div><label>RG</label><input data-f="rg"></div>
+    <div><label>Estado civil</label><select data-f="civil"><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="uniao">União estável</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></div>
+    <div class="c2"><label>Regime de bens</label><select data-f="regime"><option value="">—</option><option>Comunhão Parcial de Bens</option><option>Comunhão Universal de Bens</option><option>Separação Total de Bens</option><option>Participação Final nos Aquestos</option></select></div>
+    <div><label>Matrícula do imóvel</label><input data-f="mat"></div>
+    <div class="c6"><label>Endereço (residente e domiciliado em)</label><input data-f="end"></div>
+  </div>
+  <fieldset id="fsConj"><legend>Cônjuge (só se casado/união estável fora de separação de bens)</legend>
+    <div class="grade">
+      <div class="c3"><label>Nome do cônjuge</label><input data-f="cNome"></div>
+      <div><label>Sexo</label><select data-f="cGenero"><option value="F">Feminino</option><option value="M">Masculino</option></select></div>
+      <div><label>Nacionalidade</label><input data-f="cNac" placeholder="brasileiro(a)"></div>
+      <div><label>Profissão</label><input data-f="cProf"></div>
+      <div class="c3"><label>CPF</label><input data-f="cCpf"></div>
+      <div class="c3"><label>RG</label><input data-f="cRg"></div>
+    </div>
+  </fieldset>
+  <div style="margin-top:8px;display:flex;gap:8px;justify-content:space-between;align-items:center">
+    <button type="button" id="pLimpar">Limpar formulário</button>
+    <button type="button" id="pImprimir" style="background:#0f766e;color:#fff;border-color:#0f766e" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+<!--SCRIPT-->
+<script>
+(function(){
+  const CHAVE='anuencia_douradina_v1', campos={};
+  document.querySelectorAll('#painelConf [data-f]').forEach(e=>campos[e.dataset.f]=e);
+  const VAZIO={nome:'',genero:'M',nac:'',prof:'',cpf:'',rg:'',civil:'solteiro',regime:'',mat:'',end:'',cNome:'',cGenero:'F',cNac:'',cProf:'',cCpf:'',cRg:''};
+  Object.assign(VAZIO,/*PADRAO*/{});
+  let v={...VAZIO};
+  try{Object.assign(v,JSON.parse(localStorage.getItem(CHAVE)||'{}'))}catch(e){}
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const lin=(t,n)=>(t||'').trim()?esc(t.trim()):'_'.repeat(n);
+  const forte=t=>`<strong class="text-slate-900">${t}</strong>`;
+
+  function estado(){
+    const casado=v.civil==='casado'||v.civil==='uniao';
+    const separacao=/separa/i.test(v.regime);
+    return {casado,separacao,casal:casado&&!separacao};
+  }
+  const F=v=>v==='F';
+  const nacG=(n,f)=>{n=(n||'').trim()||'brasileiro(a)';return /brasileir/i.test(n)?(f?'brasileira':'brasileiro'):n};
+  function qualificacao(){
+    const f=F(v.genero),e=estado();
+    const nome=forte(lin(v.nome,35)),nac=esc(nacG(v.nac,f)),prof=lin(v.prof,20),end=lin(v.end,50),cpf=lin(v.cpf,18),rg=lin(v.rg,15);
+    const port=f?'portadora':'portador',insc=f?'inscrita':'inscrito';
+    if(e.casal){
+      const cf=F(v.cGenero),cn=forte(lin(v.cNome,35)),cnac=esc(nacG(v.cNac,cf)),cprof=lin(v.cProf,25),ccpf=lin(v.cCpf,18),crg=lin(v.cRg,15);
+      const reg=lin(v.regime,25),pc=cf?'portadora':'portador',ic=cf?'inscrita':'inscrito';
+      const rel=cf?'sua esposa':'seu esposo';
+      const dados=(portN,inscN,r,c)=>`${portN} da cédula de identidade RG nº ${r} e ${inscN} no CPF sob o nº ${c}`;
+      let fim;
+      if(f===cf){
+        const ambos=f?'ambas residentes e domiciliadas':'ambos residentes e domiciliados';
+        fim=`${ambos} em ${end}, ${f?'esta':'este'} ${dados(port,insc,rg,cpf)}, e ${f?'aquela':'aquele'} ${dados(pc,ic,crg,ccpf)}`;
+        return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+      }
+      fim=`${f?'ela':'ele'} ${dados(port,insc,rg,cpf)}, ${cf?'ela':'ele'} ${dados(pc,ic,crg,ccpf)}, ambos residentes e domiciliados em ${end}`;
+      return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+    }
+    let civ;
+    if(e.casado&&e.separacao){
+      civ=`, ${f?'casada':'casado'} sob o regime de ${esc(v.regime)} com ${lin(v.cNome,35)}`;
+    }else{
+      civ={solteiro:f?'solteira':'solteiro',casado:f?'casada':'casado',uniao:'convivente em união estável',divorciado:f?'divorciada':'divorciado',viuvo:f?'viúva':'viúvo'}[v.civil];
+      civ=', '+civ;
+    }
+    return `${nome}, ${nac}, ${prof}${civ}, ${f?'residente e domiciliada':'residente e domiciliado'} em ${end}, ${insc} no CPF/MF sob o nº ${cpf} e ${port} da cédula de identidade RG nº ${rg}`;
+  }
+  function textos(){
+    const f=F(v.genero),e=estado(),pl=e.casal;
+    return {
+      declara:pl?'DECLARAM':'DECLARA',
+      declarante:pl?'Os declarantes':(f?'A declarante':'O declarante'),
+      atesta:pl?'atestam':'atesta', concorda:pl?'concordam':'concorda', reconhece:pl?'reconhecem':'reconhece',
+      declaro_ainda:pl?'Declaramos ainda':'Declaro ainda',
+      proprietario:f?'proprietária':'proprietário', possuidor:f?'possuidora':'possuidor', legitimo:f?'legítima':'legítimo',
+      nome:lin(v.nome,35), nome_assinatura:lin(v.nome,32), mat:lin(v.mat,24),
+      conjuge_assinatura:lin(v.cNome,32)
+    };
+  }
+  function aplicar(){
+    const e=estado(),t=textos();
+    document.getElementById('qualif').innerHTML=qualificacao();
+    document.querySelectorAll('[data-k]').forEach(s=>{const x=t[s.dataset.k];if(x!==undefined)s.innerHTML=x});
+    document.getElementById('assina_conjuge').style.display=e.casal?'flex':'none';
+    document.getElementById('fsConj').style.opacity=e.casal||!e.casado?1:.5;
+  }
+  function sincronizarForm(){Object.entries(campos).forEach(([k,el])=>el.value=v[k]??'')}
+  document.getElementById('painelConf').addEventListener('input',ev=>{
+    const k=ev.target.dataset.f;if(!k)return;v[k]=ev.target.value;
+    try{localStorage.setItem(CHAVE,JSON.stringify(v))}catch(e){}
+    aplicar();
+  });
+  document.getElementById('pLimpar').onclick=()=>{if(!confirm('Limpar todos os campos do confrontante?'))return;
+    v={...VAZIO};try{localStorage.removeItem(CHAVE)}catch(e){}sincronizarForm();aplicar()};
+  sincronizarForm();aplicar();
+})();
+</script>

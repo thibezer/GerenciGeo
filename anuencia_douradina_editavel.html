@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaração de Anuência - Fazenda Douradina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0.8cm 1.6cm 0.8cm 1.6cm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 29.7cm !important;
+                box-sizing: border-box !important;
+                display: block !important;
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
+            .page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            p,
+            li,
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                webkit-column-break-inside: avoid !important;
+            }
+
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            p,
+            li {
+                orphans: 3 !important;
+                widows: 3 !important;
+            }
+
+            .bloco-assinaturas-fechamento {
+                margin-top: 1.2cm !important;
+                padding-top: 0 !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+            /* Estilos específicos de impressão para Leaflet */
+            .leaflet-tile-container img {
+                mix-blend-mode: normal !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .leaflet-container {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+
+        /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
+        .custom-tooltip {
+            background-color: rgba(15, 23, 42, 0.9) !important;
+            border: 1px solid #0284c7 !important;
+            border-radius: 4px !important;
+            color: #ffffff !important;
+            font-family: monospace !important;
+            font-size: 8px !important;
+            font-weight: bold !important;
+            padding: 2px 6px !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        .custom-tooltip::before {
+            border-top-color: rgba(15, 23, 42, 0.9) !important;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência do Confrontante
+                </h4>
+                <p class="text-[10px] text-white/40 mt-0.5">Termo Consolidado de Respeito de Divisas</p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
+            Imprimir Documento
+        </button>
+    </div>
+    <!-- BARRA_ACOES_FIM -->
+<style>
+#painelConf{max-width:21cm;width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:12px 16px;margin-bottom:24px;font:12px/1.4 'Segoe UI',Tahoma,sans-serif;color:#1e293b;box-shadow:0 4px 12px #0001}
+#painelConf h3{margin:0 0 2px;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+#painelConf .dica{color:#64748b;font-size:11px;margin-bottom:8px}
+#painelConf .grade{display:grid;grid-template-columns:repeat(6,1fr);gap:6px 8px}
+#painelConf label{display:block;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+#painelConf input,#painelConf select{width:100%;font:inherit;padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;background:#fff}
+#painelConf .c2{grid-column:span 2}#painelConf .c3{grid-column:span 3}#painelConf .c4{grid-column:span 4}#painelConf .c6{grid-column:span 6}
+#painelConf fieldset{border:1px dashed #cbd5e1;border-radius:8px;margin:8px 0 0;padding:6px 8px}
+#painelConf legend{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;padding:0 4px}
+#painelConf button{font:inherit;padding:4px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;cursor:pointer}
+#qualif{outline:none;background:#fef9c3}
+#qualif:focus,[contenteditable]:focus{background:#fef08a;outline:1px dashed #ca8a04}
+@media print{#painelConf{display:none!important}#qualif,[contenteditable],[data-k]{background:none!important;outline:none!important}}
+</style>
+<div id="painelConf" class="no-print">
+  <h3>Confrontante anuente — preencha aqui</h3>
+  <div class="dica">O texto da anuência, a assinatura e o anexo atualizam na hora. Vale também clicar direto no parágrafo amarelo, na data e no nº do TRT para ajustar à mão. Os dados ficam salvos neste navegador.</div>
+  <div class="grade">
+    <div class="c3"><label>Nome completo</label><input data-f="nome"></div>
+    <div><label>Sexo</label><select data-f="genero"><option value="M">Masculino</option><option value="F">Feminino</option></select></div>
+    <div><label>Nacionalidade</label><input data-f="nac" placeholder="brasileiro(a)"></div>
+    <div><label>Profissão</label><input data-f="prof"></div>
+    <div><label>CPF</label><input data-f="cpf"></div>
+    <div><label>RG</label><input data-f="rg"></div>
+    <div><label>Estado civil</label><select data-f="civil"><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="uniao">União estável</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></div>
+    <div class="c2"><label>Regime de bens</label><select data-f="regime"><option value="">—</option><option>Comunhão Parcial de Bens</option><option>Comunhão Universal de Bens</option><option>Separação Total de Bens</option><option>Participação Final nos Aquestos</option></select></div>
+    <div><label>Matrícula do imóvel</label><input data-f="mat"></div>
+    <div class="c6"><label>Endereço (residente e domiciliado em)</label><input data-f="end"></div>
+  </div>
+  <fieldset id="fsConj"><legend>Cônjuge (só se casado/união estável fora de separação de bens)</legend>
+    <div class="grade">
+      <div class="c3"><label>Nome do cônjuge</label><input data-f="cNome"></div>
+      <div><label>Sexo</label><select data-f="cGenero"><option value="F">Feminino</option><option value="M">Masculino</option></select></div>
+      <div><label>Nacionalidade</label><input data-f="cNac" placeholder="brasileiro(a)"></div>
+      <div><label>Profissão</label><input data-f="cProf"></div>
+      <div class="c3"><label>CPF</label><input data-f="cCpf"></div>
+      <div class="c3"><label>RG</label><input data-f="cRg"></div>
+    </div>
+  </fieldset>
+  <div style="margin-top:8px;display:flex;gap:8px;justify-content:space-between;align-items:center">
+    <button type="button" id="pLimpar">Limpar formulário</button>
+    <button type="button" id="pImprimir" style="background:#0f766e;color:#fff;border-color:#0f766e" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+
+
+    <!-- INICIO CORPO CONSOLIDADO -->
+    <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
+    <div
+        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col">
+        <div>
+            <!-- CABEÇALHO DA EMPRESA -->
+            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
+                    Agropecuários LTDA</div>
+            </div>
+
+            <!-- TÍTULO JURÍDICO -->
+            <div class="text-center mb-2">
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
+                    ANUÊNCIA DE LIMITES</h2>
+            </div>
+
+            <!-- CORPO DO TEXTO DA ANUÊNCIA -->
+            <div class="space-y-2.5 text-xs text-justify leading-relaxed text-slate-700">
+                <p><span id="qualif" contenteditable="true" spellcheck="false"></span>, na qualidade de <span data-k="proprietario"></span> e/ou <span data-k="possuidor"></span> <span data-k="legitimo"></span> da área
+                    confrontante registrada sob a <strong>Matrícula nº <span data-k="mat"></span></strong>, e assumindo integralmente
+                    as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
+                    condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
+                        Federal nº 6.015 de 1973</strong>), <strong><span data-k="declara"></span></strong> não existir nenhuma disputa,
+                    litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
+                    vizinho denominado <strong>Lote B</strong>, de propriedade de
+                    <strong>João Carlos Pozzobon casado com Edite Luzia Ruy Pozzobon</strong>, objeto da(s) <strong>Matrícula nº 4980</strong> do
+                    Serviço de Registro de Imóveis da Comarca de UMUARAMA.
+                </p>
+
+                <p><span data-k="declarante"></span> <span data-k="atesta"></span> que a linha de divisa comum entre as propriedades corresponde ao
+                    caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico
+                    Local (SGL) oficial do projeto:</p>
+
+                <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
+                
+    <div class="my-1.5 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+        <table class="w-full text-left border-collapse bg-slate-50/50">
+            <thead>
+                <tr class="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-300 tracking-wider">
+                    <th class="px-3 py-1">De</th>
+                    <th class="px-3 py-1">Para</th>
+                    <th class="px-3 py-1 text-right">Azimute</th>
+                    <th class="px-3 py-1 text-right">Distância</th>
+                    <th class="px-3 py-1 text-right">Lat. Inicial</th>
+                    <th class="px-3 py-1 text-right">Lon. Inicial</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0092</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0093</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">181°19'09"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">1075.03 m</td>
+            <td class="px-3 py-1 text-right">-23.4562453°</td>
+            <td class="px-3 py-1 text-right">-53.2569036°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0093</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0094</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">283°27'25"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">37.15 m</td>
+            <td class="px-3 py-1 text-right">-23.4659494°</td>
+            <td class="px-3 py-1 text-right">-53.2571458°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0094</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0095</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">306°09'58"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">18.35 m</td>
+            <td class="px-3 py-1 text-right">-23.4658714°</td>
+            <td class="px-3 py-1 text-right">-53.2574994°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0095</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0096</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">292°00'50"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">32.17 m</td>
+            <td class="px-3 py-1 text-right">-23.4657736°</td>
+            <td class="px-3 py-1 text-right">-53.2576444°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0096</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0097</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">291°59'28"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">24.98 m</td>
+            <td class="px-3 py-1 text-right">-23.4656647°</td>
+            <td class="px-3 py-1 text-right">-53.2579364°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0097</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0098</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">259°31'00"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">20.29 m</td>
+            <td class="px-3 py-1 text-right">-23.4655803°</td>
+            <td class="px-3 py-1 text-right">-53.2581631°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0098</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0099</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">226°18'01"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">17.23 m</td>
+            <td class="px-3 py-1 text-right">-23.4656136°</td>
+            <td class="px-3 py-1 text-right">-53.2583583°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0099</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0100</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">235°50'39"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">24.11 m</td>
+            <td class="px-3 py-1 text-right">-23.4657211°</td>
+            <td class="px-3 py-1 text-right">-53.2584803°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0100</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0101</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">267°12'20"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">15.14 m</td>
+            <td class="px-3 py-1 text-right">-23.4658433°</td>
+            <td class="px-3 py-1 text-right">-53.2586756°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0101</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0102</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">235°42'13"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">23.53 m</td>
+            <td class="px-3 py-1 text-right">-23.4658500°</td>
+            <td class="px-3 py-1 text-right">-53.2588236°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0102</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0103</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">207°35'54"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">14.58 m</td>
+            <td class="px-3 py-1 text-right">-23.4659697°</td>
+            <td class="px-3 py-1 text-right">-53.2590139°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0103</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0104</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">209°57'58"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">16.19 m</td>
+            <td class="px-3 py-1 text-right">-23.4660864°</td>
+            <td class="px-3 py-1 text-right">-53.2590800°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0104</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0105</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">262°42'57"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">12.62 m</td>
+            <td class="px-3 py-1 text-right">-23.4662131°</td>
+            <td class="px-3 py-1 text-right">-53.2591592°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0105</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0106</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">19°02'34"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">19.40 m</td>
+            <td class="px-3 py-1 text-right">-23.4662275°</td>
+            <td class="px-3 py-1 text-right">-53.2592817°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0106</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0107</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">301°57'35"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">13.95 m</td>
+            <td class="px-3 py-1 text-right">-23.4660619°</td>
+            <td class="px-3 py-1 text-right">-53.2592197°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0107</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0108</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">275°41'23"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">15.52 m</td>
+            <td class="px-3 py-1 text-right">-23.4659953°</td>
+            <td class="px-3 py-1 text-right">-53.2593356°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0108</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0109</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">270°15'43"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">13.45 m</td>
+            <td class="px-3 py-1 text-right">-23.4659814°</td>
+            <td class="px-3 py-1 text-right">-53.2594867°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0109</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0110</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">290°35'19"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">21.43 m</td>
+            <td class="px-3 py-1 text-right">-23.4659808°</td>
+            <td class="px-3 py-1 text-right">-53.2596183°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0110</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0111</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">307°50'30"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">23.97 m</td>
+            <td class="px-3 py-1 text-right">-23.4659128°</td>
+            <td class="px-3 py-1 text-right">-53.2598147°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0111</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0112</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">294°27'17"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">17.24 m</td>
+            <td class="px-3 py-1 text-right">-23.4657800°</td>
+            <td class="px-3 py-1 text-right">-53.2600000°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0112</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0113</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">24°34'30"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">27.71 m</td>
+            <td class="px-3 py-1 text-right">-23.4657156°</td>
+            <td class="px-3 py-1 text-right">-53.2601536°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0113</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0114</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">5°23'28"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">12.08 m</td>
+            <td class="px-3 py-1 text-right">-23.4654881°</td>
+            <td class="px-3 py-1 text-right">-53.2600408°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0114</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0115</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">7°11'11"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">22.23 m</td>
+            <td class="px-3 py-1 text-right">-23.4653794°</td>
+            <td class="px-3 py-1 text-right">-53.2600297°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0115</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0116</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">351°01'01"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">13.27 m</td>
+            <td class="px-3 py-1 text-right">-23.4651803°</td>
+            <td class="px-3 py-1 text-right">-53.2600025°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0116</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0117</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">29°06'23"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">10.03 m</td>
+            <td class="px-3 py-1 text-right">-23.4650619°</td>
+            <td class="px-3 py-1 text-right">-53.2600228°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0117</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0118</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">70°08'00"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">10.05 m</td>
+            <td class="px-3 py-1 text-right">-23.4649828°</td>
+            <td class="px-3 py-1 text-right">-53.2599750°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0118</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0119</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">2°25'53"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">26.76 m</td>
+            <td class="px-3 py-1 text-right">-23.4649519°</td>
+            <td class="px-3 py-1 text-right">-53.2598825°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0119</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0120</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">312°33'51"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">16.65 m</td>
+            <td class="px-3 py-1 text-right">-23.4647106°</td>
+            <td class="px-3 py-1 text-right">-53.2598714°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0120</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0121</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">279°06'39"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">15.35 m</td>
+            <td class="px-3 py-1 text-right">-23.4646089°</td>
+            <td class="px-3 py-1 text-right">-53.2599914°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0121</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0122</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">272°23'15"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">16.25 m</td>
+            <td class="px-3 py-1 text-right">-23.4645869°</td>
+            <td class="px-3 py-1 text-right">-53.2601397°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0122</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0123</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">222°23'13"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">23.53 m</td>
+            <td class="px-3 py-1 text-right">-23.4645808°</td>
+            <td class="px-3 py-1 text-right">-53.2602986°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0123</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0124</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">344°22'14"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">12.75 m</td>
+            <td class="px-3 py-1 text-right">-23.4647378°</td>
+            <td class="px-3 py-1 text-right">-53.2604539°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0124</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0125</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">259°17'48"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">19.38 m</td>
+            <td class="px-3 py-1 text-right">-23.4646269°</td>
+            <td class="px-3 py-1 text-right">-53.2604875°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0125</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0126</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">345°36'55"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">14.74 m</td>
+            <td class="px-3 py-1 text-right">-23.4646594°</td>
+            <td class="px-3 py-1 text-right">-53.2606739°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0126</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0127</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">280°00'20"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">19.65 m</td>
+            <td class="px-3 py-1 text-right">-23.4645306°</td>
+            <td class="px-3 py-1 text-right">-53.2607097°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0127</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0128</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">287°37'57"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">23.26 m</td>
+            <td class="px-3 py-1 text-right">-23.4644997°</td>
+            <td class="px-3 py-1 text-right">-53.2608992°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0128</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0129</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">274°05'40"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">15.08 m</td>
+            <td class="px-3 py-1 text-right">-23.4644361°</td>
+            <td class="px-3 py-1 text-right">-53.2611161°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0129</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0130</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">232°09'58"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">21.42 m</td>
+            <td class="px-3 py-1 text-right">-23.4644264°</td>
+            <td class="px-3 py-1 text-right">-53.2612633°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0130</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0131</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">256°08'58"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">7.45 m</td>
+            <td class="px-3 py-1 text-right">-23.4645450°</td>
+            <td class="px-3 py-1 text-right">-53.2614289°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0131</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0132</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">291°00'44"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">17.85 m</td>
+            <td class="px-3 py-1 text-right">-23.4645611°</td>
+            <td class="px-3 py-1 text-right">-53.2614997°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0132</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0133</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">263°48'48"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">18.84 m</td>
+            <td class="px-3 py-1 text-right">-23.4645033°</td>
+            <td class="px-3 py-1 text-right">-53.2616628°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0133</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0134</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">259°37'04"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">18.44 m</td>
+            <td class="px-3 py-1 text-right">-23.4645217°</td>
+            <td class="px-3 py-1 text-right">-53.2618461°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0134</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0135</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">267°27'46"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">19.46 m</td>
+            <td class="px-3 py-1 text-right">-23.4645517°</td>
+            <td class="px-3 py-1 text-right">-53.2620236°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0135</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0136</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">29°11'32"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">20.02 m</td>
+            <td class="px-3 py-1 text-right">-23.4645594°</td>
+            <td class="px-3 py-1 text-right">-53.2622139°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0136</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0137</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">251°11'23"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">32.44 m</td>
+            <td class="px-3 py-1 text-right">-23.4644017°</td>
+            <td class="px-3 py-1 text-right">-53.2621183°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0137</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0138</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">204°13'22"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">20.54 m</td>
+            <td class="px-3 py-1 text-right">-23.4644961°</td>
+            <td class="px-3 py-1 text-right">-53.2624189°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0138</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0139</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">278°51'32"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">22.17 m</td>
+            <td class="px-3 py-1 text-right">-23.4646653°</td>
+            <td class="px-3 py-1 text-right">-53.2625014°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0139</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0140</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">277°59'10"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">28.34 m</td>
+            <td class="px-3 py-1 text-right">-23.4646344°</td>
+            <td class="px-3 py-1 text-right">-53.2627158°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0140</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0141</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">265°21'18"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">14.44 m</td>
+            <td class="px-3 py-1 text-right">-23.4645989°</td>
+            <td class="px-3 py-1 text-right">-53.2629906°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0141</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0142</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">254°20'31"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">33.51 m</td>
+            <td class="px-3 py-1 text-right">-23.4646094°</td>
+            <td class="px-3 py-1 text-right">-53.2631314°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0142</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0143</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">314°55'48"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">25.13 m</td>
+            <td class="px-3 py-1 text-right">-23.4646911°</td>
+            <td class="px-3 py-1 text-right">-53.2634472°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0143</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0144</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">321°22'33"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">13.82 m</td>
+            <td class="px-3 py-1 text-right">-23.4645308°</td>
+            <td class="px-3 py-1 text-right">-53.2636214°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0144</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0145</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">331°44'47"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">18.41 m</td>
+            <td class="px-3 py-1 text-right">-23.4644333°</td>
+            <td class="px-3 py-1 text-right">-53.2637058°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0145</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0146</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">277°33'04"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">43.54 m</td>
+            <td class="px-3 py-1 text-right">-23.4642869°</td>
+            <td class="px-3 py-1 text-right">-53.2637911°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0146</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0147</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">244°36'02"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">37.01 m</td>
+            <td class="px-3 py-1 text-right">-23.4642353°</td>
+            <td class="px-3 py-1 text-right">-53.2642136°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0147</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0148</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">268°17'08"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">47.30 m</td>
+            <td class="px-3 py-1 text-right">-23.4643786°</td>
+            <td class="px-3 py-1 text-right">-53.2645408°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0148</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0149</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">297°12'34"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">27.32 m</td>
+            <td class="px-3 py-1 text-right">-23.4643914°</td>
+            <td class="px-3 py-1 text-right">-53.2650036°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0149</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0150</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">5°14'12"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">18.97 m</td>
+            <td class="px-3 py-1 text-right">-23.4642786°</td>
+            <td class="px-3 py-1 text-right">-53.2652414°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0150</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0151</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">289°35'05"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">25.51 m</td>
+            <td class="px-3 py-1 text-right">-23.4641081°</td>
+            <td class="px-3 py-1 text-right">-53.2652244°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0151</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0152</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">265°50'11"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">42.80 m</td>
+            <td class="px-3 py-1 text-right">-23.4640308°</td>
+            <td class="px-3 py-1 text-right">-53.2654597°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0152</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0153</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">255°15'40"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">27.09 m</td>
+            <td class="px-3 py-1 text-right">-23.4640589°</td>
+            <td class="px-3 py-1 text-right">-53.2658775°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0153</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0154</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">250°35'30"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">41.01 m</td>
+            <td class="px-3 py-1 text-right">-23.4641211°</td>
+            <td class="px-3 py-1 text-right">-53.2661339°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0154</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0155</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">231°05'29"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">28.70 m</td>
+            <td class="px-3 py-1 text-right">-23.4642442°</td>
+            <td class="px-3 py-1 text-right">-53.2665125°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0155</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0156</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">324°40'21"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">3.09 m</td>
+            <td class="px-3 py-1 text-right">-23.4644069°</td>
+            <td class="px-3 py-1 text-right">-53.2667311°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0156</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0157</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">261°53'05"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">20.27 m</td>
+            <td class="px-3 py-1 text-right">-23.4643842°</td>
+            <td class="px-3 py-1 text-right">-53.2667486°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0157</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0158</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">280°57'19"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">14.57 m</td>
+            <td class="px-3 py-1 text-right">-23.4644100°</td>
+            <td class="px-3 py-1 text-right">-53.2669450°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0158</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0159</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">296°47'55"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">24.29 m</td>
+            <td class="px-3 py-1 text-right">-23.4643850°</td>
+            <td class="px-3 py-1 text-right">-53.2670850°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0159</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0160</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">310°24'09"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">15.09 m</td>
+            <td class="px-3 py-1 text-right">-23.4642861°</td>
+            <td class="px-3 py-1 text-right">-53.2672972°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0160</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0161</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">245°02'29"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">11.30 m</td>
+            <td class="px-3 py-1 text-right">-23.4641978°</td>
+            <td class="px-3 py-1 text-right">-53.2674097°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0161</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0162</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">238°41'58"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">11.72 m</td>
+            <td class="px-3 py-1 text-right">-23.4642408°</td>
+            <td class="px-3 py-1 text-right">-53.2675100°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0162</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0163</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">273°29'06"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">12.65 m</td>
+            <td class="px-3 py-1 text-right">-23.4642958°</td>
+            <td class="px-3 py-1 text-right">-53.2676081°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0163</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0164</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">268°54'28"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">11.30 m</td>
+            <td class="px-3 py-1 text-right">-23.4642889°</td>
+            <td class="px-3 py-1 text-right">-53.2677317°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0164</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0165</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">341°21'32"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">13.05 m</td>
+            <td class="px-3 py-1 text-right">-23.4642908°</td>
+            <td class="px-3 py-1 text-right">-53.2678422°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0165</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0166</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">274°35'53"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">17.65 m</td>
+            <td class="px-3 py-1 text-right">-23.4641792°</td>
+            <td class="px-3 py-1 text-right">-53.2678831°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0166</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0167</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">284°47'06"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">16.88 m</td>
+            <td class="px-3 py-1 text-right">-23.4641664°</td>
+            <td class="px-3 py-1 text-right">-53.2680553°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0167</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0168</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">280°11'31"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">29.56 m</td>
+            <td class="px-3 py-1 text-right">-23.4641275°</td>
+            <td class="px-3 py-1 text-right">-53.2682150°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0168</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0169</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">283°37'56"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">25.84 m</td>
+            <td class="px-3 py-1 text-right">-23.4640803°</td>
+            <td class="px-3 py-1 text-right">-53.2684997°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0169</td>
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0170</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">295°04'37"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">48.85 m</td>
+            <td class="px-3 py-1 text-right">-23.4640253°</td>
+            <td class="px-3 py-1 text-right">-53.2687456°</td>
+        </tr>
+        
+        <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">
+            <td class="px-3 py-1 font-bold text-slate-900">XRXR-P-0170</td>
+            <td class="px-3 py-1 font-bold text-slate-900">SDEX-P-5675</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">250°16'54"</td>
+            <td class="px-3 py-1 text-right font-bold text-slate-900">59.63 m</td>
+            <td class="px-3 py-1 text-right">-23.4638383°</td>
+            <td class="px-3 py-1 text-right">-53.2691786°</td>
+        </tr>
+        
+            </tbody>
+        </table>
+    </div>
+    
+
+                <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
+                
+
+                <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
+                <p class="break-inside-avoid"><span data-k="declaro_ainda"></span> que o profissional responsável técnico
+                    <strong>Dimas de Assis Ribeiro</strong>, inscrito no CFTA sob o registro nº
+                    <strong>36770434920</strong>, credenciado pelo INCRA sob o código
+                    <strong>XRXR</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
+                    Técnica - ART/TRT nº <strong contenteditable="true" spellcheck="false">____________________</strong>, indicou com precisão todas as
+                    demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
+                    gráficas. <span data-k="declarante"></span> <span data-k="concorda"></span> integralmente com essa demarcação, expressa na planta e
+                    no memorial descritivo em anexo, e <span data-k="reconhece"></span> esta descrição como o limite legal e definitivo entre
+                    as suas propriedades, assinando em plena concordância.
+                </p>
+            </div>
+        </div>
+
+        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
+        <div class="bloco-assinaturas-fechamento break-inside-avoid w-full mt-8 pt-2">
+            <p class="text-xs font-medium text-slate-900 text-left" contenteditable="true" spellcheck="false">Umuarama/PR, 5 de outubro de 2026.</p>
+            <div class="pt-3">
+                <div class="mt-4 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-4 w-full">
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">João Carlos Pozzobon</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Proprietário Requerente</div>
+        </div>
+        
+            <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">Edite Luzia Ruy Pozzobon</div>
+                <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Esposa do Proprietário Requerente</div>
+            </div>
+            
+    <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+        <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight"><span data-k="nome_assinatura"></span></div>
+        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+    </div>
+    <div id="assina_conjuge" class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]" style="display:none">
+        <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+        <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight"><span data-k="conjuge_assinatura"></span></div>
+        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
+    </div>
+    </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+    
+<!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+<div class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
+    <!-- CABEÇALHO DA EMPRESA -->
+    <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
+        <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
+        <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos Agropecuários LTDA</div>
+    </div>
+    
+    <div class="text-center mb-4">
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">ANEXO GRÁFICO - CROQUI DE LIMITES</h2>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mt-1">Confrontante: <strong class="text-slate-900"><span data-k="nome"></span></strong> | Imóvel Confrontante: <strong class="text-slate-900"><span data-k="mat"></span></strong> | Matrícula nº: <strong class="text-slate-900">4980</strong></p>
+    </div>
+
+    <!-- Container do Mapa Leaflet -->
+    <div id="map_confrontante_141" class="w-full h-[580px] border border-slate-300 rounded-xl shadow-sm bg-slate-100 overflow-hidden relative break-inside-avoid">
+        <!-- Indicador de Carregamento -->
+        <div id="loader_map_confrontante_141" class="absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
+            <div class="flex flex-col items-center gap-2">
+                <svg class="animate-spin h-8 w-8 text-[#0284c7]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Carregando Imagens de Satélite...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legenda do Mapa -->
+    <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex justify-around text-[10px] text-slate-600 font-bold uppercase tracking-wider break-inside-avoid">
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-0.5 border-t-2 border-dashed border-[#94a3b8]"></div>
+            <span>Limite Geral do Imóvel</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-1 bg-[#0284c7] rounded"></div>
+            <span class="text-[#0284c7]">Divisa Lindeira</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full border-[1.5px] border-[#0284c7] bg-white"></div>
+            <span>Vértice de Divisa</span>
+        </div>
+    </div>
+
+    <div class="mt-6 text-[8px] text-slate-400 text-justify leading-relaxed break-inside-avoid">
+        * Este croqui possui caráter puramente ilustrativo para fins de anuência de divisa lindeira, não substituindo o memorial descritivo oficial de georreferenciamento nem as plantas técnicas aprovadas pelo INCRA/SIGEF. As coordenadas apresentadas baseiam-se na projeção UTM Zone 22S sob o datum de referência SIRGAS 2000.
+     </div>
+</div>
+<!-- FIM DE FOLHAS CONSOLIDADAS -->
+        
+    <!-- FIM CORPO CONSOLIDADO -->
+
+    <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
+    
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const mapasData = [{"id": "map_confrontante_141", "poligono": [[-23.444631388889, -53.267180277778], [-23.444640555556, -53.266477222222], [-23.444645, -53.265899166667], [-23.444658888889, -53.264965555556], [-23.444665, -53.264037777778], [-23.444676944444, -53.263080555556], [-23.444686944444, -53.262374166667], [-23.444693888889, -53.261778055556], [-23.444705555556, -53.261388888889], [-23.444713055556, -53.26088], [-23.444716666667, -53.260521666667], [-23.444719166667, -53.2599475], [-23.444730555556, -53.259377222222], [-23.444745833333, -53.258833055556], [-23.444765277778, -53.258164722222], [-23.4447825, -53.257146666667], [-23.444783055556, -53.256911666667], [-23.444805, -53.256800555556], [-23.444864166667, -53.256706666667], [-23.4449525, -53.256643888889], [-23.445056388889, -53.256622777778], [-23.445191666667, -53.256626666667], [-23.445944722222, -53.256653888889], [-23.446747222222, -53.256684166667], [-23.447854166667, -53.256716944444], [-23.449544722222, -53.256758888889], [-23.449579722222, -53.256757222222], [-23.4504925, -53.256794166667], [-23.450640555556, -53.256763333333], [-23.450754722222, -53.2567775], [-23.450946111111, -53.2567825], [-23.451128888889, -53.256789722222], [-23.4513125, -53.256796944444], [-23.451496666667, -53.256796944444], [-23.451677777778, -53.256795], [-23.451858611111, -53.256797222222], [-23.452042222222, -53.256799444444], [-23.452223888889, -53.256805277778], [-23.452404444444, -53.256813333333], [-23.452589444444, -53.256830277778], [-23.452773611111, -53.256835], [-23.452953333333, -53.256836388889], [-23.453138055556, -53.256852777778], [-23.453323333333, -53.256848611111], [-23.453503888889, -53.256852777778], [-23.453668333333, -53.256858611111], [-23.453870277778, -53.256862777778], [-23.454052222222, -53.256868888889], [-23.454236944444, -53.256873611111], [-23.454420555556, -53.256875833333], [-23.454600833333, -53.256879722222], [-23.4547825, -53.256888333333], [-23.454966111111, -53.2568925], [-23.45515, -53.256895555556], [-23.455327222222, -53.256897777778], [-23.455511666667, -53.256906944444], [-23.455692777778, -53.256920555556], [-23.455876944444, -53.256933611111], [-23.456062222222, -53.256926944444], [-23.456245277778, -53.256903611111], [-23.465949444444, -53.257145833333], [-23.465871388889, -53.257499444444], [-23.465773611111, -53.257644444444], [-23.465664722222, -53.257936388889], [-23.465580277778, -53.258163055556], [-23.465613611111, -53.258358333333], [-23.465721111111, -53.258480277778], [-23.465843333333, -53.258675555556], [-23.46585, -53.258823611111], [-23.465969722222, -53.259013888889], [-23.466086388889, -53.25908], [-23.466213055556, -53.259159166667], [-23.4662275, -53.259281666667], [-23.466061944444, -53.259219722222], [-23.465995277778, -53.259335555556], [-23.465981388889, -53.259486666667], [-23.465980833333, -53.259618333333], [-23.465912777778, -53.259814722222], [-23.46578, -53.26], [-23.465715555556, -53.260153611111], [-23.465488055556, -53.260040833333], [-23.465379444444, -53.260029722222], [-23.465180277778, -53.2600025], [-23.465061944444, -53.260022777778], [-23.464982777778, -53.259975], [-23.464951944444, -53.2598825], [-23.464710555556, -53.259871388889], [-23.464608888889, -53.259991388889], [-23.464586944444, -53.260139722222], [-23.464580833333, -53.260298611111], [-23.464737777778, -53.260453888889], [-23.464626944444, -53.2604875], [-23.464659444444, -53.260673888889], [-23.464530555556, -53.260709722222], [-23.464499722222, -53.260899166667], [-23.464436111111, -53.261116111111], [-23.464426388889, -53.261263333333], [-23.464545, -53.261428888889], [-23.464561111111, -53.261499722222], [-23.464503333333, -53.261662777778], [-23.464521666667, -53.261846111111], [-23.464551666667, -53.262023611111], [-23.464559444444, -53.262213888889], [-23.464401666667, -53.262118333333], [-23.464496111111, -53.262418888889], [-23.464665277778, -53.262501388889], [-23.464634444444, -53.262715833333], [-23.464598888889, -53.262990555556], [-23.464609444444, -53.263131388889], [-23.464691111111, -53.263447222222], [-23.464530833333, -53.263621388889], [-23.464433333333, -53.263705833333], [-23.464286944444, -53.263791111111], [-23.464235277778, -53.264213611111], [-23.464378611111, -53.264540833333], [-23.464391388889, -53.265003611111], [-23.464278611111, -53.265241388889], [-23.464108055556, -53.265224444444], [-23.464030833333, -53.265459722222], [-23.464058888889, -53.2658775], [-23.464121111111, -53.266133888889], [-23.464244166667, -53.2665125], [-23.464406944444, -53.266731111111], [-23.464384166667, -53.266748611111], [-23.46441, -53.266945], [-23.464385, -53.267085], [-23.464286111111, -53.267297222222], [-23.464197777778, -53.267409722222], [-23.464240833333, -53.26751], [-23.464295833333, -53.267608055556], [-23.464288888889, -53.267731666667], [-23.464290833333, -53.267842222222], [-23.464179166667, -53.267883055556], [-23.464166388889, -53.268055277778], [-23.4641275, -53.268215], [-23.464080277778, -53.268499722222], [-23.464025277778, -53.268745555556], [-23.463838333333, -53.269178611111], [-23.46402, -53.269728055556], [-23.444639722222, -53.269601666667], [-23.444642222222, -53.269534722222], [-23.444643055556, -53.268668611111], [-23.444639722222, -53.267685833333]], "lindeira": [[[-23.456245277778, -53.256903611111], [-23.465949444444, -53.257145833333]], [[-23.465949444444, -53.257145833333], [-23.465871388889, -53.257499444444]], [[-23.465871388889, -53.257499444444], [-23.465773611111, -53.257644444444]], [[-23.465773611111, -53.257644444444], [-23.465664722222, -53.257936388889]], [[-23.465664722222, -53.257936388889], [-23.465580277778, -53.258163055556]], [[-23.465580277778, -53.258163055556], [-23.465613611111, -53.258358333333]], [[-23.465613611111, -53.258358333333], [-23.465721111111, -53.258480277778]], [[-23.465721111111, -53.258480277778], [-23.465843333333, -53.258675555556]], [[-23.465843333333, -53.258675555556], [-23.46585, -53.258823611111]], [[-23.46585, -53.258823611111], [-23.465969722222, -53.259013888889]], [[-23.465969722222, -53.259013888889], [-23.466086388889, -53.25908]], [[-23.466086388889, -53.25908], [-23.466213055556, -53.259159166667]], [[-23.466213055556, -53.259159166667], [-23.4662275, -53.259281666667]], [[-23.4662275, -53.259281666667], [-23.466061944444, -53.259219722222]], [[-23.466061944444, -53.259219722222], [-23.465995277778, -53.259335555556]], [[-23.465995277778, -53.259335555556], [-23.465981388889, -53.259486666667]], [[-23.465981388889, -53.259486666667], [-23.465980833333, -53.259618333333]], [[-23.465980833333, -53.259618333333], [-23.465912777778, -53.259814722222]], [[-23.465912777778, -53.259814722222], [-23.46578, -53.26]], [[-23.46578, -53.26], [-23.465715555556, -53.260153611111]], [[-23.465715555556, -53.260153611111], [-23.465488055556, -53.260040833333]], [[-23.465488055556, -53.260040833333], [-23.465379444444, -53.260029722222]], [[-23.465379444444, -53.260029722222], [-23.465180277778, -53.2600025]], [[-23.465180277778, -53.2600025], [-23.465061944444, -53.260022777778]], [[-23.465061944444, -53.260022777778], [-23.464982777778, -53.259975]], [[-23.464982777778, -53.259975], [-23.464951944444, -53.2598825]], [[-23.464951944444, -53.2598825], [-23.464710555556, -53.259871388889]], [[-23.464710555556, -53.259871388889], [-23.464608888889, -53.259991388889]], [[-23.464608888889, -53.259991388889], [-23.464586944444, -53.260139722222]], [[-23.464586944444, -53.260139722222], [-23.464580833333, -53.260298611111]], [[-23.464580833333, -53.260298611111], [-23.464737777778, -53.260453888889]], [[-23.464737777778, -53.260453888889], [-23.464626944444, -53.2604875]], [[-23.464626944444, -53.2604875], [-23.464659444444, -53.260673888889]], [[-23.464659444444, -53.260673888889], [-23.464530555556, -53.260709722222]], [[-23.464530555556, -53.260709722222], [-23.464499722222, -53.260899166667]], [[-23.464499722222, -53.260899166667], [-23.464436111111, -53.261116111111]], [[-23.464436111111, -53.261116111111], [-23.464426388889, -53.261263333333]], [[-23.464426388889, -53.261263333333], [-23.464545, -53.261428888889]], [[-23.464545, -53.261428888889], [-23.464561111111, -53.261499722222]], [[-23.464561111111, -53.261499722222], [-23.464503333333, -53.261662777778]], [[-23.464503333333, -53.261662777778], [-23.464521666667, -53.261846111111]], [[-23.464521666667, -53.261846111111], [-23.464551666667, -53.262023611111]], [[-23.464551666667, -53.262023611111], [-23.464559444444, -53.262213888889]], [[-23.464559444444, -53.262213888889], [-23.464401666667, -53.262118333333]], [[-23.464401666667, -53.262118333333], [-23.464496111111, -53.262418888889]], [[-23.464496111111, -53.262418888889], [-23.464665277778, -53.262501388889]], [[-23.464665277778, -53.262501388889], [-23.464634444444, -53.262715833333]], [[-23.464634444444, -53.262715833333], [-23.464598888889, -53.262990555556]], [[-23.464598888889, -53.262990555556], [-23.464609444444, -53.263131388889]], [[-23.464609444444, -53.263131388889], [-23.464691111111, -53.263447222222]], [[-23.464691111111, -53.263447222222], [-23.464530833333, -53.263621388889]], [[-23.464530833333, -53.263621388889], [-23.464433333333, -53.263705833333]], [[-23.464433333333, -53.263705833333], [-23.464286944444, -53.263791111111]], [[-23.464286944444, -53.263791111111], [-23.464235277778, -53.264213611111]], [[-23.464235277778, -53.264213611111], [-23.464378611111, -53.264540833333]], [[-23.464378611111, -53.264540833333], [-23.464391388889, -53.265003611111]], [[-23.464391388889, -53.265003611111], [-23.464278611111, -53.265241388889]], [[-23.464278611111, -53.265241388889], [-23.464108055556, -53.265224444444]], [[-23.464108055556, -53.265224444444], [-23.464030833333, -53.265459722222]], [[-23.464030833333, -53.265459722222], [-23.464058888889, -53.2658775]], [[-23.464058888889, -53.2658775], [-23.464121111111, -53.266133888889]], [[-23.464121111111, -53.266133888889], [-23.464244166667, -53.2665125]], [[-23.464244166667, -53.2665125], [-23.464406944444, -53.266731111111]], [[-23.464406944444, -53.266731111111], [-23.464384166667, -53.266748611111]], [[-23.464384166667, -53.266748611111], [-23.46441, -53.266945]], [[-23.46441, -53.266945], [-23.464385, -53.267085]], [[-23.464385, -53.267085], [-23.464286111111, -53.267297222222]], [[-23.464286111111, -53.267297222222], [-23.464197777778, -53.267409722222]], [[-23.464197777778, -53.267409722222], [-23.464240833333, -53.26751]], [[-23.464240833333, -53.26751], [-23.464295833333, -53.267608055556]], [[-23.464295833333, -53.267608055556], [-23.464288888889, -53.267731666667]], [[-23.464288888889, -53.267731666667], [-23.464290833333, -53.267842222222]], [[-23.464290833333, -53.267842222222], [-23.464179166667, -53.267883055556]], [[-23.464179166667, -53.267883055556], [-23.464166388889, -53.268055277778]], [[-23.464166388889, -53.268055277778], [-23.4641275, -53.268215]], [[-23.4641275, -53.268215], [-23.464080277778, -53.268499722222]], [[-23.464080277778, -53.268499722222], [-23.464025277778, -53.268745555556]], [[-23.464025277778, -53.268745555556], [-23.463838333333, -53.269178611111]], [[-23.463838333333, -53.269178611111], [-23.46402, -53.269728055556]]], "lindeira_pontos": [{"coords": [-23.456245277778, -53.256903611111], "nome": "XRXR-P-0092", "exibir_nome": true}, {"coords": [-23.465949444444, -53.257145833333], "nome": "XRXR-P-0093", "exibir_nome": false}, {"coords": [-23.465871388889, -53.257499444444], "nome": "XRXR-P-0094", "exibir_nome": false}, {"coords": [-23.465773611111, -53.257644444444], "nome": "XRXR-P-0095", "exibir_nome": false}, {"coords": [-23.465664722222, -53.257936388889], "nome": "XRXR-P-0096", "exibir_nome": false}, {"coords": [-23.465580277778, -53.258163055556], "nome": "XRXR-P-0097", "exibir_nome": false}, {"coords": [-23.465613611111, -53.258358333333], "nome": "XRXR-P-0098", "exibir_nome": false}, {"coords": [-23.465721111111, -53.258480277778], "nome": "XRXR-P-0099", "exibir_nome": false}, {"coords": [-23.465843333333, -53.258675555556], "nome": "XRXR-P-0100", "exibir_nome": false}, {"coords": [-23.46585, -53.258823611111], "nome": "XRXR-P-0101", "exibir_nome": false}, {"coords": [-23.465969722222, -53.259013888889], "nome": "XRXR-P-0102", "exibir_nome": false}, {"coords": [-23.466086388889, -53.25908], "nome": "XRXR-P-0103", "exibir_nome": false}, {"coords": [-23.466213055556, -53.259159166667], "nome": "XRXR-P-0104", "exibir_nome": false}, {"coords": [-23.4662275, -53.259281666667], "nome": "XRXR-P-0105", "exibir_nome": false}, {"coords": [-23.466061944444, -53.259219722222], "nome": "XRXR-P-0106", "exibir_nome": false}, {"coords": [-23.465995277778, -53.259335555556], "nome": "XRXR-P-0107", "exibir_nome": false}, {"coords": [-23.465981388889, -53.259486666667], "nome": "XRXR-P-0108", "exibir_nome": false}, {"coords": [-23.465980833333, -53.259618333333], "nome": "XRXR-P-0109", "exibir_nome": false}, {"coords": [-23.465912777778, -53.259814722222], "nome": "XRXR-P-0110", "exibir_nome": false}, {"coords": [-23.46578, -53.26], "nome": "XRXR-P-0111", "exibir_nome": false}, {"coords": [-23.465715555556, -53.260153611111], "nome": "XRXR-P-0112", "exibir_nome": false}, {"coords": [-23.465488055556, -53.260040833333], "nome": "XRXR-P-0113", "exibir_nome": false}, {"coords": [-23.465379444444, -53.260029722222], "nome": "XRXR-P-0114", "exibir_nome": false}, {"coords": [-23.465180277778, -53.2600025], "nome": "XRXR-P-0115", "exibir_nome": false}, {"coords": [-23.465061944444, -53.260022777778], "nome": "XRXR-P-0116", "exibir_nome": false}, {"coords": [-23.464982777778, -53.259975], "nome": "XRXR-P-0117", "exibir_nome": false}, {"coords": [-23.464951944444, -53.2598825], "nome": "XRXR-P-0118", "exibir_nome": false}, {"coords": [-23.464710555556, -53.259871388889], "nome": "XRXR-P-0119", "exibir_nome": false}, {"coords": [-23.464608888889, -53.259991388889], "nome": "XRXR-P-0120", "exibir_nome": false}, {"coords": [-23.464586944444, -53.260139722222], "nome": "XRXR-P-0121", "exibir_nome": false}, {"coords": [-23.464580833333, -53.260298611111], "nome": "XRXR-P-0122", "exibir_nome": false}, {"coords": [-23.464737777778, -53.260453888889], "nome": "XRXR-P-0123", "exibir_nome": false}, {"coords": [-23.464626944444, -53.2604875], "nome": "XRXR-P-0124", "exibir_nome": false}, {"coords": [-23.464659444444, -53.260673888889], "nome": "XRXR-P-0125", "exibir_nome": false}, {"coords": [-23.464530555556, -53.260709722222], "nome": "XRXR-P-0126", "exibir_nome": false}, {"coords": [-23.464499722222, -53.260899166667], "nome": "XRXR-P-0127", "exibir_nome": false}, {"coords": [-23.464436111111, -53.261116111111], "nome": "XRXR-P-0128", "exibir_nome": false}, {"coords": [-23.464426388889, -53.261263333333], "nome": "XRXR-P-0129", "exibir_nome": false}, {"coords": [-23.464545, -53.261428888889], "nome": "XRXR-P-0130", "exibir_nome": false}, {"coords": [-23.464561111111, -53.261499722222], "nome": "XRXR-P-0131", "exibir_nome": false}, {"coords": [-23.464503333333, -53.261662777778], "nome": "XRXR-P-0132", "exibir_nome": false}, {"coords": [-23.464521666667, -53.261846111111], "nome": "XRXR-P-0133", "exibir_nome": false}, {"coords": [-23.464551666667, -53.262023611111], "nome": "XRXR-P-0134", "exibir_nome": false}, {"coords": [-23.464559444444, -53.262213888889], "nome": "XRXR-P-0135", "exibir_nome": false}, {"coords": [-23.464401666667, -53.262118333333], "nome": "XRXR-P-0136", "exibir_nome": false}, {"coords": [-23.464496111111, -53.262418888889], "nome": "XRXR-P-0137", "exibir_nome": false}, {"coords": [-23.464665277778, -53.262501388889], "nome": "XRXR-P-0138", "exibir_nome": false}, {"coords": [-23.464634444444, -53.262715833333], "nome": "XRXR-P-0139", "exibir_nome": false}, {"coords": [-23.464598888889, -53.262990555556], "nome": "XRXR-P-0140", "exibir_nome": false}, {"coords": [-23.464609444444, -53.263131388889], "nome": "XRXR-P-0141", "exibir_nome": false}, {"coords": [-23.464691111111, -53.263447222222], "nome": "XRXR-P-0142", "exibir_nome": false}, {"coords": [-23.464530833333, -53.263621388889], "nome": "XRXR-P-0143", "exibir_nome": false}, {"coords": [-23.464433333333, -53.263705833333], "nome": "XRXR-P-0144", "exibir_nome": false}, {"coords": [-23.464286944444, -53.263791111111], "nome": "XRXR-P-0145", "exibir_nome": false}, {"coords": [-23.464235277778, -53.264213611111], "nome": "XRXR-P-0146", "exibir_nome": false}, {"coords": [-23.464378611111, -53.264540833333], "nome": "XRXR-P-0147", "exibir_nome": false}, {"coords": [-23.464391388889, -53.265003611111], "nome": "XRXR-P-0148", "exibir_nome": false}, {"coords": [-23.464278611111, -53.265241388889], "nome": "XRXR-P-0149", "exibir_nome": false}, {"coords": [-23.464108055556, -53.265224444444], "nome": "XRXR-P-0150", "exibir_nome": false}, {"coords": [-23.464030833333, -53.265459722222], "nome": "XRXR-P-0151", "exibir_nome": false}, {"coords": [-23.464058888889, -53.2658775], "nome": "XRXR-P-0152", "exibir_nome": false}, {"coords": [-23.464121111111, -53.266133888889], "nome": "XRXR-P-0153", "exibir_nome": false}, {"coords": [-23.464244166667, -53.2665125], "nome": "XRXR-P-0154", "exibir_nome": false}, {"coords": [-23.464406944444, -53.266731111111], "nome": "XRXR-P-0155", "exibir_nome": false}, {"coords": [-23.464384166667, -53.266748611111], "nome": "XRXR-P-0156", "exibir_nome": false}, {"coords": [-23.46441, -53.266945], "nome": "XRXR-P-0157", "exibir_nome": false}, {"coords": [-23.464385, -53.267085], "nome": "XRXR-P-0158", "exibir_nome": false}, {"coords": [-23.464286111111, -53.267297222222], "nome": "XRXR-P-0159", "exibir_nome": false}, {"coords": [-23.464197777778, -53.267409722222], "nome": "XRXR-P-0160", "exibir_nome": false}, {"coords": [-23.464240833333, -53.26751], "nome": "XRXR-P-0161", "exibir_nome": false}, {"coords": [-23.464295833333, -53.267608055556], "nome": "XRXR-P-0162", "exibir_nome": false}, {"coords": [-23.464288888889, -53.267731666667], "nome": "XRXR-P-0163", "exibir_nome": false}, {"coords": [-23.464290833333, -53.267842222222], "nome": "XRXR-P-0164", "exibir_nome": false}, {"coords": [-23.464179166667, -53.267883055556], "nome": "XRXR-P-0165", "exibir_nome": false}, {"coords": [-23.464166388889, -53.268055277778], "nome": "XRXR-P-0166", "exibir_nome": false}, {"coords": [-23.4641275, -53.268215], "nome": "XRXR-P-0167", "exibir_nome": false}, {"coords": [-23.464080277778, -53.268499722222], "nome": "XRXR-P-0168", "exibir_nome": false}, {"coords": [-23.464025277778, -53.268745555556], "nome": "XRXR-P-0169", "exibir_nome": false}, {"coords": [-23.463838333333, -53.269178611111], "nome": "XRXR-P-0170", "exibir_nome": false}, {"coords": [-23.46402, -53.269728055556], "nome": "SDEX-P-5675", "exibir_nome": true}]}];
+        
+        mapasData.forEach(function(m) {
+            try {
+                const map = L.map(m.id, {
+                    zoomControl: false,
+                    attributionControl: false,
+                    fadeAnimation: false,
+                    zoomAnimation: false
+                });
+                
+                const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    crossOrigin: true
+                });
+                
+                googleSat.addTo(map);
+                
+                if (m.poligono && m.poligono.length > 0) {
+                    L.polygon(m.poligono, {
+                        color: '#94a3b8',
+                        fill: false,
+                        weight: 1.5,
+                        dashArray: '4, 4'
+                    }).addTo(map);
+                }
+                
+                const bounds = L.latLngBounds();
+                if (m.lindeira && m.lindeira.length > 0) {
+                    m.lindeira.forEach(function(seg) {
+                        L.polyline(seg, {
+                            color: '#0284c7',
+                            weight: 4.5,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(map);
+                        bounds.extend(seg[0]);
+                        bounds.extend(seg[1]);
+                    });
+                }
+                
+                if (m.lindeira_pontos && m.lindeira_pontos.length > 0) {
+                    m.lindeira_pontos.forEach(function(pt) {
+                        const marker = L.circleMarker(pt.coords, {
+                            radius: 2.0,
+                            color: '#0284c7',
+                            fillColor: '#ffffff',
+                            fillOpacity: 1.0,
+                            weight: 1.5
+                        }).addTo(map);
+                        
+                        if (pt.exibir_nome) {
+                            marker.bindTooltip(pt.nome, {
+                                permanent: true,
+                                direction: 'top',
+                                className: 'custom-tooltip',
+                                offset: [0, -5]
+                            });
+                        }
+                    });
+                }
+                
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, {
+                        padding: [40, 40],
+                        maxZoom: 18
+                    });
+                } else if (m.poligono && m.poligono.length > 0) {
+                    map.fitBounds(m.poligono, {
+                        padding: [20, 20]
+                    });
+                }
+                
+                let tilesLoaded = 0;
+                map.on('tileload', function() {
+                    tilesLoaded++;
+                    if (tilesLoaded >= 3) {
+                        const loader = document.getElementById("loader_" + m.id);
+                        if (loader) loader.style.display = "none";
+                    }
+                });
+                
+                setTimeout(function() {
+                    const loader = document.getElementById("loader_" + m.id);
+                    if (loader) loader.style.display = "none";
+                }, 1500);
+                
+            } catch (e) {
+                console.error("Erro ao inicializar mapa " + m.id + ": ", e);
+                const loader = document.getElementById("loader_" + m.id);
+                if (loader) {
+                    loader.innerHTML = '<span class="text-xs text-red-500 font-bold">Falha ao carregar imagens do mapa.</span>';
+                }
+            }
+        });
+    });
+</script>
+    
+
+<script>
+(function(){
+  const CHAVE='anuencia_douradina_v1', campos={};
+  document.querySelectorAll('#painelConf [data-f]').forEach(e=>campos[e.dataset.f]=e);
+  const VAZIO={nome:'',genero:'M',nac:'',prof:'',cpf:'',rg:'',civil:'solteiro',regime:'',mat:'',end:'',cNome:'',cGenero:'F',cNac:'',cProf:'',cCpf:'',cRg:''};
+  Object.assign(VAZIO,{"mat": ""});
+  let v={...VAZIO};
+  try{Object.assign(v,JSON.parse(localStorage.getItem(CHAVE)||'{}'))}catch(e){}
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const lin=(t,n)=>(t||'').trim()?esc(t.trim()):'_'.repeat(n);
+  const forte=t=>`<strong class="text-slate-900">${t}</strong>`;
+
+  function estado(){
+    const casado=v.civil==='casado'||v.civil==='uniao';
+    const separacao=/separa/i.test(v.regime);
+    return {casado,separacao,casal:casado&&!separacao};
+  }
+  const F=v=>v==='F';
+  const nacG=(n,f)=>{n=(n||'').trim()||'brasileiro(a)';return /brasileir/i.test(n)?(f?'brasileira':'brasileiro'):n};
+  function qualificacao(){
+    const f=F(v.genero),e=estado();
+    const nome=forte(lin(v.nome,35)),nac=esc(nacG(v.nac,f)),prof=lin(v.prof,20),end=lin(v.end,50),cpf=lin(v.cpf,18),rg=lin(v.rg,15);
+    const port=f?'portadora':'portador',insc=f?'inscrita':'inscrito';
+    if(e.casal){
+      const cf=F(v.cGenero),cn=forte(lin(v.cNome,35)),cnac=esc(nacG(v.cNac,cf)),cprof=lin(v.cProf,25),ccpf=lin(v.cCpf,18),crg=lin(v.cRg,15);
+      const reg=lin(v.regime,25),pc=cf?'portadora':'portador',ic=cf?'inscrita':'inscrito';
+      const rel=cf?'sua esposa':'seu esposo';
+      const dados=(portN,inscN,r,c)=>`${portN} da cédula de identidade RG nº ${r} e ${inscN} no CPF sob o nº ${c}`;
+      let fim;
+      if(f===cf){
+        const ambos=f?'ambas residentes e domiciliadas':'ambos residentes e domiciliados';
+        fim=`${ambos} em ${end}, ${f?'esta':'este'} ${dados(port,insc,rg,cpf)}, e ${f?'aquela':'aquele'} ${dados(pc,ic,crg,ccpf)}`;
+        return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+      }
+      fim=`${f?'ela':'ele'} ${dados(port,insc,rg,cpf)}, ${cf?'ela':'ele'} ${dados(pc,ic,crg,ccpf)}, ambos residentes e domiciliados em ${end}`;
+      return `${nome}, ${nac}, ${prof}, e ${rel}, ${cn}, ${cnac}, ${cprof}, casados sob o regime de ${reg}, ${fim}`;
+    }
+    let civ;
+    if(e.casado&&e.separacao){
+      civ=`, ${f?'casada':'casado'} sob o regime de ${esc(v.regime)} com ${lin(v.cNome,35)}`;
+    }else{
+      civ={solteiro:f?'solteira':'solteiro',casado:f?'casada':'casado',uniao:'convivente em união estável',divorciado:f?'divorciada':'divorciado',viuvo:f?'viúva':'viúvo'}[v.civil];
+      civ=', '+civ;
+    }
+    return `${nome}, ${nac}, ${prof}${civ}, ${f?'residente e domiciliada':'residente e domiciliado'} em ${end}, ${insc} no CPF/MF sob o nº ${cpf} e ${port} da cédula de identidade RG nº ${rg}`;
+  }
+  function textos(){
+    const f=F(v.genero),e=estado(),pl=e.casal;
+    return {
+      declara:pl?'DECLARAM':'DECLARA',
+      declarante:pl?'Os declarantes':(f?'A declarante':'O declarante'),
+      atesta:pl?'atestam':'atesta', concorda:pl?'concordam':'concorda', reconhece:pl?'reconhecem':'reconhece',
+      declaro_ainda:pl?'Declaramos ainda':'Declaro ainda',
+      proprietario:f?'proprietária':'proprietário', possuidor:f?'possuidora':'possuidor', legitimo:f?'legítima':'legítimo',
+      nome:lin(v.nome,35), nome_assinatura:lin(v.nome,32), mat:lin(v.mat,24),
+      conjuge_assinatura:lin(v.cNome,32)
+    };
+  }
+  function aplicar(){
+    const e=estado(),t=textos();
+    document.getElementById('qualif').innerHTML=qualificacao();
+    document.querySelectorAll('[data-k]').forEach(s=>{const x=t[s.dataset.k];if(x!==undefined)s.innerHTML=x});
+    document.getElementById('assina_conjuge').style.display=e.casal?'flex':'none';
+    document.getElementById('fsConj').style.opacity=e.casal||!e.casado?1:.5;
+  }
+  function sincronizarForm(){Object.entries(campos).forEach(([k,el])=>el.value=v[k]??'')}
+  document.getElementById('painelConf').addEventListener('input',ev=>{
+    const k=ev.target.dataset.f;if(!k)return;v[k]=ev.target.value;
+    try{localStorage.setItem(CHAVE,JSON.stringify(v))}catch(e){}
+    aplicar();
+  });
+  document.getElementById('pLimpar').onclick=()=>{if(!confirm('Limpar todos os campos do confrontante?'))return;
+    v={...VAZIO};try{localStorage.removeItem(CHAVE)}catch(e){}sincronizarForm();aplicar()};
+  sincronizarForm();aplicar();
+})();
+</script>
+
+</body>
+
+</html>

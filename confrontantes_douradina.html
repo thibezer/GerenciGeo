@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confrontantes — Fazenda Douradina (P-0093 a P-0170)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.35 'Segoe UI',Tahoma,sans-serif;color:#1f2937;background:#f3f4f6;height:100vh;display:flex;flex-direction:column}
+header{background:#14532d;color:#fff;padding:8px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;flex:1;min-width:240px}
+header small{opacity:.8;font-weight:400}
+button{font:inherit;padding:5px 10px;border:1px solid #d1d5db;border-radius:5px;background:#fff;cursor:pointer}
+button:hover{background:#f3f4f6}
+button.pri{background:#16a34a;color:#fff;border-color:#15803d}button.pri:hover{background:#15803d}
+header button{border-color:transparent}
+main{flex:1;display:flex;min-height:0}
+#mapa{flex:1 1 50%;min-width:300px;position:relative}
+#painel{flex:1 1 50%;display:flex;flex-direction:column;min-width:420px;background:#fff;border-left:1px solid #d1d5db}
+#lote{padding:8px;border-bottom:1px solid #e5e7eb;background:#f9fafb;display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;align-items:end}
+#lote label{font-size:11px;color:#6b7280;display:block}
+#lote input,#lote select,td input{width:100%;font:inherit;padding:3px 5px;border:1px solid #d1d5db;border-radius:4px;background:#fff}
+#lote .info{grid-column:1/-1;font-size:11px;color:#6b7280}
+#tw{flex:1;overflow:auto}
+table{border-collapse:collapse;width:100%}
+th{position:sticky;top:0;background:#e5e7eb;text-align:left;padding:5px;font-size:11px;z-index:2}
+td{padding:2px 4px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr.sel{background:#dcfce7}tr.foco{outline:2px solid #f59e0b;outline-offset:-2px}
+td.cod{font-weight:600;white-space:nowrap;cursor:pointer}
+td.num{text-align:right;color:#6b7280;white-space:nowrap}
+.cor{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid #0004;vertical-align:-2px;margin-right:4px}
+#leg{position:absolute;z-index:1000;right:10px;bottom:24px;background:#fffffff0;padding:6px 8px;border-radius:6px;font-size:11px;max-height:35%;overflow:auto;box-shadow:0 1px 4px #0005}
+#leg div{white-space:nowrap}
+.rot{background:#000b;color:#fff;border:0;font-size:10px;padding:1px 4px;box-shadow:none}
+.rot:before{display:none}
+@media(max-width:900px){main{flex-direction:column}#painel{border-left:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Confrontantes — Fazenda Douradina <small>pontos XRXR-P-0093 a XRXR-P-0170 · cada divisa parte do vértice da linha até o próximo</small></h1>
+  <span id="status"></span>
+  <button id="bExpJson">Exportar JSON</button>
+  <button id="bExpCsv">Exportar CSV</button>
+  <button id="bImp">Importar JSON</button>
+  <button id="bRest">Restaurar original</button>
+  <input type="file" id="arq" accept=".json" hidden>
+</header>
+<main>
+  <div id="mapa"><div id="leg" hidden></div></div>
+  <div id="painel">
+    <div id="lote">
+      <div><label>Confrontante</label><input id="lNome" list="dlNomes" placeholder="Nome do confrontante"></div>
+      <div><label>Matrícula</label><input id="lMat"></div>
+      <div><label>CNS</label><input id="lCns"></div>
+      <div><label>Tipo limite</label><select id="lTipo"><option value="">(manter)</option></select></div>
+      <button class="pri" id="bAplicar">Aplicar às marcadas</button>
+      <div class="info">Marque linhas (caixa à esquerda; <b>Shift</b> marca um intervalo) e aplique de uma vez. Campos vazios não alteram nada. As edições são salvas automaticamente neste navegador.
+        <button id="bTodas" style="padding:1px 6px">Marcar todas</button> <button id="bNenhuma" style="padding:1px 6px">Limpar</button>
+        <span id="qtdSel"></span></div>
+    </div>
+    <div id="tw"><table><thead><tr>
+      <th></th><th>Vértice</th><th>Tipo limite</th><th>Confrontante</th><th>Matrícula</th><th>CNS</th><th>Divisa (m)</th>
+    </tr></thead><tbody id="tb"></tbody></table></div>
+  </div>
+</main>
+<datalist id="dlNomes"></datalist>
+<datalist id="dlTipos"></datalist>
+<script>
+const ORIGINAL = [{"codigo": "XRXR-P-0093", "lat": -23.465949444444444, "lon": -53.25714583333333, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0094", "lat": -23.46587138888889, "lon": -53.25749944444444, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0095", "lat": -23.46577361111111, "lon": -53.257644444444445, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0096", "lat": -23.465664722222222, "lon": -53.257936388888886, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0097", "lat": -23.46558027777778, "lon": -53.258163055555556, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0098", "lat": -23.46561361111111, "lon": -53.258358333333334, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0099", "lat": -23.46572111111111, "lon": -53.25848027777778, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0100", "lat": -23.465843333333332, "lon": -53.258675555555556, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0101", "lat": -23.46585, "lon": -53.25882361111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0102", "lat": -23.465969722222223, "lon": -53.25901388888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0103", "lat": -23.46608638888889, "lon": -53.25908, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0104", "lat": -23.466213055555556, "lon": -53.25915916666667, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0105", "lat": -23.4662275, "lon": -53.259281666666666, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0106", "lat": -23.466061944444444, "lon": -53.25921972222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0107", "lat": -23.465995277777775, "lon": -53.25933555555556, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0108", "lat": -23.46598138888889, "lon": -53.25948666666667, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0109", "lat": -23.465980833333333, "lon": -53.259618333333336, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0110", "lat": -23.465912777777778, "lon": -53.259814722222224, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0111", "lat": -23.46578, "lon": -53.26, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0112", "lat": -23.465715555555555, "lon": -53.260153611111114, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0113", "lat": -23.465488055555554, "lon": -53.260040833333335, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0114", "lat": -23.465379444444444, "lon": -53.26002972222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0115", "lat": -23.465180277777776, "lon": -53.2600025, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0116", "lat": -23.465061944444443, "lon": -53.26002277777778, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0117", "lat": -23.464982777777777, "lon": -53.259975, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0118", "lat": -23.464951944444444, "lon": -53.2598825, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0119", "lat": -23.464710555555556, "lon": -53.25987138888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0120", "lat": -23.46460888888889, "lon": -53.25999138888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0121", "lat": -23.464586944444445, "lon": -53.26013972222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0122", "lat": -23.464580833333333, "lon": -53.26029861111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0123", "lat": -23.464737777777778, "lon": -53.26045388888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0124", "lat": -23.464626944444444, "lon": -53.2604875, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0125", "lat": -23.464659444444443, "lon": -53.26067388888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0126", "lat": -23.464530555555555, "lon": -53.260709722222224, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0127", "lat": -23.46449972222222, "lon": -53.26089916666667, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0128", "lat": -23.46443611111111, "lon": -53.261116111111114, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0129", "lat": -23.46442638888889, "lon": -53.26126333333333, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0130", "lat": -23.464544999999998, "lon": -53.26142888888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0131", "lat": -23.46456111111111, "lon": -53.261499722222226, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0132", "lat": -23.464503333333333, "lon": -53.26166277777778, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0133", "lat": -23.464521666666666, "lon": -53.26184611111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0134", "lat": -23.464551666666665, "lon": -53.26202361111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0135", "lat": -23.464559444444443, "lon": -53.26221388888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0136", "lat": -23.464401666666667, "lon": -53.26211833333333, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0137", "lat": -23.46449611111111, "lon": -53.26241888888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0138", "lat": -23.464665277777776, "lon": -53.262501388888886, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0139", "lat": -23.464634444444442, "lon": -53.26271583333333, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0140", "lat": -23.464598888888887, "lon": -53.262990555555554, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0141", "lat": -23.464609444444445, "lon": -53.26313138888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0142", "lat": -23.46469111111111, "lon": -53.263447222222226, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0143", "lat": -23.46453083333333, "lon": -53.263621388888886, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0144", "lat": -23.464433333333332, "lon": -53.26370583333333, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0145", "lat": -23.464286944444442, "lon": -53.26379111111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0146", "lat": -23.464235277777778, "lon": -53.26421361111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0147", "lat": -23.464378611111112, "lon": -53.264540833333335, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0148", "lat": -23.464391388888888, "lon": -53.26500361111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0149", "lat": -23.464278611111112, "lon": -53.26524138888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0150", "lat": -23.464108055555556, "lon": -53.26522444444444, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0151", "lat": -23.464030833333332, "lon": -53.265459722222225, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0152", "lat": -23.46405888888889, "lon": -53.2658775, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0153", "lat": -23.464121111111112, "lon": -53.26613388888889, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0154", "lat": -23.464244166666667, "lon": -53.2665125, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0155", "lat": -23.464406944444445, "lon": -53.26673111111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0156", "lat": -23.464384166666665, "lon": -53.26674861111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0157", "lat": -23.46441, "lon": -53.266945, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0158", "lat": -23.464385, "lon": -53.267085, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0159", "lat": -23.46428611111111, "lon": -53.26729722222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0160", "lat": -23.464197777777777, "lon": -53.26740972222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0161", "lat": -23.46424083333333, "lon": -53.26751, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0162", "lat": -23.46429583333333, "lon": -53.267608055555556, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0163", "lat": -23.464288888888888, "lon": -53.26773166666666, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0164", "lat": -23.464290833333333, "lon": -53.26784222222222, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0165", "lat": -23.464179166666668, "lon": -53.26788305555556, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0166", "lat": -23.464166388888888, "lon": -53.268055277777776, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0167", "lat": -23.4641275, "lon": -53.268215, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0168", "lat": -23.46408027777778, "lon": -53.268499722222224, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0169", "lat": -23.464025277777775, "lon": -53.268745555555554, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}, {"codigo": "XRXR-P-0170", "lat": -23.46383833333333, "lon": -53.26917861111111, "tipo_limite": "LN1", "confrontante": "Confrontante Não Cadastrado", "matricula": "", "cns": ""}];
+const CHAVE = 'confrontantes_douradina_v1';
+const TIPOS = ['LN1','LN2','LN3','LA1','LA2','LA3','LA4'];
+const PALETA = ['#e6194b','#3cb44b','#4363d8','#f58231','#911eb4','#0891b2','#d946ef','#a16207','#0f766e','#be185d','#65a30d','#7c3aed'];
+const SEM = '#fde047';
+const NAO_CAD = /^confrontante n.{1,3}o cadastrado$/i;
+const $ = id => document.getElementById(id);
+
+let dados = carregar();
+let marcadas = new Set(), ultimaMarca = null;
+
+function vazio(n){return !n||!n.trim()||NAO_CAD.test(n.trim())}
+function carregar(){
+  try{const s=localStorage.getItem(CHAVE);if(s){const d=JSON.parse(s);if(Array.isArray(d)&&d.length===ORIGINAL.length)return d}}catch(e){}
+  return ORIGINAL.map(p=>({...p,confrontante:vazio(p.confrontante)?'':p.confrontante}));
+}
+function salvar(){try{localStorage.setItem(CHAVE,JSON.stringify(dados));status('Salvo '+new Date().toLocaleTimeString())}catch(e){status('Não foi possível salvar localmente — use Exportar')}}
+function status(t){$('status').textContent=t}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function dist(a,b){const R=6371008.8,r=x=>x*Math.PI/180,dl=r(b.lat-a.lat),dn=r(b.lon-a.lon);
+  const h=Math.sin(dl/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const chaveConf=p=>vazio(p.confrontante)?'':p.confrontante.trim().toUpperCase()+'|'+(p.matricula||'').trim();
+function corDe(p){
+  if(vazio(p.confrontante))return SEM;
+  const ks=[...new Set(dados.map(chaveConf).filter(Boolean))];
+  return PALETA[ks.indexOf(chaveConf(p))%PALETA.length];
+}
+
+// ── mapa ──
+const map=L.map('mapa',{maxZoom:20});
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:18,attribution:'Esri World Imagery'}).addTo(map);
+const ruas=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,maxNativeZoom:19,attribution:'© OpenStreetMap'});
+L.control.layers({'Satélite':sat,'Mapa':ruas}).addTo(map);
+L.control.scale({imperial:false}).addTo(map);
+const gLinhas=L.layerGroup().addTo(map), gPts=L.layerGroup().addTo(map);
+let marcadores=[];
+
+function rotulo(m,i){
+  const t=m.getTooltip(); if(t)m.unbindTooltip();
+  m.bindTooltip(dados[i].codigo.replace('XRXR-',''),{permanent:map.getZoom()>=17,direction:'top',className:'rot',offset:[0,-4]});
+}
+function desenhar(){
+  gLinhas.clearLayers();gPts.clearLayers();marcadores=[];
+  dados.forEach((p,i)=>{
+    const cor=corDe(p);
+    if(i<dados.length-1){
+      const q=dados[i+1], pts=[[p.lat,p.lon],[q.lat,q.lon]];
+      L.polyline(pts,{color:'#000',weight:7,opacity:.7,interactive:false}).addTo(gLinhas);
+      L.polyline(pts,{color:cor,weight:4,opacity:1,dashArray:vazio(p.confrontante)?'6 6':null})
+        .addTo(gLinhas).on('click',()=>focar(i))
+        .bindTooltip(`${p.codigo} → ${q.codigo}<br>${vazio(p.confrontante)?'<i>sem confrontante</i>':esc(p.confrontante)}`,{sticky:true});
+    }
+    const m=L.circleMarker([p.lat,p.lon],{radius:4,color:'#fff',weight:1.5,fillColor:cor,fillOpacity:1}).addTo(gPts).on('click',()=>focar(i));
+    rotulo(m,i);marcadores.push(m);
+  });
+  legenda();
+}
+map.on('zoomend',()=>marcadores.forEach(rotulo));
+function legenda(){
+  const el=$('leg'),agr=new Map();let sem=0,tot=0;
+  dados.forEach((p,i)=>{if(i===dados.length-1)return;tot++;if(vazio(p.confrontante)){sem++;return}
+    const k=chaveConf(p),o=agr.get(k)||{n:p.confrontante,c:corDe(p),q:0};o.q++;agr.set(k,o)});
+  el.hidden=false;
+  el.innerHTML=[...agr.values()].map(o=>`<div><span class="cor" style="background:${o.c}"></span>${esc(o.n)} (${o.q})</div>`).join('')
+    +`<div><span class="cor" style="background:${SEM}"></span>Sem confrontante (${sem}/${tot})</div>`;
+}
+function focar(i){
+  document.querySelectorAll('tr.foco').forEach(r=>r.classList.remove('foco'));
+  const tr=document.querySelector(`tr[data-i="${i}"]`);if(tr){tr.classList.add('foco');tr.scrollIntoView({block:'center',behavior:'smooth'})}
+  const p=dados[i],q=dados[i+1]||p;map.fitBounds([[p.lat,p.lon],[q.lat,q.lon]],{padding:[120,120],maxZoom:19,animate:false});
+}
+
+// ── tabela ──
+function tabela(){
+  const tb=$('tb');tb.innerHTML='';
+  dados.forEach((p,i)=>{
+    const len=i===dados.length-1?'—':dist(p,dados[i+1]).toFixed(2);
+    const tr=document.createElement('tr');tr.dataset.i=i;if(marcadas.has(i))tr.classList.add('sel');
+    tr.innerHTML=`<td><input type="checkbox" ${marcadas.has(i)?'checked':''} data-chk style="width:auto"></td>
+      <td class="cod"><span class="cor" style="background:${corDe(p)}"></span>${p.codigo.replace('XRXR-','')}</td>
+      <td><input list="dlTipos" data-f="tipo_limite" value="${esc(p.tipo_limite)}" style="width:62px"></td>
+      <td><input list="dlNomes" data-f="confrontante" value="${esc(p.confrontante)}" placeholder="—"></td>
+      <td><input data-f="matricula" value="${esc(p.matricula)}" style="width:80px"></td>
+      <td><input data-f="cns" value="${esc(p.cns)}" style="width:70px"></td>
+      <td class="num">${len}</td>`;
+    tb.appendChild(tr);
+  });
+  nomesLista();qtd();
+}
+function nomesLista(){
+  const nomes=[...new Set(dados.map(p=>(p.confrontante||'').trim()).filter(Boolean))].sort();
+  $('dlNomes').innerHTML=nomes.map(n=>`<option value="${esc(n)}">`).join('');
+}
+function qtd(){$('qtdSel').textContent=marcadas.size?` · ${marcadas.size} marcada(s)`:''}
+function recolorirLinhas(){document.querySelectorAll('#tb tr').forEach(tr=>{tr.querySelector('.cor').style.background=corDe(dados[+tr.dataset.i])})}
+const tbody=$('tb');
+tbody.addEventListener('input',e=>{
+  const f=e.target.dataset.f;if(!f)return;
+  dados[+e.target.closest('tr').dataset.i][f]=e.target.value;
+  clearTimeout(tbody._t);tbody._t=setTimeout(()=>{salvar();desenhar();recolorirLinhas();nomesLista()},350);
+});
+tbody.addEventListener('click',e=>{
+  const tr=e.target.closest('tr');if(!tr)return;const i=+tr.dataset.i;
+  if(e.target.dataset.chk!==undefined){
+    if(e.shiftKey&&ultimaMarca!==null){const a=Math.min(ultimaMarca,i),b=Math.max(ultimaMarca,i);for(let k=a;k<=b;k++)marcadas.add(k)}
+    else e.target.checked?marcadas.add(i):marcadas.delete(i);
+    ultimaMarca=i;tabela();
+  }else if(e.target.closest('td.cod'))focar(i);
+});
+
+// ── lote ──
+TIPOS.forEach(t=>{$('lTipo').add(new Option(t,t));$('dlTipos').appendChild(new Option(t,t))});
+$('bAplicar').onclick=()=>{
+  if(!marcadas.size)return alert('Marque ao menos uma linha.');
+  const v={confrontante:$('lNome').value.trim(),matricula:$('lMat').value.trim(),cns:$('lCns').value.trim(),tipo_limite:$('lTipo').value};
+  if(!Object.values(v).some(Boolean))return alert('Preencha ao menos um campo do lote.');
+  marcadas.forEach(i=>Object.entries(v).forEach(([k,x])=>{if(x)dados[i][k]=x}));
+  salvar();tabela();desenhar();
+};
+$('bTodas').onclick=()=>{dados.forEach((_,i)=>marcadas.add(i));tabela()};
+$('bNenhuma').onclick=()=>{marcadas.clear();ultimaMarca=null;tabela()};
+
+// ── exportar / importar ──
+function baixar(nome,txt,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;a.click()}
+$('bExpJson').onclick=()=>baixar('confrontantes_douradina.json',JSON.stringify(dados,null,1),'application/json');
+$('bExpCsv').onclick=()=>{
+  const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+  const l=['codigo;lat;lon;tipo_limite;confrontante;matricula;cns;divisa_m'];
+  dados.forEach((p,i)=>l.push([p.codigo,p.lat,p.lon,p.tipo_limite,q(p.confrontante),q(p.matricula),q(p.cns),i<dados.length-1?dist(p,dados[i+1]).toFixed(2):''].join(';')));
+  baixar('confrontantes_douradina.csv','﻿'+l.join('\r\n'),'text/csv;charset=utf-8');
+};
+$('bImp').onclick=()=>$('arq').click();
+$('arq').onchange=async()=>{
+  try{const d=JSON.parse(await $('arq').files[0].text());
+    if(!Array.isArray(d)||d.length!==ORIGINAL.length)throw 0;
+    dados=d;salvar();tabela();desenhar()}catch(e){alert('Arquivo inválido para esta lista de pontos.')}
+  $('arq').value='';
+};
+$('bRest').onclick=()=>{if(!confirm('Descartar todas as edições e voltar ao original?'))return;
+  try{localStorage.removeItem(CHAVE)}catch(e){}dados=carregar();marcadas.clear();tabela();desenhar();status('Restaurado')};
+
+tabela();desenhar();
+function enquadrar(){map.invalidateSize();map.fitBounds(L.latLngBounds(dados.map(p=>[p.lat,p.lon])),{padding:[30,30],animate:false})}
+let mexeu=false;
+enquadrar();
+new ResizeObserver(()=>{map.invalidateSize();if(!mexeu)enquadrar()}).observe($('mapa'));
+map.once('mousedown wheel',()=>{mexeu=true});
+</script>
+</body>
+</html>

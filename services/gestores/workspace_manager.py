@@ -1,7 +1,6 @@
 import os
 import shutil
 import re
-import json
 from pathlib import Path
 from config import EXPORT_BASE_FOLDER
 from database.connection import execute_query
@@ -32,32 +31,56 @@ class WorkspaceManager:
             res = None
 
         if not res:
-            # Fallback seguro caso o registro ainda nÃ£o esteja persistido por completo ou sem propriedade
-            nome_prop_limpo = "Propriedade_Desconhecida"
-            ano = "Sem_Ano"
-        else:
-            res = dict(res)
-            nome_prop_limpo = sanitizar_nome_pasta(res.get("nome_propriedade", "Sem_Nome"))
-            data_inicio = res.get("data_inicio")
-            ano = "Sem_Ano"
-            if data_inicio:
-                try:
-                    if isinstance(data_inicio, str):
-                        if "-" in data_inicio:
-                            ano = data_inicio.split("-")[0]
-                        elif "/" in data_inicio:
-                            parts = data_inicio.split("/")
-                            if len(parts[0]) == 4:
-                                ano = parts[0]
-                            else:
-                                ano = parts[2]
-                    else:
-                        ano = str(data_inicio.year)
-                except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao extrair ano: {e}")
+            # Fallback seguro caso o registro ainda não esteja persistido por completo ou sem propriedade
+            return self.montar_caminho(levantamento_id, None, None)
+
+        res = dict(res)
+        return self.montar_caminho(levantamento_id, res.get("nome_propriedade"), res.get("data_inicio"))
+
+    def montar_caminho(self, levantamento_id: int, nome_propriedade, data_inicio) -> Path:
+        """
+        Calcula o caminho da pasta a partir do nome da propriedade e da data de início, sem consultar o banco.
+        Permite saber o destino de uma alteração ANTES de gravá-la (ver mover_workspace).
+        """
+        nome_prop_limpo = sanitizar_nome_pasta(nome_propriedade or "Sem_Nome") if nome_propriedade is not None else "Propriedade_Desconhecida"
+        ano = "Sem_Ano"
+        if data_inicio:
+            try:
+                if isinstance(data_inicio, str):
+                    if "-" in data_inicio:
+                        ano = data_inicio.split("-")[0]
+                    elif "/" in data_inicio:
+                        parts = data_inicio.split("/")
+                        if len(parts[0]) == 4:
+                            ano = parts[0]
+                        else:
+                            ano = parts[2]
+                else:
+                    ano = str(data_inicio.year)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao extrair ano: {e}")
 
         return self.base_folder / "Projetos" / nome_prop_limpo / f"Lev_{levantamento_id}_{ano}"
+
+    @staticmethod
+    def pasta_tem_arquivos(folder: Path) -> bool:
+        return folder.exists() and any(p.is_file() for p in folder.rglob("*"))
+
+    def mover_workspace(self, origem: Path, destino: Path):
+        """
+        Move a pasta do levantamento quando o caminho calculado muda (troca de propriedade ou do ano
+        da data de início). Um destino que exista mas sem arquivos (só a árvore vazia) é substituído;
+        um destino com arquivos é conflito e deve ser barrado antes pelo chamador.
+        """
+        if origem == destino or not origem.exists():
+            return
+        if destino.exists():
+            if self.pasta_tem_arquivos(destino):
+                raise FileExistsError(f"A pasta de destino já contém arquivos: {destino}")
+            shutil.rmtree(destino)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(origem), str(destino))
 
     def create_workspace(self, levantamento_id: int) -> str:
         """Cria fisicamente a Ã¡rvore de diretÃ³rios exigida no Windows"""
@@ -113,10 +136,28 @@ class WorkspaceManager:
 
         return str(dest_path)
         
-    def delete_workspace(self, levantamento_id: int):
-        folder = self.get_levantamento_folder(levantamento_id)
-        if folder.exists():
-            shutil.rmtree(folder)
+    def delete_workspace(self, levantamento_id: int, folder: Path = None):
+        """
+        Remove a pasta física do levantamento. O caminho deve ser resolvido ANTES de apagar o
+        registro do banco (get_levantamento_folder depende dele); passe-o em `folder` nesse caso.
+        Arquivos Read-Only (Brutos, workspace travado) são destravados antes da remoção no Windows.
+        """
+        import stat
+        import sys
+
+        if folder is None:
+            folder = self.get_levantamento_folder(levantamento_id)
+        if not folder.exists():
+            return
+
+        def _forcar_remocao(func, path, _exc):
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(folder, onexc=_forcar_remocao)
+        else:
+            shutil.rmtree(folder, onerror=_forcar_remocao)
 
     def travar_workspace_inteiro_readonly(self, levantamento_id: int):
         """Trava todos os arquivos da pasta do levantamento como Read-Only no Windows"""

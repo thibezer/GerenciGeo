@@ -1,6 +1,7 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons } from '../utils';
+import { realtimeSyncClient } from '../utils/realtime_sync_client';
 
 export const configuracoesRoute: RouteDef = {
   render: () => `
@@ -107,6 +108,24 @@ export const configuracoesRoute: RouteDef = {
                 </button>
               </div>
             </form>
+          </div>
+
+          <!-- Card de Sincronização com a Nuvem (antes ficava na barra superior) -->
+          <div class="glass-card p-6 space-y-4">
+            <h4 class="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+              <i data-lucide="cloud" class="w-4 h-4 text-mint-vibrant"></i>
+              Sincronização com a Nuvem
+            </h4>
+            <p class="text-xs text-white/60 leading-relaxed">
+              Status da conexão em tempo real com a Nuvem GerenciGeo. Clique para entrar, sincronizar manualmente ou pausar.
+            </p>
+            <button id="btn-global-sync-pill" type="button" class="btn-abrir-nuvem w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-mint-vibrant/30 transition-all cursor-pointer group" title="Sincronização em Tempo Real com a Nuvem">
+              <span class="flex items-center gap-2.5">
+                <span id="sync-pill-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                <span id="sync-pill-text" class="font-mono text-xs text-white/80 group-hover:text-white font-medium">Nuvem</span>
+              </span>
+              <span id="sync-pill-badge" class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-white/10 text-white/50">Verificando...</span>
+            </button>
           </div>
 
           <!-- Card de Ajuda Técnico -->
@@ -219,6 +238,7 @@ export const configuracoesRoute: RouteDef = {
     </div>
   `,
   setup: () => {
+    realtimeSyncClient.renderizarStatus();
     const listContainer = document.getElementById('profissionais-lista-container');
     const formCard = document.getElementById('card-profissional-form');
     const btnNovo = document.getElementById('btn-novo-profissional');

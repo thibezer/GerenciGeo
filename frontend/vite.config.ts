@@ -7,9 +7,13 @@ const hasLocalUi = fs.existsSync(localUiPath);
 
 export default defineConfig({
   resolve: {
-    alias: hasLocalUi
-      ? { 'ui-components-kit': localUiPath }
-      : {}
+    // Uma única cópia do Leaflet: o kit (UI_Componentes) tem o próprio node_modules, e camadas criadas pelo app
+    // em um mapa criado pelo kit falhavam em instanceof (ex.: linhas nunca eram recortadas/desenhadas).
+    dedupe: ['leaflet'],
+    alias: {
+      leaflet: resolve(__dirname, 'node_modules/leaflet'),
+      ...(hasLocalUi ? { 'ui-components-kit': localUiPath } : {})
+    }
   },
   server: {
     port: 5173,

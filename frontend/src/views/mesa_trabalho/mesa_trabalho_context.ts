@@ -49,6 +49,8 @@ export interface MesaTrabalhoContext {
   atualizarDestaqueLinhasTabela: () => void;
   renderListaReordenarSimplificada: () => void;
   alternarEtapa: (etapa: string) => void;
+  /** Hook opcional chamado a cada troca de etapa (ex.: camada de confrontantes no mapa). */
+  aoMudarEtapa?: (etapa: string) => void;
   switchMatriculaTab: (matriculaId: number) => void;
   renderFilaArquivos: () => void;
   inicializarEventosCartorio: () => void;

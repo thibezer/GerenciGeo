@@ -257,15 +257,13 @@ button {
 }
 .btn-secondary:active { transform: scale(0.97) !important; }
 
-/* Secundário warning — Base Manual e Testar HGO */
-#btn-override-base-manual,
-#btn-testar-busca-rinex {
+/* Secundário warning — Base Manual */
+#btn-override-base-manual {
   background: var(--geo-status-warn-bg) !important;
   color: var(--geo-status-warn) !important;
   border-color: var(--geo-status-warn-border) !important;
 }
-#btn-override-base-manual:hover,
-#btn-testar-busca-rinex:hover {
+#btn-override-base-manual:hover {
   background: rgba(255, 214, 10, 0.15) !important;
 }
 
@@ -640,7 +638,7 @@ td[colspan][class*="text-center"] {
 /* Redimensionamento automático do Canvas inferior */
 .workspace-body {
     flex-grow: 1;
-    height: calc(100vh - 186px); /* Ajuste exato para as 3 camadas da Ribbon (30px + 32px + 32px + 92px) */
+    height: calc(100vh - var(--ribbon-h)); /* Ribbon: 30px + 24px + 26px + 92px */
     overflow: hidden;
     position: relative;
 }
@@ -657,7 +655,7 @@ td[colspan][class*="text-center"] {
     color: #e0e0e0;
     user-select: none;
     width: 100%;
-    height: 186px; /* Altura fixa controlada (30px + 32px + 32px + 92px) */
+    height: var(--ribbon-h); /* Altura fixa controlada (30px + 24px + 26px + 92px) */
     box-sizing: border-box;
 }
 
@@ -808,7 +806,7 @@ td[colspan][class*="text-center"] {
 
 /* Camada 2 */
 .ribbon-layer2 {
-  height: 32px;
+  height: 24px;
   background: #0d1410;
   border-bottom: 0.5px solid rgba(255,255,255,0.04);
   display: flex;
@@ -820,8 +818,9 @@ td[colspan][class*="text-center"] {
 }
 
 .rl2-prop-name {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
   color: rgba(255,255,255,0.88);
   white-space: nowrap;
   overflow: hidden;
@@ -844,8 +843,8 @@ td[colspan][class*="text-center"] {
 
 .rl2-sep {
   width: 1px;
-  height: 12px;
-  background: rgba(255,255,255,0.06);
+  height: 10px;
+  background: rgba(255,255,255,0.08);
   margin: 0 10px;
   flex-shrink: 0;
 }
@@ -889,7 +888,7 @@ td[colspan][class*="text-center"] {
   align-items: flex-end;
   padding: 0 8px;
   gap: 2px;
-  height: 32px;
+  height: 26px;
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
 }
 
@@ -898,7 +897,7 @@ td[colspan][class*="text-center"] {
   align-items: center;
   gap: 5px;
   padding: 0 12px;
-  height: 28px;
+  height: 24px;
   font-size: 11px;
   font-weight: 400;
   color: rgba(255,255,255,0.45);
@@ -1331,6 +1330,16 @@ fluent-button {
   background: rgba(255,255,255,0.08) !important;
   color: rgba(255,255,255,0.95) !important;
 }
+/* Texto/ícone alinhados à esquerda dentro do botão (o fluent-button centraliza por padrão) */
+fluent-button.rl1-btn {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+fluent-button.rl1-btn::part(control) {
+  justify-content: flex-start;
+  align-items: center;
+  text-align: left;
+}
 .rl1-btn.active {
   background: rgba(0, 245, 160, 0.12) !important;
   color: var(--geo-accent) !important;
@@ -1380,14 +1389,14 @@ fluent-avatar.rl1-avatar {
 
 /* Camada 2: Fixação de Altura do Badge (Sem vazamento vertical) */
 fluent-badge.rl2-badge {
-  height: 18px !important;
-  max-height: 18px !important;
-  line-height: 18px !important;
-  font-size: 9px !important;
+  height: 15px !important;
+  max-height: 15px !important;
+  line-height: 15px !important;
+  font-size: 8.5px !important;
   font-family: monospace;
   letter-spacing: 0.05em;
-  padding: 0 8px !important;
-  border-radius: 4px !important;
+  padding: 0 6px !important;
+  border-radius: 3px !important;
   background: rgba(0, 245, 160, 0.12) !important;
   color: var(--geo-accent) !important;
   border: 0.5px solid rgba(0, 245, 160, 0.3) !important;
@@ -1403,7 +1412,7 @@ fluent-badge.rl2-badge {
 .fluent-ribbon-theme fluent-tablist {
   background: transparent;
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
-  height: 30px;
+  height: 26px;
   overflow: hidden;
   display: flex;
   align-items: flex-end;
@@ -1418,9 +1427,9 @@ fluent-tab.rl3-tab,
   justify-content: center !important;
   gap: 5px !important;
   padding: 0 12px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  max-height: 28px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
   font-size: 11px !important;
   color: rgba(255,255,255,0.5) !important;
   cursor: pointer !important;
@@ -1777,6 +1786,7 @@ fluent-dropdown.rl1-select {
   --geo-status-raw-border:   rgba(139, 148, 158, 0.20);
 
   /* --- Dimensões da Mesa de Trabalho --- */
+  --ribbon-h:                172px; /* 30 (app bar) + 24 (projeto) + 26 (abas) + 92 (ferramentas) */
   --props-panel-w:           280px;
   --table-area-h:            280px;
 }
@@ -1785,12 +1795,139 @@ fluent-dropdown.rl1-select {
 .workspace-body {
   display: grid !important;
   grid-template-columns: var(--props-panel-w) 1fr !important;
-  height: calc(100vh - 149px) !important; /* Altura Ribbon 149px */
+  height: calc(100vh - var(--ribbon-h)) !important;
   overflow: hidden !important;
   padding: 0 !important; /* Remove paddings que causam scroll */
   margin: 0 !important;
   gap: 0 !important;
   background: var(--geo-bg-base);
+}
+
+/* ====================================================
+   Central de Documentos (aba Peças de Cartório)
+   ==================================================== */
+.doc-card {
+  background: rgba(12, 21, 16, 0.5);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+}
+.doc-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+}
+.doc-card-title i, .doc-card-title svg { width: 14px; height: 14px; color: var(--geo-accent); }
+
+.doc-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.doc-group-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+  padding: 0 4px 4px;
+}
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, transform 120ms;
+}
+.doc-row:hover { background: rgba(0,245,160,0.06); border-color: rgba(0,245,160,0.3); }
+.doc-row:active { transform: scale(0.99); }
+.doc-row:focus-visible { outline: 2px solid var(--geo-accent); outline-offset: 1px; }
+.doc-row-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  border-radius: 6px;
+  background: rgba(0,245,160,0.1);
+  color: var(--geo-accent);
+}
+.doc-row-icon i, .doc-row-icon svg { width: 15px; height: 15px; }
+.doc-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.doc-row-title { font-size: 12px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-row-desc { font-size: 10px; color: rgba(255,255,255,0.4); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-row-go { width: 14px; height: 14px; flex-shrink: 0; color: rgba(255,255,255,0.25); transition: color 120ms; }
+.doc-row:hover .doc-row-go { color: var(--geo-accent); }
+
+/* Botões de camada do mapa (etapa Peças de Cartório) */
+.btn-mapa-cartorio { display: none; color: rgba(255,255,255,0.55); background: transparent; border-color: rgba(255,255,255,0.08); }
+.btn-mapa-cartorio:not(.hidden) { display: flex; }
+.btn-mapa-cartorio:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.btn-mapa-cartorio.ativo { color: var(--geo-accent); background: rgba(0,245,160,0.12); border-color: rgba(0,245,160,0.35); }
+
+/* Cartões recolhíveis (Peças de Cartório) */
+details.doc-collapsible > summary { list-style: none; cursor: pointer; user-select: none; }
+details.doc-collapsible > summary::-webkit-details-marker { display: none; }
+details.doc-collapsible:not([open]) > summary { margin-bottom: 0; }
+.doc-summary { gap: 8px; }
+.doc-summary-count {
+  font-family: monospace; font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  padding: 1px 7px; border-radius: 999px; color: rgba(255,255,255,0.45);
+}
+.doc-chevron { margin-left: auto; width: 14px; height: 14px; color: rgba(255,255,255,0.35); transition: transform 150ms; }
+details[open] > summary .doc-chevron { transform: rotate(180deg); }
+details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent); }
+
+/* Lista de confrontantes: 1 coluna no cartão estreito, várias quando ele ocupa a largura toda */
+.lista-resumo-confrontantes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.lista-resumo-confrontantes > .col-span-all { grid-column: 1 / -1; }
+/* Peças técnicas recolhido: confrontantes passa a usar a linha toda em vez de deixar um vazio ao lado */
+.grade-docs-conf:has(> details.doc-collapsible:not([open])) { grid-template-columns: 1fr !important; }
+.grade-docs-conf:has(> details.doc-collapsible:not([open])) .lista-resumo-confrontantes { max-height: none; }
+
+/* Etapa Peças de Cartório: ribbon sem a linha de ferramentas (só havia um atalho duplicado) */
+.workspace-wrapper.ribbon-compacto { --ribbon-h: 80px; }
+.workspace-wrapper.ribbon-compacto .rl3-panels { display: none; }
+/* Ações em lote de pontos não se aplicam a esta etapa */
+.workspace-wrapper.ribbon-compacto #batch-action-bar-mesa { display: none !important; }
+
+/* Peças de Cartório: mapa fixo à esquerda, conteúdo rolável à direita */
+.workspace-main-content.etapa-cartorio-split {
+  flex-direction: row;
+}
+.workspace-main-content.etapa-cartorio-split .map-container-wrapper {
+  flex: 0 0 var(--cartorio-map-w, 44%);
+  min-width: 320px;
+  min-height: 0;
+  border-bottom: none;
+  border-right: 0.5px solid var(--geo-border-subtle);
+}
+.workspace-main-content.etapa-cartorio-split #view-cartorio {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  height: 100%;
+}
+
+/* Etapas sem painel lateral (Peças de Cartório): conteúdo ocupa a largura toda */
+.workspace-body.sem-painel-props {
+  grid-template-columns: 1fr !important;
+}
+.props-panel.hidden {
+  display: none !important;
 }
 
 .workspace-main-content {
@@ -1820,10 +1957,6 @@ fluent-dropdown.rl1-select {
   overflow: hidden;
 }
 
-/* Aba 2: Organizador de Perímetro */
-#view-org-perimetro {
-  height: var(--table-area-h, 280px);
-}
 
 .map-container-wrapper {
   flex: 1;

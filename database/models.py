@@ -394,6 +394,25 @@ def create_tables(conn):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS alteracoes_sigef (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            levantamento_id INTEGER NOT NULL,
+            planilha_origem TEXT NOT NULL,
+            codigo_completo TEXT NOT NULL,
+            campo TEXT NOT NULL,
+            valor_original TEXT,
+            valor_novo TEXT,
+            status TEXT NOT NULL DEFAULT 'pendente' CHECK(status IN ('pendente', 'lancado')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            lancado_em TIMESTAMP,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_alteracoes_sigef_lev ON alteracoes_sigef(levantamento_id, status);
+        """,
+        """
         CREATE TABLE IF NOT EXISTS ccir_cadastros (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             codigo_imovel TEXT NOT NULL,

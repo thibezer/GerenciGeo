@@ -1,10 +1,37 @@
 import type { RouteDef } from '../types';
 import { API_BASE, PUBLIC_HOST_URL } from '../config';
-import { initIcons, formatarCCIR, showToast } from '../utils';
+import { initIcons, formatarCCIR, showToast, escapeHtml } from '../utils';
 import L from 'leaflet';
 
 
 let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
+// Em escopo de módulo para que o cleanup consiga destruir o mapa se a tela for trocada com o modal aberto
+let mapaTriagem: L.Map | null = null;
+
+// Extrai a mensagem de erro de respostas FastAPI (detail string, objeto ou lista de validação 422)
+const extrairMensagemErro = (data: any, fallback: string): string => {
+   const detail = data?.detail;
+   if (typeof detail === 'string') return detail;
+   if (Array.isArray(detail)) return detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+   if (detail && typeof detail === 'object') return detail.mensagem || JSON.stringify(detail);
+   return data?.error || fallback;
+};
+
+const formatarProprietarios = (l: any, textoVazio: string): string =>
+   l.clientes && l.clientes.length
+      ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
+      : textoVazio;
+
+const classeStatus = (status: string): string =>
+   status === 'CONCLUIDO' ? 'bg-mint-vibrant/15 text-mint-vibrant'
+      : status === 'ARQUIVADO' ? 'bg-red-500/15 text-red-400'
+         : 'bg-yellow-500/15 text-yellow-400';
+
+// Data de hoje no fuso local (toISOString usaria UTC e, à noite no Brasil, já daria o dia seguinte)
+const dataLocalHoje = (): string => {
+   const d = new Date();
+   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export const levantamentosRoute: RouteDef = {
    render: () => `
@@ -66,7 +93,7 @@ export const levantamentosRoute: RouteDef = {
                <div>
                   <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Responsável Técnico *</label>
                   <select id="select-lev-profissional" required class="glass-input w-full text-xs py-3 md:py-2">
-                     <option value="1">Dr. Thiago A. Silva (INCRA Credenciado)</option>
+                     <option value="">Carregando profissionais...</option>
                   </select>
                </div>
                <div>
@@ -224,6 +251,22 @@ export const levantamentosRoute: RouteDef = {
          }
       };
 
+      // Reaplicada após cada renderização (troca grade/lista, recarga) para o filtro digitado não se perder
+      const aplicarFiltroBusca = () => {
+         const term = ((document.getElementById('busca-levantamento') as HTMLInputElement | null)?.value || '').toLowerCase();
+         document.querySelectorAll('.lev-card-item, .lev-list-item').forEach(el => {
+            const propTitle = el.querySelector('.prop-title-text, .btn-auditar-link')?.textContent?.toLowerCase() || '';
+            const owners = el.querySelector('.prop-owners-text, td:nth-child(5)')?.textContent?.toLowerCase() || '';
+            const extra = el.querySelector('.prop-extra-text, td:nth-child(2)')?.textContent?.toLowerCase() || '';
+            const match = propTitle.includes(term) || owners.includes(term) || extra.includes(term);
+            if (el.classList.contains('lev-card-item')) {
+               (el as HTMLElement).style.display = match ? 'flex' : 'none';
+            } else {
+               (el as HTMLElement).style.display = match ? 'table-row' : 'none';
+            }
+         });
+      };
+
       const configurarComboboxPropriedades = () => {
          const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
          const inputHidden = document.getElementById('select-lev-propriedade') as HTMLInputElement;
@@ -244,9 +287,9 @@ export const levantamentosRoute: RouteDef = {
                listaFlutuante.innerHTML = '<div class="p-3 text-xs text-white/30 italic">Nenhuma propriedade localizada.</div>';
             } else {
                listaFlutuante.innerHTML = filtradas.map(p => `
-            <div class="opcao-prop-item p-3 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${p.id}" data-nome="${p.nome_propriedade} (${p.municipio}/${p.uf})">
-              <span class="font-bold text-white">${p.nome_propriedade}</span>
-              <span class="text-[10px] text-white/40 font-mono mt-0.5">CAR: ${p.codigo_car || 'N/I'} • ${p.municipio}/${p.uf}</span>
+            <div class="opcao-prop-item p-3 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${p.id}" data-nome="${escapeHtml(`${p.nome_propriedade} (${p.municipio}/${p.uf})`)}">
+              <span class="font-bold text-white">${escapeHtml(p.nome_propriedade)}</span>
+              <span class="text-[10px] text-white/40 font-mono mt-0.5">CAR: ${escapeHtml(p.codigo_car || 'N/I')} • ${escapeHtml(p.municipio)}/${escapeHtml(p.uf)}</span>
             </div>
           `).join('');
 
@@ -269,6 +312,8 @@ export const levantamentosRoute: RouteDef = {
          });
 
          inputBusca.addEventListener('input', () => {
+            // Texto digitado manualmente invalida a seleção anterior
+            inputHidden.value = '';
             listaFlutuante.classList.remove('hidden');
             renderOpcoes(inputBusca.value);
          });
@@ -310,22 +355,22 @@ export const levantamentosRoute: RouteDef = {
          if (viewMode === 'grid') {
             grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
             grid.innerHTML = lista.map((l: any) => {
-               const proprietarios = l.clientes && l.clientes.length
-                  ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
-                  : 'Sem proprietário vinculado';
+               const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário vinculado'));
+               const car = escapeHtml(l.codigo_car || 'Não Informado');
+               const ccir = escapeHtml(l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado');
 
                return `
                <div class="glass-card p-4 flex flex-col justify-between hover:border-mint-vibrant/20 transition-colors group lev-card-item" data-id="${l.id}">
                  <div>
                    <div class="flex justify-between items-start gap-4 mb-2">
-                     <h4 class="font-bold text-base text-white group-hover:text-mint-vibrant transition-colors prop-title-text max-w-[70%] truncate">${l.nome_propriedade}</h4>
-                     <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase shrink-0 ${l.status === 'CONCLUIDO' ? 'bg-mint-vibrant/15 text-mint-vibrant' : l.status === 'ARQUIVADO' ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400'}">${l.status.replace('_', ' ')}</span>
+                     <h4 class="font-bold text-base text-white group-hover:text-mint-vibrant transition-colors prop-title-text max-w-[70%] truncate">${escapeHtml(l.nome_propriedade)}</h4>
+                     <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase shrink-0 ${classeStatus(l.status)}">${l.status.replace('_', ' ')}</span>
                    </div>
                    
                    <div class="flex items-center justify-between text-[10px] text-white/30 font-mono mt-1 border-b border-white/5 pb-1.5">
                       <div class="flex items-center gap-1">
                          <i data-lucide="calendar" class="w-3 h-3 text-white/20 shrink-0"></i>
-                         <span>Início: ${l.data_inicio}</span>
+                         <span>Início: ${escapeHtml(l.data_inicio)}</span>
                       </div>
                       <div class="flex items-center gap-1">
                          <i data-lucide="map-pin" class="w-3 h-3 text-white/20 shrink-0"></i>
@@ -336,9 +381,9 @@ export const levantamentosRoute: RouteDef = {
                    <p class="text-xs text-white/60 mt-1.5 truncate font-medium">Proprietários: <span class="text-white/40 prop-owners-text">${proprietarios}</span></p>
                    
                    <div class="space-y-0.5 mt-2 pt-1.5 border-t border-white/5 text-[10px] font-mono text-white/40 prop-extra-text">
-                      <div class="flex items-center gap-1.5"><span class="text-mint-vibrant font-bold shrink-0">CAR:</span> <span class="truncate" title="${l.codigo_car || 'Não Informado'}">${l.codigo_car || 'Não Informado'}</span></div>
-                      <div class="flex items-center gap-1.5"><span class="text-blue-400 font-bold shrink-0">CCIR:</span> <span class="truncate" title="${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado'}">${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado'}</span></div>
-                      <div class="flex items-center gap-1.5"><span class="text-white/60 font-bold shrink-0">MUNICÍPIO:</span> <span>${l.municipio || 'Não Informado'}/${l.uf}</span></div>
+                      <div class="flex items-center gap-1.5"><span class="text-mint-vibrant font-bold shrink-0">CAR:</span> <span class="truncate" title="${car}">${car}</span></div>
+                      <div class="flex items-center gap-1.5"><span class="text-blue-400 font-bold shrink-0">CCIR:</span> <span class="truncate" title="${ccir}">${ccir}</span></div>
+                      <div class="flex items-center gap-1.5"><span class="text-white/60 font-bold shrink-0">MUNICÍPIO:</span> <span>${escapeHtml(l.municipio || 'Não Informado')}/${escapeHtml(l.uf)}</span></div>
                    </div>
                  </div>
                  
@@ -384,22 +429,20 @@ export const levantamentosRoute: RouteDef = {
                   </thead>
                   <tbody class="divide-y divide-white/5 text-white/80">
                      ${lista.map((l: any) => {
-               const proprietarios = l.clientes && l.clientes.length
-                  ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
-                  : 'Sem proprietário';
+               const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário'));
                return `
                            <tr class="hover:bg-white/[0.01] transition-colors lev-list-item" data-id="${l.id}">
                               <td class="px-4 py-3 text-center">
                                  <i data-lucide="folder" class="w-4 h-4 text-amber-400 fill-amber-400/20 shrink-0"></i>
                               </td>
                               <td class="px-4 py-3 font-bold text-white max-w-xs truncate">
-                                 <span class="hover:text-mint-vibrant cursor-pointer btn-auditar-link" data-id="${l.id}">${l.nome_propriedade}</span>
-                                 <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${l.codigo_car || 'N/I'} • CCIR: ${l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'N/I'}</span>
+                                 <span class="hover:text-mint-vibrant cursor-pointer btn-auditar-link" data-id="${l.id}">${escapeHtml(l.nome_propriedade)}</span>
+                                 <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${escapeHtml(l.codigo_car || 'N/I')} • CCIR: ${escapeHtml(l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'N/I')}</span>
                               </td>
                               <td class="px-4 py-3">
-                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase ${l.status === 'CONCLUIDO' ? 'bg-mint-vibrant/15 text-mint-vibrant' : l.status === 'ARQUIVADO' ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400'}">${l.status.replace('_', ' ')}</span>
+                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase ${classeStatus(l.status)}">${l.status.replace('_', ' ')}</span>
                               </td>
-                              <td class="px-4 py-3 text-white/60 font-mono">${l.data_inicio}</td>
+                              <td class="px-4 py-3 text-white/60 font-mono">${escapeHtml(l.data_inicio)}</td>
                               <td class="px-4 py-3 text-white/40 truncate max-w-xs" title="${proprietarios}">${proprietarios}</td>
                               <td class="px-4 py-3 text-white/40 font-mono uppercase">${l.total_pontos || 0} pts • ${l.total_segmentos || 0} div</td>
                               <td class="px-4 py-3">
@@ -433,6 +476,7 @@ export const levantamentosRoute: RouteDef = {
          }
 
          initIcons();
+         aplicarFiltroBusca();
 
          // Delegação de eventos no grid-projetos
          grid.onclick = (e) => {
@@ -530,19 +574,23 @@ export const levantamentosRoute: RouteDef = {
                })();
             } else if (btn.classList.contains('btn-excluir-lev')) {
                (async () => {
-                  if (confirm('Deseja apagar também a pasta física (Workspace) de arquivos associada a este levantamento?\n\nOK: Apagar registro + Pasta física\nCancelar: Cancelar exclusão')) {
-                     try {
-                        const res = await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=true`, { method: 'DELETE' });
-                        if (!res.ok) {
-                           const errData = await res.json().catch(() => ({}));
-                           showToast(errData.detail || 'Erro ao excluir levantamento.', 'error');
-                           return;
-                        }
-                        loadLevantamentos();
-                     } catch (err) {
-                        console.error('Erro ao excluir levantamento:', err);
-                        showToast('Erro de comunicação com o servidor ao tentar excluir.', 'error');
+                  const l = levantamentosList.find(x => x.id === id);
+                  const nome = l ? l.nome_propriedade : `#${id}`;
+                  if (!confirm(`Excluir o levantamento "${nome}"?\n\nPontos, segmentos e confrontantes deste levantamento serão removidos do banco.`)) return;
+                  // Pergunta separada: Cancelar aqui mantém a pasta, não cancela a exclusão
+                  const apagarArquivos = confirm('Apagar também a pasta física (Workspace) com os arquivos do levantamento?\n\nOK: apagar a pasta\nCancelar: manter a pasta no disco');
+                  try {
+                     const res = await fetch(`${API_BASE}/levantamentos/${id}?apagar_arquivos=${apagarArquivos}`, { method: 'DELETE' });
+                     const resData = await res.json().catch(() => ({}));
+                     if (!res.ok) {
+                        showToast(extrairMensagemErro(resData, 'Erro ao excluir levantamento.'), 'error');
+                        return;
                      }
+                     showToast(resData.message || 'Levantamento removido.', resData.aviso_pasta ? 'error' : 'success');
+                     loadLevantamentos();
+                  } catch (err) {
+                     console.error('Erro ao excluir levantamento:', err);
+                     showToast('Erro de comunicação com o servidor ao tentar excluir.', 'error');
                   }
                })();
             }
@@ -569,21 +617,7 @@ export const levantamentosRoute: RouteDef = {
       });
 
       // --- BUSCA DINÂMICA FILTRADA ---
-      document.getElementById('busca-levantamento')?.addEventListener('input', (e) => {
-         const term = (e.target as HTMLInputElement).value.toLowerCase();
-         const items = document.querySelectorAll('.lev-card-item, .lev-list-item');
-         items.forEach(el => {
-            const propTitle = el.querySelector('.prop-title-text, .btn-auditar-link')?.textContent?.toLowerCase() || '';
-            const owners = el.querySelector('.prop-owners-text, td:nth-child(5)')?.textContent?.toLowerCase() || '';
-            const extra = el.querySelector('.prop-extra-text, td:nth-child(2)')?.textContent?.toLowerCase() || '';
-            const match = propTitle.includes(term) || owners.includes(term) || extra.includes(term);
-            if (el.classList.contains('lev-card-item')) {
-               (el as HTMLElement).style.display = match ? 'flex' : 'none';
-            } else {
-               (el as HTMLElement).style.display = match ? 'table-row' : 'none';
-            }
-         });
-      });
+      document.getElementById('busca-levantamento')?.addEventListener('input', () => aplicarFiltroBusca());
 
       document.getElementById('btn-novo-lev')?.addEventListener('click', async () => {
          editandoLevId = null;
@@ -605,7 +639,7 @@ export const levantamentosRoute: RouteDef = {
          const inputTrtData = document.getElementById('input-lev-trt-data') as HTMLInputElement;
 
          if (inputData) {
-            inputData.value = new Date().toISOString().split('T')[0];
+            inputData.value = dataLocalHoje();
          }
          if (inputBusca) inputBusca.value = '';
          if (inputHidden) inputHidden.value = '';
@@ -635,46 +669,58 @@ export const levantamentosRoute: RouteDef = {
       document.getElementById('form-levantamento')?.addEventListener('submit', async (e) => {
          e.preventDefault();
          const propriedade_id = parseInt((document.getElementById('select-lev-propriedade') as HTMLSelectElement).value);
-         const profesional_id = parseInt((document.getElementById('select-lev-profissional') as HTMLSelectElement).value);
+         const profissional_id = parseInt((document.getElementById('select-lev-profissional') as HTMLSelectElement).value);
          const data_inicio = (document.getElementById('input-lev-data') as HTMLInputElement).value;
          const numero_trt = (document.getElementById('input-lev-trt-numero') as HTMLInputElement).value.trim() || null;
          const data_trt = (document.getElementById('input-lev-trt-data') as HTMLInputElement).value || null;
 
-         const payload: any = { propriedade_id, profissional_id: profesional_id, data_inicio, numero_trt, data_trt };
+         // O input hidden não participa da validação nativa do formulário
+         if (!propriedade_id) {
+            showToast('Selecione uma propriedade da lista de sugestões.', 'error');
+            document.getElementById('input-lev-prop-busca')?.focus();
+            return;
+         }
+         if (!profissional_id) {
+            showToast('Selecione um responsável técnico válido.', 'error');
+            return;
+         }
+
+         const payload: any = { propriedade_id, profissional_id, data_inicio, numero_trt, data_trt };
 
          if (editandoLevId) {
             const selectStatus = document.getElementById('select-lev-status') as HTMLSelectElement;
             payload.status = selectStatus.value;
+            if (payload.status === 'ARQUIVADO' && !confirm("ATENÇÃO: Arquivar este levantamento gera o snapshot de fechamento, trava as pastas físicas como Somente Leitura e bloqueia a edição de dados. Deseja continuar?")) {
+               return;
+            }
          }
 
+         const url = editandoLevId ? `${API_BASE}/levantamentos/${editandoLevId}` : `${API_BASE}/levantamentos`;
+         const method = editandoLevId ? 'PUT' : 'POST';
+
+         // Desabilita o botão submit para evitar double-submit durante a requisição
+         const btnSubmit = document.getElementById('btn-submit-lev') as HTMLButtonElement;
+         if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Salvando...'; }
+
          try {
-            const url = editandoLevId ? `${API_BASE}/levantamentos/${editandoLevId}` : `${API_BASE}/levantamentos`;
-            const method = editandoLevId ? 'PUT' : 'POST';
-
-            // Desabilita o botão submit para evitar double-submit durante a requisição
-            const btnSubmit = document.getElementById('btn-submit-lev') as HTMLButtonElement;
-            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Salvando...'; }
-
-            try {
-               const res = await fetch(url, {
-                  method: method,
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
-               });
-               const data = await res.json();
-               if (data.error) {
-                  alert(data.error);
-               } else {
-                  document.getElementById('modal-levantamento')?.classList.add('hidden');
-                  loadLevantamentos();
-               }
-            } catch (e) {
-               alert("Erro ao salvar levantamento.");
-            } finally {
-               if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = editandoLevId ? 'Salvar Alterações' : 'Criar Levantamento'; }
+            const res = await fetch(url, {
+               method: method,
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+               showToast(extrairMensagemErro(data, `Erro ao salvar levantamento (HTTP ${res.status}).`), 'error');
+               return;
             }
-         } catch (_outerErr) {
-            // noop - bloco interno já captura o erro
+            document.getElementById('modal-levantamento')?.classList.add('hidden');
+            showToast(data.message || (editandoLevId ? 'Levantamento atualizado.' : 'Levantamento criado.'), 'success');
+            loadLevantamentos();
+         } catch (e) {
+            console.error('Erro ao salvar levantamento:', e);
+            showToast('Erro de comunicação com o servidor ao salvar levantamento.', 'error');
+         } finally {
+            if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = editandoLevId ? 'Salvar Alterações' : 'Criar Levantamento'; }
          }
       });
 
@@ -693,7 +739,7 @@ export const levantamentosRoute: RouteDef = {
                   return;
                }
                selectProf.innerHTML = data.map((p: any) => `
-               <option value="${p.id}">${p.nome} (${p.registro || 'Sem Registro'})</option>
+               <option value="${p.id}">${escapeHtml(p.nome)} (${escapeHtml(p.registro || 'Sem Registro')})</option>
              `).join('');
             })
             .catch(err => {
@@ -705,12 +751,10 @@ export const levantamentosRoute: RouteDef = {
       // =========================================================================
       // LÓGICA DA ÁREA DE TRIAGEM ESPACIAL
       // =========================================================================
-      let mapaTriagem: L.Map | null = null;
       let mapaTriagemMarkers: L.Marker[] = [];
       let mapaTriagemPolyline: L.Polyline | null = null;
       let arquivosSelecionadosTriagem: File[] = [];
       let pontosProcessadosTriagem: any[] = [];
-      let layoutDetectadoTriagem: string = '';
 
       const initMapaTriagem = () => {
          if (mapaTriagem) {
@@ -753,6 +797,8 @@ export const levantamentosRoute: RouteDef = {
          if (placeholder) placeholder.classList.add('hidden');
 
          const coords: L.LatLng[] = [];
+         // Perímetro: exclui bases (set_base / nome com BASE), que não são vértices da poligonal
+         const coordsPerimetro: L.LatLng[] = [];
 
          pontos.forEach(p => {
             if (p.lat && p.lon) {
@@ -762,6 +808,7 @@ export const levantamentosRoute: RouteDef = {
                // Copiado o mesmo estilo do mapa oficial do GerenciGeo
                const isBaseFisica = p.descricao && p.descricao.toLowerCase() === 'set_base';
                const isBasePPP = p.nome && (p.nome.toUpperCase().startsWith('M') || p.nome.toUpperCase().includes('BASE'));
+               if (!isBaseFisica && !(p.nome && p.nome.toUpperCase().includes('BASE'))) coordsPerimetro.push(latLng);
                let markerBg = 'bg-mint-vibrant text-[#0c1510]';
 
                if (isBasePPP) {
@@ -772,7 +819,7 @@ export const levantamentosRoute: RouteDef = {
 
                const markerHtml = `
                  <div class="w-5 h-5 ${markerBg} border-2 border-[#0c1510] rounded-full flex items-center justify-center text-[7px] font-bold font-mono shadow-lg transition-transform hover:scale-125">
-                   ${p.nome.substring(0, 3)}
+                   ${escapeHtml(p.nome.substring(0, 3))}
                  </div>
                `;
                const customIcon = L.divIcon({
@@ -788,7 +835,7 @@ export const levantamentosRoute: RouteDef = {
                const marker = L.marker(latLng, { icon: customIcon })
                   .bindPopup(`
                      <div style="font-family:var(--geo-font-sans),sans-serif; color:rgba(255, 255, 255, 0.9); line-height:1.3; font-size:11px;">
-                        <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#00b366;">${p.nome}</div>
+                        <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#00b366;">${escapeHtml(p.nome)}</div>
                         <div style="font-size:10px; color:rgba(255, 255, 255, 0.65); font-weight:bold;">${popupRole}</div>
                         <div style="margin-top:4px; color:rgba(255, 255, 255, 0.85);">N: ${p.norte.toFixed(3)}</div>
                         <div style="color:rgba(255, 255, 255, 0.85);">E: ${p.este.toFixed(3)}</div>
@@ -803,14 +850,15 @@ export const levantamentosRoute: RouteDef = {
          });
 
          if (coords.length > 0) {
-            // Desenha a polilinha conectando os pontos e fechando no primeiro
-            const coordsPolilinha = [...coords, coords[0]];
-            mapaTriagemPolyline = L.polyline(coordsPolilinha, {
-               color: '#00ff88',
-               weight: 2,
-               opacity: 0.8,
-               dashArray: '5, 5'
-            }).addTo(mapaTriagem);
+            // Desenha a polilinha conectando os vértices do perímetro e fechando no primeiro
+            if (coordsPerimetro.length > 1) {
+               mapaTriagemPolyline = L.polyline([...coordsPerimetro, coordsPerimetro[0]], {
+                  color: '#00ff88',
+                  weight: 2,
+                  opacity: 0.8,
+                  dashArray: '5, 5'
+               }).addTo(mapaTriagem);
+            }
 
             const bounds = L.latLngBounds(coords);
             mapaTriagem.fitBounds(bounds, { padding: [40, 40] });
@@ -846,26 +894,47 @@ export const levantamentosRoute: RouteDef = {
          }
       };
 
+      // Mudança de arquivo, fuso ou inversão N/E torna a prévia obsoleta: exige novo processamento
+      // antes de liberar a importação (evita importar algo diferente do que está no mapa)
+      const invalidarPreviaTriagem = () => {
+         pontosProcessadosTriagem = [];
+         if (countPontos) countPontos.innerText = '0';
+         if (tagLayout) tagLayout.classList.add('hidden');
+         if (listaPontos) listaPontos.innerHTML = '<div class="text-white/20 italic text-center py-4">Clique em Processar para analisar</div>';
+         limparMapaTriagem();
+         document.getElementById('placeholder-mapa-triagem')?.classList.remove('hidden');
+         atualizarBotaoImportar();
+      };
+
+      const selecionarArquivosTriagem = (arquivos: FileList) => {
+         const txtFiles = Array.from(arquivos).filter(f => f.name.toLowerCase().endsWith('.txt'));
+         if (txtFiles.length === 0) {
+            showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
+            return;
+         }
+         arquivosSelecionadosTriagem = txtFiles;
+         if (labelUpload) {
+            labelUpload.innerText = txtFiles.length === 1
+               ? `Selecionado: ${txtFiles[0].name}`
+               : `${txtFiles.length} arquivos selecionados: ${txtFiles.map(f => f.name).join(', ')}`;
+         }
+         if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
+         invalidarPreviaTriagem();
+      };
+
       // Abrir Modal de Triagem
       btnTriagem?.addEventListener('click', () => {
          modalTriagem?.classList.remove('hidden');
 
-         // Inicializa o mapa do Leaflet
-         setTimeout(() => {
-            initMapaTriagem();
-            if (mapaTriagem) {
-               try {
-                  mapaTriagem.invalidateSize?.();
-               } catch (e) {}
-            }
-         }, 100);
+         // Inicializa o mapa só depois que o modal está visível, para o Leaflet medir o container corretamente
+         setTimeout(initMapaTriagem, 100);
 
          // Preencher o select de levantamento destino com levantamentos ativos
          if (selectDestino) {
             selectDestino.innerHTML = '<option value="">Selecione o levantamento de destino...</option>' +
                levantamentosList
                   .filter(l => l.status === 'EM_ANDAMENTO')
-                  .map(l => `<option value="${l.id}">${l.nome_propriedade} (${l.municipio}/${l.uf})</option>`)
+                  .map(l => `<option value="${l.id}">${escapeHtml(l.nome_propriedade)} (${escapeHtml(l.municipio)}/${escapeHtml(l.uf)})</option>`)
                   .join('');
          }
 
@@ -894,6 +963,8 @@ export const levantamentosRoute: RouteDef = {
          // Resetar estado
          arquivosSelecionadosTriagem = [];
          pontosProcessadosTriagem = [];
+         // Sem isso, escolher o mesmo arquivo ao reabrir não dispara 'change'
+         if (inputFile) inputFile.value = '';
          if (labelUpload) labelUpload.innerText = 'Arraste ou clique para selecionar arquivos .txt';
          if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-white/20 mx-auto mb-1');
          if (countPontos) countPontos.innerText = '0';
@@ -917,36 +988,24 @@ export const levantamentosRoute: RouteDef = {
          dropZone.classList.remove('border-mint-vibrant/60', 'bg-mint-vibrant/5');
 
          if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-            const txtFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.txt'));
-            if (txtFiles.length > 0) {
-               arquivosSelecionadosTriagem = txtFiles;
-               if (labelUpload) {
-                  labelUpload.innerText = txtFiles.length === 1
-                     ? `Selecionado: ${txtFiles[0].name}`
-                     : `${txtFiles.length} arquivos selecionados: ${txtFiles.map(f => f.name).join(', ')}`;
-               }
-               if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
-            } else {
-               showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
-            }
+            selecionarArquivosTriagem(e.dataTransfer.files);
          }
       });
 
       inputFile?.addEventListener('change', () => {
          if (inputFile.files && inputFile.files.length > 0) {
-            const txtFiles = Array.from(inputFile.files).filter(f => f.name.toLowerCase().endsWith('.txt'));
-            if (txtFiles.length > 0) {
-               arquivosSelecionadosTriagem = txtFiles;
-               if (labelUpload) {
-                  labelUpload.innerText = txtFiles.length === 1
-                     ? `Selecionado: ${txtFiles[0].name}`
-                     : `${txtFiles.length} arquivos selecionados: ${txtFiles.map(f => f.name).join(', ')}`;
-               }
-               if (iconUpload) iconUpload.setAttribute('class', 'w-6 h-6 text-mint-vibrant mx-auto mb-1');
-            } else {
-               showToast('Apenas arquivos de extensão .txt são permitidos na triagem.', 'error');
-            }
+            selecionarArquivosTriagem(inputFile.files);
          }
+         // Permite selecionar de novo o mesmo arquivo (ex.: após corrigi-lo no disco)
+         inputFile.value = '';
+      });
+
+      // O fuso e a inversão N/E também são usados na importação: alterá-los exige reprocessar
+      selectFuso?.addEventListener('change', () => {
+         if (pontosProcessadosTriagem.length > 0) invalidarPreviaTriagem();
+      });
+      chkInverterNE?.addEventListener('change', () => {
+         if (pontosProcessadosTriagem.length > 0) invalidarPreviaTriagem();
       });
 
       // Enviar arquivos para processamento temporário em lote
@@ -978,9 +1037,9 @@ export const levantamentosRoute: RouteDef = {
                   body: formData
                });
 
-               const data = await res.json();
+               const data = await res.json().catch(() => ({}));
                if (!res.ok) {
-                  throw new Error(data.detail || `Erro ao processar arquivo ${file.name}.`);
+                  throw new Error(extrairMensagemErro(data, `Erro ao processar arquivo ${file.name}.`));
                }
                if (data.error) {
                   throw new Error(`Erro em ${file.name}: ${data.error}`);
@@ -994,11 +1053,11 @@ export const levantamentosRoute: RouteDef = {
             }
 
             pontosProcessadosTriagem = todosPontos;
-            layoutDetectadoTriagem = Array.from(layoutsDetectados).join(' + ') || 'DESCONHECIDO';
+            const layoutDetectado = Array.from(layoutsDetectados).join(' + ') || 'DESCONHECIDO';
 
             if (countPontos) countPontos.innerText = pontosProcessadosTriagem.length.toString();
             if (tagLayout) {
-               tagLayout.innerText = layoutDetectadoTriagem;
+               tagLayout.innerText = layoutDetectado;
                tagLayout.classList.remove('hidden');
             }
 
@@ -1009,7 +1068,7 @@ export const levantamentosRoute: RouteDef = {
                } else {
                   listaPontos.innerHTML = pontosProcessadosTriagem.map((p) => `
                      <div class="py-1 px-1 flex justify-between items-center hover:bg-white/5 transition-colors">
-                        <span class="font-bold text-white">${p.nome}</span>
+                        <span class="font-bold text-white">${escapeHtml(p.nome)}</span>
                         <span class="text-white/40 text-[9px]">N: ${p.norte.toFixed(1)} E: ${p.este.toFixed(1)}</span>
                      </div>
                   `).join('');
@@ -1027,7 +1086,7 @@ export const levantamentosRoute: RouteDef = {
             alert(`Falha no processamento: ${err.message}`);
          } finally {
             if (btnProcessar) {
-               btnProcessar.innerHTML = 'Processar';
+               btnProcessar.innerHTML = '<i data-lucide="play" class="w-3 h-3"></i> Processar';
                (btnProcessar as HTMLButtonElement).disabled = false;
                initIcons();
             }
@@ -1056,14 +1115,17 @@ export const levantamentosRoute: RouteDef = {
                selectMatricula.innerHTML = '<option value="">Carregando...</option>';
             }
             const resMat = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas`);
+            if (!resMat.ok) throw new Error(`Matrículas: HTTP ${resMat.status}`);
             const matriculas = await resMat.json();
             if (selectMatricula) {
                if (matriculas.length === 0) {
                   selectMatricula.innerHTML = '<option value="">Sem matrículas vinculadas</option>';
                   selectMatricula.disabled = true;
                } else {
+                  // area_ha é opcional no cadastro da matrícula
+                  const formatarArea = (area: any) => area != null && !isNaN(Number(area)) ? `${Number(area).toFixed(2)} Ha` : 'área N/I';
                   selectMatricula.innerHTML = '<option value="">[Geral - Sem Matrícula]</option>' +
-                     matriculas.map((m: any) => `<option value="${m.id}">Matrícula: ${m.numero_matricula} (${m.area_ha.toFixed(2)} Ha)</option>`).join('');
+                     matriculas.map((m: any) => `<option value="${m.id}">Matrícula: ${escapeHtml(m.numero_matricula)} (${formatarArea(m.area_ha)})</option>`).join('');
                   selectMatricula.disabled = false;
                }
             }
@@ -1073,6 +1135,7 @@ export const levantamentosRoute: RouteDef = {
                selectBase.innerHTML = '<option value="">Carregando...</option>';
             }
             const resPts = await fetch(`${API_BASE}/levantamentos/${levId}/pontos`);
+            if (!resPts.ok) throw new Error(`Pontos: HTTP ${resPts.status}`);
             const pontos = await resPts.json();
             if (selectBase) {
                const bases = pontos.filter((p: any) => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'B');
@@ -1081,7 +1144,7 @@ export const levantamentosRoute: RouteDef = {
                   selectBase.disabled = true;
                } else {
                   selectBase.innerHTML = '<option value="">[Nenhuma Base / Autodetectar]</option>' +
-                     bases.map((p: any) => `<option value="${p.id}">Base: ${p.nome_vertice}</option>`).join('');
+                     bases.map((p: any) => `<option value="${p.id}">Base: ${escapeHtml(p.nome_vertice)}</option>`).join('');
                   selectBase.disabled = false;
                }
             }
@@ -1103,7 +1166,7 @@ export const levantamentosRoute: RouteDef = {
          const totalArquivos = arquivosSelecionadosTriagem.length;
          const msgConfirm = totalArquivos === 1
             ? 'Confirmar importação oficial deste arquivo no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.'
-            : `Confirmar importação oficial dos ${totalArquivos} arquivos no levantamento selecionado? Os segmentos e polilinha perimetral correspondentes serão recalculados no destino.`;
+            : `Confirmar importação oficial dos ${totalArquivos} arquivos no levantamento selecionado? Eles serão unidos num único caminhamento, na ordem em que foram selecionados, e importados juntos: se um falhar, nenhum é importado.`;
 
          if (!confirm(msgConfirm)) {
             return;
@@ -1111,41 +1174,34 @@ export const levantamentosRoute: RouteDef = {
 
          try {
             btnSalvarAssociacao.disabled = true;
+            btnSalvarAssociacao.innerHTML = `<i class="animate-spin mr-1">🔄</i> Importando (${totalArquivos} arquivo(s))...`;
 
-            for (let i = 0; i < totalArquivos; i++) {
-               const file = arquivosSelecionadosTriagem[i];
-               btnSalvarAssociacao.innerHTML = `<i class="animate-spin mr-1">🔄</i> Importando (${i + 1}/${totalArquivos})...`;
+            // Todos os arquivos vão numa única requisição: o backend grava tudo numa só transação
+            // e gera uma única divisa de fechamento para o conjunto
+            const formData = new FormData();
+            arquivosSelecionadosTriagem.forEach(file => formData.append('arquivos', file));
+            formData.append('inverter_ne', chkInverterNE?.checked ? 'true' : 'false');
+            // Mesmo fuso usado na prévia: as coordenadas do arquivo são interpretadas nele
+            formData.append('fuso_utm', selectFuso.value);
 
-               const formData = new FormData();
-               formData.append('file', file);
+            const matriculaVal = selectMatricula.value;
+            if (matriculaVal) {
+               formData.append('matricula_id', matriculaVal);
+            }
 
-               const inverterNE = chkInverterNE?.checked ? 'true' : 'false';
-               formData.append('inverter_ne', inverterNE);
+            const baseVal = selectBase.value;
+            if (baseVal && !selectBase.disabled) {
+               formData.append('base_escolhida_id', baseVal);
+            }
 
-               const matriculaVal = selectMatricula.value;
-               if (matriculaVal) {
-                  formData.append('matricula_id', matriculaVal);
-               }
+            const res = await fetch(`${API_BASE}/levantamentos/${levId}/importar-txt`, {
+               method: 'POST',
+               body: formData
+            });
 
-               const baseVal = selectBase.value;
-               if (baseVal && !selectBase.disabled) {
-                  formData.append('base_escolhida_id', baseVal);
-               }
-
-               const res = await fetch(`${API_BASE}/levantamentos/${levId}/importar-txt`, {
-                  method: 'POST',
-                  body: formData
-               });
-
-               const data = await res.json();
-               if (!res.ok) {
-                  const errorMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || `Erro na importação do arquivo ${file.name}.`);
-                  throw new Error(errorMsg);
-               }
-
-               if (data.error) {
-                  throw new Error(`Erro em ${file.name}: ${data.error}`);
-               }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+               throw new Error(extrairMensagemErro(data, `Erro na importação (HTTP ${res.status}).`));
             }
 
             showToast(`${totalArquivos} arquivo(s) importado(s) com sucesso no levantamento de destino!`, 'success');
@@ -1173,6 +1229,10 @@ export const levantamentosRoute: RouteDef = {
       loadProfissionais();
    },
    cleanup: () => {
+      if (mapaTriagem) {
+         mapaTriagem.remove();
+         mapaTriagem = null;
+      }
       if (clickOutsideHandler) {
          document.removeEventListener('click', clickOutsideHandler);
          clickOutsideHandler = null;

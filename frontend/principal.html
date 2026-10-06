@@ -88,31 +88,14 @@
 
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col relative min-w-0">
-      <!-- Topbar Global (Desktop & Mobile) com Realtime Sync Status -->
-      <header id="global-topbar" class="h-13 border-b border-white/5 bg-[#111113]/80 backdrop-blur-md px-4 flex items-center justify-between z-20 shrink-0">
-        <div class="flex items-center gap-3">
-          <!-- Mobile Hamburger -->
-          <button id="btn-hamburger-mobile" class="p-1.5 hover:bg-white/5 rounded text-white flex items-center justify-center cursor-pointer md:hidden" title="Menu">
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-mono uppercase tracking-widest text-mint-vibrant/60 font-semibold hidden sm:inline">Módulo</span>
-            <span class="text-white/20 hidden sm:inline">/</span>
-            <h2 id="breadcrumb-current" class="text-sm font-semibold text-white tracking-tight">Dashboard</h2>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <div id="web-cloud-indicator-mobile" class="text-[9px] text-mint-vibrant/60 font-bold uppercase tracking-wider hidden md:hidden">Hub Web</div>
-
-          <!-- Status Pill de Sincronização em Tempo Real (Global) -->
-          <button id="btn-global-sync-pill" class="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-mint-vibrant/30 transition-all cursor-pointer group shadow-sm" title="Sincronização em Tempo Real com a Nuvem">
-            <span id="sync-pill-dot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse"></span>
-            <span id="sync-pill-text" class="font-mono text-xs text-white/80 group-hover:text-white font-medium">Tempo Real</span>
-            <span id="sync-pill-badge" class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Conectado</span>
-          </button>
-        </div>
+      <!-- Topbar: só no mobile (botão de menu). No desktop a navegação fica na sidebar/ribbon e o
+           status/acesso à Nuvem fica em Configurações. -->
+      <header id="global-topbar" class="h-13 border-b border-white/5 bg-[#111113]/80 backdrop-blur-md px-4 flex items-center gap-3 z-20 shrink-0 md:hidden">
+        <button id="btn-hamburger-mobile" class="p-1.5 hover:bg-white/5 rounded text-white flex items-center justify-center cursor-pointer" title="Menu">
+           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <h2 id="breadcrumb-current" class="text-sm font-semibold text-white tracking-tight">Dashboard</h2>
+        <div id="web-cloud-indicator-mobile" class="ml-auto text-[9px] text-mint-vibrant/60 font-bold uppercase tracking-wider hidden">Hub Web</div>
       </header>
 
       <!-- Background Glows -->

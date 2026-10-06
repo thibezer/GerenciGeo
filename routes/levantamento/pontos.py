@@ -3,10 +3,8 @@ routes/levantamento/pontos.py — Gestão de Pontos de Campo, Matrículas e Orde
 """
 import os
 import re
-import stat
-import shutil
+import tempfile
 import logging
-import datetime
 from typing import List, Optional, Literal
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
@@ -16,6 +14,7 @@ from utils.transformer_cache import get_transformer
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
+from services.parsers.txt_parser import TxtGeodesicParser
 from services.gestores.levantamento_manager import (
     salvar_ordem_caminhamento,
     atualizar_ponto_geodesico,
@@ -25,6 +24,9 @@ from services.gestores.levantamento_manager import (
 from routes.deps import verificar_levantamento_arquivado
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
+
+# Fusos UTM que cobrem o território brasileiro (SIRGAS 2000 / UTM 18S a 25S)
+FUSO_UTM_MIN, FUSO_UTM_MAX = 18, 25
 
 # ── Modelos ────────────────────────────────────────────────────────────────────
 
@@ -182,7 +184,6 @@ def create_matricula(id: int, m: MatriculaCreate):
         
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-        wm = WorkspaceManager()
         for at in ativos:
             ExportacaoService.gerar_documento_cliente_workspace(at['id'])
             
@@ -259,7 +260,6 @@ def update_matricula(mid: int, m: MatriculaCreate):
 
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-        wm = WorkspaceManager()
         for at in ativos:
             ExportacaoService.gerar_documento_cliente_workspace(at['id'])
             
@@ -296,7 +296,6 @@ def delete_matricula(mid: int):
             
             query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
             ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-            wm = WorkspaceManager()
             for at in ativos:
                 ExportacaoService.gerar_documento_cliente_workspace(at['id'])
                 
@@ -378,8 +377,11 @@ def get_matricula_historico(mid: int):
 @router.get("/levantamentos/{id}/pontos")
 def get_pontos(id: int, camada: Optional[str] = None):
     try:
+        # Autocorreção de ordens duplicadas: nunca altera um levantamento ARQUIVADO (tranca read-only)
         if not camada or camada.upper() in ("CAMPO", "PERIMETRO"):
-            sanitizar_ordens_duplicadas(id)
+            row_status = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
+            if row_status and row_status["status"] != "ARQUIVADO":
+                sanitizar_ordens_duplicadas(id)
 
         filtros = ["p.levantamento_id = ?"]
         params = [id]
@@ -431,8 +433,6 @@ def get_pontos(id: int, camada: Optional[str] = None):
 @router.post("/levantamentos/{id}/pontos")
 def create_ponto(id: int, p: PontoCreate):
     verificar_levantamento_arquivado(id)
-    if p.tipo_ponto not in ['M', 'P', 'V', 'B']:
-        raise HTTPException(status_code=400, detail=f"Tipo de ponto inválido '{p.tipo_ponto}'. Deve ser 'M', 'P', 'V' ou 'B'.")
     try:
         ordem = p.ordem_caminhamento
         if not ordem and p.tipo_ponto != 'B':
@@ -507,36 +507,53 @@ async def importar_caderneta_txt(
     matricula_id: int = Form(None), 
     base_escolhida_id: int = Form(None), 
     inverter_ne: bool = Form(False),
-    file: UploadFile = File(...)
+    fuso_utm: Optional[int] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    arquivos: Optional[List[UploadFile]] = File(None)
 ):
+    """
+    Importa uma caderneta (campo `file`) ou várias de uma vez (campo `arquivos`).
+    Vários arquivos formam UM caminhamento contínuo (uma única divisa de fechamento) e são gravados
+    numa única transação: se um deles falhar, nenhum ponto é importado.
+    """
     verificar_levantamento_arquivado(id)
+    if fuso_utm is not None and not (FUSO_UTM_MIN <= fuso_utm <= FUSO_UTM_MAX):
+        raise HTTPException(status_code=400, detail=f"Fuso UTM inválido: {fuso_utm}. Use um fuso entre {FUSO_UTM_MIN} e {FUSO_UTM_MAX}.")
+    uploads = ([file] if file else []) + (arquivos or [])
+    if not uploads:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado para importação.")
     try:
         wm = WorkspaceManager()
         folder = wm.get_levantamento_folder(id)
         pasta_processados = folder / "Processados"
         pasta_processados.mkdir(parents=True, exist_ok=True)
-        
-        caminho_salvo = pasta_processados / file.filename
-        
-        with open(caminho_salvo, "wb") as buffer:
-            buffer.write(await file.read())
-            
-        parser = TxtGeodesicParser(id, matricula_id, base_escolhida_id, inverter_ne=inverter_ne)
-        pontos_processados = parser.processar_arquivo(str(caminho_salvo))
-        
-        if not pontos_processados:
-            raise HTTPException(status_code=400, detail="Nenhum vértice válido encontrado ou processado no arquivo.")
-            
-        ids_pontos = parser.persistir_no_banco(pontos_processados)
-        total_segmentos = parser.gerar_topologia_perimetral(ids_pontos, pontos_processados)
+
+        parser = TxtGeodesicParser(id, matricula_id, base_escolhida_id, inverter_ne=inverter_ne, fuso_utm=fuso_utm)
+        lotes = []
+        layouts = []
+        for up in uploads:
+            caminho_salvo = pasta_processados / up.filename
+            with open(caminho_salvo, "wb") as buffer:
+                buffer.write(await up.read())
+
+            pontos_arquivo = parser.processar_arquivo(str(caminho_salvo))
+            if not pontos_arquivo:
+                raise HTTPException(status_code=400, detail=f"Nenhum vértice válido encontrado ou processado no arquivo '{up.filename}'.")
+            lotes.append(pontos_arquivo)
+            rotulo = "RTK" if parser.layout_detectado == "rtk" else "Topcon Estático"
+            if rotulo not in layouts:
+                layouts.append(rotulo)
+
+        pontos_processados = TxtGeodesicParser.unir_lotes(lotes)
+        ids_pontos, total_segmentos = parser.persistir_com_topologia(pontos_processados)
         ExportacaoService.gerar_documento_cliente_workspace(id)
-        
-        primeiro_pt = pontos_processados[0]
-        layout = "RTK" if primeiro_pt["sigma_lat"] > 0.0 else "Topcon Estático"
+
+        layout = " + ".join(layouts)
+        nomes_arquivos = [up.filename for up in uploads]
         
         from services.processamento.historico_campo import HistoricoCampoLogger
         pontos_nomes = [pt["nome_vertice"] for pt in pontos_processados]
-        desc = f"Importação de caderneta no layout '{layout}' do arquivo '{file.filename}' com {len(ids_pontos)} ponto(s)."
+        desc = f"Importação de caderneta no layout '{layout}' do(s) arquivo(s) '{', '.join(nomes_arquivos)}' com {len(ids_pontos)} ponto(s)."
         if base_escolhida_id:
             row_base_nome = execute_query("SELECT nome_vertice FROM pontos WHERE id = ?", params=(base_escolhida_id,), fetch_one=True)
             if row_base_nome:
@@ -547,7 +564,8 @@ async def importar_caderneta_txt(
             tipo_evento="IMPORTACAO_TXT",
             descricao=desc,
             dados_detalhados={
-                "arquivo_nome": file.filename,
+                "arquivo_nome": ", ".join(nomes_arquivos),
+                "arquivos": nomes_arquivos,
                 "layout_detectado": layout,
                 "total_pontos_importados": len(ids_pontos),
                 "pontos": pontos_nomes,
@@ -558,8 +576,11 @@ async def importar_caderneta_txt(
         return {
             "message": f"Sucesso: {len(ids_pontos)} pontos importados e {total_segmentos} segmentos perimetrais gerados automaticamente.",
             "pontos_importados": len(ids_pontos),
+            "arquivos_importados": len(uploads),
             "layout_detectado": layout
         }
+    except HTTPException:
+        raise
     except ValueError as val_err:
         logging.getLogger(__name__).warning(f"Tentativa de importação inválida: {val_err}")
         raise HTTPException(
@@ -587,7 +608,6 @@ def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
     try:
         from services.processamento.geoprocessamento import associar_base_ao_lote
         qtd = associar_base_ao_lote(payload.ponto_id_selecionado, payload.base_ppp_id)
-        wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(id)
         return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Vínculo tardio e translação em bloco aplicados com sucesso."}
     except Exception as e:
@@ -605,7 +625,6 @@ def post_corrigir_manual_lote(id: int, payload: PayloadOverrideManual):
             payload.dados_brutos, 
             payload.dados_corrigidos
         )
-        wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(id)
         return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Override manual e translação ECEF 3D aplicados com sucesso."}
     except Exception as e:
@@ -629,7 +648,6 @@ def post_reordenar_perimetro(id: int, matricula_id: int):
     resultado = reordenar_perimetro_matricula(id, matricula_id)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
-    wm = WorkspaceManager()
     ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
@@ -640,7 +658,6 @@ def post_ordenar_vizinhos_perimetro(id: int, matricula_id: int):
     resultado = ordenar_vizinho_mais_proximo(id, matricula_id)
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
-    wm = WorkspaceManager()
     ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
@@ -660,7 +677,6 @@ def post_reordenar_global(id: int):
     resultado = reordenar_perimetro_matricula(id, None)
     if not resultado["sucesso"]:
         raise HTTPException(status_code=400, detail=resultado["erro"])
-    wm = WorkspaceManager()
     ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
@@ -671,7 +687,6 @@ def post_ordenar_vizinhos_global(id: int):
     resultado = ordenar_vizinho_mais_proximo(id, None)
     if not resultado.get("sucesso"):
         raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao ordenar"))
-    wm = WorkspaceManager()
     ExportacaoService.gerar_documento_cliente_workspace(id)
     return resultado
 
@@ -915,102 +930,39 @@ async def analisar_arquivo_txt_temporario(
     inverter_ne: bool = Form(False),
     file: UploadFile = File(...)
 ):
+    """
+    Pré-visualização da Área de Triagem: lê o arquivo com o MESMO parser da importação oficial
+    (delimitador, layout e inversão N/E idênticos) e converte de UTM para lat/lon, sem gravar nada.
+    """
+    if not (FUSO_UTM_MIN <= fuso_utm <= FUSO_UTM_MAX):
+        raise HTTPException(status_code=400, detail=f"Fuso UTM inválido: {fuso_utm}. Use um fuso entre {FUSO_UTM_MIN} e {FUSO_UTM_MAX}.")
+
+    sufixo = os.path.splitext(file.filename or "")[1].lower() or ".txt"
+    caminho_tmp = None
     try:
-        content = await file.read()
-        linhas = content.decode("utf-8", errors="ignore").splitlines()
-        
-        # Identificar layout
-        layout = "topcon"
-        for linha in linhas:
-            linha_limpa = linha.strip()
-            if not linha_limpa or linha_limpa.startswith("#"):
-                continue
-            partes = [p.strip() for p in linha_limpa.split(",")]
-            if len(partes) == 7:
-                layout = "topcon"
-                break
-            elif len(partes) >= 8:
-                quinta_coluna = partes[4]
-                if quinta_coluna.lower() in ["set_base", "rover", "base_rtk", "rtk_base", "base", "set-base"]:
-                    layout = "rtk"
-                    break
-                try:
-                    float(quinta_coluna)
-                    layout = "topcon"
-                except ValueError:
-                    layout = "rtk"
-                break
+        with tempfile.NamedTemporaryFile(delete=False, suffix=sufixo) as tmp:
+            tmp.write(await file.read())
+            caminho_tmp = tmp.name
 
-        pontos_brutos = []
-        for linha in linhas:
-            linha_limpa = linha.strip()
-            if not linha_limpa or linha_limpa.startswith("#"):
-                continue
-            partes = [p.strip() for p in linha_limpa.split(",")]
-            if len(partes) < 4:
-                continue
-            try:
-                nome = partes[0]
-                n1 = float(partes[1])
-                e1 = float(partes[2])
-                alt = float(partes[3])
-                
-                if inverter_ne:
-                    norte = e1
-                    este = n1
-                else:
-                    norte = n1
-                    este = e1
-                desc = ""
-                sig_n = 0.0
-                sig_e = 0.0
-                sig_z = 0.0
-
-                if layout == "rtk":
-                    if len(partes) >= 5:
-                        desc = partes[4]
-                    if len(partes) >= 8:
-                        sig_n = float(partes[5])
-                        sig_e = float(partes[6])
-                        sig_z = float(partes[7])
-                else:
-                    if len(partes) >= 7:
-                        sig_n = float(partes[4])
-                        sig_e = float(partes[5])
-                        sig_z = float(partes[6])
-
-                pontos_brutos.append({
-                    "nome": nome,
-                    "norte": norte,
-                    "este": este,
-                    "alt": alt,
-                    "descricao": desc,
-                    "sigma_n": sig_n,
-                    "sigma_e": sig_e,
-                    "sigma_z": sig_z
-                })
-            except Exception:
-                continue
+        parser = TxtGeodesicParser(None, inverter_ne=inverter_ne, fuso_utm=fuso_utm)
+        layout, pontos_brutos = parser.ler_arquivo(caminho_tmp)
 
         if not pontos_brutos:
             raise HTTPException(status_code=400, detail="Nenhum ponto válido encontrado no arquivo.")
 
-        # Converter de UTM para Geodésica Lat/Lon
-        crs_geodesica = "epsg:4674"
-        crs_plana = f"epsg:319{60 + fuso_utm}"
-        transformer_to_latlon = get_transformer(crs_plana, crs_geodesica, always_xy=True)
+        transformer_to_latlon = get_transformer(f"epsg:319{60 + fuso_utm}", "epsg:4674", always_xy=True)
 
         pontos_convertidos = []
         for p in pontos_brutos:
             try:
-                lon, lat = transformer_to_latlon.transform(p["este"], p["norte"])
+                lon, lat = transformer_to_latlon.transform(p["e_original"], p["n_original"])
                 pontos_convertidos.append({
                     "nome": p["nome"],
                     "lat": lat,
                     "lon": lon,
-                    "alt": p["alt"],
-                    "norte": p["norte"],
-                    "este": p["este"],
+                    "alt": p["alt_original"],
+                    "norte": p["n_original"],
+                    "este": p["e_original"],
                     "sigma_n": p["sigma_n"],
                     "sigma_e": p["sigma_e"],
                     "sigma_z": p["sigma_z"],
@@ -1024,8 +976,13 @@ async def analisar_arquivo_txt_temporario(
             "fuso_utm": fuso_utm,
             "pontos": pontos_convertidos
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
+    finally:
+        if caminho_tmp and os.path.exists(caminho_tmp):
+            os.remove(caminho_tmp)
 
 @router.post("/levantamentos/{id}/pontos/integrar-vizinho/{pid}")
 def integrar_ponto_vizinho(id: int, pid: int, matricula_id: Optional[int] = None):
@@ -1343,7 +1300,6 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
                     conn_seg.commit()
 
         sanitizar_ordens_duplicadas(id)
-        wm = WorkspaceManager()
         ExportacaoService.gerar_documento_cliente_workspace(id)
 
         from services.processamento.historico_campo import HistoricoCampoLogger

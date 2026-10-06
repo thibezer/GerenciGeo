@@ -3,24 +3,20 @@ routes/levantamento/crud.py — CRUD de Levantamentos e Gestão de Arquivos do P
 """
 import os
 import io
-import re
 import json
 import stat
-import shutil
 import zipfile
 import logging
 import datetime
 from collections import defaultdict
-from typing import List, Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
-from database.repository import HistoricoRinexRepo
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
-from services.processamento.triagem_inteligente import ler_metadados_rinex
 from routes.deps import verificar_levantamento_arquivado
 from routes.processamento import _converter_gns_background
 
@@ -39,7 +35,7 @@ class LevantamentoUpdate(BaseModel):
     propriedade_id: int
     profissional_id: int
     data_inicio: str
-    status: str = "EM_ANDAMENTO"
+    status: Literal["EM_ANDAMENTO", "CONCLUIDO", "ARQUIVADO"] = "EM_ANDAMENTO"
     numero_trt: Optional[str] = None
     data_trt: Optional[str] = ""
 
@@ -61,8 +57,6 @@ def get_levantamentos():
         if not levantamentos:
             return []
 
-        from collections import defaultdict
-
         prop_ids = list(set(l['propriedade_id'] for l in levantamentos if l.get('propriedade_id') is not None))
         clients_by_prop = defaultdict(list)
 
@@ -82,9 +76,6 @@ def get_levantamentos():
 
         for l in levantamentos:
             l['clientes'] = clients_by_prop.get(l['propriedade_id'], [])
-        else:
-            for l in levantamentos:
-                l['clientes'] = []
 
         return levantamentos
     except Exception as e:
@@ -157,14 +148,48 @@ def create_levantamento(lev: LevantamentoCreate):
 def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
     verificar_levantamento_arquivado(lev_id)
     try:
-        execute_query("""
-            UPDATE levantamentos
-            SET propriedade_id = ?, profissional_id = ?, data_inicio = ?, status = ?, numero_trt = ?, data_trt = ?
-            WHERE id = ?
-        """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, lev.status, lev.numero_trt, lev.data_trt, lev_id), commit=True)
-        
+        atual = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True)
+        if not atual:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+
+        prop = execute_query("SELECT nome_propriedade FROM propriedades WHERE id = ?", params=(lev.propriedade_id,), fetch_one=True)
+        if not prop:
+            raise HTTPException(status_code=404, detail="Propriedade não encontrada.")
+
+        # O caminho da pasta deriva da propriedade e do ano da data de início: se mudar, a pasta acompanha
+        wm = WorkspaceManager()
+        pasta_atual = wm.get_levantamento_folder(lev_id)
+        pasta_nova = wm.montar_caminho(lev_id, prop["nome_propriedade"], lev.data_inicio)
+        mover_pasta = pasta_nova != pasta_atual and pasta_atual.exists()
+        if mover_pasta and wm.pasta_tem_arquivos(pasta_nova):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Não é possível alterar: a pasta de destino já existe e contém arquivos ({pasta_nova})."
+            )
+
+        # Arquivar exige snapshot + tranca em disco: grava os demais campos e delega a _arquivar_levantamento
+        arquivar = lev.status == "ARQUIVADO"
+        status_gravado = atual["status"] if arquivar else lev.status
+
+        if mover_pasta:
+            wm.mover_workspace(pasta_atual, pasta_nova)
+        try:
+            execute_query("""
+                UPDATE levantamentos
+                SET propriedade_id = ?, profissional_id = ?, data_inicio = ?, status = ?, numero_trt = ?, data_trt = ?, pasta_projeto = ?
+                WHERE id = ?
+            """, params=(lev.propriedade_id, lev.profissional_id, lev.data_inicio, status_gravado, lev.numero_trt, lev.data_trt, str(pasta_nova), lev_id), commit=True)
+        except Exception:
+            if mover_pasta:
+                wm.mover_workspace(pasta_nova, pasta_atual)
+            raise
+
         # Regenera o Workspace DADOS_GERAIS.json
         ExportacaoService.gerar_documento_cliente_workspace(lev_id)
+
+        if arquivar:
+            resultado = _arquivar_levantamento(lev_id)
+            return {"message": "Levantamento atualizado e arquivado. " + resultado["message"], "snapshot_fechamento": resultado["snapshot_fechamento"]}
 
         return {"message": "Levantamento atualizado com sucesso"}
     except HTTPException:
@@ -177,17 +202,30 @@ def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
 def delete_levantamento(lev_id: int, apagar_arquivos: bool = False):
     verificar_levantamento_arquivado(lev_id)
     try:
+        if not execute_query("SELECT id FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True):
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+
+        # O caminho da pasta é derivado do registro no banco: resolve ANTES de apagá-lo
+        wm = WorkspaceManager()
+        pasta = wm.get_levantamento_folder(lev_id) if apagar_arquivos else None
+
         with DatabaseManager() as conn:
             # Apagar DB (CASCADE vai limpar pontos, confrontantes e segmentos)
             conn.execute("DELETE FROM levantamentos WHERE id = ?", (lev_id,))
             conn.commit()
-            
-            # Apagar Físico
-            if apagar_arquivos:
-                wm = WorkspaceManager()
-                wm.delete_workspace(lev_id)
-                
-            return {"message": "Levantamento removido com sucesso"}
+
+        # Apagar Físico (o registro já foi removido: falha aqui vira aviso, não erro)
+        if apagar_arquivos:
+            try:
+                wm.delete_workspace(lev_id, folder=pasta)
+            except Exception as e_fs:
+                logging.getLogger(__name__).error(f"Erro ao apagar pasta física {pasta} do levantamento id={lev_id}: {e_fs}", exc_info=True)
+                return {
+                    "message": f"Levantamento removido, mas não foi possível apagar a pasta física: {pasta}",
+                    "aviso_pasta": str(e_fs)
+                }
+
+        return {"message": "Levantamento removido com sucesso"}
     except HTTPException:
         raise
     except Exception as e:
@@ -265,129 +303,6 @@ async def upload_arquivo_categoria(lev_id: int, background_tasks: BackgroundTask
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/levantamentos/{lev_id}/testar-busca-rinex")
-async def testar_busca_rinex(lev_id: int):
-    verificar_levantamento_arquivado(lev_id)
-    try:
-        import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from buscador_rinex import encontrar_rinex
-        
-        wm = WorkspaceManager()
-        folder = wm.get_levantamento_folder(lev_id)
-        
-        pasta_brutos = folder / "Brutos"
-        pasta_rinex = folder / "Rinex"
-        os.makedirs(str(pasta_rinex), exist_ok=True)
-        
-        if not pasta_brutos.exists():
-            return {"success": False, "message": "Pasta 'Brutos' não existe no workspace deste levantamento."}
-            
-        # Pega todos os arquivos brutos (.GNS ou .ZHD)
-        arquivos_brutos = [f for f in os.listdir(pasta_brutos) if f.upper().endswith((".GNS", ".ZHD"))]
-        if not arquivos_brutos:
-            return {"success": False, "message": "Nenhum arquivo bruto (.GNS ou .ZHD) localizado na pasta 'Brutos'."}
-        
-        # Nomes base dos arquivos brutos para o buscador
-        nomes_base = [os.path.splitext(a)[0] for a in arquivos_brutos]
-        
-        # Busca via buscador_rinex.py
-        arquivos_encontrados = encontrar_rinex(
-            nomes_base_origem=nomes_base,
-            pasta_destino=str(pasta_rinex),
-            pastas_extras=[str(folder)]
-        )
-        
-        encontrados = []
-        copiados = []
-        ja_existentes = []
-        erros = []
-        registrados = []
-        
-        repo = HistoricoRinexRepo()
-        
-        for arq in arquivos_encontrados:
-            f = os.path.basename(arq)
-            origem = os.path.dirname(arq)
-            nome_f, ext_f = os.path.splitext(f)
-            ext_f_lower = ext_f.lower()
-            
-            # Identifica o arquivo bruto correspondente
-            arq_bruto_match = next(
-                (b for b in arquivos_brutos if nome_f.lower() == os.path.splitext(b)[0].lower()
-                 or nome_f.lower().startswith(os.path.splitext(b)[0].lower())),
-                arquivos_brutos[0]
-            )
-            
-            encontrados.append({"bruto": arq_bruto_match, "rinex": f, "origem": origem, "caminho": arq})
-            
-            # Copia para a pasta Rinex do workspace
-            dest_caminho = pasta_rinex / f
-            ja_esta_no_workspace = os.path.normpath(arq) == os.path.normpath(str(dest_caminho))
-            
-            if ja_esta_no_workspace:
-                ja_existentes.append(f)
-            else:
-                try:
-                    if dest_caminho.exists():
-                        os.chmod(str(dest_caminho), stat.S_IWRITE)
-                    shutil.copy2(arq, str(dest_caminho))
-                    copiados.append(f)
-                except Exception as e_copy:
-                    erros.append(f"Erro ao copiar {f}: {e_copy}")
-                    continue
-            
-            # Se for arquivo de observação, faz o parse dos metadados e registra no BD
-            if ext_f_lower in ['.obs', '.o'] or re.match(r'^\.\d{2}o$', ext_f_lower):
-                tamanho_bruto = os.path.getsize(pasta_brutos / arq_bruto_match) if (pasta_brutos / arq_bruto_match).exists() else 0
-                try:
-                    meta = ler_metadados_rinex(str(dest_caminho))
-                    if meta:
-                        repo.insert(
-                            arquivo_nome=arq_bruto_match,
-                            arquivo_tamanho=tamanho_bruto,
-                            arquivo_path=str(pasta_brutos / arq_bruto_match),
-                            ponto_nome=meta['marcador'],
-                            data_inicio=meta['inicio'],
-                            data_fim=meta['fim'],
-                            latitude=meta['lat'],
-                            longitude=meta['lon'],
-                            sucesso=True
-                        )
-                        registrados.append(f"{f} -> Marcador: {meta['marcador']}")
-                    else:
-                        repo.insert(
-                            arquivo_nome=arq_bruto_match,
-                            arquivo_tamanho=tamanho_bruto,
-                            arquivo_path=str(pasta_brutos / arq_bruto_match),
-                            sucesso=True
-                        )
-                        registrados.append(f"{f} (sem metadados)")
-                except Exception as e_db:
-                    erros.append(f"Erro ao registrar BD para {f}: {e_db}")
-        
-        # Regenera documentos
-        ExportacaoService.gerar_documento_cliente_workspace(lev_id)
-        
-        total_msg = (
-            f"Busca finalizada. {len(encontrados)} arquivo(s) encontrado(s): "
-            f"{len(copiados)} copiado(s) para o workspace, "
-            f"{len(ja_existentes)} já existia(m), "
-            f"{len(registrados)} registrado(s) no banco."
-        )
-        return {
-            "success": True,
-            "message": total_msg,
-            "arquivos_rinex_encontrados": encontrados,
-            "arquivos_copiados": copiados,
-            "arquivos_ja_existentes": ja_existentes,
-            "arquivos_registrados": registrados,
-            "erros": erros
-        }
-    except Exception as ex:
-        raise HTTPException(status_code=500, detail=str(ex))
-
-
 @router.get("/levantamentos/{lev_id}/rinex/download-zip")
 def download_rinex_zip(lev_id: int):
     """Empacota todos os arquivos da pasta Rinex do levantamento num .zip em memória e o envia para download."""
@@ -452,34 +367,23 @@ def get_arquivos_levantamento(lev_id: int):
         logging.getLogger(__name__).error(f"Erro ao listar arquivos do levantamento id={lev_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao listar arquivos do levantamento.")
 
-@router.get("/levantamentos/arquivados/anos")
-def get_anos_arquivados():
-    try:
-        query = """
-            SELECT DISTINCT strftime('%Y', data_inicio) as ano
-            FROM levantamentos
-            WHERE status = 'ARQUIVADO' AND data_inicio IS NOT NULL
-            ORDER BY ano DESC
-        """
-        anos = [r['ano'] for r in execute_query(query, fetch_all=True) if r['ano']]
-        return {"anos": anos}
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Erro ao buscar anos de projetos arquivados: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Erro ao buscar anos arquivados")
+# Campos com caminhos/nomes de arquivos locais: nunca vão para o link público
+CAMPOS_PRIVADOS_PUBLICO = ("caminho_arquivo_pdf", "arquivo_rinex", "arquivo_resultado_ppp", "arquivo_origem")
 
-import uuid
+def _sem_campos_privados(registro: dict) -> dict:
+    return {k: v for k, v in registro.items() if k not in CAMPOS_PRIVADOS_PUBLICO}
 
 @router.post("/levantamentos/{lev_id}/compartilhar")
-async def gerar_link_compartilhamento(lev_id: int):
+def gerar_link_compartilhamento(lev_id: int):
     try:
         row = execute_query("SELECT codigo_compartilhamento FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_all=True)
         if not row:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
-        
+
         codigo = row[0]['codigo_compartilhamento']
         if not codigo:
             import secrets
-            codigo = secrets.token_hex(4) # gera 8 caracteres aleatórios (ex: 'f4a2b91c')
+            codigo = secrets.token_hex(8)  # 16 caracteres hex (64 bits): inviável de adivinhar por força bruta
             execute_query("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?", params=(codigo, lev_id), commit=True)
 
         # 1. Gera o payload com dados anonimizados
@@ -488,8 +392,9 @@ async def gerar_link_compartilhamento(lev_id: int):
         # 2. Transmite o payload para o endpoint api.php na Hostinger
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.post("https://darkgray-duck-674813.hostingersite.com/api.php", json={
+            from config import CLOUD_BASE_URL
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(CLOUD_BASE_URL, json={
                     "codigo": codigo,
                     "payload": payload
                 })
@@ -538,7 +443,7 @@ def get_levantamento_publico(codigo: str):
 
         # Busca matrículas
         query_mat = "SELECT * FROM matriculas WHERE propriedade_id = ?"
-        lev_obj['matriculas'] = [dict(r) for r in execute_query(query_mat, params=(prop_id,), fetch_all=True)]
+        lev_obj['matriculas'] = [_sem_campos_privados(dict(r)) for r in execute_query(query_mat, params=(prop_id,), fetch_all=True)]
 
         # Verifica se existem pontos homologados na tabela banco_pontos (Peças de Cartório)
         query_bp = """
@@ -575,7 +480,7 @@ def get_levantamento_publico(codigo: str):
                   AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
                 ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
             """
-            lev_obj['pontos'] = [dict(r) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
+            lev_obj['pontos'] = [_sem_campos_privados(dict(r)) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
 
         # Busca segmentos
         query_seg = "SELECT * FROM segmentos WHERE levantamento_id = ?"
@@ -618,15 +523,18 @@ class DesarquivarPayload(BaseModel):
 def arquivar_levantamento(id: int):
     """Arquiva logicamente o levantamento (Tranca Read-Only), gera snapshot JSON e tranca a pasta no Windows"""
     lev_row = execute_query("SELECT id, status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
-    if not lev_row: 
+    if not lev_row:
         raise HTTPException(status_code=404, detail="Levantamento não localizado.")
-    
+    return _arquivar_levantamento(id)
+
+def _arquivar_levantamento(id: int) -> dict:
+    """Rotina única de arquivamento (rota /arquivar e PUT com status ARQUIVADO): snapshot, status e tranca em disco"""
     wm = WorkspaceManager()
     snap_path = ExportacaoService.gerar_snapshot_arquivamento(id)
-    
+
     execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
     wm.travar_workspace_inteiro_readonly(id)
-    
+
     return {
         "message": "Levantamento arquivado com sucesso. Tranca de Segurança Read-Only ativada em banco e em disco.",
         "snapshot_fechamento": snap_path

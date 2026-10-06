@@ -7,7 +7,7 @@ import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
-import { setupOrganizadorPerimetro, renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
+import { renderTabelaOrganizadorPerimetro } from './mesa_trabalho/organizador_perimetro';
 import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
@@ -128,7 +128,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       return abrirModalUnificacaoSobrepostos(ctx);
     };
     setupMesaGeodesica(ctx);
-    setupOrganizadorPerimetro(ctx);
     setupOrdenadorManual(ctx);
     setupGeradorDocumentos(ctx);
 
@@ -366,7 +365,26 @@ export const mesaTrabalhoRoute: RouteDef = {
           }
         });
 
+        // O kit cobre o mapa com uma camada transparente e abre o popup do ponto por proximidade; o filtro de
+        // "clique livre" dele não enxerga esse acerto. Sem esta checagem o popup do SIGEF substituía o do ponto.
+        const cliqueSobrePonto = (pixel: { x: number; y: number } | undefined): boolean => {
+          const map = ctx.triagemMap;
+          if (!map || !pixel) return false;
+          const listas = [ctx.pontosList, ctx.bancoPontosList, ctx.pontosVizinhosList];
+          for (const lista of listas) {
+            for (const p of (lista || []) as any[]) {
+              const lat = Number(p?.lat);
+              const lon = Number(p?.lon ?? p?.lng);
+              if (!lat || !lon) continue;
+              const pt = map.latLngToContainerPoint([lat, lon]);
+              if (Math.hypot(pt.x - pixel.x, pt.y - pixel.y) <= 12) return true;
+            }
+          }
+          return false;
+        };
+
         canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
+          if (cliqueSobrePonto(e.detail?.pontoPixel)) return;
           if (ctx.triagemMap && e.detail) {
             const ev = e.detail.eventoOriginal || e.detail;
             const latlng = ev.latlng || (e.detail.coordenadas ? L.latLng(e.detail.coordenadas.lat, e.detail.coordenadas.lon || e.detail.coordenadas.lng) : null);
@@ -504,6 +522,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     ctx.alternarEtapa = (etapa: string) => {
       ctx.etapaAtiva = etapa;
+      ctx.aoMudarEtapa?.(etapa);
 
       // Alternância de views do workspace-body (AutoCAD style abas)
       const allViews = document.querySelectorAll('.view-panel');
@@ -512,12 +531,13 @@ export const mesaTrabalhoRoute: RouteDef = {
         v.classList.remove('active-view');
       });
 
-      let targetViewId = 'view-mesa-geodesica';
-      if (etapa === 'cartorio') targetViewId = 'view-org-perimetro';
+      // Org. de Perímetro só tem o mapa + ordenador lateral (a tabela de divisas/confrontantes fica em Peças de Cartório)
+      let targetViewId: string | null = 'view-mesa-geodesica';
+      if (etapa === 'cartorio') targetViewId = null;
       else if (etapa === 'documentos') targetViewId = 'view-cartorio';
       else if (etapa === 'auditoria') targetViewId = 'view-auditoria';
 
-      const targetView = document.getElementById(targetViewId);
+      const targetView = targetViewId ? document.getElementById(targetViewId) : null;
       if (targetView) {
         targetView.classList.remove('hidden');
         targetView.classList.add('active-view');
@@ -531,6 +551,11 @@ export const mesaTrabalhoRoute: RouteDef = {
       const propsPanelOrdenador = document.getElementById('props-panel-ordenador');
       const propsPanelActions = document.getElementById('props-panel-actions');
       const painelPropriedades = document.getElementById('painel-propriedades');
+
+      // Peças de Cartório não seleciona pontos: o painel lateral não tem função e só rouba largura.
+      const semPainelProps = etapa === 'documentos';
+      painelPropriedades?.classList.toggle('hidden', semPainelProps);
+      document.querySelector('.workspace-body')?.classList.toggle('sem-painel-props', semPainelProps);
 
       if (etapa === 'cartorio') {
         if (propsPanelTitle) propsPanelTitle.innerHTML = '<i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-mint-vibrant inline-block mr-1"></i> Ordenador Manual';
@@ -571,9 +596,13 @@ export const mesaTrabalhoRoute: RouteDef = {
         renderHistoricoCampo(ctx);
       }
 
-      if (etapa === 'geoprocessamento' || etapa === 'cartorio') {
+      // Peças de Cartório: mapa fixo à esquerda e conteúdo à direita (para conferir divisas e vizinhos SIGEF o tempo todo)
+      document.querySelector('.workspace-main-content')?.classList.toggle('etapa-cartorio-split', etapa === 'documentos');
+      document.querySelector('.workspace-wrapper')?.classList.toggle('ribbon-compacto', etapa === 'documentos');
+
+      if (etapa === 'geoprocessamento' || etapa === 'cartorio' || etapa === 'documentos') {
         containerMapa?.classList.remove('hidden');
-        splitterMapa?.classList.remove('hidden');
+        splitterMapa?.classList.toggle('hidden', etapa === 'cartorio' || etapa === 'documentos');
         if (ctx.triagemMap) {
           setTimeout(() => {
             try {
