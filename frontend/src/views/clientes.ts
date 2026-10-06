@@ -449,7 +449,10 @@ export const clientesRoute: RouteDef = {
 
       const setDetVal = (elemId: string, val: string | number | null | undefined) => {
         const el = document.getElementById(elemId);
-        if (el) el.innerText = val !== null && val !== undefined && val !== '' ? String(val) : '-';
+        if (!el) return;
+        const vazio = val === null || val === undefined || val === '' || val === '-';
+        el.innerText = vazio ? '-' : String(val);
+        el.classList.toggle('det-vazio', vazio);
       };
 
       // Bloco PJ condicional

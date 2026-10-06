@@ -680,7 +680,12 @@ thead th,
 /* ==========================================================================
    Modais de Alta Densidade e Largura Expandida (Desktop Power Users)
    ========================================================================== */
-ui-modal#modal-detalhes-cliente,
+ui-modal#modal-detalhes-cliente {
+  --ui-modal-largura: 780px !important;
+  --ui-modal-padding-x: 22px !important;
+  max-width: 780px !important;
+}
+
 ui-modal.modal-amplo,
 ui-modal[tamanho="extra-grande"],
 ui-modal[tamanho="xl"] {
@@ -700,8 +705,10 @@ ui-modal[tamanho="grande"] {
 }
 
 @media (min-width: 1024px) {
-  ui-modal#modal-detalhes-cliente,
-  ui-modal.modal-amplo {
+  ui-modal#modal-detalhes-cliente {
+    --ui-modal-largura: 780px !important;
+  }
+  ui-modal.modal-amplo:not(#modal-detalhes-cliente) {
     --ui-modal-largura: 1080px !important;
   }
   ui-modal#modal-cliente,
@@ -812,3 +819,21 @@ ui-select::part(select) {
   border-radius: 6px !important;
   font-size: 12px !important;
 }
+
+/* ==========================================================================
+   Ficha de Detalhes do Cliente (rótulo/valor denso, seções contínuas)
+   ========================================================================== */
+.det-sec { display: flex; flex-direction: column; gap: 8px; }
+.det-sec + .det-sec { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 12px; }
+.det-sec-titulo { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-mint-vibrant, #00e08a); line-height: 1; }
+.det-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+@media (min-width: 640px) { .det-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.det-grid > div { min-width: 0; }
+.det-span-2 { grid-column: span 2; }
+.det-span-4 { grid-column: 1 / -1; }
+.det-l { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
+.det-v { font-size: 13px; font-weight: 600; color: #fff; margin: 2px 0 0; min-height: 18px; }
+.det-v.det-vazio, .det-vazio { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
+.det-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, 0.55); padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); }
+.det-chip b { color: #fff; font-family: ui-monospace, monospace; }
+

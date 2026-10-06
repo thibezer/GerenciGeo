@@ -485,11 +485,11 @@ export const renderClientesTemplate = (): string => `
        </div>
     </ui-modal>
 
-    <!-- MODAL DE DETALHES COMPLETO (ALTA DENSIDADE & GRID DEFENSIVO) -->
-    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente" tamanho="extra-grande" class="modal-amplo" style="--ui-modal-largura: 1040px; max-width: 1040px;">
-       <div class="space-y-4">
-          <!-- Cabeçalho do Modal de Detalhes -->
-          <div class="flex items-center justify-between pb-3 border-b border-white/5 gap-2">
+    <!-- MODAL DE DETALHES (FICHA COMPACTA: SEÇÕES CONTÍNUAS, RÓTULO/VALOR EM GRADE ÚNICA) -->
+    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente" tamanho="extra-grande" class="modal-amplo" style="--ui-modal-largura: 780px; max-width: 780px;">
+       <div class="space-y-3">
+          <!-- Cabeçalho: identidade + indicadores + ações -->
+          <div class="flex items-start justify-between pb-3 border-b border-white/5 gap-2">
              <div class="flex items-center gap-3 min-w-0">
                 <ui-avatar id="det-cli-avatar" nome="??" tamanho="md"></ui-avatar>
                 <div class="min-w-0">
@@ -497,18 +497,21 @@ export const renderClientesTemplate = (): string => `
                       <h3 class="text-sm font-bold text-white truncate" id="det-cli-titulo">Nome do Cliente</h3>
                       <span id="det-cli-badge-tipo" class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>
                    </div>
-                   <div class="flex items-center gap-2 mt-1">
-                      <p class="text-[11px] text-white/50 font-mono leading-none" id="det-cli-subtitulo">CPF: 000.000.000-00</p>
-                      <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-subtitulo" title="Copiar CPF/CNPJ" aria-label="Copiar documento principal">
-                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                      </button>
+                   <div class="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
+                      <span class="flex items-center gap-1">
+                         <p class="text-[11px] text-white/50 font-mono leading-none" id="det-cli-subtitulo">CPF: 000.000.000-00</p>
+                         <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-subtitulo" title="Copiar CPF/CNPJ" aria-label="Copiar documento principal">
+                            <i data-lucide="copy" class="w-3 h-3"></i>
+                         </button>
+                      </span>
+                      <span class="det-chip" title="Projetos/Levantamentos"><i data-lucide="map-pin" class="w-3 h-3 text-mint-vibrant"></i><b id="det-cli-total-levs">0</b> levantamentos</span>
+                      <span class="det-chip" title="Propriedades"><i data-lucide="home" class="w-3 h-3 text-blue-400"></i><b id="det-cli-total-props">0</b> propriedades</span>
                    </div>
                 </div>
              </div>
              <div class="flex items-center gap-1.5 shrink-0">
                 <ui-botao variante="secundario" id="btn-det-importar-pdf" title="Importar e Ler PDF da Identidade (RG/CNH)">
                     <i data-lucide="file-up" class="w-4 h-4 text-mint-vibrant"></i>
-                    <span class="hidden sm:inline text-xs font-semibold ml-1">Importar PDF</span>
                 </ui-botao>
                 <input type="file" id="input-det-importar-pdf" accept=".pdf,application/pdf" class="hidden">
                 <ui-botao variante="secundario" id="btn-det-editar" title="Editar Cliente">
@@ -519,75 +522,51 @@ export const renderClientesTemplate = (): string => `
                 </ui-botao>
              </div>
           </div>
-          
+
           <!-- Abas de Navegação -->
-          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none gap-1">
-             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
-             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos & Anexos</button>
-             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
-             <button class="px-3.5 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
+          <div class="flex border-b border-white/5 overflow-x-auto scrollbar-none gap-1">
+             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
+             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos & Anexos</button>
+             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
+             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
           </div>
-          
+
           <div class="space-y-4">
-             <!-- ABA 1: DADOS CADASTRAIS (GRID DEFENSIVO 4 COLUNAS COM HIERARQUIA ASSIMÉTRICA) -->
-             <div id="tab-det-dados" class="tab-content-det space-y-3.5">
-                
-                <!-- Bloco PJ (Exibido apenas para PJ) -->
-                <div id="det-bloco-pj" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/[0.01] p-4 border border-white/5 rounded-technical hidden">
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Razão Social</p>
-                      <p class="text-sm font-semibold text-white mt-1 break-words" id="det-cli-razaosocial">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Nome Fantasia</p>
-                      <p class="text-sm font-semibold text-white/90 mt-1 break-words" id="det-cli-nomefantasia">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Inscrição Estadual</p>
-                      <p class="text-sm font-semibold font-mono text-white/90 mt-1 break-words" id="det-cli-ie">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Representante Legal</p>
-                      <p class="text-sm font-semibold text-mint-vibrant mt-1 break-words" id="det-cli-representante">-</p>
-                   </div>
-                </div>
+             <!-- ABA 1: DADOS CADASTRAIS — seções contínuas, sem caixas aninhadas -->
+             <div id="tab-det-dados" class="tab-content-det space-y-4">
 
-                <!-- Grid Defensivo de Qualificação Civil (4 Colunas) -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/[0.01] p-4 border border-white/5 rounded-technical">
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Gênero</p>
-                      <p class="text-sm font-semibold text-white mt-1 truncate" id="det-cli-sexo">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Estado Civil</p>
-                      <p class="text-sm font-semibold text-white mt-1 truncate" id="det-cli-estcivil">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Naturalidade</p>
-                      <p class="text-sm font-semibold text-white mt-1 truncate" id="det-cli-naturalidade">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Nacionalidade</p>
-                      <p class="text-sm font-semibold text-white mt-1 truncate" id="det-cli-nacionalidade">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Data Nasc./Fundação</p>
-                      <p class="text-sm font-semibold font-mono text-white mt-1" id="det-cli-datanasc">-</p>
-                   </div>
-                   <div class="min-w-0 col-span-1 sm:col-span-2 lg:col-span-3">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Profissão / Ramo de Atuação</p>
-                      <p class="text-sm font-semibold text-white mt-1 truncate" id="det-cli-profissao">-</p>
-                   </div>
-                </div>
+                <!-- Empresa (somente PJ) -->
+                <section id="det-bloco-pj" class="det-sec hidden">
+                   <h6 class="det-sec-titulo">Empresa</h6>
+                   <dl class="det-grid">
+                      <div class="det-span-2"><dt class="det-l">Razão Social</dt><dd class="det-v break-words" id="det-cli-razaosocial">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Nome Fantasia</dt><dd class="det-v break-words" id="det-cli-nomefantasia">-</dd></div>
+                      <div><dt class="det-l">Inscrição Estadual</dt><dd class="det-v font-mono" id="det-cli-ie">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Representante Legal</dt><dd class="det-v break-words text-mint-vibrant" id="det-cli-representante">-</dd></div>
+                   </dl>
+                </section>
 
-                <!-- Seletor de Documentação Rápida (Pills RG / CNH) -->
-                <div class="bg-white/[0.01] p-4 border border-white/5 rounded-technical space-y-3">
+                <!-- Qualificação pessoal -->
+                <section class="det-sec">
+                   <h6 class="det-sec-titulo">Qualificação</h6>
+                   <dl class="det-grid">
+                      <div><dt class="det-l">Gênero</dt><dd class="det-v" id="det-cli-sexo">-</dd></div>
+                      <div><dt class="det-l">Estado Civil</dt><dd class="det-v" id="det-cli-estcivil">-</dd></div>
+                      <div><dt class="det-l">Data Nasc./Fundação</dt><dd class="det-v font-mono" id="det-cli-datanasc">-</dd></div>
+                      <div><dt class="det-l">Nacionalidade</dt><dd class="det-v" id="det-cli-nacionalidade">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Naturalidade</dt><dd class="det-v" id="det-cli-naturalidade">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Profissão / Ramo de Atuação</dt><dd class="det-v" id="det-cli-profissao">-</dd></div>
+                   </dl>
+                </section>
+
+                <!-- Documento principal (alterna RG / CNH) -->
+                <section class="det-sec">
                    <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
-                         <span class="text-[11px] font-medium tracking-wider uppercase text-white/40">Documento Principal:</span>
-                         <div class="flex gap-1 p-0.5 bg-white/[0.03] border border-white/5 rounded">
-                            <button type="button" id="pill-doc-rg" class="px-2.5 py-1 text-[10px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep">RG</button>
-                            <button type="button" id="pill-doc-cnh" class="px-2.5 py-1 text-[10px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">CNH</button>
+                         <h6 class="det-sec-titulo">Documento</h6>
+                         <div class="flex gap-0.5 p-0.5 bg-white/[0.03] border border-white/5 rounded">
+                            <button type="button" id="pill-doc-rg" class="px-2 py-0.5 text-[10px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep">RG</button>
+                            <button type="button" id="pill-doc-cnh" class="px-2 py-0.5 text-[10px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">CNH</button>
                          </div>
                       </div>
                       <span id="det-doc-badge-validade" class="hidden text-[9px] px-2 py-0.5 rounded font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse">
@@ -595,151 +574,94 @@ export const renderClientesTemplate = (): string => `
                       </span>
                    </div>
 
-                   <!-- Detalhes do RG -->
-                   <div id="bloco-pill-rg" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Número RG</p>
-                         <div class="flex items-center gap-1.5 mt-1">
-                            <p class="text-sm font-semibold font-mono text-white" id="det-cli-rg">-</p>
-                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-1 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-rg" title="Copiar RG" aria-label="Copiar RG">
-                               <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                            </button>
-                         </div>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Órgão Emissor</p>
-                         <p class="text-sm font-semibold text-white mt-1" id="det-cli-rg-orgao">-</p>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">UF Emissor</p>
-                         <p class="text-sm font-semibold text-white mt-1" id="det-cli-rg-uf">-</p>
-                      </div>
-                   </div>
-
-                   <!-- Detalhes da CNH -->
-                   <div id="bloco-pill-cnh" class="grid grid-cols-1 sm:grid-cols-4 gap-4 hidden">
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Número CNH</p>
-                         <div class="flex items-center gap-1.5 mt-1">
-                            <p class="text-sm font-semibold font-mono text-white" id="det-cli-cnh-num">-</p>
-                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-1 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-cnh-num" title="Copiar CNH" aria-label="Copiar CNH">
-                               <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                            </button>
-                         </div>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Categoria</p>
-                         <p class="text-sm font-semibold font-mono text-white mt-1" id="det-cli-cnh-cat">-</p>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Validade CNH</p>
-                         <p class="text-sm font-semibold font-mono text-white mt-1" id="det-cli-cnh-val">-</p>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Órgão / UF</p>
-                         <p class="text-sm font-semibold text-white mt-1" id="det-cli-cnh-orgaouf">-</p>
-                      </div>
-                   </div>
-                </div>
-                
-                <!-- Bloco de Cônjuge & Dados Notariais -->
-                <div id="det-conjuge-bloco" class="space-y-3 bg-white/[0.01] p-4 border border-white/5 rounded-technical hidden">
-                   <h6 class="text-[10px] text-mint-vibrant uppercase tracking-wider font-bold leading-none">Informações do Cônjuge & Regime Notarial</h6>
-                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div class="min-w-0 sm:col-span-2">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Cônjuge</p>
-                         <p class="text-sm font-semibold text-white mt-1 break-words" id="det-cli-nomeconjuge">-</p>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">CPF Cônjuge</p>
-                         <div class="flex items-center gap-1.5 mt-1">
-                            <p class="text-sm font-semibold font-mono text-white" id="det-cli-cpfconjuge">-</p>
-                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-1 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-cpfconjuge" title="Copiar CPF Cônjuge" aria-label="Copiar CPF do cônjuge">
-                               <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                            </button>
-                         </div>
-                      </div>
-                      <div class="min-w-0">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">RG Cônjuge</p>
-                         <p class="text-sm font-semibold font-mono text-white mt-1" id="det-cli-rgconjuge">-</p>
-                      </div>
-                      <div class="min-w-0 sm:col-span-2 border-t border-white/5 pt-2 mt-1">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Regime de Bens</p>
-                         <p class="text-sm font-semibold text-white mt-1" id="det-cli-regimebens">-</p>
-                      </div>
-                      <div class="min-w-0 sm:col-span-2 border-t border-white/5 pt-2 mt-1">
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Matrícula Certidão de Casamento</p>
-                         <p class="text-sm font-semibold font-mono text-white mt-1" id="det-cli-certidaocasamento">-</p>
-                      </div>
-                   </div>
-                </div>
-                
-                <!-- Bloco de Contato, Endereço e Senha GOV -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-white/[0.01] p-4 border border-white/5 rounded-technical">
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Telefone / Celular</p>
-                      <div class="flex items-center gap-2 mt-1">
-                         <p class="text-sm font-semibold font-mono text-white" id="det-cli-telefone">-</p>
-                         <a id="btn-det-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-xs font-bold transition-all" title="Abrir no WhatsApp" aria-label="Conversar no WhatsApp">
-                            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
-                            WhatsApp
-                         </a>
-                      </div>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">E-mail</p>
-                      <p class="text-sm font-semibold text-white mt-1 break-words" id="det-cli-email">-</p>
-                   </div>
-                   <div class="min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40 flex items-center justify-between">
-                         <span>Senha GOV</span>
-                         <span class="text-[9px] text-mint-vibrant lowercase font-mono">auditada</span>
-                      </p>
-                      <div class="flex items-center gap-2 mt-1">
-                         <p class="text-sm font-semibold font-mono text-white" id="det-cli-senhagov">-</p>
-                         <button type="button" id="btn-revelar-senhagov-det" class="text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" title="Mostrar/Ocultar Senha GOV" aria-label="Mostrar ou ocultar Senha GOV">
-                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                         </button>
-                         <button type="button" id="btn-copy-senhagov-det" class="btn-copy-field text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" data-copy-target="det-cli-senhagov" title="Copiar Senha GOV" aria-label="Copiar Senha GOV">
-                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                         </button>
-                      </div>
-                   </div>
-                   <div class="sm:col-span-2 lg:col-span-3 border-t border-white/5 pt-2 mt-1 min-w-0">
-                      <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Endereço Completo</p>
-                      <p class="text-sm font-semibold text-white mt-1 break-words" id="det-cli-endereco">-</p>
-                   </div>
-                </div>
-                
-                <!-- KPIs de Levantamentos e Propriedades -->
-                <div class="grid grid-cols-2 gap-3">
-                   <div class="glass-card p-3.5 flex items-center justify-between">
+                   <dl id="bloco-pill-rg" class="det-grid">
                       <div>
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Projetos/Levantamentos</p>
-                         <h4 class="text-lg font-mono font-bold mt-0.5 text-white" id="det-cli-total-levs">0</h4>
+                         <dt class="det-l">Número RG</dt>
+                         <dd class="det-v flex items-center gap-1">
+                            <span class="font-mono" id="det-cli-rg">-</span>
+                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-rg" title="Copiar RG" aria-label="Copiar RG">
+                               <i data-lucide="copy" class="w-3 h-3"></i>
+                            </button>
+                         </dd>
                       </div>
-                      <div class="w-7 h-7 bg-mint-vibrant/10 rounded-full flex items-center justify-center">
-                         <i data-lucide="map-pin" class="w-4 h-4 text-mint-vibrant"></i>
-                      </div>
-                   </div>
-                   <div class="glass-card p-3.5 flex items-center justify-between">
-                      <div>
-                         <p class="text-[11px] font-medium tracking-wider uppercase text-white/40">Propriedades</p>
-                         <h4 class="text-lg font-mono font-bold mt-0.5 text-white" id="det-cli-total-props">0</h4>
-                      </div>
-                      <div class="w-7 h-7 bg-blue-500/10 rounded-full flex items-center justify-center">
-                         <i data-lucide="home" class="w-4 h-4 text-blue-500"></i>
-                      </div>
-                   </div>
-                </div>
+                      <div><dt class="det-l">Órgão Emissor</dt><dd class="det-v" id="det-cli-rg-orgao">-</dd></div>
+                      <div><dt class="det-l">UF Emissor</dt><dd class="det-v" id="det-cli-rg-uf">-</dd></div>
+                   </dl>
 
-                <!-- Bloco de Propriedades Vinculadas -->
-                <div class="bg-white/[0.01] p-3.5 border border-white/5 rounded-technical space-y-2" id="det-cli-bloco-propriedades">
-                   <h6 class="text-[10px] text-mint-vibrant uppercase tracking-wider font-bold leading-none">Propriedades Vinculadas</h6>
-                   <div class="divide-y divide-white/5 space-y-1.5 max-h-40 overflow-y-auto pr-1" id="det-cli-lista-propriedades">
+                   <dl id="bloco-pill-cnh" class="det-grid hidden">
+                      <div>
+                         <dt class="det-l">Número CNH</dt>
+                         <dd class="det-v flex items-center gap-1">
+                            <span class="font-mono" id="det-cli-cnh-num">-</span>
+                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-cnh-num" title="Copiar CNH" aria-label="Copiar CNH">
+                               <i data-lucide="copy" class="w-3 h-3"></i>
+                            </button>
+                         </dd>
+                      </div>
+                      <div><dt class="det-l">Categoria</dt><dd class="det-v font-mono" id="det-cli-cnh-cat">-</dd></div>
+                      <div><dt class="det-l">Validade</dt><dd class="det-v font-mono" id="det-cli-cnh-val">-</dd></div>
+                      <div><dt class="det-l">Órgão / UF</dt><dd class="det-v" id="det-cli-cnh-orgaouf">-</dd></div>
+                   </dl>
+                </section>
+
+                <!-- Cônjuge & Regime Notarial -->
+                <section id="det-conjuge-bloco" class="det-sec hidden">
+                   <h6 class="det-sec-titulo">Cônjuge & Regime Notarial</h6>
+                   <dl class="det-grid">
+                      <div class="det-span-2"><dt class="det-l">Cônjuge</dt><dd class="det-v break-words" id="det-cli-nomeconjuge">-</dd></div>
+                      <div>
+                         <dt class="det-l">CPF Cônjuge</dt>
+                         <dd class="det-v flex items-center gap-1">
+                            <span class="font-mono" id="det-cli-cpfconjuge">-</span>
+                            <button type="button" class="btn-copy-field text-white/40 hover:text-mint-vibrant p-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer" data-copy-target="det-cli-cpfconjuge" title="Copiar CPF Cônjuge" aria-label="Copiar CPF do cônjuge">
+                               <i data-lucide="copy" class="w-3 h-3"></i>
+                            </button>
+                         </dd>
+                      </div>
+                      <div><dt class="det-l">RG Cônjuge</dt><dd class="det-v font-mono" id="det-cli-rgconjuge">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Regime de Bens</dt><dd class="det-v" id="det-cli-regimebens">-</dd></div>
+                      <div class="det-span-2"><dt class="det-l">Matrícula Certidão de Casamento</dt><dd class="det-v font-mono" id="det-cli-certidaocasamento">-</dd></div>
+                   </dl>
+                </section>
+
+                <!-- Contato, Endereço e Senha GOV -->
+                <section class="det-sec">
+                   <h6 class="det-sec-titulo">Contato & Endereço</h6>
+                   <dl class="det-grid">
+                      <div>
+                         <dt class="det-l">Telefone / Celular</dt>
+                         <dd class="det-v flex items-center gap-2">
+                            <span class="font-mono" id="det-cli-telefone">-</span>
+                            <a id="btn-det-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-[10px] font-bold transition-all" title="Abrir no WhatsApp" aria-label="Conversar no WhatsApp">
+                               <i data-lucide="message-circle" class="w-3 h-3"></i>
+                               WhatsApp
+                            </a>
+                         </dd>
+                      </div>
+                      <div class="det-span-2"><dt class="det-l">E-mail</dt><dd class="det-v break-words" id="det-cli-email">-</dd></div>
+                      <div>
+                         <dt class="det-l flex items-center justify-between"><span>Senha GOV</span><span class="text-[9px] text-mint-vibrant lowercase font-mono">auditada</span></dt>
+                         <dd class="det-v flex items-center gap-1.5">
+                            <span class="font-mono" id="det-cli-senhagov">-</span>
+                            <button type="button" id="btn-revelar-senhagov-det" class="text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" title="Mostrar/Ocultar Senha GOV" aria-label="Mostrar ou ocultar Senha GOV">
+                               <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" id="btn-copy-senhagov-det" class="btn-copy-field text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" data-copy-target="det-cli-senhagov" title="Copiar Senha GOV" aria-label="Copiar Senha GOV">
+                               <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            </button>
+                         </dd>
+                      </div>
+                      <div class="det-span-4"><dt class="det-l">Endereço Completo</dt><dd class="det-v break-words" id="det-cli-endereco">-</dd></div>
+                   </dl>
+                </section>
+
+                <!-- Propriedades Vinculadas -->
+                <section class="det-sec" id="det-cli-bloco-propriedades">
+                   <h6 class="det-sec-titulo">Propriedades Vinculadas</h6>
+                   <div class="divide-y divide-white/5 space-y-1.5 max-h-36 overflow-y-auto pr-1" id="det-cli-lista-propriedades">
                       <!-- Inserido dinamicamente via JS -->
                    </div>
-                </div>
+                </section>
              </div>
 
              <!-- ABA 2: DOCUMENTOS DE IDENTIFICAÇÃO (RG, CNH COM VALIDADE, CONSELHOS, ANEXOS) -->

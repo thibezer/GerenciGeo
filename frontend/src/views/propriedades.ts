@@ -149,9 +149,9 @@ export const propriedadesRoute: RouteDef = {
 
     <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
     <div id="modal-propriedade" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-       <div class="glass-card w-full max-w-3xl max-h-[92vh] flex flex-col border border-mint-vibrant/20 shadow-2xl overflow-hidden bg-[#0c1510]/98">
+       <div class="glass-card w-full max-w-2xl max-h-[92vh] flex flex-col border border-mint-vibrant/20 shadow-2xl overflow-hidden bg-[#0c1510]/98">
           <!-- Header do Modal -->
-          <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
+          <div class="px-4 py-3 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-8.5 h-8.5 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/20 flex items-center justify-center text-mint-vibrant shrink-0">
                    <i data-lucide="home" class="w-4.5 h-4.5 text-mint-vibrant"></i>
@@ -173,16 +173,16 @@ export const propriedadesRoute: RouteDef = {
           
           <!-- Abas de Navegação -->
           <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none px-2 shrink-0">
-             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
+             <button class="px-3 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
                 <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                 Dados Gerais & Anexos
              </button>
-             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
+             <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
                 <i data-lucide="users" class="w-3.5 h-3.5"></i>
                 Proprietários
                 <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
              </button>
-             <button class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
+             <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
                 <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                 Glebas & Matrículas
                 <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
@@ -190,23 +190,22 @@ export const propriedadesRoute: RouteDef = {
           </div>
           
           <!-- Conteúdo com Scroll -->
-          <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+          <div class="p-4 overflow-y-auto flex-1 space-y-3">
              <!-- ABA 1: DADOS GERAIS & ANEXOS -->
              <div id="tab-prop-dados" class="tab-content-prop space-y-4">
                 <!-- Formulário de Dados Cadastrais -->
-                <form id="form-propriedade" class="space-y-3.5 bg-white/[0.01] p-3.5 sm:p-4 rounded-technical border border-white/5">
+                <form id="form-propriedade" class="space-y-2.5">
                    <div class="flex items-center justify-between pb-1 border-b border-white/5">
                       <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Identificação Cadastral</span>
                       <span class="text-[9px] text-white/30 font-mono">* Campos obrigatórios</span>
                    </div>
 
-                   <div>
-                      <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Nome da Propriedade *</label>
-                      <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-8 font-medium" placeholder="Ex: Fazenda Três Barras">
-                   </div>
-
-                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div class="sm:col-span-2">
+                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2.5">
+                      <div class="col-span-2">
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Nome da Propriedade *</label>
+                         <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-8 font-medium" placeholder="Ex: Fazenda Três Barras">
+                      </div>
+                      <div>
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Município *</label>
                          <input type="text" name="municipio" required class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
                       </div>
@@ -214,20 +213,17 @@ export const propriedadesRoute: RouteDef = {
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">UF *</label>
                          <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase font-mono" placeholder="PR">
                       </div>
-                   </div>
-
-                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
+                      <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CAR</label>
                          <input type="text" name="codigo_car" class="glass-input w-full text-xs h-8 font-mono text-mint-vibrant" placeholder="PR-4128104-58A2...">
                       </div>
-                      <div>
+                      <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CCIR</label>
                          <input type="text" name="codigo_ccir" class="glass-input w-full text-xs h-8 font-mono text-blue-400" placeholder="000.000.000.000-0">
                       </div>
                    </div>
 
-                   <div class="flex justify-end gap-2 pt-3 border-t border-white/5">
+                   <div class="flex justify-end gap-2">
                       <button type="button" class="btn-secondary h-8 text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
                       <button type="submit" class="btn-primary h-8 text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
                          Salvar Alterações
@@ -236,25 +232,27 @@ export const propriedadesRoute: RouteDef = {
                 </form>
 
                 <!-- Seção de Anexos Físicos (CAR & CCIR) -->
-                <div id="secao-anexos-propriedade" class="space-y-3 pt-1">
-                   <div class="flex items-center justify-between pb-1 border-b border-white/5">
+                <div id="secao-anexos-propriedade" class="space-y-2 pt-3 border-t border-white/5">
+                   <div class="flex items-center justify-between">
                       <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Documentos Digitais & Certidões</span>
                       <span class="text-[9px] text-white/30 font-mono">Upload e gestão de arquivos</span>
                    </div>
 
-                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <!-- Bloco CAR -->
-                      <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
+                      <div class="flex flex-col space-y-1.5">
                          <div class="flex items-center justify-between">
                             <span class="text-[8.5px] font-mono font-bold text-mint-vibrant bg-mint-vibrant/10 px-2 py-0.5 rounded border border-mint-vibrant/20 w-max">DOCUMENTO DO CAR</span>
                          </div>
                          
                          <!-- Área de Upload do CAR -->
-                         <div class="border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-4 group relative" id="dropzone-car">
+                         <div class="border border-dashed border-white/10 hover:border-mint-vibrant/40 rounded px-3 py-2 cursor-pointer transition-colors flex flex-row justify-center items-center gap-2.5 group relative" id="dropzone-car">
                             <input type="file" id="input-file-car" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.dwg" />
-                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-mint-vibrant group-hover:scale-110 transition-all mb-1"></i>
-                            <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CAR</p>
+                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-mint-vibrant group-hover:scale-110 transition-all shrink-0"></i>
+                            <div class="text-left">
+                              <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CAR</p>
                             <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique para selecionar</p>
+                            </div>
                          </div>
 
                          <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-car">
@@ -274,17 +272,19 @@ export const propriedadesRoute: RouteDef = {
                       </div>
 
                       <!-- Bloco CCIR -->
-                      <div class="flex flex-col bg-white/[0.01] border border-white/5 rounded-technical p-3 space-y-2">
+                      <div class="flex flex-col space-y-1.5">
                          <div class="flex items-center justify-between">
                             <span class="text-[8.5px] font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 w-max">DOCUMENTO DO CCIR</span>
                          </div>
                          
                          <!-- Área de Upload do CCIR -->
-                         <div class="border-2 border-dashed border-white/10 hover:border-blue-500/40 rounded p-4 text-center cursor-pointer transition-colors flex flex-col justify-center items-center py-4 group relative" id="dropzone-ccir">
+                         <div class="border border-dashed border-white/10 hover:border-blue-500/40 rounded px-3 py-2 cursor-pointer transition-colors flex flex-row justify-center items-center gap-2.5 group relative" id="dropzone-ccir">
                             <input type="file" id="input-file-ccir" class="hidden" accept=".pdf,.png,.jpg,.jpeg" />
-                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-blue-400 group-hover:scale-110 transition-all mb-1"></i>
-                            <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CCIR</p>
+                            <i data-lucide="upload" class="w-5 h-5 text-white/40 group-hover:text-blue-400 group-hover:scale-110 transition-all shrink-0"></i>
+                            <div class="text-left">
+                              <p class="text-[10px] font-bold text-white/80">Anexar arquivo do CCIR</p>
                             <p class="text-[8px] text-white/30 uppercase mt-0.5">Arraste ou clique para selecionar</p>
+                            </div>
                          </div>
 
                          <div class="hidden flex items-center justify-between p-2 bg-white/[0.02] border border-white/5 rounded text-xs" id="container-anexo-ccir">
@@ -307,22 +307,22 @@ export const propriedadesRoute: RouteDef = {
              </div>
              
              <!-- ABA 2: PROPRIETÁRIOS -->
-             <div id="tab-prop-proprietarios" class="tab-content-prop hidden space-y-4">
+             <div id="tab-prop-proprietarios" class="tab-content-prop hidden space-y-3">
                 <!-- Aviso se propriedade for nova -->
-                <div id="aviso-proprietarios-nova" class="hidden p-6 text-center bg-white/[0.01] border border-white/5 rounded-technical">
+                <div id="aviso-proprietarios-nova" class="hidden py-8 text-center">
                    <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
                    <h4 class="text-xs font-bold text-white">Cadastre a propriedade primeiro</h4>
                    <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para habilitar o vínculo de coproprietários e quotas.</p>
                 </div>
 
-                <div id="conteudo-tab-proprietarios" class="space-y-4">
+                <div id="conteudo-tab-proprietarios" class="space-y-3">
                    <!-- Formulário de vínculo compacto -->
-                   <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
+                   <div class="space-y-2.5">
                       <div class="flex items-center justify-between">
                          <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular Proprietário</h5>
                          <div id="badge-status-composicao"></div>
                       </div>
-                      <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                      <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-3 items-end">
                          <div class="relative">
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente</label>
                             <input type="text" id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." class="glass-input w-full text-xs h-8 pr-7" autocomplete="off" required>
@@ -335,16 +335,16 @@ export const propriedadesRoute: RouteDef = {
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Participação (%)</label>
                             <input type="number" id="vinc-participacao" min="0.01" max="100" step="0.01" placeholder="Ex: 50.00" required class="glass-input w-full text-xs h-8 font-mono">
                          </div>
-                         <button type="submit" class="btn-primary h-8 text-xs font-bold w-full cursor-pointer" id="btn-submit-vinc-prop">Vincular Proprietário</button>
+                         <button type="submit" class="btn-primary h-8 text-xs font-bold px-5 cursor-pointer whitespace-nowrap" id="btn-submit-vinc-prop">Vincular</button>
                       </form>
-                      <div class="flex items-center justify-between text-[9px] text-white/30 font-mono uppercase pt-1">
+                      <div class="flex items-center justify-between text-[9px] text-white/30 font-mono uppercase">
                          <p>Quota Restante Disponível: <span class="text-mint-vibrant font-bold" id="lbl-quota-restante">100.00%</span></p>
                          <p id="lbl-aviso-vinculo-existente" class="text-amber-400 font-bold hidden"></p>
                       </div>
                    </div>
 
                    <!-- Tabela de Proprietários -->
-                   <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
+                   <div class="mt-3 rounded border border-white/5 overflow-hidden">
                       <table class="w-full text-left text-xs border-collapse">
                          <thead>
                             <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
@@ -363,17 +363,17 @@ export const propriedadesRoute: RouteDef = {
              </div>
              
              <!-- ABA 3: MATRÍCULAS -->
-             <div id="tab-prop-matriculas" class="tab-content-prop hidden space-y-4">
+             <div id="tab-prop-matriculas" class="tab-content-prop hidden space-y-3">
                 <!-- Aviso se propriedade for nova -->
-                <div id="aviso-matriculas-nova" class="hidden p-6 text-center bg-white/[0.01] border border-white/5 rounded-technical">
+                <div id="aviso-matriculas-nova" class="hidden py-8 text-center">
                    <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
                    <h4 class="text-xs font-bold text-white">Cadastre a propriedade primeiro</h4>
                    <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para cadastrar matrículas, glebas e certidões em PDF.</p>
                 </div>
 
-                <div id="conteudo-tab-matriculas" class="space-y-4">
+                <div id="conteudo-tab-matriculas" class="space-y-3">
                    <!-- Cadastro de Matrícula Compacto -->
-                   <div class="bg-white/[0.01] border border-white/5 p-3.5 rounded-technical space-y-3">
+                   <div class="space-y-2.5">
                       <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none" id="form-matricula-titulo">Cadastrar Gleba / Matrícula</h5>
                       <form id="form-cadastrar-matricula-prop" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
                          <div>
@@ -412,7 +412,7 @@ export const propriedadesRoute: RouteDef = {
                    </div>
 
                    <!-- Tabela de Matrículas -->
-                   <div class="bg-white/5 rounded border border-white/5 overflow-hidden">
+                   <div class="rounded border border-white/5 overflow-hidden">
                       <table class="w-full text-left text-xs border-collapse">
                          <thead>
                             <tr class="bg-white/[0.02] border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40">
@@ -1202,10 +1202,10 @@ export const propriedadesRoute: RouteDef = {
              somaParticipacao += c.percentual_participacao || 0;
              return `
                 <tr class="hover:bg-white/[0.01] border-b border-white/5 text-xs text-white/80">
-                   <td class="px-3 py-2 font-bold text-white">${escapeHtml(c.nome_completo)}</td>
-                   <td class="px-3 py-2 font-mono text-white/60">${escapeHtml(c.cpf_cnpj)}</td>
-                   <td class="px-3 py-2 text-right font-mono text-mint-vibrant font-bold">${(c.percentual_participacao || 0).toFixed(2)}%</td>
-                   <td class="px-3 py-2 text-center">
+                   <td class="px-3 py-1.5 font-bold text-white">${escapeHtml(c.nome_completo)}</td>
+                   <td class="px-3 py-1.5 font-mono text-white/60">${escapeHtml(c.cpf_cnpj)}</td>
+                   <td class="px-3 py-1.5 text-right font-mono text-mint-vibrant font-bold">${(c.percentual_participacao || 0).toFixed(2)}%</td>
+                   <td class="px-3 py-1.5 text-center">
                       <div class="flex items-center justify-center gap-1.5">
                          <button class="text-white/40 hover:text-mint-vibrant p-1 btn-editar-vinculo cursor-pointer transition-colors" data-cli-id="${c.id}" data-cli-nome="${escapeHtml(c.nome_completo)}" data-cli-part="${c.percentual_participacao || 0}" title="Editar Participação">
                             <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
@@ -1359,18 +1359,18 @@ export const propriedadesRoute: RouteDef = {
 
              return `
                 <tr class="hover:bg-white/[0.01] border-b border-white/5 text-xs text-white/80">
-                   <td class="px-3 py-2 text-white">
+                   <td class="px-3 py-1.5 text-white">
                       <span class="block font-bold">Matrícula nº ${escapeHtml(String(m.numero_matricula))}</span>
                       <span class="block text-[9px] text-white/40">${escapeHtml(m.denominacao) || 'Lote sem nome'}</span>
                    </td>
-                   <td class="px-3 py-2 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
-                   <td class="px-3 py-2 text-white/60 leading-tight">
+                   <td class="px-3 py-1.5 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
+                   <td class="px-3 py-1.5 text-white/60 leading-tight">
                       <span class="block">CCIR: ${displayCcir}</span>
                       <span class="block">ITR/NIRF: ${escapeHtml(m.itr) || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
                       <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${m.georreferenciamento ? 'Sim' : 'Não'}</span>
                    </td>
-                   <td class="px-3 py-2 text-center">${pdfHtml}</td>
-                   <td class="px-3 py-2 text-right">
+                   <td class="px-3 py-1.5 text-center">${pdfHtml}</td>
+                   <td class="px-3 py-1.5 text-right">
                       <div class="flex items-center justify-end gap-0.5">
                          <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.abrirHistoricoMatricula(${m.id})" title="Histórico de Auditoria">
                             <i data-lucide="history" class="w-3.5 h-3.5"></i>
