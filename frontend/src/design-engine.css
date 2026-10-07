@@ -1872,6 +1872,23 @@ fluent-dropdown.rl1-select {
 .btn-mapa-cartorio:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .btn-mapa-cartorio.ativo { color: var(--geo-accent); background: rgba(0,245,160,0.12); border-color: rgba(0,245,160,0.35); }
 
+/* Toolbar Flutuante do Mapa (Ergonomia CAD sem colisão com o painel de camadas QGIS) */
+#map-cad-floating-toolbar {
+  right: 58px;
+  top: 12px;
+  max-height: 38px;
+  user-select: none;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.65);
+}
+
+@media (max-width: 768px) {
+  #map-cad-floating-toolbar {
+    right: 52px;
+    top: 8px;
+    padding: 3px;
+  }
+}
+
 /* Cartões recolhíveis (Peças de Cartório) */
 details.doc-collapsible > summary { list-style: none; cursor: pointer; user-select: none; }
 details.doc-collapsible > summary::-webkit-details-marker { display: none; }
