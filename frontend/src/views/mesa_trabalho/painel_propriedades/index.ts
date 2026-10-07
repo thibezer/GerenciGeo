@@ -2,8 +2,10 @@ import type { UITabelaPropriedadesElement, UIPropertyChangeDetail } from './tipo
 import { gerarPropriedadesGerais } from './adaptador_geral';
 import { gerarPropriedadesVertice } from './adaptador_vertice';
 import { gerarPropriedadesMulti } from './adaptador_multi';
+import { gerarPropriedadesSegmento } from './adaptador_segmento';
 import {
   salvarPontoDebounced,
+  salvarSegmentoDebounced,
   salvarMultiplosPontos,
   sugerirCodigoSIGEF,
   alternarExcluirPonto
@@ -107,7 +109,35 @@ export function atualizarPainelPropriedades(ctx: any): void {
       panelContent.appendChild(tabelaEl);
     }
 
-    if (selectedCount === 0 && selectedVizinhoCount === 0) {
+    if (ctx.selectedSegmentoId != null && ctx.selectedSegmento != null) {
+      // Caso: Segmento / Divisa Selecionado
+      const segmento = ctx.selectedSegmento;
+      const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesSegmento(segmento, ctx);
+
+      tabelaEl.setAttribute('modo-aplicar', 'auto');
+      tabelaEl.categorias = categorias;
+      tabelaEl.tipos = tipos;
+      tabelaEl.tipoSelecionado = tipoSelecionadoId;
+
+      tabelaEl.addEventListener(
+        'ui-propriedade-alterada',
+        (e: Event) => {
+          const detail = (e as CustomEvent<UIPropertyChangeDetail>).detail;
+          if (detail && detail.id) {
+            salvarSegmentoDebounced(segmento, detail.id, detail.valor, ctx);
+            // Se mudou o confrontante, re-renderiza o painel para atualizar campos derivados de matrícula e cartório
+            if (detail.id === 'confrontante_id') {
+              setTimeout(() => {
+                atualizarPainelPropriedades(ctx);
+              }, 100);
+            }
+          }
+        },
+        { signal }
+      );
+
+      if (panelActions) panelActions.classList.add('hidden');
+    } else if (selectedCount === 0 && selectedVizinhoCount === 0) {
       // Caso 1: Sem Seleção - Propriedades Gerais do Projeto
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesGerais(ctx);
 

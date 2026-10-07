@@ -22,6 +22,10 @@ export interface MesaTrabalhoContext {
   selectedPontoIds: number[];
   selectedVizinhoPontoIds: number[];
   lastSelectedPontoId: number | null;
+  selectedSegmentoId?: string | number | null;
+  selectedSegmento?: any | null;
+  selectSegmentoFromMapa?: (segmento: any) => void;
+  limparSelecaoSegmento?: () => void;
   currentSortColumn: string;
   currentSortDirection: 'asc' | 'desc';
   searchFilterValue: string;

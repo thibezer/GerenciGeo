@@ -70,6 +70,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       selectedPontoIds: [],
       selectedVizinhoPontoIds: [],
       lastSelectedPontoId: null,
+      selectedSegmentoId: null,
+      selectedSegmento: null,
       currentSortColumn: 'ordem',
       currentSortDirection: 'asc',
       searchFilterValue: '',
@@ -348,6 +350,8 @@ export const mesaTrabalhoRoute: RouteDef = {
 
         // Escuta eventos customizados agnósticos do ui-canvas-cad
         canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
+          ctx.selectedSegmentoId = null;
+          ctx.selectedSegmento = null;
           const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
           if (pId) {
             if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
@@ -355,6 +359,13 @@ export const mesaTrabalhoRoute: RouteDef = {
             } else {
               ctx.selectPontoFromTabela(pId);
             }
+          }
+        });
+
+        canvasEl.addEventListener('ui-segmento-selecionado', (e: any) => {
+          const segmento = e.detail?.segmento;
+          if (segmento && typeof ctx.selectSegmentoFromMapa === 'function') {
+            ctx.selectSegmentoFromMapa(segmento);
           }
         });
 
@@ -833,7 +844,44 @@ export const mesaTrabalhoRoute: RouteDef = {
       atualizarPainelPropriedades(ctx);
     };
 
+    ctx.selectSegmentoFromMapa = (segmento: any) => {
+      ctx.selectedPontoIds = [];
+      ctx.selectedVizinhoPontoIds = [];
+      ctx.lastSelectedPontoId = null;
+      ctx.selectedSegmentoId = segmento?.id != null ? segmento.id : `${segmento?.ponto_inicio_id}-${segmento?.ponto_fim_id}`;
+      ctx.selectedSegmento = segmento;
+
+      // Abre o painel de propriedades se estiver recolhido
+      const painelPropriedades = document.getElementById('painel-propriedades');
+      const workspaceBody = document.querySelector('.workspace-body') as HTMLElement | null;
+      if (painelPropriedades && painelPropriedades.classList.contains('collapsed')) {
+        painelPropriedades.classList.remove('collapsed');
+        const larguraSalva = localStorage.getItem('gg_props_panel_width') || '340px';
+        if (workspaceBody) {
+          workspaceBody.style.setProperty('--props-panel-w', larguraSalva);
+        }
+      }
+
+      ctx.atualizarDestaqueLinhasTabela();
+      atualizarPainelPropriedades(ctx);
+    };
+
+    ctx.limparSelecaoSegmento = () => {
+      ctx.selectedSegmentoId = null;
+      ctx.selectedSegmento = null;
+      if (ctx.mapaController && typeof ctx.mapaController.selectSegmento === 'function') {
+        ctx.mapaController.selectSegmento(null);
+      }
+      atualizarPainelPropriedades(ctx);
+    };
+
     ctx.selectPontoFromTabela = (pontoId: number) => {
+      ctx.selectedSegmentoId = null;
+      ctx.selectedSegmento = null;
+      if (ctx.mapaController && typeof ctx.mapaController.selectSegmento === 'function') {
+        ctx.mapaController.selectSegmento(null);
+      }
+
       ctx.selectedPontoIds = [pontoId];
       ctx.selectedVizinhoPontoIds = [];
       ctx.lastSelectedPontoId = pontoId;
