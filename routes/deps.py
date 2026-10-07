@@ -2,7 +2,8 @@
 Dependências e funções auxiliares compartilhadas entre todos os roteadores.
 """
 import logging
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
+from starlette.requests import HTTPConnection
 from database.connection import execute_query
 
 
@@ -17,12 +18,13 @@ def registrar_tentativa_violacao(levantamento_id: int, rota: str, metodo: str):
         logging.getLogger(__name__).error(f"Erro ao registrar log de violação: {e}")
 
 
-async def verificar_tranca_read_only(request: Request):
+async def verificar_tranca_read_only(request: HTTPConnection):
     """
     Middleware/Dependency do FastAPI.
     Analisa requisições de escrita e bloqueia se o levantamento estiver ARQUIVADO.
     """
-    if request.method not in ["POST", "PUT", "DELETE"]:
+    # Dependência global: também é resolvida em rotas WebSocket (que não têm método HTTP)
+    if request.scope.get("type") != "http" or request.scope.get("method") not in ["POST", "PUT", "DELETE"]:
         return
 
     # Desarquivar e gerar link público de leitura são permitidos em levantamentos arquivados
@@ -79,7 +81,7 @@ async def verificar_tranca_read_only(request: Request):
         try:
             row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(int(levantamento_id),), fetch_one=True)
             if row and dict(row).get("status") == "ARQUIVADO":
-                registrar_tentativa_violacao(int(levantamento_id), request.url.path, request.method)
+                registrar_tentativa_violacao(int(levantamento_id), request.url.path, request.scope["method"])
                 raise HTTPException(
                     status_code=403,
                     detail="Operação Bloqueada: O Levantamento correspondente está ARQUIVADO (Tranca de Segurança Read-Only ativa)."

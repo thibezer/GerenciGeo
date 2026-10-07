@@ -97,7 +97,7 @@ def main():
 
         api = WindowAPI()
         webview.create_window(
-            "GerenciGeo - Georreferenciamento Avançado v2.4",
+            "GerenciGeo",
             "http://127.0.0.1:8000/principal.html",
             width=1280,
             height=800,

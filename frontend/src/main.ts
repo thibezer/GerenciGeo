@@ -1,6 +1,6 @@
 import './style.css';
 import './design-engine.css';
-import 'ui-components-kit';
+import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
 
 // Aplica patches nos Web Components para dimensões de modais e respiro interno dos campos
@@ -58,7 +58,14 @@ export const aplicarAdaptersCAD = (cadProto: any) => {
 };
 
 // Registra e ativa o módulo de Canvas CAD no CustomElementRegistry
-// Nota: carregarModuloCanvas foi removido do ui-components-kit; usa customElements.whenDefined como fallback
+// O kit só carrega o módulo do canvas sozinho se <ui-canvas-cad> já estiver no DOM durante o import; como a view
+// da mesa é renderizada depois (SPA), o carregamento precisa ser disparado aqui, senão o mapa fica preto.
+const carregarCanvasKit = (uiKit as any).carregarModuloCanvas;
+if (typeof carregarCanvasKit === 'function') {
+  carregarCanvasKit().catch((err: any) => {
+    console.error('[GerenciGeo] Erro ao carregar módulo CAD do UI Kit:', err);
+  });
+}
 
 if (typeof customElements !== 'undefined') {
   customElements.whenDefined('ui-canvas-cad').then((CadClass: any) => {
