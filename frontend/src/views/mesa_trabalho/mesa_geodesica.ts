@@ -6,8 +6,9 @@ import { setNuvemSyncContext } from './nuvem_sync_modal';
 import { FerramentaCanetaSelecao } from './ferramenta_caneta';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
-// Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000
-export const latLonToUTM = (lat: number, lon: number) => {
+// Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000.
+// `zonaForcada` projeta no fuso escolhido pelo usuário; sem ela usa o fuso natural da longitude.
+export const latLonToUTM = (lat: number, lon: number, zonaForcada?: number) => {
   const sa = 6378137.0;
   const sb = 6356752.314245;
   const e2cuadrado = (sa * sa - sb * sb) / (sb * sb);
@@ -16,7 +17,9 @@ export const latLonToUTM = (lat: number, lon: number) => {
   const latRad = lat * Math.PI / 180;
   const lonRad = lon * Math.PI / 180;
 
-  const zone = Math.floor((lon + 180) / 6) + 1;
+  const zone = zonaForcada && zonaForcada >= 1 && zonaForcada <= 60
+    ? zonaForcada
+    : Math.floor((lon + 180) / 6) + 1;
   const lonSMRad = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
 
   const deltaLon = lonRad - lonSMRad;
@@ -258,7 +261,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
           deltaHNum = Math.round(((p.alt || 0) - (p.alt_original || 0)) * 1000);
         }
       } else if (p.lat && p.lon) {
-        const utm = latLonToUTM(p.lat, p.lon);
+        const utm = ctx.latLonToUTM(p.lat, p.lon);
         nCorrNum = utm.n;
         eCorrNum = utm.e;
         if (p.e_original && p.n_original) {
@@ -601,7 +604,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
            </table>
          `;
     } else {
-      const auditoriaHtml = pontosMat.map(p => renderAuditoriaTranslacaoHtml(p, latLonToUTM)).join('');
+      const auditoriaHtml = pontosMat.map(p => renderAuditoriaTranslacaoHtml(p, ctx.latLonToUTM)).join('');
       containerLateral.innerHTML = `
             <table class="w-full text-left border-collapse">
               <thead>
@@ -629,7 +632,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
 };
 
 export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
-  ctx.latLonToUTM = latLonToUTM;
+  // Usa o fuso escolhido no ribbon (ctx.mapaController.fusoUtm) em todas as conversões feitas na tela
+  ctx.latLonToUTM = (lat: number, lon: number) =>
+    latLonToUTM(lat, lon, Number(ctx.mapaController?.fusoUtm) || undefined);
 
   const dropzone = document.getElementById('triagem-dropzone');
   const fileInput = document.getElementById('triagem-file-input') as HTMLInputElement;

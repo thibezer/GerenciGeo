@@ -12,7 +12,6 @@
 
 import { showToast } from '../../utils';
 import { API_BASE } from '../../config';
-import { latLonToUTM } from './mesa_geodesica';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // ─────────────────────────────────────────────────────────────────
@@ -113,7 +112,7 @@ export function gerarPayloadCAD(pontos: any[], ctx: MesaTrabalhoContext): string
     // Fallback: converte lat/lon para UTM se não houver coordenadas planas
     if (!x || !y) {
       if (p.lat && p.lon) {
-        const utm = latLonToUTM(p.lat, p.lon);
+        const utm = ctx.latLonToUTM(p.lat, p.lon);
         x = utm.e;
         y = utm.n;
       }
