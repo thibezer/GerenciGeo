@@ -17,6 +17,11 @@ export function salvarPontoDebounced(
   ctx: any,
   delay: number = 600
 ): void {
+  // As alterações pendentes pertencem a um único ponto: se o usuário já está editando outro,
+  // envia agora as do ponto anterior para não gravá-las no novo.
+  if (currentPontoAlvo && currentPontoAlvo.id !== p.id) {
+    enviarPendentesPonto(ctx);
+  }
   currentPontoAlvo = p;
 
   switch (propId) {
@@ -86,39 +91,46 @@ export function salvarPontoDebounced(
     clearTimeout(autoSaveTimer);
   }
 
-  autoSaveTimer = setTimeout(async () => {
-    if (!currentPontoAlvo || Object.keys(pendingPontoUpdates).length === 0) return;
+  autoSaveTimer = setTimeout(() => enviarPendentesPonto(ctx), delay);
+}
 
-    const payload = { ...pendingPontoUpdates };
-    const pontoId = currentPontoAlvo.id;
-    pendingPontoUpdates = {};
+async function enviarPendentesPonto(ctx: any): Promise<void> {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  const pontoAlvo = currentPontoAlvo;
+  if (!pontoAlvo || Object.keys(pendingPontoUpdates).length === 0) return;
 
-    try {
-      const res = await fetch(`${API_BASE}/pontos/${pontoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  const payload = { ...pendingPontoUpdates };
+  const pontoId = pontoAlvo.id;
+  pendingPontoUpdates = {};
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || err.error || 'Erro ao salvar alterações do vértice');
-      }
+  try {
+    const res = await fetch(`${API_BASE}/pontos/${pontoId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-      const data = await res.json();
-      if (data.ponto && currentPontoAlvo) {
-        Object.assign(currentPontoAlvo, data.ponto);
-      }
-
-      ctx.atualizarPolilinhaMapaTemp?.();
-      if (payload.matricula_id !== undefined || payload.ignorar_poligono !== undefined) {
-        ctx.renderMatriculaDados?.();
-      }
-    } catch (err) {
-      console.error('Erro no salvamento do ponto:', err);
-      showToast(tratarErroAPI(err, 'Falha ao salvar vértice.'), 'error');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.error || 'Erro ao salvar alterações do vértice');
     }
-  }, delay);
+
+    const data = await res.json();
+    if (data.ponto) {
+      Object.assign(pontoAlvo, data.ponto);
+    }
+
+    ctx.atualizarPolilinhaMapaTemp?.();
+    if (payload.matricula_id !== undefined || payload.ignorar_poligono !== undefined) {
+      ctx.renderMatriculaDados?.();
+    }
+  } catch (err) {
+    console.error('Erro no salvamento do ponto:', err);
+    showToast(tratarErroAPI(err, 'Falha ao salvar vértice.'), 'error');
+  }
 }
 
 export async function salvarMultiplosPontos(
@@ -237,6 +249,10 @@ export function salvarSegmentoDebounced(
   ctx: any,
   delay: number = 600
 ): void {
+  // Mesma regra dos pontos: pendências de outra divisa são enviadas antes de trocar o alvo.
+  if (currentSegmentoAlvo && currentSegmentoAlvo !== segmento) {
+    enviarPendentesSegmento(ctx);
+  }
   currentSegmentoAlvo = segmento;
 
   switch (propId) {
@@ -266,51 +282,57 @@ export function salvarSegmentoDebounced(
     clearTimeout(autoSaveSegmentoTimer);
   }
 
-  autoSaveSegmentoTimer = setTimeout(async () => {
-    if (!currentSegmentoAlvo || Object.keys(pendingSegmentoUpdates).length === 0) return;
+  autoSaveSegmentoTimer = setTimeout(() => enviarPendentesSegmento(ctx), delay);
+}
 
-    const payload = { ...pendingSegmentoUpdates };
-    const segId = currentSegmentoAlvo.id;
-    pendingSegmentoUpdates = {};
+async function enviarPendentesSegmento(ctx: any): Promise<void> {
+  if (autoSaveSegmentoTimer) {
+    clearTimeout(autoSaveSegmentoTimer);
+    autoSaveSegmentoTimer = null;
+  }
+  if (!currentSegmentoAlvo || Object.keys(pendingSegmentoUpdates).length === 0) return;
 
-    if (!segId) {
-      console.warn('Segmento sem ID no banco para persistência direta.');
-      return;
+  const payload = { ...pendingSegmentoUpdates };
+  const segId = currentSegmentoAlvo.id;
+  pendingSegmentoUpdates = {};
+
+  if (!segId) {
+    console.warn('Segmento sem ID no banco para persistência direta.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.error || 'Erro ao salvar alterações do segmento/divisa');
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/segmentos/${segId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    showToast('Divisa atualizada com sucesso!', 'success');
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || err.error || 'Erro ao salvar alterações do segmento/divisa');
+    // Atualiza o segmento na lista do contexto
+    if (ctx.segmentosList) {
+      const idx = ctx.segmentosList.findIndex((s: any) => String(s.id) === String(segId));
+      if (idx !== -1) {
+        ctx.segmentosList[idx] = { ...ctx.segmentosList[idx], ...payload };
       }
-
-      showToast('Divisa atualizada com sucesso!', 'success');
-
-      // Atualiza o segmento na lista do contexto
-      if (ctx.segmentosList) {
-        const idx = ctx.segmentosList.findIndex((s: any) => String(s.id) === String(segId));
-        if (idx !== -1) {
-          ctx.segmentosList[idx] = { ...ctx.segmentosList[idx], ...payload };
-        }
-      }
-
-      // Re-plota segmentos no mapa para atualizar cores/estilos
-      if (ctx.mapaController && ctx.pontosList) {
-        const effectiveMatId = ctx.currentMatriculaId;
-        const segmentosMat = effectiveMatId
-          ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
-          : (ctx.segmentosList || []);
-        ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
-      }
-    } catch (err) {
-      console.error('Erro no salvamento do segmento:', err);
-      showToast(tratarErroAPI(err, 'Falha ao salvar segmento.'), 'error');
     }
-  }, delay);
+
+    // Re-plota segmentos no mapa para atualizar cores/estilos
+    if (ctx.mapaController && ctx.pontosList) {
+      const effectiveMatId = ctx.currentMatriculaId;
+      const segmentosMat = effectiveMatId
+        ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
+        : (ctx.segmentosList || []);
+      ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+    }
+  } catch (err) {
+    console.error('Erro no salvamento do segmento:', err);
+    showToast(tratarErroAPI(err, 'Falha ao salvar segmento.'), 'error');
+  }
 }
