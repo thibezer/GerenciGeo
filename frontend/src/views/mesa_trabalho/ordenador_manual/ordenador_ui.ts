@@ -241,6 +241,25 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
           if (isAfter) {
             ordemAlvo += 1;
           }
+          // ordemAlvo conta o próprio ponto (ou bloco travado) arrastado; moverPontoPosicao posiciona na lista
+          // sem ele. Ao arrastar para baixo, desconta os itens movidos que estavam antes do destino.
+          const pontosPerimetro = ctx.obterPontosParaOrdenacao()
+            .filter(p =>
+              p &&
+              p.ignorar_poligono !== 1 &&
+              p.tipo_ponto !== 'B' &&
+              p.tipo !== 'B' &&
+              (!ctx.currentMatriculaId || String(p.matricula_id) === String(ctx.currentMatriculaId))
+            )
+            .sort((a, b) => Number(a.ordem_caminhamento ?? 999999) - Number(b.ordem_caminhamento ?? 999999));
+          const arrastado = pontosPerimetro.find(p => p.id === pontoIdArrastado);
+          if (arrastado) {
+            const seqId = arrastado.sequencia_travada_id;
+            const movidosAntesDoDestino = pontosPerimetro.filter((p, idx) =>
+              idx < ordemAlvo - 1 && (seqId ? p.sequencia_travada_id === seqId : p.id === pontoIdArrastado)
+            ).length;
+            ordemAlvo -= movidosAntesDoDestino;
+          }
           ctx.moverPontoPosicao(pontoIdArrastado, ordemAlvo);
         }
       });
