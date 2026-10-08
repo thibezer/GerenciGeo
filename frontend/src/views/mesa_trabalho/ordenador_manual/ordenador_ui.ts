@@ -526,7 +526,9 @@ export function setupOrdenadorUI(ctx: MesaTrabalhoContext) {
         if (!ctx.currentLevId) return;
 
         ctx.modoCliqueSequencialAtivo = !ctx.modoCliqueSequencialAtivo;
-        ctx.mapaController.modoCliqueSequencialAtivo = ctx.modoCliqueSequencialAtivo;
+        // O <ui-canvas-cad> só entra no modo sequencial pela propriedade `modoSequencial`; fora dele cada clique
+        // disparava o callback do marcador e o evento de seleção, numerando o mesmo ponto duas vezes.
+        ctx.mapaController.modoSequencial = ctx.modoCliqueSequencialAtivo;
 
         const iconClique = document.getElementById('icon-clique-sequencial');
         const txtClique = document.getElementById('txt-clique-sequencial');
