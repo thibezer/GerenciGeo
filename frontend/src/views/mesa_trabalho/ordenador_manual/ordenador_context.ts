@@ -14,7 +14,7 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
       pontosFiltrados = pontosFiltrados.filter(p => p && !ctx.arquivosDesativadosList!.includes(p.arquivo_origem));
     }
 
-    // Deduplica por (nome_vertice, tipo_ponto)
+    // Deduplica por (matricula_id, nome_vertice, tipo_ponto)
     // Prioriza status_ponto === 'CORRIGIDO' e maior id
     const dedupMap = new Map<string, any>();
     pontosFiltrados.forEach((p) => {
@@ -24,7 +24,9 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
       // caso contrário todos os pontos brutos sumirão da tela e virarão 1 só (bug da Fazenda Serra dos Dourados).
       const nome = p.nome_vertice || '';
       const tipo = p.tipo_ponto || p.tipo || '';
-      const key = nome ? `${nome}_${tipo}` : `UNNAMED_${p.id}`;
+      // A matrícula entra na chave: o vértice compartilhado é um clone com o mesmo nome/tipo em outra
+      // matrícula, e sem ela uma das matrículas perdia o vértice na tabela, no mapa e no "Salvar Ordem".
+      const key = nome ? `${p.matricula_id ?? 'AVULSO'}_${nome}_${tipo}` : `UNNAMED_${p.id}`;
       
       if (!dedupMap.has(key)) {
         dedupMap.set(key, p);
