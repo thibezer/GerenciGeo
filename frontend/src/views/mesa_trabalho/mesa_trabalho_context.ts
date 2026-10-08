@@ -34,6 +34,8 @@ export interface MesaTrabalhoContext {
   ocultarForaPoligono: boolean;
   modoCliqueSequencialAtivo: boolean;
   bancoPontosExibido: boolean;
+  /** Poligonal homologada desenhada no mapa em Peças de Cartório (não troca a fonte da tabela de vértices) */
+  poligonalHomologadaVisivel?: boolean;
   bancoPontosList: any[];
   pontosVizinhosList: any[];
   travamentoInicio: number;

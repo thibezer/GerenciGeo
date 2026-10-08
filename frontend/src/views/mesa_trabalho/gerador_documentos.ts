@@ -698,7 +698,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         }
         
         if (todosPontos.length > 0) {
-          ctx.bancoPontosExibido = true;
+          ctx.poligonalHomologadaVisivel = true;
           ctx.mapaController.plotPoligonalHomologada(todosPontos);
           
           const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
@@ -711,7 +711,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           if (txt) txt.innerText = "Ocultar Poligonal";
           if (icon) icon.setAttribute('data-lucide', 'eye-off');
         } else {
-          ctx.bancoPontosExibido = false;
+          ctx.poligonalHomologadaVisivel = false;
           ctx.mapaController.plotPoligonalHomologada([]);
           
           const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
@@ -1115,11 +1115,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           return;
         }
         
-        ctx.bancoPontosExibido = !ctx.bancoPontosExibido;
+        ctx.poligonalHomologadaVisivel = !ctx.poligonalHomologadaVisivel;
         const icon = document.getElementById('icon-toggle-mapa-banco');
         const txt = document.getElementById('txt-toggle-mapa-banco');
-        
-        if (ctx.bancoPontosExibido) {
+
+        if (ctx.poligonalHomologadaVisivel) {
           ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
           if (txt) txt.innerText = "Ocultar Poligonal";
           if (icon) icon.setAttribute('data-lucide', 'eye-off');
