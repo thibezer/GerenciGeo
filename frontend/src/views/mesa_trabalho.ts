@@ -4,6 +4,7 @@ import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
+import { selecionarVerticeClicado, instalarAlternanciaPilha } from './mesa_trabalho/seletor_sobrepostos';
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
 import { setupMesaGeodesica, renderTabelaMesaGeodesica } from './mesa_trabalho/mesa_geodesica';
@@ -347,6 +348,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         canvasEl.levantamentoId = ctx.currentLevId;
         ctx.triagemMap = typeof canvasEl.getMap === 'function' ? canvasEl.getMap() : (canvasEl.controller?.getMap() || null);
         ctx.canvasInteracao = canvasEl.controller?.canvasInteracao;
+
+        // Clique repetido sobre vértices empilhados alterna entre eles (antes da seleção por caixa do canvas)
+        instalarAlternanciaPilha(ctx, canvasEl);
 
         // Escuta eventos customizados agnósticos do ui-canvas-cad
         canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
@@ -943,7 +947,8 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (ctx.modoCliqueSequencialAtivo) {
         ctx.lidarCliqueMarcadorSequencial(pontoId);
       } else {
-        ctx.selectPontoFromTabela(pontoId as number);
+        // Trata vértices empilhados: alterna entre eles e oferece lista de escolha
+        selecionarVerticeClicado(ctx, pontoId);
       }
     };
 
