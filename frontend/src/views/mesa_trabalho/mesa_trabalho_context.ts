@@ -64,6 +64,8 @@ export interface MesaTrabalhoContext {
   carregarSugestoesNumeracao: () => void;
   carregarConfrontantesAtivosSelect: () => Promise<void>;
   selectPontoFromTabela: (pontoId: number) => void;
+  /** Clique num vértice do mapa: numera no "Caminhar Clique" ou seleciona o ponto */
+  cliqueVerticeMapa?: (pontoId: number | string) => void;
   aplicarLargurasSplitters: () => void;
 
   // Funções utilitárias e de reordenação
@@ -77,7 +79,7 @@ export interface MesaTrabalhoContext {
   descerPontoSimplificado: (pontoId: number) => void;
   inverterOrdemPerimetral: () => void;
   definirInicioMaisAoNorte: () => void;
-  lidarCliqueMarcadorSequencial: (pontoId: number) => void;
+  lidarCliqueMarcadorSequencial: (pontoId: number | string) => void;
   obterPontosParaOrdenacao: () => any[];
   alternarModoReordenarManual: (ativo: boolean) => void;
   gerenciadorHistorico?: any;

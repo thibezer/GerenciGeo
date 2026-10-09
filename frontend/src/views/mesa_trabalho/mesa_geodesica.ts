@@ -212,7 +212,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
     ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
-      ctx.selectPontoFromTabela(pId);
+      ctx.cliqueVerticeMapa?.(pId);
     });
 
     const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));

@@ -352,7 +352,17 @@ export function setupOrdenadorContext(ctx: MesaTrabalhoContext) {
     ctx.salvarRascunhoLocal();
   };
 
-  ctx.lidarCliqueMarcadorSequencial = (pontoId: number) => {
+  // Um único clique no mapa chega por dois caminhos (callback do marcador e evento 'ui-ponto-selecionado'),
+  // às vezes com o id como texto. Normaliza o id e ignora a repetição do mesmo clique.
+  let ultimoCliqueSequencial = { id: 0, instante: 0 };
+
+  ctx.lidarCliqueMarcadorSequencial = (pontoIdBruto: number | string) => {
+    const pontoId = Number(pontoIdBruto);
+    if (!pontoId) return;
+    const agora = Date.now();
+    if (ultimoCliqueSequencial.id === pontoId && agora - ultimoCliqueSequencial.instante < 400) return;
+    ultimoCliqueSequencial = { id: pontoId, instante: agora };
+
     const todosPontos = ctx.obterPontosParaOrdenacao();
     const pontosMat = filtrarPontosPerimetro(todosPontos);
     const maxOrdem = pontosMat.length;

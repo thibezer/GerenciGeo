@@ -354,11 +354,7 @@ export const mesaTrabalhoRoute: RouteDef = {
           ctx.selectedSegmento = null;
           const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
           if (pId) {
-            if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
-              ctx.lidarCliqueMarcadorSequencial(pId);
-            } else {
-              ctx.selectPontoFromTabela(pId);
-            }
+            ctx.cliqueVerticeMapa?.(pId);
           }
         });
 
@@ -394,7 +390,36 @@ export const mesaTrabalhoRoute: RouteDef = {
           return false;
         };
 
+        // Vértice do perímetro da matrícula ativa mais próximo do pixel clicado (até 12 px), ou null.
+        const verticePerimetroNoPixel = (pixel: { x: number; y: number } | undefined): number | null => {
+          const map = ctx.triagemMap;
+          if (!map || !pixel) return null;
+          let maisProximo: number | null = null;
+          let menorDist = 12;
+          for (const p of ctx.obterPontosParaOrdenacao() as any[]) {
+            if (!p || p.ignorar_poligono === 1 || p.tipo_ponto === 'B' || p.tipo === 'B') continue;
+            if (ctx.currentMatriculaId && String(p.matricula_id) !== String(ctx.currentMatriculaId)) continue;
+            const lat = Number(p.lat);
+            const lon = Number(p.lon ?? p.lng);
+            if (!lat || !lon) continue;
+            const pt = map.latLngToContainerPoint([lat, lon]);
+            const dist = Math.hypot(pt.x - pixel.x, pt.y - pixel.y);
+            if (dist <= menorDist) {
+              menorDist = dist;
+              maisProximo = Number(p.id);
+            }
+          }
+          return maisProximo;
+        };
+
         canvasEl.addEventListener('ui-canvas-clique', (e: any) => {
+          // A seleção em caixa do kit deixa os vértices transparentes ao mouse no mousedown, então o clique
+          // num vértice chega aqui como "clique livre". No "Caminhar Clique" ele é resolvido por proximidade.
+          if (ctx.modoCliqueSequencialAtivo) {
+            const pIdSeq = verticePerimetroNoPixel(e.detail?.pontoPixel);
+            if (pIdSeq) ctx.lidarCliqueMarcadorSequencial(pIdSeq);
+            return;
+          }
           if (cliqueSobrePonto(e.detail?.pontoPixel)) return;
           if (ctx.triagemMap && e.detail) {
             const ev = e.detail.eventoOriginal || e.detail;
@@ -421,6 +446,12 @@ export const mesaTrabalhoRoute: RouteDef = {
           window.removeEventListener('gerencigeo:ponto-selecionado', _pontoSelecionadoHandler);
         }
         _pontoSelecionadoHandler = (e: any) => {
+          // O canvas também avisa o clique num vértice só por este evento global; no "Caminhar Clique" ele numera o ponto.
+          if (ctx.modoCliqueSequencialAtivo) {
+            const pIdSeq = e.detail?.lastSelectedPontoId ?? e.detail?.selectedPontoIds?.[0];
+            if (pIdSeq) ctx.lidarCliqueMarcadorSequencial(pIdSeq);
+            return;
+          }
           if (e.detail?.selectedPontoIds) {
             ctx.selectedPontoIds = e.detail.selectedPontoIds;
             ctx.selectedVizinhoPontoIds = e.detail.selectedVizinhoPontoIds || [];
@@ -690,13 +721,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0;
       ctx.mapaController.clearOverlays(bpAtivo);
-      ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
-        if (ctx.modoCliqueSequencialAtivo && typeof ctx.lidarCliqueMarcadorSequencial === 'function') {
-          ctx.lidarCliqueMarcadorSequencial(pId);
-        } else {
-          ctx.selectPontoFromTabela(pId);
-        }
-      });
+      ctx.mapaController.plotPontos(pontosMat, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
 
       if (segmentosMat && segmentosMat.length > 0) {
         ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
@@ -910,6 +935,16 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
 
       ctx.atualizarDestaqueLinhasTabela();
+    };
+
+    // Todos os caminhos de clique num vértice do mapa (callback do plotPontos, 'ui-ponto-selecionado')
+    // passam por aqui, para o "Caminhar Clique" valer em qualquer etapa.
+    ctx.cliqueVerticeMapa = (pontoId: number | string) => {
+      if (ctx.modoCliqueSequencialAtivo) {
+        ctx.lidarCliqueMarcadorSequencial(pontoId);
+      } else {
+        ctx.selectPontoFromTabela(pontoId as number);
+      }
     };
 
     // 5. Configuração de Event Delegation da Tabela de Vértices

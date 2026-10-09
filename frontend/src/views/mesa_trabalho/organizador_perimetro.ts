@@ -109,7 +109,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
     ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
-      ctx.selectPontoFromTabela(pId);
+      ctx.cliqueVerticeMapa?.(pId);
     });
 
     if (segmentosMat && segmentosMat.length > 0) {
