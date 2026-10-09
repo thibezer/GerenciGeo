@@ -123,8 +123,16 @@ async function enviarPendentesPonto(ctx: any): Promise<void> {
       Object.assign(pontoAlvo, data.ponto);
     }
 
+    if (payload.matricula_id !== undefined) {
+      // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
+      // as listas locais ficariam desatualizadas e o mapa seguiria desenhando o vértice no perímetro antigo.
+      await ctx.loadLevantamentoDetails?.();
+      ctx.atualizarPainelPropriedades?.();
+      return;
+    }
+
     ctx.atualizarPolilinhaMapaTemp?.();
-    if (payload.matricula_id !== undefined || payload.ignorar_poligono !== undefined) {
+    if (payload.ignorar_poligono !== undefined) {
       ctx.renderMatriculaDados?.();
     }
   } catch (err) {

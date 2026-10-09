@@ -90,6 +90,30 @@ class TestAlteracaoMatriculaPonto(unittest.TestCase):
         seg_rows = execute_query("SELECT id FROM segmentos WHERE matricula_id = ? AND (ponto_inicio_id = ? OR ponto_fim_id = ?)", params=(self.m1_id, pid, pid), fetch_all=True)
         self.assertEqual(len(seg_rows), 0)
 
+    def test_alteracao_matricula_via_patch_do_painel(self):
+        # O Painel de Propriedades usa PATCH /pontos/{id} (auto-save), não o PUT
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt) VALUES (?, ?, 'M-PATCH', 'M', -16.5, -49.2, 800.0)",
+                (self.lev_id, self.m1_id)
+            )
+            pid = cursor.lastrowid
+            conn.commit()
+
+        res = client.patch(f"/pontos/{pid}", json={"matricula_id": self.m2_id})
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(res.json()["ponto"]["matricula_id"], self.m2_id)
+
+        p_row = execute_query("SELECT matricula_id FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        self.assertEqual(p_row['matricula_id'], self.m2_id)
+
+        # "Nenhuma (Ponto Solto)" envia null
+        res = client.patch(f"/pontos/{pid}", json={"matricula_id": None})
+        self.assertEqual(res.status_code, 200, res.text)
+        p_row = execute_query("SELECT matricula_id FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
+        self.assertIsNone(p_row['matricula_id'])
+
     def test_conflito_unicidade_ao_trocar_matricula(self):
         with DatabaseManager() as conn:
             cursor = conn.cursor()
