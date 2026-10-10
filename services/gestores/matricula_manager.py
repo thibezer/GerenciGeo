@@ -1,6 +1,7 @@
 """
 Regras de domínio para os campos editáveis de uma matrícula.
 """
+from database.connection import execute_query
 
 # Coluna gravada -> chaves aceitas no payload, em ordem de prioridade
 _ALIASES_MATRICULA = {
@@ -54,3 +55,47 @@ def resolver_campos_matricula(enviados: dict, atual: dict | None = None) -> dict
         resolvidos["area_ha"] = atual.get("area_ha")
 
     return resolvidos
+
+
+def listar_matriculas_derivadas(matricula_id: int) -> list[dict]:
+    """Matrículas que usam o desenho (perímetro) da matrícula informada."""
+    rows = execute_query(
+        "SELECT id, numero_matricula FROM matriculas WHERE matricula_origem_desenho_id = ? AND id != ? ORDER BY numero_matricula",
+        params=(matricula_id, matricula_id),
+        fetch_all=True
+    )
+    return [dict(r) for r in rows] if rows else []
+
+
+def validar_origem_desenho(matricula_id: int | None, origem_id, propriedade_id: int | None = None) -> str | None:
+    """
+    Valida o vínculo de desenho compartilhado (gleba unificada). O desenho é resolvido em um
+    único nível em todo o sistema, então a origem precisa ser uma matrícula principal da mesma
+    propriedade e a matrícula vinculada não pode ser origem de outras.
+    Na criação, `matricula_id` é None e `propriedade_id` indica a propriedade da nova matrícula.
+    Retorna a mensagem de erro, ou None se o vínculo é válido.
+    """
+    if origem_id is None or (matricula_id is not None and origem_id == matricula_id):
+        return None
+
+    if matricula_id is not None:
+        atual = execute_query("SELECT id, propriedade_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
+        if not atual:
+            return "Matrícula não encontrada."
+        propriedade_id = atual["propriedade_id"]
+    origem = execute_query(
+        "SELECT id, propriedade_id, numero_matricula, matricula_origem_desenho_id FROM matriculas WHERE id = ?",
+        params=(origem_id,), fetch_one=True
+    )
+    if not origem:
+        return "Matrícula de origem do desenho não encontrada."
+    if origem["propriedade_id"] != propriedade_id:
+        return "A matrícula de origem do desenho deve pertencer à mesma propriedade."
+    if origem["matricula_origem_desenho_id"] and origem["matricula_origem_desenho_id"] != origem["id"]:
+        return (f"A matrícula {origem['numero_matricula']} já usa o desenho de outra matrícula. "
+                "Vincule à matrícula principal do desenho.")
+    derivadas = listar_matriculas_derivadas(matricula_id) if matricula_id is not None else []
+    if derivadas:
+        numeros = ", ".join(str(d["numero_matricula"]) for d in derivadas)
+        return f"Esta matrícula é origem do desenho de outra(s) matrícula(s) ({numeros}). Desvincule-as antes."
+    return None

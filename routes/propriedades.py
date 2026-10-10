@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from services.gestores.cliente_manager import vincular_cliente_propriedade, validar_composicao_proprietarios
-from services.gestores.matricula_manager import resolver_campos_matricula, COLUNAS_MATRICULA
+from services.gestores.matricula_manager import resolver_campos_matricula, validar_origem_desenho, COLUNAS_MATRICULA
 from config import EXPORT_BASE_FOLDER
 from routes.deps import verificar_propriedade_arquivada
 
@@ -290,6 +290,9 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
             raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
             
         campos = resolver_campos_matricula(m.model_dump(exclude_unset=True))
+        erro_vinculo = validar_origem_desenho(None, campos["matricula_origem_desenho_id"], prop_id)
+        if erro_vinculo:
+            raise HTTPException(status_code=400, detail=erro_vinculo)
         colunas = ", ".join(COLUNAS_MATRICULA)
         marcadores = ", ".join("?" for _ in COLUNAS_MATRICULA)
         execute_query(

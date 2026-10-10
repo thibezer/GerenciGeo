@@ -195,6 +195,20 @@ class CcirCadastroRepo(GenericRepo):
             cursor = conn.cursor()
             cursor.executemany(query, rows)
 
+    def substituir_registros_arquivo(self, arquivo_origem, rows):
+        """Troca os registros de um arquivo de origem pelos novos numa única transação"""
+        query = """
+            INSERT INTO ccir_cadastros (
+                codigo_imovel, denominacao, codigo_municipio, municipio, uf,
+                area_total, titular, natureza_juridica, condicao_pessoa,
+                percentual_detencao, pais, arquivo_origem
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM ccir_cadastros WHERE arquivo_origem = ?", (arquivo_origem,))
+            cursor.executemany(query, rows)
+
     def delete_by_arquivo(self, arquivo_origem):
         """Remove todos os registros vindos de um arquivo de origem específico"""
         query = "DELETE FROM ccir_cadastros WHERE arquivo_origem = ?"

@@ -21,8 +21,13 @@ from services.gestores.levantamento_manager import (
     analisar_duplicatas_e_sobreposicoes,
     vincular_ponto_matricula,
 )
-from routes.deps import verificar_levantamento_arquivado
-from services.gestores.matricula_manager import resolver_campos_matricula, COLUNAS_MATRICULA
+from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
+from services.gestores.matricula_manager import (
+    resolver_campos_matricula,
+    COLUNAS_MATRICULA,
+    listar_matriculas_derivadas,
+    validar_origem_desenho,
+)
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
 
@@ -181,6 +186,9 @@ def create_matricula(id: int, m: MatriculaCreate):
         propriedade_id = row['propriedade_id']
 
         campos = resolver_campos_matricula(m.model_dump(exclude_unset=True))
+        erro_vinculo = validar_origem_desenho(None, campos["matricula_origem_desenho_id"], propriedade_id)
+        if erro_vinculo:
+            raise HTTPException(status_code=400, detail=erro_vinculo)
         colunas = ", ".join(COLUNAS_MATRICULA)
         marcadores = ", ".join("?" for _ in COLUNAS_MATRICULA)
         execute_query(
@@ -216,6 +224,10 @@ def update_matricula(mid: int, m: MatriculaCreate):
         campos = resolver_campos_matricula(m.model_dump(exclude_unset=True), dict(antigo))
         if campos["matricula_origem_desenho_id"] == mid:
             campos["matricula_origem_desenho_id"] = None
+        if campos["matricula_origem_desenho_id"] != antigo["matricula_origem_desenho_id"]:
+            erro_vinculo = validar_origem_desenho(mid, campos["matricula_origem_desenho_id"])
+            if erro_vinculo:
+                raise HTTPException(status_code=400, detail=erro_vinculo)
 
         colunas = ", ".join(f"{c} = ?" for c in COLUNAS_MATRICULA)
         execute_query(
@@ -283,13 +295,26 @@ def update_matricula(mid: int, m: MatriculaCreate):
 @router.post("/matriculas/{mid}/vincular-desenho")
 def vincular_desenho_matricula(mid: int, payload: dict):
     try:
+        row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        if not row:
+            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
+        verificar_propriedade_arquivada(row["propriedade_id"])
+
         origem_id = payload.get("matricula_origem_desenho_id")
         if origem_id is not None:
-            origem_id = int(origem_id)
+            try:
+                origem_id = int(origem_id)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="Matrícula de origem do desenho inválida.")
             if origem_id == mid:
                 origem_id = None  # Apontar para si mesma equivale a desvincular
+        erro_vinculo = validar_origem_desenho(mid, origem_id)
+        if erro_vinculo:
+            raise HTTPException(status_code=400, detail=erro_vinculo)
         execute_query("UPDATE matriculas SET matricula_origem_desenho_id = ? WHERE id = ?", params=(origem_id, mid), commit=True)
         return {"message": "Vínculo de desenho territorial atualizado com sucesso", "matricula_id": mid, "matricula_origem_desenho_id": origem_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -303,7 +328,16 @@ def delete_matricula(mid: int):
             rows_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(propriedade_id,), fetch_all=True)
             if rows_lev:
                 raise HTTPException(status_code=403, detail="Operação bloqueada: A matrícula pertence a um levantamento arquivado (Tranca Read-Only ativa).")
-                
+
+            # Matrículas que usam este desenho ficariam apontando para uma matrícula inexistente
+            derivadas = listar_matriculas_derivadas(mid)
+            if derivadas:
+                numeros = ", ".join(str(d["numero_matricula"]) for d in derivadas)
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Não é possível excluir: esta matrícula é origem do desenho de outra(s) matrícula(s) ({numeros}). Desvincule-as antes."
+                )
+
             execute_query("DELETE FROM matriculas WHERE id = ?", params=(mid,), commit=True)
             
             query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"

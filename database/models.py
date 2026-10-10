@@ -735,7 +735,20 @@ def create_tables(conn):
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_matriculas_origem_desenho ON matriculas (matricula_origem_desenho_id)")
         except Exception:
             pass
-        
+
+        # Desfaz vínculos de desenho que apontam para matrícula inexistente ou para si mesma
+        try:
+            cursor.execute("""
+                UPDATE matriculas SET matricula_origem_desenho_id = NULL
+                WHERE matricula_origem_desenho_id IS NOT NULL
+                  AND (matricula_origem_desenho_id = id
+                       OR matricula_origem_desenho_id NOT IN (SELECT id FROM matriculas))
+            """)
+            if cursor.rowcount:
+                logger.info(f"[MIGRAÇÃO] {cursor.rowcount} vínculo(s) de desenho órfão(s) removido(s) em matriculas.")
+        except Exception as ex_orfaos:
+            logger.warning(f"Aviso ao limpar vínculos de desenho órfãos em matriculas: {ex_orfaos}")
+
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [
             ("profissional_id", "INTEGER"),

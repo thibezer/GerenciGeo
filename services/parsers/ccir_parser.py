@@ -209,7 +209,7 @@ def sincronizar_pasta_ccir():
     from database.repository import CcirCadastroRepo
     from config import EXPORT_BASE_FOLDER
     from datetime import datetime
-    import time
+    import calendar
     
     ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
     os.makedirs(ccir_dir, exist_ok=True)
@@ -256,7 +256,8 @@ def sincronizar_pasta_ccir():
             db_date_str = arquivos_db_dict[filename]['data_importacao']
             try:
                 db_dt = datetime.strptime(db_date_str[:19], "%Y-%m-%d %H:%M:%S")
-                db_ts = time.mktime(db_dt.timetuple())
+                # created_at vem do CURRENT_TIMESTAMP do SQLite, que é UTC
+                db_ts = calendar.timegm(db_dt.timetuple())
                 # Se o arquivo local tiver data de modificação superior à data da última importação no banco (com 2s de tolerância)
                 if local_info['mtime'] > db_ts + 2:
                     importar = True
@@ -266,18 +267,20 @@ def sincronizar_pasta_ccir():
                 logging.getLogger(__name__).warning(f"[CCIR] Erro ao extrair data do banco ou tempo do arquivo: {e}")
                 
         if importar:
-            if filename in arquivos_db_dict:
-                repo.delete_by_arquivo(filename)
-                
+            # Lê a planilha antes de mexer no banco: se a leitura falhar, os dados anteriores são mantidos
+            ja_importada = filename in arquivos_db_dict
             try:
                 registros = parse_ccir_csv(local_info['path'])
                 if registros:
-                    repo.insert_bulk(registros)
+                    repo.substituir_registros_arquivo(filename, registros)
                     logs_sync.append(f"Planilha '{filename}' ({len(registros)} registros) importada com sucesso ({reason}).")
+                elif ja_importada:
+                    logs_sync.append(f"Planilha '{filename}' sem registros válidos; dados importados anteriormente foram mantidos.")
                 else:
                     logs_sync.append(f"Planilha '{filename}' ignorada (sem registros válidos).")
             except Exception as e:
-                logs_sync.append(f"Erro ao processar planilha '{filename}': {str(e)}")
+                sufixo = " (dados importados anteriormente foram mantidos)" if ja_importada else ""
+                logs_sync.append(f"Erro ao processar planilha '{filename}': {str(e)}{sufixo}")
                 
     if not logs_sync:
         logs_sync.append("Nenhuma alteração detectada. Banco de dados já sincronizado com a pasta.")
