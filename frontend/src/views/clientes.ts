@@ -709,40 +709,9 @@ export const clientesRoute: RouteDef = {
       const metadadosCopy = { ...(cli.metadados || {}) };
       delete metadadosCopy[key];
 
+      // Atualização parcial: só os metadados são alterados; o restante do cadastro é preservado
       const payload: ClientePayload = {
         nome_completo: cli.nome_completo,
-        cpf_cnpj: cli.cpf_cnpj,
-        rg_ie: cli.rg_ie,
-        data_nascimento_fundacao: cli.data_nascimento_fundacao,
-        estado_civil: cli.estado_civil,
-        profissao: cli.profissao,
-        nacionalidade: cli.nacionalidade,
-        nome_conjuge: cli.nome_conjuge,
-        cpf_conjuge: cli.cpf_conjuge,
-        rg_conjuge: cli.rg_conjuge,
-        regime_bens: cli.regime_bens,
-        email: cli.email,
-        telefone: cli.telefone,
-        endereco_completo: cli.endereco_completo,
-        cidade: cli.cidade,
-        estado: cli.estado,
-        cep: cli.cep,
-        sexo: cli.sexo,
-        senha_gov: cli.senha_gov,
-        tipo_pessoa: cli.tipo_pessoa,
-        razao_social: cli.razao_social,
-        nome_fantasia: cli.nome_fantasia,
-        inscricao_estadual: cli.inscricao_estadual,
-        inscricao_municipal: cli.inscricao_municipal,
-        representante_legal_id: cli.representante_legal_id,
-        cnh_numero: cli.cnh_numero,
-        cnh_categoria: cli.cnh_categoria,
-        cnh_validade: cli.cnh_validade,
-        cnh_orgao_uf: cli.cnh_orgao_uf,
-        rg_orgao: cli.rg_orgao,
-        rg_uf: cli.rg_uf,
-        naturalidade: cli.naturalidade,
-        certidao_casamento_matricula: cli.certidao_casamento_matricula,
         metadados: metadadosCopy
       };
 
@@ -1083,40 +1052,9 @@ export const clientesRoute: RouteDef = {
       }
 
       const metadadosCopy = { ...(cli.metadados || {}), [key]: val };
+      // Atualização parcial: só os metadados são alterados; o restante do cadastro é preservado
       const payload: ClientePayload = {
         nome_completo: cli.nome_completo,
-        cpf_cnpj: cli.cpf_cnpj,
-        rg_ie: cli.rg_ie,
-        data_nascimento_fundacao: cli.data_nascimento_fundacao,
-        estado_civil: cli.estado_civil,
-        profissao: cli.profissao,
-        nacionalidade: cli.nacionalidade,
-        nome_conjuge: cli.nome_conjuge,
-        cpf_conjuge: cli.cpf_conjuge,
-        rg_conjuge: cli.rg_conjuge,
-        regime_bens: cli.regime_bens,
-        email: cli.email,
-        telefone: cli.telefone,
-        endereco_completo: cli.endereco_completo,
-        cidade: cli.cidade,
-        estado: cli.estado,
-        cep: cli.cep,
-        sexo: cli.sexo,
-        senha_gov: cli.senha_gov,
-        tipo_pessoa: cli.tipo_pessoa,
-        razao_social: cli.razao_social,
-        nome_fantasia: cli.nome_fantasia,
-        inscricao_estadual: cli.inscricao_estadual,
-        inscricao_municipal: cli.inscricao_municipal,
-        representante_legal_id: cli.representante_legal_id,
-        cnh_numero: cli.cnh_numero,
-        cnh_categoria: cli.cnh_categoria,
-        cnh_validade: cli.cnh_validade,
-        cnh_orgao_uf: cli.cnh_orgao_uf,
-        rg_orgao: cli.rg_orgao,
-        rg_uf: cli.rg_uf,
-        naturalidade: cli.naturalidade,
-        certidao_casamento_matricula: cli.certidao_casamento_matricula,
         metadados: metadadosCopy
       };
 

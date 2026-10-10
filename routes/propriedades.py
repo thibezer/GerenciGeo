@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from services.gestores.cliente_manager import vincular_cliente_propriedade, validar_composicao_proprietarios
+from services.gestores.matricula_manager import resolver_campos_matricula, COLUNAS_MATRICULA
 from config import EXPORT_BASE_FOLDER
 from routes.deps import verificar_propriedade_arquivada
 
@@ -18,13 +19,19 @@ router = APIRouter(tags=["Propriedades & Matrículas"])
 # ── Modelos ────────────────────────────────────────────────────────────────────
 
 class PropriedadeCreate(BaseModel):
+    # Os caminhos dos arquivos do CAR/CCIR são definidos apenas pelas rotas de upload
     nome_propriedade: str
     codigo_car: Optional[str] = None
     codigo_ccir: Optional[str] = None
-    caminho_arquivo_car: Optional[str] = None
-    caminho_arquivo_ccir: Optional[str] = None
     municipio: str
     uf: str
+
+class PropriedadeUpdate(BaseModel):
+    nome_propriedade: Optional[str] = None
+    codigo_car: Optional[str] = None
+    codigo_ccir: Optional[str] = None
+    municipio: Optional[str] = None
+    uf: Optional[str] = None
 
 class PropriedadeClienteCreate(BaseModel):
     cliente_id: int
@@ -104,9 +111,9 @@ def create_propriedade(p: PropriedadeCreate):
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, caminho_arquivo_car, caminho_arquivo_ccir, municipio, uf)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.caminho_arquivo_car, p.caminho_arquivo_ccir, p.municipio, p.uf.upper()))
+                INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, municipio, uf)
+                VALUES (?, ?, ?, ?, ?)
+            """, (p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf.upper()))
             prop_id = cursor.lastrowid
             conn.commit()
         return {"id": prop_id, "message": "Propriedade cadastrada com sucesso"}
@@ -114,16 +121,28 @@ def create_propriedade(p: PropriedadeCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/propriedades/{prop_id}")
-def update_propriedade(prop_id: int, p: PropriedadeCreate):
+def update_propriedade(prop_id: int, p: PropriedadeUpdate):
     verificar_propriedade_arquivada(prop_id)
-    if len(p.uf) != 2:
-        raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
+    # Atualização parcial: só os campos enviados são alterados
+    dados = p.model_dump(exclude_unset=True)
+    if "uf" in dados:
+        if not dados["uf"] or len(dados["uf"]) != 2:
+            raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
+        dados["uf"] = dados["uf"].upper()
+    for obrigatorio in ("nome_propriedade", "municipio"):
+        if obrigatorio in dados and not (dados[obrigatorio] or "").strip():
+            raise HTTPException(status_code=400, detail=f"O campo {obrigatorio} é obrigatório.")
+    if not execute_query("SELECT id FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True):
+        raise HTTPException(status_code=404, detail="Propriedade não localizada.")
+    if not dados:
+        return {"message": "Nenhuma alteração enviada"}
     try:
-        execute_query("""
-            UPDATE propriedades
-            SET nome_propriedade = ?, codigo_car = ?, codigo_ccir = ?, caminho_arquivo_car = ?, caminho_arquivo_ccir = ?, municipio = ?, uf = ?
-            WHERE id = ?
-        """, params=(p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.caminho_arquivo_car, p.caminho_arquivo_ccir, p.municipio, p.uf.upper(), prop_id), commit=True)
+        colunas = ", ".join(f"{campo} = ?" for campo in dados)
+        execute_query(
+            f"UPDATE propriedades SET {colunas} WHERE id = ?",
+            params=(*dados.values(), prop_id),
+            commit=True
+        )
         return {"message": "Propriedade atualizada com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -131,6 +150,13 @@ def update_propriedade(prop_id: int, p: PropriedadeCreate):
 @router.delete("/propriedades/{prop_id}")
 def delete_propriedade(prop_id: int):
     verificar_propriedade_arquivada(prop_id)
+    # A exclusão apagaria em cascata os levantamentos (pontos, segmentos, confrontantes)
+    levs = execute_query("SELECT count(*) as qtd FROM levantamentos WHERE propriedade_id = ?", params=(prop_id,), fetch_one=True)
+    if levs and levs["qtd"] > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Não é possível excluir a propriedade: existem {levs['qtd']} levantamento(s) vinculado(s). Exclua os levantamentos antes."
+        )
     try:
         execute_query("DELETE FROM propriedades WHERE id = ?", params=(prop_id,), commit=True)
         return {"message": "Propriedade excluída com sucesso"}
@@ -263,13 +289,14 @@ def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
         if exists:
             raise HTTPException(status_code=400, detail="Matrícula já cadastrada para esta propriedade.")
             
-        area = m.area_registrada_ha if m.area_registrada_ha is not None and m.area_registrada_ha > 0 else (m.area_ha or 0.0)
-        ccir_val = m.codigo_ccir or m.ccir
-        itr_val = m.codigo_itr or m.itr
-        denominacao_val = m.denominacao_gleba or m.denominacao
-
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(prop_id, m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, m.matricula_origem_desenho_id), commit=True)
+        campos = resolver_campos_matricula(m.model_dump(exclude_unset=True))
+        colunas = ", ".join(COLUNAS_MATRICULA)
+        marcadores = ", ".join("?" for _ in COLUNAS_MATRICULA)
+        execute_query(
+            f"INSERT INTO matriculas (propriedade_id, {colunas}) VALUES (?, {marcadores})",
+            params=(prop_id, *(campos[c] for c in COLUNAS_MATRICULA)),
+            commit=True
+        )
         return {"message": "Matrícula cadastrada com sucesso na propriedade."}
     except HTTPException:
         raise

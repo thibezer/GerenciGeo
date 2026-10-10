@@ -357,9 +357,8 @@ def delete_clientes_lote(payload: ClientesLoteDelete):
 @router.put("/clientes/{cliente_id}")
 @router.put("/api/clientes/{cliente_id}")
 def update_cliente(cliente_id: int, cli: ClienteCreate):
-    data = cli.model_dump() if hasattr(cli, 'model_dump') else cli.dict()
-    if not data.get("nome_completo") and data.get("nome"):
-        data["nome_completo"] = data["nome"]
+    # Atualização parcial: só os campos enviados são alterados; o restante é preservado
+    data = cli.model_dump(exclude_unset=True)
     res = atualizar_cliente(cliente_id, data)
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])

@@ -6,6 +6,25 @@ import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customCon
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
 let keydownHandlerModal: ((e: KeyboardEvent) => void) | null = null;
 
+// O backend (FastAPI) devolve erros em `detail` com status HTTP de erro; normaliza para `error`,
+// que é o campo verificado pelos handlers desta tela.
+const lerRespostaApi = async (res: Response): Promise<any> => {
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (data === null || typeof data !== 'object') data = {};
+  if (!res.ok && !data.error) {
+    const detail = data.detail;
+    data.error = Array.isArray(detail)
+      ? detail.map((d: any) => d?.msg || String(d)).join('\n')
+      : (detail || `Erro ${res.status} ao processar a requisição.`);
+  }
+  return data;
+};
+
 export const propriedadesRoute: RouteDef = {
   render: () => `
     <div class="space-y-5 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -654,14 +673,14 @@ export const propriedadesRoute: RouteDef = {
 
     document.getElementById('btn-batch-delete')?.addEventListener('click', async () => {
        const count = propriedadesSelecionadas.size;
-       if (!(await customConfirm(`ATENÇÃO: A exclusão destas ${count} propriedades selecionadas removerá todos os seus vínculos de proprietários, matrículas, levantamentos e histórico físico no Windows Explorer de forma definitiva. Deseja continuar?`))) return;
+       if (!(await customConfirm(`ATENÇÃO: A exclusão destas ${count} propriedades selecionadas removerá de forma definitiva os vínculos de proprietários e as matrículas. Propriedades com levantamentos não serão excluídas. Deseja continuar?`))) return;
        
        const bar = document.getElementById('batch-action-bar');
        if (bar) bar.style.cursor = 'wait';
 
        try {
           const promises = Array.from(propriedadesSelecionadas).map(id =>
-             fetch(`${API_BASE}/propriedades/${id}`, { method: 'DELETE' }).then(res => res.json())
+             fetch(`${API_BASE}/propriedades/${id}`, { method: 'DELETE' }).then(lerRespostaApi)
           );
           const results = await Promise.all(promises);
           
@@ -1132,7 +1151,7 @@ export const propriedadesRoute: RouteDef = {
           const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/arquivo-${tipo}`, {
              method: 'DELETE'
           });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1256,7 +1275,7 @@ export const propriedadesRoute: RouteDef = {
                 if (await customConfirm("Tem certeza que deseja remover a vinculação de copropriedade deste cliente?")) {
                    try {
                       const res = await fetch(`${API_BASE}/propriedades/${propriedadeSelecionadaId}/clientes/${cliId}`, { method: 'DELETE' });
-                      const data = await res.json();
+                      const data = await lerRespostaApi(res);
                       if (data.error) {
                          customAlert(data.error);
                       } else {
@@ -1302,7 +1321,7 @@ export const propriedadesRoute: RouteDef = {
 
        try {
           const res = await fetch(`${API_BASE}/propriedades/${propId}/matriculas`);
-          const matriculas = await res.json();
+          const matriculas = await lerRespostaApi(res);
 
           if (matriculas.error) {
              corpo.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-red-400">${matriculas.error}</td></tr>`;
@@ -1407,7 +1426,7 @@ export const propriedadesRoute: RouteDef = {
              method: 'POST',
              body: formData
           });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1426,7 +1445,7 @@ export const propriedadesRoute: RouteDef = {
           const res = await fetch(`${API_BASE}/matriculas/${mid}/pdf`, {
              method: 'DELETE'
           });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1534,7 +1553,7 @@ export const propriedadesRoute: RouteDef = {
        if (await customConfirm("ATENÇÃO: A exclusão da matrícula removerá em cascata todos os vértices e limites vinculados. Deseja prosseguir com a exclusão jurídica?")) {
           try {
              const deleteRes = await fetch(`${API_BASE}/matriculas/${mid}`, { method: 'DELETE' });
-             const deleteData = await deleteRes.json();
+             const deleteData = await lerRespostaApi(deleteRes);
              if (deleteData.error) {
                 customAlert(deleteData.error);
              } else {
@@ -1579,7 +1598,7 @@ export const propriedadesRoute: RouteDef = {
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento })
           });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1614,7 +1633,7 @@ export const propriedadesRoute: RouteDef = {
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ cliente_id: cliId, percentual_participacao: participacao })
           });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1661,7 +1680,7 @@ export const propriedadesRoute: RouteDef = {
              body: JSON.stringify(payload)
           });
 
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) {
              customAlert(data.error);
           } else {
@@ -1689,11 +1708,11 @@ export const propriedadesRoute: RouteDef = {
     // --- EXCLUSÃO DE PROPRIEDADE ---
     const excluirPropriedadeIndividual = async (id: number) => {
        const p = todasPropriedades.find(x => String(x.id) === String(id));
-       if (!p || !(await customConfirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas, levantamentos e vínculos correspondentes de forma definitiva.`))) return;
+       if (!p || !(await customConfirm(`Tem certeza absoluta que deseja excluir a propriedade "${p.nome_propriedade}"? Isso apagará todas as matrículas e vínculos de proprietários de forma definitiva.`))) return;
 
        try {
           const res = await fetch(`${API_BASE}/propriedades/${id}`, { method: 'DELETE' });
-          const data = await res.json();
+          const data = await lerRespostaApi(res);
           if (data.error) customAlert(data.error);
           else {
              showToast("Propriedade excluída com sucesso.", "success");
@@ -1730,7 +1749,7 @@ export const propriedadesRoute: RouteDef = {
                 method: 'POST',
                 body: formData
              });
-             const data = await res.json();
+             const data = await lerRespostaApi(res);
              if (data.error) {
                 customAlert(`Erro ao fazer upload do ${tipo.toUpperCase()}: ${data.error}`);
              } else {

@@ -22,6 +22,7 @@ from services.gestores.levantamento_manager import (
     vincular_ponto_matricula,
 )
 from routes.deps import verificar_levantamento_arquivado
+from services.gestores.matricula_manager import resolver_campos_matricula, COLUNAS_MATRICULA
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
 
@@ -178,9 +179,15 @@ def create_matricula(id: int, m: MatriculaCreate):
         if not row:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado")
         propriedade_id = row['propriedade_id']
-        
-        query = "INSERT INTO matriculas (propriedade_id, numero_matricula, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(propriedade_id, m.numero_matricula, m.itr, m.area_ha, m.valor_itr, m.denominacao, m.georreferenciamento, m.matricula_origem_desenho_id), commit=True)
+
+        campos = resolver_campos_matricula(m.model_dump(exclude_unset=True))
+        colunas = ", ".join(COLUNAS_MATRICULA)
+        marcadores = ", ".join("?" for _ in COLUNAS_MATRICULA)
+        execute_query(
+            f"INSERT INTO matriculas (propriedade_id, {colunas}) VALUES (?, {marcadores})",
+            params=(propriedade_id, *(campos[c] for c in COLUNAS_MATRICULA)),
+            commit=True
+        )
         
         query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
         ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
@@ -204,31 +211,36 @@ def update_matricula(mid: int, m: MatriculaCreate):
         if rows_lev:
             raise HTTPException(status_code=403, detail="Operação bloqueada: A matrícula pertence a um levantamento arquivado (Tranca Read-Only ativa).")
             
-        area = m.area_registrada_ha if m.area_registrada_ha is not None and m.area_registrada_ha > 0 else (m.area_ha or 0.0)
-        ccir_val = m.codigo_ccir or m.ccir
-        itr_val = m.codigo_itr or m.itr
-        denominacao_val = m.denominacao_gleba or m.denominacao
+        # Atualização parcial: campos ausentes do payload mantêm o valor gravado
+        # (ex.: o vínculo de desenho compartilhado não é perdido ao editar pela tela de Propriedades)
+        campos = resolver_campos_matricula(m.model_dump(exclude_unset=True), dict(antigo))
+        if campos["matricula_origem_desenho_id"] == mid:
+            campos["matricula_origem_desenho_id"] = None
 
-        query = """
-            UPDATE matriculas 
-            SET numero_matricula = ?, itr = ?, area_ha = ?, valor_itr = ?, denominacao = ?, georreferenciamento = ?, matricula_origem_desenho_id = ?
-            WHERE id = ?
-        """
-        execute_query(query, params=(m.numero_matricula, itr_val, area, m.valor_itr, denominacao_val, m.georreferenciamento, m.matricula_origem_desenho_id, mid), commit=True)
-        
+        colunas = ", ".join(f"{c} = ?" for c in COLUNAS_MATRICULA)
+        execute_query(
+            f"UPDATE matriculas SET {colunas} WHERE id = ?",
+            params=(*(campos[c] for c in COLUNAS_MATRICULA), mid),
+            commit=True
+        )
+
         campos_monitorados = [
-            ("numero_matricula", m.numero_matricula, str),
-            ("itr", itr_val, str),
-            ("area_ha", area, float),
-            ("valor_itr", m.valor_itr, float),
-            ("denominacao", denominacao_val, str),
-            ("georreferenciamento", m.georreferenciamento, str),
-            ("matricula_origem_desenho_id", m.matricula_origem_desenho_id, int)
+            ("numero_matricula", campos["numero_matricula"], str),
+            ("ccir", campos["ccir"], str),
+            ("itr", campos["itr"], str),
+            ("area_ha", campos["area_ha"], float),
+            ("valor_itr", campos["valor_itr"], float),
+            ("denominacao", campos["denominacao"], str),
+            ("georreferenciamento", campos["georreferenciamento"], str),
+            ("matricula_origem_desenho_id", campos["matricula_origem_desenho_id"], int)
         ]
-        
+
         logs_historico = []
         for campo, novo_valor, tipo in campos_monitorados:
             val_antigo = antigo[campo]
+            # String vazia e nulo são equivalentes para o histórico
+            if isinstance(val_antigo, str) and not val_antigo.strip():
+                val_antigo = None
             if val_antigo is not None:
                 if tipo == float:
                     val_antigo_cmp = float(val_antigo)

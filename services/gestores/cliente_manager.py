@@ -539,12 +539,68 @@ def cadastrar_cliente(cli_data: dict) -> dict:
         return {"error": str(e)}
 
 
+_QUERY_CLIENTE_ATUAL = """
+    SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.genero, p.nacionalidade,
+           p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
+           p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+           p.rg_orgao_conjuge, p.rg_uf_conjuge, p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
+           p.tipo_pessoa, p.razao_social,
+           p.nome_fantasia, p.inscricao_estadual, p.inscricao_municipal, p.representante_legal_id,
+           p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf, p.rg_orgao, p.rg_uf,
+           p.naturalidade, p.certidao_casamento_matricula,
+           c.data_nascimento_fundacao, c.email, c.telefone,
+           c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at, c.pessoa_id
+    FROM clientes c
+    JOIN pessoas p ON c.pessoa_id = p.id
+    WHERE c.id = ?
+"""
+
+# Campos que, ausentes do payload, mantêm o valor gravado (atualização parcial)
+_CAMPOS_PRESERVAVEIS = (
+    "nome_completo", "cpf_cnpj", "rg_ie", "data_nascimento_fundacao", "estado_civil", "profissao", "nacionalidade",
+    "nome_conjuge", "cpf_conjuge", "rg_conjuge", "regime_bens", "email", "telefone", "endereco_completo",
+    "cidade", "estado", "cep", "sexo", "tipo_pessoa", "razao_social", "nome_fantasia", "inscricao_estadual",
+    "inscricao_municipal", "representante_legal_id", "cnh_numero", "cnh_categoria", "cnh_validade", "cnh_orgao_uf",
+    "rg_orgao", "rg_uf", "naturalidade", "certidao_casamento_matricula", "genero_conjuge", "nacionalidade_conjuge",
+    "profissao_conjuge", "rg_orgao_conjuge", "rg_uf_conjuge", "data_casamento", "cartorio_casamento",
+    "livro_casamento", "folha_casamento", "termo_casamento", "bairro", "endereco_sem_numero", "numero_endereco",
+)
+
+
+def _normalizar_para_historico(campo: str, valor) -> str:
+    """Normaliza o valor para comparação no histórico (CPF/CNPJ só com dígitos)."""
+    if valor is None:
+        return ""
+    if campo in ("cpf_cnpj", "cpf_conjuge"):
+        return re.sub(r'\D', '', str(valor))
+    return str(valor)
+
+
 def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     """
     Sanitiza, valida e atualiza os dados do cliente no banco (PF ou PJ).
+    Aceita atualização parcial: campos ausentes do payload mantêm o valor gravado.
     Registra histórico de auditoria comparativo e sincroniza workspaces de levantamentos ativos.
     """
-    nome_completo = cli_data.get("nome_completo") or cli_data.get("nome")
+    cli_data = dict(cli_data)
+    if not cli_data.get("nome_completo") and cli_data.get("nome"):
+        cli_data["nome_completo"] = cli_data["nome"]
+    cli_data.pop("nome", None)
+
+    row_atual = execute_query(_QUERY_CLIENTE_ATUAL, params=(cliente_id,), fetch_one=True)
+    if not row_atual:
+        return {"error": "Cliente não encontrado."}
+    old_data = dict(row_atual)
+    for campo in _CAMPOS_PRESERVAVEIS:
+        if campo not in cli_data:
+            cli_data[campo] = old_data.get(campo)
+    if not cli_data.get("nome_completo"):
+        if cli_data.get("razao_social"):
+            cli_data["nome_completo"] = cli_data["razao_social"]
+        else:
+            return {"error": "Nome do cliente é obrigatório."}
+
+    nome_completo = cli_data.get("nome_completo")
     cpf_cnpj = cli_data.get("cpf_cnpj")
     rg_ie = cli_data.get("rg_ie")
     data_nascimento_fundacao = cli_data.get("data_nascimento_fundacao")
@@ -561,9 +617,9 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     cidade = cli_data.get("cidade")
     estado = cli_data.get("estado")
     cep = cli_data.get("cep")
-    sexo = cli_data.get("sexo", "M")
+    sexo = cli_data.get("sexo") or "M"
     senha_gov_input = cli_data.get("senha_gov")
-    metadados = cli_data.get("metadados", {})
+    metadados = cli_data.get("metadados")
     documentos = cli_data.get("documentos")
     
     # Novos campos PF / PJ e Qualificação Civil Expandida
@@ -613,27 +669,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             
-            # 1. Pega dados antigos da pessoa mesclados para histórico de auditoria
-            query_old = """
-                SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.genero, p.nacionalidade,
-                       p.profissao, p.estado_civil, p.regime_bens, p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
-                       p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
-                       p.rg_orgao_conjuge, p.rg_uf_conjuge, p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
-                       p.tipo_pessoa, p.razao_social,
-                       p.nome_fantasia, p.inscricao_estadual, p.inscricao_municipal, p.representante_legal_id,
-                       p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf, p.rg_orgao, p.rg_uf,
-                       p.naturalidade, p.certidao_casamento_matricula,
-                       c.data_nascimento_fundacao, c.email, c.telefone,
-                       c.cidade, c.estado, c.cep, c.sexo, c.senha_gov, c.created_at, c.pessoa_id
-                FROM clientes c
-                JOIN pessoas p ON c.pessoa_id = p.id
-                WHERE c.id = ?
-            """
-            cursor.execute(query_old, (cliente_id,))
-            row = cursor.fetchone()
-            if not row:
-                return {"error": "Cliente não encontrado."}
-            old_data = dict(row)
+            # 1. Dados antigos (lidos no início) servem para o histórico de auditoria
             pessoa_id = old_data["pessoa_id"]
             
             # 2. Valida se o CPF já pertence a outro cliente comercial
@@ -694,9 +730,9 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                 cliente_id
             ))
             
-            # Atualiza metadados (limpa e insere novos)
-            cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
-            if metadados:
+            # Atualiza metadados (limpa e insere novos) apenas quando enviados
+            if metadados is not None:
+                cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
                 for k, v in metadados.items():
                     cursor.execute("INSERT INTO cliente_metadados (id_cliente, chave, valor) VALUES (?, ?, ?)", (cliente_id, k, v))
 
@@ -745,11 +781,11 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
         # AUDITORIA COMPLETA: Itera sobre os campos para registrar mudanças
         mgr = ClienteManager()
         for campo, valor_novo in cli_data.items():
-            if campo in ('metadados', 'senha_gov'):
+            if campo in ('metadados', 'senha_gov') or campo not in old_data:
                 continue
             valor_antigo = old_data.get(campo)
-            str_antigo = str(valor_antigo) if valor_antigo is not None else ""
-            str_novo = str(valor_novo) if valor_novo is not None else ""
+            str_antigo = _normalizar_para_historico(campo, valor_antigo)
+            str_novo = _normalizar_para_historico(campo, valor_novo)
             if str_antigo != str_novo and valor_novo is not None:
                 mgr.registrar_historico(cliente_id, campo, str_antigo, str_novo)
 
