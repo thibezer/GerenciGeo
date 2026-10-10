@@ -224,27 +224,31 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
     salva o arquivo em disco, extrai os dados estruturados via PyMuPDF (fitz),
     atualiza o cadastro do cliente e anexa o documento na tabela cliente_documentos.
     """
+    file_path = None
     try:
         from services.processamento.identidade_parser import parse_identidade_pdf
         from config import BASE_DIR
-        
+
         # 1. Localiza a pessoa vinculada ao cliente
         cli_row = execute_query("SELECT c.id, c.pessoa_id, p.nome, p.cpf_cnpj FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?", params=(cliente_id,), fetch_one=True)
         if not cli_row:
             return {"error": "Cliente não encontrado.", "status_code": 404}
         pessoa_id = cli_row["pessoa_id"]
 
-        # 2. Salva o arquivo PDF no diretório de uploads seguro
+        # 2. Analisa e extrai dados do PDF antes de gravar qualquer coisa
+        dados_extraidos = parse_identidade_pdf(file_bytes, filename)
+
+        # 3. Salva o arquivo PDF no diretório de uploads com nome único
+        #    (dois uploads com o mesmo nome não podem compartilhar o mesmo arquivo físico)
         upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
         os.makedirs(upload_dir, exist_ok=True)
-        safe_filename = re.sub(r'[^\w\.-]', '_', filename) or f"identidade_{cliente_id}.pdf"
-        file_path = os.path.join(upload_dir, safe_filename)
+        safe_filename = re.sub(r'[^\w\.-]', '_', os.path.basename(filename or "")).lstrip('.') or f"identidade_{cliente_id}.pdf"
+        prefixo_unico = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        file_path = os.path.join(upload_dir, f"{prefixo_unico}_{safe_filename}")
         with open(file_path, "wb") as f:
             f.write(file_bytes)
         tamanho_bytes = len(file_bytes)
 
-        # 3. Analisa e extrai dados do PDF
-        dados_extraidos = parse_identidade_pdf(file_bytes, filename)
         tipo_doc = dados_extraidos.get("tipo_identificado") or "IDENTIDADE"
         
         num_doc = dados_extraidos.get("cnh_numero") if tipo_doc == "CNH" else (dados_extraidos.get("rg_numero") or dados_extraidos.get("cpf") or "N/D")
@@ -320,6 +324,7 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
                 cursor.execute(f"UPDATE clientes SET {', '.join(campos_atualizar_cli)} WHERE id = ?", params_cli)
 
             conn.commit()
+        file_path = None  # Arquivo agora pertence ao documento gravado
 
         # 6. Grava trilha de auditoria
         registrar_acesso_sensivel(cliente_id, "DOCUMENTO_PDF", f"IMPORTACAO_IDENTIDADE_{tipo_doc} ({filename})", usuario=usuario, ip_origem=ip_origem)
@@ -334,7 +339,19 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
         }
     except Exception as e:
         logger.error(f"Erro ao importar PDF de identidade do cliente {cliente_id}: {e}", exc_info=True)
+        # Não deixa arquivo órfão em disco quando o documento não foi gravado
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError as ex_rm:
+                logger.warning(f"Aviso ao remover upload órfão {file_path}: {ex_rm}")
         return {"error": f"Falha no processamento do PDF: {str(e)}"}
+
+
+def _vazio_para_none(valor):
+    if isinstance(valor, str) and not valor.strip():
+        return None
+    return valor
 
 
 def cadastrar_cliente(cli_data: dict) -> dict:
@@ -459,23 +476,89 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                 ))
                 pessoa_id = cursor.lastrowid
             else:
-                # Atualiza os dados da pessoa existente
+                # Pessoa já cadastrada (ex.: como confrontante): completa os dados sem
+                # apagar o que já existe quando o campo do cadastro vem vazio
                 cursor.execute("""
                     UPDATE pessoas
-                    SET tipo_pessoa = ?, razao_social = ?, nome_fantasia = ?, inscricao_estadual = ?, inscricao_municipal = ?, representante_legal_id = ?,
-                        cnh_numero = ?, cnh_categoria = ?, cnh_validade = ?, cnh_orgao_uf = ?, rg_orgao = ?, rg_uf = ?, naturalidade = ?, certidao_casamento_matricula = ?,
-                        genero = ?, nacionalidade = ?, profissao = ?, estado_civil = ?, regime_bens = ?,
-                        endereco_completo = ?, endereco_sem_numero = ?, numero_endereco = ?, bairro = ?,
-                        nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?, nacionalidade_conjuge = ?, profissao_conjuge = ?,
-                        rg_orgao_conjuge = ?, rg_uf_conjuge = ?, data_casamento = ?, cartorio_casamento = ?, livro_casamento = ?, folha_casamento = ?, termo_casamento = ?
+                    SET
+                        nome = COALESCE(?, nome),
+                        rg = COALESCE(?, rg),
+                        tipo_pessoa = COALESCE(?, tipo_pessoa),
+                        razao_social = COALESCE(?, razao_social),
+                        nome_fantasia = COALESCE(?, nome_fantasia),
+                        inscricao_estadual = COALESCE(?, inscricao_estadual),
+                        inscricao_municipal = COALESCE(?, inscricao_municipal),
+                        representante_legal_id = COALESCE(?, representante_legal_id),
+                        cnh_numero = COALESCE(?, cnh_numero),
+                        cnh_categoria = COALESCE(?, cnh_categoria),
+                        cnh_validade = COALESCE(?, cnh_validade),
+                        cnh_orgao_uf = COALESCE(?, cnh_orgao_uf),
+                        rg_orgao = COALESCE(?, rg_orgao),
+                        rg_uf = COALESCE(?, rg_uf),
+                        naturalidade = COALESCE(?, naturalidade),
+                        certidao_casamento_matricula = COALESCE(?, certidao_casamento_matricula),
+                        genero = COALESCE(?, genero),
+                        nacionalidade = COALESCE(?, nacionalidade),
+                        profissao = COALESCE(?, profissao),
+                        estado_civil = COALESCE(?, estado_civil),
+                        regime_bens = COALESCE(?, regime_bens),
+                        endereco_completo = COALESCE(?, endereco_completo),
+                        endereco_sem_numero = COALESCE(?, endereco_sem_numero),
+                        numero_endereco = COALESCE(?, numero_endereco),
+                        bairro = COALESCE(?, bairro),
+                        nome_conjuge = COALESCE(?, nome_conjuge),
+                        cpf_conjuge = COALESCE(?, cpf_conjuge),
+                        rg_conjuge = COALESCE(?, rg_conjuge),
+                        genero_conjuge = COALESCE(?, genero_conjuge),
+                        nacionalidade_conjuge = COALESCE(?, nacionalidade_conjuge),
+                        profissao_conjuge = COALESCE(?, profissao_conjuge),
+                        rg_orgao_conjuge = COALESCE(?, rg_orgao_conjuge),
+                        rg_uf_conjuge = COALESCE(?, rg_uf_conjuge),
+                        data_casamento = COALESCE(?, data_casamento),
+                        cartorio_casamento = COALESCE(?, cartorio_casamento),
+                        livro_casamento = COALESCE(?, livro_casamento),
+                        folha_casamento = COALESCE(?, folha_casamento),
+                        termo_casamento = COALESCE(?, termo_casamento)
                     WHERE id = ?
                 """, (
-                    tipo_pessoa, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, representante_legal_id,
-                    cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula,
-                    sexo, nacionalidade, profissao, estado_civil, regime_bens,
-                    endereco_completo, endereco_sem_numero, numero_endereco, bairro,
-                    nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
-                    rg_orgao_conjuge, rg_uf_conjuge, data_casamento, cartorio_casamento, livro_casamento, folha_casamento, termo_casamento,
+                    _vazio_para_none(nome_completo),
+                    _vazio_para_none(rg_ie),
+                    _vazio_para_none(tipo_pessoa),
+                    _vazio_para_none(razao_social),
+                    _vazio_para_none(nome_fantasia),
+                    _vazio_para_none(inscricao_estadual),
+                    _vazio_para_none(inscricao_municipal),
+                    _vazio_para_none(representante_legal_id),
+                    _vazio_para_none(cnh_numero),
+                    _vazio_para_none(cnh_categoria),
+                    _vazio_para_none(cnh_validade),
+                    _vazio_para_none(cnh_orgao_uf),
+                    _vazio_para_none(rg_orgao),
+                    _vazio_para_none(rg_uf),
+                    _vazio_para_none(naturalidade),
+                    _vazio_para_none(certidao_casamento_matricula),
+                    _vazio_para_none(sexo),
+                    _vazio_para_none(nacionalidade),
+                    _vazio_para_none(profissao),
+                    _vazio_para_none(estado_civil),
+                    _vazio_para_none(regime_bens),
+                    _vazio_para_none(endereco_completo),
+                    _vazio_para_none(endereco_sem_numero),
+                    _vazio_para_none(numero_endereco),
+                    _vazio_para_none(bairro),
+                    _vazio_para_none(nome_conjuge),
+                    _vazio_para_none(cpf_conjuge),
+                    _vazio_para_none(rg_conjuge),
+                    _vazio_para_none(genero_conjuge),
+                    _vazio_para_none(nacionalidade_conjuge),
+                    _vazio_para_none(profissao_conjuge),
+                    _vazio_para_none(rg_orgao_conjuge),
+                    _vazio_para_none(rg_uf_conjuge),
+                    _vazio_para_none(data_casamento),
+                    _vazio_para_none(cartorio_casamento),
+                    _vazio_para_none(livro_casamento),
+                    _vazio_para_none(folha_casamento),
+                    _vazio_para_none(termo_casamento),
                     pessoa_id
                 ))
                 
@@ -754,9 +837,13 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                         VALUES (?, 'CNH', ?, ?, ?, ?)
                     """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or 'DETRAN', cnh_categoria, cnh_validade))
             
-            # Sincroniza documentos se fornecidos explicitamente
+            # Sincroniza documentos se fornecidos explicitamente. Documentos com PDF anexado
+            # (importados) são preservados: a lista do payload não carrega os anexos.
             if documentos is not None and isinstance(documentos, list):
-                cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
+                cursor.execute(
+                    "DELETE FROM cliente_documentos WHERE pessoa_id = ? AND (arquivo_path IS NULL OR arquivo_path = '')",
+                    (pessoa_id,)
+                )
                 for doc in documentos:
                     if isinstance(doc, dict) and doc.get("numero"):
                         cursor.execute("""
@@ -818,64 +905,88 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
         return {"error": str(e)}
 
 
+def _excluir_cliente_em_transacao(cursor, cliente_id: int) -> tuple[str | None, int | None]:
+    """
+    Exclui o cliente dentro da transação aberta.
+    Retorna (erro, status_code) — erro None em caso de sucesso.
+    A pessoa (e seus documentos) só é removida se não tiver outro papel no sistema,
+    como o de confrontante.
+    """
+    cursor.execute("""
+        SELECT count(l.id)
+        FROM propriedade_clientes pc
+        JOIN propriedades p ON pc.propriedade_id = p.id
+        JOIN levantamentos l ON p.id = l.propriedade_id
+        WHERE pc.cliente_id = ?
+    """, (cliente_id,))
+    lev_row = cursor.fetchone()
+    if lev_row and lev_row[0] > 0:
+        return "Não é possível excluir cliente com levantamentos vinculados.", 409
+
+    cursor.execute("SELECT pessoa_id FROM clientes WHERE id = ?", (cliente_id,))
+    row = cursor.fetchone()
+    if not row:
+        return "Cliente não encontrado.", 404
+    pessoa_id = row[0]
+
+    cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
+    cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cliente_id,))
+    cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cliente_id,))
+    cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
+    cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cliente_id,))
+
+    if pessoa_id:
+        cursor.execute("SELECT 1 FROM clientes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
+        outro_cli = cursor.fetchone()
+        cursor.execute("SELECT 1 FROM confrontantes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
+        outro_conf = cursor.fetchone()
+        if not outro_cli and not outro_conf:
+            cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
+            cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
+            cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
+    return None, None
+
+
+def _remover_uploads_orfaos_cliente(cliente_id: int):
+    """Remove a pasta de uploads do cliente excluído, exceto arquivos ainda referenciados por documentos."""
+    try:
+        from config import BASE_DIR
+        import shutil
+        cli_upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
+        if not os.path.isdir(cli_upload_dir):
+            return
+        rows = execute_query(
+            "SELECT arquivo_path FROM cliente_documentos WHERE arquivo_path LIKE ?",
+            params=(os.path.join(cli_upload_dir, "") + "%",),
+            fetch_all=True
+        )
+        referenciados = {os.path.normcase(os.path.abspath(r["arquivo_path"])) for r in rows} if rows else set()
+        if not referenciados:
+            shutil.rmtree(cli_upload_dir, ignore_errors=True)
+            return
+        for nome in os.listdir(cli_upload_dir):
+            caminho = os.path.join(cli_upload_dir, nome)
+            if os.path.isfile(caminho) and os.path.normcase(os.path.abspath(caminho)) not in referenciados:
+                os.remove(caminho)
+    except Exception as ex_rm:
+        logger.warning(f"Aviso ao remover uploads do cliente {cliente_id}: {ex_rm}")
+
+
 def excluir_cliente(cliente_id: int) -> dict:
     """
     Exclui um cliente com validação de levantamentos vinculados e
     limpeza cirúrgica da pessoa apenas se ela não possuir outros vínculos no sistema.
     """
     try:
-        # 1. Verifica se há levantamentos vinculados
-        levs = execute_query(
-            "SELECT count(l.id) as qtd FROM propriedade_clientes pc JOIN propriedades p ON pc.propriedade_id = p.id JOIN levantamentos l ON p.id = l.propriedade_id WHERE pc.cliente_id = ?",
-            params=(cliente_id,),
-            fetch_one=True
-        )
-        if levs and levs['qtd'] > 0:
-            return {
-                "error": "Não é possível excluir cliente com levantamentos vinculados.",
-                "status_code": 409
-            }
-
         with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            
-            # 2. Localiza a pessoa associada ao cliente
-            cursor.execute("SELECT pessoa_id FROM clientes WHERE id = ?", (cliente_id,))
-            row = cursor.fetchone()
-            if not row:
-                return {"error": "Cliente não encontrado.", "status_code": 404}
-            pessoa_id = row[0]
-
-            # 3. Limpa dependências diretas do cliente
-            cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
-            cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
-            cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cliente_id,))
-            cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cliente_id,))
-            cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
-            cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cliente_id,))
-
-            # 4. Limpeza cirúrgica de pessoa: remove apenas se não pertencer a outro cliente ou confrontante
-            if pessoa_id:
-                cursor.execute("SELECT 1 FROM clientes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-                outro_cli = cursor.fetchone()
-                cursor.execute("SELECT 1 FROM confrontantes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-                outro_conf = cursor.fetchone()
-                if not outro_cli and not outro_conf:
-                    cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
-                    cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
-
+            erro, status_code = _excluir_cliente_em_transacao(conn.cursor(), cliente_id)
+            if erro:
+                conn.rollback()
+                return {"error": erro, "status_code": status_code}
             conn.commit()
 
-        # Limpeza física de uploads do cliente excluído
-        try:
-            from config import BASE_DIR
-            import shutil
-            cli_upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
-            if os.path.exists(cli_upload_dir):
-                shutil.rmtree(cli_upload_dir, ignore_errors=True)
-        except Exception as ex_rm:
-            logger.warning(f"Aviso ao remover diretório de upload do cliente {cliente_id}: {ex_rm}")
-
+        # Limpeza física só depois do commit
+        _remover_uploads_orfaos_cliente(cliente_id)
         return {"sucesso": True, "message": "Cliente excluído com sucesso"}
     except Exception as e:
         logger.error(f"Erro ao excluir cliente id={cliente_id}: {e}", exc_info=True)
@@ -890,75 +1001,33 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
     if not cliente_ids:
         return {"sucessos": 0, "erros": [], "total_processado": 0}
 
-    sucessos = 0
+    excluidos = []
     erros = []
 
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             for cid in cliente_ids:
-                # 1. Verifica se há levantamentos vinculados
-                cursor.execute("""
-                    SELECT count(l.id) as qtd 
-                    FROM propriedade_clientes pc 
-                    JOIN propriedades p ON pc.propriedade_id = p.id 
-                    JOIN levantamentos l ON p.id = l.propriedade_id 
-                    WHERE pc.cliente_id = ?
-                """, (cid,))
-                lev_row = cursor.fetchone()
-                if lev_row and lev_row[0] > 0:
-                    erros.append(f"Cliente ID {cid}: possui levantamentos vinculados.")
-                    continue
-
-                # 2. Localiza a pessoa
-                cursor.execute("SELECT pessoa_id FROM clientes WHERE id = ?", (cid,))
-                row = cursor.fetchone()
-                if not row:
-                    erros.append(f"Cliente ID {cid}: não encontrado.")
-                    continue
-                pessoa_id = row[0]
-
-                # 3. Limpa dependências
-                cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
-                cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cid,))
-                cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cid,))
-                cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cid,))
-                cursor.execute("DELETE FROM clientes WHERE id = ?", (cid,))
-                cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cid,))
-
-                # 4. Limpeza cirúrgica da pessoa
-                if pessoa_id:
-                    cursor.execute("SELECT 1 FROM clientes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-                    outro_cli = cursor.fetchone()
-                    cursor.execute("SELECT 1 FROM confrontantes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-                    outro_conf = cursor.fetchone()
-                    if not outro_cli and not outro_conf:
-                        cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
-                        cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
-
-                sucessos += 1
-
-                # Limpeza física de uploads do cliente
-                try:
-                    from config import BASE_DIR
-                    import shutil
-                    cli_upload_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cid))
-                    if os.path.exists(cli_upload_dir):
-                        shutil.rmtree(cli_upload_dir, ignore_errors=True)
-                except Exception as ex_rm_lote:
-                    logger.warning(f"Aviso ao remover uploads do cliente {cid} em lote: {ex_rm_lote}")
-
+                erro, _ = _excluir_cliente_em_transacao(cursor, cid)
+                if erro:
+                    erros.append(f"Cliente ID {cid}: {erro}")
+                else:
+                    excluidos.append(cid)
             conn.commit()
 
+        # Limpeza física só depois do commit
+        for cid in excluidos:
+            _remover_uploads_orfaos_cliente(cid)
+
         return {
-            "sucessos": sucessos,
+            "sucessos": len(excluidos),
             "erros": erros,
             "total_processado": len(cliente_ids)
         }
     except Exception as e:
         logger.error(f"Erro na exclusão em lote de clientes: {e}", exc_info=True)
         return {
-            "sucessos": sucessos,
+            "sucessos": 0,
             "erros": erros + [f"Erro na transação: {str(e)}"],
             "total_processado": len(cliente_ids)
         }

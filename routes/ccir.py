@@ -2,7 +2,9 @@
 routes/ccir.py — Integração com o Banco CCIR
 """
 import os
+import shutil
 import logging
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from config import EXPORT_BASE_FOLDER
@@ -67,11 +69,34 @@ def get_ccir_files():
 
 @router.delete("/ccir/files/{filename}")
 def delete_ccir_file(filename: str):
+    """
+    Remove os registros da planilha e move o arquivo para Banco_CCIR/_removidas.
+    Sem mover o arquivo, a próxima sincronização da pasta reimportaria a planilha.
+    """
+    if filename != os.path.basename(filename) or filename in (".", ".."):
+        raise HTTPException(status_code=400, detail="Nome de arquivo inválido.")
     try:
         from database.repository import CcirCadastroRepo
         repo = CcirCadastroRepo()
+
+        ccir_dir = os.path.join(EXPORT_BASE_FOLDER, "Banco_CCIR")
+        origem = os.path.join(ccir_dir, filename)
+        movido_para = None
+        if os.path.isfile(origem):
+            pasta_removidas = os.path.join(ccir_dir, "_removidas")
+            os.makedirs(pasta_removidas, exist_ok=True)
+            destino = os.path.join(pasta_removidas, filename)
+            if os.path.exists(destino):
+                base, ext = os.path.splitext(filename)
+                destino = os.path.join(pasta_removidas, f"{base}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}")
+            shutil.move(origem, destino)
+            movido_para = destino
+
         repo.delete_by_arquivo(filename)
-        return {"sucesso": True, "message": f"Registros do arquivo {filename} deletados."}
+        mensagem = f"Registros do arquivo {filename} deletados."
+        if movido_para:
+            mensagem += " A planilha foi movida para a pasta Banco_CCIR/_removidas."
+        return {"sucesso": True, "message": mensagem}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

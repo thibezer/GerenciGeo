@@ -23,6 +23,8 @@ from database.repository import PendenciaRepo
 
 router = APIRouter(tags=["Clientes & Profissionais"])
 
+TAMANHO_MAXIMO_PDF_IDENTIDADE = 20 * 1024 * 1024
+
 # ── Modelos ────────────────────────────────────────────────────────────────────
 
 class PendenciaCreate(BaseModel):
@@ -428,9 +430,13 @@ async def post_importar_identidade_pdf(cliente_id: int, request: Request, file: 
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos no formato PDF são aceitos para importação de identidade.")
     
-    file_bytes = await file.read()
+    file_bytes = await file.read(TAMANHO_MAXIMO_PDF_IDENTIDADE + 1)
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Arquivo PDF vazio.")
+    if len(file_bytes) > TAMANHO_MAXIMO_PDF_IDENTIDADE:
+        raise HTTPException(status_code=413, detail="Arquivo PDF muito grande (máximo de 20 MB).")
+    if not file_bytes.lstrip()[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="O arquivo enviado não é um PDF válido.")
     
     client_ip = request.client.host if request.client else "127.0.0.1"
     res = importar_identidade_pdf(cliente_id, file_bytes, file.filename, usuario="Operador Local", ip_origem=client_ip)
