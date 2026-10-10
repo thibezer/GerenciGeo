@@ -6,7 +6,7 @@ import type {
   ClienteAcessoLog,
   ClienteDocumento
 } from '../types';
-import { initIcons } from '../utils';
+import { initIcons, escapeHtml } from '../utils';
 import { API_BASE } from '../config';
 import { renderClientesTemplate } from './clientes/clientes_template';
 import {
@@ -188,7 +188,7 @@ export const clientesRoute: RouteDef = {
 
       try {
         const nomes = await carregarCidadesIbgeService(uf);
-        datalist.innerHTML = nomes.map(nome => `<option value="${nome}">`).join('');
+        datalist.innerHTML = nomes.map(nome => `<option value="${escapeHtml(nome)}">`).join('');
       } catch (err) {
         console.warn("Erro ao buscar cidades do IBGE:", err);
         datalist.innerHTML = '';

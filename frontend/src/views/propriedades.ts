@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
+import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml, formatarDataHoraUtc } from '../utils';
 
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
@@ -1353,7 +1353,7 @@ export const propriedadesRoute: RouteDef = {
                 const pdfName = parts[parts.length - 1];
                 pdfHtml = `
                    <div class="flex items-center justify-center gap-1">
-                      <a href="${API_BASE}/matriculas/${m.id}/download-pdf" target="_blank" class="text-mint-vibrant hover:text-white transition-colors p-1" title="Ver Certidão PDF (${pdfName})">
+                      <a href="${API_BASE}/matriculas/${m.id}/download-pdf" target="_blank" class="text-mint-vibrant hover:text-white transition-colors p-1" title="Ver Certidão PDF (${escapeHtml(pdfName)})">
                          <i data-lucide="file-text" class="w-4 h-4"></i>
                       </a>
                       <button onclick="window.excluirPdfMatricula(${m.id})" class="text-white/40 hover:text-red-400 p-1 cursor-pointer" title="Remover PDF">
@@ -1372,6 +1372,18 @@ export const propriedadesRoute: RouteDef = {
                 `;
              }
 
+             // Gleba unificada: indica a matrícula que fornece o desenho ou as que o utilizam
+             let desenhoHtml = '';
+             if (m.matricula_origem_desenho_id) {
+                const origem = matriculasCache.find(x => String(x.id) === String(m.matricula_origem_desenho_id));
+                desenhoHtml = `<span class="block text-[9px] text-blue-400">🔗 Usa o desenho da matrícula nº ${escapeHtml(String(origem ? origem.numero_matricula : m.matricula_origem_desenho_id))}</span>`;
+             } else {
+                const derivadas = matriculasCache.filter(x => String(x.matricula_origem_desenho_id) === String(m.id));
+                if (derivadas.length > 0) {
+                   desenhoHtml = `<span class="block text-[9px] text-blue-400">🔗 Desenho compartilhado com nº ${derivadas.map(d => escapeHtml(String(d.numero_matricula))).join(', ')}</span>`;
+                }
+             }
+
              const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
              const fallbackCcir = pAtual ? pAtual.codigo_ccir : null;
              const displayCcir = m.ccir ? escapeHtml(formatarCCIR(m.ccir)) : (fallbackCcir ? escapeHtml(formatarCCIR(fallbackCcir)) : 'N/A');
@@ -1381,6 +1393,7 @@ export const propriedadesRoute: RouteDef = {
                    <td class="px-3 py-1.5 text-white">
                       <span class="block font-bold">Matrícula nº ${escapeHtml(String(m.numero_matricula))}</span>
                       <span class="block text-[9px] text-white/40">${escapeHtml(m.denominacao) || 'Lote sem nome'}</span>
+                      ${desenhoHtml}
                    </td>
                    <td class="px-3 py-1.5 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
                    <td class="px-3 py-1.5 text-white/60 leading-tight">
@@ -1477,12 +1490,12 @@ export const propriedadesRoute: RouteDef = {
           if (corpoHist) {
              if (Array.isArray(logs) && logs.length > 0) {
                 corpoHist.innerHTML = logs.map(l => {
-                   const dataFormatada = new Date(l.data_alteracao).toLocaleString('pt-BR');
+                   const dataFormatada = formatarDataHoraUtc(l.data_alteracao);
                    return `
                       <tr class="hover:bg-white/[0.01]">
-                         <td class="font-medium text-white/80">${l.campo_alterado}</td>
-                         <td class="text-red-400 font-mono truncate max-w-[120px]" title="${l.valor_antigo || ''}">${l.valor_antigo || '-'}</td>
-                         <td class="text-mint-vibrant font-mono truncate max-w-[120px]" title="${l.valor_novo || ''}">${l.valor_novo || '-'}</td>
+                         <td class="font-medium text-white/80">${escapeHtml(l.campo_alterado)}</td>
+                         <td class="text-red-400 font-mono truncate max-w-[120px]" title="${escapeHtml(l.valor_antigo || '')}">${escapeHtml(l.valor_antigo || '-')}</td>
+                         <td class="text-mint-vibrant font-mono truncate max-w-[120px]" title="${escapeHtml(l.valor_novo || '')}">${escapeHtml(l.valor_novo || '-')}</td>
                          <td class="text-right text-white/40 font-mono">${dataFormatada}</td>
                       </tr>
                    `;
@@ -1577,17 +1590,33 @@ export const propriedadesRoute: RouteDef = {
        const numero_matricula = (document.getElementById('input-new-mat-numero') as HTMLInputElement).value.trim();
        const denominacao = (document.getElementById('input-new-mat-denominacao') as HTMLInputElement).value.trim();
        
-       // Trata o divisor decimal da área convertendo vírgula para ponto antes do parse float
+       // Números no formato brasileiro: "1.234,5678" -> 1234.5678 (ponto de milhar só é removido quando há vírgula)
+       const paraNumero = (texto: string): number => {
+          const limpo = texto.trim().replace(/\s/g, '');
+          return parseFloat(limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+       };
+
        const area_raw = (document.getElementById('input-new-mat-area') as HTMLInputElement).value.trim();
-       const area_ha = parseFloat(area_raw.replace(',', '.'));
+       const area_ha = paraNumero(area_raw);
        
        const ccir = (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value.trim();
        const itr = (document.getElementById('input-new-mat-itr') as HTMLInputElement).value.trim();
        const raw_valor = (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value;
-       const valor_itr = raw_valor ? parseFloat(raw_valor) : null;
+       const valor_itr = raw_valor.trim() ? paraNumero(raw_valor) : null;
        const georreferenciamento = (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value.trim();
 
-       if (!numero_matricula || !denominacao || isNaN(area_ha)) return;
+       const faltando: string[] = [];
+       if (!numero_matricula) faltando.push('número da matrícula');
+       if (!denominacao) faltando.push('denominação');
+       if (isNaN(area_ha)) faltando.push('área (ha)');
+       if (faltando.length > 0) {
+          customAlert(`Preencha: ${faltando.join(', ')}.`);
+          return;
+       }
+       if (valor_itr !== null && isNaN(valor_itr)) {
+          customAlert('Valor do ITR inválido.');
+          return;
+       }
 
        try {
           const url = matriculaSendoEditadaId ? `${API_BASE}/matriculas/${matriculaSendoEditadaId}` : `${API_BASE}/propriedades/${propriedadeSelecionadaId}/matriculas`;

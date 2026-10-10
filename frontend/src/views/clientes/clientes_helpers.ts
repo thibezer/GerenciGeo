@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../utils';
+import { escapeHtml, formatarDataHoraUtc } from '../../utils';
 import type {
   Cliente,
   ClienteEstatisticas,
@@ -231,7 +231,7 @@ export const renderLogsHistoricoTabelaHtml = (logs: ClienteHistoricoLog[]): stri
     return '<tr><td colspan="4" class="det-vazio text-center py-3">Nenhum log de alteração gravado.</td></tr>';
   }
   return logs.map(log => {
-    const dataFormatada = new Date(log.data_alteracao).toLocaleString('pt-BR');
+    const dataFormatada = formatarDataHoraUtc(log.data_alteracao);
     return `
       <tr class="hover:bg-white/[0.01]">
         <td class="font-medium text-white/80">${escapeHtml(log.campo_alterado)}</td>
@@ -248,7 +248,7 @@ export const renderLogsAcessoTabelaHtml = (acessos: ClienteAcessoLog[]): string 
     return '<tr><td colspan="5" class="det-vazio text-center py-3">Nenhum registro de acesso a dados sensíveis gravado.</td></tr>';
   }
   return acessos.map(ac => {
-    const dataFormatada = new Date(ac.data_acesso).toLocaleString('pt-BR');
+    const dataFormatada = formatarDataHoraUtc(ac.data_acesso);
     return `
       <tr class="hover:bg-white/[0.01]">
         <td class="font-mono text-mint-vibrant">${escapeHtml(ac.tipo_dado)}</td>

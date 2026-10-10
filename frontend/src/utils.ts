@@ -363,4 +363,16 @@ export const escapeHtml = (unsafe: string | null | undefined): string => {
     .replace(/'/g, "&#039;");
 };
 
+/**
+ * Formata data/hora vinda do CURRENT_TIMESTAMP do SQLite ("AAAA-MM-DD HH:MM:SS", em UTC)
+ * no horário local. Sem o "Z", o navegador interpretaria o valor como horário local.
+ */
+export const formatarDataHoraUtc = (valor: string | null | undefined): string => {
+  if (!valor) return '-';
+  const texto = String(valor).trim();
+  const semFuso = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(texto);
+  const data = new Date(semFuso ? `${texto.replace(' ', 'T')}Z` : texto);
+  return isNaN(data.getTime()) ? texto : data.toLocaleString('pt-BR');
+};
+
 

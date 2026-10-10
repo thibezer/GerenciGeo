@@ -10,7 +10,7 @@ export const fetchCcirFiles = async (): Promise<any[]> => {
 };
 
 export const deleteCcirFile = async (filename: string): Promise<any> => {
-  const res = await fetch(`${API_BASE}/ccir/files/${filename}`, { method: 'DELETE' });
+  const res = await fetch(`${API_BASE}/ccir/files/${encodeURIComponent(filename)}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Erro ao remover arquivo de planilha CCIR');
   return res.json();
 };
@@ -22,7 +22,7 @@ export const searchCcir = async (params: URLSearchParams): Promise<any[]> => {
 };
 
 export const fetchCcirImovelDetails = async (codigoImovel: string): Promise<any[]> => {
-  const res = await fetch(`${API_BASE}/ccir/imovel/${codigoImovel}`);
+  const res = await fetch(`${API_BASE}/ccir/imovel/${encodeURIComponent(codigoImovel)}`);
   if (!res.ok) throw new Error('Erro ao carregar detalhes do imóvel CCIR');
   return res.json();
 };

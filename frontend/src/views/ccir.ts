@@ -2,7 +2,7 @@
  * views/ccir.ts — Controller do Banco de Dados CCIR.
  */
 import type { RouteDef } from '../types';
-import { initIcons, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
+import { initIcons, formatarCCIR, showToast, customAlert, customConfirm } from '../utils';
 import { renderCcirTemplate } from './ccir/ccir_template';
 import {
   fetchCcirFiles,
@@ -43,7 +43,7 @@ export const ccirRoute: RouteDef = {
             btn.addEventListener('click', () => {
               const filename = btn.getAttribute('data-file');
               if (filename) {
-                customConfirm(`Tem certeza de que deseja remover TODOS os registros importados da planilha "${filename}"?`).then(confirmed => {
+                customConfirm(`Tem certeza de que deseja remover TODOS os registros importados da planilha "${filename}"? O arquivo será movido para a pasta Banco_CCIR/_removidas.`).then(confirmed => {
                   if (confirmed) {
                     deleteCcirFile(filename)
                       .then(() => {
@@ -252,23 +252,34 @@ export const ccirRoute: RouteDef = {
         inputEmissaoCpf.value = '';
       }
 
-      const nomeBase = (titular || '').replace(/\*+/g, '').trim();
+      // O titular no CCIR costuma vir mascarado ("JOAO DA S****"): o trecho visível é um prefixo do nome.
+      // A sugestão só aparece quando exatamente um cliente é compatível, para não sugerir o CPF de outra pessoa.
+      const normalizarNome = (nome: string) => nome
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase().replace(/\s+/g, ' ').trim();
+      const titularMascarado = /\*/.test(titular || '');
+      const nomeBase = normalizarNome((titular || '').replace(/\*+.*$/, ''));
       if (nomeBase.length >= 3) {
         fetchClientes()
           .then(clientes => {
-            const correspondente = clientes.find((c: any) =>
-              c.nome_completo.toLowerCase().startsWith(nomeBase.toLowerCase()) ||
-              c.nome_completo.toLowerCase().includes(nomeBase.toLowerCase())
-            );
-            if (correspondente && correspondente.cpf_cnpj) {
-              if (lblSugestao) {
-                lblSugestao.innerText = `💡 Sugerir do cliente: ${escapeHtml(correspondente.nome_completo)} (${aplicarMascaraCpfCnpj(correspondente.cpf_cnpj)})`;
-                lblSugestao.classList.remove('hidden');
-                lblSugestao.onclick = () => {
-                  inputEmissaoCpf.value = aplicarMascaraCpfCnpj(correspondente.cpf_cnpj);
-                  lblSugestao.classList.add('hidden');
-                };
-              }
+            const compativeis = clientes.filter((c: any) => {
+              if (!c.cpf_cnpj || !c.nome_completo) return false;
+              const nomeCliente = normalizarNome(c.nome_completo);
+              return titularMascarado ? nomeCliente.startsWith(nomeBase) : nomeCliente === nomeBase;
+            });
+            if (!lblSugestao) return;
+            if (compativeis.length === 1) {
+              const correspondente = compativeis[0];
+              lblSugestao.innerText = `💡 Sugerir do cliente: ${correspondente.nome_completo} (${aplicarMascaraCpfCnpj(correspondente.cpf_cnpj)})`;
+              lblSugestao.classList.remove('hidden');
+              lblSugestao.onclick = () => {
+                inputEmissaoCpf.value = aplicarMascaraCpfCnpj(correspondente.cpf_cnpj);
+                lblSugestao.classList.add('hidden');
+              };
+            } else if (compativeis.length > 1) {
+              lblSugestao.innerText = `${compativeis.length} clientes compatíveis com o titular — informe o CPF manualmente.`;
+              lblSugestao.classList.remove('hidden');
+              lblSugestao.onclick = null;
             }
           })
           .catch(err => console.warn("[CCIR] Erro ao buscar sugestão de clientes:", err));
