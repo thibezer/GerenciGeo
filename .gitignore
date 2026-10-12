@@ -22,6 +22,7 @@ frontend/out/
 *.db.backup
 gerencigeo.db
 gerencigeo.db.backup
+backups/
 
 # Logs locais
 *.log

@@ -38,7 +38,8 @@ DEFAULT_ANTENNA = "HITV60 NONE"
 
 # Configurações do Negócio
 DEFAULT_EMAIL = "tsilvabertuchi@outlook.com"
-EXPORT_BASE_FOLDER = r"D:\Desenvolvimento\Geo"
+_DEFAULT_GEO_FOLDER = r"D:\Programação\Geo" if os.path.exists(r"D:\Programação\Geo") or not os.path.exists(r"D:\Desenvolvimento\Geo") else r"D:\Desenvolvimento\Geo"
+EXPORT_BASE_FOLDER = os.environ.get("GERENCIGEO_EXPORT_FOLDER", _DEFAULT_GEO_FOLDER)
 if os.environ.get("GERENCIGEO_TEST") == "1":
     # Testes nunca gravam workspaces na pasta real de projetos
     import tempfile
