@@ -1291,6 +1291,8 @@ export const propriedadesRoute: RouteDef = {
                          const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
                          renderProprietariosTabela(pAtual ? pAtual.clientes || [] : []);
                          renderTabela();
+                         const badgeProp = document.getElementById('badge-prop-proprietarios-count');
+                         if (badgeProp && pAtual) badgeProp.innerText = String((pAtual.clientes || []).length);
                       }
                    } catch (err) {
                       showToast("Erro ao remover proprietário.", "error");
@@ -1704,6 +1706,8 @@ export const propriedadesRoute: RouteDef = {
              const pAtual = todasPropriedades.find(x => String(x.id) === String(propriedadeSelecionadaId));
              renderProprietariosTabela(pAtual ? pAtual.clientes || [] : []);
              renderTabela();
+             const badgeProp = document.getElementById('badge-prop-proprietarios-count');
+             if (badgeProp && pAtual) badgeProp.innerText = String((pAtual.clientes || []).length);
           }
        } catch (err) {
           showToast("Erro de conexão ao vincular proprietário.", "error");

@@ -2,8 +2,13 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import fs from 'fs';
 
-const localUiPath = resolve(__dirname, '../../UI_Componentes/src/index.ts');
-const hasLocalUi = fs.existsSync(localUiPath);
+const candidatePaths = [
+  resolve(__dirname, '../../UI_Componentes/src/index.ts'),
+  resolve(__dirname, '../UI_Componentes/src/index.ts'),
+  resolve(__dirname, 'UI_Componentes/src/index.ts')
+];
+const localUiPath = candidatePaths.find(p => fs.existsSync(p));
+const hasLocalUi = Boolean(localUiPath);
 
 export default defineConfig({
   resolve: {

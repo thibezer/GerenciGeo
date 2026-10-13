@@ -98,10 +98,15 @@ def obter_dados_comuns(lev_id: int, matricula_id: int) -> dict:
         area_total_acumulada = float(mat_data["area_ha"])
     area_total_str = f"{area_total_acumulada:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    # Flag para incluir denominação dos lotes/imóveis na cláusula de unificação da anuência
+    # (Desativado conforme solicitado para evitar textos excessivamente longos quando há múltiplos lotes; altere para True se desejar reativar)
+    INCLUIR_DENOMINACOES_LOTES_UNIFICADOS = False
+    texto_denominacoes = f" (compreendendo os imóveis denominados <em>{denominacoes_str}</em>)" if (INCLUIR_DENOMINACOES_LOTES_UNIFICADOS and denominacoes_str) else ""
+
     if is_unificada:
         clausula_unificacao_html = f"""
         <div class="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-justify text-[11px] leading-snug text-slate-700 break-inside-avoid">
-            <p><strong>Parágrafo Único – Da Unificação e Continuidade Territorial:</strong> Declaram os signatários que as divisas e limites perimétricos objeto do presente reconhecimento confrontam com a <strong>gleba contínua e unificada</strong> formada conjuntamente pelas <strong>{rotulo_matricula} {numeros_matricula_str}</strong> (compreendendo os imóveis denominados <em>{denominacoes_str}</em>), perante o Serviço de Registro de Imóveis da Comarca de {comarca}, totalizando a área registrada conjunta de <strong>{area_total_str} ha</strong>, reconhecendo que tais confrontações e vértices perimétricos constituem divisa única, contínua e incontroversa perante os imóveis lindeiros.</p>
+            <p><strong>Parágrafo Único – Da Unificação e Continuidade Territorial:</strong> Declaram os signatários que as divisas e limites perimétricos objeto do presente reconhecimento confrontam com a <strong>gleba contínua e unificada</strong> formada conjuntamente pelas <strong>{rotulo_matricula} {numeros_matricula_str}</strong>{texto_denominacoes}, perante o Serviço de Registro de Imóveis da Comarca de {comarca}, totalizando a área registrada conjunta de <strong>{area_total_str} ha</strong>, reconhecendo que tais confrontações e vértices perimétricos constituem divisa única, contínua e incontroversa perante os imóveis lindeiros.</p>
         </div>
         """
     else:

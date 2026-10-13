@@ -13,6 +13,12 @@ jobs:
     - name: Get latest code
       uses: actions/checkout@v4
 
+    - name: Checkout UI_Componentes
+      uses: actions/checkout@v4
+      with:
+        repository: thibezer/Componentes-UI
+        path: UI_Componentes
+
     - name: Use Node.js 20
       uses: actions/setup-node@v4
       with:

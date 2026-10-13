@@ -365,6 +365,12 @@ function ensureSchema(PDO $pdo): void {
         }
     } catch (Exception $e) {}
 
+    // Deduplicação preventiva em tabelas de vínculos
+    try {
+        $pdo->exec("DELETE p1 FROM propriedade_proprietarios p1 INNER JOIN propriedade_proprietarios p2 WHERE p1.id < p2.id AND p1.propriedade_id = p2.propriedade_id AND p1.cliente_id = p2.cliente_id");
+        $pdo->exec("DELETE p1 FROM propriedade_clientes p1 INNER JOIN propriedade_clientes p2 WHERE p1.id < p2.id AND p1.propriedade_id = p2.propriedade_id AND p1.cliente_id = p2.cliente_id");
+    } catch (Exception $eClean) {}
+
     // Garante colunas de compatibilidade se tabelas antigas existiam no MySQL
     addColumnSafe($pdo, 'propriedades', 'nome', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'propriedades', 'nome_propriedade', 'VARCHAR(255) NULL');
@@ -1517,24 +1523,77 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
         jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Matrícula criada com sucesso!'], 201);
     }
 
-    // GET /propriedades/{id}/proprietarios
+    // GET /propriedades/{id}/proprietarios (ou /clientes)
     if ($method === 'GET' && $propId && in_array($subResource, ['proprietarios', 'clientes'])) {
-        $stmt = $pdo->prepare("SELECT pp.*, p.nome, p.cpf_cnpj, c.telefone, c.email FROM propriedade_proprietarios pp JOIN clientes c ON pp.cliente_id = c.id JOIN pessoas p ON c.pessoa_id = p.id WHERE pp.propriedade_id = ?");
+        $stmt = $pdo->prepare("SELECT c.id, p.nome as nome_completo, p.nome, p.cpf_cnpj, 
+                                      COALESCE(pp.proporcao, 100) as percentual_participacao,
+                                      COALESCE(pp.proporcao, 100) as proporcao,
+                                      c.telefone, c.email, pp.id as vinculo_id
+                               FROM propriedade_proprietarios pp 
+                               JOIN clientes c ON pp.cliente_id = c.id 
+                               JOIN pessoas p ON c.pessoa_id = p.id 
+                               WHERE pp.propriedade_id = ?
+                               ORDER BY pp.id ASC");
         $stmt->execute([$propId]);
-        jsonResponse($stmt->fetchAll());
+        $rows = $stmt->fetchAll();
+        $unicos = [];
+        foreach ($rows as $r) {
+            $cid = (int)$r['id'];
+            $unicos[$cid] = $r;
+        }
+        jsonResponse(array_values($unicos));
     }
 
-    // POST /propriedades/{id}/proprietarios
+    // POST /propriedades/{id}/proprietarios (ou /clientes)
     if ($method === 'POST' && $propId && in_array($subResource, ['proprietarios', 'clientes'])) {
         $input = getJsonInput();
         $cliId = (int)($input['cliente_id'] ?? 0);
-        $prop = (float)($input['proporcao'] ?? 100);
-        $stmt = $pdo->prepare("INSERT INTO propriedade_proprietarios (propriedade_id, cliente_id, proporcao) VALUES (?, ?, ?)");
-        $stmt->execute([$propId, $cliId, $prop]);
+        $prop = (float)($input['percentual_participacao'] ?? ($input['proporcao'] ?? 100));
+        if ($cliId <= 0) {
+            jsonResponse(['error' => 'Cliente inválido.'], 400);
+        }
+
+        // Validação da soma de participações não exceder 100%
+        $stSoma = $pdo->prepare("SELECT SUM(proporcao) as soma FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id != ?");
+        $stSoma->execute([$propId, $cliId]);
+        $somaOutros = (float)($stSoma->fetchColumn() ?: 0);
+        if (round($somaOutros + $prop, 4) > 100.0001) {
+            $restante = max(0.0, round(100.0 - $somaOutros, 2));
+            jsonResponse(['error' => "Participação inválida. A soma não pode exceder 100%. Restante disponível: {$restante}%"], 400);
+        }
+
+        // Idempotência / Unicidade: atualiza se já existir ou insere se novo
+        $stCheck = $pdo->prepare("SELECT id FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ? LIMIT 1");
+        $stCheck->execute([$propId, $cliId]);
+        $existenteId = $stCheck->fetchColumn();
+
+        if ($existenteId) {
+            $stmt = $pdo->prepare("UPDATE propriedade_proprietarios SET proporcao = ? WHERE id = ?");
+            $stmt->execute([$prop, $existenteId]);
+            $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ? AND id != ?")->execute([$propId, $cliId, $existenteId]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO propriedade_proprietarios (propriedade_id, cliente_id, proporcao) VALUES (?, ?, ?)");
+            $stmt->execute([$propId, $cliId, $prop]);
+        }
+
+        // Mantém sincronizada também a tabela espelho propriedade_clientes
+        try {
+            $stCheckPc = $pdo->prepare("SELECT id FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ? LIMIT 1");
+            $stCheckPc->execute([$propId, $cliId]);
+            $existPcId = $stCheckPc->fetchColumn();
+            if ($existPcId) {
+                $pdo->prepare("UPDATE propriedade_clientes SET percentual_participacao = ? WHERE id = ?")->execute([$prop, $existPcId]);
+                $pdo->prepare("DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ? AND id != ?")->execute([$propId, $cliId, $existPcId]);
+            } else {
+                $pdo->prepare("INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?, ?, ?)")->execute([$propId, $cliId, $prop]);
+            }
+        } catch (Exception $ePc) {}
+
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Proprietário vinculado com sucesso!'], 201);
     }
 
-    // DELETE /propriedades/{id}/proprietarios/{cliId}
+    // DELETE /propriedades/{id}/proprietarios/{cliId} (ou /clientes/{cliId})
     if ($method === 'DELETE' && $propId && in_array($subResource, ['proprietarios', 'clientes']) && $subId) {
         $stLap = $pdo->prepare("SELECT id FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ?");
         $stLap->execute([$propId, $subId]);
@@ -1543,17 +1602,127 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
         }
         $stmt = $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE propriedade_id = ? AND cliente_id = ?");
         $stmt->execute([$propId, $subId]);
+
+        try {
+            $stLapPc = $pdo->prepare("SELECT id FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?");
+            $stLapPc->execute([$propId, $subId]);
+            foreach ($stLapPc->fetchAll(PDO::FETCH_COLUMN) as $lapPcId) {
+                registrarLapide($pdo, 'propriedade_clientes', (int)$lapPcId);
+            }
+            $pdo->prepare("DELETE FROM propriedade_clientes WHERE propriedade_id = ? AND cliente_id = ?")->execute([$propId, $subId]);
+        } catch (Exception $ePc) {}
+
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Proprietário desvinculado!']);
+    }
+
+    // GET /propriedades/{id}
+    if ($method === 'GET' && $propId && !$subResource) {
+        $stmt = $pdo->prepare("SELECT p.*, COALESCE(p.nome, p.nome_propriedade) as nome, COALESCE(p.nome_propriedade, p.nome) as nome_propriedade,
+                                      (SELECT COUNT(*) FROM matriculas m WHERE m.propriedade_id = p.id) as total_matriculas,
+                                      (SELECT COUNT(*) FROM levantamentos l WHERE l.propriedade_id = p.id) as total_levantamentos
+                               FROM propriedades p WHERE p.id = ?");
+        $stmt->execute([$propId]);
+        $prop = $stmt->fetch();
+        if (!$prop) {
+            jsonResponse(['error' => 'Propriedade não encontrada.'], 404);
+        }
+
+        $stCli = $pdo->prepare("SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, COALESCE(pp.proporcao, 100) as percentual_participacao
+                                FROM propriedade_proprietarios pp
+                                JOIN clientes c ON pp.cliente_id = c.id
+                                JOIN pessoas p ON c.pessoa_id = p.id
+                                WHERE pp.propriedade_id = ?
+                                ORDER BY pp.id ASC");
+        $stCli->execute([$propId]);
+        $cliRows = $stCli->fetchAll();
+        $clientesUnicos = [];
+        $totalPart = 0.0;
+        foreach ($cliRows as $cr) {
+            $cid = (int)$cr['id'];
+            if (!isset($clientesUnicos[$cid])) {
+                $clientesUnicos[$cid] = [
+                    'id' => $cid,
+                    'nome_completo' => $cr['nome_completo'] ?? '',
+                    'cpf_cnpj' => $cr['cpf_cnpj'] ?? '',
+                    'percentual_participacao' => (float)$cr['percentual_participacao']
+                ];
+                $totalPart += (float)$cr['percentual_participacao'];
+            }
+        }
+        $prop['clientes'] = array_values($clientesUnicos);
+        $prop['total_proprietarios'] = count($prop['clientes']);
+        $prop['total_participacao'] = round($totalPart, 2);
+        $prop['composicao_completa'] = abs(round($totalPart, 4) - 100.0) <= 0.01;
+        jsonResponse($prop);
     }
 
     // GET /propriedades
     if ($method === 'GET' && !$propId) {
         $sql = "SELECT p.*, COALESCE(p.nome, p.nome_propriedade) as nome, COALESCE(p.nome_propriedade, p.nome) as nome_propriedade,
                        (SELECT COUNT(*) FROM matriculas m WHERE m.propriedade_id = p.id) as total_matriculas,
-                       (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.propriedade_id = p.id) as total_proprietarios
+                       (SELECT COUNT(*) FROM levantamentos l WHERE l.propriedade_id = p.id) as total_levantamentos
                 FROM propriedades p ORDER BY p.id DESC";
         $stmt = $pdo->query($sql);
-        jsonResponse($stmt->fetchAll());
+        $propriedades = $stmt->fetchAll();
+
+        if (empty($propriedades)) {
+            jsonResponse([]);
+        }
+
+        $pIds = array_column($propriedades, 'id');
+        $inClause = implode(',', array_fill(0, count($pIds), '?'));
+        $sqlCli = "SELECT pp.propriedade_id, c.id, p.nome as nome_completo, p.cpf_cnpj, 
+                          COALESCE(pp.proporcao, 100) as percentual_participacao
+                   FROM propriedade_proprietarios pp
+                   JOIN clientes c ON pp.cliente_id = c.id
+                   JOIN pessoas p ON c.pessoa_id = p.id
+                   WHERE pp.propriedade_id IN ({$inClause})
+                   ORDER BY pp.id ASC";
+        $stCli = $pdo->prepare($sqlCli);
+        $stCli->execute($pIds);
+        $allCli = $stCli->fetchAll();
+
+        $clientesPorProp = [];
+        foreach ($allCli as $cliRow) {
+            $pid = (int)$cliRow['propriedade_id'];
+            $cid = (int)$cliRow['id'];
+            if (!isset($clientesPorProp[$pid])) {
+                $clientesPorProp[$pid] = [];
+            }
+            $jaExiste = false;
+            foreach ($clientesPorProp[$pid] as &$itemExistente) {
+                if ($itemExistente['id'] === $cid) {
+                    $itemExistente['percentual_participacao'] = (float)$cliRow['percentual_participacao'];
+                    $jaExiste = true;
+                    break;
+                }
+            }
+            if (!$jaExiste) {
+                $clientesPorProp[$pid][] = [
+                    'id' => $cid,
+                    'nome_completo' => $cliRow['nome_completo'] ?? '',
+                    'cpf_cnpj' => $cliRow['cpf_cnpj'] ?? '',
+                    'percentual_participacao' => (float)$cliRow['percentual_participacao']
+                ];
+            }
+        }
+
+        foreach ($propriedades as &$prop) {
+            $pid = (int)$prop['id'];
+            $cliList = $clientesPorProp[$pid] ?? [];
+            $prop['clientes'] = $cliList;
+            $prop['total_proprietarios'] = count($cliList);
+            $totalPart = 0.0;
+            foreach ($cliList as $cl) {
+                $totalPart += (float)($cl['percentual_participacao'] ?? 0);
+            }
+            $prop['total_participacao'] = round($totalPart, 2);
+            $prop['composicao_completa'] = abs(round($totalPart, 4) - 100.0) <= 0.01;
+        }
+        unset($prop);
+
+        jsonResponse($propriedades);
     }
 
     // POST /propriedades
@@ -1693,10 +1862,38 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos/{id}
     if ($method === 'GET' && $levId && !$action) {
-        $stmt = $pdo->prepare("SELECT l.*, COALESCE(l.nome, CONCAT('Levantamento #', l.id)) as nome FROM levantamentos WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT l.*, 
+                                      COALESCE(l.nome, CONCAT('Levantamento #', l.id)) as nome,
+                                      prop.nome_propriedade, prop.codigo_car, prop.codigo_ccir, prop.municipio, prop.uf,
+                                      (SELECT COUNT(*) FROM pontos pt WHERE pt.levantamento_id = l.id) as total_pontos,
+                                      (SELECT COUNT(*) FROM segmentos s WHERE s.levantamento_id = l.id) as total_segmentos
+                               FROM levantamentos l
+                               LEFT JOIN propriedades prop ON l.propriedade_id = prop.id
+                               WHERE l.id = ?");
         $stmt->execute([$levId]);
         $lev = $stmt->fetch();
         if (!$lev) jsonResponse(['error' => 'Levantamento não encontrado.'], 404);
+
+        $clients = [];
+        if (!empty($lev['propriedade_id'])) {
+            $stCli = $pdo->prepare("SELECT c.id, p.nome as nome_completo, p.cpf_cnpj, COALESCE(pp.proporcao, 100) as percentual_participacao
+                                    FROM propriedade_proprietarios pp
+                                    JOIN clientes c ON pp.cliente_id = c.id
+                                    JOIN pessoas p ON c.pessoa_id = p.id
+                                    WHERE pp.propriedade_id = ?
+                                    ORDER BY pp.id ASC");
+            $stCli->execute([$lev['propriedade_id']]);
+            $rows = $stCli->fetchAll();
+            $unicos = [];
+            foreach ($rows as $r) {
+                $cid = (int)$r['id'];
+                if (!isset($unicos[$cid])) {
+                    $unicos[$cid] = $r;
+                }
+            }
+            $clients = array_values($unicos);
+        }
+        $lev['clientes'] = $clients;
         jsonResponse($lev);
     }
 
