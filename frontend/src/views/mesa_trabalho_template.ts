@@ -656,7 +656,7 @@ export const renderMesaTrabalho = (): string => {
                             </div>
                          </div>
 
-                         <!-- Bloco 3: Regime de Bens, Matrícula e Endereço (Harmonioso 4 colunas) -->
+                         <!-- Bloco 3: Regime de Bens, Lote, Matrícula e Endereço (Harmonioso 4 colunas) -->
                          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
                             <div class="col-span-1">
                                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
@@ -669,10 +669,14 @@ export const renderMesaTrabalho = (): string => {
                                </ui-lista-flutuante>
                             </div>
                             <div class="col-span-1">
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Lote / Gleba Confrontante</label>
+                               <ui-campo-texto type="text" id="input-conf-lote" class="w-full" placeholder="Ex: Lote nº 6-B"></ui-campo-texto>
+                            </div>
+                            <div class="col-span-1">
                                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Matrícula (Nº / CRI / Comarca)</label>
                                <ui-campo-texto type="text" id="input-conf-matricula-imovel" class="w-full" placeholder="Ex: Mat. 12.345 - CRI Umuarama"></ui-campo-texto>
                             </div>
-                            <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
+                            <div class="col-span-1">
                                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço de Correspondência</label>
                                <ui-campo-texto type="text" id="input-conf-endereco" class="w-full" placeholder="Rua, Número, Bairro, Cidade - UF"></ui-campo-texto>
                             </div>
@@ -1164,7 +1168,7 @@ export const renderMesaTrabalho = (): string => {
                        <span id="preview-anuencia-cpf-conf" class="font-mono text-white/80">-</span>
                      </div>
                      <div>
-                       <span class="text-[9px] text-white/40 block">Matrícula Confrontante:</span>
+                       <span class="text-[9px] text-white/40 block">Lote / Matrícula:</span>
                        <span id="preview-anuencia-mat-conf" class="font-mono text-white/80">-</span>
                      </div>
                    </div>

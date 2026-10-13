@@ -48,6 +48,7 @@ class ConfrontanteCreate(BaseModel):
     cns_confrontante: Optional[str] = None # ADICIONADO PARA AMARRAÇÃO MANUAL
     nome_propriedade: Optional[str] = None
     codigo_incra_imovel: Optional[str] = None
+    lote: Optional[str] = None
 
 class SegmentoCreate(BaseModel):
     matricula_id: int
@@ -152,7 +153,7 @@ def get_confrontantes(id: int):
                    COALESCE(p.genero_conjuge, 'F') AS genero_conjuge,
                    COALESCE(p.nacionalidade_conjuge, 'brasileiro(a)') AS nacionalidade_conjuge,
                    p.profissao_conjuge AS profissao_conjuge,
-                   c.matricula_imovel, c.cns_confrontante, c.caminho_matricula_pdf,
+                   c.matricula_imovel, c.lote, c.cns_confrontante, c.caminho_matricula_pdf,
                    c.nome_propriedade, c.codigo_incra_imovel, c.poligono_wkt,
                    c.confrontacoes_json, c.created_at
             FROM confrontantes c
@@ -212,12 +213,12 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                 INSERT INTO confrontantes (
                     pessoa_id, levantamento_id, nome, cpf_cnpj, rg, nacionalidade, profissao,
                     estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
-                    tipo_relacao, matricula_imovel, cns_confrontante, nome_propriedade, codigo_incra_imovel
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    tipo_relacao, matricula_imovel, cns_confrontante, nome_propriedade, codigo_incra_imovel, lote
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (pessoa_id, id, c.nome, cpf_cnpj, c.rg, c.nacionalidade or 'brasileiro(a)',
                   c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
-                  c.nome_propriedade, c.codigo_incra_imovel))
+                  c.nome_propriedade, c.codigo_incra_imovel, c.lote))
             confrontante_id = cursor.lastrowid
             conn.commit()
             
@@ -317,12 +318,13 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                     matricula_imovel = ?,
                     cns_confrontante = ?,
                     nome_propriedade = ?,
-                    codigo_incra_imovel = ?
+                    codigo_incra_imovel = ?,
+                    lote = ?
                 WHERE id = ?
             """, (pessoa_id, c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade or 'brasileiro(a)',
                   c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
-                  c.nome_propriedade, c.codigo_incra_imovel, cid))
+                  c.nome_propriedade, c.codigo_incra_imovel, c.lote, cid))
             
             conn.commit()
 
@@ -577,7 +579,7 @@ def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
             SELECT s.id, s.confrontante_id, s.tipo_limite_sigef, s.anuencia_assinada,
                    pi.nome_vertice AS de, pf.nome_vertice AS para,
                    pi.lat AS lat1, pi.lon AS lon1, pf.lat AS lat2, pf.lon AS lon2,
-                   COALESCE(c.nome, pe.nome, '') AS conf_nome, c.matricula_imovel,
+                   COALESCE(c.nome, pe.nome, '') AS conf_nome, c.matricula_imovel, c.lote,
                    COALESCE(pe.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj, c.caminho_matricula_pdf
             FROM segmentos s
             JOIN pontos pi ON pi.id = s.ponto_inicio_id
@@ -606,6 +608,7 @@ def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
             d = comprimento(r)
             alvo = sem_conf if cid is None else grupos.setdefault(cid, {
                 "id": cid, "nome": r["conf_nome"] or f"Confrontante {cid}", "matricula_imovel": r["matricula_imovel"],
+                "lote": r["lote"] or "",
                 "cpf_cnpj": r["cpf_cnpj"], "tem_matricula_pdf": bool(r["caminho_matricula_pdf"]),
                 "qtd_divisas": 0, "comprimento_m": 0.0, "assinadas": 0, "trechos": []
             })
@@ -663,7 +666,7 @@ def get_confrontantes_ativos_matricula(id: int, matricula_id: int):
 
         rows = execute_query(
             """
-            SELECT c.id, p.nome, p.cpf_cnpj, c.matricula_imovel, c.caminho_matricula_pdf
+            SELECT c.id, p.nome, p.cpf_cnpj, c.matricula_imovel, c.lote, c.caminho_matricula_pdf
             FROM segmentos s
             JOIN confrontantes c ON s.confrontante_id = c.id
             JOIN pessoas p ON c.pessoa_id = p.id

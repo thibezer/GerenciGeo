@@ -423,6 +423,12 @@ export const propriedadesRoute: RouteDef = {
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">SIGEF (UUID do Georreferenciamento)</label>
                             <input type="text" id="input-new-mat-georreferenciamento" placeholder="a5b4c3d2-..." class="glass-input w-full text-xs h-8 font-mono">
                          </div>
+                         <div class="col-span-2">
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Desenho Territorial / Gleba Unificada</label>
+                            <select id="select-new-mat-origem-desenho" class="glass-input w-full text-xs h-8 bg-[#0c1510] text-white/90">
+                               <option value="">Desenho próprio independente (Não unificada)</option>
+                            </select>
+                         </div>
                          <div class="col-span-2 md:col-span-4 flex justify-end gap-2">
                             <button type="button" class="btn-secondary h-8 text-xs font-bold px-4 hidden cursor-pointer" id="btn-cancelar-edicao-mat">Cancelar</button>
                             <button type="submit" class="btn-primary h-8 text-xs font-bold px-6 cursor-pointer" id="btn-submit-mat">Salvar Matrícula</button>
@@ -1329,6 +1335,7 @@ export const propriedadesRoute: RouteDef = {
           }
 
           matriculasCache = Array.isArray(matriculas) ? matriculas : [];
+          atualizarSelectOrigemDesenho(matriculaSendoEditadaId);
 
           if (matriculasCache.length === 0) {
              corpo.innerHTML = `
@@ -1509,6 +1516,18 @@ export const propriedadesRoute: RouteDef = {
        }
     };
 
+    const atualizarSelectOrigemDesenho = (matriculaAtualId?: number | null, valorPreSelecionado?: string | number | null) => {
+       const select = document.getElementById('select-new-mat-origem-desenho') as HTMLSelectElement;
+       if (!select) return;
+       let html = `<option value="">Desenho próprio independente (Não unificada)</option>`;
+       matriculasCache.forEach(m => {
+          if (matriculaAtualId && String(m.id) === String(matriculaAtualId)) return;
+          html += `<option value="${m.id}">🔗 Usa o desenho da Matrícula nº ${escapeHtml(String(m.numero_matricula))} (${escapeHtml(String(m.denominacao || 'Lote sem nome'))})</option>`;
+       });
+       select.innerHTML = html;
+       select.value = (valorPreSelecionado !== undefined && valorPreSelecionado !== null) ? String(valorPreSelecionado) : '';
+    };
+
     // --- CADASTRO E EDIÇÃO DE MATRÍCULA ---
     const resetaFormularioMatricula = () => {
        matriculaSendoEditadaId = null;
@@ -1520,6 +1539,7 @@ export const propriedadesRoute: RouteDef = {
        (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value = '';
+       atualizarSelectOrigemDesenho(null, '');
 
        const formTitulo = document.getElementById('form-matricula-titulo');
        if (formTitulo) formTitulo.innerText = "Cadastrar Gleba / Matrícula";
@@ -1552,6 +1572,7 @@ export const propriedadesRoute: RouteDef = {
        (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = m.itr ? aplicarMascaraITRMat(m.itr) : '';
        (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value = m.valor_itr || '';
        (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value = m.georreferenciamento ? aplicarMascaraUUIDMat(m.georreferenciamento) : '';
+       atualizarSelectOrigemDesenho(mid, m.matricula_origem_desenho_id);
 
        const formTitulo = document.getElementById('form-matricula-titulo');
        if (formTitulo) formTitulo.innerText = "Editar Gleba / Matrícula";
@@ -1604,6 +1625,8 @@ export const propriedadesRoute: RouteDef = {
        const raw_valor = (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value;
        const valor_itr = raw_valor.trim() ? paraNumero(raw_valor) : null;
        const georreferenciamento = (document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement).value.trim();
+       const origem_raw = (document.getElementById('select-new-mat-origem-desenho') as HTMLSelectElement)?.value;
+       const matricula_origem_desenho_id = origem_raw ? parseInt(origem_raw) : null;
 
        const faltando: string[] = [];
        if (!numero_matricula) faltando.push('número da matrícula');
@@ -1625,7 +1648,7 @@ export const propriedadesRoute: RouteDef = {
           const res = await fetch(url, {
              method: method,
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento })
+             body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id })
           });
           const data = await lerRespostaApi(res);
           if (data.error) {

@@ -48,6 +48,7 @@ interface ConfrontanteResumo extends ResumoConfrontante {
   id: number;
   nome: string;
   matricula_imovel: string | null;
+  lote?: string | null;
   cpf_cnpj: string | null;
   assinadas: number;
 }
@@ -265,7 +266,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               <button type="button" class="btn-conf-focar min-w-0 flex-1 text-left" data-id="${c.id}" title="Enquadrar no mapa">
                 <div class="text-xs font-semibold leading-snug break-words">${escapeHtml(c.nome)}</div>
                 <div class="text-[10px] text-white/40 leading-snug">
-                  ${c.matricula_imovel ? `Mat. ${escapeHtml(c.matricula_imovel)} · ` : ''}${c.qtd_divisas} divisa${c.qtd_divisas === 1 ? '' : 's'} · ${fmtMetros(c.comprimento_m)}
+                  ${c.lote ? `Lote ${escapeHtml(c.lote)} · ` : ''}${c.matricula_imovel ? `Mat. ${escapeHtml(c.matricula_imovel)} · ` : ''}${c.qtd_divisas} divisa${c.qtd_divisas === 1 ? '' : 's'} · ${fmtMetros(c.comprimento_m)}
                   ${incompletoCadastro ? ` · <span class="link-conf-completar text-amber-300 hover:text-amber-200 underline cursor-pointer" data-id="${c.id}" title="Completar qualificação (sem CPF/CNPJ)">sem CPF/CNPJ</span>` : ''}
                 </div>
               </button>
@@ -825,7 +826,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             const opt = document.createElement('option');
             opt.value = String(c.id);
             opt.className = 'bg-[#0c1510]';
-            opt.textContent = c.matricula_imovel ? `${c.nome} (Matrícula: ${c.matricula_imovel})` : c.nome;
+            const rotuloImovel = [c.lote ? `Lote: ${c.lote}` : '', c.matricula_imovel ? `Matrícula: ${c.matricula_imovel}` : ''].filter(Boolean).join(' - ');
+            opt.textContent = rotuloImovel ? `${c.nome} (${rotuloImovel})` : c.nome;
             select.appendChild(opt);
           });
         }
@@ -1497,7 +1499,13 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         }
         if (txtNomeConf) txtNomeConf.innerText = data.confrontante.nome || "-";
         if (txtCpfConf) txtCpfConf.innerText = data.confrontante.cpf_cnpj || "Não informado";
-        if (txtMatConf) txtMatConf.innerText = data.confrontante.matricula_imovel || "Não informada";
+        if (txtMatConf) {
+          const parts = [
+            data.confrontante.lote ? `Lote ${data.confrontante.lote}` : '',
+            data.confrontante.matricula_imovel && data.confrontante.matricula_imovel !== 'Não informada' ? `Mat. ${data.confrontante.matricula_imovel}` : ''
+          ].filter(Boolean);
+          txtMatConf.innerText = parts.length > 0 ? parts.join(' - ') : (data.confrontante.matricula_imovel || "Não informada");
+        }
         if (txtImovelReq) {
           txtImovelReq.innerText = `${data.imovel.nome} - Matrícula ${data.imovel.matricula || 'S/N'}`;
         }
@@ -1727,6 +1735,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = 'brasileiro(a)';
       (document.getElementById('input-conf-conjuge-profissao') as any).value = '';
       (document.getElementById('input-conf-endereco') as any).value = '';
+      (document.getElementById('input-conf-lote') as any).value = '';
       (document.getElementById('input-conf-matricula-imovel') as any).value = '';
 
       configurarMaquinadeEstadosCivil(containerForm);
@@ -1794,6 +1803,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = selectedConf.nacionalidade_conjuge || 'brasileiro(a)';
             (document.getElementById('input-conf-conjuge-profissao') as any).value = selectedConf.profissao_conjuge || '';
             (document.getElementById('input-conf-endereco') as any).value = selectedConf.endereco_completo || '';
+            (document.getElementById('input-conf-lote') as any).value = selectedConf.lote || '';
             (document.getElementById('input-conf-matricula-imovel') as any).value = selectedConf.matricula_imovel || '';
             
             configurarMaquinadeEstadosCivil(containerForm);
@@ -1910,6 +1920,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         nacionalidade_conjuge: (document.getElementById('input-conf-conjuge-nacionalidade') as any)?.value?.trim() || null,
         profissao_conjuge: (document.getElementById('input-conf-conjuge-profissao') as any)?.value?.trim() || null,
         endereco_completo: (document.getElementById('input-conf-endereco') as any)?.value?.trim() || null,
+        lote: (document.getElementById('input-conf-lote') as any)?.value?.trim() || null,
         matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as any)?.value?.trim() || null,
         tipo_relacao: null
       };

@@ -266,6 +266,7 @@ def create_tables(conn):
             cpf_conjuge TEXT,
             rg_conjuge TEXT,
             matricula_imovel TEXT,
+            lote TEXT,
             cns_confrontante TEXT, -- ADICIONADO CONFORME PLANO v2.3
             caminho_matricula_pdf TEXT,
             nome_propriedade TEXT,
@@ -691,6 +692,7 @@ def create_tables(conn):
             ("cpf_conjuge", "TEXT"),
             ("rg_conjuge", "TEXT"),
             ("matricula_imovel", "TEXT"),
+            ("lote", "TEXT"),
             ("cns_confrontante", "TEXT"),
             ("caminho_matricula_pdf", "TEXT"),
             ("nome_propriedade", "TEXT"),

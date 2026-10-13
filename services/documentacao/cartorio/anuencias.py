@@ -71,7 +71,8 @@ def gerar_declaracao_anuencia_html(
                COALESCE(p.genero_conjuge, 'F') AS genero_conjuge,
                COALESCE(p.nacionalidade_conjuge, 'brasileiro(a)') AS nacionalidade_conjuge,
                p.profissao_conjuge,
-               c.matricula_imovel
+               c.matricula_imovel,
+               c.lote
         FROM confrontantes c
         LEFT JOIN pessoas p ON c.pessoa_id = p.id
         WHERE c.id = ? AND c.levantamento_id = ?
@@ -111,6 +112,7 @@ def gerar_declaracao_anuencia_html(
     c_est_civil = str(conf.get("estado_civil") or "").strip()
     c_domicilio = obter_valor_ou_linha(conf.get("endereco_completo"), 50)
     c_matricula = obter_valor_ou_linha(conf.get("matricula_imovel"), 24)
+    c_lote = str(conf.get("lote") or "").strip()
     
     e_civil = c_est_civil.lower()
     regime_raw = str(conf.get("regime_bens") or "").strip()
@@ -259,9 +261,20 @@ def gerar_declaracao_anuencia_html(
     bloco_assinaturas += "</div>"
     data_extenso = obter_data_extenso()
 
+    # Construção descritiva do imóvel confrontante (Lote / Matrícula)
+    if c_lote and c_matricula and "_" not in c_matricula:
+        imovel_confrontante_desc = f"denominada <strong>{c_lote}</strong>, registrada sob a <strong>Matrícula nº {c_matricula}</strong>"
+        rotulo_confrontante_croqui = f"{c_lote} (Mat. {c_matricula})"
+    elif c_lote:
+        imovel_confrontante_desc = f"denominada <strong>{c_lote}</strong>"
+        rotulo_confrontante_croqui = f"Lote {c_lote}"
+    else:
+        imovel_confrontante_desc = f"registrada sob a <strong>Matrícula nº {c_matricula}</strong>"
+        rotulo_confrontante_croqui = f"Mat. {c_matricula}"
+
     # Gerar o anexo gráfico (Página 2) e mapa Leaflet
     mapa_divisa_leaflet, map_data = gerar_anexo_grafico_html(
-        lev_id, mat_desenho_id, confrontante_id, c_nome, c_matricula, rotulo_matricula=rotulo_matricula, num_matricula=num_matricula_exibicao
+        lev_id, mat_desenho_id, confrontante_id, c_nome, rotulo_confrontante_croqui, rotulo_matricula=rotulo_matricula, num_matricula=num_matricula_exibicao
     )
     
     script_inicializacao_mapas = ""
@@ -277,6 +290,8 @@ def gerar_declaracao_anuencia_html(
         "{data_extenso}": str(data_extenso or ""),
         "{qualificacao_confrontante}": str(qualificacao_confrontante or ""),
         "{c_matricula}": str(c_matricula or ""),
+        "{c_lote}": str(c_lote or ""),
+        "{imovel_confrontante}": imovel_confrontante_desc,
         "{nome_lote}": str(nome_lote or ""),
         "{proprietarios_str}": str(proprietarios_str or ""),
         "{numero_matricula}": str(num_matricula_exibicao or ""),
@@ -654,6 +669,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
                COALESCE(p.cpf_cnpj, c.cpf_cnpj) AS cpf_cnpj,
                COALESCE(p.rg, c.rg) AS rg,
                c.matricula_imovel,
+               c.lote,
                COALESCE(p.endereco_completo, c.endereco_completo) AS endereco_completo
         FROM confrontantes c
         LEFT JOIN pessoas p ON c.pessoa_id = p.id
@@ -834,6 +850,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
             "cpf_cnpj": formatar_cpf(conf.get("cpf_cnpj") or ""),
             "rg": formatar_rg(conf.get("rg") or ""),
             "matricula_imovel": conf.get("matricula_imovel") or "Não informada",
+            "lote": conf.get("lote") or "",
             "endereco_completo": conf.get("endereco_completo") or "Não informado"
         },
         "imovel": {
