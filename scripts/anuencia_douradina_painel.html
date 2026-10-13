@@ -59,7 +59,7 @@
   function estado(){
     const casado=v.civil==='casado'||v.civil==='uniao';
     const separacao=/separa/i.test(v.regime);
-    return {casado,separacao,casal:casado&&!separacao};
+    return {casado,separacao,casal:casado};
   }
   const F=v=>v==='F';
   const nacG=(n,f)=>{n=(n||'').trim()||'brasileiro(a)';return /brasileir/i.test(n)?(f?'brasileira':'brasileiro'):n};

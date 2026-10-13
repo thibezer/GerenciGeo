@@ -2386,7 +2386,6 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
   const atualizarCampos = () => {
     if (!selectEstadoCivil || !groupConjuge) return;
     const estCivil = (selectEstadoCivil.value || '').toLowerCase().trim();
-    const regime = selectRegime ? (selectRegime.value || '').toLowerCase().trim() : '';
 
     const precisaConjuge = estCivil.includes('casad') || estCivil.includes('estav') || estCivil.includes('estáv') || estCivil === 'uniao_estavel';
 
@@ -2409,7 +2408,6 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
         }
       }
       
-      const isSeparacao = regime.includes('separac') || regime.includes('separaç') || regime === 'separacao_total';
       inputsCamposExtra.forEach(input => {
         if (input.removeAttribute) {
           input.removeAttribute('disabled');
@@ -2417,9 +2415,9 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement) {
           input.disabled = false;
         }
         if (input.id?.includes('cpf') && input.placeholder !== undefined) {
-          input.placeholder = isSeparacao ? "CPF (Opcional na Separação)" : "000.000.000-00";
+          input.placeholder = "000.000.000-00";
         } else if (input.id?.includes('rg') && input.placeholder !== undefined) {
-          input.placeholder = isSeparacao ? "RG (Opcional na Separação)" : "RG / Órgão";
+          input.placeholder = "RG / Órgão";
         }
       });
     }

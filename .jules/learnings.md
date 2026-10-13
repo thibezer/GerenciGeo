@@ -618,4 +618,16 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   3. **Acesso Seguro em Objetos `sqlite3.Row`**: Em consultas com driver SQLite retornando `sqlite3.Row`, o acesso a colunas deve ser feito por índice/chave direta (`r["lote"]`) e nunca por `.get("lote")`, pois o tipo `sqlite3.Row` não implementa o método de dicionário `.get()`.
   4. **Qualificação Conjunta de Lote e Matrícula nas Peças**: Quando o confrontante tiver lote e matrícula informados, a declaração de anuência e o anexo gráfico devem qualificá-lo harmoniosamente (ex: `denominada Lote nº 6-B, registrada sob a Matrícula nº 12345`).
 
+---
+
+## 39. Qualificação Notarial de Cônjuge no Regime de Separação Total de Bens
+- **Contexto e Problema**:
+  1. Anteriormente, nas declarações e peças de anuência, se o confrontante fosse casado sob regime de separação de bens (`"separacao" in regime.lower()`), o cônjuge era apenas citado pelo nome (`casado sob o regime de Separação Total de Bens com Mariana`), omitindo sua qualificação completa (nacionalidade, profissão, RG, CPF e domicílio), omitindo a assinatura do cônjuge e mantendo o texto da declaração no singular (`DECLARA`).
+  2. Em cartórios de registro de imóveis, exige-se a qualificação notarial completa de ambos os cônjuges também na separação total de bens, com concordância no plural (`DECLARAM`) e campo de assinatura para o cônjuge do confrontante.
+- **Regras Obrigatórias**:
+  1. **Qualificação Notarial Completa**: Confrontantes casados sob separação total de bens devem receber a qualificação completa do cônjuge (nome, nacionalidade, profissão, RG, CPF e residência) da mesma forma que nos demais regimes de casamento.
+  2. **Declaração e Assinaturas no Plural**: O texto da declaração deve adotar a forma plural (`DECLARAM`, `Os declarantes`, etc.) e incluir o campo de assinatura para o Cônjuge do Confrontante Anuente sempre que `is_casado` for verdadeiro.
+  3. **Consistência em Formulários**: Os campos de qualificação do cônjuge na interface não devem sugerir opcionalidade diferenciada para RG e CPF na separação total, assegurando o preenchimento completo dos dados.
+
+
 

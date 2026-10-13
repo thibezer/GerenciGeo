@@ -155,32 +155,26 @@ def gerar_declaracao_anuencia_html(
 
     if is_casado:
         conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
+        conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
+        conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
+        conj_prof = obter_valor_ou_linha(conf.get("profissao_conjuge") or "Profissão Não Informada", 25)
+        conj_nac_raw = conf.get("nacionalidade_conjuge") or "brasileiro(a)"
+        gen_conjuge = conf.get("genero_conjuge") or ("F" if genero == "M" else "M")
         
-        # Se for regime de separação de bens, o cônjuge é apenas citado sem qualificação completa.
-        if "separacao" in regime.lower() or "separação" in regime.lower():
-            casado_info = f", {suf_casado} sob o regime de {regime} com {conj_n}"
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, {suf_inscrito} no CPF/MF sob o nº {c_cpf} e {suf_portador} da cédula de identidade RG nº {c_rg}'
+        if genero == "M" and gen_conjuge == "F":
+            conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ele portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, ela portadora da cédula de identidade RG nº {conj_rg} e inscrita no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
+        elif genero == "F" and gen_conjuge == "M":
+            conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ela portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, ele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
+        elif genero == "M" and gen_conjuge == "M":
+            conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, e aquele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
+        elif genero == "F" and gen_conjuge == "F":
+            conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambas residentes e domiciliadas em {c_domicilio}, esta portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, e aquela portadora da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
         else:
-            conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
-            conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
-            conj_prof = obter_valor_ou_linha(conf.get("profissao_conjuge") or "Profissão Não Informada", 25)
-            conj_nac_raw = conf.get("nacionalidade_conjuge") or "brasileiro(a)"
-            gen_conjuge = conf.get("genero_conjuge") or ("F" if genero == "M" else "M")
-            
-            if genero == "M" and gen_conjuge == "F":
-                conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ele portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, ela portadora da cédula de identidade RG nº {conj_rg} e inscrita no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
-            elif genero == "F" and gen_conjuge == "M":
-                conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ela portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, ele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
-            elif genero == "M" and gen_conjuge == "M":
-                conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, e aquele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
-            elif genero == "F" and gen_conjuge == "F":
-                conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambas residentes e domiciliadas em {c_domicilio}, esta portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, e aquela portadora da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
-            else:
-                qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac_raw}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador(a) da cédula de identidade RG nº {c_rg} e inscrito(a) no CPF sob o nº {c_cpf}, e aquele portador(a) da cédula de identidade RG nº {conj_rg} e inscrito(a) no CPF sob o nº {conj_cpf}'
+            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac_raw}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador(a) da cédula de identidade RG nº {c_rg} e inscrito(a) no CPF sob o nº {c_cpf}, e aquele portador(a) da cédula de identidade RG nº {conj_rg} e inscrito(a) no CPF sob o nº {conj_cpf}'
 
     else:
         est_civil_desc = MAPA_ESTADO_CIVIL.get(e_civil, c_est_civil.lower() if '_' not in c_est_civil else c_est_civil)
@@ -193,7 +187,7 @@ def gerar_declaracao_anuencia_html(
         
         qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, {suf_inscrito} no CPF/MF sob o nº {c_cpf} e {suf_portador} da cédula de identidade RG nº {c_rg}'
 
-    plural = is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower())
+    plural = is_casado
     texto_declara = "DECLARAM" if plural else "DECLARA"
     texto_declarante = "Os declarantes" if plural else ("O declarante" if genero == "M" else "A declarante")
     suf_m = "m" if plural else ""
@@ -248,8 +242,7 @@ def gerar_declaracao_anuencia_html(
         <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
     </div>
     """
-    # Só assina se for casado e NÃO for sob o regime de separação de bens.
-    if is_casado and not ("separacao" in regime.lower() or "separação" in regime.lower()):
+    if is_casado:
         conj_n = conf.get("nome_conjuge") or "Cônjuge do Confrontante"
         bloco_assinaturas += f"""
         <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
