@@ -584,3 +584,14 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
 - **Regras Obrigatórias**:
   1. **Ação de Edição na Lista**: Cada item da lista de confrontantes em `renderResumoConfrontantes` deve conter o botão `btn-conf-editar` e o texto clicável `link-conf-completar` (quando `incompletoCadastro`), invocando `abrirEdicaoConfrontante(confId)`.
   2. **Rolagem Automática e Foco**: A função `abrirEdicaoConfrontante` e o botão "+ Novo" (`btn-novo-confrontante-cartorio`) devem remover a classe `hidden` de `container-form-confrontante` e executar `containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' })`, garantindo que o usuário veja imediatamente o formulário aberto para preenchimento.
+
+---
+
+## 36. Interceptação de Atalhos Globais de Teclado em Web Components com Shadow DOM
+- **Contexto e Problema**:
+  1. O atalho de teclado global `P` (para alternar a Caneta de Seleção na Mesa Geodésica) verificava apenas se `document.activeElement.tagName` não era `input`, `textarea` ou `select`.
+  2. Ao utilizar Web Components do UI Kit (`<ui-campo-texto>`, `<ui-campo-numero>`, `<ui-lista-flutuante>`, Fluent UI), o `document.activeElement` aponta para a tag do componente hospedeiro (`ui-campo-texto`), enquanto o `<input>` real fica encapsulado dentro do Shadow DOM.
+  3. Como consequência, ao digitar a letra "P" em qualquer campo de texto de formulários (ex: "Pecuarista", "Paraná", "Ponto"), a verificação antiga falhava, executando `e.preventDefault()` e ativando indevidamente a ferramenta Caneta no mapa, impedindo a digitação da letra.
+- **Regras Obrigatórias**:
+  1. **Inspeção de Shadow DOM**: Qualquer ouvinte global de teclas (`keydown`) que dependa de o usuário não estar digitando deve utilizar `e.composedPath()` para inspecionar toda a árvore de disparo, ignorando se qualquer nó for `input`, `textarea`, `select`, Web Component de formulário (`ui-*`, `fluent-*`) ou possuir `contenteditable`.
+  2. **Travessia de `shadowRoot.activeElement`**: Fazer o loop iterativo `while (activeEl?.shadowRoot?.activeElement)` para alcançar o controle interno focado antes de decidir se o atalho pode ser disparado.

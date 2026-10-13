@@ -1271,15 +1271,49 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
   }
   (ctx as any)._canetaKeydownListener = (e: KeyboardEvent) => {
     if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      const activeEl = document.activeElement as HTMLElement | null;
-      const tag = activeEl?.tagName?.toLowerCase();
-      if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !activeEl?.isContentEditable) {
-        e.preventDefault();
-        if (!ctx.ferramentaCaneta) {
-          ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+      // Ignora quando estiver digitando em qualquer campo de texto (inclusive dentro de Shadow DOM ou Web Components do UI Kit)
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
+      for (const node of path) {
+        if (node instanceof HTMLElement) {
+          const t = node.tagName.toLowerCase();
+          if (
+            t === 'input' ||
+            t === 'textarea' ||
+            t === 'select' ||
+            t.startsWith('ui-') ||
+            t.startsWith('fluent-') ||
+            node.isContentEditable ||
+            node.getAttribute('contenteditable') === 'true'
+          ) {
+            return;
+          }
         }
-        ctx.ferramentaCaneta.alternar();
       }
+
+      let activeEl: Element | null = document.activeElement;
+      while (activeEl) {
+        if (activeEl instanceof HTMLElement) {
+          const t = activeEl.tagName.toLowerCase();
+          if (
+            t === 'input' ||
+            t === 'textarea' ||
+            t === 'select' ||
+            t.startsWith('ui-') ||
+            t.startsWith('fluent-') ||
+            activeEl.isContentEditable ||
+            activeEl.getAttribute('contenteditable') === 'true'
+          ) {
+            return;
+          }
+        }
+        activeEl = (activeEl as HTMLElement).shadowRoot?.activeElement || null;
+      }
+
+      e.preventDefault();
+      if (!ctx.ferramentaCaneta) {
+        ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+      }
+      ctx.ferramentaCaneta.alternar();
     }
   };
   window.addEventListener('keydown', (ctx as any)._canetaKeydownListener);
