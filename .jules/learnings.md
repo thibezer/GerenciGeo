@@ -583,7 +583,7 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   3. Faltava um gatilho direto para abrir e editar a qualificação completa de confrontantes existentes (CPF, RG, Cônjuge, Regime de Bens, Matrícula Vizinha e Anexo PDF), impedindo o usuário de alterar cadastros já vinculados.
 - **Regras Obrigatórias**:
   1. **Ação de Edição na Lista**: Cada item da lista de confrontantes em `renderResumoConfrontantes` deve conter o botão `btn-conf-editar` e o texto clicável `link-conf-completar` (quando `incompletoCadastro`), invocando `abrirEdicaoConfrontante(confId)`.
-  2. **Rolagem Automática e Foco**: A função `abrirEdicaoConfrontante` e o botão "+ Novo" (`btn-novo-confrontante-cartorio`) devem remover a classe `hidden` de `container-form-confrontante` e executar `containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' })`, garantindo que o usuário veja imediatamente o formulário aberto para preenchimento.
+  2. **Rolagem Automática e Foco**: A função `abrirEdicaoConfrontante` e o botão "+ Novo" (`btn-novo-confrontante-cartorio`) devem remover a classe `hidden` de `container-form-confrontante` e ajustar a rolagem **exclusivamente dentro do container interno** (`panel-homologacao-incra`), sem nunca utilizar `scrollIntoView({ block: 'start' })` global que desloca o cabeçalho Ribbon para fora do viewport.
 
 ---
 
@@ -595,3 +595,14 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
 - **Regras Obrigatórias**:
   1. **Inspeção de Shadow DOM**: Qualquer ouvinte global de teclas (`keydown`) que dependa de o usuário não estar digitando deve utilizar `e.composedPath()` para inspecionar toda a árvore de disparo, ignorando se qualquer nó for `input`, `textarea`, `select`, Web Component de formulário (`ui-*`, `fluent-*`) ou possuir `contenteditable`.
   2. **Travessia de `shadowRoot.activeElement`**: Fazer o loop iterativo `while (activeEl?.shadowRoot?.activeElement)` para alcançar o controle interno focado antes de decidir se o atalho pode ser disparado.
+
+---
+
+## 37. Preservação do Cabeçalho Superior (Ribbon) e Isolamento de Rolagem em Painéis SPA
+- **Contexto e Problema**:
+  1. Ao abrir formulários retráteis em sub-painéis com `scrollIntoView({ block: 'start' })`, os navegadores rolam todos os ancestrais e o próprio `window.scrollY`.
+  2. Em SPAs com layout `height: 100vh; overflow: hidden;` e Ribbon mestre (`header.ribbon-master-container`), qualquer deslocamento vertical no `window` empurra o cabeçalho para valores negativos de Y, ocultando o menu e os botões de navegação da aplicação.
+- **Regras Obrigatórias**:
+  1. **Cabeçalho Sticky**: A classe `.ribbon-master-container` deve utilizar `position: sticky; top: 0;` para blindagem contra movimentação indevida de viewport.
+  2. **Rolagem Restrita ao Container**: Nunca chamar `element.scrollIntoView({ block: 'start' })` em sub-painéis internos. Em vez disso, manipular diretamente a propriedade `scrollTop` do container com scroll (`painel.scrollTo({ top, behavior: 'smooth' })`) e garantir `if (window.scrollY !== 0) window.scrollTo(0, 0)`.
+

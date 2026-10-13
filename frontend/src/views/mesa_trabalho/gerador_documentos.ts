@@ -312,6 +312,31 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     atualizarCamadaMapa();
   };
 
+  /** Garante que o formulário fique visível no painel interno sem deslocar a janela ou sumir com o cabeçalho */
+  const ajustarVisibilidadeFormulario = (form: HTMLElement) => {
+    if (window.scrollY !== 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+
+    const painel = document.getElementById('panel-homologacao-incra');
+    if (!painel) return;
+
+    setTimeout(() => {
+      if (window.scrollY !== 0) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
+      const formRect = form.getBoundingClientRect();
+      const painelRect = painel.getBoundingClientRect();
+      if (formRect.bottom > painelRect.bottom || formRect.top < painelRect.top) {
+        const offset = form.offsetTop - painel.offsetTop;
+        painel.scrollTo({
+          top: Math.max(0, offset - 10),
+          behavior: 'smooth'
+        });
+      }
+    }, 50);
+  };
+
   /** Abre o formulário de qualificação completa preenchido com os dados do confrontante */
   const abrirEdicaoConfrontante = (confId: string) => {
     const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement | null;
@@ -326,9 +351,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const form = document.getElementById('container-form-confrontante');
     if (form) {
       form.classList.remove('hidden');
-      setTimeout(() => {
-        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 80);
+      ajustarVisibilidadeFormulario(form);
     }
   };
 
@@ -1711,7 +1734,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       initIcons();
 
       setTimeout(() => {
-        containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        ajustarVisibilidadeFormulario(containerForm);
         (document.getElementById('input-conf-nome') as any)?.focus?.();
       }, 100);
     };
@@ -1776,9 +1799,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             configurarMaquinadeEstadosCivil(containerForm);
             renderizarStatusAnexoMatricula(selectedConf);
             initIcons();
-            setTimeout(() => {
-              containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 60);
+            ajustarVisibilidadeFormulario(containerForm);
           }
         } catch (err) {
           console.error("Erro ao carregar qualificacoes do confrontante:", err);
