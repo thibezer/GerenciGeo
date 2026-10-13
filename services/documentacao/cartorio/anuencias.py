@@ -16,7 +16,7 @@ def gerar_declaracao_anuencia_html(
     retornar_map_data: bool = False
 ) -> str | tuple[str, dict]:
     dados = dados_comuns if dados_comuns is not None else obter_dados_comuns(lev_id, matricula_id)
-    nome_lote = dados.get("denominacoes_str") or dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
+    nome_lote = (dados["prop"].get("nome_propriedade") or dados["mat"].get("denominacao")) if dados.get("is_unificada") else (dados["mat"].get("denominacao") or dados["prop"].get("nome_propriedade"))
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"]).upper()
     proprietarios_list = []
     for o in dados["owners"]:
@@ -659,7 +659,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
     dados = obter_dados_comuns(lev_id, matricula_id)
     mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
     num_matricula_exibicao = dados.get("numeros_matricula_str") or str(dados["mat"].get("numero_matricula") or "")
-    nome_lote = dados.get("denominacoes_str") or dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
+    nome_lote = (dados["prop"].get("nome_propriedade") or dados["mat"].get("denominacao")) if dados.get("is_unificada") else (dados["mat"].get("denominacao") or dados["prop"].get("nome_propriedade"))
 
     # 2. Obter dados cadastrais do confrontante
     row_conf = execute_query(
