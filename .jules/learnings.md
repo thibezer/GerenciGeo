@@ -606,3 +606,16 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   1. **Cabeçalho Sticky**: A classe `.ribbon-master-container` deve utilizar `position: sticky; top: 0;` para blindagem contra movimentação indevida de viewport.
   2. **Rolagem Restrita ao Container**: Nunca chamar `element.scrollIntoView({ block: 'start' })` em sub-painéis internos. Em vez disso, manipular diretamente a propriedade `scrollTop` do container com scroll (`painel.scrollTo({ top, behavior: 'smooth' })`) e garantir `if (window.scrollY !== 0) window.scrollTo(0, 0)`.
 
+---
+
+## 38. Vínculo Manual de Glebas Unificadas e Identificação de Lote em Confrontantes
+- **Contexto e Problema**:
+  1. **Vínculo Manual de Desenho**: Embora o backend e o importador ODS suportassem glebas unificadas (`matricula_origem_desenho_id`), o formulário de cadastro e edição de matrículas na tela de Propriedades não possuía seletor para vincular ou desvincular o desenho territorial manualmente.
+  2. **Campo de Lote no Confrontante**: Na qualificação de confrontantes de imóveis rurais e loteamentos contíguos, a indicação apenas da matrícula era insuficiente perante o cartório quando o imóvel confrontante também se subdividia em lotes (ex: Lote nº 6-B). Faltava uma coluna dedicada `lote` na tabela `confrontantes` e seu respectivo campo visual nos formulários e peças cartoriais.
+- **Regras Obrigatórias**:
+  1. **Seletor de Origem de Desenho**: O formulário de matrículas em `propriedades.ts` deve sempre renderizar o campo `#select-new-mat-origem-desenho`, populando-o com as demais matrículas da mesma propriedade (excluindo a própria matrícula sendo editada para evitar autorreferência cíclica). O payload deve enviar `matricula_origem_desenho_id: int | null`.
+  2. **Campo Lote na Entidade Confrontante**: A tabela `confrontantes` possui a coluna `lote TEXT`. As consultas e rotas (`/confrontantes`, `/resumo-confrontantes`, `/confrontantes-ativos`, `/preview-divisa`) devem trafegar o campo `lote`.
+  3. **Acesso Seguro em Objetos `sqlite3.Row`**: Em consultas com driver SQLite retornando `sqlite3.Row`, o acesso a colunas deve ser feito por índice/chave direta (`r["lote"]`) e nunca por `.get("lote")`, pois o tipo `sqlite3.Row` não implementa o método de dicionário `.get()`.
+  4. **Qualificação Conjunta de Lote e Matrícula nas Peças**: Quando o confrontante tiver lote e matrícula informados, a declaração de anuência e o anexo gráfico devem qualificá-lo harmoniosamente (ex: `denominada Lote nº 6-B, registrada sob a Matrícula nº 12345`).
+
+
