@@ -266,18 +266,19 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                 <div class="text-xs font-semibold leading-snug break-words">${escapeHtml(c.nome)}</div>
                 <div class="text-[10px] text-white/40 leading-snug">
                   ${c.matricula_imovel ? `Mat. ${escapeHtml(c.matricula_imovel)} · ` : ''}${c.qtd_divisas} divisa${c.qtd_divisas === 1 ? '' : 's'} · ${fmtMetros(c.comprimento_m)}
-                  ${incompletoCadastro ? ' · <span class="text-amber-300/80">sem CPF/CNPJ</span>' : ''}
+                  ${incompletoCadastro ? ` · <span class="link-conf-completar text-amber-300 hover:text-amber-200 underline cursor-pointer" data-id="${c.id}" title="Completar qualificação (sem CPF/CNPJ)">sem CPF/CNPJ</span>` : ''}
                 </div>
               </button>
             </div>
-            <div class="flex items-center gap-2 pl-5">
+            <div class="flex items-center gap-1.5 pl-5 flex-wrap">
               <label class="flex items-center gap-1 text-[10px] ${completo ? 'text-emerald-300' : 'text-white/40'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
                 <input type="checkbox" class="chk-conf-assinada accent-emerald-400" data-id="${c.id}" ${completo ? 'checked' : ''} />
                 Assinada
               </label>
               <span class="flex-1"></span>
-              <button type="button" class="btn-conf-ver inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-blue-500/20 text-blue-400 hover:bg-blue-500/10" data-id="${c.id}" title="Ver trecho no mapa"><i data-lucide="eye" class="w-3.5 h-3.5"></i>Trecho</button>
-              <button type="button" class="btn-conf-gerar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-mint-vibrant/25 text-mint-vibrant hover:bg-mint-vibrant/10" data-id="${c.id}" title="Gerar anuência"><i data-lucide="file-down" class="w-3.5 h-3.5"></i>Gerar</button>
+              <button type="button" class="btn-conf-editar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-white/10 text-white/80 hover:text-white hover:bg-white/10 hover:border-mint-vibrant/40 transition-all active:scale-95" data-id="${c.id}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3 text-mint-vibrant"></i>Editar</button>
+              <button type="button" class="btn-conf-ver inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 transition-all active:scale-95" data-id="${c.id}" title="Ver trecho no mapa"><i data-lucide="eye" class="w-3 h-3"></i>Trecho</button>
+              <button type="button" class="btn-conf-gerar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-mint-vibrant/25 text-mint-vibrant hover:bg-mint-vibrant/10 transition-all active:scale-95" data-id="${c.id}" title="Gerar anuência"><i data-lucide="file-down" class="w-3 h-3"></i>Gerar</button>
             </div>
           </div>
           ${aberto ? `
@@ -309,6 +310,26 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
     renderResumoConfrontantes();
     atualizarCamadaMapa();
+  };
+
+  /** Abre o formulário de qualificação completa preenchido com os dados do confrontante */
+  const abrirEdicaoConfrontante = (confId: string) => {
+    const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement | null;
+    if (!select) return;
+    if (![...select.options].some(o => o.value === confId)) {
+      const opt = document.createElement('option');
+      opt.value = confId;
+      select.appendChild(opt);
+    }
+    select.value = confId;
+    select.dispatchEvent(new Event('change'));
+    const form = document.getElementById('container-form-confrontante');
+    if (form) {
+      form.classList.remove('hidden');
+      setTimeout(() => {
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    }
   };
 
   /** Aciona os handlers existentes (geração/pré-visualização) escolhendo o confrontante no select oculto. */
@@ -344,7 +365,13 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     lista.addEventListener('click', (e) => {
       const alvo = e.target as HTMLElement;
       const btn = alvo.closest('button') as HTMLButtonElement | null;
-      if (!btn) return;
+      if (!btn) {
+        const linkIncompleto = alvo.closest('.link-conf-completar') as HTMLElement | null;
+        if (linkIncompleto && linkIncompleto.dataset.id) {
+          abrirEdicaoConfrontante(linkIncompleto.dataset.id);
+        }
+        return;
+      }
       const id = btn.dataset.id || '';
 
       if (btn.classList.contains('btn-conf-expandir')) {
@@ -353,6 +380,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         renderResumoConfrontantes();
       } else if (btn.classList.contains('btn-conf-focar')) {
         camadaConf.focar(Number(id));
+      } else if (btn.classList.contains('btn-conf-editar')) {
+        abrirEdicaoConfrontante(id);
       } else if (btn.classList.contains('btn-conf-ver')) {
         acionarAnuencia(id, 'btn-preview-anuencia');
       } else if (btn.classList.contains('btn-conf-gerar')) {
@@ -1682,6 +1711,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       initIcons();
 
       setTimeout(() => {
+        containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
         (document.getElementById('input-conf-nome') as any)?.focus?.();
       }, 100);
     };
@@ -1746,6 +1776,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             configurarMaquinadeEstadosCivil(containerForm);
             renderizarStatusAnexoMatricula(selectedConf);
             initIcons();
+            setTimeout(() => {
+              containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 60);
           }
         } catch (err) {
           console.error("Erro ao carregar qualificacoes do confrontante:", err);
