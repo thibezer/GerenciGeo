@@ -574,5 +574,13 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   2. **Persistência de Matrícula Ativa**: A Mesa de Trabalho deve salvar e restaurar a matrícula selecionada em `localStorage.getItem('ultima_matricula_lev_' + ctx.currentLevId)`. Se não houver matrícula salva, selecionar prioritariamente a que possui segmentos.
   3. **Suporte a Glebas Unificadas**: Matrículas que apontam para uma gleba unificada (`matricula_origem_desenho_id`) devem utilizar os segmentos da matrícula de origem para exibição do perímetro.
 
+---
 
-
+## 35. Acesso e Edição da Qualificação de Confrontantes em Peças de Cartório
+- **Contexto e Problema**:
+  1. Durante a reformulação visual do módulo de "Peças de Cartório" para cards modernos, o antigo `<select id="select-confrontante-anuencia">` foi colocado em segundo plano (`hidden`).
+  2. Na nova lista do card "Confrontantes", foram adicionados apenas os botões de ação ("Trecho", "Gerar" e checkbox "Assinada"), além do botão "+ Novo" no topo.
+  3. Faltava um gatilho direto para abrir e editar a qualificação completa de confrontantes existentes (CPF, RG, Cônjuge, Regime de Bens, Matrícula Vizinha e Anexo PDF), impedindo o usuário de alterar cadastros já vinculados.
+- **Regras Obrigatórias**:
+  1. **Ação de Edição na Lista**: Cada item da lista de confrontantes em `renderResumoConfrontantes` deve conter o botão `btn-conf-editar` e o texto clicável `link-conf-completar` (quando `incompletoCadastro`), invocando `abrirEdicaoConfrontante(confId)`.
+  2. **Rolagem Automática e Foco**: A função `abrirEdicaoConfrontante` e o botão "+ Novo" (`btn-novo-confrontante-cartorio`) devem remover a classe `hidden` de `container-form-confrontante` e executar `containerForm.scrollIntoView({ behavior: 'smooth', block: 'start' })`, garantindo que o usuário veja imediatamente o formulário aberto para preenchimento.
