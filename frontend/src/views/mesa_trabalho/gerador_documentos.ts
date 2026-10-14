@@ -1707,6 +1707,280 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const inputCpfConjuge = document.getElementById('input-conf-conjuge-cpf') as any;
     const fileInputMatricula = document.getElementById('file-matricula-conf') as HTMLInputElement;
     const statusBuscaCpf = document.getElementById('status-busca-cpf') as HTMLElement;
+    const containerCoproprietarios = document.getElementById('lista-coproprietarios-container');
+    const btnAddCoprop = document.getElementById('btn-adicionar-coproprietario');
+
+    let coproprietariosAtuais: any[] = [];
+
+    const renderizarCardsCoproprietarios = () => {
+      if (!containerCoproprietarios) return;
+      if (coproprietariosAtuais.length === 0) {
+        containerCoproprietarios.innerHTML = `
+          <div class="py-3 px-4 rounded-technical border border-dashed border-white/10 text-center text-[11px] text-white/40">
+             Nenhum coproprietário adicional cadastrado. <span class="text-white/60">Apenas o titular acima assinará a anuência (conforme Art. 213, § 10 da Lei 6.015/73).</span>
+          </div>
+        `;
+        return;
+      }
+
+      containerCoproprietarios.innerHTML = coproprietariosAtuais.map((cp, idx) => {
+        const estCiv = (cp.estado_civil || 'solteiro').toLowerCase();
+        const casado = estCiv.includes('casad') || estCiv.includes('estav') || estCiv.includes('estáv') || estCiv === 'uniao_estavel';
+        const cpfFmt = cp.cpf_cnpj ? formatarCpfCnpjDinamico(cp.cpf_cnpj) : '';
+        const cpfConjFmt = cp.cpf_conjuge ? formatarCpfCnpjDinamico(cp.cpf_conjuge) : '';
+        
+        return `
+          <div class="card-coproprietario p-3.5 bg-white/[0.015] border border-white/10 rounded-technical space-y-3 relative group" data-idx="${idx}">
+             <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                <div class="flex items-center gap-2">
+                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/5 border border-white/10 text-mint-vibrant">
+                      Coproprietário #${idx + 1}
+                   </span>
+                   <span class="text-[10px] text-white/40">Condômino da matrícula lindeira</span>
+                </div>
+                <button type="button" class="btn-remover-coprop text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded transition-all cursor-pointer" data-idx="${idx}" title="Remover coproprietário">
+                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+             </div>
+             
+             <!-- Linha 1: CPF, Nome, RG -->
+             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                <div class="col-span-1">
+                   <div class="flex justify-between items-center mb-1">
+                      <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF / CNPJ</label>
+                      <span class="status-coprop-cpf text-[10px] text-mint-vibrant font-medium hidden" data-idx="${idx}"></span>
+                   </div>
+                   <ui-campo-texto type="text" class="input-coprop-cpf w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfFmt)}"></ui-campo-texto>
+                </div>
+                <div class="col-span-1 sm:col-span-2 lg:col-span-2">
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome Completo *</label>
+                   <ui-campo-texto type="text" class="input-coprop-nome w-full" data-field="nome" data-idx="${idx}" placeholder="Nome do coproprietário" value="${escapeHtml(cp.nome || '')}" required></ui-campo-texto>
+                </div>
+                <div class="col-span-1">
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG / Órgão</label>
+                   <ui-campo-texto type="text" class="input-coprop-rg w-full" data-field="rg" data-idx="${idx}" placeholder="RG" value="${escapeHtml(cp.rg || '')}"></ui-campo-texto>
+                </div>
+             </div>
+
+             <!-- Linha 2: Gênero, Nacionalidade, Profissão, Estado Civil -->
+             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                <div>
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                   <ui-lista-flutuante class="select-coprop-genero w-full" data-field="genero" data-idx="${idx}">
+                      <option value="M" ${cp.genero === 'M' || !cp.genero ? 'selected' : ''}>Homem</option>
+                      <option value="F" ${cp.genero === 'F' ? 'selected' : ''}>Mulher</option>
+                   </ui-lista-flutuante>
+                </div>
+                <div>
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                   <ui-campo-texto type="text" class="input-coprop-nacionalidade w-full" data-field="nacionalidade" data-idx="${idx}" placeholder="brasileiro(a)" value="${escapeHtml(cp.nacionalidade || 'brasileiro(a)')}"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão</label>
+                   <ui-campo-texto type="text" class="input-coprop-profissao w-full" data-field="profissao" data-idx="${idx}" placeholder="Profissão" value="${escapeHtml(cp.profissao || '')}"></ui-campo-texto>
+                </div>
+                <div>
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
+                   <ui-lista-flutuante class="select-coprop-estado-civil w-full" data-field="estado_civil" data-idx="${idx}">
+                      <option value="solteiro" ${estCiv === 'solteiro' ? 'selected' : ''}>Solteiro(a)</option>
+                      <option value="casado" ${estCiv === 'casado' ? 'selected' : ''}>Casado(a)</option>
+                      <option value="uniao_estavel" ${estCiv === 'uniao_estavel' ? 'selected' : ''}>União Estável</option>
+                      <option value="divorciado" ${estCiv === 'divorciado' ? 'selected' : ''}>Divorciado(a)</option>
+                      <option value="viuvo" ${estCiv === 'viuvo' ? 'selected' : ''}>Viúvo(a)</option>
+                   </ui-lista-flutuante>
+                </div>
+             </div>
+
+             <!-- Linha 3: Regime de Bens e Endereço -->
+             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                <div class="col-span-1">
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
+                   <ui-lista-flutuante class="select-coprop-regime w-full" data-field="regime_bens" data-idx="${idx}" ${!casado ? 'disabled' : ''}>
+                      <option value="" ${!cp.regime_bens ? 'selected' : ''}>Não se aplica</option>
+                      <option value="comunhao_parcial" ${cp.regime_bens === 'comunhao_parcial' ? 'selected' : ''}>Comunhão Parcial</option>
+                      <option value="comunhao_universal" ${cp.regime_bens === 'comunhao_universal' ? 'selected' : ''}>Comunhão Universal</option>
+                      <option value="separacao_total" ${cp.regime_bens === 'separacao_total' ? 'selected' : ''}>Separação Total</option>
+                      <option value="participacao_final" ${cp.regime_bens === 'participacao_final' ? 'selected' : ''}>Participação Final nos Aquestos</option>
+                   </ui-lista-flutuante>
+                </div>
+                <div class="col-span-1 sm:col-span-2 lg:col-span-3">
+                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço de Domicílio</label>
+                   <ui-campo-texto type="text" class="input-coprop-endereco w-full" data-field="endereco_completo" data-idx="${idx}" placeholder="Deixe em branco para usar o mesmo do titular" value="${escapeHtml(cp.endereco_completo || '')}"></ui-campo-texto>
+                </div>
+             </div>
+
+             <!-- Bloco Cônjuge do Coproprietário -->
+             <div class="box-coprop-conjuge p-3 bg-white/[0.02] border border-white/5 rounded-technical space-y-2.5 ${casado ? '' : 'hidden'}" data-idx="${idx}">
+                <div class="flex items-center gap-1.5 border-b border-white/5 pb-1.5">
+                   <i data-lucide="users" class="w-3 h-3 text-mint-vibrant"></i>
+                   <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Cônjuge do Coproprietário</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                   <div class="col-span-1 sm:col-span-2 lg:col-span-2">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Cônjuge</label>
+                      <ui-campo-texto type="text" class="w-full" data-field="nome_conjuge" data-idx="${idx}" placeholder="Nome completo" value="${escapeHtml(cp.nome_conjuge || '')}"></ui-campo-texto>
+                   </div>
+                   <div class="col-span-1">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF do Cônjuge</label>
+                      <ui-campo-texto type="text" class="input-coprop-cpf-conjuge w-full" data-field="cpf_conjuge" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfConjFmt)}"></ui-campo-texto>
+                   </div>
+                   <div class="col-span-1">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">RG do Cônjuge</label>
+                      <ui-campo-texto type="text" class="w-full" data-field="rg_conjuge" data-idx="${idx}" placeholder="RG" value="${escapeHtml(cp.rg_conjuge || '')}"></ui-campo-texto>
+                   </div>
+                   <div class="col-span-1">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                      <ui-lista-flutuante class="w-full" data-field="genero_conjuge" data-idx="${idx}">
+                         <option value="F" ${cp.genero_conjuge === 'F' || !cp.genero_conjuge ? 'selected' : ''}>Mulher</option>
+                         <option value="M" ${cp.genero_conjuge === 'M' ? 'selected' : ''}>Homem</option>
+                      </ui-lista-flutuante>
+                   </div>
+                   <div class="col-span-1">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                      <ui-campo-texto type="text" class="w-full" data-field="nacionalidade_conjuge" data-idx="${idx}" placeholder="brasileiro(a)" value="${escapeHtml(cp.nacionalidade_conjuge || 'brasileiro(a)')}"></ui-campo-texto>
+                   </div>
+                   <div class="col-span-1 sm:col-span-2 lg:col-span-2">
+                      <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão do Cônjuge</label>
+                      <ui-campo-texto type="text" class="w-full" data-field="profissao_conjuge" data-idx="${idx}" placeholder="Profissão" value="${escapeHtml(cp.profissao_conjuge || '')}"></ui-campo-texto>
+                   </div>
+                </div>
+             </div>
+          </div>
+        `;
+      }).join('');
+
+      initIcons();
+      vincularEventosCardsCoproprietarios();
+    };
+
+    const vincularEventosCardsCoproprietarios = () => {
+      if (!containerCoproprietarios) return;
+
+      containerCoproprietarios.querySelectorAll('.btn-remover-coprop').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = Number((e.currentTarget as HTMLElement).dataset.idx);
+          if (!isNaN(idx) && idx >= 0 && idx < coproprietariosAtuais.length) {
+            coproprietariosAtuais.splice(idx, 1);
+            renderizarCardsCoproprietarios();
+          }
+        });
+      });
+
+      containerCoproprietarios.querySelectorAll('[data-field]').forEach(input => {
+        const handler = (e: any) => {
+          const idx = Number(input.getAttribute('data-idx'));
+          const field = input.getAttribute('data-field');
+          if (isNaN(idx) || !field || !coproprietariosAtuais[idx]) return;
+          coproprietariosAtuais[idx][field] = e.target.value;
+          
+          if (field === 'estado_civil') {
+            const val = normalizarEstadoCivil(e.target.value);
+            coproprietariosAtuais[idx].estado_civil = val;
+            const casado = val.includes('casad') || val.includes('estav') || val.includes('estáv') || val === 'uniao_estavel';
+            const card = containerCoproprietarios.querySelector(`.card-coproprietario[data-idx="${idx}"]`);
+            const boxConj = card?.querySelector('.box-coprop-conjuge');
+            const selectReg = card?.querySelector('.select-coprop-regime') as any;
+            if (boxConj) {
+              if (casado) boxConj.classList.remove('hidden');
+              else boxConj.classList.add('hidden');
+            }
+            if (selectReg) {
+              if (casado) selectReg.removeAttribute('disabled');
+              else {
+                selectReg.setAttribute('disabled', '');
+                selectReg.value = '';
+                coproprietariosAtuais[idx].regime_bens = '';
+              }
+            }
+          }
+        };
+
+        input.addEventListener('input', handler);
+        input.addEventListener('change', handler);
+        input.addEventListener('ui-selecionar', handler);
+      });
+
+      containerCoproprietarios.querySelectorAll('.input-coprop-cpf').forEach(input => {
+        const idx = Number(input.getAttribute('data-idx'));
+        const statusEl = containerCoproprietarios.querySelector(`.status-coprop-cpf[data-idx="${idx}"]`) as HTMLElement;
+
+        const buscarCpf = async (val: string) => {
+          if (!val) return;
+          const limpo = val.replace(/\D/g, '');
+          if (limpo.length !== 11 && limpo.length !== 14) return;
+          if (statusEl) {
+            statusEl.innerText = 'Buscando...';
+            statusEl.classList.remove('hidden');
+          }
+          try {
+            const res = await fetch(`${API_BASE}/confrontantes/buscar-por-cpf?cpf=${encodeURIComponent(limpo)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.nome && coproprietariosAtuais[idx]) {
+                coproprietariosAtuais[idx].nome = data.nome || '';
+                coproprietariosAtuais[idx].rg = data.rg || '';
+                coproprietariosAtuais[idx].genero = data.genero || 'M';
+                coproprietariosAtuais[idx].nacionalidade = data.nacionalidade || 'brasileiro(a)';
+                coproprietariosAtuais[idx].profissao = data.profissao || '';
+                coproprietariosAtuais[idx].estado_civil = normalizarEstadoCivil(data.estado_civil);
+                coproprietariosAtuais[idx].regime_bens = normalizarRegimeBens(data.regime_bens);
+                coproprietariosAtuais[idx].nome_conjuge = data.nome_conjuge || '';
+                coproprietariosAtuais[idx].cpf_conjuge = data.cpf_conjuge || '';
+                coproprietariosAtuais[idx].rg_conjuge = data.rg_conjuge || '';
+                coproprietariosAtuais[idx].genero_conjuge = data.genero_conjuge || 'F';
+                coproprietariosAtuais[idx].nacionalidade_conjuge = data.nacionalidade_conjuge || 'brasileiro(a)';
+                coproprietariosAtuais[idx].profissao_conjuge = data.profissao_conjuge || '';
+                coproprietariosAtuais[idx].endereco_completo = data.endereco_completo || '';
+                renderizarCardsCoproprietarios();
+                showToast("✨ Dados do coproprietário preenchidos automaticamente!", "success");
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          } finally {
+            if (statusEl) statusEl.classList.add('hidden');
+          }
+        };
+
+        input.addEventListener('input', (e: any) => {
+          e.target.value = formatarCpfCnpjDinamico(e.target.value);
+          const limpo = e.target.value.replace(/\D/g, '');
+          if (limpo.length === 11 || limpo.length === 14) {
+            buscarCpf(e.target.value);
+          }
+        });
+        input.addEventListener('blur', (e: any) => {
+          buscarCpf(e.target.value);
+        });
+      });
+    };
+
+    if (btnAddCoprop) {
+      btnAddCoprop.onclick = () => {
+        coproprietariosAtuais.push({
+          nome: '',
+          cpf_cnpj: '',
+          rg: '',
+          genero: 'M',
+          nacionalidade: 'brasileiro(a)',
+          profissao: '',
+          estado_civil: 'solteiro',
+          regime_bens: '',
+          nome_conjuge: '',
+          cpf_conjuge: '',
+          rg_conjuge: '',
+          genero_conjuge: 'F',
+          nacionalidade_conjuge: 'brasileiro(a)',
+          profissao_conjuge: '',
+          endereco_completo: ''
+        });
+        renderizarCardsCoproprietarios();
+        setTimeout(() => {
+          const ultimoNome = containerCoproprietarios?.querySelector(`.card-coproprietario[data-idx="${coproprietariosAtuais.length - 1}"] .input-coprop-nome`) as any;
+          ultimoNome?.focus?.();
+        }, 50);
+      };
+    }
 
     const abrirFormularioNovoConfrontante = () => {
       if (!containerForm) return;
@@ -1739,6 +2013,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       (document.getElementById('input-conf-matricula-imovel') as any).value = '';
 
       configurarMaquinadeEstadosCivil(containerForm);
+      coproprietariosAtuais = [];
+      renderizarCardsCoproprietarios();
       renderizarStatusAnexoMatricula(null);
       initIcons();
 
@@ -1807,6 +2083,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('input-conf-matricula-imovel') as any).value = selectedConf.matricula_imovel || '';
             
             configurarMaquinadeEstadosCivil(containerForm);
+            coproprietariosAtuais = (selectedConf.coproprietarios && Array.isArray(selectedConf.coproprietarios)) 
+              ? JSON.parse(JSON.stringify(selectedConf.coproprietarios)) 
+              : [];
+            renderizarCardsCoproprietarios();
             renderizarStatusAnexoMatricula(selectedConf);
             initIcons();
             ajustarVisibilidadeFormulario(containerForm);
@@ -1922,7 +2202,26 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         endereco_completo: (document.getElementById('input-conf-endereco') as any)?.value?.trim() || null,
         lote: (document.getElementById('input-conf-lote') as any)?.value?.trim() || null,
         matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as any)?.value?.trim() || null,
-        tipo_relacao: null
+        tipo_relacao: null,
+        coproprietarios: coproprietariosAtuais
+          .map(cp => ({
+            nome: (cp.nome || '').trim(),
+            cpf_cnpj: (cp.cpf_cnpj || '').trim() || null,
+            rg: (cp.rg || '').trim() || null,
+            genero: cp.genero || 'M',
+            nacionalidade: (cp.nacionalidade || '').trim() || 'brasileiro(a)',
+            profissao: (cp.profissao || '').trim() || null,
+            estado_civil: cp.estado_civil || 'solteiro',
+            regime_bens: cp.regime_bens || null,
+            nome_conjuge: (cp.nome_conjuge || '').trim() || null,
+            cpf_conjuge: (cp.cpf_conjuge || '').trim() || null,
+            rg_conjuge: (cp.rg_conjuge || '').trim() || null,
+            genero_conjuge: cp.genero_conjuge || 'F',
+            nacionalidade_conjuge: (cp.nacionalidade_conjuge || '').trim() || 'brasileiro(a)',
+            profissao_conjuge: (cp.profissao_conjuge || '').trim() || null,
+            endereco_completo: (cp.endereco_completo || '').trim() || null
+          }))
+          .filter(cp => cp.nome.length > 0)
       };
 
       if (btnSalvarConf) {

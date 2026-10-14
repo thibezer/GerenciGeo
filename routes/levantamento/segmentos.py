@@ -5,7 +5,7 @@ import json
 import logging
 import zipfile
 import xml.etree.ElementTree as ET
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -26,6 +26,24 @@ from utils.geodesia_parser import (
 router = APIRouter(tags=["Confrontantes & Segmentos"])
 
 # ── Modelos ────────────────────────────────────────────────────────────────────
+
+class CoproprietarioCreate(BaseModel):
+    id: Optional[int] = None
+    nome: str
+    cpf_cnpj: Optional[str] = None
+    rg: Optional[str] = None
+    genero: Optional[str] = 'M'
+    nacionalidade: Optional[str] = 'brasileiro(a)'
+    profissao: Optional[str] = None
+    estado_civil: Optional[str] = None
+    regime_bens: Optional[str] = None
+    endereco_completo: Optional[str] = None
+    nome_conjuge: Optional[str] = None
+    cpf_conjuge: Optional[str] = None
+    rg_conjuge: Optional[str] = None
+    genero_conjuge: Optional[str] = 'F'
+    nacionalidade_conjuge: Optional[str] = 'brasileiro(a)'
+    profissao_conjuge: Optional[str] = None
 
 class ConfrontanteCreate(BaseModel):
     nome: str
@@ -49,6 +67,70 @@ class ConfrontanteCreate(BaseModel):
     nome_propriedade: Optional[str] = None
     codigo_incra_imovel: Optional[str] = None
     lote: Optional[str] = None
+    coproprietarios: Optional[List[CoproprietarioCreate]] = []
+
+def salvar_coproprietarios_transacao(cursor, confrontante_id: int, coproprietarios: list):
+    cursor.execute("DELETE FROM confrontante_coproprietarios WHERE confrontante_id = ?", (confrontante_id,))
+    lista_json = []
+    for cp in (coproprietarios or []):
+        cp_dict = cp.model_dump() if hasattr(cp, 'model_dump') else (cp.dict() if hasattr(cp, 'dict') else dict(cp))
+        nome_cp = (cp_dict.get("nome") or "").strip()
+        if not nome_cp:
+            continue
+        
+        cpf_cp_norm = cp_dict.get("cpf_cnpj") if (cp_dict.get("cpf_cnpj") and str(cp_dict.get("cpf_cnpj")).strip()) else None
+        cpf_cp_limpo = "".join(char for char in cpf_cp_norm if char.isdigit()) if cpf_cp_norm else ""
+        
+        pessoa_cp_id = None
+        if cpf_cp_limpo:
+            cursor.execute("SELECT id FROM pessoas WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?", (cpf_cp_limpo,))
+            row_cp_p = cursor.fetchone()
+            if row_cp_p:
+                pessoa_cp_id = row_cp_p[0]
+                cursor.execute("""
+                    UPDATE pessoas
+                    SET nome = ?, rg = ?, genero = ?, nacionalidade = ?, profissao = ?, estado_civil = ?,
+                        regime_bens = ?, endereco_completo = ?, nome_conjuge = ?,
+                        cpf_conjuge = ?, rg_conjuge = ?, genero_conjuge = ?,
+                        nacionalidade_conjuge = ?, profissao_conjuge = ?
+                    WHERE id = ?
+                """, (nome_cp, cp_dict.get("rg"), cp_dict.get("genero") or 'M', cp_dict.get("nacionalidade") or 'brasileiro(a)',
+                      cp_dict.get("profissao"), cp_dict.get("estado_civil"), cp_dict.get("regime_bens"),
+                      cp_dict.get("endereco_completo"), cp_dict.get("nome_conjuge"), cp_dict.get("cpf_conjuge"),
+                      cp_dict.get("rg_conjuge"), cp_dict.get("genero_conjuge") or 'F',
+                      cp_dict.get("nacionalidade_conjuge") or 'brasileiro(a)', cp_dict.get("profissao_conjuge"), pessoa_cp_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO pessoas (
+                        nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens,
+                        endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge,
+                        nacionalidade_conjuge, profissao_conjuge
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (nome_cp, cpf_cp_norm, cp_dict.get("rg"), cp_dict.get("genero") or 'M',
+                      cp_dict.get("nacionalidade") or 'brasileiro(a)', cp_dict.get("profissao"),
+                      cp_dict.get("estado_civil"), cp_dict.get("regime_bens"), cp_dict.get("endereco_completo"),
+                      cp_dict.get("nome_conjuge"), cp_dict.get("cpf_conjuge"), cp_dict.get("rg_conjuge"),
+                      cp_dict.get("genero_conjuge") or 'F', cp_dict.get("nacionalidade_conjuge") or 'brasileiro(a)',
+                      cp_dict.get("profissao_conjuge")))
+                pessoa_cp_id = cursor.lastrowid
+                
+        cursor.execute("""
+            INSERT INTO confrontante_coproprietarios (
+                confrontante_id, pessoa_id, nome, cpf_cnpj, rg, genero, nacionalidade, profissao,
+                estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
+                genero_conjuge, nacionalidade_conjuge, profissao_conjuge
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (confrontante_id, pessoa_cp_id, nome_cp, cpf_cp_norm, cp_dict.get("rg"),
+              cp_dict.get("genero") or 'M', cp_dict.get("nacionalidade") or 'brasileiro(a)',
+              cp_dict.get("profissao"), cp_dict.get("estado_civil"), cp_dict.get("regime_bens"),
+              cp_dict.get("endereco_completo"), cp_dict.get("nome_conjuge"), cp_dict.get("cpf_conjuge"),
+              cp_dict.get("rg_conjuge"), cp_dict.get("genero_conjuge") or 'F',
+              cp_dict.get("nacionalidade_conjuge") or 'brasileiro(a)', cp_dict.get("profissao_conjuge")))
+              
+        cp_dict["pessoa_id"] = pessoa_cp_id
+        lista_json.append(cp_dict)
+        
+    cursor.execute("UPDATE confrontantes SET coproprietarios_json = ? WHERE id = ?", (json.dumps(lista_json, ensure_ascii=False), confrontante_id))
 
 class SegmentoCreate(BaseModel):
     matricula_id: int
@@ -112,7 +194,13 @@ def buscar_confrontante_por_cpf(cpf: str):
         """
         row = execute_query(query, params=(cpf_limpo, cpf_limpo), fetch_one=True)
         if row:
-            return dict(row)
+            res = dict(row)
+            rows_cp = execute_query(
+                "SELECT * FROM confrontante_coproprietarios WHERE confrontante_id = ? ORDER BY id ASC",
+                params=(res["id"],), fetch_all=True
+            )
+            res["coproprietarios"] = [dict(cp) for cp in rows_cp]
+            return res
             
         # Se não achou na relação de confrontantes, busca apenas em pessoas para autopreencher
         query_pessoa = """
@@ -161,7 +249,15 @@ def get_confrontantes(id: int):
             WHERE c.levantamento_id = ?
             ORDER BY c.id ASC
         """
-        return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        confrontantes = [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        for conf in confrontantes:
+            cid = conf["id"]
+            rows_cp = execute_query(
+                "SELECT * FROM confrontante_coproprietarios WHERE confrontante_id = ? ORDER BY id ASC",
+                params=(cid,), fetch_all=True
+            )
+            conf["coproprietarios"] = [dict(cp) for cp in rows_cp]
+        return confrontantes
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -220,6 +316,10 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
                   c.nome_propriedade, c.codigo_incra_imovel, c.lote))
             confrontante_id = cursor.lastrowid
+            
+            if c.coproprietarios:
+                salvar_coproprietarios_transacao(cursor, confrontante_id, c.coproprietarios)
+
             conn.commit()
             
         return {
@@ -326,6 +426,9 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
                   c.nome_propriedade, c.codigo_incra_imovel, c.lote, cid))
             
+            if c.coproprietarios is not None:
+                salvar_coproprietarios_transacao(cursor, cid, c.coproprietarios)
+
             conn.commit()
 
         return {

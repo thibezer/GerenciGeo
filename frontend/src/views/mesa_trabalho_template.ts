@@ -719,6 +719,30 @@ export const renderMesaTrabalho = (): string => {
                             </div>
                          </div>
                          
+                         <!-- Bloco 4.1: Condomínio / Coproprietários do Imóvel Confrontante (Opcional) -->
+                         <div class="p-4 bg-white/[0.02] border border-white/10 rounded-technical space-y-3" id="box-coproprietarios">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                               <div class="flex items-center gap-2">
+                                  <div class="w-6 h-6 rounded bg-mint-vibrant/10 border border-mint-vibrant/30 flex items-center justify-center text-mint-vibrant">
+                                     <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                  </div>
+                                  <div>
+                                     <span class="text-[11px] font-bold uppercase tracking-wider text-white">Coproprietários / Condôminos da Área Vizinha</span>
+                                     <span class="text-[9px] text-white/40 block">Caso o imóvel lindeiro pertença a mais de um proprietário (Art. 213, § 10 da Lei 6.015/73)</span>
+                                  </div>
+                               </div>
+                               <button type="button" id="btn-adicionar-coproprietario" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-technical bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/20 transition-all cursor-pointer active:scale-95">
+                                  <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                                  Adicionar Coproprietário
+                               </button>
+                            </div>
+                            
+                            <!-- Lista dinâmica de Coproprietários -->
+                            <div id="lista-coproprietarios-container" class="space-y-3">
+                               <!-- Preenchido dinamicamente via JS -->
+                            </div>
+                         </div>
+                         
                          <!-- Upload de Matrícula PDF -->
                          <div class="p-3.5 bg-white/[0.02] border border-white/10 rounded-technical flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div class="flex-grow">

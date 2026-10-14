@@ -302,6 +302,29 @@ function ensureSchema(PDO $pdo): void {
             FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
+        "CREATE TABLE IF NOT EXISTS confrontante_coproprietarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            confrontante_id INT NOT NULL,
+            pessoa_id INT NULL,
+            nome VARCHAR(255) NOT NULL,
+            cpf_cnpj VARCHAR(32) NULL,
+            rg VARCHAR(32) NULL,
+            genero VARCHAR(10) DEFAULT 'M',
+            nacionalidade VARCHAR(100) DEFAULT 'brasileiro(a)',
+            profissao VARCHAR(150) NULL,
+            estado_civil VARCHAR(50) NULL,
+            regime_bens VARCHAR(100) NULL,
+            endereco_completo TEXT NULL,
+            nome_conjuge VARCHAR(255) NULL,
+            cpf_conjuge VARCHAR(32) NULL,
+            rg_conjuge VARCHAR(32) NULL,
+            genero_conjuge VARCHAR(10) DEFAULT 'F',
+            nacionalidade_conjuge VARCHAR(100) DEFAULT 'brasileiro(a)',
+            profissao_conjuge VARCHAR(150) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
         "CREATE TABLE IF NOT EXISTS pendencias (
             id INT AUTO_INCREMENT PRIMARY KEY,
             titulo VARCHAR(255) NOT NULL,
@@ -434,6 +457,7 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
     addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
+    addColumnSafe($pdo, 'confrontantes', 'coproprietarios_json', "LONGTEXT NULL");
     addColumnSafe($pdo, 'users', 'api_token', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'users', 'token_created_at', 'DATETIME NULL');
 

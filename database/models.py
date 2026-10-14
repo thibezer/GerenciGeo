@@ -271,9 +271,35 @@ def create_tables(conn):
             caminho_matricula_pdf TEXT,
             nome_propriedade TEXT,
             codigo_incra_imovel TEXT,
+            coproprietarios_json TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS confrontante_coproprietarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            confrontante_id INTEGER NOT NULL,
+            pessoa_id INTEGER,
+            nome TEXT NOT NULL,
+            cpf_cnpj TEXT,
+            rg TEXT,
+            genero TEXT DEFAULT 'M',
+            nacionalidade TEXT DEFAULT 'brasileiro(a)',
+            profissao TEXT,
+            estado_civil TEXT,
+            regime_bens TEXT,
+            endereco_completo TEXT,
+            nome_conjuge TEXT,
+            cpf_conjuge TEXT,
+            rg_conjuge TEXT,
+            genero_conjuge TEXT DEFAULT 'F',
+            nacionalidade_conjuge TEXT DEFAULT 'brasileiro(a)',
+            profissao_conjuge TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE CASCADE,
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL
         );
         """,
         """
@@ -698,7 +724,8 @@ def create_tables(conn):
             ("nome_propriedade", "TEXT"),
             ("codigo_incra_imovel", "TEXT"),
             ("poligono_wkt", "TEXT"),
-            ("confrontacoes_json", "TEXT")
+            ("confrontacoes_json", "TEXT"),
+            ("coproprietarios_json", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
@@ -1538,7 +1565,7 @@ def migrar_matricula_id_opcional_segmentos(conn):
 TABELAS_SINCRONIZAVEIS = [
     "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
     "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes",
-    "banco_pontos", "anuencias_confrontantes",
+    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios"
 ]
 
 _SQL_AGORA_UTC = "strftime('%Y-%m-%d %H:%M:%f','now')"

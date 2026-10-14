@@ -153,41 +153,99 @@ def gerar_declaracao_anuencia_html(
         
     c_nac = suf_nasc
 
-    if is_casado:
-        conj_n = obter_valor_ou_linha(conf.get("nome_conjuge"), 35)
-        conj_rg = obter_valor_ou_linha(formatar_rg(conf.get("rg_conjuge")), 15)
-        conj_cpf = obter_valor_ou_linha(formatar_cpf(conf.get("cpf_conjuge")), 18)
-        conj_prof = obter_valor_ou_linha(conf.get("profissao_conjuge") or "Profissão Não Informada", 25)
-        conj_nac_raw = conf.get("nacionalidade_conjuge") or "brasileiro(a)"
-        gen_conjuge = conf.get("genero_conjuge") or ("F" if genero == "M" else "M")
+    # Carregar coproprietários extras vinculados a este confrontante (Condomínio da divisa)
+    rows_coprop = execute_query(
+        "SELECT * FROM confrontante_coproprietarios WHERE confrontante_id = ? ORDER BY id ASC",
+        params=(confrontante_id,),
+        fetch_all=True
+    )
+    coproprietarios = [dict(cp) for cp in rows_coprop] if rows_coprop else []
+
+    def formatar_pessoa_qualificacao(p_dict, is_coproprietario=False):
+        p_nome = obter_valor_ou_linha(p_dict.get("nome"), 35)
+        p_cpf = obter_valor_ou_linha(formatar_cpf(p_dict.get("cpf_cnpj")), 18)
+        p_rg = obter_valor_ou_linha(formatar_rg(p_dict.get("rg")), 15)
+        p_nac = obter_valor_ou_linha(p_dict.get("nacionalidade") or "brasileiro(a)", 18)
+        p_prof = obter_valor_ou_linha(p_dict.get("profissao"), 20)
+        p_est_civil = str(p_dict.get("estado_civil") or "").strip()
+        p_domicilio = obter_valor_ou_linha(p_dict.get("endereco_completo") or c_domicilio, 50)
         
-        if genero == "M" and gen_conjuge == "F":
-            conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ele portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, ela portadora da cédula de identidade RG nº {conj_rg} e inscrita no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
-        elif genero == "F" and gen_conjuge == "M":
-            conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ela portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, ele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}, ambos residentes e domiciliados em {c_domicilio}'
-        elif genero == "M" and gen_conjuge == "M":
-            conj_nac = "brasileiro" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu esposo, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador da cédula de identidade RG nº {c_rg} e inscrito no CPF sob o nº {c_cpf}, e aquele portador da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
-        elif genero == "F" and gen_conjuge == "F":
-            conj_nac = "brasileira" if "brasileiro" in conj_nac_raw.lower() else conj_nac_raw
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e sua esposa, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac}, {conj_prof}, casados sob o regime de {regime}, ambas residentes e domiciliadas em {c_domicilio}, esta portadora da cédula de identidade RG nº {c_rg} e inscrita no CPF sob o nº {c_cpf}, e aquela portadora da cédula de identidade RG nº {conj_rg} e inscrito no CPF sob o nº {conj_cpf}'
+        e_civ = p_est_civil.lower()
+        p_regime_raw = str(p_dict.get("regime_bens") or "").strip()
+        p_regime = MAPA_REGIMES.get(p_regime_raw.lower(), p_regime_raw) if p_regime_raw else "Não Informado"
+        p_casado = "casad" in e_civ or "estável" in e_civ or "estavel" in e_civ or e_civ == "uniao_estavel"
+        
+        if p_casado and p_regime == "Não Informado":
+            rotulo_erro = f"O coproprietário '{p_nome}'" if is_coproprietario else f"O confrontante '{p_nome}'"
+            raise ValueError(f"{rotulo_erro} está qualificado como Casado ou União Estável, mas o Regime de Bens não foi informado. Por favor, edite e atualize a qualificação deste confrontante.")
+        
+        p_gen = str(p_dict.get("genero") or "M").upper()
+        if p_gen == "M":
+            p_suf_portador = "portador"
+            p_suf_inscrito = "inscrito"
+            p_suf_nasc = "brasileiro" if "brasileiro" in p_nac.lower() else p_nac
+        elif p_gen == "F":
+            p_suf_portador = "portadora"
+            p_suf_inscrito = "inscrita"
+            p_suf_nasc = "brasileira" if "brasileiro" in p_nac.lower() else p_nac
         else:
-            qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{conj_n}</strong>, {conj_nac_raw}, {conj_prof}, casados sob o regime de {regime}, ambos residentes e domiciliados em {c_domicilio}, este portador(a) da cédula de identidade RG nº {c_rg} e inscrito(a) no CPF sob o nº {c_cpf}, e aquele portador(a) da cédula de identidade RG nº {conj_rg} e inscrito(a) no CPF sob o nº {conj_cpf}'
-
-    else:
-        est_civil_desc = MAPA_ESTADO_CIVIL.get(e_civil, c_est_civil.lower() if '_' not in c_est_civil else c_est_civil)
-        if genero == "M":
-            est_civil_desc = est_civil_desc.replace("(a)", "").replace("viúvoo", "viúvo")
-        elif genero == "F":
-            est_civil_desc = est_civil_desc.replace("(a)", "a")
+            p_suf_portador = "portador(a)"
+            p_suf_inscrito = "inscrito(a)"
+            p_suf_nasc = p_nac
+            
+        p_nac = p_suf_nasc
         
-        casado_info = f", {est_civil_desc}"
-        
-        qualificacao_confrontante = f'<strong class="text-slate-900">{c_nome}</strong>, {c_nac}, {c_prof}{casado_info}, residente e domiciliado em {c_domicilio}, {suf_inscrito} no CPF/MF sob o nº {c_cpf} e {suf_portador} da cédula de identidade RG nº {c_rg}'
+        if p_casado:
+            p_conj_n = obter_valor_ou_linha(p_dict.get("nome_conjuge"), 35)
+            p_conj_rg = obter_valor_ou_linha(formatar_rg(p_dict.get("rg_conjuge")), 15)
+            p_conj_cpf = obter_valor_ou_linha(formatar_cpf(p_dict.get("cpf_conjuge")), 18)
+            p_conj_prof = obter_valor_ou_linha(p_dict.get("profissao_conjuge") or "Profissão Não Informada", 25)
+            p_conj_nac_raw = p_dict.get("nacionalidade_conjuge") or "brasileiro(a)"
+            p_gen_conjuge = p_dict.get("genero_conjuge") or ("F" if p_gen == "M" else "M")
+            
+            if p_gen == "M" and p_gen_conjuge == "F":
+                p_conj_nac = "brasileira" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e sua esposa, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ele portador da cédula de identidade RG nº {p_rg} e inscrito no CPF sob o nº {p_cpf}, ela portadora da cédula de identidade RG nº {p_conj_rg} e inscrita no CPF sob o nº {p_conj_cpf}, ambos residentes e domiciliados em {p_domicilio}'
+            elif p_gen == "F" and p_gen_conjuge == "M":
+                p_conj_nac = "brasileiro" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu esposo, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ela portadora da cédula de identidade RG nº {p_rg} e inscrita no CPF sob o nº {p_cpf}, ele portador da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}, ambos residentes e domiciliados em {p_domicilio}'
+            elif p_gen == "M" and p_gen_conjuge == "M":
+                p_conj_nac = "brasileiro" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu esposo, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ambos residentes e domiciliados em {p_domicilio}, este portador da cédula de identidade RG nº {p_rg} e inscrito no CPF sob o nº {p_cpf}, e aquele portador da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}'
+            elif p_gen == "F" and p_gen_conjuge == "F":
+                p_conj_nac = "brasileira" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e sua esposa, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ambas residentes e domiciliadas em {p_domicilio}, esta portadora da cédula de identidade RG nº {p_rg} e inscrita no CPF sob o nº {p_cpf}, e aquela portadora da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}'
+            else:
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac_raw}, {p_conj_prof}, casados sob o regime de {p_regime}, ambos residentes e domiciliados em {p_domicilio}, este portador(a) da cédula de identidade RG nº {p_rg} e inscrito(a) no CPF sob o nº {p_cpf}, e aquele portador(a) da cédula de identidade RG nº {p_conj_rg} e inscrito(a) no CPF sob o nº {p_conj_cpf}'
+        else:
+            est_civ_desc = MAPA_ESTADO_CIVIL.get(e_civ, p_est_civil.lower() if '_' not in p_est_civil else p_est_civil)
+            if p_gen == "M":
+                est_civ_desc = est_civ_desc.replace("(a)", "").replace("viúvoo", "viúvo")
+            elif p_gen == "F":
+                est_civ_desc = est_civ_desc.replace("(a)", "a")
+            casado_info = f", {est_civ_desc}"
+            qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}{casado_info}, residente e domiciliado em {p_domicilio}, {p_suf_inscrito} no CPF/MF sob o nº {p_cpf} e {p_suf_portador} da cédula de identidade RG nº {p_rg}'
+            
+        return qualif, p_casado
 
-    plural = is_casado
+    qualificacao_confrontante, is_casado = formatar_pessoa_qualificacao(conf, is_coproprietario=False)
+
+    lista_qualificacoes = [qualificacao_confrontante]
+    algum_coprop_casado = False
+    for cp in coproprietarios:
+        q_cp, cp_cas = formatar_pessoa_qualificacao(cp, is_coproprietario=True)
+        lista_qualificacoes.append(q_cp)
+        if cp_cas:
+            algum_coprop_casado = True
+            
+    if len(lista_qualificacoes) > 1:
+        primeiros = "; ".join(lista_qualificacoes[:-1])
+        qualificacao_confrontante = f"{primeiros}; e {lista_qualificacoes[-1]}"
+        suf_proprietario = "proprietários e coproprietários em condomínio"
+        suf_possuidor = "possuidores"
+        suf_legitimo = "legítimos"
+
+    plural = is_casado or bool(coproprietarios) or algum_coprop_casado
     texto_declara = "DECLARAM" if plural else "DECLARA"
     texto_declarante = "Os declarantes" if plural else ("O declarante" if genero == "M" else "A declarante")
     suf_m = "m" if plural else ""
@@ -234,12 +292,13 @@ def gerar_declaracao_anuencia_html(
             </div>
             """
 
-    # 2. Assinatura do Confrontante Anuente
+    # 2. Assinatura do Confrontante Anuente Principal
+    rotulo_conf_principal = "Confrontante Anuente" if not coproprietarios else "Confrontante Anuente (Condômino)"
     bloco_assinaturas += f"""
     <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
         <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
         <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{c_nome}</div>
-        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Confrontante Anuente</div>
+        <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">{rotulo_conf_principal}</div>
     </div>
     """
     if is_casado:
@@ -251,6 +310,29 @@ def gerar_declaracao_anuencia_html(
             <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do Confrontante Anuente</div>
         </div>
         """
+
+    # 3. Assinatura dos Coproprietários / Condôminos Extras
+    for cp in coproprietarios:
+        cp_n = cp.get("nome") or "Coproprietário"
+        bloco_assinaturas += f"""
+        <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+            <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+            <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{cp_n}</div>
+            <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Coproprietário(a) Anuente</div>
+        </div>
+        """
+        e_civ_cp = str(cp.get("estado_civil") or "").strip().lower()
+        cp_casado = "casad" in e_civ_cp or "estável" in e_civ_cp or "estavel" in e_civ_cp or bool(cp.get("nome_conjuge"))
+        if cp_casado:
+            conj_cp_n = cp.get("nome_conjuge") or "Cônjuge do Coproprietário"
+            bloco_assinaturas += f"""
+            <div class="flex flex-col items-center min-w-[170px] flex-1 max-w-[260px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-1.5"></div>
+                <div class="text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight">{conj_cp_n}</div>
+                <div class="text-[9px] text-slate-500 text-center font-medium mt-0.5">Cônjuge do(a) Coproprietário(a) Anuente</div>
+            </div>
+            """
+
     bloco_assinaturas += "</div>"
     data_extenso = obter_data_extenso()
 
