@@ -1,13 +1,16 @@
-name: Deploy Frontend to Hostinger
+name: Build Frontend
 
+# A publicação do site é feita pelo deploy Git da própria Hostinger (build do frontend/ a cada push na main).
+# Este workflow só valida que o frontend compila. O antigo passo SFTP gravava em public_html relativo ao
+# login, fora da pasta do domínio, e dava "Deploy Success" sem atualizar o site.
 on:
   push:
     branches:
       - main
 
 jobs:
-  web-deploy:
-    name: Build and Deploy
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - name: Get latest code
@@ -29,13 +32,3 @@ jobs:
         cd frontend
         npm install
         npm run build
-
-    - name: Sync files to SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.6
-      with:
-        username: ${{ secrets.FTP_USERNAME }}
-        server: ${{ secrets.FTP_SERVER }}
-        port: ${{ secrets.FTP_PORT }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        local_path: 'frontend/dist/*'
-        remote_path: 'public_html'

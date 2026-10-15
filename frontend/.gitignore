@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 dist
+# Clonado pelo prebuild (scripts/clonar-kit.mjs) quando o kit não existe em disco
+UI_Componentes
 dist-ssr
 *.local
 
