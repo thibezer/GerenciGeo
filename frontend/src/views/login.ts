@@ -74,6 +74,7 @@ export const loginRoute: RouteDef = {
               id="login-remember" 
               name="rememberMe" 
               label="Permanecer conectado"
+              marcado
               class="text-xs text-white/70 hover:text-white cursor-pointer select-none">
             </ui-checkbox>
             <a href="javascript:void(0)" id="link-forgot-pwd" class="text-xs font-semibold text-mint-vibrant hover:underline transition-colors shrink-0 ml-2">

@@ -228,18 +228,55 @@ const initApp = () => {
   initNuvemSyncModal();
 
   // Escuta dados recebidos da Nuvem em tempo real para recarregar a visualização ativa suavemente
-  window.addEventListener('gerencigeo:data_updated', () => {
+  // Telas de listagem que são redesenhadas sozinhas quando chegam dados novos da nuvem.
+  // Mesa de trabalho/compartilhado/configurações ficam de fora para não atrapalhar edição em andamento.
+  const telasAutoAtualizaveis = ['dashboard', 'clientes', 'propriedades', 'levantamentos', 'pendencias', 'ccir', 'hgo'];
+  let atualizacaoPendente = false;
+
+  const usuarioOcupado = (): boolean => {
+    const ativo = document.activeElement as HTMLElement | null;
+    const digitando = !!ativo && (ativo.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(ativo.tagName));
+    const modalAberto = !!document.querySelector('.fixed.inset-0:not(.hidden)');
+    return digitando || modalAberto;
+  };
+
+  const atualizarTelaAtiva = () => {
     const hash = window.location.hash.replace('#', '') || 'dashboard';
-    const base = hash.split('/')[0];
-    
-    // Atualiza a tela se o operador estiver em dashboard, clientes ou propriedades
-    if (base === 'dashboard' || base === 'clientes' || base === 'propriedades') {
-      const current = routeCache[base];
-      if (current && typeof current.setup === 'function') {
-        current.setup(null);
-      }
+    const [base, param] = hash.split('/');
+    const current = routeCache[base];
+    const container = document.getElementById('view-container');
+    if (!telasAutoAtualizaveis.includes(base) || !current || !container) {
+      atualizacaoPendente = false;
+      return;
     }
+    if (usuarioOcupado()) {
+      atualizacaoPendente = true; // tenta de novo quando o operador terminar o que está fazendo
+      return;
+    }
+    atualizacaoPendente = false;
+    const scroll = container.scrollTop;
+    if (current.cleanup) {
+      try { current.cleanup(); } catch (e) { console.warn('Erro no cleanup ao atualizar tela:', e); }
+    }
+    container.innerHTML = current.render();
+    initIcons();
+    if (current.setup) current.setup(param || null);
+    container.scrollTop = scroll;
+  };
+
+  window.addEventListener('gerencigeo:data_updated', (e: any) => {
+    // Só redesenha quando algo realmente chegou de outro computador
+    if ((e?.detail?.total_recebidos ?? 0) > 0) atualizarTelaAtiva();
   });
+  window.addEventListener('focusout', () => {
+    if (atualizacaoPendente) setTimeout(atualizarTelaAtiva, 400);
+  });
+  window.addEventListener('hashchange', () => { atualizacaoPendente = false; });
+
+  // Ao voltar para a janela, confere a nuvem na hora em vez de esperar o próximo batimento
+  const conferirNuvem = () => { if (document.visibilityState === 'visible') realtimeSyncClient.verificarAgora(); };
+  document.addEventListener('visibilitychange', conferirNuvem);
+  window.addEventListener('focus', conferirNuvem);
 
   // Atualiza informações do usuário na barra lateral caso autenticado
   const currentUser = AuthService.getUser();

@@ -65,6 +65,15 @@ class RealtimeSyncEngine:
         self._recent_events: deque = deque(maxlen=40)
         self._last_error: Optional[str] = None
 
+        # Acorda o loop antes do intervalo (foco na janela, login na nuvem, WebSocket novo)
+        self._wake = asyncio.Event()
+        # Sync completo uma vez por execução: edições feitas com o app fechado/offline sobem ao abrir
+        self._initial_sync_done: bool = False
+
+    def solicitar_ciclo_imediato(self) -> None:
+        """Pede ao loop em segundo plano que rode um ciclo agora, sem esperar o intervalo."""
+        self._wake.set()
+
     @property
     def is_running(self) -> bool:
         return self._running and (self._worker_task is not None and not self._worker_task.done())
@@ -199,7 +208,11 @@ class RealtimeSyncEngine:
                     continue
 
                 await self._processar_ciclo()
-                await asyncio.sleep(self._check_interval)
+                try:
+                    await asyncio.wait_for(self._wake.wait(), timeout=self._check_interval)
+                except asyncio.TimeoutError:
+                    pass
+                self._wake.clear()
 
             except asyncio.CancelledError:
                 break
@@ -223,6 +236,12 @@ class RealtimeSyncEngine:
 
         self._last_sync_time = sessao.get("last_sync")
         self._last_check_time = datetime.now().strftime("%H:%M:%S")
+
+        # Primeiro ciclo autenticado: força pull + push (o auto-push já baixa antes de subir)
+        if not self._initial_sync_done:
+            self._initial_sync_done = True
+            self._pending_push = True
+            self._pending_push_time = time.time() - self._debounce_sec
 
         # 1. Se há mutações locais pendentes de envio e a janela de debounce expirou
         if self._pending_push and self._pending_push_time:
@@ -427,6 +446,8 @@ class RealtimeSyncEngine:
                 elif action == "toggle_enabled":
                     novo_estado = bool(msg.get("enabled", not self._enabled))
                     self.set_enabled(novo_estado)
+                elif action == "check_now":
+                    self.solicitar_ciclo_imediato()
                 elif action == "ping":
                     await websocket.send_json({"type": "pong", "time": time.time()})
 

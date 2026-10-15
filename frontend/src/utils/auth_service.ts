@@ -145,9 +145,11 @@ export class AuthService {
 
     const token: string = data.token || 'session_token';
 
-    const storage = rememberMe ? localStorage : sessionStorage;
+    // No app desktop o login é só a porta de entrada local: sempre persiste para não pedir senha a cada abertura
+    const persistir = rememberMe || !isCloudHost;
+    const storage = persistir ? localStorage : sessionStorage;
     // Limpa o outro armazenamento para evitar inconsistências
-    if (rememberMe) {
+    if (persistir) {
       sessionStorage.removeItem(STORAGE_KEY_USER);
       sessionStorage.removeItem(STORAGE_KEY_TOKEN);
     } else {
@@ -157,7 +159,17 @@ export class AuthService {
 
     storage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
     storage.setItem(STORAGE_KEY_TOKEN, token);
-    localStorage.setItem(STORAGE_KEY_REMEMBER, rememberMe ? 'true' : 'false');
+    localStorage.setItem(STORAGE_KEY_REMEMBER, persistir ? 'true' : 'false');
+
+    // Desktop: aproveita as mesmas credenciais para abrir a sessão da nuvem (evita um segundo login).
+    // Silencioso: se as contas forem diferentes ou estiver offline, o login manual no painel da nuvem segue valendo.
+    if (!isCloudHost) {
+      fetch(`${API_BASE}/nuvem/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+      }).catch(() => { /* offline: segue em modo local */ });
+    }
 
     return user;
   }

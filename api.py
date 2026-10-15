@@ -57,7 +57,9 @@ app.add_middleware(
 async def add_no_cache_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/assets/") or path.endswith(".html") or path.endswith(".js") or path.endswith(".css"):
+    # Documentos gerados (anuências, laudos...) saem como text/html de rotas dinâmicas: também não podem ser reaproveitados do cache
+    e_html_gerado = response.headers.get("content-type", "").startswith("text/html")
+    if e_html_gerado or path.startswith("/assets/") or path.endswith(".html") or path.endswith(".js") or path.endswith(".css"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"

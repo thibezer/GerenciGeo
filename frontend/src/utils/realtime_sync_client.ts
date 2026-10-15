@@ -71,6 +71,7 @@ class RealtimeSyncClient {
 
       this.ws.onopen = () => {
         this.isConnecting = false;
+        this.verificarAgora();
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
@@ -183,6 +184,15 @@ class RealtimeSyncClient {
       this.ws.send(JSON.stringify({ action: 'sync_now' }));
     } else {
       fetch(`${API_BASE}/nuvem/sincronizar`, { method: 'POST' }).catch(console.error);
+    }
+  }
+
+  /** Pede ao backend uma checagem imediata da nuvem (sem esperar o próximo batimento). */
+  public verificarAgora(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ action: 'check_now' }));
+    } else {
+      this.conectar();
     }
   }
 

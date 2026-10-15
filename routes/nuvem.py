@@ -61,6 +61,9 @@ async def rota_login_nuvem(req: LoginRequest):
         raise HTTPException(status_code=400, detail=res.get("mensagem"))
     # Notifica o motor de tempo real para iniciar o ciclo
     realtime_sync_engine.registrar_evento("success", "Operador autenticado na nuvem", req.email)
+    # Primeiro sync logo após autenticar, sem esperar o próximo batimento
+    realtime_sync_engine._initial_sync_done = False
+    realtime_sync_engine.solicitar_ciclo_imediato()
     return res
 
 
