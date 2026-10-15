@@ -505,7 +505,9 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     if lista_mapas_data:
         script_inicializacao_mapas = gerar_js_inicializacao_mapas(lista_mapas_data)
         
-    footer_html = f"\n{script_inicializacao_mapas}\n</body>\n</html>"
+    # O header já abre a tabela-moldura (.folha-print) do template (espaçadores de topo/base em cada folha): fecha aqui
+    fecha_moldura = "\n</td></tr></tbody></table>" if 'class="folha-print' in header_html else ""
+    footer_html = f"{fecha_moldura}\n{script_inicializacao_mapas}\n</body>\n</html>"
     
     return header_html + lote_corpos + footer_html
 

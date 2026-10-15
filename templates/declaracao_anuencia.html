@@ -22,8 +22,15 @@
         @media print {
             @page {
                 size: A4;
+                /* Margem física 0 de propósito: com margem > 0 o navegador imprime data/título/URL
+                   (opção "Cabeçalhos e rodapés" vem ligada por padrão). O respiro de topo/base de TODAS as
+                   folhas vem do thead/tfoot da tabela .folha-print, que se repetem em cada página impressa. */
                 margin: 0 !important;
             }
+
+            .folha-print > thead > tr > td { height: 1.4cm !important; }
+            .folha-print > tfoot > tr > td { height: 1.6cm !important; }
+            .folha-print > tbody > tr { break-inside: auto !important; page-break-inside: auto !important; }
 
             .no-print {
                 display: none !important;
@@ -39,10 +46,10 @@
                 box-shadow: none !important;
                 border: none !important;
                 margin: 0 !important;
-                padding: 0.8cm 1.6cm 0.8cm 1.6cm !important;
+                padding: 0 1.6cm !important;
                 max-width: 100% !important;
                 width: 100% !important;
-                min-height: 29.7cm !important;
+                min-height: 0 !important;
                 box-sizing: border-box !important;
                 display: block !important;
                 page-break-after: always !important;
@@ -74,11 +81,16 @@
                 widows: 3 !important;
             }
 
+            .fecho-anuencia,
+            .bloco-assinaturas-fechamento,
+            .bloco-assinaturas-fechamento > div > div > div {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
             .bloco-assinaturas-fechamento {
                 margin-top: 1.2cm !important;
                 padding-top: 0 !important;
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
             }
 
             /* Estilos específicos de impressão para Leaflet */
@@ -136,6 +148,9 @@
     </div>
     <!-- BARRA_ACOES_FIM -->
 
+    <!-- Tabela-moldura: só serve para repetir os espaçadores de topo/base em cada folha impressa.
+         Fica FORA dos marcadores de corpo (o lote monta o HTML por fora; ver anuencias.py). -->
+    <table class="folha-print w-full" style="border-collapse:collapse"><thead><tr><td style="height:0;padding:0"></td></tr></thead><tfoot><tr><td style="height:0;padding:0"></td></tr></tfoot><tbody><tr><td style="padding:0;vertical-align:top">
     <!-- INICIO CORPO CONSOLIDADO -->
     <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
     <div
@@ -177,8 +192,15 @@
                 <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
                 {clausula_unificacao}
 
+            </div>
+        </div>
+
+        <!-- FECHO: cláusula final + data + assinaturas formam um bloco único. Se não couber no fim da página,
+             o bloco inteiro vai junto para a próxima, então as assinaturas nunca ficam sozinhas numa folha. -->
+        <div class="fecho-anuencia break-inside-avoid w-full mt-2.5">
+            <div class="text-xs text-justify leading-relaxed text-slate-700">
                 <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
-                <p class="break-inside-avoid">{texto_declaramos_ainda} que o profissional responsável técnico
+                <p>{texto_declaramos_ainda} que o profissional responsável técnico
                     <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
                     <strong>{registro_profissional}</strong>, credenciado pelo INCRA sob o código
                     <strong>{credencial_incra}</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
@@ -189,13 +211,12 @@
                     as suas propriedades, assinando em plena concordância.
                 </p>
             </div>
-        </div>
 
-        <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
-        <div class="bloco-assinaturas-fechamento break-inside-avoid w-full mt-8 pt-2">
-            <p class="text-xs font-medium text-slate-900 text-left">{municipio}/PR, {data_extenso}.</p>
-            <div class="pt-3">
-                {bloco_assinaturas}
+            <div class="bloco-assinaturas-fechamento w-full mt-8 pt-2">
+                <p class="text-xs font-medium text-slate-900 text-left">{municipio}/PR, {data_extenso}.</p>
+                <div class="pt-3">
+                    {bloco_assinaturas}
+                </div>
             </div>
         </div>
     </div>
@@ -203,6 +224,7 @@
     <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
     {mapa_divisa_leaflet}
     <!-- FIM CORPO CONSOLIDADO -->
+    </td></tr></tbody></table>
 
     <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
     {script_inicializacao_mapas}
