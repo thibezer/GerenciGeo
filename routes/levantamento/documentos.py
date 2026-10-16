@@ -15,6 +15,13 @@ from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
+from services.gestores.anuencia_status import (
+    STATUS_ASSINADO,
+    STATUS_DISPENSADO,
+    mapa_status_registrado,
+    registrar_termo_assinado,
+    status_efetivo,
+)
 from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
 from config import EXPORT_BASE_FOLDER
 
@@ -564,18 +571,32 @@ def gerar_termo_anuencia_na_matricula(id: int, confrontante_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+EXTENSOES_ANUENCIA_ASSINADA = {".pdf", ".jpg", ".jpeg", ".png"}
+
 @router.post("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/upload")
 async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFile = File(...)):
-    """Recebe o termo assinado digitalizado e atualiza o status de anuência da confrontação"""
+    """Recebe o termo assinado digitalizado, registra a anuência como ASSINADA e marca as divisas do confrontante."""
+    verificar_levantamento_arquivado(id)
     try:
+        extensao = Path(file.filename).suffix.lower() if file.filename else ".pdf"
+        if extensao not in EXTENSOES_ANUENCIA_ASSINADA:
+            raise HTTPException(status_code=400, detail="Formato não aceito. Envie o termo assinado em PDF, JPG ou PNG.")
+
+        pertence = execute_query(
+            "SELECT 1 FROM confrontantes WHERE id = ? AND levantamento_id = ?",
+            params=(confrontante_id, id), fetch_one=True
+        )
+        if not pertence:
+            raise HTTPException(status_code=404, detail="Confrontante não encontrado neste levantamento.")
+
         wm = WorkspaceManager()
         folder = wm.get_levantamento_folder(id)
         pasta_anuencias = folder / "Documentos" / "Anuancias"
         pasta_anuencias.mkdir(parents=True, exist_ok=True)
-        
+
         row_mat = execute_query(
             """
-            SELECT m.numero_matricula 
+            SELECT m.numero_matricula
             FROM segmentos s
             JOIN matriculas m ON s.matricula_id = m.id
             WHERE s.confrontante_id = ? AND s.levantamento_id = ?
@@ -585,27 +606,19 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
             fetch_one=True
         )
         matricula_num = row_mat["numero_matricula"] if (row_mat and row_mat["numero_matricula"]) else "SEM_MATRICULA"
-        
-        # Correção: Captura a extensão real do arquivo
-        extensao = Path(file.filename).suffix if file.filename else ".pdf"
-        
+        matricula_num = re.sub(r"[^\w.-]", "_", str(matricula_num))
+
         caminho_salvo = pasta_anuencias / f"anuencia_matricula_{matricula_num}_{confrontante_id}_assinado{extensao}"
         with open(caminho_salvo, "wb") as buffer:
             buffer.write(await file.read())
-            
-        exists = execute_query("SELECT id FROM anuencias_confrontantes WHERE levantamento_id = ? AND confrontante_id = ?", params=(id, confrontante_id), fetch_one=True)
-        if exists:
-            execute_query(
-                "UPDATE anuencias_confrontantes SET status_anuencia = 'ASSINADO', caminho_documento_assinado = ? WHERE levantamento_id = ? AND confrontante_id = ?",
-                params=(str(caminho_salvo), id, confrontante_id), commit=True
-            )
-        else:
-            execute_query(
-                "INSERT INTO anuencias_confrontantes (levantamento_id, confrontante_id, status_anuencia, caminho_documento_assinado) VALUES (?, ?, 'ASSINADO', ?)",
-                params=(id, confrontante_id, str(caminho_salvo)), commit=True
-            )
-            
+
+        with DatabaseManager() as conn:
+            registrar_termo_assinado(conn.cursor(), id, confrontante_id, str(caminho_salvo))
+            conn.commit()
+
         return {"message": "Anuência assinada arquivada e registrada com sucesso.", "caminho_fisico": str(caminho_salvo)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -623,17 +636,23 @@ def status_cartorio(id: int):
         prop_id = lev["propriedade_id"]
         
         clientes_prop = execute_query(
-            "SELECT c.* FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+            """
+            SELECT p.nome, p.cpf_cnpj, p.rg, p.endereco_completo
+            FROM propriedade_clientes pc
+            JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
+            WHERE pc.propriedade_id = ?
+            """,
             params=(prop_id,), fetch_all=True
         )
         clientes_qualificados = True
         proprietarios_pendencias = []
         for c in clientes_prop:
             civil = dict(c)
-            if not civil.get("cpf_cnpj") or not civil.get("endereco_completo") or not civil.get("rg_ie"):
+            if not civil.get("cpf_cnpj") or not civil.get("endereco_completo") or not civil.get("rg"):
                 clientes_qualificados = False
-                proprietarios_pendencias.append(f"Proprietário {civil.get('nome_completo')} com qualificação civil incompleta.")
-                
+                proprietarios_pendencias.append(f"Proprietário {civil.get('nome')} com qualificação civil incompleta.")
+
         matriculas_prop = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(prop_id,), fetch_all=True)
         matriculas_qualificadas = True
         matriculas_pendencias = []
@@ -643,34 +662,57 @@ def status_cartorio(id: int):
                 matriculas_qualificadas = False
                 matriculas_pendencias.append(f"Matrícula {mat.get('numero_matricula')} sem metadados do CRI definidos.")
                 
-        query_confrontantes = """
-            SELECT c.*, p.nome
+        # Só entram os confrontantes que de fato têm divisa no levantamento (os demais são cadastros soltos).
+        confrontantes = execute_query(
+            """
+            SELECT c.id,
+                   COALESCE(NULLIF(TRIM(c.nome), ''), p.nome, 'Confrontante ' || c.id) AS nome,
+                   COUNT(s.id) AS qtd_divisas,
+                   COALESCE(SUM(CASE WHEN s.anuencia_assinada = 1 THEN 1 ELSE 0 END), 0) AS assinadas
             FROM confrontantes c
-            JOIN pessoas p ON c.pessoa_id = p.id
+            LEFT JOIN pessoas p ON c.pessoa_id = p.id
+            JOIN segmentos s ON s.confrontante_id = c.id AND s.levantamento_id = c.levantamento_id
             WHERE c.levantamento_id = ?
-        """
-        confrontantes = execute_query(query_confrontantes, params=(id,), fetch_all=True)
-        conf_total = len(confrontantes)
-        
-        anuencias_rows = execute_query("SELECT * FROM anuencias_confrontantes WHERE levantamento_id = ?", params=(id,), fetch_all=True)
-        anuencias = {a["confrontante_id"]: dict(a) for a in anuencias_rows}
-        
+            GROUP BY c.id
+            """,
+            params=(id,), fetch_all=True
+        )
+        with DatabaseManager() as conn:
+            registrados = mapa_status_registrado(conn.cursor(), id)
+
+        conf_total = 0
         conf_assinados = 0
+        conf_dispensados = 0
         conf_pendentes_nomes = []
-        
+
         for c in confrontantes:
-            conf_id = c["id"]
-            status_anu = anuencias.get(conf_id, {}).get("status_anuencia", "PENDENTE")
-            if status_anu in ["ASSINADO", "DISPENSADO"]:
+            status_anu = status_efetivo(registrados.get(c["id"]), c["nome"], c["qtd_divisas"], c["assinadas"])
+            if status_anu == STATUS_DISPENSADO:
+                conf_dispensados += 1
+                continue
+            conf_total += 1
+            if status_anu == STATUS_ASSINADO:
                 conf_assinados += 1
             else:
                 conf_pendentes_nomes.append(c["nome"])
-                
-        pronto = clientes_qualificados and matriculas_qualificadas and (conf_assinados == conf_total)
-        
+
+        sem_confrontante = execute_query(
+            "SELECT COUNT(*) AS n FROM segmentos WHERE levantamento_id = ? AND confrontante_id IS NULL",
+            params=(id,), fetch_one=True
+        )["n"]
+
+        pronto = (
+            clientes_qualificados and matriculas_qualificadas
+            and conf_total > 0 and conf_assinados == conf_total and sem_confrontante == 0
+        )
+
         pendencias = proprietarios_pendencias + matriculas_pendencias
         for nome in conf_pendentes_nomes:
             pendencias.append(f"Falta assinatura do Termo de Anuência de {nome}.")
+        if sem_confrontante:
+            pendencias.append(f"{sem_confrontante} divisa(s) sem confrontante definido.")
+        if conf_total == 0 and sem_confrontante == 0:
+            pendencias.append("Nenhum confrontante vinculado às divisas do levantamento.")
             
         return {
             "levantamento_id": id,
@@ -679,6 +721,7 @@ def status_cartorio(id: int):
             "matriculas_qualificadas": matriculas_qualificadas,
             "confrontantes_totais": conf_total,
             "confrontantes_assinados": conf_assinados,
+            "confrontantes_dispensados": conf_dispensados,
             "confrontantes_pendentes": conf_pendentes_nomes,
             "pronto_para_registro": pronto,
             "pendencias_cartorio": pendencias

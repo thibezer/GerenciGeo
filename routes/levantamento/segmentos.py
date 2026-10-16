@@ -12,6 +12,13 @@ from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
 from routes.deps import verificar_levantamento_arquivado
+from services.gestores.anuencia_status import (
+    STATUS_DISPENSADO,
+    definir_dispensa,
+    mapa_status_registrado,
+    sincronizar_assinatura,
+    status_efetivo,
+)
 from utils.geodesia_parser import (
     extract_codigo_parts,
     parse_num_robust,
@@ -331,6 +338,26 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
+def _titular_diferente_de_pessoa_compartilhada(cursor, pessoa_id: int, cid: int, cpf_digitado: str) -> bool:
+    """True quando a pessoa vinculada tem CPF próprio diferente do digitado E é usada por outros registros
+    (outros confrontantes, clientes ou coproprietários). Pessoa sem CPF cadastrado não conta: digitar o CPF
+    dela pela primeira vez é completar o cadastro, não trocar de pessoa."""
+    cursor.execute("SELECT cpf_cnpj FROM pessoas WHERE id = ?", (pessoa_id,))
+    row = cursor.fetchone()
+    cpf_vinculada = "".join(ch for ch in str(row[0] or "") if ch.isdigit()) if row else ""
+    if not cpf_vinculada or cpf_vinculada == cpf_digitado:
+        return False
+    cursor.execute(
+        """
+        SELECT (SELECT COUNT(*) FROM confrontantes WHERE pessoa_id = ? AND id != ?)
+             + (SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?)
+             + (SELECT COUNT(*) FROM confrontante_coproprietarios WHERE pessoa_id = ?)
+        """,
+        (pessoa_id, cid, pessoa_id, pessoa_id)
+    )
+    return (cursor.fetchone()[0] or 0) > 0
+
+
 @router.put("/confrontantes/{cid}")
 def update_confrontante(cid: int, c: ConfrontanteCreate):
     try:
@@ -357,6 +384,12 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                 row_found = cursor.fetchone()
                 if row_found:
                     existing_pessoa_id = row_found[0]
+
+            # Titular trocado (ex.: o lote passa a ser da esposa): se o CPF digitado é de OUTRA pessoa e a
+            # pessoa vinculada é usada por outros registros, ela NÃO pode ser sobrescrita (mudaria todos os
+            # lotes que a compartilham). Nesse caso cria-se/reaproveita-se a pessoa certa só para este lote.
+            if not existing_pessoa_id and pessoa_id and cpf_limpo and _titular_diferente_de_pessoa_compartilhada(cursor, pessoa_id, cid, cpf_limpo):
+                pessoa_id = None
 
             if existing_pessoa_id:
                 # Usa a pessoa já cadastrada e atualiza seus dados
@@ -399,7 +432,9 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                       c.profissao_conjuge))
                 pessoa_id = cursor.lastrowid
             
-            # Atualiza metadados completos na tabela confrontantes também
+            # Atualiza metadados completos na tabela confrontantes também.
+            # tipo_relacao/cns/nome_propriedade/codigo_incra vêm de importação (SIGEF/CAD) e o formulário de
+            # qualificação não os envia: None significa "não alterar" (COALESCE), nunca "apagar".
             cursor.execute("""
                 UPDATE confrontantes
                 SET pessoa_id = ?,
@@ -414,11 +449,11 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                     nome_conjuge = ?,
                     cpf_conjuge = ?,
                     rg_conjuge = ?,
-                    tipo_relacao = ?,
+                    tipo_relacao = COALESCE(?, tipo_relacao),
                     matricula_imovel = ?,
-                    cns_confrontante = ?,
-                    nome_propriedade = ?,
-                    codigo_incra_imovel = ?,
+                    cns_confrontante = COALESCE(?, cns_confrontante),
+                    nome_propriedade = COALESCE(?, nome_propriedade),
+                    codigo_incra_imovel = COALESCE(?, codigo_incra_imovel),
                     lote = ?
                 WHERE id = ?
             """, (pessoa_id, c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade or 'brasileiro(a)',
@@ -664,6 +699,10 @@ def delete_segmento(sid: int):
 class AnuenciaAssinadaPayload(BaseModel):
     assinada: bool
 
+def execute_query_status_anuencias(levantamento_id: int) -> dict:
+    with DatabaseManager() as conn:
+        return mapa_status_registrado(conn.cursor(), levantamento_id)
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/resumo-confrontantes")
 def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
     """
@@ -700,6 +739,8 @@ def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
                 return 0.0
             return geod.inv(r["lon1"], r["lat1"], r["lon2"], r["lat2"])[2]
 
+        status_registrado = execute_query_status_anuencias(id)
+
         grupos = {}      # confrontante_id -> resumo
         sem_conf = {"qtd_divisas": 0, "comprimento_m": 0.0, "trechos": []}
         ultimo_conf = object()
@@ -733,6 +774,12 @@ def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
             trecho_atual["qtd_divisas"] += 1
             trecho_atual["comprimento_m"] += d
 
+        for g in grupos.values():
+            g["status_anuencia"] = status_efetivo(status_registrado.get(g["id"]), g["nome"], g["qtd_divisas"], g["assinadas"])
+            g["dispensada"] = g["status_anuencia"] == STATUS_DISPENSADO
+            # dispensa sem registro explícito = inferida pelo nome (via/curso d'água público)
+            g["dispensa_inferida"] = g["dispensada"] and status_registrado.get(g["id"]) is None
+
         def arredonda(g):
             g["comprimento_m"] = round(g["comprimento_m"], 2)
             for t in g["trechos"]:
@@ -753,11 +800,36 @@ def marcar_anuencia_assinada_confrontante(id: int, matricula_id: int, confrontan
     try:
         row_orig = execute_query("SELECT matricula_origem_desenho_id FROM matriculas WHERE id = ?", params=(matricula_id,), fetch_one=True)
         target_id = (row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id)
-        execute_query(
-            "UPDATE segmentos SET anuencia_assinada = ? WHERE levantamento_id = ? AND matricula_id = ? AND confrontante_id = ?",
-            params=(1 if payload.assinada else 0, id, target_id, confrontante_id), commit=True
-        )
-        return {"sucesso": True}
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE segmentos SET anuencia_assinada = ? WHERE levantamento_id = ? AND matricula_id = ? AND confrontante_id = ?",
+                (1 if payload.assinada else 0, id, target_id, confrontante_id)
+            )
+            status = sincronizar_assinatura(cursor, id, confrontante_id)
+            conn.commit()
+        return {"sucesso": True, "status_anuencia": status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class DispensaAnuenciaPayload(BaseModel):
+    dispensada: bool
+
+@router.post("/levantamentos/{id}/confrontantes/{confrontante_id}/dispensa-anuencia")
+def definir_dispensa_anuencia(id: int, confrontante_id: int, payload: DispensaAnuenciaPayload):
+    """Dispensa a anuência de um ente público (estrada, rio...) ou volta a exigi-la."""
+    verificar_levantamento_arquivado(id)
+    try:
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM confrontantes WHERE id = ? AND levantamento_id = ?", (confrontante_id, id))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Confrontante não encontrado neste levantamento.")
+            status = definir_dispensa(cursor, id, confrontante_id, payload.dispensada)
+            conn.commit()
+        return {"sucesso": True, "status_anuencia": status}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

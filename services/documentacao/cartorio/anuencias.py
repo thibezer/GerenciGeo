@@ -2,10 +2,24 @@ import logging
 from services.documentacao.cartorio.utils import carregar_template, obter_data_extenso, formatar_cpf, formatar_rg
 from services.documentacao.cartorio.data_fetcher import obter_dados_comuns, gerar_tabela_divisas_html
 from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
-from database.connection import execute_query
+from database.connection import DatabaseManager, execute_query
+from services.gestores.anuencia_status import filtrar_exigem_anuencia
 from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
 logger = logging.getLogger(__name__)
+
+
+def _inferir_genero(genero_raw, padrao: str) -> str:
+    """Gênero 'M'/'F' da pessoa: vale somente o campo gênero do cadastro (a flexão da nacionalidade,
+    "brasileiro/brasileira", não define nada). Sem valor válido, usa o padrão."""
+    g = str(genero_raw or "").strip().upper()
+    return g if g in ("M", "F") else padrao
+
+
+def _rotulo_doc(nome: str) -> str:
+    """Nome em destaque para identificar de quem é o documento (no lugar de "este"/"aquele")."""
+    return f'<strong class="text-slate-900">{nome}</strong>'
+
 
 def gerar_declaracao_anuencia_html(
     lev_id: int, 
@@ -179,7 +193,7 @@ def gerar_declaracao_anuencia_html(
             rotulo_erro = f"O coproprietário '{p_nome}'" if is_coproprietario else f"O confrontante '{p_nome}'"
             raise ValueError(f"{rotulo_erro} está qualificado como Casado ou União Estável, mas o Regime de Bens não foi informado. Por favor, edite e atualize a qualificação deste confrontante.")
         
-        p_gen = str(p_dict.get("genero") or "M").upper()
+        p_gen = _inferir_genero(p_dict.get("genero"), "M")
         if p_gen == "M":
             p_suf_portador = "portador"
             p_suf_inscrito = "inscrito"
@@ -201,7 +215,7 @@ def gerar_declaracao_anuencia_html(
             p_conj_cpf = obter_valor_ou_linha(formatar_cpf(p_dict.get("cpf_conjuge")), 18)
             p_conj_prof = obter_valor_ou_linha(p_dict.get("profissao_conjuge") or "Profissão Não Informada", 25)
             p_conj_nac_raw = p_dict.get("nacionalidade_conjuge") or "brasileiro(a)"
-            p_gen_conjuge = p_dict.get("genero_conjuge") or ("F" if p_gen == "M" else "M")
+            p_gen_conjuge = _inferir_genero(p_dict.get("genero_conjuge"), "F" if p_gen == "M" else "M")
             
             if p_gen == "M" and p_gen_conjuge == "F":
                 p_conj_nac = "brasileira" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
@@ -211,12 +225,14 @@ def gerar_declaracao_anuencia_html(
                 qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu esposo, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ela portadora da cédula de identidade RG nº {p_rg} e inscrita no CPF sob o nº {p_cpf}, ele portador da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}, ambos residentes e domiciliados em {p_domicilio}'
             elif p_gen == "M" and p_gen_conjuge == "M":
                 p_conj_nac = "brasileiro" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
-                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu esposo, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ambos residentes e domiciliados em {p_domicilio}, este portador da cédula de identidade RG nº {p_rg} e inscrito no CPF sob o nº {p_cpf}, e aquele portador da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}'
+                # Mesma ordem dos casais mistos (documentos primeiro, domicílio no fim), mas identificando cada um pelo nome:
+                # "este/aquele" não deixa claro de quem é cada documento.
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu esposo, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, {_rotulo_doc(p_nome)} portador da cédula de identidade RG nº {p_rg} e inscrito no CPF sob o nº {p_cpf}, {_rotulo_doc(p_conj_n)} portador da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}, ambos residentes e domiciliados em {p_domicilio}'
             elif p_gen == "F" and p_gen_conjuge == "F":
                 p_conj_nac = "brasileira" if "brasileiro" in p_conj_nac_raw.lower() else p_conj_nac_raw
-                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e sua esposa, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, ambas residentes e domiciliadas em {p_domicilio}, esta portadora da cédula de identidade RG nº {p_rg} e inscrita no CPF sob o nº {p_cpf}, e aquela portadora da cédula de identidade RG nº {p_conj_rg} e inscrito no CPF sob o nº {p_conj_cpf}'
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e sua esposa, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac}, {p_conj_prof}, casados sob o regime de {p_regime}, {_rotulo_doc(p_nome)} portadora da cédula de identidade RG nº {p_rg} e inscrita no CPF sob o nº {p_cpf}, {_rotulo_doc(p_conj_n)} portadora da cédula de identidade RG nº {p_conj_rg} e inscrita no CPF sob o nº {p_conj_cpf}, ambas residentes e domiciliadas em {p_domicilio}'
             else:
-                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac_raw}, {p_conj_prof}, casados sob o regime de {p_regime}, ambos residentes e domiciliados em {p_domicilio}, este portador(a) da cédula de identidade RG nº {p_rg} e inscrito(a) no CPF sob o nº {p_cpf}, e aquele portador(a) da cédula de identidade RG nº {p_conj_rg} e inscrito(a) no CPF sob o nº {p_conj_cpf}'
+                qualif = f'<strong class="text-slate-900">{p_nome}</strong>, {p_nac}, {p_prof}, e seu/sua cônjuge, <strong class="text-slate-900">{p_conj_n}</strong>, {p_conj_nac_raw}, {p_conj_prof}, casados sob o regime de {p_regime}, {_rotulo_doc(p_nome)} portador(a) da cédula de identidade RG nº {p_rg} e inscrito(a) no CPF sob o nº {p_cpf}, {_rotulo_doc(p_conj_n)} portador(a) da cédula de identidade RG nº {p_conj_rg} e inscrito(a) no CPF sob o nº {p_conj_cpf}, ambos residentes e domiciliados em {p_domicilio}'
         else:
             est_civ_desc = MAPA_ESTADO_CIVIL.get(e_civ, p_est_civil.lower() if '_' not in p_est_civil else p_est_civil)
             if p_gen == "M":
@@ -437,7 +453,13 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
         
     if not ids:
         raise ValueError("Nenhum confrontante com limites definidos encontrado para esta matrícula.")
-        
+
+    # Vias e cursos d'água públicos têm a anuência dispensada: não entram no lote.
+    with DatabaseManager() as conn:
+        ids = filtrar_exigem_anuencia(conn.cursor(), lev_id, ids)
+    if not ids:
+        raise ValueError("Todos os confrontantes desta matrícula estão com a anuência dispensada (vias/cursos d'água públicos).")
+
     template_base = carregar_template("declaracao_anuencia.html")
     
     corpos_paginas = []

@@ -51,6 +51,9 @@ interface ConfrontanteResumo extends ResumoConfrontante {
   lote?: string | null;
   cpf_cnpj: string | null;
   assinadas: number;
+  /** Anuência dispensada (via/curso d'água público); `dispensa_inferida` = veio do nome, sem decisão explícita. */
+  dispensada?: boolean;
+  dispensa_inferida?: boolean;
 }
 interface ResumoConfrontantes {
   confrontantes: ConfrontanteResumo[];
@@ -240,8 +243,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       return;
     }
 
-    const assinados = r.confrontantes.filter(c => c.assinadas === c.qtd_divisas).length;
-    if (badge) badge.innerText = `${assinados}/${r.confrontantes.length} anuências assinadas`;
+    const exigidos = r.confrontantes.filter(c => !c.dispensada);
+    const dispensados = r.confrontantes.length - exigidos.length;
+    const assinados = exigidos.filter(c => c.assinadas === c.qtd_divisas).length;
+    if (badge) badge.innerText = `${assinados}/${exigidos.length} anuências assinadas${dispensados ? ` · ${dispensados} dispensada${dispensados === 1 ? '' : 's'}` : ''}`;
 
     const sem = r.sem_confrontante;
     const alertaSem = sem.qtd_divisas > 0 ? `
@@ -255,7 +260,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     lista.innerHTML = alertaSem + r.confrontantes.map(c => {
       const aberto = confExpandidos.has(c.id);
       const completo = c.assinadas === c.qtd_divisas;
-      const incompletoCadastro = !c.cpf_cnpj;
+      const dispensada = !!c.dispensada;
+      const incompletoCadastro = !c.cpf_cnpj && !dispensada;
       return `
         <div class="bg-white/[0.025] border border-white/[0.07] rounded-lg" data-conf-id="${c.id}">
           <div class="px-2.5 pt-2 pb-1.5 space-y-1.5">
@@ -272,14 +278,20 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               </button>
             </div>
             <div class="flex items-center gap-1.5 pl-5 flex-wrap">
+              ${dispensada ? `
+              <span class="inline-flex items-center gap-1 text-[10px] text-sky-300" title="${c.dispensa_inferida ? 'Dispensada automaticamente pelo nome (via ou curso de água público). Clique em Exigir se este confrontante for particular.' : 'Anuência dispensada (ente público).'}">
+                <i data-lucide="landmark" class="w-3 h-3"></i>Dispensada${c.dispensa_inferida ? ' (ente público)' : ''}
+              </span>
+              <button type="button" class="btn-conf-exigir text-[10px] text-white/50 hover:text-white underline underline-offset-2" data-id="${c.id}" title="Voltar a exigir a anuência deste confrontante">Exigir</button>` : `
               <label class="flex items-center gap-1 text-[10px] ${completo ? 'text-emerald-300' : 'text-white/40'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
                 <input type="checkbox" class="chk-conf-assinada accent-emerald-400" data-id="${c.id}" ${completo ? 'checked' : ''} />
                 Assinada
               </label>
+              <button type="button" class="btn-conf-dispensar text-[10px] text-white/40 hover:text-white underline underline-offset-2" data-id="${c.id}" title="Ente público (estrada, rio, ferrovia): dispensa a anuência e tira da contagem">Dispensar</button>`}
               <span class="flex-1"></span>
               <button type="button" class="btn-conf-editar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-white/10 text-white/80 hover:text-white hover:bg-white/10 hover:border-mint-vibrant/40 transition-all active:scale-95" data-id="${c.id}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3 text-mint-vibrant"></i>Editar</button>
               <button type="button" class="btn-conf-ver inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 transition-all active:scale-95" data-id="${c.id}" title="Ver trecho no mapa"><i data-lucide="eye" class="w-3 h-3"></i>Trecho</button>
-              <button type="button" class="btn-conf-gerar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-mint-vibrant/25 text-mint-vibrant hover:bg-mint-vibrant/10 transition-all active:scale-95" data-id="${c.id}" title="Gerar anuência"><i data-lucide="file-down" class="w-3 h-3"></i>Gerar</button>
+              ${dispensada ? '' : `<button type="button" class="btn-conf-gerar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-mint-vibrant/25 text-mint-vibrant hover:bg-mint-vibrant/10 transition-all active:scale-95" data-id="${c.id}" title="Gerar anuência"><i data-lucide="file-down" class="w-3 h-3"></i>Gerar</button>`}
             </div>
           </div>
           ${aberto ? `
@@ -369,6 +381,22 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     document.getElementById(botaoId)?.click();
   };
 
+  /** Dispensa a anuência de um ente público (ou volta a exigi-la) e recarrega a lista. */
+  const definirDispensaAnuencia = async (confId: number, dispensada: boolean) => {
+    try {
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes/${confId}/dispensa-anuencia`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispensada })
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      showToast('Não foi possível alterar a dispensa da anuência.', 'error');
+      return;
+    }
+    await carregarResumoConfrontantes();
+  };
+
   const vincularEventosResumoConfrontantes = () => {
     const lista = document.getElementById('lista-resumo-confrontantes');
     if (!lista || lista.dataset.eventosVinculados === '1') return;
@@ -410,6 +438,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         acionarAnuencia(id, 'btn-preview-anuencia');
       } else if (btn.classList.contains('btn-conf-gerar')) {
         acionarAnuencia(id, 'btn-emitir-anuencia');
+      } else if (btn.classList.contains('btn-conf-dispensar') || btn.classList.contains('btn-conf-exigir')) {
+        definirDispensaAnuencia(Number(id), btn.classList.contains('btn-conf-dispensar'));
       } else if (btn.classList.contains('btn-conf-filtrar')) {
         const conf = resumoConf?.confrontantes.find(c => String(c.id) === id);
         const busca = document.getElementById('input-busca-vertices-cartorio') as HTMLInputElement | null;
