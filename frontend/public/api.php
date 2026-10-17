@@ -17,9 +17,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // 2. Configurações de Conexão com o Banco de Dados MySQL
-define('DB_NAME', 'u941736878_gerencigeo');
-define('DB_USER', 'u941736878_thiago_geo');
-define('DB_PASS', 'G3renciGeo#2026$Db');
+// Segredos: variável de ambiente > arquivo gerencigeo_config.php FORA da pasta pública (um nível acima, retorna um
+// array) > valores abaixo. Os valores abaixo são só a transição: já estão no histórico do git, então troque a senha
+// do banco e a chave no painel e mova os novos para o arquivo de configuração ou para variáveis de ambiente.
+$GLOBALS['gg_cfg'] = (static function (): array {
+    $arquivo = dirname(__DIR__) . '/gerencigeo_config.php';
+    if (is_file($arquivo)) {
+        $cfg = include $arquivo;
+        if (is_array($cfg)) return $cfg;
+    }
+    return [];
+})();
+function ggCfg(string $chave, string $padrao): string {
+    $env = getenv($chave);
+    if ($env !== false && $env !== '') return $env;
+    $v = $GLOBALS['gg_cfg'][$chave] ?? '';
+    return (is_string($v) && $v !== '') ? $v : $padrao;
+}
+define('DB_NAME', ggCfg('GERENCIGEO_DB_NAME', 'u941736878_gerencigeo'));
+define('DB_USER', ggCfg('GERENCIGEO_DB_USER', 'u941736878_thiago_geo'));
+define('DB_PASS', ggCfg('GERENCIGEO_DB_PASS', 'G3renciGeo#2026$Db'));
+// Chave do formato antigo (AES-CBC). Continua existindo só para LER senhas GOV gravadas antes do AES-GCM.
 define('APP_SECRET_KEY', 'G3renciGeo_Cloud_Secret_Key_2026_Salt!');
 
 $storageDir = __DIR__ . '/dados_publicos';
@@ -161,6 +179,27 @@ function ensureSchema(PDO $pdo): void {
             ip_origem VARCHAR(50),
             data_acesso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS cliente_historico_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_cliente INT NOT NULL,
+            campo_alterado VARCHAR(100) NOT NULL,
+            valor_antigo TEXT NULL,
+            valor_novo TEXT NULL,
+            data_alteracao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_cliente) REFERENCES clientes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS cliente_exclusoes_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cliente_id INT NOT NULL,
+            nome VARCHAR(255) NULL,
+            documento_mascarado VARCHAR(32) NULL,
+            usuario VARCHAR(100) NULL,
+            qtd_acessos_sensiveis INT DEFAULT 0,
+            qtd_propriedades_desvinculadas INT DEFAULT 0,
+            data_exclusao DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
         "CREATE TABLE IF NOT EXISTS propriedades (
@@ -457,6 +496,10 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
     addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
+    // endereco_sem_numero nasceu como VARCHAR(10): cortava (ou recusava) qualquer logradouro real
+    try {
+        $pdo->exec("ALTER TABLE pessoas MODIFY endereco_sem_numero VARCHAR(255) NULL");
+    } catch (Exception $e) {}
     addColumnSafe($pdo, 'confrontantes', 'coproprietarios_json', "LONGTEXT NULL");
     addColumnSafe($pdo, 'users', 'api_token', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'users', 'token_created_at', 'DATETIME NULL');
@@ -619,31 +662,268 @@ function lapidarPorColuna(PDO $pdo, string $tabela, string $coluna, int $valor):
     } catch (Exception $e) {}
 }
 
+const GOV_PREFIXO_ATUAL = 'ENC:G4G3:';   // AES-256-GCM; mesmo layout de services/seguranca/crypto_service.py
+const GOV_PREFIXO_LEGADO = 'ENC:G4G2:';  // antigo: AES-CBC (nuvem) ou CTR+HMAC (PC); só leitura
+const GOV_AAD = 'gerencigeo:senha_gov';
+
 /**
- * Cifra uma senha GOV com AES-256-CBC
+ * Chave atual. Para PC e nuvem lerem as senhas um do outro, GERENCIGEO_SECRET_KEY precisa ser a mesma nos dois.
+ * Sem ela, usa a chave antiga da nuvem (comportamento anterior).
  */
-function encryptGovPassword(string $plain): string {
-    if (str_starts_with($plain, 'ENC:G4G2:')) {
-        return $plain;
-    }
-    $key = hash('sha256', APP_SECRET_KEY, true);
-    $iv = openssl_random_pseudo_bytes(16);
-    $ciphertext = openssl_encrypt($plain, 'aes-256-cbc', $key, 0, $iv);
-    return 'ENC:G4G2:' . base64_encode($iv . $ciphertext);
+function govChave(): string {
+    return hash('sha256', ggCfg('GERENCIGEO_SECRET_KEY', APP_SECRET_KEY), true);
+}
+
+/** Chave do formato antigo da nuvem (AES-CBC), sempre derivada da constante. */
+function govChaveLegada(): string {
+    return hash('sha256', APP_SECRET_KEY, true);
+}
+
+function govEstaCifrada(string $valor): bool {
+    return str_starts_with($valor, GOV_PREFIXO_ATUAL) || str_starts_with($valor, GOV_PREFIXO_LEGADO);
 }
 
 /**
- * Decifra uma senha GOV
+ * Cifra uma senha GOV com AES-256-GCM: ENC:G4G3: + urlsafe_b64(iv[12] || ciphertext || tag[16]).
+ * Valor já cifrado (qualquer formato) volta como está.
+ */
+function encryptGovPassword(string $plain): string {
+    if (govEstaCifrada($plain)) {
+        return $plain;
+    }
+    $iv = random_bytes(12);
+    $tag = '';
+    $ct = openssl_encrypt($plain, 'aes-256-gcm', govChave(), OPENSSL_RAW_DATA, $iv, $tag, GOV_AAD, 16);
+    if ($ct === false || strlen($tag) !== 16) {
+        throw new RuntimeException('Falha ao cifrar a senha GOV.');
+    }
+    return GOV_PREFIXO_ATUAL . strtr(base64_encode($iv . $ct . $tag), '+/', '-_');
+}
+
+/**
+ * Lê o formato antigo do PC (CTR sobre HMAC-SHA256 + MAC), autenticado: devolve null se o MAC não confere.
+ */
+function govDecifrarLegadoPc(string $enc, string $chave): ?string {
+    $raw = base64_decode(strtr(substr($enc, strlen(GOV_PREFIXO_LEGADO)), '-_', '+/'), true);
+    if ($raw === false || strlen($raw) < 48) return null;
+    $nonce = substr($raw, 0, 16);
+    $mac = substr($raw, -32);
+    $cifra = substr($raw, 16, -32);
+    if (!hash_equals(hash_hmac('sha256', $nonce . $cifra, $chave, true), $mac)) return null;
+    $fluxo = '';
+    for ($i = 0; strlen($fluxo) < strlen($cifra); $i++) {
+        $fluxo .= hash_hmac('sha256', $nonce . pack('N', $i), $chave, true);
+    }
+    return $cifra ^ substr($fluxo, 0, strlen($cifra));
+}
+
+/**
+ * Decifra uma senha GOV (AES-GCM atual, legado do PC, legado AES-CBC da nuvem ou texto puro antigo).
+ * Devolve '' quando não consegue decifrar (chave diferente, dado adulterado).
  */
 function decryptGovPassword(string $enc): string {
-    if (!str_starts_with($enc, 'ENC:G4G2:')) {
-        return $enc;
+    if (str_starts_with($enc, GOV_PREFIXO_ATUAL)) {
+        $raw = base64_decode(strtr(substr($enc, strlen(GOV_PREFIXO_ATUAL)), '-_', '+/'), true);
+        if ($raw === false || strlen($raw) < 28) return '';
+        $iv = substr($raw, 0, 12);
+        $tag = substr($raw, -16);
+        $ct = substr($raw, 12, -16);
+        $plain = openssl_decrypt($ct, 'aes-256-gcm', govChave(), OPENSSL_RAW_DATA, $iv, $tag, GOV_AAD);
+        return $plain === false ? '' : $plain;
     }
-    $raw = base64_decode(substr($enc, 9));
-    $iv = substr($raw, 0, 16);
-    $ciphertext = substr($raw, 16);
-    $key = hash('sha256', APP_SECRET_KEY, true);
-    return (string)openssl_decrypt($ciphertext, 'aes-256-cbc', $key, 0, $iv);
+    if (str_starts_with($enc, GOV_PREFIXO_LEGADO)) {
+        // 1) formato do PC: o HMAC confirma sem ambiguidade
+        foreach ([govChave(), govChaveLegada()] as $chave) {
+            $plano = govDecifrarLegadoPc($enc, $chave);
+            if ($plano !== null) return $plano;
+        }
+        // 2) formato antigo da nuvem (AES-CBC; o "ciphertext" é um texto base64)
+        $raw = base64_decode(substr($enc, strlen(GOV_PREFIXO_LEGADO)), true);
+        if ($raw === false || strlen($raw) <= 16) return '';
+        $plain = openssl_decrypt(substr($raw, 16), 'aes-256-cbc', govChaveLegada(), 0, substr($raw, 0, 16));
+        return $plain === false ? '' : $plain;
+    }
+    return $enc; // texto puro de bases muito antigas
+}
+
+/** Converte qualquer formato para o atual; se não der para decifrar, devolve o valor intacto (nada se perde). */
+function govNormalizarParaAtual(string $valor): string {
+    if (str_starts_with($valor, GOV_PREFIXO_ATUAL)) return $valor;
+    $plano = decryptGovPassword($valor);
+    if ($plano === '') return $valor;
+    return encryptGovPassword($plano);
+}
+
+/**
+ * CPF/CNPJ para gravação: só dígitos, exceto o CNPJ alfanumérico (14 caracteres [0-9A-Z] com letras).
+ */
+function limparDocumentoCliente($doc): ?string {
+    if ($doc === null || trim((string)$doc) === '') return null;
+    $bruto = strtoupper((string)preg_replace('/[^0-9A-Za-z]/', '', (string)$doc));
+    if (strlen($bruto) === 14 && preg_match('/[A-Z]/', $bruto)) return $bruto;
+    return (string)preg_replace('/\D/', '', (string)$doc);
+}
+
+/** Dígito verificador do CNPJ (numérico ou alfanumérico: valor do caractere = ord(c) - 48). */
+function digitoCnpj(string $base): int {
+    $pesos = strlen($base) === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    $soma = 0;
+    for ($i = 0; $i < strlen($base); $i++) {
+        $soma += (ord($base[$i]) - 48) * $pesos[$i];
+    }
+    $resto = $soma % 11;
+    return $resto < 2 ? 0 : 11 - $resto;
+}
+
+/** Valida CPF ou CNPJ (inclusive o alfanumérico). Vazio é válido (campo opcional). */
+function validarCpfCnpj(?string $doc): bool {
+    if ($doc === null || $doc === '') return true;
+    $d = limparDocumentoCliente($doc) ?? '';
+    if (strlen($d) === 11 && ctype_digit($d)) {
+        if (preg_match('/^(\d)\1{10}$/', $d)) return false;
+        for ($t = 9; $t < 11; $t++) {
+            $soma = 0;
+            for ($c = 0; $c < $t; $c++) {
+                $soma += (int)$d[$c] * (($t + 1) - $c);
+            }
+            if ((($soma * 10) % 11) % 10 !== (int)$d[$t]) return false;
+        }
+        return true;
+    }
+    if (strlen($d) === 14 && preg_match('/^[0-9A-Z]{12}\d{2}$/', $d)) {
+        if (preg_match('/^(.)\1{13}$/', $d)) return false;
+        return digitoCnpj(substr($d, 0, 12)) === (int)$d[12] && digitoCnpj(substr($d, 0, 13)) === (int)$d[13];
+    }
+    return false;
+}
+
+/** Colunas de pessoas editáveis pelo cadastro: coluna => chaves aceitas no JSON (a primeira nomeia o histórico). */
+function camposPessoaCliente(): array {
+    $mesmoNome = [
+        'nacionalidade', 'profissao', 'estado_civil', 'regime_bens', 'endereco_completo', 'nome_conjuge', 'cpf_conjuge',
+        'rg_conjuge', 'genero_conjuge', 'nacionalidade_conjuge', 'profissao_conjuge', 'tipo_pessoa', 'razao_social',
+        'nome_fantasia', 'inscricao_estadual', 'inscricao_municipal', 'representante_legal_id', 'cnh_numero',
+        'cnh_categoria', 'cnh_validade', 'cnh_orgao_uf', 'rg_orgao', 'rg_uf', 'naturalidade',
+        'certidao_casamento_matricula', 'rg_orgao_conjuge', 'rg_uf_conjuge', 'data_casamento', 'cartorio_casamento',
+        'livro_casamento', 'folha_casamento', 'termo_casamento', 'bairro', 'endereco_sem_numero', 'numero_endereco',
+    ];
+    $campos = ['cpf_cnpj' => ['cpf_cnpj'], 'rg' => ['rg_ie', 'rg'], 'genero' => ['sexo', 'genero']];
+    foreach ($mesmoNome as $coluna) {
+        $campos[$coluna] = [$coluna];
+    }
+    return $campos;
+}
+
+/** Colunas de clientes editáveis pelo cadastro (mesma convenção de camposPessoaCliente). */
+function camposClienteCliente(): array {
+    return [
+        'email' => ['email'], 'telefone' => ['telefone'], 'cidade' => ['cidade'], 'estado' => ['estado'],
+        'cep' => ['cep'], 'data_nascimento_fundacao' => ['data_nascimento_fundacao'], 'sexo' => ['sexo', 'genero'],
+    ];
+}
+
+/** Valor do JSON pronto para gravar: vazio vira NULL; documentos são normalizados. */
+function normalizarCampoCliente(string $coluna, $valor) {
+    if ($coluna === 'cpf_cnpj') return limparDocumentoCliente($valor);
+    if ($coluna === 'cpf_conjuge') {
+        $digitos = preg_replace('/\D/', '', (string)($valor ?? ''));
+        return $digitos === '' ? null : $digitos;
+    }
+    if ($coluna === 'representante_legal_id') {
+        return ($valor === null || $valor === '' || (int)$valor === 0) ? null : (int)$valor;
+    }
+    return emptyToNull($valor);
+}
+
+/** Texto comparável para o histórico (documentos só com os caracteres significativos). */
+function textoParaHistorico(string $coluna, $valor): string {
+    if ($valor === null) return '';
+    if ($coluna === 'cpf_cnpj' || $coluna === 'cpf_conjuge') {
+        return (string)limparDocumentoCliente($valor);
+    }
+    return (string)$valor;
+}
+
+function registrarHistoricoCliente(PDO $pdo, int $clienteId, string $campo, ?string $antigo, ?string $novo): void {
+    $pdo->prepare("INSERT INTO cliente_historico_logs (id_cliente, campo_alterado, valor_antigo, valor_novo, data_alteracao) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())")
+        ->execute([$clienteId, $campo, $antigo, $novo]);
+}
+
+function registrarAcessoCliente(PDO $pdo, int $clienteId, string $tipo, string $acao, string $usuario): void {
+    $pdo->prepare("INSERT INTO cliente_acesso_logs (id_cliente, tipo_dado, acao, usuario, ip_origem, data_acesso) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())")
+        ->execute([$clienteId, $tipo, $acao, $usuario, $_SERVER['REMOTE_ADDR'] ?? 'desconhecido']);
+}
+
+/**
+ * Exclui o cliente dentro da transação aberta pelo chamador. Retorna [erro|null, status].
+ * A pessoa só é removida se não tiver outro papel (outro cliente ou confrontante). A exclusão fica em
+ * cliente_exclusoes_log, que não é apagada junto com a trilha de acessos do cliente.
+ */
+function excluirClienteCompleto(PDO $pdo, int $cid, string $usuario): array {
+    $st = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
+    $st->execute([$cid]);
+    $pId = $st->fetchColumn();
+    if ($pId === false) return ['Cliente não encontrado.', 404];
+
+    $levantamentos = 0;
+    $propriedades = 0;
+    foreach (['propriedade_proprietarios', 'propriedade_clientes'] as $tabela) {
+        try {
+            $q = $pdo->prepare("SELECT COUNT(*) FROM {$tabela} pp JOIN levantamentos l ON pp.propriedade_id = l.propriedade_id WHERE pp.cliente_id = ?");
+            $q->execute([$cid]);
+            $levantamentos += (int)$q->fetchColumn();
+            $q = $pdo->prepare("SELECT COUNT(*) FROM {$tabela} WHERE cliente_id = ?");
+            $q->execute([$cid]);
+            $propriedades = max($propriedades, (int)$q->fetchColumn());
+        } catch (Exception $e) {}
+    }
+    if ($levantamentos > 0) return ['Não é possível excluir cliente com levantamentos vinculados.', 409];
+
+    $nome = null;
+    $docMascarado = null;
+    if ($pId) {
+        $q = $pdo->prepare("SELECT nome, cpf_cnpj FROM pessoas WHERE id = ?");
+        $q->execute([$pId]);
+        $ficha = $q->fetch();
+        if ($ficha) {
+            $nome = $ficha['nome'];
+            $limpo = limparDocumentoCliente($ficha['cpf_cnpj']);
+            $docMascarado = $limpo ? substr($limpo, 0, 3) . '***' . substr($limpo, -2) : null;
+        }
+    }
+    $q = $pdo->prepare("SELECT COUNT(*) FROM cliente_acesso_logs WHERE id_cliente = ?");
+    $q->execute([$cid]);
+    $acessos = (int)$q->fetchColumn();
+    $pdo->prepare("INSERT INTO cliente_exclusoes_log (cliente_id, nome, documento_mascarado, usuario, qtd_acessos_sensiveis, qtd_propriedades_desvinculadas, data_exclusao) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())")
+        ->execute([$cid, $nome, $docMascarado, $usuario, $acessos, $propriedades]);
+
+    $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$cid]);
+    $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$cid]);
+    $pdo->prepare("DELETE FROM cliente_historico_logs WHERE id_cliente = ?")->execute([$cid]);
+    lapidarPorColuna($pdo, 'propriedade_proprietarios', 'cliente_id', $cid);
+    $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$cid]);
+    $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$cid]);
+    $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$cid]);
+    $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)")->execute([$cid]);
+
+    if ($pId) {
+        $q = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
+        $q->execute([$pId]);
+        $outroCliente = (int)$q->fetchColumn() > 0;
+        $confrontante = false;
+        try {
+            $q = $pdo->prepare("SELECT COUNT(*) FROM confrontantes WHERE pessoa_id = ?");
+            $q->execute([$pId]);
+            $confrontante = (int)$q->fetchColumn() > 0;
+        } catch (Exception $e) {}
+        if (!$outroCliente && !$confrontante) {
+            // representante_legal_id não tem FK: sem isso a PJ ficaria apontando para uma pessoa que não existe
+            $pdo->prepare("UPDATE pessoas SET representante_legal_id = NULL WHERE representante_legal_id = ?")->execute([$pId]);
+            $pdo->prepare("DELETE FROM pessoas WHERE id = ?")->execute([$pId]);
+            $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)")->execute([$pId]);
+        }
+    }
+    return [null, 200];
 }
 
 /**
@@ -786,6 +1066,9 @@ if ((($route === '/' || $route === '') && empty($_GET['action'])) || $route === 
         'service' => 'GerenciGeo Cloud Hub (MySQL)',
         'version' => '2.0.0',
         'database' => 'MySQL Conectado',
+        // diagnóstico sem segredos: indica se o gerencigeo_config.php (fora da pasta pública) foi encontrado
+        'config_externa' => !empty($GLOBALS['gg_cfg']),
+        'chave_compartilhada_definida' => ggCfg('GERENCIGEO_SECRET_KEY', '') !== '',
         'sync_schema' => (function () {
             try { return ensureSyncSchema(getDb()); } catch (Throwable $e) { return 'erro'; }
         })(),
@@ -1038,19 +1321,38 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     $id = isset($matches[1]) && $matches[1] !== '' ? (int)$matches[1] : null;
     $subAction = isset($matches[2]) ? $matches[2] : null;
 
+    // Cadastro de clientes (CPF/CNPJ, contatos, senha GOV): nada sem login
+    $authUser = requireAuth($pdo);
+    $usuarioAuditoria = (string)($authUser['name'] ?? ($authUser['email'] ?? 'Operador Web'));
+
     // POST /clientes/{id}/revelar-senha (Auditoria e revelação)
     if ($method === 'POST' && $id && $subAction === 'revelar-senha') {
         $stmt = $pdo->prepare("SELECT senha_gov FROM clientes WHERE id = ?");
         $stmt->execute([$id]);
         $row = $stmt->fetch();
         if (!$row) jsonResponse(['error' => 'Cliente não encontrado.'], 404);
+        if (empty($row['senha_gov'])) jsonResponse(['senha_gov' => null, 'message' => 'Nenhuma senha cadastrada.']);
 
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'desconhecido';
-        $logStmt = $pdo->prepare("INSERT INTO cliente_acesso_logs (id_cliente, tipo_dado, acao, usuario, ip_origem) VALUES (?, 'senha_gov', 'REVELOU_SENHA', 'Operador Web', ?)");
-        $logStmt->execute([$id, $ip]);
-
-        $decrypted = decryptGovPassword($row['senha_gov'] ?? '');
+        $decrypted = decryptGovPassword((string)$row['senha_gov']);
+        if ($decrypted === '') {
+            jsonResponse(['error' => 'Não foi possível decifrar a senha GOV (chave de criptografia diferente da usada ao gravar).'], 409);
+        }
+        registrarAcessoCliente($pdo, $id, 'SENHA_GOV', 'REVELACAO_VISUAL', $usuarioAuditoria);
         jsonResponse(['senha_gov' => $decrypted]);
+    }
+
+    // GET /clientes/{id}/historico (alterações cadastrais)
+    if ($method === 'GET' && $id && $subAction === 'historico') {
+        $stmt = $pdo->prepare("SELECT campo_alterado, valor_antigo, valor_novo, data_alteracao FROM cliente_historico_logs WHERE id_cliente = ? ORDER BY data_alteracao DESC, id DESC");
+        $stmt->execute([$id]);
+        jsonResponse($stmt->fetchAll());
+    }
+
+    // GET /clientes/{id}/acessos (trilha de acessos a dados sensíveis)
+    if ($method === 'GET' && $id && $subAction === 'acessos') {
+        $stmt = $pdo->prepare("SELECT id, tipo_dado, acao, usuario, ip_origem, data_acesso FROM cliente_acesso_logs WHERE id_cliente = ? ORDER BY data_acesso DESC, id DESC");
+        $stmt->execute([$id]);
+        jsonResponse($stmt->fetchAll());
     }
 
     // GET /clientes/{id}/documentos
@@ -1216,7 +1518,7 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     // POST /clientes/excluir-lote
     if ($method === 'POST' && $subAction === 'excluir-lote') {
         $input = getJsonInput();
-        $ids = $input['cliente_ids'] ?? [];
+        $ids = is_array($input['cliente_ids'] ?? null) ? $input['cliente_ids'] : [];
         $sucessos = 0;
         $erros = [];
         $pdo->beginTransaction();
@@ -1224,31 +1526,10 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             foreach ($ids as $cid) {
                 $cid = (int)$cid;
                 if (!$cid) continue;
-                $stLev = $pdo->prepare("SELECT COUNT(*) FROM propriedade_proprietarios pp JOIN levantamentos l ON pp.propriedade_id = l.propriedade_id WHERE pp.cliente_id = ?");
-                $stLev->execute([$cid]);
-                if ((int)$stLev->fetchColumn() > 0) {
-                    $erros[] = "Cliente ID {$cid}: possui levantamentos vinculados.";
+                [$erro] = excluirClienteCompleto($pdo, $cid, $usuarioAuditoria);
+                if ($erro !== null) {
+                    $erros[] = "Cliente ID {$cid}: {$erro}";
                     continue;
-                }
-                $stP = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
-                $stP->execute([$cid]);
-                $pId = $stP->fetchColumn();
-
-                $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$cid]);
-                $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$cid]);
-                lapidarPorColuna($pdo, 'propriedade_proprietarios', 'cliente_id', (int)$cid);
-                $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$cid]);
-                $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$cid]);
-                $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$cid]);
-                $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)")->execute([$cid]);
-
-                if ($pId) {
-                    $stOutro = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
-                    $stOutro->execute([$pId]);
-                    if ((int)$stOutro->fetchColumn() === 0) {
-                        $pdo->prepare("DELETE FROM pessoas WHERE id = ?")->execute([$pId]);
-                        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)")->execute([$pId]);
-                    }
                 }
                 $sucessos++;
             }
@@ -1272,11 +1553,29 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
         $nome = trim((string)($input['nome_completo'] ?? $input['nome'] ?? $input['razao_social'] ?? ''));
         if (empty($nome)) jsonResponse(['error' => 'Nome do cliente é obrigatório.'], 400);
 
+        $docNormalizado = limparDocumentoCliente($input['cpf_cnpj'] ?? null);
+        if (!validarCpfCnpj($docNormalizado)) jsonResponse(['error' => 'CPF/CNPJ inválido'], 400);
+        $pessoaExistenteId = null;
+        if ($docNormalizado !== null) {
+            $stDoc = $pdo->prepare("SELECT id FROM pessoas WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ? LIMIT 1");
+            $stDoc->execute([$docNormalizado]);
+            $achada = $stDoc->fetchColumn();
+            if ($achada) {
+                $stJaCliente = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
+                $stJaCliente->execute([(int)$achada]);
+                if ((int)$stJaCliente->fetchColumn() > 0) jsonResponse(['error' => 'CPF/CNPJ já cadastrado'], 400);
+                $pessoaExistenteId = (int)$achada; // pessoa que já existia só como confrontante
+            }
+        }
+
         $pdo->beginTransaction();
         try {
             $tipoPessoa = $input['tipo_pessoa'] ?? 'PF';
             $razaoSocial = $tipoPessoa === 'PJ' ? ($input['razao_social'] ?? $nome) : ($input['razao_social'] ?? null);
 
+            if ($pessoaExistenteId !== null) {
+                $pessoaId = $pessoaExistenteId;
+            } else {
             $stmtP = $pdo->prepare("INSERT INTO pessoas (
                 nome, cpf_cnpj, rg, genero, nacionalidade, profissao, estado_civil, regime_bens, endereco_completo,
                 nome_conjuge, cpf_conjuge, rg_conjuge, genero_conjuge, nacionalidade_conjuge, profissao_conjuge,
@@ -1294,16 +1593,16 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
             )");
             $stmtP->execute([
                 $nome,
-                emptyToNull($input['cpf_cnpj'] ?? null),
+                $docNormalizado,
                 emptyToNull($input['rg'] ?? $input['rg_ie'] ?? null),
                 emptyToNull($input['genero'] ?? $input['sexo'] ?? 'M'),
-                emptyToNull($input['nacionalidade'] ?? 'brasileiro(a)'),
+                emptyToNull($input['nacionalidade'] ?? null),
                 emptyToNull($input['profissao'] ?? null),
                 emptyToNull($input['estado_civil'] ?? null),
                 emptyToNull($input['regime_bens'] ?? null),
                 emptyToNull($input['endereco_completo'] ?? null),
                 emptyToNull($input['nome_conjuge'] ?? null),
-                emptyToNull($input['cpf_conjuge'] ?? null),
+                normalizarCampoCliente('cpf_conjuge', $input['cpf_conjuge'] ?? null),
                 emptyToNull($input['rg_conjuge'] ?? null),
                 emptyToNull($input['genero_conjuge'] ?? null),
                 emptyToNull($input['nacionalidade_conjuge'] ?? null),
@@ -1334,8 +1633,10 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                 emptyToNull($input['numero_endereco'] ?? null)
             ]);
             $pessoaId = (int)$pdo->lastInsertId();
+            }
 
-            $senhaCifrada = !empty($input['senha_gov']) ? encryptGovPassword($input['senha_gov']) : null;
+            $senhaBruta = trim((string)($input['senha_gov'] ?? ''));
+            $senhaCifrada = ($senhaBruta !== '' && $senhaBruta !== '••••••••') ? encryptGovPassword($senhaBruta) : null;
             $stmtC = $pdo->prepare("INSERT INTO clientes (pessoa_id, profissional_id, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov, metadados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmtC->execute([
                 $pessoaId,
@@ -1361,152 +1662,142 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     }
 
     // PUT /clientes/{id}
+    // Atualização parcial: chave ausente do JSON = mantém; chave presente (inclusive null/"") = grava, e a
+    // mudança entra em cliente_historico_logs. Senha GOV: "" remove, a máscara "••••••••" mantém.
     if ($method === 'PUT' && $id) {
         $input = getJsonInput();
-        $stmtC = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
+        $stmtC = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
         $stmtC->execute([$id]);
-        $row = $stmtC->fetch();
-        if (!$row) jsonResponse(['error' => 'Cliente não encontrado.'], 404);
-        $pessoaId = $row['pessoa_id'];
+        $cliAtual = $stmtC->fetch();
+        if (!$cliAtual) jsonResponse(['error' => 'Cliente não encontrado.'], 404);
+        $pessoaId = (int)$cliAtual['pessoa_id'];
+        $stmtPe = $pdo->prepare("SELECT * FROM pessoas WHERE id = ?");
+        $stmtPe->execute([$pessoaId]);
+        $pesAtual = $stmtPe->fetch() ?: [];
 
+        // Um nome só pode ser trocado por outro nome (a coluna é NOT NULL)
         $nome = trim((string)($input['nome_completo'] ?? $input['nome'] ?? $input['razao_social'] ?? ''));
+
+        // Monta os SET a partir das colunas permitidas (nomes de coluna vêm das listas fixas, nunca do JSON)
+        $setP = [];
+        $parP = [];
+        $mudancas = [];
+        if ($nome !== '' && (string)($pesAtual['nome'] ?? '') !== $nome) {
+            $setP[] = '`nome` = ?';
+            $parP[] = $nome;
+            $mudancas[] = ['nome_completo', (string)($pesAtual['nome'] ?? ''), $nome];
+        }
+        foreach (camposPessoaCliente() as $coluna => $chaves) {
+            $chave = null;
+            foreach ($chaves as $k) {
+                if (array_key_exists($k, $input)) { $chave = $k; break; }
+            }
+            if ($chave === null) continue;
+            $novo = normalizarCampoCliente($coluna, $input[$chave]);
+            $antes = textoParaHistorico($coluna, $pesAtual[$coluna] ?? null);
+            $depois = textoParaHistorico($coluna, $novo);
+            if ($coluna === 'cpf_cnpj' && !validarCpfCnpj($novo)) jsonResponse(['error' => 'CPF/CNPJ inválido'], 400);
+            if ($antes === $depois) continue;
+            $setP[] = "`{$coluna}` = ?";
+            $parP[] = $novo;
+            $mudancas[] = [$chaves[0], $antes, $depois];
+        }
+
+        $setC = [];
+        $parC = [];
+        foreach (camposClienteCliente() as $coluna => $chaves) {
+            $chave = null;
+            foreach ($chaves as $k) {
+                if (array_key_exists($k, $input)) { $chave = $k; break; }
+            }
+            if ($chave === null) continue;
+            $novo = normalizarCampoCliente($coluna, $input[$chave]);
+            $antes = textoParaHistorico($coluna, $cliAtual[$coluna] ?? null);
+            $depois = textoParaHistorico($coluna, $novo);
+            if ($antes === $depois) continue;
+            $setC[] = "`{$coluna}` = ?";
+            $parC[] = $novo;
+            // sexo já entra no histórico pela coluna genero de pessoas
+            if ($coluna !== 'sexo') $mudancas[] = [$chaves[0], $antes, $depois];
+        }
+
+        if (array_key_exists('metadados', $input)) {
+            $meta = $input['metadados'];
+            $setC[] = '`metadados` = ?';
+            $parC[] = empty($meta) ? null : (is_string($meta) ? $meta : json_encode($meta, JSON_UNESCAPED_UNICODE));
+        }
+
+        $mudancaSenha = null;
+        $senhaEnviada = $input['senha_gov'] ?? null;
+        if (array_key_exists('senha_gov', $input) && $senhaEnviada !== null && $senhaEnviada !== '••••••••') {
+            $senhaEnviada = trim((string)$senhaEnviada);
+            $tinhaSenha = !empty($cliAtual['senha_gov']);
+            if ($senhaEnviada === '') {
+                if ($tinhaSenha) {
+                    $setC[] = '`senha_gov` = NULL';
+                    $mudancaSenha = ['[CONFIDENCIAL]', '[REMOVIDA]'];
+                }
+            } else {
+                $setC[] = '`senha_gov` = ?';
+                $parC[] = encryptGovPassword($senhaEnviada);
+                $mudancaSenha = [$tinhaSenha ? '[CONFIDENCIAL]' : '[VAZIO]', '[ALTERADA]'];
+            }
+        }
+
+        // Duplicidade: o documento novo não pode ser de outro cliente nem de outra pessoa (ex.: confrontante)
+        $novoDoc = array_key_exists('cpf_cnpj', $input) ? limparDocumentoCliente($input['cpf_cnpj']) : null;
+        if ($novoDoc !== null) {
+            $stDup = $pdo->prepare("SELECT id FROM pessoas WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ? AND id <> ? LIMIT 1");
+            $stDup->execute([$novoDoc, $pessoaId]);
+            $outraPessoa = $stDup->fetchColumn();
+            if ($outraPessoa) {
+                $stCli = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
+                $stCli->execute([(int)$outraPessoa]);
+                $msg = (int)$stCli->fetchColumn() > 0
+                    ? 'CPF/CNPJ já cadastrado para outro cliente'
+                    : 'CPF/CNPJ já cadastrado para outra pessoa (por exemplo, um confrontante)';
+                jsonResponse(['error' => $msg], 400);
+            }
+        }
 
         $pdo->beginTransaction();
         try {
-            $stmtP = $pdo->prepare("UPDATE pessoas SET
-                nome = COALESCE(?, nome),
-                cpf_cnpj = COALESCE(?, cpf_cnpj),
-                rg = COALESCE(?, rg),
-                genero = COALESCE(?, genero),
-                nacionalidade = COALESCE(?, nacionalidade),
-                profissao = COALESCE(?, profissao),
-                estado_civil = COALESCE(?, estado_civil),
-                regime_bens = COALESCE(?, regime_bens),
-                endereco_completo = COALESCE(?, endereco_completo),
-                nome_conjuge = COALESCE(?, nome_conjuge),
-                cpf_conjuge = COALESCE(?, cpf_conjuge),
-                rg_conjuge = COALESCE(?, rg_conjuge),
-                genero_conjuge = COALESCE(?, genero_conjuge),
-                nacionalidade_conjuge = COALESCE(?, nacionalidade_conjuge),
-                profissao_conjuge = COALESCE(?, profissao_conjuge),
-                tipo_pessoa = COALESCE(?, tipo_pessoa),
-                razao_social = COALESCE(?, razao_social),
-                nome_fantasia = COALESCE(?, nome_fantasia),
-                inscricao_estadual = COALESCE(?, inscricao_estadual),
-                inscricao_municipal = COALESCE(?, inscricao_municipal),
-                representante_legal_id = COALESCE(?, representante_legal_id),
-                cnh_numero = COALESCE(?, cnh_numero),
-                cnh_categoria = COALESCE(?, cnh_categoria),
-                cnh_validade = COALESCE(?, cnh_validade),
-                cnh_orgao_uf = COALESCE(?, cnh_orgao_uf),
-                rg_orgao = COALESCE(?, rg_orgao),
-                rg_uf = COALESCE(?, rg_uf),
-                naturalidade = COALESCE(?, naturalidade),
-                certidao_casamento_matricula = COALESCE(?, certidao_casamento_matricula),
-                rg_orgao_conjuge = COALESCE(?, rg_orgao_conjuge),
-                rg_uf_conjuge = COALESCE(?, rg_uf_conjuge),
-                data_casamento = COALESCE(?, data_casamento),
-                cartorio_casamento = COALESCE(?, cartorio_casamento),
-                livro_casamento = COALESCE(?, livro_casamento),
-                folha_casamento = COALESCE(?, folha_casamento),
-                termo_casamento = COALESCE(?, termo_casamento),
-                bairro = COALESCE(?, bairro),
-                endereco_sem_numero = COALESCE(?, endereco_sem_numero),
-                numero_endereco = COALESCE(?, numero_endereco)
-                WHERE id = ?");
-            $stmtP->execute([
-                $nome !== '' ? $nome : null,
-                emptyToNull($input['cpf_cnpj'] ?? null),
-                emptyToNull($input['rg'] ?? $input['rg_ie'] ?? null),
-                emptyToNull($input['genero'] ?? $input['sexo'] ?? null),
-                emptyToNull($input['nacionalidade'] ?? null),
-                emptyToNull($input['profissao'] ?? null),
-                emptyToNull($input['estado_civil'] ?? null),
-                emptyToNull($input['regime_bens'] ?? null),
-                emptyToNull($input['endereco_completo'] ?? null),
-                emptyToNull($input['nome_conjuge'] ?? null),
-                emptyToNull($input['cpf_conjuge'] ?? null),
-                emptyToNull($input['rg_conjuge'] ?? null),
-                emptyToNull($input['genero_conjuge'] ?? null),
-                emptyToNull($input['nacionalidade_conjuge'] ?? null),
-                emptyToNull($input['profissao_conjuge'] ?? null),
-                emptyToNull($input['tipo_pessoa'] ?? null),
-                emptyToNull($input['razao_social'] ?? null),
-                emptyToNull($input['nome_fantasia'] ?? null),
-                emptyToNull($input['inscricao_estadual'] ?? null),
-                emptyToNull($input['inscricao_municipal'] ?? null),
-                isset($input['representante_legal_id']) && $input['representante_legal_id'] !== '' ? (int)$input['representante_legal_id'] : null,
-                emptyToNull($input['cnh_numero'] ?? null),
-                emptyToNull($input['cnh_categoria'] ?? null),
-                emptyToNull($input['cnh_validade'] ?? null),
-                emptyToNull($input['cnh_orgao_uf'] ?? null),
-                emptyToNull($input['rg_orgao'] ?? null),
-                emptyToNull($input['rg_uf'] ?? null),
-                emptyToNull($input['naturalidade'] ?? null),
-                emptyToNull($input['certidao_casamento_matricula'] ?? null),
-                emptyToNull($input['rg_orgao_conjuge'] ?? null),
-                emptyToNull($input['rg_uf_conjuge'] ?? null),
-                emptyToNull($input['data_casamento'] ?? null),
-                emptyToNull($input['cartorio_casamento'] ?? null),
-                emptyToNull($input['livro_casamento'] ?? null),
-                emptyToNull($input['folha_casamento'] ?? null),
-                emptyToNull($input['termo_casamento'] ?? null),
-                emptyToNull($input['bairro'] ?? null),
-                emptyToNull($input['endereco_sem_numero'] ?? null),
-                emptyToNull($input['numero_endereco'] ?? null),
-                $pessoaId
-            ]);
-
-            $params = [
-                emptyToNull($input['email'] ?? null),
-                emptyToNull($input['telefone'] ?? null),
-                emptyToNull($input['cidade'] ?? null),
-                emptyToNull($input['estado'] ?? null),
-                emptyToNull($input['cep'] ?? null),
-                emptyToNull($input['data_nascimento_fundacao'] ?? null),
-                !empty($input['metadados']) ? (is_string($input['metadados']) ? $input['metadados'] : json_encode($input['metadados'], JSON_UNESCAPED_UNICODE)) : null,
-                $id
-            ];
-            $sqlUp = "UPDATE clientes SET email = COALESCE(?, email), telefone = COALESCE(?, telefone), cidade = COALESCE(?, cidade), estado = COALESCE(?, estado), cep = COALESCE(?, cep), data_nascimento_fundacao = COALESCE(?, data_nascimento_fundacao), metadados = COALESCE(?, metadados)";
-            if (!empty($input['senha_gov']) && $input['senha_gov'] !== '••••••••') {
-                $sqlUp .= ", senha_gov = ?";
-                array_splice($params, 7, 0, [encryptGovPassword($input['senha_gov'])]);
+            if ($setP) {
+                $pdo->prepare('UPDATE pessoas SET ' . implode(', ', $setP) . ' WHERE id = ?')->execute(array_merge($parP, [$pessoaId]));
             }
-            $sqlUp .= " WHERE id = ?";
-            $pdo->prepare($sqlUp)->execute($params);
+            if ($setC) {
+                $pdo->prepare('UPDATE clientes SET ' . implode(', ', $setC) . ' WHERE id = ?')->execute(array_merge($parC, [$id]));
+            }
+            foreach ($mudancas as [$campo, $antes, $depois]) {
+                registrarHistoricoCliente($pdo, $id, $campo, $antes, $depois);
+            }
+            if ($mudancaSenha !== null) {
+                registrarHistoricoCliente($pdo, $id, 'senha_gov', $mudancaSenha[0], $mudancaSenha[1]);
+            }
 
             touchCloudSyncTimestamp($pdo);
             $pdo->commit();
             jsonResponse(['id' => $id, 'message' => 'Cliente atualizado com sucesso!']);
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
             jsonResponse(['error' => 'Erro ao atualizar cliente: ' . $e->getMessage()], 500);
         }
     }
 
     // DELETE /clientes/{id}
     if ($method === 'DELETE' && $id) {
-        $stP = $pdo->prepare("SELECT pessoa_id FROM clientes WHERE id = ?");
-        $stP->execute([$id]);
-        $pId = $stP->fetchColumn();
-
-        $pdo->prepare("DELETE FROM cliente_documentos WHERE cliente_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM cliente_acesso_logs WHERE id_cliente = ?")->execute([$id]);
-        lapidarPorColuna($pdo, 'propriedade_proprietarios', 'cliente_id', (int)$id);
-        $pdo->prepare("DELETE FROM propriedade_proprietarios WHERE cliente_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM propriedade_clientes WHERE cliente_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM clientes WHERE id = ?")->execute([$id]);
-        $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)")->execute([$id]);
-
-        if ($pId) {
-            $stOutro = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE pessoa_id = ?");
-            $stOutro->execute([$pId]);
-            if ((int)$stOutro->fetchColumn() === 0) {
-                $pdo->prepare("DELETE FROM pessoas WHERE id = ?")->execute([$pId]);
-                $pdo->prepare("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)")->execute([$pId]);
+        $pdo->beginTransaction();
+        try {
+            [$erro, $status] = excluirClienteCompleto($pdo, $id, $usuarioAuditoria);
+            if ($erro !== null) {
+                $pdo->rollBack();
+                jsonResponse(['error' => $erro], $status);
             }
+            $pdo->commit();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            jsonResponse(['error' => 'Erro ao excluir cliente: ' . $e->getMessage()], 500);
         }
-
         touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Cliente excluído com sucesso!']);
     }
@@ -2260,7 +2551,8 @@ if ($route === '/sync/pull' && $method === 'GET') {
             if ($t === 'clientes') {
                 foreach ($rows as &$c) {
                     if (!empty($c['senha_gov'])) {
-                        $c['senha_gov'] = decryptGovPassword($c['senha_gov']);
+                        // Segue cifrada (nunca em texto puro pela rede); formatos antigos são convertidos ao atual
+                        $c['senha_gov'] = govNormalizarParaAtual((string)$c['senha_gov']);
                     }
                 }
                 unset($c);

@@ -20,6 +20,8 @@ class TestConfrontanteManager(unittest.TestCase):
             CREATE TABLE IF NOT EXISTS pessoas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT NOT NULL,
+                genero TEXT,
+                genero_conjuge TEXT,
                 cpf_cnpj TEXT,
                 rg TEXT,
                 nacionalidade TEXT,
@@ -40,6 +42,8 @@ class TestConfrontanteManager(unittest.TestCase):
                 nome TEXT,
                 matricula_imovel TEXT,
                 cns_confrontante TEXT,
+                tipo_relacao TEXT,
+                origem TEXT,
                 FOREIGN KEY (pessoa_id) REFERENCES pessoas(id)
             )
         """)

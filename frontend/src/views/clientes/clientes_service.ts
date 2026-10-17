@@ -1,4 +1,5 @@
 import { API_BASE } from '../../config';
+import { AuthService } from '../../utils/auth_service';
 import type {
   Cliente,
   ClientePayload,
@@ -8,6 +9,12 @@ import type {
   ExcluirLoteResponse,
   ViaCepResponse
 } from '../../types';
+
+/** Identifica o usuário logado nas ações auditadas (revelar senha, excluir, importar PDF). */
+export const cabecalhosAuth = (): Record<string, string> => {
+  const token = AuthService.getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export const fetchTodosClientes = async (): Promise<Cliente[]> => {
   const res = await fetch(`${API_BASE}/clientes`);
@@ -65,7 +72,7 @@ export const salvarCliente = async (payload: ClientePayload, id?: number | null)
 };
 
 export const excluirClienteIndividual = async (id: number): Promise<{ message: string }> => {
-  const res = await fetch(`${API_BASE}/clientes/${id}`, { method: 'DELETE' });
+  const res = await fetch(`${API_BASE}/clientes/${id}`, { method: 'DELETE', headers: cabecalhosAuth() });
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(data.detail || data.error || "Erro ao excluir cliente.");
@@ -76,7 +83,7 @@ export const excluirClienteIndividual = async (id: number): Promise<{ message: s
 export const excluirClientesEmLote = async (ids: number[]): Promise<ExcluirLoteResponse> => {
   const res = await fetch(`${API_BASE}/clientes/excluir-lote`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...cabecalhosAuth() },
     body: JSON.stringify({ cliente_ids: ids })
   });
   const data: ExcluirLoteResponse = await res.json();
@@ -101,7 +108,7 @@ export const salvarMetadadosCliente = async (id: number, payloadCliente: Cliente
 export const revelarSenhaGovApi = async (clienteId: number): Promise<string | null> => {
   const res = await fetch(`${API_BASE}/clientes/${clienteId}/revelar-senha`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json', ...cabecalhosAuth() }
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -13,7 +13,8 @@ from pydantic import BaseModel
 from utils.transformer_cache import get_transformer
 
 from database.connection import DatabaseManager, execute_query
-from routes.deps import verificar_levantamento_arquivado, extrair_nome_confrontante_limpo
+from routes.deps import verificar_levantamento_arquivado, extrair_nome_confrontante_limpo, ler_upload_limitado
+from utils import ods_seguro
 
 router = APIRouter(tags=["Homologação de Pontos & Banco de Pontos"])
 
@@ -270,7 +271,7 @@ def persistir_pontos_homologados(cursor, id_levantamento: int, matricula_id: Opt
 async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
     verificar_levantamento_arquivado(id)
     try:
-        content = await file.read()
+        content = await ler_upload_limitado(file)
         filename = file.filename.lower() if file.filename else ""
         is_ods = filename.endswith(".ods") or content.startswith(b"PK\x03\x04")
         abas_detectadas = []
@@ -279,9 +280,9 @@ async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
             try:
                 with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
                     if 'content.xml' in zip_ref.namelist():
-                        xml_data = zip_ref.read('content.xml')
+                        xml_data = ods_seguro.ler_content_xml(content)
                         ns = {'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
-                        root = ET.fromstring(xml_data)
+                        root = ods_seguro.parse_xml_seguro(xml_data)
                         
                         tables = root.findall('.//table:table', ns)
                         for table in tables:
@@ -298,6 +299,8 @@ async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
                                             
                             if pontos_count > 0:
                                 abas_detectadas.append({"nome": table_name, "qtd_pontos": pontos_count})
+            except ods_seguro.ArquivoInseguroError as e_seg:
+                raise HTTPException(status_code=400, detail=str(e_seg))
             except Exception as e_ods:
                 logging.getLogger(__name__).error(f"Erro ao analisar ODS: {e_ods}")
                 
@@ -308,6 +311,8 @@ async def analisar_planilha_abas(id: int, file: UploadFile = File(...)):
                 abas_detectadas.append({"nome": "Arquivo Único", "qtd_pontos": total_pontos})
                 
         return {"sucesso": True, "is_ods": is_ods, "filename": file.filename, "abas": abas_detectadas}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao analisar planilha: {str(e)}")
 
@@ -331,16 +336,16 @@ async def importar_pontos_aprovados_lote(id: int, files: list[UploadFile] = File
         
         for file in files:
             filename = file.filename
-            content = await file.read()
+            content = await ler_upload_limitado(file)
             is_ods = filename.lower().endswith(".ods") or content.startswith(b"PK\x03\x04")
             
             if is_ods:
                 try:
                     with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
                         if 'content.xml' in zip_ref.namelist():
-                            xml_data = zip_ref.read('content.xml')
+                            xml_data = ods_seguro.ler_content_xml(content)
                             ns = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
-                            root = ET.fromstring(xml_data)
+                            root = ods_seguro.parse_xml_seguro(xml_data)
                             
                             tables = root.findall('.//table:table', ns)
                             for table in tables:
@@ -522,7 +527,7 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
         if not codigo_credenciado: raise HTTPException(status_code=400, detail="Responsável Técnico não possui Código Credenciado no INCRA.")
         
         filename_raw = file.filename if file.filename else "Planilha Importada"
-        content = await file.read()
+        content = await ler_upload_limitado(file)
         filename = filename_raw.lower()
         is_ods = filename.endswith(".ods") or content.startswith(b"PK\x03\x04")
         
@@ -532,9 +537,9 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
             try:
                 with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
                     if 'content.xml' in zip_ref.namelist():
-                        xml_data = zip_ref.read('content.xml')
+                        xml_data = ods_seguro.ler_content_xml(content)
                         ns = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'}
-                        root = ET.fromstring(xml_data)
+                        root = ods_seguro.parse_xml_seguro(xml_data)
                         for table in root.findall('.//table:table', ns):
                             table_name = table.get('{urn:oasis:names:tc:opendocument:xmlns:table:1.0}name') or ""
                             if "perimetro" in table_name.lower():
@@ -579,6 +584,8 @@ async def importar_pontos_aprovados(id: int, file: UploadFile = File(...), matri
                                         "ordem": ordem_aba,
                                         "limites_dict": {}
                                     })
+            except ods_seguro.ArquivoInseguroError as e_seg:
+                raise HTTPException(status_code=400, detail=str(e_seg))
             except Exception as e_zip:
                 logging.getLogger(__name__).error(f"Erro ao processar ODS: {e_zip}")
         else:

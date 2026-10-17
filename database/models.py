@@ -725,7 +725,10 @@ def create_tables(conn):
             ("codigo_incra_imovel", "TEXT"),
             ("poligono_wkt", "TEXT"),
             ("confrontacoes_json", "TEXT"),
-            ("coproprietarios_json", "TEXT")
+            ("coproprietarios_json", "TEXT"),
+            # Quem criou o registro: 'sigef' (importação de vizinho), 'manual' (formulário), 'auto' (criado ao
+            # editar vértice/CAD) ou NULL (legado). Só 'sigef' é removido em massa ao limpar os vizinhos.
+            ("origem", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
@@ -966,6 +969,9 @@ def create_tables(conn):
         migrar_profissional_id_opcional_clientes(conn)
         # Executa migração para tornar matricula_id opcional em segmentos
         migrar_matricula_id_opcional_segmentos(conn)
+        # Índices de integridade/performance, origem dos confrontantes e backfill de nome (idempotente).
+        # Depois das reconstruções de tabela (que apagam índices) e antes dos triggers de sincronização.
+        migrar_integridade_confrontantes_e_indices(conn)
         # Deve ser a última: recria colunas/triggers de sincronização que as reconstruções de tabela acima possam ter removido
         migrar_sincronizacao_updated_at_e_lapides(conn)
     except Exception as e:
@@ -1351,20 +1357,30 @@ def migrar_retrocompatibilidade_documentos_e_senhas(conn):
     2. Senhas GOV em texto puro existentes em 'clientes.senha_gov' são criptografadas em repouso.
     """
     try:
-        from services.seguranca.crypto_service import encrypt_sensitive_data, CIPHER_PREFIX
+        from services.seguranca.crypto_service import (
+            encrypt_sensitive_data, decrypt_sensitive_data, precisa_recifrar, esta_cifrado, aesgcm_disponivel
+        )
         cursor = conn.cursor()
-        
-        # 1. Criptografia em repouso de senhas GOV legadas
+
+        # 1. Criptografia em repouso das senhas GOV: texto puro e formato legado (ENC:G4G2) vão para AES-GCM
+        #    (ENC:G4G3). Idempotente. Se a chave não abrir o legado, o valor fica intacto em vez de se perder.
         cursor.execute("SELECT id, senha_gov FROM clientes WHERE senha_gov IS NOT NULL AND senha_gov != ''")
         rows_senhas = cursor.fetchall()
         for cid, senha in rows_senhas:
-            if senha and not str(senha).startswith(CIPHER_PREFIX):
-                try:
-                    cifrado = encrypt_sensitive_data(senha)
-                    cursor.execute("UPDATE clientes SET senha_gov = ? WHERE id = ?", (cifrado, cid))
-                except Exception as ex_enc:
-                    logger.warning(f"Aviso ao migrar criptografia da senha_gov do cliente ID {cid}: {ex_enc}")
-                    
+            if not precisa_recifrar(senha):
+                continue
+            if esta_cifrado(senha) and not aesgcm_disponivel():
+                continue  # sem a biblioteca não há formato melhor para onde migrar
+            try:
+                plana = decrypt_sensitive_data(senha)
+                if plana is None:
+                    logger.warning(f"Senha GOV do cliente ID {cid} não pôde ser lida com a chave atual; mantida como está.")
+                    continue
+                cifrado = encrypt_sensitive_data(plana)
+                cursor.execute("UPDATE clientes SET senha_gov = ? WHERE id = ?", (cifrado, cid))
+            except Exception as ex_enc:
+                logger.warning(f"Aviso ao migrar criptografia da senha_gov do cliente ID {cid}: {ex_enc}")
+
         # 2. Migração de RGs de 'pessoas.rg' para 'cliente_documentos'
         cursor.execute("""
             SELECT p.id, p.rg 
@@ -1383,8 +1399,8 @@ def migrar_retrocompatibilidade_documentos_e_senhas(conn):
             """, (pid,))
             if not cursor.fetchone():
                 cursor.execute("""
-                    INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor)
-                    VALUES (?, 'RG', ?, 'SSP')
+                    INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero)
+                    VALUES (?, 'RG', ?)
                 """, (pid, rg_limpo))
                 
         conn.commit()
@@ -1404,6 +1420,19 @@ def migrar_indices_e_sanitizacao_clientes(conn):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_historico_id ON cliente_historico_logs(id_cliente)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_acesso_id ON cliente_acesso_logs(id_cliente)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_propriedade_clientes_cliente_id ON propriedade_clientes(cliente_id)")
+        # Trilha de exclusões: sem FK de propósito, para sobreviver ao ON DELETE CASCADE de cliente_acesso_logs
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cliente_exclusoes_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL,
+                nome TEXT,
+                documento_mascarado TEXT,
+                usuario TEXT,
+                qtd_acessos_sensiveis INTEGER DEFAULT 0,
+                qtd_propriedades_desvinculadas INTEGER DEFAULT 0,
+                data_exclusao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         # Saneamento de segurança: mascara qualquer senha que possa ter sido salva em texto puro em logs legados
         cursor.execute("""
@@ -1493,10 +1522,38 @@ def migrar_profissional_id_opcional_clientes(conn):
             pass
         logger.warning(f"Aviso de migração automática para clientes.profissional_id: {e}")
 
+# Definição canônica das colunas de `segmentos` (matricula_id opcional). Colunas desconhecidas que existam
+# na tabela antiga são preservadas ao final, com o tipo declarado originalmente.
+_COLUNAS_SEGMENTOS = [
+    ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+    ("levantamento_id", "INTEGER NOT NULL"),
+    ("matricula_id", "INTEGER"),
+    ("ponto_inicio_id", "INTEGER NOT NULL"),
+    ("ponto_fim_id", "INTEGER NOT NULL"),
+    ("confrontante_id", "INTEGER"),
+    ("tipo_limite_sigef", "TEXT NOT NULL DEFAULT 'LA1'"),
+    ("metodo_posicionamento_sigef", "TEXT NOT NULL DEFAULT 'PG1'"),
+    ("origem_homologada", "INTEGER DEFAULT 0"),
+    ("anuencia_assinada", "INTEGER DEFAULT 0"),
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+]
+
+_FKS_SEGMENTOS = """
+    FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
+    FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE CASCADE,
+    FOREIGN KEY (ponto_inicio_id) REFERENCES pontos(id) ON DELETE CASCADE,
+    FOREIGN KEY (ponto_fim_id) REFERENCES pontos(id) ON DELETE CASCADE,
+    FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL
+"""
+
+
 def migrar_matricula_id_opcional_segmentos(conn):
     """
     Remove a restrição NOT NULL da coluna matricula_id na tabela segmentos
     permitindo que segmentos lineares existam antes da vinculação à matrícula.
+
+    A cópia preserva TODAS as colunas da tabela antiga (inclusive anuencia_assinada, origem_homologada e
+    updated_at) e mantém as mesmas chaves estrangeiras do CREATE original (matricula_id ON DELETE CASCADE).
     """
     cursor = conn.cursor()
     try:
@@ -1513,45 +1570,47 @@ def migrar_matricula_id_opcional_segmentos(conn):
 
         logger.info("[MIGRAÇÃO] Removendo restrição NOT NULL de segmentos.matricula_id...")
 
-        cols_nomes = [col[1] for col in colunas]
+        cols_antigas = {col[1]: (col[2] or "") for col in colunas}
+        defs = list(_COLUNAS_SEGMENTOS)
+        conhecidas = {nome for nome, _ in defs}
+        for nome, tipo in cols_antigas.items():
+            if nome not in conhecidas:
+                defs.append((nome, tipo or "TEXT"))
+        ddl_colunas = ",\n                ".join(f"{nome} {tipo}" for nome, tipo in defs)
+
+        cols_comuns = [nome for nome, _ in defs if nome in cols_antigas]
+        select_cols = []
+        for nome in cols_comuns:
+            if nome == "tipo_limite_sigef":
+                select_cols.append("COALESCE(tipo_limite_sigef, 'LA1')")
+            elif nome == "metodo_posicionamento_sigef":
+                select_cols.append("COALESCE(metodo_posicionamento_sigef, 'PG1')")
+            else:
+                select_cols.append(nome)
 
         cursor.execute("PRAGMA foreign_keys = OFF;")
         cursor.execute("BEGIN TRANSACTION;")
 
-        cursor.execute("""
+        cursor.execute("DROP TABLE IF EXISTS segmentos_novo;")
+        cursor.execute(f"""
             CREATE TABLE segmentos_novo (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                levantamento_id INTEGER NOT NULL,
-                matricula_id INTEGER,
-                ponto_inicio_id INTEGER NOT NULL,
-                ponto_fim_id INTEGER NOT NULL,
-                confrontante_id INTEGER,
-                tipo_limite_sigef TEXT DEFAULT 'LA1',
-                metodo_posicionamento_sigef TEXT DEFAULT 'PG1',
-                origem_homologada INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE,
-                FOREIGN KEY (matricula_id) REFERENCES matriculas(id) ON DELETE SET NULL,
-                FOREIGN KEY (ponto_inicio_id) REFERENCES pontos(id) ON DELETE CASCADE,
-                FOREIGN KEY (ponto_fim_id) REFERENCES pontos(id) ON DELETE CASCADE,
-                FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE SET NULL
+                {ddl_colunas},
+                {_FKS_SEGMENTOS.strip()}
             );
         """)
 
-        cursor.execute("PRAGMA table_info(segmentos_novo)")
-        cols_novo = {col[1] for col in cursor.fetchall()}
-        cols_comuns = [c for c in cols_nomes if c in cols_novo]
-        cols_comuns_str = ", ".join(cols_comuns)
-
         cursor.execute(f"""
-            INSERT INTO segmentos_novo ({cols_comuns_str})
-            SELECT {cols_comuns_str} FROM segmentos;
+            INSERT INTO segmentos_novo ({", ".join(cols_comuns)})
+            SELECT {", ".join(select_cols)} FROM segmentos;
         """)
 
         cursor.execute("DROP TABLE segmentos;")
         cursor.execute("ALTER TABLE segmentos_novo RENAME TO segmentos;")
         cursor.execute("COMMIT;")
         cursor.execute("PRAGMA foreign_keys = ON;")
+        # DROP TABLE apaga os índices da tabela antiga
+        _criar_indices_segmentos(cursor)
+        conn.commit()
         logger.info("[MIGRAÇÃO] Tabela 'segmentos' migrada com sucesso (matricula_id agora é opcional).")
     except Exception as e:
         try:
@@ -1559,6 +1618,72 @@ def migrar_matricula_id_opcional_segmentos(conn):
         except Exception:
             pass
         logger.warning(f"Aviso de migração automática para segmentos.matricula_id: {e}")
+
+
+def _criar_indices_segmentos(cursor):
+    for nome, colunas in (
+        ("idx_segmentos_lev_matricula", "levantamento_id, matricula_id"),
+        ("idx_segmentos_confrontante", "confrontante_id"),
+        ("idx_segmentos_ponto_inicio", "ponto_inicio_id"),
+        ("idx_segmentos_ponto_fim", "ponto_fim_id"),
+    ):
+        cursor.execute(f"CREATE INDEX IF NOT EXISTS {nome} ON segmentos({colunas})")
+
+
+def migrar_integridade_confrontantes_e_indices(conn):
+    """
+    Migração idempotente de integridade/performance da aba Peças de Cartório:
+    - índices por expressão para busca de CPF/CNPJ normalizado (sem REPLACE sem índice);
+    - índices de chaves estrangeiras de segmentos, confrontantes, coproprietários e anuências;
+    - `confrontantes.origem` ('sigef' para o que a importação de vizinhos criou) e backfill de `nome`
+      a partir da pessoa vinculada (dedupe e consultas passam a ter uma única fonte de nome).
+    """
+    from utils.validadores import sql_doc_normalizado
+
+    cursor = conn.cursor()
+    try:
+        _criar_indices_segmentos(cursor)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_confrontantes_levantamento ON confrontantes(levantamento_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_confrontantes_pessoa ON confrontantes(pessoa_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_coprop_confrontante ON confrontante_coproprietarios(confrontante_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_coprop_pessoa ON confrontante_coproprietarios(pessoa_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_anuencias_levantamento ON anuencias_confrontantes(levantamento_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pontos_levantamento_confrontante ON pontos(levantamento_id, confrontante_id)")
+        for tabela, nome_idx in (
+            ("pessoas", "idx_pessoas_doc_norm"),
+            ("confrontantes", "idx_confrontantes_doc_norm"),
+            ("confrontante_coproprietarios", "idx_coprop_doc_norm"),
+        ):
+            cursor.execute(
+                f"CREATE INDEX IF NOT EXISTS {nome_idx} ON {tabela}({sql_doc_normalizado('cpf_cnpj')}) "
+                f"WHERE cpf_cnpj IS NOT NULL"
+            )
+    except Exception as e_idx:
+        logger.warning(f"Aviso ao criar índices de integridade: {e_idx}")
+
+    try:
+        cursor.execute("PRAGMA table_info(confrontantes)")
+        cols = {r[1] for r in cursor.fetchall()}
+        if "origem" not in cols:
+            cursor.execute("ALTER TABLE confrontantes ADD COLUMN origem TEXT")
+        # Backfill: confrontante que só a importação de vizinhos cria (polígono/limites/pontos de vizinho)
+        cursor.execute("""
+            UPDATE confrontantes SET origem = 'sigef'
+            WHERE origem IS NULL
+              AND (poligono_wkt IS NOT NULL OR confrontacoes_json IS NOT NULL
+                   OR EXISTS (SELECT 1 FROM pontos pv WHERE pv.confrontante_id = confrontantes.id AND pv.ponto_vizinho = 1))
+        """)
+        # Backfill de nome: uma única precedência (c.nome, senão a pessoa vinculada)
+        cursor.execute("""
+            UPDATE confrontantes
+            SET nome = (SELECT p.nome FROM pessoas p WHERE p.id = confrontantes.pessoa_id)
+            WHERE (nome IS NULL OR TRIM(nome) = '')
+              AND pessoa_id IS NOT NULL
+              AND EXISTS (SELECT 1 FROM pessoas p WHERE p.id = confrontantes.pessoa_id AND TRIM(COALESCE(p.nome, '')) != '')
+        """)
+        conn.commit()
+    except Exception as e_orig:
+        logger.warning(f"Aviso na migração de origem/nome dos confrontantes: {e_orig}")
 
 
 # Tabelas sincronizadas com a Nuvem (mantida em sincronia com SYNC_TABLES de nuvem_sync.py)

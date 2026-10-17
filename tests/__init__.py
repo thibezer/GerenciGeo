@@ -5,7 +5,7 @@ import sys
 os.environ["GERENCIGEO_TEST"] = "1"
 
 import config
-config.DB_PATH = os.path.join(config.BASE_DIR, "gerencigeo_test.db")
+config.DB_PATH = os.path.join(config.BASE_DIR, f"gerencigeo_test{os.environ.get('GERENCIGEO_TEST_SUFFIX', '')}.db")
 
 from database.connection import DatabaseManager
 from database.models import create_tables

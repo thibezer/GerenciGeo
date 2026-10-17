@@ -10,13 +10,34 @@ from database.repository import PendenciaRepo
 
 logger = logging.getLogger(__name__)
 
+def limpar_documento(documento) -> str | None:
+    """
+    Normaliza CPF/CNPJ para gravação: só dígitos, exceto o CNPJ alfanumérico (14 caracteres
+    [0-9A-Z] com letras, vigente desde jul/2026), que mantém as letras em maiúsculas.
+    Retorna None para valor vazio.
+    """
+    if documento is None or not str(documento).strip():
+        return None
+    bruto = re.sub(r'[^0-9A-Za-z]', '', str(documento)).upper()
+    if len(bruto) == 14 and re.search(r'[A-Z]', bruto):
+        return bruto
+    return re.sub(r'\D', '', str(documento))
+
+
+def _digito_cnpj(base: str) -> int:
+    """Dígito verificador do CNPJ (numérico ou alfanumérico: valor do caractere = ord(c) - 48)."""
+    pesos = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] if len(base) == 12 else [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    soma = sum((ord(c) - 48) * p for c, p in zip(base, pesos))
+    resto = soma % 11
+    return 0 if resto < 2 else 11 - resto
+
+
 def validar_cpf_cnpj(documento: str) -> bool:
-    """Valida formato e dígitos verificadores de CPF ou CNPJ."""
+    """Valida formato e dígitos verificadores de CPF ou CNPJ (inclusive o CNPJ alfanumérico)."""
     if not documento or not str(documento).strip():
         return True
-    doc = re.sub(r'\D', '', str(documento))
-    if len(doc) == 11:
-        # Validação CPF
+    doc = limpar_documento(documento) or ""
+    if len(doc) == 11 and doc.isdigit():
         if doc == doc[0] * 11:
             return False
         for i in range(9, 11):
@@ -25,27 +46,10 @@ def validar_cpf_cnpj(documento: str) -> bool:
             if dig != int(doc[i]):
                 return False
         return True
-    elif len(doc) == 14:
-        # Validação CNPJ
+    if len(doc) == 14 and re.fullmatch(r'[0-9A-Z]{12}\d{2}', doc):
         if doc == doc[0] * 14:
             return False
-        tamanho = len(doc) - 2
-        numeros = doc[:tamanho]
-        digitos = doc[tamanho:]
-        def calc(num, tam):
-            soma = 0
-            pos = tam - 7
-            for i in range(tam, 0, -1):
-                soma += int(num[tam - i]) * pos
-                pos -= 1
-                if pos < 2:
-                    pos = 9
-            return 0 if soma % 11 < 2 else 11 - (soma % 11)
-        if calc(numeros, tamanho) != int(digitos[0]):
-            return False
-        if calc(numeros + doc[tamanho], tamanho + 1) != int(digitos[1]):
-            return False
-        return True
+        return _digito_cnpj(doc[:12]) == int(doc[12]) and _digito_cnpj(doc[:13]) == int(doc[13])
     return False
 
 from services.seguranca.crypto_service import encrypt_sensitive_data, decrypt_sensitive_data, CIPHER_PREFIX
@@ -265,7 +269,7 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
                 pessoa_id,
                 tipo_doc,
                 num_doc,
-                dados_extraidos.get("rg_orgao") or dados_extraidos.get("cnh_orgao_uf") or "SSP",
+                dados_extraidos.get("rg_orgao") or dados_extraidos.get("cnh_orgao_uf") or None,
                 dados_extraidos.get("rg_uf"),
                 dados_extraidos.get("cnh_categoria"),
                 dados_extraidos.get("cnh_validade"),
@@ -348,6 +352,14 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
         return {"error": f"Falha no processamento do PDF: {str(e)}"}
 
 
+def _verificar_conjuge_sem_falhar(cliente_id: int):
+    """A pendência automática é acessória: se falhar, o cadastro já gravado não vira erro para o usuário."""
+    try:
+        ClienteManager().verificar_dados_conjuge(cliente_id)
+    except Exception as e:
+        logger.warning(f"Aviso ao verificar dados do cônjuge do cliente {cliente_id}: {e}")
+
+
 def _vazio_para_none(valor):
     if isinstance(valor, str) and not valor.strip():
         return None
@@ -411,7 +423,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
     numero_endereco = cli_data.get("numero_endereco")
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
+    cpf_cnpj = limpar_documento(cpf_cnpj)
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', str(cpf_conjuge))
 
@@ -604,18 +616,17 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                     cursor.execute("""
                         INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, uf_emissor)
                         VALUES (?, 'RG', ?, ?, ?)
-                    """, (pessoa_id, rg_ie.strip(), rg_orgao or 'SSP', rg_uf or estado or 'PR'))
+                    """, (pessoa_id, rg_ie.strip(), rg_orgao or None, rg_uf or None))
                 if cnh_numero and cnh_numero.strip():
                     cursor.execute("""
                         INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, categoria_cnh, data_validade)
                         VALUES (?, 'CNH', ?, ?, ?, ?)
-                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or 'DETRAN', cnh_categoria, cnh_validade))
+                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or None, cnh_categoria, cnh_validade))
 
             conn.commit()
             
-        mgr = ClienteManager()
-        mgr.verificar_dados_conjuge(cliente_id)
-        
+        _verificar_conjuge_sem_falhar(cliente_id)
+
         return {"id": cliente_id, "message": "Cliente cadastrado com sucesso"}
     except Exception as e:
         logger.error(f"Erro no cadastro de cliente: {e}", exc_info=True)
@@ -735,7 +746,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
     numero_endereco = cli_data.get("numero_endereco")
 
     # Sanitização de CPF/CNPJ
-    cpf_cnpj = re.sub(r'\D', '', str(cpf_cnpj)) if (cpf_cnpj and str(cpf_cnpj).strip()) else None
+    cpf_cnpj = limpar_documento(cpf_cnpj)
     if cpf_conjuge:
         cpf_conjuge = re.sub(r'\D', '', str(cpf_conjuge))
 
@@ -764,6 +775,14 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                 """, (cpf_cnpj, cliente_id))
                 if cursor.fetchone():
                     return {"error": "CPF/CNPJ já cadastrado para outro cliente"}
+                # Pessoa que não é cliente (ex.: confrontante) com o mesmo documento: o UNIQUE de pessoas
+                # recusaria o UPDATE com uma mensagem de SQL; avisa de forma compreensível
+                cursor.execute("""
+                    SELECT id FROM pessoas
+                    WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ? AND id != ?
+                """, (cpf_cnpj, pessoa_id))
+                if cursor.fetchone():
+                    return {"error": "CPF/CNPJ já cadastrado para outra pessoa (por exemplo, um confrontante)"}
             
             # 3. Tratamento de senha GOV criptografada
             senha_gov_final = old_data.get("senha_gov")
@@ -830,12 +849,12 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
                         UPDATE cliente_documentos
                         SET numero = ?, categoria_cnh = ?, data_validade = ?, orgao_emissor = ?
                         WHERE id = ?
-                    """, (cnh_numero.strip(), cnh_categoria, cnh_validade, cnh_orgao_uf or 'DETRAN', cnh_row[0]))
+                    """, (cnh_numero.strip(), cnh_categoria, cnh_validade, cnh_orgao_uf or None, cnh_row[0]))
                 else:
                     cursor.execute("""
                         INSERT INTO cliente_documentos (pessoa_id, tipo_documento, numero, orgao_emissor, categoria_cnh, data_validade)
                         VALUES (?, 'CNH', ?, ?, ?, ?)
-                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or 'DETRAN', cnh_categoria, cnh_validade))
+                    """, (pessoa_id, cnh_numero.strip(), cnh_orgao_uf or None, cnh_categoria, cnh_validade))
             
             # Sincroniza documentos se fornecidos explicitamente. Documentos com PDF anexado
             # (importados) são preservados: a lista do payload não carrega os anexos.
@@ -873,7 +892,7 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             valor_antigo = old_data.get(campo)
             str_antigo = _normalizar_para_historico(campo, valor_antigo)
             str_novo = _normalizar_para_historico(campo, valor_novo)
-            if str_antigo != str_novo and valor_novo is not None:
+            if str_antigo != str_novo:
                 mgr.registrar_historico(cliente_id, campo, str_antigo, str_novo)
 
         # Registra alteração de senha_gov de forma discreta sem expor valores planos nem hashes
@@ -897,20 +916,29 @@ def atualizar_cliente(cliente_id: int, cli_data: dict) -> dict:
             except Exception as e_ws:
                 logger.warning(f"Aviso ao sincronizar workspace do levantamento {lev['id']}: {e_ws}")
         
-        mgr.verificar_dados_conjuge(cliente_id)
-            
+        _verificar_conjuge_sem_falhar(cliente_id)
+
         return {"message": "Cliente atualizado e sincronizado com sucesso"}
     except Exception as e:
         logger.error(f"Erro na atualização do cliente {cliente_id}: {e}", exc_info=True)
         return {"error": str(e)}
 
 
-def _excluir_cliente_em_transacao(cursor, cliente_id: int) -> tuple[str | None, int | None]:
+def _mascarar_documento(doc: str | None) -> str | None:
+    """Mantém só o miolo identificável do CPF/CNPJ para a trilha de exclusões (LGPD)."""
+    limpo = limpar_documento(doc) if doc else None
+    if not limpo:
+        return None
+    return f"{limpo[:3]}***{limpo[-2:]}"
+
+
+def _excluir_cliente_em_transacao(cursor, cliente_id: int, usuario: str = "Operador Local") -> tuple[str | None, int | None]:
     """
     Exclui o cliente dentro da transação aberta.
     Retorna (erro, status_code) — erro None em caso de sucesso.
     A pessoa (e seus documentos) só é removida se não tiver outro papel no sistema,
-    como o de confrontante.
+    como o de confrontante. A exclusão fica registrada em cliente_exclusoes_log, que
+    sobrevive ao cascade que apaga a trilha de acessos sensíveis do cliente.
     """
     cursor.execute("""
         SELECT count(l.id)
@@ -929,6 +957,21 @@ def _excluir_cliente_em_transacao(cursor, cliente_id: int) -> tuple[str | None, 
         return "Cliente não encontrado.", 404
     pessoa_id = row[0]
 
+    cursor.execute("""
+        SELECT p.nome, p.cpf_cnpj,
+               (SELECT COUNT(*) FROM cliente_acesso_logs WHERE id_cliente = ?),
+               (SELECT COUNT(*) FROM propriedade_clientes WHERE cliente_id = ?)
+        FROM pessoas p WHERE p.id = ?
+    """, (cliente_id, cliente_id, pessoa_id))
+    ficha = cursor.fetchone()
+    cursor.execute(
+        """INSERT INTO cliente_exclusoes_log
+           (cliente_id, nome, documento_mascarado, usuario, qtd_acessos_sensiveis, qtd_propriedades_desvinculadas)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (cliente_id, ficha[0] if ficha else None, _mascarar_documento(ficha[1]) if ficha else None,
+         usuario, ficha[2] if ficha else 0, ficha[3] if ficha else 0)
+    )
+
     cursor.execute("DELETE FROM cliente_metadados WHERE id_cliente = ?", (cliente_id,))
     cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cliente_id,))
     cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cliente_id,))
@@ -941,6 +984,8 @@ def _excluir_cliente_em_transacao(cursor, cliente_id: int) -> tuple[str | None, 
         cursor.execute("SELECT 1 FROM confrontantes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
         outro_conf = cursor.fetchone()
         if not outro_cli and not outro_conf:
+            # representante_legal_id não tem FK: sem isso a PJ ficaria apontando para uma pessoa inexistente
+            cursor.execute("UPDATE pessoas SET representante_legal_id = NULL WHERE representante_legal_id = ?", (pessoa_id,))
             cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
             cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
             cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
@@ -972,14 +1017,14 @@ def _remover_uploads_orfaos_cliente(cliente_id: int):
         logger.warning(f"Aviso ao remover uploads do cliente {cliente_id}: {ex_rm}")
 
 
-def excluir_cliente(cliente_id: int) -> dict:
+def excluir_cliente(cliente_id: int, usuario: str = "Operador Local") -> dict:
     """
     Exclui um cliente com validação de levantamentos vinculados e
     limpeza cirúrgica da pessoa apenas se ela não possuir outros vínculos no sistema.
     """
     try:
         with DatabaseManager() as conn:
-            erro, status_code = _excluir_cliente_em_transacao(conn.cursor(), cliente_id)
+            erro, status_code = _excluir_cliente_em_transacao(conn.cursor(), cliente_id, usuario)
             if erro:
                 conn.rollback()
                 return {"error": erro, "status_code": status_code}
@@ -993,7 +1038,7 @@ def excluir_cliente(cliente_id: int) -> dict:
         return {"error": f"Erro interno ao excluir cliente: {str(e)}", "status_code": 500}
 
 
-def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
+def excluir_clientes_lote(cliente_ids: list[int], usuario: str = "Operador Local") -> dict:
     """
     Exclui múltiplos clientes em uma única transação atômica no SQLite,
     garantindo que nenhum lock concorrente ocorra e reportando sucessos e erros.
@@ -1008,7 +1053,7 @@ def excluir_clientes_lote(cliente_ids: list[int]) -> dict:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             for cid in cliente_ids:
-                erro, _ = _excluir_cliente_em_transacao(cursor, cid)
+                erro, _ = _excluir_cliente_em_transacao(cursor, cid, usuario)
                 if erro:
                     erros.append(f"Cliente ID {cid}: {erro}")
                 else:

@@ -167,6 +167,10 @@ export class GerenciadorHistoricoMesa {
     }
 
     this._tecladoHandler = (e: KeyboardEvent) => {
+      // Com um traçado da Caneta em andamento, Ctrl+Z desfaz o vértice (a Caneta já consome a tecla na fase de
+      // captura); esta checagem garante que o histórico de edição de dados nunca seja desfeito junto.
+      if (this.ctx.ferramentaCaneta?.temVerticesPendentes?.()) return;
+
       // Ignora atalhos se o foco estiver num input de texto ou textarea (exceto se for apenas input-ordem-manual com blur)
       const target = e.target as HTMLElement;
       const isTextInput = target && (

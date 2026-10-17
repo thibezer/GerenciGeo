@@ -1,4 +1,5 @@
 import { escapeHtml, formatarDataHoraUtc } from '../../utils';
+import { API_BASE } from '../../config';
 import type {
   Cliente,
   ClienteEstatisticas,
@@ -8,20 +9,33 @@ import type {
   PropriedadeVinculadaCliente
 } from '../../types';
 
+/** Só caracteres válidos de CPF/CNPJ (o CNPJ alfanumérico, vigente desde jul/2026, admite A-Z). */
+export const limparDocumento = (value?: string | null): string =>
+  (value || '').replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+
+/** CNPJ = 12+ caracteres, ou qualquer valor com letra (CPF só tem dígitos). */
+export const ehDocumentoCnpj = (value?: string | null): boolean => {
+  const limpo = limparDocumento(value);
+  return limpo.length > 11 || /[A-Z]/.test(limpo);
+};
+
+export const ehPessoaJuridica = (cli: { tipo_pessoa?: string | null; cpf_cnpj?: string | null }): boolean =>
+  cli.tipo_pessoa === 'PJ' || ehDocumentoCnpj(cli.cpf_cnpj);
+
 export const aplicarMascaraCpfCnpj = (value: string): string => {
-  const apenasNumeros = value.replace(/\D/g, '');
-  if (apenasNumeros.length <= 11) {
-    return apenasNumeros
+  const limpo = limparDocumento(value);
+  if (!ehDocumentoCnpj(limpo)) {
+    return limpo
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  } else {
-    return apenasNumeros
-      .replace(/(\d{2})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
   }
+  return limpo
+    .slice(0, 14)
+    .replace(/^([0-9A-Z]{2})([0-9A-Z])/, '$1.$2')
+    .replace(/^([0-9A-Z]{2})\.([0-9A-Z]{3})([0-9A-Z])/, '$1.$2.$3')
+    .replace(/\.([0-9A-Z]{3})([0-9A-Z])/, '.$1/$2')
+    .replace(/([0-9A-Z]{4})([0-9A-Z]{1,2})$/, '$1-$2');
 };
 
 export const aplicarMascaraTelefone = (value: string): string => {
@@ -99,13 +113,69 @@ export const isCnhVencida = (dataValidade?: string | null): boolean => {
   }
 };
 
+const semAcento = (texto: string): string =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/**
+ * Filtra por nome, razão social, fantasia, e-mail, CPF/CNPJ ou telefone.
+ * O documento só entra na comparação quando o termo tem dígitos/letras de documento:
+ * "silva".replace(/\D/g, '') é "" e includes("") casa com todo mundo.
+ */
+export const filtrarClientes = <T extends Cliente>(clientes: T[], termo: string): T[] => {
+  const t = semAcento((termo || '').trim());
+  if (!t) return clientes;
+  const termoDigitos = t.replace(/\D/g, '');
+  const termoDoc = limparDocumento(t);
+  // Documento: só dígitos/letras e separadores de CPF/CNPJ, com ao menos um dígito
+  const pareceDocumento = /^[0-9a-z.\-/]+$/.test(t) && /\d/.test(t);
+  return clientes.filter(c => {
+    const texto = [c.nome_completo, (c as { nome?: string }).nome, c.razao_social, c.nome_fantasia, c.email]
+      .map(v => semAcento(v || '')).join('|');
+    if (texto.includes(t)) return true;
+    if (pareceDocumento && limparDocumento(c.cpf_cnpj).includes(termoDoc)) return true;
+    if (termoDigitos.length >= 3 && (c.telefone || '').replace(/\D/g, '').includes(termoDigitos)) return true;
+    return false;
+  });
+};
+
+/** <option>s do select de representante legal (somente PF); nome e documento sempre escapados. */
+export const renderOpcoesRepresentanteHtml = (clientes: Cliente[], selecionadoId?: number | null): string => {
+  let html = '<option value="">Selecione um cliente PF já cadastrado...</option>';
+  clientes.filter(c => !ehPessoaJuridica(c)).forEach(pf => {
+    const pid = pf.pessoa_id || pf.id;
+    const marcado = selecionadoId && Number(selecionadoId) === Number(pid);
+    html += `<option value="${pid}" ${marcado ? 'selected' : ''}>${escapeHtml(pf.nome_completo)} (${escapeHtml(aplicarMascaraCpfCnpj(pf.cpf_cnpj || ''))})</option>`;
+  });
+  return html;
+};
+
+/** Endereço para exibição: não fabrica separadores quando faltam partes. */
+export const montarEnderecoDetalhe = (cli: Cliente): string => {
+  const logradouro = [cli.endereco_completo, cli.bairro].map(v => (v || '').trim()).filter(Boolean).join(' - ');
+  const cidadeUf = [cli.cidade, cli.estado].map(v => (v || '').trim()).filter(Boolean).join('/');
+  const cep = cli.cep ? `CEP: ${aplicarMascaraCep(cli.cep)}` : '';
+  return [logradouro, cidadeUf, cep].filter(Boolean).join(' · ');
+};
+
+/** Texto de confirmação de exclusão: avisa quando há vínculos com propriedades que serão desfeitos. */
+export const montarConfirmacaoExclusao = (clientes: Cliente[]): string => {
+  const nomes = clientes.slice(0, 5).map(c => `• ${c.nome_completo || 'Sem nome'}`).join('\n');
+  const resto = clientes.length > 5 ? `\n… e mais ${clientes.length - 5}` : '';
+  const totalProps = clientes.reduce((acc, c) => acc + (c.total_propriedades || 0), 0);
+  const aviso = totalProps > 0
+    ? `\n\nAtenção: ${totalProps} vínculo(s) com propriedades serão removidos e a composição de proprietários delas poderá ficar incompleta.`
+    : '';
+  const titulo = clientes.length === 1 ? 'Excluir este cliente?' : `Excluir ${clientes.length} clientes?`;
+  return `${titulo}\n${nomes}${resto}${aviso}`;
+};
+
 export const calcularEstatisticasClientes = (clientes: Cliente[]): ClienteEstatisticas => {
   let pf = 0;
   let pj = 0;
   let incompletos = 0;
 
   clientes.forEach(cli => {
-    const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+    const isPj = ehPessoaJuridica(cli);
     if (isPj) {
       pj++;
     } else {
@@ -127,7 +197,7 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
   return visiveis.map(cli => {
     const isSel = clientesSelecionados.has(cli.id);
     const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.01]';
-    const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+    const isPj = ehPessoaJuridica(cli);
     const badgeTipo = isPj 
       ? '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">PJ</span>'
       : '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>';
@@ -274,7 +344,7 @@ export const renderDocumentosTabelaHtml = (docs: ClienteDocumento[], clienteId?:
 
     const temArquivo = Boolean(doc.arquivo_path || doc.arquivo_nome);
     const btnArquivo = temArquivo && clienteId
-      ? `<a href="/clientes/${clienteId}/documentos/${doc.id}/arquivo" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 hover:bg-mint-vibrant/20 transition-colors" title="Visualizar / Baixar PDF original">
+      ? `<a href="${API_BASE}/clientes/${clienteId}/documentos/${doc.id}/arquivo" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 hover:bg-mint-vibrant/20 transition-colors" title="Visualizar / Baixar PDF original">
           <i data-lucide="file-text" class="w-3 h-3"></i>
           Ver PDF
          </a>`

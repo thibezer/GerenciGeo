@@ -13,6 +13,7 @@ from routes.deps import verificar_tranca_read_only
 from routes import router as api_router
 from services.gestores.realtime_sync import realtime_sync_engine
 from utils.logger import tracer
+from services.seguranca.origem_local import origens_permitidas, origem_permitida, host_permitido
 import time
 
 # Inicializa o Logger do sistema
@@ -47,10 +48,17 @@ except Exception as e:
 # Configura middlewares de CORS para o frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origens_permitidas(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def proteger_api_local(request: Request, call_next):
+    """Recusa chamadas de outras origens e de hosts não-loopback (DNS rebinding) antes de qualquer rota."""
+    if not host_permitido(request.headers.get("host")) or not origem_permitida(request.headers.get("origin")):
+        return JSONResponse(status_code=403, content={"detail": "Origem não autorizada para acessar a API local."})
+    return await call_next(request)
 
 # Middleware para evitar cache do WebView2 em arquivos estáticos e HTML do frontend
 @app.middleware("http")

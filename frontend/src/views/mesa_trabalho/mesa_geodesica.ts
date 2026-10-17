@@ -4,6 +4,9 @@ import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from './mesa_trabalho_
 import { registrarEventosExportacao } from './exportacao_cad';
 import { setNuvemSyncContext } from './nuvem_sync_modal';
 import { FerramentaCanetaSelecao } from './ferramenta_caneta';
+import { aplicarFiltrosMesa } from './pontos_visiveis';
+import { pontosParaMapa, zonaUtmDoLevantamento, contarForaDoEnvelope } from './coordenadas_mapa';
+import { focoEmCampoDeTexto } from './foco_texto';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
 // Função matemática precisa e determinística de conversão Lat/Lon para UTM SIRGAS 2000.
@@ -133,31 +136,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
   const btnCorrigidos = document.querySelector('.vtx-filter-chip[data-filtro="corrigidos"]');
   if (btnCorrigidos) btnCorrigidos.textContent = `Corrigidos (${totalCorrigidos})`;
 
-  if (ctx.ocultarForaPoligono) {
-    pontosMat = pontosMat.filter(p => p.ignorar_poligono !== 1);
-  }
-
-  if (ctx.filtroRapidoAtivo !== 'todos') {
-    if (ctx.filtroRapidoAtivo === 'bases') {
-      pontosMat = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
-    } else if (ctx.filtroRapidoAtivo === 'rovers') {
-      pontosMat = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
-    } else if (ctx.filtroRapidoAtivo === 'brutos') {
-      pontosMat = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
-    } else if (ctx.filtroRapidoAtivo === 'corrigidos') {
-      pontosMat = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO');
-    }
-  }
-
-  if (ctx.searchFilterValue) {
-    pontosMat = pontosMat.filter(p =>
-      (p.nome_vertice && p.nome_vertice.toLowerCase().includes(ctx.searchFilterValue)) ||
-      (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(ctx.searchFilterValue)) ||
-      (p.tipo && p.tipo.toLowerCase().includes(ctx.searchFilterValue)) ||
-      (p.arquivo_origem && p.arquivo_origem.toLowerCase().includes(ctx.searchFilterValue)) ||
-      (p.ordem_caminhamento && String(p.ordem_caminhamento).includes(ctx.searchFilterValue))
-    );
-  }
+  // Mesmos filtros que a Caneta usa para decidir o que é selecionável (pontos_visiveis.ts)
+  pontosMat = aplicarFiltrosMesa(ctx, pontosMat);
 
   // Renderização dinâmica e configuração das checkboxes de arquivo no Popover
   const arquivosUnicos = Array.from(new Set(
@@ -203,15 +183,12 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
     }
   }
 
-  // Filtragem final baseada nos arquivos desativados
-  if (arquivosDesativados.length > 0) {
-    pontosMat = pontosMat.filter(p => !arquivosDesativados.includes(p.arquivo_origem));
-  }
-
   if (ctx.triagemMap) {
     const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
-    ctx.mapaController.plotPontos(pontosMat, (pId: number) => {
+    // O kit plota em lat/lon: entrega a coordenada verdadeira (corrigida > bruta), a mesma do resumo e dos documentos
+    const pontosMapa = pontosParaMapa(pontosMat);
+    ctx.mapaController.plotPontos(pontosMapa, (pId: number) => {
       ctx.cliqueVerticeMapa?.(pId);
     });
 
@@ -222,9 +199,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext) => {
       : (ctx.segmentosList || []);
 
     if (segmentosMat && segmentosMat.length > 0) {
-      ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+      ctx.mapaController.plotSegmentos(segmentosMat, pontosParaMapa(ctx.pontosList));
     } else {
-      ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+      ctx.mapaController.plotPolilinhaTemporaria(pontosMapa);
     }
 
     if (bpAtivo) {
@@ -1270,51 +1247,18 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
     window.removeEventListener('keydown', (ctx as any)._canetaKeydownListener);
   }
   (ctx as any)._canetaKeydownListener = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      // Ignora quando estiver digitando em qualquer campo de texto (inclusive dentro de Shadow DOM ou Web Components do UI Kit)
-      const path = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
-      for (const node of path) {
-        if (node instanceof HTMLElement) {
-          const t = node.tagName.toLowerCase();
-          if (
-            t === 'input' ||
-            t === 'textarea' ||
-            t === 'select' ||
-            t.startsWith('ui-') ||
-            t.startsWith('fluent-') ||
-            node.isContentEditable ||
-            node.getAttribute('contenteditable') === 'true'
-          ) {
-            return;
-          }
-        }
-      }
+    if (e.key.toLowerCase() !== 'p' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.repeat) return;
+    // A Caneta só serve à Mesa Geodésica (seleciona vértices para a tabela/painel dessa aba)
+    if (ctx.etapaAtiva !== 'geoprocessamento') return;
+    // Só campos de texto bloqueiam o atalho (o <ui-canvas-cad>/<fluent-*> focados NÃO são campos de texto:
+    // depois de clicar no mapa o foco fica no próprio canvas)
+    if (focoEmCampoDeTexto(e)) return;
 
-      let activeEl: Element | null = document.activeElement;
-      while (activeEl) {
-        if (activeEl instanceof HTMLElement) {
-          const t = activeEl.tagName.toLowerCase();
-          if (
-            t === 'input' ||
-            t === 'textarea' ||
-            t === 'select' ||
-            t.startsWith('ui-') ||
-            t.startsWith('fluent-') ||
-            activeEl.isContentEditable ||
-            activeEl.getAttribute('contenteditable') === 'true'
-          ) {
-            return;
-          }
-        }
-        activeEl = (activeEl as HTMLElement).shadowRoot?.activeElement || null;
-      }
-
-      e.preventDefault();
-      if (!ctx.ferramentaCaneta) {
-        ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
-      }
-      ctx.ferramentaCaneta.alternar();
+    e.preventDefault();
+    if (!ctx.ferramentaCaneta) {
+      ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
     }
+    ctx.ferramentaCaneta.alternar();
   };
   window.addEventListener('keydown', (ctx as any)._canetaKeydownListener);
 
@@ -1384,13 +1328,14 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       
       let sucessos = 0;
       let mensagens = [];
+      // Sem fuso escolhido, deriva da longitude média do levantamento (22 só como último recurso)
+      const fusoAtual = ctx.mapaController?.fusoUtm || zonaUtmDoLevantamento(ctx.pontosList) || 22;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formData = new FormData();
         formData.append('file', file);
 
-        const fusoAtual = ctx.mapaController?.fusoUtm || 22;
         const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/importar-vizinho-csv?fuso_utm=${fusoAtual}`, {
           method: 'POST',
           body: formData
@@ -1410,6 +1355,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext) {
       if (sucessos > 0) {
         showToast(`Sucesso: ${sucessos} de ${files.length} arquivo(s) importados!`, 'success');
         await ctx.loadLevantamentoDetails();
+        // Fuso errado manda o vizinho para centenas de km: avisa em vez de plotar em silêncio
+        const foraDoEnvelope = contarForaDoEnvelope(ctx.pontosList, ctx.pontosVizinhosList);
+        if (foraDoEnvelope > 0) {
+          showToast(
+            `Atenção: ${foraDoEnvelope} ponto(s) do vizinho ficaram a mais de ~50 km do levantamento. Confira o fuso UTM do arquivo (fuso atual: ${fusoAtual}S) e reimporte se necessário.`,
+            'error',
+            9000
+          );
+        }
         if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0 && ctx.mapaController) {
           ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
           ctx.mapaController.fitBounds(ctx.pontosList || [], [50, 50], true, ctx.pontosVizinhosList);

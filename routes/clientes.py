@@ -20,6 +20,7 @@ from services.gestores.cliente_manager import (
     importar_identidade_pdf
 )
 from database.repository import PendenciaRepo
+from routes.deps import usuario_da_requisicao
 
 router = APIRouter(tags=["Clientes & Profissionais"])
 
@@ -343,8 +344,8 @@ def get_cliente_por_id(cliente_id: int):
 
 @router.delete("/clientes/{cliente_id}")
 @router.delete("/api/clientes/{cliente_id}")
-def delete_cliente(cliente_id: int):
-    res = excluir_cliente(cliente_id)
+def delete_cliente(cliente_id: int, request: Request):
+    res = excluir_cliente(cliente_id, usuario=usuario_da_requisicao(request))
     if "error" in res:
         status_code = res.get("status_code", 400)
         raise HTTPException(status_code=status_code, detail=res["error"])
@@ -352,8 +353,8 @@ def delete_cliente(cliente_id: int):
 
 @router.post("/clientes/excluir-lote")
 @router.post("/api/clientes/excluir-lote")
-def delete_clientes_lote(payload: ClientesLoteDelete):
-    res = excluir_clientes_lote(payload.cliente_ids)
+def delete_clientes_lote(payload: ClientesLoteDelete, request: Request):
+    res = excluir_clientes_lote(payload.cliente_ids, usuario=usuario_da_requisicao(request))
     return res
 
 @router.put("/clientes/{cliente_id}")
@@ -382,7 +383,7 @@ def post_revelar_senha_cliente(cliente_id: int, request: Request):
     Endpoint auditado que descriptografa a senha GOV sob demanda explícita.
     """
     client_ip = request.client.host if request.client else "127.0.0.1"
-    res = revelar_senha_gov(cliente_id, usuario="Operador do Sistema", ip_origem=client_ip)
+    res = revelar_senha_gov(cliente_id, usuario=usuario_da_requisicao(request), ip_origem=client_ip)
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
@@ -439,7 +440,7 @@ async def post_importar_identidade_pdf(cliente_id: int, request: Request, file: 
         raise HTTPException(status_code=400, detail="O arquivo enviado não é um PDF válido.")
     
     client_ip = request.client.host if request.client else "127.0.0.1"
-    res = importar_identidade_pdf(cliente_id, file_bytes, file.filename, usuario="Operador Local", ip_origem=client_ip)
+    res = importar_identidade_pdf(cliente_id, file_bytes, file.filename, usuario=usuario_da_requisicao(request), ip_origem=client_ip)
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res

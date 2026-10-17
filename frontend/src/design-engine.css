@@ -41,9 +41,12 @@
   --geo-border-strong:  rgba(255, 255, 255, 0.20);
 
   /* --- Texto --- */
+  /* Contraste medido contra o fundo real (#0a0f0d; mín. entre #09090B..#252528), AA texto normal = 4,5:1:
+       primary .92 = 16,3:1 | secondary .68 = 9,1:1 | tertiary .58 = 6,8:1 (piso para texto auxiliar)
+       disabled .18 = 1,7:1 -> SÓ para o que está desabilitado (isento de AA); nunca para texto de leitura. */
   --geo-text-primary:   rgba(255, 255, 255, 0.92);
-  --geo-text-secondary: rgba(255, 255, 255, 0.52);
-  --geo-text-tertiary:  rgba(255, 255, 255, 0.28);
+  --geo-text-secondary: rgba(255, 255, 255, 0.68);
+  --geo-text-tertiary:  rgba(255, 255, 255, 0.58);
   --geo-text-disabled:  rgba(255, 255, 255, 0.18);
 
   /* --- Acento único (verde) --- */
@@ -51,6 +54,24 @@
   --geo-accent-text:    #00C97C;
   --geo-accent-bg:      rgba(0, 224, 138, 0.10);
   --geo-accent-border:  rgba(0, 224, 138, 0.22);
+  --geo-accent-bg-hover:      rgba(0, 224, 138, 0.07);
+  --geo-accent-bg-strong:     rgba(0, 224, 138, 0.14);
+  --geo-accent-border-hover:  rgba(0, 224, 138, 0.32);
+  --geo-accent-border-strong: rgba(0, 224, 138, 0.45);
+
+  /* --- Superfícies sobre o mapa / cartões (= tailwind forest-deep #0c1510) --- */
+  --geo-surface-forest:       #0c1510;
+  --geo-surface-forest-glass: rgba(12, 21, 16, 0.88);
+  --geo-surface-sticky:       #0d1511;
+  --geo-surface-card:         rgba(12, 21, 16, 0.5);
+
+  /* --- Mapa da etapa Peças de Cartório ---
+     "sem confrontante": laranja #FF8A3D (8,2:1 no fundo), distinto do vermelho do WMS INCRA
+     e do --geo-status-error. A camada do mapa (TS) deve ler estas variáveis via getComputedStyle. */
+  --geo-cartorio-sem-confrontante:        #FF8A3D;
+  --geo-cartorio-sem-confrontante-bg:     rgba(255, 138, 61, 0.14);
+  --geo-cartorio-sem-confrontante-opacidade: 0.9;
+  --geo-cartorio-confrontante-opacidade:  0.85;
 
   /* --- Semântico de status --- */
   --geo-status-raw:        #FF9F0A;
@@ -132,7 +153,7 @@
   --ui-cor-borda: var(--geo-border-default);
   --ui-raio-borda: 6px;
   --ui-cor-texto: var(--geo-text-primary);
-  --ui-cor-texto-secundario: var(--geo-text-disabled);
+  --ui-cor-texto-secundario: var(--geo-text-secondary); /* era --geo-text-disabled (1,7:1) */
   --ui-cor-primaria: var(--geo-accent);
 }
 
@@ -513,14 +534,16 @@ ui-select {
 .glass-input:focus,
 #input-search-ponto:focus,
 #input-search-ordenador:focus {
-  border-color: var(--geo-accent-border) !important;
+  border-color: var(--geo-accent) !important;
   background: rgba(255, 255, 255, 0.06) !important;
-  outline: none !important;
-  box-shadow: 0 0 0 2px rgba(0, 224, 138, 0.08) !important;
+  /* Foco visível real (antes: outline:none + sombra de 8% de opacidade, ~invisível) */
+  outline: 2px solid var(--geo-accent) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 4px var(--geo-accent-bg) !important;
 }
 
 .glass-input::placeholder {
-  color: var(--geo-text-disabled) !important;
+  color: var(--geo-text-tertiary) !important; /* era --geo-text-disabled (1,7:1); agora 6,8:1 */
   font-size: 11px !important;
 }
 
@@ -612,7 +635,7 @@ span[class*="text-mint"][class*="rounded-full"] {
    =========================================================== */
 
 td[colspan][class*="text-center"] {
-  color: var(--geo-text-disabled) !important;
+  color: var(--geo-text-tertiary) !important; /* estado vazio é informação (era disabled, 1,7:1) */
   font-size: 12px !important;
 }
 
@@ -1806,11 +1829,72 @@ fluent-dropdown.rl1-select {
 
 /* ====================================================
    Central de Documentos (aba Peças de Cartório)
+   Só tokens --geo-*. Texto auxiliar >= --geo-text-tertiary (6,8:1).
+   OBS de cascata: este arquivo não está em @layer, então estas regras vencem os utilitários
+   Tailwind (que estão em @layer utilities). Toda classe daqui que define `display` precisa
+   respeitar o `.hidden` que o JS alterna (ver ".xxx.hidden { display:none !important }").
    ==================================================== */
+
+/* Utilitários de texto: substituem text-white/20|30|40 (1,8:1 a 3,8:1) */
+.txt-sec { color: var(--geo-text-secondary); }
+.txt-aux { color: var(--geo-text-tertiary); }
+
+/* Badges de status (tokens --geo-status-*) */
+.geo-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--geo-font-mono); font-size: 11px; font-weight: 700; line-height: 1.3;
+  padding: 2px 8px; border-radius: var(--geo-radius-btn-sm);
+  color: var(--geo-text-secondary); background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--geo-border-default); white-space: nowrap;
+}
+.geo-badge.hidden { display: none !important; }
+.geo-badge--ok     { color: var(--geo-status-ok);    background: var(--geo-status-ok-bg);    border-color: var(--geo-status-ok-border); }
+.geo-badge--aviso  { color: var(--geo-status-warn);  background: var(--geo-status-warn-bg);  border-color: var(--geo-status-warn-border); }
+.geo-badge--erro   { color: var(--geo-status-error); background: var(--geo-status-error-bg); border-color: var(--geo-status-error-border); }
+.geo-badge--acento { color: var(--geo-accent);       background: var(--geo-accent-bg);       border-color: var(--geo-accent-border); }
+
+/* Botões de ação dentro de cartões (um único padrão para toda a aba) */
+.btn-acao-card {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 6px 12px;
+  font-family: var(--geo-font-sans); font-size: 12px; font-weight: 700; line-height: 1.2;
+  color: var(--geo-text-primary); background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--geo-border-default); border-radius: var(--geo-radius-btn-sm);
+  cursor: pointer; user-select: none;
+  transition: background var(--geo-transition-fast), border-color var(--geo-transition-fast),
+              color var(--geo-transition-fast), transform var(--geo-transition-fast);
+}
+.btn-acao-card.hidden { display: none !important; }
+.btn-acao-card:hover { background: rgba(255, 255, 255, 0.10); border-color: var(--geo-border-strong); }
+.btn-acao-card:active { transform: scale(0.98); }
+.btn-acao-card svg, .btn-acao-card i { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-acao-card--sm { min-height: 28px; padding: 4px 10px; font-size: 12px; }
+.btn-acao-card--primario { color: #0A0A0B; background: var(--geo-accent); border-color: transparent; }
+.btn-acao-card--primario:hover { background: var(--geo-accent); border-color: transparent; filter: brightness(1.08); }
+.btn-acao-card--secundario { color: var(--geo-accent); background: var(--geo-accent-bg); border-color: var(--geo-accent-border-hover); }
+.btn-acao-card--secundario:hover { background: var(--geo-accent-bg-strong); border-color: var(--geo-accent-border-strong); }
+.btn-acao-card--perigo { color: var(--geo-status-error); background: var(--geo-status-error-bg); border-color: var(--geo-status-error-border); }
+.btn-acao-card--perigo:hover { background: rgba(255, 69, 58, 0.18); border-color: var(--geo-status-error); }
+.btn-acao-card--ghost { color: var(--geo-text-secondary); background: transparent; border-color: transparent; }
+.btn-acao-card--ghost:hover { color: var(--geo-text-primary); background: rgba(255, 255, 255, 0.07); border-color: transparent; }
+.btn-acao-card:disabled, .btn-acao-card[aria-disabled="true"] {
+  opacity: 0.55; cursor: not-allowed; transform: none; filter: none;
+}
+/* Botão só-ícone: alvo de clique 28x28 */
+.btn-icone-card {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; min-height: 28px; padding: 4px;
+  color: var(--geo-text-secondary); background: transparent;
+  border: 1px solid transparent; border-radius: var(--geo-radius-btn-sm); cursor: pointer;
+  transition: background var(--geo-transition-fast), color var(--geo-transition-fast);
+}
+.btn-icone-card:hover { color: var(--geo-text-primary); background: rgba(255, 255, 255, 0.10); }
+.btn-icone-card svg, .btn-icone-card i { width: 18px; height: 18px; }
+
 .doc-card {
-  background: rgba(12, 21, 16, 0.5);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
+  background: var(--geo-surface-card);
+  border: 1px solid var(--geo-border-subtle);
+  border-radius: var(--geo-radius-panel);
   padding: 14px 16px 16px;
 }
 .doc-card-title {
@@ -1818,21 +1902,52 @@ fluent-dropdown.rl1-select {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
+  color: var(--geo-text-secondary);
 }
-.doc-card-title i, .doc-card-title svg { width: 14px; height: 14px; color: var(--geo-accent); }
+.doc-card-title i, .doc-card-title svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--geo-accent); }
+
+/* Cabeçalho do cartão que fica visível enquanto a lista longa rola (a rolagem é só a do painel) */
+.doc-card-sticky-head {
+  position: sticky; top: 0; z-index: 5;
+  margin: -14px -16px 10px; padding: 14px 16px 10px;
+  background: var(--geo-surface-sticky);
+  border-bottom: 1px solid var(--geo-border-subtle);
+  border-radius: var(--geo-radius-panel) var(--geo-radius-panel) 0 0;
+}
+.doc-card-sticky-head .doc-card-title { margin-bottom: 8px; }
+
+/* Layout por largura disponível do PRÓPRIO painel (flex-wrap/auto-fit): independe da largura da janela.
+   Container queries (container-type) NÃO são usadas aqui de propósito: ele aplica layout containment
+   e re-ancora position:fixed dos menus suspensos do ui-components-kit. */
+.grade-docs-conf { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.grade-docs-conf > .grade-docs-conf__pecas { flex: 3 1 560px; min-width: 0; }
+.grade-docs-conf > .grade-docs-conf__conf  { flex: 1 1 340px; min-width: 0; }
+/* Peças técnicas recolhido: confrontantes passa a usar a linha toda em vez de deixar um vazio ao lado */
+.grade-docs-conf:has(> details.doc-collapsible:not([open])) > * { flex-basis: 100%; }
+
+.doc-grupos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 16px 20px;
+}
+.grade-homolog { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.grade-homolog > * { flex: 1 1 360px; min-width: 0; }
+/* Linhas do formulário: campos quebram de linha quando faltar largura; .fg-largo ocupa o dobro */
+.form-linha { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.form-linha > * { flex: 1 1 180px; min-width: 0; }
+.form-linha > .fg-largo { flex: 2 1 380px; }
 
 .doc-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .doc-group-title {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--geo-text-tertiary);
   padding: 0 4px 4px;
 }
 
@@ -1841,80 +1956,158 @@ fluent-dropdown.rl1-select {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 44px;
   padding: 7px 10px;
   text-align: left;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--geo-border-subtle);
   border-radius: 8px;
-  color: #fff;
+  color: var(--geo-text-primary);
   cursor: pointer;
-  transition: background 120ms, border-color 120ms, transform 120ms;
+  transition: background var(--geo-transition-fast), border-color var(--geo-transition-fast), transform var(--geo-transition-fast);
 }
-.doc-row:hover { background: rgba(0,245,160,0.06); border-color: rgba(0,245,160,0.3); }
+.doc-row:hover { background: var(--geo-accent-bg-hover); border-color: var(--geo-accent-border-hover); }
 .doc-row:active { transform: scale(0.99); }
-.doc-row:focus-visible { outline: 2px solid var(--geo-accent); outline-offset: 1px; }
+.doc-row:focus-visible { outline: 2px solid var(--geo-accent); outline-offset: 2px; }
 .doc-row-icon {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; flex-shrink: 0;
   border-radius: 6px;
-  background: rgba(0,245,160,0.1);
+  background: var(--geo-accent-bg-strong);
   color: var(--geo-accent);
 }
-.doc-row-icon i, .doc-row-icon svg { width: 15px; height: 15px; }
-.doc-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
-.doc-row-title { font-size: 12px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.doc-row-desc { font-size: 10px; color: rgba(255,255,255,0.4); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.doc-row-go { width: 14px; height: 14px; flex-shrink: 0; color: rgba(255,255,255,0.25); transition: color 120ms; }
+.doc-row-icon i, .doc-row-icon svg { width: 16px; height: 16px; }
+.doc-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
+/* Títulos/descrições quebram em até 2 linhas (o title="" do botão traz o texto completo) */
+.doc-row-title, .doc-row-desc {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.doc-row-title { font-size: 13px; font-weight: 600; line-height: 1.25; }
+.doc-row-desc { font-size: 11px; color: var(--geo-text-tertiary); line-height: 1.3; }
+.doc-row-go { width: 16px; height: 16px; flex-shrink: 0; color: var(--geo-text-tertiary); transition: color var(--geo-transition-fast); }
 .doc-row:hover .doc-row-go { color: var(--geo-accent); }
 
-/* Botões de camada do mapa (etapa Peças de Cartório) */
-.btn-mapa-cartorio { display: none; color: rgba(255,255,255,0.55); background: transparent; border-color: rgba(255,255,255,0.08); }
-.btn-mapa-cartorio:not(.hidden) { display: flex; }
-.btn-mapa-cartorio:hover { background: rgba(255,255,255,0.1); color: #fff; }
-.btn-mapa-cartorio.ativo { color: var(--geo-accent); background: rgba(0,245,160,0.12); border-color: rgba(0,245,160,0.35); }
+/* Botões da barra flutuante do mapa (todos com o MESMO estilo; o estado ativo vem de
+   .ativo, [aria-pressed="true"] ou das classes que a ferramenta caneta ainda alterna em TS) */
+.btn-mapa-barra {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 28px; min-width: 28px; padding: 4px 10px;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  color: var(--geo-text-secondary); background: transparent;
+  border: 1px solid var(--geo-border-subtle); border-radius: var(--geo-radius-btn-sm);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--geo-transition-fast), color var(--geo-transition-fast), border-color var(--geo-transition-fast);
+}
+.btn-mapa-barra svg, .btn-mapa-barra i { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-mapa-barra:hover { background: rgba(255, 255, 255, 0.10); color: var(--geo-text-primary); }
+.btn-mapa-barra.ativo,
+.btn-mapa-barra[aria-pressed="true"],
+.btn-mapa-barra.bg-mint-vibrant {
+  color: var(--geo-accent); background: var(--geo-accent-bg-strong);
+  border-color: var(--geo-accent-border-strong);
+  box-shadow: inset 0 0 0 1px var(--geo-accent-border);
+}
+/* Camadas exclusivas da etapa Peças de Cartório (o JS alterna .hidden) */
+.btn-mapa-cartorio { display: none; }
+.btn-mapa-cartorio:not(.hidden) { display: inline-flex; }
 
-/* Toolbar Flutuante do Mapa (Ergonomia CAD sem colisão com o painel de camadas QGIS) */
+/* Toolbar Flutuante do Mapa (Ergonomia CAD sem colisão com o painel de camadas QGIS).
+   .mapa-barra-host cobre o mapa sem capturar cliques e é o container (@container) da barra;
+   ele só contém a barra, então o layout containment não afeta os popups do canvas CAD. */
+.mapa-barra-host {
+  position: absolute; inset: 0; z-index: 400;
+  pointer-events: none;
+  container: mapa-barra / inline-size;
+}
 #map-cad-floating-toolbar {
+  pointer-events: auto;
+  position: absolute;
   right: 58px;
   top: 12px;
-  max-height: 38px;
+  max-width: calc(100% - 58px - 12px);
+  flex-wrap: wrap;            /* sem max-height: quebra de linha em vez de cortar botões */
+  justify-content: flex-end;
+  row-gap: 4px;
   user-select: none;
+  background: var(--geo-surface-forest-glass);
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.65);
 }
-
 @media (max-width: 768px) {
-  #map-cad-floating-toolbar {
-    right: 52px;
-    top: 8px;
-    padding: 3px;
+  #map-cad-floating-toolbar { right: 52px; top: 8px; padding: 3px; max-width: calc(100% - 52px - 8px); }
+}
+/* Mapa estreito (< 480px): só ícones; o nome fica em aria-label/title de cada botão */
+@container mapa-barra (max-width: 480px) {
+  #map-cad-floating-toolbar .btn-mapa-label { display: none; }
+  #map-cad-floating-toolbar .btn-mapa-barra {
+    width: 32px; height: 32px; padding: 0; justify-content: center;
   }
+  #map-cad-floating-toolbar .btn-mapa-barra svg,
+  #map-cad-floating-toolbar .btn-mapa-barra i { width: 16px; height: 16px; }
 }
 
+/* Legenda do mapa (criada em TS): fundo escuro translúcido, texto >= 11px, canto inferior esquerdo
+   acima da escala do Leaflet. Se for um L.control, o Leaflet cuida da posição. */
+.mapa-legenda-cartorio {
+  position: absolute; left: 12px; bottom: 44px; z-index: 450;
+  max-width: min(260px, calc(100% - 24px));
+  padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: var(--geo-font-sans); font-size: 11px; line-height: 1.3;
+  color: var(--geo-text-primary);
+  background: var(--geo-surface-forest-glass);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--geo-border-default); border-radius: var(--geo-radius-card);
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.6);
+  pointer-events: auto; user-select: none;
+}
+.leaflet-control.mapa-legenda-cartorio { position: relative; left: auto; bottom: auto; margin: 0 0 4px 10px; }
+.mapa-legenda-cartorio__titulo { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--geo-text-secondary); }
+.mapa-legenda-cartorio__item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mapa-legenda-cartorio__amostra {
+  flex: none; width: 18px; height: 4px; border-radius: 2px; background: var(--geo-text-secondary);
+}
+.mapa-legenda-cartorio__amostra--confrontante { background: var(--geo-accent); opacity: var(--geo-cartorio-confrontante-opacidade); }
+.mapa-legenda-cartorio__amostra--sem-confrontante {
+  background: var(--geo-cartorio-sem-confrontante); opacity: var(--geo-cartorio-sem-confrontante-opacidade);
+}
+.mapa-legenda-cartorio__amostra--sigef { background: transparent; border-top: 2px dashed var(--geo-data-highlight); height: 0; }
+
 /* Cartões recolhíveis (Peças de Cartório) */
-details.doc-collapsible > summary { list-style: none; cursor: pointer; user-select: none; }
+details.doc-collapsible > summary { list-style: none; cursor: pointer; user-select: none; min-height: 32px; }
 details.doc-collapsible > summary::-webkit-details-marker { display: none; }
 details.doc-collapsible:not([open]) > summary { margin-bottom: 0; }
 .doc-summary { gap: 8px; }
 .doc-summary-count {
-  font-family: monospace; font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-  padding: 1px 7px; border-radius: 999px; color: rgba(255,255,255,0.45);
+  font-family: var(--geo-font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--geo-border-default);
+  padding: 1px 8px; border-radius: 999px; color: var(--geo-text-tertiary);
 }
-.doc-chevron { margin-left: auto; width: 14px; height: 14px; color: rgba(255,255,255,0.35); transition: transform 150ms; }
+/* Dica mostrada só quando o cartão está recolhido (o TS pode sobrescrever o texto) */
+.doc-resumo-recolhido {
+  display: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--geo-text-tertiary);
+}
+details:not([open]) > summary .doc-resumo-recolhido:not(:empty) { display: inline; }
+.doc-chevron { margin-left: auto; width: 18px; height: 18px; flex-shrink: 0; color: var(--geo-text-secondary); transition: transform 150ms; }
 details[open] > summary .doc-chevron { transform: rotate(180deg); }
 details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent); }
 
-/* Lista de confrontantes: 1 coluna no cartão estreito, várias quando ele ocupa a largura toda */
+/* Lista de confrontantes: 1 coluna no cartão estreito, várias quando ele ocupa a largura toda.
+   Sem max-height/overflow: a rolagem é só a do painel (cabeçalho do cartão fica sticky). */
 .lista-resumo-confrontantes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 8px;
   align-items: start;
 }
 .lista-resumo-confrontantes > .col-span-all { grid-column: 1 / -1; }
-/* Peças técnicas recolhido: confrontantes passa a usar a linha toda em vez de deixar um vazio ao lado */
-.grade-docs-conf:has(> details.doc-collapsible:not([open])) { grid-template-columns: 1fr !important; }
-.grade-docs-conf:has(> details.doc-collapsible:not([open])) .lista-resumo-confrontantes { max-height: none; }
+
+/* Tabela de vértices da homologação: única região com rolagem própria (cabeçalho sticky da tabela,
+   rolagem horizontal). Altura limitada por viewport em vez do "100vh - 360px" mágico. */
+#container-vertices-homologados { overflow: auto; min-height: 260px; max-height: clamp(320px, 72vh, 760px); }
+/* Lista de alterações do SIGEF: pode ter centenas de linhas; mantém rolagem própria, focável por teclado */
+#lista-alteracoes-sigef { overflow: auto; max-height: clamp(220px, 45vh, 480px); }
 
 /* Etapa Peças de Cartório: ribbon sem a linha de ferramentas (só havia um atalho duplicado) */
 .workspace-wrapper.ribbon-compacto { --ribbon-h: 80px; }
@@ -1922,13 +2115,14 @@ details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent);
 /* Ações em lote de pontos não se aplicam a esta etapa */
 .workspace-wrapper.ribbon-compacto #batch-action-bar-mesa { display: none !important; }
 
-/* Peças de Cartório: mapa fixo à esquerda, conteúdo rolável à direita */
+/* Peças de Cartório: mapa à esquerda (redimensionável pelo splitter) e conteúdo rolável à direita */
 .workspace-main-content.etapa-cartorio-split {
   flex-direction: row;
 }
 .workspace-main-content.etapa-cartorio-split .map-container-wrapper {
   flex: 0 0 var(--cartorio-map-w, 44%);
   min-width: 320px;
+  max-width: calc(100% - 426px); /* deixa >= 420px (+6px do splitter) para o painel de peças */
   min-height: 0;
   border-bottom: none;
   border-right: 0.5px solid var(--geo-border-subtle);
@@ -1939,6 +2133,24 @@ details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent);
   width: auto;
   height: 100%;
 }
+/* Splitter vertical mapa | painel (o arraste é feito em TS pelo agente do mapa; teclado: setas) */
+.cartorio-splitter {
+  display: none;
+  flex: 0 0 6px; width: 6px; align-self: stretch;
+  position: relative; cursor: col-resize; touch-action: none;
+  background: var(--geo-border-faint);
+  z-index: var(--geo-z-elevated);
+  transition: background var(--geo-transition-fast);
+}
+.workspace-main-content.etapa-cartorio-split > .cartorio-splitter { display: block; }
+.cartorio-splitter::after {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 40px;
+  transform: translate(-50%, -50%); border-radius: 1px; background: var(--geo-border-strong);
+  transition: background var(--geo-transition-fast);
+}
+.cartorio-splitter:hover, .cartorio-splitter.arrastando, .cartorio-splitter[data-arrastando="true"] { background: var(--geo-accent-bg-strong); }
+.cartorio-splitter:hover::after, .cartorio-splitter.arrastando::after, .cartorio-splitter[data-arrastando="true"]::after { background: var(--geo-accent); }
+.cartorio-splitter:focus-visible { outline: 2px solid var(--geo-accent); outline-offset: -2px; background: var(--geo-accent-bg-strong); }
 
 /* Etapas sem painel lateral (Peças de Cartório): conteúdo ocupa a largura toda */
 .workspace-body.sem-painel-props {

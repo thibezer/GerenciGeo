@@ -22,12 +22,18 @@ import {
   excluirClientesEmLote as apiExcluirLote,
   salvarMetadadosCliente,
   carregarCidadesIbgeService,
-  buscarCepViaCepService
+  buscarCepViaCepService,
+  cabecalhosAuth
 } from './clientes/clientes_service';
 import {
   aplicarMascaraCpfCnpj,
   aplicarMascaraTelefone,
   aplicarMascaraCep,
+  ehPessoaJuridica,
+  filtrarClientes,
+  montarEnderecoDetalhe,
+  renderOpcoesRepresentanteHtml,
+  montarConfirmacaoExclusao,
   gerarLinkWhatsApp,
   copiarParaClipboard,
   isCnhVencida,
@@ -146,17 +152,7 @@ export const clientesRoute: RouteDef = {
     // Popular opções de Representante Legal (Clientes PF)
     const popularSelectRepresentante = (selecionadoId?: number | null) => {
       if (!selectRepresentante) return;
-      const clientesPf = todosClientes.filter(c => {
-        const isPj = c.tipo_pessoa === 'PJ' || (c.cpf_cnpj || '').replace(/\D/g, '').length > 11;
-        return !isPj;
-      });
-
-      let optionsHtml = '<option value="">Selecione um cliente PF já cadastrado...</option>';
-      clientesPf.forEach(pf => {
-        const pid = pf.pessoa_id || pf.id;
-        const isSel = selecionadoId && Number(selecionadoId) === Number(pid);
-        optionsHtml += `<option value="${pid}" ${isSel ? 'selected' : ''}>${pf.nome_completo} (${aplicarMascaraCpfCnpj(pf.cpf_cnpj || '')})</option>`;
-      });
+      const optionsHtml = renderOpcoesRepresentanteHtml(todosClientes, selecionadoId);
       selectRepresentante.innerHTML = optionsHtml;
       if (selecionadoId) {
         selectRepresentante.value = String(selecionadoId);
@@ -213,12 +209,10 @@ export const clientesRoute: RouteDef = {
           const inputLogradouro = form.querySelector<HTMLInputElement>('[name="endereco_sem_numero"]');
           const inputCidade = form.querySelector<HTMLInputElement>('[name="cidade"]');
           const inputNumero = form.querySelector<HTMLInputElement>('[name="numero_endereco"]');
+          const inputBairro = form.querySelector<HTMLInputElement>('[name="bairro"]');
 
-          if (inputLogradouro) {
-            const logradouro = data.logradouro || '';
-            const bairro = data.bairro ? ` - ${data.bairro}` : '';
-            inputLogradouro.value = `${logradouro}${bairro}`;
-          }
+          if (inputLogradouro) inputLogradouro.value = data.logradouro || '';
+          if (inputBairro && data.bairro) inputBairro.value = data.bairro;
           if (selectEstado) {
             selectEstado.value = data.uf || 'PR';
             if ('setAttribute' in selectEstado) selectEstado.setAttribute('value', data.uf || 'PR');
@@ -239,24 +233,16 @@ export const clientesRoute: RouteDef = {
       if (cepLimpo.length === 8) buscarCep(cepLimpo);
     });
 
-    // Alternar exibição da seção de cônjuge conforme estado civil
+    // Alternar exibição da seção de cônjuge conforme estado civil.
+    // Esconder não apaga: trocar o estado civil sem querer não pode destruir o que foi digitado.
+    // Os dados do cônjuge só são descartados no envio, se o cliente não estiver casado/em união estável.
+    const estadoCivilCasado = (valor?: string | null): boolean => {
+      const v = valor || '';
+      return v.includes("Casado") || v.includes("União Estável");
+    };
     const toggleConjuge = () => {
-      if (!selectEstadoCivil || !secaoConjuge || !form) return;
-      const val = selectEstadoCivil.value || '';
-      const isCasado = val.includes("Casado") || val.includes("União Estável");
-      if (isCasado) {
-        secaoConjuge.classList.remove('hidden');
-      } else {
-        secaoConjuge.classList.add('hidden');
-        const nomeConj = form.querySelector<HTMLInputElement>('[name="nome_conjuge"]');
-        const cpfConj = form.querySelector<HTMLInputElement>('[name="cpf_conjuge"]');
-        const rgConj = form.querySelector<HTMLInputElement>('[name="rg_conjuge"]');
-        const regimeBens = form.querySelector<HTMLSelectElement>('[name="regime_bens"]');
-        if (nomeConj) nomeConj.value = '';
-        if (cpfConj) cpfConj.value = '';
-        if (rgConj) rgConj.value = '';
-        if (regimeBens) regimeBens.value = '';
-      }
+      if (!selectEstadoCivil || !secaoConjuge) return;
+      secaoConjuge.classList.toggle('hidden', !estadoCivilCasado(selectEstadoCivil.value));
     };
 
     selectEstadoCivil?.addEventListener('change', toggleConjuge);
@@ -354,8 +340,9 @@ export const clientesRoute: RouteDef = {
     });
 
     document.getElementById('btn-batch-delete')?.addEventListener('click', async () => {
-      const count = clientesSelecionados.size;
-      if (!confirm(`Deseja realmente excluir os ${count} clientes selecionados?`)) return;
+      const selecionados = todosClientes.filter(c => clientesSelecionados.has(c.id));
+      if (selecionados.length === 0) return;
+      if (!confirm(montarConfirmacaoExclusao(selecionados))) return;
       const bar = document.getElementById('batch-action-bar');
       if (bar) bar.style.cursor = 'wait';
 
@@ -383,8 +370,11 @@ export const clientesRoute: RouteDef = {
       timeoutBusca = setTimeout(() => {
         const customEv = e as CustomEvent<{ value?: string }>;
         const val = (e.target as HTMLInputElement).value || customEv.detail?.value || '';
-        termoBusca = val.toLowerCase();
+        termoBusca = val;
         paginaAtual = 1;
+        // Seleção só vale para o que está na busca: excluir "selecionados" fora da tela é perigoso
+        const idsFiltrados = new Set(getClientesFiltrados().map(c => c.id));
+        Array.from(clientesSelecionados).forEach(id => { if (!idsFiltrados.has(id)) clientesSelecionados.delete(id); });
         renderTabela();
       }, 300);
     };
@@ -405,15 +395,7 @@ export const clientesRoute: RouteDef = {
     selectPaginacao?.addEventListener('change', handlePaginacaoChange);
     selectPaginacao?.addEventListener('ui-selecionar', handlePaginacaoChange);
 
-    const getClientesFiltrados = (): Cliente[] => {
-      if (!termoBusca) return todosClientes;
-      return todosClientes.filter(c =>
-        (c.nome_completo || (c as any).nome || '').toLowerCase().includes(termoBusca) ||
-        (c.razao_social || '').toLowerCase().includes(termoBusca) ||
-        (c.nome_fantasia || '').toLowerCase().includes(termoBusca) ||
-        (c.cpf_cnpj || '').replace(/\D/g, '').includes(termoBusca.replace(/\D/g, ''))
-      );
-    };
+    const getClientesFiltrados = (): Cliente[] => filtrarClientes(todosClientes, termoBusca);
 
     const getClientesPaginaAtual = (): Cliente[] => {
       const filtrados = getClientesFiltrados();
@@ -427,7 +409,7 @@ export const clientesRoute: RouteDef = {
       if (!cli) return;
 
       clienteSelecionadoId = id;
-      const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+      const isPj = ehPessoaJuridica(cli);
       const nomeExibicao = cli.nome_completo || (cli as any).nome || 'Sem Nome';
 
       const avatar = document.getElementById('det-cli-avatar');
@@ -471,20 +453,20 @@ export const clientesRoute: RouteDef = {
 
       setDetVal('det-cli-sexo', cli.sexo === 'M' ? 'Masculino' : cli.sexo === 'F' ? 'Feminino' : '-');
       setDetVal('det-cli-naturalidade', cli.naturalidade || '-');
-      setDetVal('det-cli-nacionalidade', cli.nacionalidade || 'Brasileiro(a)');
+      setDetVal('det-cli-nacionalidade', cli.nacionalidade || '-');
       setDetVal('det-cli-estcivil', cli.estado_civil || '-');
       setDetVal('det-cli-profissao', cli.profissao || '-');
 
       // RG
       setDetVal('det-cli-rg', cli.rg_ie || '-');
-      setDetVal('det-cli-rg-orgao', cli.rg_orgao || 'SSP');
-      setDetVal('det-cli-rg-uf', cli.rg_uf || cli.estado || 'PR');
+      setDetVal('det-cli-rg-orgao', cli.rg_orgao || '-');
+      setDetVal('det-cli-rg-uf', cli.rg_uf || '-');
 
       // CNH
       setDetVal('det-cli-cnh-num', cli.cnh_numero || '-');
       setDetVal('det-cli-cnh-cat', cli.cnh_categoria || '-');
-      setDetVal('det-cli-cnh-val', cli.cnh_validade || '-');
-      setDetVal('det-cli-cnh-orgaouf', cli.cnh_orgao_uf || 'DETRAN');
+      setDetVal('det-cli-cnh-val', cli.cnh_validade ? cli.cnh_validade.split('-').reverse().join('/') : '-');
+      setDetVal('det-cli-cnh-orgaouf', cli.cnh_orgao_uf || '-');
 
       // Badge de CNH Vencida
       const badgeCnhVencida = document.getElementById('det-doc-badge-validade');
@@ -618,7 +600,7 @@ export const clientesRoute: RouteDef = {
         };
       });
 
-      setDetVal('det-cli-endereco', `${cli.endereco_completo || ''} ${cli.cep ? ' · CEP: ' + aplicarMascaraCep(cli.cep) : ''} - ${cli.cidade || ''}/${cli.estado || ''}`);
+      setDetVal('det-cli-endereco', montarEnderecoDetalhe(cli));
       setDetVal('det-cli-total-levs', cli.total_levantamentos || 0);
       setDetVal('det-cli-total-props', cli.total_propriedades || 0);
 
@@ -630,7 +612,7 @@ export const clientesRoute: RouteDef = {
 
       // Bloco de Cônjuge & Regime Notarial
       const blocoConjuge = document.getElementById('det-conjuge-bloco');
-      const isCasado = (cli.estado_civil || '').includes("Casado") || (cli.estado_civil || '').includes("União Estável") || Boolean(cli.nome_conjuge || cli.cpf_conjuge);
+      const isCasado = estadoCivilCasado(cli.estado_civil) || Boolean(cli.nome_conjuge || cli.cpf_conjuge);
       if (blocoConjuge) {
         if (isCasado) {
           blocoConjuge.classList.remove('hidden');
@@ -730,7 +712,7 @@ export const clientesRoute: RouteDef = {
       if (!cli || !form) return;
 
       clienteSelecionadoId = id;
-      const isPj = cli.tipo_pessoa === 'PJ' || (cli.cpf_cnpj || '').replace(/\D/g, '').length > 11;
+      const isPj = ehPessoaJuridica(cli);
       setTipoPessoa(isPj ? 'PJ' : 'PF');
 
       popularSelectRepresentante(cli.representante_legal_id);
@@ -763,24 +745,24 @@ export const clientesRoute: RouteDef = {
       }
 
       setFormVal('rg_ie', cli.rg_ie);
-      setFormVal('rg_orgao', cli.rg_orgao || 'SSP');
-      setFormVal('rg_uf', cli.rg_uf || cli.estado || 'PR');
+      setFormVal('rg_orgao', cli.rg_orgao);
+      setFormVal('rg_uf', cli.rg_uf);
       setFormVal('naturalidade', cli.naturalidade);
       setFormVal('cnh_numero', cli.cnh_numero);
       setFormVal('cnh_categoria', cli.cnh_categoria);
       setFormVal('cnh_validade', cli.cnh_validade);
-      setFormVal('cnh_orgao_uf', cli.cnh_orgao_uf || 'DETRAN/PR');
+      setFormVal('cnh_orgao_uf', cli.cnh_orgao_uf);
       setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
       setFormVal('estado_civil', cli.estado_civil);
       setFormVal('sexo', cli.sexo || 'M');
       setFormVal('nacionalidade', cli.nacionalidade);
       setFormVal('nome_conjuge', cli.nome_conjuge);
-      setFormVal('genero_conjuge', cli.genero_conjuge || 'F');
+      setFormVal('genero_conjuge', cli.genero_conjuge);
       setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
       setFormVal('rg_conjuge', cli.rg_conjuge);
-      setFormVal('rg_orgao_conjuge', cli.rg_orgao_conjuge || 'SSP');
-      setFormVal('rg_uf_conjuge', cli.rg_uf_conjuge || cli.estado || 'PR');
-      setFormVal('nacionalidade_conjuge', cli.nacionalidade_conjuge || 'Brasileiro(a)');
+      setFormVal('rg_orgao_conjuge', cli.rg_orgao_conjuge);
+      setFormVal('rg_uf_conjuge', cli.rg_uf_conjuge);
+      setFormVal('nacionalidade_conjuge', cli.nacionalidade_conjuge);
       setFormVal('profissao_conjuge', cli.profissao_conjuge);
       setFormVal('regime_bens', cli.regime_bens);
       setFormVal('certidao_casamento_matricula', cli.certidao_casamento_matricula);
@@ -801,7 +783,7 @@ export const clientesRoute: RouteDef = {
       setFormVal('endereco_sem_numero', cli.endereco_sem_numero || enderecoSemNumero);
       setFormVal('numero_endereco', cli.numero_endereco || numero);
       setFormVal('bairro', cli.bairro);
-      setFormVal('estado', cli.estado || 'PR');
+      setFormVal('estado', cli.estado);
 
       if (cli.estado) {
         await carregarCidadesPorEstado(cli.estado);
@@ -817,7 +799,7 @@ export const clientesRoute: RouteDef = {
 
     const excluirClienteIndividual = async (id: number) => {
       const cli = todosClientes.find(c => c.id === id);
-      if (!cli || !confirm(`Deseja realmente excluir o cliente "${cli.nome_completo}"?`)) return;
+      if (!cli || !confirm(montarConfirmacaoExclusao([cli]))) return;
 
       try {
         await apiExcluirCliente(id);
@@ -1093,6 +1075,7 @@ export const clientesRoute: RouteDef = {
 
         const res = await fetch(`${API_BASE}/clientes/${id}/importar-identidade-pdf`, {
           method: 'POST',
+          headers: cabecalhosAuth(),
           body: formData
         });
 
@@ -1232,6 +1215,18 @@ export const clientesRoute: RouteDef = {
       ).trim();
       const cpfCnpjVal = cpfCnpjRaw !== '' ? cpfCnpjRaw : null;
 
+      // Senha GOV: vazio na edição de quem já tem senha = remover; vazio sem senha prévia = nada a enviar.
+      // A máscara '••••••••' (senha mantida) é ignorada pelo back-end.
+      const cliEditado = clienteSelecionadoId ? todosClientes.find(c => c.id === clienteSelecionadoId) : null;
+      const senhaDigitada = (rawPayload.senha_gov || '').trim();
+      const senhaGovParaEnvio: string | null = senhaDigitada !== ''
+        ? senhaDigitada
+        : (cliEditado && (cliEditado.tem_senha_gov || cliEditado.senha_gov) ? '' : null);
+
+      // Dados do cônjuge só valem para casado/união estável; o resto é descartado no envio
+      const casado = estadoCivilCasado(rawPayload.estado_civil);
+      const conj = (v: string | undefined): string | null => (casado ? (v || null) : null);
+
       const enderecoSemNumero = rawPayload.endereco_sem_numero || '';
       const numero = rawPayload.numero_endereco || '';
       const enderecoCompleto = numero ? `${enderecoSemNumero}, ${numero}` : enderecoSemNumero;
@@ -1251,22 +1246,22 @@ export const clientesRoute: RouteDef = {
         data_nascimento_fundacao: dataNascFundacao,
         estado_civil: rawPayload.estado_civil || null,
         profissao: rawPayload.profissao || null,
-        nacionalidade: rawPayload.nacionalidade || 'Brasileiro(a)',
-        nome_conjuge: rawPayload.nome_conjuge || null,
-        genero_conjuge: rawPayload.genero_conjuge || null,
-        cpf_conjuge: rawPayload.cpf_conjuge || null,
-        rg_conjuge: rawPayload.rg_conjuge || null,
-        rg_orgao_conjuge: rawPayload.rg_orgao_conjuge || null,
-        rg_uf_conjuge: rawPayload.rg_uf_conjuge || null,
-        nacionalidade_conjuge: rawPayload.nacionalidade_conjuge || null,
-        profissao_conjuge: rawPayload.profissao_conjuge || null,
-        regime_bens: rawPayload.regime_bens || null,
-        certidao_casamento_matricula: rawPayload.certidao_casamento_matricula || null,
-        data_casamento: rawPayload.data_casamento || null,
-        cartorio_casamento: rawPayload.cartorio_casamento || null,
-        livro_casamento: rawPayload.livro_casamento || null,
-        folha_casamento: rawPayload.folha_casamento || null,
-        termo_casamento: rawPayload.termo_casamento || null,
+        nacionalidade: rawPayload.nacionalidade || null,
+        nome_conjuge: conj(rawPayload.nome_conjuge),
+        genero_conjuge: conj(rawPayload.genero_conjuge),
+        cpf_conjuge: conj(rawPayload.cpf_conjuge),
+        rg_conjuge: conj(rawPayload.rg_conjuge),
+        rg_orgao_conjuge: conj(rawPayload.rg_orgao_conjuge),
+        rg_uf_conjuge: conj(rawPayload.rg_uf_conjuge),
+        nacionalidade_conjuge: conj(rawPayload.nacionalidade_conjuge),
+        profissao_conjuge: conj(rawPayload.profissao_conjuge),
+        regime_bens: conj(rawPayload.regime_bens),
+        certidao_casamento_matricula: conj(rawPayload.certidao_casamento_matricula),
+        data_casamento: conj(rawPayload.data_casamento),
+        cartorio_casamento: conj(rawPayload.cartorio_casamento),
+        livro_casamento: conj(rawPayload.livro_casamento),
+        folha_casamento: conj(rawPayload.folha_casamento),
+        termo_casamento: conj(rawPayload.termo_casamento),
         email: rawPayload.email || null,
         telefone: rawPayload.telefone || null,
         endereco_completo: enderecoCompleto || null,
@@ -1274,10 +1269,10 @@ export const clientesRoute: RouteDef = {
         numero_endereco: rawPayload.numero_endereco || null,
         bairro: rawPayload.bairro || null,
         cidade: rawPayload.cidade || null,
-        estado: rawPayload.estado || 'PR',
+        estado: rawPayload.estado || null,
         cep: rawPayload.cep || null,
         sexo: rawPayload.sexo || 'M',
-        senha_gov: rawPayload.senha_gov || null,
+        senha_gov: senhaGovParaEnvio,
         tipo_pessoa: tipoPessoa,
         razao_social: isPj ? (rawPayload.razao_social || nomeCompleto) : null,
         nome_fantasia: isPj ? (rawPayload.nome_fantasia || null) : null,

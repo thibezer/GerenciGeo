@@ -199,26 +199,82 @@ async def start_hgo(payload: dict, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/proxy/sigef")
-async def proxy_sigef(url: str):
-    try:
-        # Forçamos o formato para text/plain pois o i3Geo do INCRA falha com application/json
-        if "INFO_FORMAT=application%2Fjson" in url:
-            url = url.replace("INFO_FORMAT=application%2Fjson", "INFO_FORMAT=text/plain")
-        elif "INFO_FORMAT=application/json" in url:
-            url = url.replace("INFO_FORMAT=application/json", "INFO_FORMAT=text/plain")
+# Hosts aceitos pelo proxy do SIGEF (o front só consulta o WMS do acervo fundiário; o portal do SIGEF
+# fica permitido para os links de exportação). Qualquer outro destino é recusado (evita SSRF/proxy aberto).
+SIGEF_PROXY_HOSTS = frozenset({"acervofundiario.incra.gov.br", "sigef.incra.gov.br"})
+# (conexão, leitura) em segundos — somados ficam abaixo dos 12 s que o front espera antes de abortar.
+SIGEF_PROXY_TIMEOUT = (4, 7)
+SIGEF_PROXY_MAX_BYTES = 2_000_000
+SIGEF_PROXY_MAX_REDIRECTS = 3
 
-        response = requests.get(url, timeout=15)
-        response.encoding = 'latin-1' # INCRA usa latin-1
+
+def _validar_url_sigef(url: str) -> str:
+    """Aceita só https://<host permitido>[:443]/... sem credenciais embutidas; devolve a URL normalizada."""
+    from urllib.parse import urlsplit
+    try:
+        partes = urlsplit((url or "").strip())
+        host = (partes.hostname or "").lower()
+        porta = partes.port
+    except ValueError:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+    if partes.scheme.lower() != "https" or not host:
+        raise HTTPException(status_code=400, detail="Somente URLs https são aceitas pelo proxy do SIGEF.")
+    if partes.username is not None or partes.password is not None or porta not in (None, 443):
+        raise HTTPException(status_code=400, detail="URL inválida para o proxy do SIGEF.")
+    if host not in SIGEF_PROXY_HOSTS:
+        raise HTTPException(status_code=403, detail="Destino não permitido pelo proxy do SIGEF.")
+    return partes.geturl()
+
+
+@router.get("/proxy/sigef")
+def proxy_sigef(url: str):
+    # `def` (e não `async def`): o requests é bloqueante e rodaria no event loop, congelando a API
+    # inteira por até alguns segundos a cada clique no mapa. Como função simples o FastAPI usa o threadpool.
+    from urllib.parse import urljoin
+    log = logging.getLogger(__name__)
+    alvo = _validar_url_sigef(url)
+
+    # Forçamos o formato para text/plain pois o i3Geo do INCRA falha com application/json
+    if "INFO_FORMAT=application%2Fjson" in alvo:
+        alvo = alvo.replace("INFO_FORMAT=application%2Fjson", "INFO_FORMAT=text/plain")
+    elif "INFO_FORMAT=application/json" in alvo:
+        alvo = alvo.replace("INFO_FORMAT=application/json", "INFO_FORMAT=text/plain")
+
+    try:
+        response = None
+        for _ in range(SIGEF_PROXY_MAX_REDIRECTS + 1):
+            response = requests.get(alvo, timeout=SIGEF_PROXY_TIMEOUT, allow_redirects=False)
+            destino = response.headers.get("Location") if response.is_redirect else None
+            if not destino:
+                break
+            # Cada salto é revalidado: um redirecionamento não pode levar a um host fora da allowlist
+            alvo = _validar_url_sigef(urljoin(alvo, destino))
+        else:
+            raise HTTPException(status_code=502, detail="O INCRA redirecionou a consulta além do limite permitido.")
+    except HTTPException:
+        raise
+    except requests.Timeout:
+        log.warning("Proxy SIGEF: tempo esgotado ao consultar %s", alvo)
+        raise HTTPException(status_code=504, detail="Tempo limite de resposta do INCRA esgotado.")
+    except requests.RequestException as e:
+        log.error("Proxy SIGEF: falha de comunicação: %s", e)
+        raise HTTPException(status_code=502, detail="Falha de comunicação com o INCRA.")
+
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"O INCRA respondeu com HTTP {response.status_code}.")
+    if len(response.content or b"") > SIGEF_PROXY_MAX_BYTES:
+        raise HTTPException(status_code=502, detail="Resposta do INCRA grande demais.")
+
+    try:
+        response.encoding = 'latin-1'  # INCRA usa latin-1
         text = response.text
-        
+
         # Se a resposta parece ser o formato text/plain do MapServer
         if "GetFeatureInfo results:" in text:
             features = []
-            lines = text.splitlines()
             current_feature = {}
-            
-            for line in lines:
+
+            for line in text.splitlines():
                 # Suporta chaves e valores acentuados, cedilhas, com aspas simples, aspas duplas ou sem aspas (Item 9)
                 match = re.search(r"([\w_]+)\s*=\s*['\"]?([^'\"]*)['\"]?", line.strip())
                 if match:
@@ -227,23 +283,22 @@ async def proxy_sigef(url: str):
                 elif "Feature" in line and current_feature:
                     features.append({"properties": current_feature, "id": current_feature.get("parcela_codigo")})
                     current_feature = {}
-            
+
             if current_feature:
                 features.append({
-                    "properties": current_feature, 
+                    "properties": current_feature,
                     "id": current_feature.get("parcela_codigo") or current_feature.get("id")
                 })
-                
+
             return {"features": features}
-            
+
         try:
             return response.json()
         except Exception:
             return {"error": "Resposta não é JSON nem Texto formatado", "raw": text[:500]}
-            
     except Exception as e:
-        logging.getLogger(__name__).error(f"Erro na requisição proxy: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error("Proxy SIGEF: erro ao interpretar a resposta: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail="Resposta do INCRA inválida.")
 
 @router.post("/levantamentos/{lev_id}/importar-confrontante-sigef", dependencies=[Depends(verificar_ambiente_local)])
 def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):

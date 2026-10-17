@@ -1,6 +1,13 @@
 import L from 'leaflet';
 import { showToast } from '../../utils';
+import { MapaConfigManager } from '../mapa_config';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
+import { focoEmCampoDeTexto, alvoAcionavelPorTeclado } from './foco_texto';
+import { coordenadaPonto } from './coordenadas_mapa';
+import { pontosVisiveisParaSelecao } from './pontos_visiveis';
+
+/** Distância máxima (px) para o ímã puxar o clique da Caneta para um vértice existente. */
+export const TOLERANCIA_IMA_PX = 12;
 
 // Salvaguarda global para robustez do Leaflet contra bounds não-inicializados em Canvas
 if (typeof L !== 'undefined' && L.Bounds && L.Bounds.prototype) {
@@ -43,6 +50,7 @@ export class FerramentaCanetaSelecao {
   private onMapDblClickBound: (e: L.LeafletMouseEvent) => void;
   private onMapContextMenuBound: (e: L.LeafletMouseEvent) => void;
   private onKeyDownBound: (e: KeyboardEvent) => void;
+  private imaAtivo: boolean = false;
 
   constructor(ctx: MesaTrabalhoContext) {
     this.ctx = ctx;
@@ -55,6 +63,16 @@ export class FerramentaCanetaSelecao {
 
   public isAtivo(): boolean {
     return this.ativo;
+  }
+
+  /** Há um traçado em andamento (o Ctrl+Z/Backspace pertence à Caneta, não ao histórico de dados). */
+  public temVerticesPendentes(): boolean {
+    return this.ativo && this.vertices.length > 0;
+  }
+
+  /** A Caneta só serve à Mesa Geodésica: seleciona vértices para a tabela e o painel dessa aba. */
+  public disponivel(): boolean {
+    return this.ctx.etapaAtiva === 'geoprocessamento';
   }
 
   /**
@@ -72,6 +90,11 @@ export class FerramentaCanetaSelecao {
    * Ativa a ferramenta caneta
    */
   public ativar(): void {
+    if (this.ativo) return;
+    if (!this.disponivel()) {
+      showToast('A Caneta de Seleção só está disponível na aba Geoprocessamento.', 'info');
+      return;
+    }
     const map = this.obterMapa();
     if (!map) {
       showToast('Mapa ainda não está pronto para a ferramenta caneta.', 'info');
@@ -80,6 +103,7 @@ export class FerramentaCanetaSelecao {
 
     this.ativo = true;
     this.vertices = [];
+    this.imaAtivo = this.lerImaConfigurado();
 
     // Desativa modos conflitantes se estiverem ativos
     if (this.ctx.modoReordenarAtivo && typeof this.ctx.alternarModoReordenarManual === 'function') {
@@ -114,7 +138,9 @@ export class FerramentaCanetaSelecao {
     map.on('mousemove', this.onMapMouseMoveBound);
     map.on('dblclick', this.onMapDblClickBound);
     map.on('contextmenu', this.onMapContextMenuBound);
-    window.addEventListener('keydown', this.onKeyDownBound);
+    // Fase de captura: a Caneta trata Ctrl+Z/Backspace/Enter/Espaço ANTES dos demais ouvintes de `window`
+    // (histórico de dados etc.) e interrompe a propagação quando consome a tecla.
+    window.addEventListener('keydown', this.onKeyDownBound, true);
 
     this.atualizarBotaoUI(true);
     this.exibirBanner();
@@ -158,7 +184,7 @@ export class FerramentaCanetaSelecao {
       map.off('contextmenu', this.onMapContextMenuBound);
     }
 
-    window.removeEventListener('keydown', this.onKeyDownBound);
+    window.removeEventListener('keydown', this.onKeyDownBound, true);
 
     this.ocultarBanner();
     this.atualizarBotaoUI(false);
@@ -201,7 +227,8 @@ export class FerramentaCanetaSelecao {
       }
     }
 
-    const novoVertice = e.latlng;
+    // Ímã (Configurações do Mapa): puxa o clique para o vértice existente mais próximo
+    const novoVertice = this.aplicarIma(e.latlng);
     this.vertices.push(novoVertice);
 
     // Cria marcador para o novo vértice
@@ -326,26 +353,35 @@ export class FerramentaCanetaSelecao {
   }
 
   /**
-   * Atalhos de teclado (ESC, Enter, Ctrl+Z)
+   * Atalhos de teclado (ESC, Enter/Espaço, Ctrl+Z/Backspace). Registrado em `window` na fase de captura.
+   * Nunca intercepta teclas digitadas em campos de texto nem Enter/Espaço sobre botões/links.
    */
   private onKeyDown(e: KeyboardEvent): void {
     if (!this.ativo) return;
+    if (focoEmCampoDeTexto(e)) return;
+
+    const consumir = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
 
     if (e.key === 'Escape') {
       if (this.vertices.length > 0) {
+        consumir();
         this.limparDesenho();
         showToast('Traçado cancelado.', 'info');
       } else {
         this.desativar();
       }
     } else if (e.key === 'Enter' || e.key === ' ') {
-      if (this.vertices.length >= 3) {
-        e.preventDefault();
+      if (this.vertices.length >= 3 && !alvoAcionavelPorTeclado(e)) {
+        consumir();
         this.concluirSelecao(e.ctrlKey || e.shiftKey);
       }
     } else if ((e.ctrlKey && e.key.toLowerCase() === 'z') || e.key === 'Backspace') {
       if (this.vertices.length > 0) {
-        e.preventDefault();
+        // Desfaz só o vértice: o Ctrl+Z não pode chegar ao histórico de edição de dados
+        consumir();
         this.desfazerUltimoVertice();
       }
     }
@@ -411,30 +447,26 @@ export class FerramentaCanetaSelecao {
     }
 
     const poligonoCoords = this.vertices.map(v => ({ lat: v.lat, lng: v.lng }));
-    const pontosLista = this.ctx.pontosList || [];
+    // Só o que a tabela/mapa mostram (matrícula ativa, arquivos desativados, filtros e busca da Mesa Geodésica)
+    const pontosLista = pontosVisiveisParaSelecao(this.ctx);
     const vizinhosLista = this.ctx.pontosVizinhosList || [];
 
     // Encontra pontos contidos usando Ray Casting
     const pontosContidosIds: number[] = [];
     pontosLista.forEach(p => {
-      const lat = p.lat_corrigido ?? p.lat;
-      const lon = p.lon_corrigido ?? p.lon;
-      if (lat != null && lon != null && lat !== 0 && lon !== 0) {
-        if (this.pontoDentroDoPoligono(lat, lon, poligonoCoords)) {
-          pontosContidosIds.push(p.id);
-        }
+      // Regra única de coordenadas (corrigida > bruta), a mesma do resumo/documentos e do que é plotado
+      const c = coordenadaPonto(p);
+      if (c && this.pontoDentroDoPoligono(c.lat, c.lon, poligonoCoords)) {
+        pontosContidosIds.push(p.id);
       }
     });
 
     // Encontra pontos vizinhos contidos
     const vizinhosContidosIds: number[] = [];
     vizinhosLista.forEach(pv => {
-      const lat = pv.lat;
-      const lon = pv.lon;
-      if (lat != null && lon != null && lat !== 0 && lon !== 0) {
-        if (this.pontoDentroDoPoligono(lat, lon, poligonoCoords)) {
-          vizinhosContidosIds.push(pv.id);
-        }
+      const c = coordenadaPonto(pv);
+      if (c && this.pontoDentroDoPoligono(c.lat, c.lon, poligonoCoords)) {
+        vizinhosContidosIds.push(pv.id);
       }
     });
 
@@ -496,6 +528,44 @@ export class FerramentaCanetaSelecao {
     return inside;
   }
 
+  /** Configuração "Imã (Atrair para o Vértice)" da janela Configurações do Mapa (`magnetSnap`). */
+  private lerImaConfigurado(): boolean {
+    try {
+      return !!MapaConfigManager.getInstance().getConfig().magnetSnap;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Ímã: se ligado em Configurações do Mapa, devolve a posição do vértice visível mais próximo do clique
+   * (até TOLERANCIA_IMA_PX pixels); caso contrário, o próprio clique. O snap do botão "Snap" do kit vale
+   * só para as ferramentas de desenho do kit — não para a Caneta.
+   */
+  private aplicarIma(latlng: L.LatLng): L.LatLng {
+    // Relê a configuração: ela pode ter sido alterada na janela de configurações com a Caneta ligada
+    this.imaAtivo = this.lerImaConfigurado();
+    if (!this.imaAtivo) return latlng;
+    const map = this.obterMapa();
+    if (!map) return latlng;
+
+    const alvo = map.latLngToContainerPoint(latlng);
+    let melhor: L.LatLng | null = null;
+    let menor = TOLERANCIA_IMA_PX;
+    const testar = (p: any) => {
+      const c = coordenadaPonto(p);
+      if (!c) return;
+      const d = map.latLngToContainerPoint([c.lat, c.lon]).distanceTo(alvo);
+      if (d <= menor) {
+        menor = d;
+        melhor = L.latLng(c.lat, c.lon);
+      }
+    };
+    pontosVisiveisParaSelecao(this.ctx).forEach(testar);
+    (this.ctx.pontosVizinhosList || []).forEach(testar);
+    return melhor ?? latlng;
+  }
+
   /**
    * Recupera a instância ativa do Leaflet
    */
@@ -518,24 +588,29 @@ export class FerramentaCanetaSelecao {
    * Atualiza visual do botão da Caneta na barra de ferramentas
    */
   private atualizarBotaoUI(ativo: boolean): void {
+    const classesAtivo = ['bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]'];
     const btn = document.getElementById('btn-ferramenta-caneta');
     if (btn) {
+      btn.setAttribute('aria-pressed', String(ativo));
+      btn.classList.toggle('ativo', ativo);
       if (ativo) {
-        btn.classList.add('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btn.classList.add(...classesAtivo);
         btn.classList.remove('bg-white/5', 'text-mint-vibrant');
       } else {
-        btn.classList.remove('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btn.classList.remove(...classesAtivo);
         btn.classList.add('bg-white/5', 'text-mint-vibrant');
       }
     }
 
     const btnFlutuante = document.getElementById('btn-mapa-caneta-flutuante');
     if (btnFlutuante) {
+      btnFlutuante.setAttribute('aria-pressed', String(ativo));
+      btnFlutuante.classList.toggle('ativo', ativo);
       if (ativo) {
-        btnFlutuante.classList.add('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btnFlutuante.classList.add(...classesAtivo);
         btnFlutuante.classList.remove('text-white/70');
       } else {
-        btnFlutuante.classList.remove('bg-mint-vibrant', 'text-slate-950', 'border-mint-vibrant', 'shadow-[0_0_12px_rgba(0,245,160,0.4)]');
+        btnFlutuante.classList.remove(...classesAtivo);
         btnFlutuante.classList.add('text-white/70');
       }
     }

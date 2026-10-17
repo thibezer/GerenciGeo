@@ -38,6 +38,7 @@ ENV/
 .env.*
 *.key
 app_secrets.key
+app_secrets.shared
 nuvem_session.json
 
 # Rascunhos e saídas de teste temporárias
@@ -57,3 +58,9 @@ uploads/
 .antigravityignore
 .DS_Store
 Thumbs.db
+
+# Documentos gerados com dados pessoais de clientes (CPF, nomes): nunca versionar
+/anuencia_*.html
+/confrontantes_*.html
+*.log.*
+logs/

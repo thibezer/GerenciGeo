@@ -2,6 +2,10 @@ import './style.css';
 import './design-engine.css';
 import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
+import { instalarFetchAutenticado } from './utils/fetch_autenticado';
+
+// A API exige o token de sessão nos cadastros: anexa o Authorization às chamadas da API
+instalarFetchAutenticado();
 
 // Aplica patches nos Web Components para dimensões de modais e respiro interno dos campos
 aplicarPatchesUI();
@@ -99,6 +103,7 @@ const routeLoaders: Record<string, () => Promise<RouteDef>> = {
   propriedades: () => import('./views/propriedades').then(m => m.propriedadesRoute),
   hgo: () => import('./views/hgo').then(m => m.hgoRoute),
   pendencias: () => import('./views/pendencias').then(m => m.pendenciasRoute),
+  contagem_pontos: () => import('./views/contagem_pontos').then(m => m.contagemPontosRoute),
   configuracoes: () => import('./views/configuracoes').then(m => m.configuracoesRoute),
   fronteira: () => import('./views/fronteira').then(m => m.fronteiraRoute),
   ccir: () => import('./views/ccir').then(m => m.ccirRoute),

@@ -55,7 +55,7 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
         """Valida que a senha é cifrada em repouso e que a revelação gera registro de auditoria."""
         raw_pass = "GovSeguro#2026"
         cifrado = encrypt_sensitive_data(raw_pass)
-        self.assertTrue(cifrado.startswith("ENC:G4G2:"))
+        self.assertTrue(cifrado.startswith("ENC:G4G3:"))
         self.assertEqual(decrypt_sensitive_data(cifrado), raw_pass)
 
         # Cadastro com senha
@@ -71,7 +71,7 @@ class TestClientesDetalhesSeguranca(unittest.TestCase):
 
         # Confere que no banco bruto o valor está criptografado
         row = execute_query("SELECT senha_gov FROM clientes WHERE id = ?", params=(cid,), fetch_one=True)
-        self.assertTrue(row["senha_gov"].startswith("ENC:G4G2:"))
+        self.assertTrue(row["senha_gov"].startswith("ENC:G4G3:"))
 
         # Confere que get_clientes() retorna mascarado
         clientes = get_clientes()

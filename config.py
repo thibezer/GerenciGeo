@@ -21,7 +21,9 @@ def _is_test_environment() -> bool:
 
 if _is_test_environment():
     os.environ["GERENCIGEO_TEST"] = "1"
-    DB_PATH = os.path.join(BASE_DIR, "gerencigeo_test.db")
+    # GERENCIGEO_TEST_SUFFIX permite rodar suítes em paralelo, cada uma com seu banco e seu workspace temporário
+    _TEST_SUFFIX = os.environ.get("GERENCIGEO_TEST_SUFFIX", "")
+    DB_PATH = os.path.join(BASE_DIR, f"gerencigeo_test{_TEST_SUFFIX}.db")
 else:
     DB_PATH = os.path.join(BASE_DIR, "gerencigeo.db")
 
@@ -43,7 +45,7 @@ EXPORT_BASE_FOLDER = os.environ.get("GERENCIGEO_EXPORT_FOLDER", _DEFAULT_GEO_FOL
 if os.environ.get("GERENCIGEO_TEST") == "1":
     # Testes nunca gravam workspaces na pasta real de projetos
     import tempfile
-    EXPORT_BASE_FOLDER = os.path.join(tempfile.gettempdir(), "gerencigeo_testes_workspace")
+    EXPORT_BASE_FOLDER = os.path.join(tempfile.gettempdir(), f"gerencigeo_testes_workspace{os.environ.get('GERENCIGEO_TEST_SUFFIX', '')}")
 
 IBGE_SIGEF_LIMITES = {
     'artificial': 0.50,
