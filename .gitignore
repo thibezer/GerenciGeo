@@ -64,3 +64,6 @@ Thumbs.db
 /confrontantes_*.html
 *.log.*
 logs/
+
+# Segredos da nuvem (vao para a pasta do dominio na Hostinger, nunca para o git)
+/gerencigeo_config.php

@@ -18,8 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // 2. Configurações de Conexão com o Banco de Dados MySQL
 // Segredos: variável de ambiente > arquivo gerencigeo_config.php FORA da pasta pública (um nível acima, retorna um
-// array) > valores abaixo. Os valores abaixo são só a transição: já estão no histórico do git, então troque a senha
-// do banco e a chave no painel e mova os novos para o arquivo de configuração ou para variáveis de ambiente.
+// array) > padrão abaixo. A senha do banco não tem padrão: sem o arquivo ou a variável, a conexão falha.
 $GLOBALS['gg_cfg'] = (static function (): array {
     $arquivo = dirname(__DIR__) . '/gerencigeo_config.php';
     if (is_file($arquivo)) {
@@ -36,7 +35,7 @@ function ggCfg(string $chave, string $padrao): string {
 }
 define('DB_NAME', ggCfg('GERENCIGEO_DB_NAME', 'u941736878_gerencigeo'));
 define('DB_USER', ggCfg('GERENCIGEO_DB_USER', 'u941736878_thiago_geo'));
-define('DB_PASS', ggCfg('GERENCIGEO_DB_PASS', 'G3renciGeo#2026$Db'));
+define('DB_PASS', ggCfg('GERENCIGEO_DB_PASS', ''));
 // Chave do formato antigo (AES-CBC). Continua existindo só para LER senhas GOV gravadas antes do AES-GCM.
 define('APP_SECRET_KEY', 'G3renciGeo_Cloud_Secret_Key_2026_Salt!');
 
