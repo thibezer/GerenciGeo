@@ -417,6 +417,43 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
                 if mat_encontrada:
                     dados_validos["matricula_id"] = mat_encontrada
 
+        # Resolução defensiva de aliases para matriculas
+        if tabela == "matriculas":
+            if "livro_registro" in cols_locais and not dados_validos.get("livro_registro") and r.get("livro"):
+                dados_validos["livro_registro"] = r.get("livro")
+            if "folha_registro" in cols_locais and not dados_validos.get("folha_registro") and r.get("folha"):
+                dados_validos["folha_registro"] = r.get("folha")
+            if "caminho_arquivo_pdf" in cols_locais and not dados_validos.get("caminho_arquivo_pdf") and r.get("caminho_pdf"):
+                dados_validos["caminho_arquivo_pdf"] = r.get("caminho_pdf")
+            if "numero_matricula" in cols_locais and not dados_validos.get("numero_matricula") and r.get("numero"):
+                dados_validos["numero_matricula"] = r.get("numero")
+
+        # Resolução defensiva de aliases para confrontantes
+        if tabela == "confrontantes":
+            if "cns_confrontante" in cols_locais and not dados_validos.get("cns_confrontante") and r.get("cns_cartorio"):
+                dados_validos["cns_confrontante"] = r.get("cns_cartorio")
+            if "matricula_imovel" in cols_locais and not dados_validos.get("matricula_imovel") and r.get("matricula_confrontante"):
+                dados_validos["matricula_imovel"] = r.get("matricula_confrontante")
+            if "nome_propriedade" in cols_locais and not dados_validos.get("nome_propriedade") and r.get("descricao_imovel"):
+                dados_validos["nome_propriedade"] = r.get("descricao_imovel")
+
+        # Resolução defensiva para cliente_documentos
+        if tabela == "cliente_documentos":
+            if "numero" in cols_locais and not dados_validos.get("numero") and r.get("numero_documento"):
+                dados_validos["numero"] = r.get("numero_documento")
+            if "arquivo_path" in cols_locais and not dados_validos.get("arquivo_path") and r.get("caminho_arquivo"):
+                dados_validos["arquivo_path"] = r.get("caminho_arquivo")
+            if "arquivo_nome" in cols_locais and not dados_validos.get("arquivo_nome") and r.get("nome_arquivo_original"):
+                dados_validos["arquivo_nome"] = r.get("nome_arquivo_original")
+            if "pessoa_id" in cols_locais and not dados_validos.get("pessoa_id") and r.get("cliente_id"):
+                try:
+                    cursor.execute("SELECT pessoa_id FROM clientes WHERE id = ?", (r["cliente_id"],))
+                    row_p = cursor.fetchone()
+                    if row_p and row_p[0]:
+                        dados_validos["pessoa_id"] = row_p[0]
+                except Exception:
+                    pass
+
         cols = list(dados_validos.keys())
         placeholders = ", ".join(["?"] * len(cols))
         cols_str = ", ".join(cols)
@@ -543,9 +580,9 @@ async def pull_dados_nuvem() -> dict:
 
             # Ordem hierárquica para respeitar integridade
             ordem_tabelas = [
-                "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
-                "matriculas", "levantamentos", "pontos", "segmentos", "confrontantes", "pendencias",
-                "banco_pontos", "anuencias_confrontantes"
+                "pessoas", "profissionais", "clientes", "cliente_documentos", "propriedades", "propriedade_clientes",
+                "matriculas", "levantamentos", "pontos", "segmentos", "confrontantes", "confrontante_coproprietarios",
+                "pendencias", "banco_pontos", "anuencias_confrontantes", "alteracoes_sigef"
             ]
 
             for t in ordem_tabelas:

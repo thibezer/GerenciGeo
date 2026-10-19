@@ -1688,9 +1688,9 @@ def migrar_integridade_confrontantes_e_indices(conn):
 
 # Tabelas sincronizadas com a Nuvem (mantida em sincronia com SYNC_TABLES de nuvem_sync.py)
 TABELAS_SINCRONIZAVEIS = [
-    "pessoas", "profissionais", "clientes", "propriedades", "propriedade_clientes",
+    "pessoas", "profissionais", "clientes", "cliente_documentos", "propriedades", "propriedade_clientes",
     "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes",
-    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios"
+    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios", "alteracoes_sigef"
 ]
 
 _SQL_AGORA_UTC = "strftime('%Y-%m-%d %H:%M:%f','now')"

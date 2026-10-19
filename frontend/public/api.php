@@ -6,6 +6,17 @@
 
 declare(strict_types=1);
 
+set_exception_handler(function (Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'error' => 'Erro interno do servidor: ' . $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine()
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+});
+
 // 1. Headers CORS & Resposta Preflight
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -458,6 +469,9 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'levantamentos', 'numero_trt', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'levantamentos', 'data_trt', 'VARCHAR(50) NULL');
 
+    addColumnSafe($pdo, 'pontos', 'matricula_id', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'ignorar_poligono', 'TINYINT DEFAULT 0');
+    addColumnSafe($pdo, 'pontos', 'ordem_caminhamento', 'INT DEFAULT 0');
     addColumnSafe($pdo, 'pontos', 'alt', 'DOUBLE NULL');
     addColumnSafe($pdo, 'pontos', 'altitude', 'DOUBLE NULL');
     addColumnSafe($pdo, 'pontos', 'este', 'DOUBLE NULL');
@@ -467,6 +481,10 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pontos', 'alt_corrigido', 'DOUBLE NULL');
     addColumnSafe($pdo, 'pontos', 'e_original', 'DOUBLE NULL');
     addColumnSafe($pdo, 'pontos', 'n_original', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'status_ponto', "VARCHAR(50) DEFAULT 'CORRIGIDO'");
+    addColumnSafe($pdo, 'pontos', 'status_correcao', "VARCHAR(50) DEFAULT 'CORRIGIDO'");
+    addColumnSafe($pdo, 'pontos', 'origem_homologada', 'INT DEFAULT 0');
+    addColumnSafe($pdo, 'pontos', 'ponto_base_id', 'INT NULL');
 
     addColumnSafe($pdo, 'pendencias', 'data_criacao', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
 
@@ -1244,9 +1262,71 @@ if ($route === '/dashboard/alerts' || (isset($_GET['action']) && $_GET['action']
 
 // 4. Geometrias das Matrículas para o Mapa Geral
 if ($route === '/dashboard/matriculas-geometrias' || (isset($_GET['action']) && $_GET['action'] === 'matriculas-geometrias')) {
-    $pdo = getDb();
-    $stmt = $pdo->query("SELECT p.id, p.nome_vertice, COALESCE(p.lat, p.lat_corrigido) as lat, COALESCE(p.lon, p.lon_corrigido) as lon, COALESCE(p.este, p.e_original) as este, COALESCE(p.norte, p.n_original) as norte, p.matricula_id FROM pontos p WHERE (p.lat IS NOT NULL OR p.lat_corrigido IS NOT NULL) LIMIT 500");
-    jsonResponse($stmt->fetchAll());
+    try {
+        $pdo = getDb();
+        // Busca matrículas com levantamentos ativos
+        $sqlMats = "
+            SELECT m.id, COALESCE(m.numero_matricula, m.numero) as numero_matricula, m.area_ha, m.propriedade_id,
+                   COALESCE(p.nome_propriedade, p.nome) as nome_propriedade, p.municipio, p.uf,
+                   l.id as levantamento_id
+            FROM matriculas m
+            JOIN propriedades p ON m.propriedade_id = p.id
+            JOIN levantamentos l ON l.propriedade_id = p.id
+            WHERE l.status != 'ARQUIVADO'
+              AND l.id = (
+                  SELECT id FROM levantamentos
+                  WHERE propriedade_id = p.id AND status != 'ARQUIVADO'
+                  ORDER BY id DESC LIMIT 1
+              )
+        ";
+        $stmtMats = $pdo->query($sqlMats);
+        $rowsMats = $stmtMats->fetchAll(PDO::FETCH_ASSOC);
+
+        $result = [];
+        if (!empty($rowsMats)) {
+            $matriculaIds = array_map(fn($r) => (int)$r['id'], $rowsMats);
+            $inPlaceholders = implode(',', array_fill(0, count($matriculaIds), '?'));
+
+            $sqlPts = "
+                SELECT levantamento_id, matricula_id, lat, lon, lat_corrigido, lon_corrigido, nome_vertice
+                FROM pontos
+                WHERE matricula_id IN ({$inPlaceholders})
+                  AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
+                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            ";
+            $stmtPts = $pdo->prepare($sqlPts);
+            $stmtPts->execute($matriculaIds);
+            $allPts = $stmtPts->fetchAll(PDO::FETCH_ASSOC);
+
+            $ptsByMatLev = [];
+            foreach ($allPts as $pt) {
+                $lat = $pt['lat_corrigido'] ?? $pt['lat'];
+                $lon = $pt['lon_corrigido'] ?? $pt['lon'];
+                if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
+                    $key = $pt['levantamento_id'] . '_' . $pt['matricula_id'];
+                    $ptsByMatLev[$key][] = [
+                        'lat' => (float)$lat,
+                        'lon' => (float)$lon,
+                        'nome' => $pt['nome_vertice'] ?? ''
+                    ];
+                }
+            }
+
+            foreach ($rowsMats as $mat) {
+                $key = $mat['levantamento_id'] . '_' . $mat['id'];
+                $coords = $ptsByMatLev[$key] ?? [];
+                if (count($coords) >= 3) {
+                    $mat['coordenadas'] = $coords;
+                    $result[] = $mat;
+                }
+            }
+        }
+
+        jsonResponse($result);
+    } catch (Throwable $e) {
+        error_log("Erro ao carregar geometrias para o mapa: " . $e->getMessage());
+        jsonResponse([]);
+    }
 }
 
 // 5. Proxy SIGEF / INCRA Seguro

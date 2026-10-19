@@ -59,6 +59,27 @@ class RealtimeSyncClient {
   }
 
   private conectar() {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+
+    if (!isLocal) {
+      // No ambiente Web Cloud (Hostinger), o frontend opera conectado diretamente ao MySQL.
+      // O servidor WebSocket local (FastAPI) existe apenas no ambiente desktop.
+      this.currentStatus = {
+        status: 'SYNCED',
+        enabled: true,
+        running: true,
+        autenticado: true,
+        pending_push: false,
+        pending_tables: [],
+        check_interval: 60,
+        server_time: new Date().toISOString()
+      };
+      this.atualizarUI();
+      return;
+    }
+
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
@@ -104,6 +125,11 @@ class RealtimeSyncClient {
   }
 
   private agendarReconexao() {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    if (!isLocal) return;
+
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -180,6 +206,13 @@ class RealtimeSyncClient {
   }
 
   public sincronizarAgora(): void {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    if (!isLocal) {
+      showToast('Ambiente Nuvem: os dados são gravados e consultados diretamente no MySQL.', 'info');
+      return;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action: 'sync_now' }));
     } else {
@@ -189,6 +222,11 @@ class RealtimeSyncClient {
 
   /** Pede ao backend uma checagem imediata da nuvem (sem esperar o próximo batimento). */
   public verificarAgora(): void {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    if (!isLocal) return;
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action: 'check_now' }));
     } else {
@@ -197,6 +235,11 @@ class RealtimeSyncClient {
   }
 
   public setEnabled(enabled: boolean): void {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    if (!isLocal) return;
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action: 'toggle_enabled', enabled }));
     } else {
@@ -229,7 +272,10 @@ class RealtimeSyncClient {
    * Repinta o pill de status (ex.: ao abrir Configurações, onde ele agora vive).
    */
   public renderizarStatus() {
-    if (this.currentStatus) {
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    if (!isLocal || this.currentStatus) {
       this.atualizarUI();
     } else if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.atualizarStatusPillFallbackOffline();
@@ -246,6 +292,19 @@ class RealtimeSyncClient {
     const btnPill = document.getElementById('btn-global-sync-pill');
 
     if (!dot || !text || !badge || !btnPill) return;
+
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+
+    if (!isLocal) {
+      dot.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]";
+      text.innerText = "Hub Web Cloud";
+      badge.className = "text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+      badge.innerText = "Online";
+      btnPill.setAttribute('title', 'Conectado diretamente ao banco de dados MySQL na Nuvem Hostinger.');
+      return;
+    }
 
     const s = this.currentStatus?.status;
     const isAutenticado = this.currentStatus?.autenticado;
