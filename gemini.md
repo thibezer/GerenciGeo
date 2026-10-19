@@ -4,6 +4,19 @@ Este arquivo estabelece os esquemas de dados de entrada/saída, invariantes de b
 
 ---
 
+## ⚡ REGRA ZERO DE PRIORIDADE ABSOLUTA: ATUALIZAÇÃO RÁPIDA (OUTROS COMPUTADORES)
+Quando o usuário solicitar no chat **"atualize o sistema"**, **"baixar atualizações"**, **"baixe o sistema"**, **"sincronizar dados"** ou variações:
+1. **NÃO** leia arquivos da base de código.
+2. **NÃO** faça planos de refatoração, análises ou investigações de arquitetura.
+3. **NÃO** execute a suíte completa de testes (evita lentidão e travamentos desnecessários).
+4. **EXECUTE IMEDIATAMENTE E APENAS**:
+   ```powershell
+   python atualizar.py
+   ```
+5. Apresente o resultado sucinto em 1 ou 2 linhas e encerre o turno imediatamente.
+
+---
+
 ## 💾 Esquemas de Dados e Estruturas de Payload
 
 ### 1. Novo Endpoint de Ordenação Perimetral

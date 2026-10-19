@@ -1,36 +1,23 @@
 ---
-description: Atualiza o código-fonte via Git e sincroniza os dados com a Nuvem Hub
+description: Atualização rápida e autônoma do código-fonte e sincronização com a Nuvem Hub
 globs: 
 ---
 
-# Workflow: Atualização do Sistema e Sincronização
+# Workflow: Atualização Rápida do Sistema
 
-Sempre que o usuário solicitar para **atualizar o sistema**, **baixar atualizações** ou usar `/atualizar-sistema`:
+Sempre que o usuário solicitar para **atualizar o sistema**, **baixar atualizações**, **sincronizar** ou usar `/atualizar-sistema`:
 
-## 1. Puxar o Código Mais Recente
-Execute no terminal:
+> ⚠️ **ATENÇÃO IA**: NÃO leia arquivos da base de código, NÃO monte planos complexos e NÃO execute testes demorados.
+
+## Execução em 1 Passo:
+Execute no terminal imediatamente:
 ```powershell
-git pull origin main
+python atualizar.py
 ```
 
-## 2. Recompilar o Frontend
-Caso haja arquivos modificados no diretório `frontend/`:
-```powershell
-cd frontend
-npm run build
-cd ..
-```
+Esse script executa automaticamente de forma otimizada:
+1. `git pull origin main`
+2. Recompila o frontend (`npm run build`) se houver alterações
+3. Sincroniza o banco de dados local com o Hub na Nuvem (Hostinger)
 
-## 3. Sincronizar o Banco de Dados com a Nuvem Hub (Hostinger)
-Dispare o pipeline de sincronização para atualizar o `gerencigeo.db` local com os dados mais recentes de outros computadores:
-```powershell
-python -c "import asyncio; from services.gestores.nuvem_sync import sincronizar_tudo; print(asyncio.run(sincronizar_tudo()))"
-```
-
-## 4. Validar Integridade
-Execute a suíte de testes unitários:
-```powershell
-python -m unittest discover -s tests -p "test_*.py"
-```
-
-Apresente um resumo claro das atualizações de código e de registros sincronizados para o usuário.
+Apresente um resumo de 2 linhas ao usuário e finalize a resposta.
