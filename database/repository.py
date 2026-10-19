@@ -177,6 +177,12 @@ class PendenciaRepo(GenericRepo):
         query = "SELECT * FROM pendencias WHERE status = 'PENDENTE' AND prioridade = 'ALTA' ORDER BY data_criacao DESC LIMIT ?"
         return [dict(r) for r in execute_query(query, params=(limit,), fetch_all=True)]
 
+    def get_pendentes(self, limit=10):
+        query = """SELECT * FROM pendencias WHERE status = 'PENDENTE' 
+                   ORDER BY CASE prioridade WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END ASC, 
+                            data_criacao DESC LIMIT ?"""
+        return [dict(r) for r in execute_query(query, params=(limit,), fetch_all=True)]
+
 
 class CcirCadastroRepo(GenericRepo):
     def __init__(self):

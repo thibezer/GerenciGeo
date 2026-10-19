@@ -1220,14 +1220,23 @@ if ($route === '/stats' || (isset($_GET['action']) && $_GET['action'] === 'stats
 // 3. Alertas do Dashboard
 if ($route === '/dashboard/alerts' || (isset($_GET['action']) && $_GET['action'] === 'alerts')) {
     $pdo = getDb();
-    $stmt = $pdo->query("SELECT * FROM pendencias WHERE status = 'PENDENTE' ORDER BY prazo ASC, id DESC LIMIT 10");
+    $stmt = $pdo->query("SELECT * FROM pendencias WHERE status = 'PENDENTE' ORDER BY CASE prioridade WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END ASC, prazo ASC, id DESC LIMIT 10");
     $alerts = [];
     while ($row = $stmt->fetch()) {
+        $prioridade = $row['prioridade'] ?? 'MEDIA';
         $alerts[] = [
             'id' => $row['id'],
+            'tipo' => 'MANUAL',
+            'prioridade' => $prioridade,
             'titulo' => $row['titulo'],
-            'prioridade' => $row['prioridade'],
-            'prazo' => $row['prazo']
+            'mensagem' => $row['descricao'] ?? ($row['prazo'] ? "Prazo: " . $row['prazo'] : "Tarefa ({$prioridade})"),
+            'prazo' => $row['prazo'] ?? null,
+            'icone' => 'check-square',
+            'acao' => [
+                'tipo' => 'concluir',
+                'id' => $row['id'],
+                'rotulo' => 'Concluir'
+            ]
         ];
     }
     jsonResponse(['alerts' => $alerts]);

@@ -62,15 +62,23 @@ def delete_history_item(item_id: int):
 def get_alerts():
     try:
         repo = PendenciaRepo()
-        pendencias_alta = repo.get_pendentes_alta(limit=3)
+        pendencias = repo.get_pendentes(limit=10)
 
         manuais = []
-        for p in pendencias_alta:
+        for p in pendencias:
+            prioridade = p.get('prioridade', 'MEDIA') or 'MEDIA'
             manuais.append({
                 "id": p['id'],
                 "tipo": "MANUAL",
-                "icone": "alert-circle",
-                "mensagem": f"Urgent: {p['titulo']}",
+                "prioridade": prioridade,
+                "icone": "check-square",
+                "titulo": p['titulo'],
+                "mensagem": p.get('descricao') or f"Tarefa ({prioridade})",
+                "acao": {
+                    "tipo": "concluir",
+                    "id": p['id'],
+                    "rotulo": "Concluir"
+                },
                 "original": p
             })
 

@@ -629,5 +629,15 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   2. **Declaração e Assinaturas no Plural**: O texto da declaração deve adotar a forma plural (`DECLARAM`, `Os declarantes`, etc.) e incluir o campo de assinatura para o Cônjuge do Confrontante Anuente sempre que `is_casado` for verdadeiro.
   3. **Consistência em Formulários**: Os campos de qualificação do cônjuge na interface não devem sugerir opcionalidade diferenciada para RG e CPF na separação total, assegurando o preenchimento completo dos dados.
 
+---
 
-
+## 40. Action Center Operacional Híbrido (Auditoria Ativa, Ações Rápidas e Resolução Direta)
+- **Contexto e Problema**:
+  1. O antigo card de "Action Center" no Dashboard era puramente passivo: exibia uma lista textual estática de alertas (`<ui-alerta>`) sem qualquer interatividade, filtros ou botões de ação imediata. O usuário precisava ler um texto solto (ex: "Ponto M01 tem RINEX mas sem resultado PPP") e navegar manualmente por várias telas para tentar corrigir.
+  2. Não havia como criar tarefas ou anotações rápidas diretamente pelo Dashboard (sem perder o contexto visual do mapa de imóveis), nem atalhos diretos de alta produtividade para operações do dia a dia.
+- **Regras Obrigatórias**:
+  1. **Estrutura Híbrida com Abas**: O Action Center no Dashboard deve manter abas comutáveis: **Auditoria & Alertas** (com contador reativo) e **Ações Rápidas** (atalhos para Levantamentos, Clientes, Propriedades, Nuvem Hub, Organizador HGO e Banco CCIR).
+  2. **Contrato de Dados Estruturado nos Alertas**: Toda rotina geradora de alertas (`gerar_alertas_integridade`, `routes/dashboard.py`, `api.php`) deve devolver itens estruturados com `tipo` (`CRITICO`, `ALERTA`, `MANUAL`), `titulo`, `mensagem`, `icone` e um objeto `acao` contendo `tipo` (`rota` ou `concluir`), `destino`, `rotulo` e metadados (`id`, `levantamento_id`).
+  3. **Resolução de 1 Clique**: Tarefas manuais devem dispor de botão "Concluir" para marcar como resolvida diretamente no card com animação e toast, sem redirecionar a tela. Inconformidades técnicas devem fornecer botão de navegação direta ao levantamento ou ferramenta de correção (ex: "Abrir HGO", "Ir ao Levantamento").
+  4. **Filtros por Severidade**: A lista de auditoria deve permitir filtrar em memória por `TODOS`, `CRITICO`, `ALERTA` e `MANUAL`, mantendo contadores atualizados em tempo real.
+  5. **Criação Rápida de Tarefas**: O cabeçalho do Action Center deve prover o botão `+ Nova Tarefa`, abrindo modal compacto integrado (`#modal-nova-tarefa-rapida`) para persistência imediata no banco via `POST /pendencias`.

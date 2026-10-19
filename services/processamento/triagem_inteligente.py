@@ -241,11 +241,17 @@ def gerar_alertas_integridade():
         alertas.append({
             "tipo": "CRITICO",
             "icone": "alert-circle",
-            "mensagem": f"Arquivo {c['arquivo_nome']}: {motivo}"
+            "titulo": f"RINEX Crítico: {c['arquivo_nome']}",
+            "mensagem": f"Arquivo {c['arquivo_nome']}: {motivo}",
+            "acao": {
+                "tipo": "rota",
+                "destino": "#hgo",
+                "rotulo": "Abrir HGO"
+            }
         })
         
     # 2. Fluxo Incompleto: Detectar arquivos RINEX que ainda não possuem um log de processamento PPP associado (na tabela pontos)
-    incompletos_query = "SELECT nome_vertice, arquivo_rinex FROM pontos WHERE arquivo_rinex IS NOT NULL AND arquivo_resultado_ppp IS NULL"
+    incompletos_query = "SELECT nome_vertice, arquivo_rinex, levantamento_id FROM pontos WHERE arquivo_rinex IS NOT NULL AND arquivo_resultado_ppp IS NULL"
     try:
         incompletos = [dict(r) for r in execute_query(incompletos_query, fetch_all=True)]
     except Exception as e:
@@ -256,7 +262,14 @@ def gerar_alertas_integridade():
         alertas.append({
             "tipo": "ALERTA",
             "icone": "alert-circle",
-            "mensagem": f"Ponto {inc['nome_vertice']} tem RINEX mas sem resultado PPP."
+            "titulo": f"Vértice {inc['nome_vertice']} sem PPP",
+            "mensagem": f"Ponto {inc['nome_vertice']} tem RINEX mas sem resultado PPP.",
+            "acao": {
+                "tipo": "rota",
+                "destino": "#levantamentos",
+                "rotulo": "Ir ao Levantamento",
+                "levantamento_id": inc.get('levantamento_id')
+            }
         })
 
     # 2.1. Validação de Tempo Mínimo de Rastreio da Base (Item 12 - INCRA exige min 2h / 7200s)
@@ -279,7 +292,14 @@ def gerar_alertas_integridade():
                             alertas.append({
                                 "tipo": "ALERTA",
                                 "icone": "clock",
-                                "mensagem": f"Base '{b['nome_vertice']}': Tempo de rastreio de {duracao/3600:.2f}h é menor que o mínimo de 2 horas exigido pelo INCRA."
+                                "titulo": f"Rastreio Insuficiente: {b['nome_vertice']}",
+                                "mensagem": f"Base '{b['nome_vertice']}': Tempo de rastreio de {duracao/3600:.2f}h é menor que o mínimo de 2 horas exigido pelo INCRA.",
+                                "acao": {
+                                    "tipo": "rota",
+                                    "destino": "#levantamentos",
+                                    "rotulo": "Ir ao Levantamento",
+                                    "levantamento_id": b.get('levantamento_id')
+                                }
                             })
     except Exception as e_rastreio:
         logger.error(f"Erro na validação de tempo mínimo de rastreio: {e_rastreio}")
@@ -302,7 +322,14 @@ def gerar_alertas_integridade():
         alertas.append({
             "tipo": "ALERTA",
             "icone": "user-x",
-            "mensagem": f"Levantamento {seg['levantamento_id']}: Divisa sem confrontante: O segmento entre o ponto {seg['ponto_inicio']} e {seg['ponto_fim']} não possui vizinho vinculado."
+            "titulo": f"Divisa sem Confrontante",
+            "mensagem": f"Levantamento {seg['levantamento_id']}: O segmento entre o ponto {seg['ponto_inicio']} e {seg['ponto_fim']} não possui vizinho vinculado.",
+            "acao": {
+                "tipo": "rota",
+                "destino": "#levantamentos",
+                "rotulo": "Ir ao Levantamento",
+                "levantamento_id": seg.get('levantamento_id')
+            }
         })
 
     # 4. Pontos órfãos (não atrelados a nenhum segmento do levantamento)
@@ -325,7 +352,14 @@ def gerar_alertas_integridade():
         alertas.append({
             "tipo": "ALERTA",
             "icone": "map-pin",
-            "mensagem": f"Levantamento {pt['levantamento_id']}: Ponto órfão: O vértice {pt['nome_vertice']} não pertence a nenhuma divisa ou segmento de caminhamento."
+            "titulo": f"Vértice Órfão: {pt['nome_vertice']}",
+            "mensagem": f"Levantamento {pt['levantamento_id']}: O vértice {pt['nome_vertice']} não pertence a nenhuma divisa ou segmento de caminhamento.",
+            "acao": {
+                "tipo": "rota",
+                "destino": "#levantamentos",
+                "rotulo": "Ir ao Levantamento",
+                "levantamento_id": pt.get('levantamento_id')
+            }
         })
 
     # 5. Arquivos Brutos não convertidos (busca nominal exata)
@@ -360,7 +394,14 @@ def gerar_alertas_integridade():
                     alertas.append({
                         "tipo": "ALERTA",
                         "icone": "folder",
-                        "mensagem": f"Levantamento {lev['id']}: Arquivos brutos sem correspondente Rinex em /Brutos: {', '.join(brutos_nao_convertidos)}"
+                        "titulo": f"{len(brutos_nao_convertidos)} Bruto(s) Pendente(s)",
+                        "mensagem": f"Levantamento {lev['id']}: Arquivos brutos sem correspondente Rinex em /Brutos: {', '.join(brutos_nao_convertidos)}",
+                        "acao": {
+                            "tipo": "rota",
+                            "destino": "#hgo",
+                            "rotulo": "Abrir HGO",
+                            "levantamento_id": lev.get('id')
+                        }
                     })
     except Exception as e:
         logger.error(f"Erro ao buscar arquivos brutos nao convertidos: {e}")
@@ -397,9 +438,17 @@ def gerar_alertas_integridade():
                         alertas.append({
                             "tipo": "ALERTA",
                             "icone": "compass",
-                            "mensagem": f"Levantamento {lev_id}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W)."
+                            "titulo": f"Divergência de Fuso UTM",
+                            "mensagem": f"Levantamento {lev_id}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W).",
+                            "acao": {
+                                "tipo": "rota",
+                                "destino": "#levantamentos",
+                                "rotulo": "Ir ao Levantamento",
+                                "levantamento_id": int(lev_id) if str(lev_id).isdigit() else lev_id
+                            }
                         })
     except Exception as e:
         logger.error(f"Erro na checagem de fuso UTM: {e}")
+
 
     return alertas
