@@ -220,16 +220,39 @@ def organizar_rastreios(pasta_origem, pasta_destino_hgo, msg_queue=None):
                 
     if msg_queue:
         msg_queue.put({"tipo": "log", "mensagem": f"[TRIAGEM] Identificada(s) {len(bases)} Base(s) e alocados os Rovers."})
-
-    return bases
-
 def gerar_alertas_integridade():
     from database.connection import execute_query
     
     alertas = []
-    
-    # 1. Arquivos Críticos: Detectar arquivos registrados como falhos ou menores que 50KB no HistoricoRinexRepo (LogsProcessamentoRinexRepo)
-    criticos_query = "SELECT arquivo_nome, arquivo_tamanho, sucesso FROM historico_rinex WHERE sucesso = 0 OR arquivo_tamanho < 51200"
+
+    # 0. Mapeia levantamentos ativos com pasta física existente no disco
+    # Blindagem: se um projeto foi excluído ou arquivado/concluído, seus alertas NÃO devem ser exibidos
+    levs_query = "SELECT id, pasta_projeto FROM levantamentos WHERE status = 'EM_ANDAMENTO' AND pasta_projeto IS NOT NULL"
+    try:
+        levs_ativos = [dict(r) for r in execute_query(levs_query, fetch_all=True)]
+    except Exception as e:
+        logger.error(f"Erro ao buscar levantamentos ativos: {e}")
+        levs_ativos = []
+
+    pastas_ativas_map = {}
+    for l in levs_ativos:
+        pasta = l.get('pasta_projeto')
+        if pasta and os.path.exists(pasta):
+            pastas_ativas_map[l['id']] = os.path.normpath(pasta).lower()
+
+    lev_ids = list(pastas_ativas_map.keys())
+    if not lev_ids:
+        # Se não há levantamentos em andamento com pasta ativa, não gera alertas
+        return []
+
+    placeholders = ", ".join(["?"] * len(lev_ids))
+
+    # 1. Arquivos Críticos: Apenas arquivos que ainda existem fisicamente no disco e pertencem a levantamentos ativos
+    criticos_query = """
+        SELECT id, arquivo_nome, arquivo_tamanho, sucesso, arquivo_path 
+        FROM historico_rinex 
+        WHERE sucesso = 0 OR arquivo_tamanho < 51200
+    """
     try:
         criticos = [dict(r) for r in execute_query(criticos_query, fetch_all=True)]
     except Exception as e:
@@ -237,6 +260,22 @@ def gerar_alertas_integridade():
         criticos = []
         
     for c in criticos:
+        p = c.get('arquivo_path')
+        # Ignora arquivos inexistentes (de projetos ou diretórios que foram excluídos)
+        if not p or not os.path.exists(p):
+            continue
+        p_norm = os.path.normpath(p).lower()
+        lev_id_pertence = next((lid for lid, pasta in pastas_ativas_map.items() if p_norm.startswith(pasta)), None)
+        if not lev_id_pertence:
+            continue
+        # Se o arquivo foi convertido com sucesso posteriormente, ignora o log de falha antigo
+        sucesso_posterior = execute_query(
+            "SELECT id FROM historico_rinex WHERE arquivo_nome = ? AND sucesso = 1 AND id > ?",
+            params=(c['arquivo_nome'], c['id']), fetch_one=True
+        )
+        if sucesso_posterior:
+            continue
+
         motivo = "Falha no processamento" if not c.get('sucesso') else "Arquivo < 50KB"
         alertas.append({
             "tipo": "CRITICO",
@@ -246,14 +285,23 @@ def gerar_alertas_integridade():
             "acao": {
                 "tipo": "rota",
                 "destino": "#hgo",
-                "rotulo": "Abrir HGO"
+                "rotulo": "Abrir HGO",
+                "levantamento_id": lev_id_pertence
             }
         })
         
-    # 2. Fluxo Incompleto: Detectar arquivos RINEX que ainda não possuem um log de processamento PPP associado (na tabela pontos)
-    incompletos_query = "SELECT nome_vertice, arquivo_rinex, levantamento_id FROM pontos WHERE arquivo_rinex IS NOT NULL AND arquivo_resultado_ppp IS NULL"
+    # 2. Fluxo Incompleto: Vértices com RINEX mas sem resultado PPP associado (estritamente de levantamentos ativos)
+    incompletos_query = f"""
+        SELECT p.nome_vertice, p.arquivo_rinex, p.levantamento_id 
+        FROM pontos p
+        JOIN levantamentos l ON p.levantamento_id = l.id
+        WHERE l.status = 'EM_ANDAMENTO'
+          AND p.levantamento_id IN ({placeholders})
+          AND p.arquivo_rinex IS NOT NULL 
+          AND p.arquivo_resultado_ppp IS NULL
+    """
     try:
-        incompletos = [dict(r) for r in execute_query(incompletos_query, fetch_all=True)]
+        incompletos = [dict(r) for r in execute_query(incompletos_query, params=tuple(lev_ids), fetch_all=True)]
     except Exception as e:
         logger.error(f"Erro ao buscar alertas incompletos: {e}")
         incompletos = []
@@ -263,7 +311,7 @@ def gerar_alertas_integridade():
             "tipo": "ALERTA",
             "icone": "alert-circle",
             "titulo": f"Vértice {inc['nome_vertice']} sem PPP",
-            "mensagem": f"Ponto {inc['nome_vertice']} tem RINEX mas sem resultado PPP.",
+            "mensagem": f"Levantamento #{inc['levantamento_id']}: Ponto {inc['nome_vertice']} tem RINEX mas sem resultado PPP.",
             "acao": {
                 "tipo": "rota",
                 "destino": "#levantamentos",
@@ -274,13 +322,16 @@ def gerar_alertas_integridade():
 
     # 2.1. Validação de Tempo Mínimo de Rastreio da Base (Item 12 - INCRA exige min 2h / 7200s)
     try:
-        query_bases_duracao = """
+        query_bases_duracao = f"""
             SELECT p.nome_vertice, p.arquivo_rinex, p.levantamento_id, l.pasta_projeto
             FROM pontos p
             JOIN levantamentos l ON p.levantamento_id = l.id
-            WHERE (p.tipo_ponto = 'M' OR p.tipo_ponto = 'B') AND p.arquivo_rinex IS NOT NULL AND l.status = 'EM_ANDAMENTO'
+            WHERE (p.tipo_ponto = 'M' OR p.tipo_ponto = 'B') 
+              AND p.arquivo_rinex IS NOT NULL 
+              AND l.status = 'EM_ANDAMENTO'
+              AND p.levantamento_id IN ({placeholders})
         """
-        bases_ativas = [dict(r) for r in execute_query(query_bases_duracao, fetch_all=True)]
+        bases_ativas = [dict(r) for r in execute_query(query_bases_duracao, params=tuple(lev_ids), fetch_all=True)]
         for b in bases_ativas:
             if b['pasta_projeto']:
                 caminho_rinex = os.path.join(b['pasta_projeto'], "Rinex", b['arquivo_rinex'])
@@ -293,7 +344,7 @@ def gerar_alertas_integridade():
                                 "tipo": "ALERTA",
                                 "icone": "clock",
                                 "titulo": f"Rastreio Insuficiente: {b['nome_vertice']}",
-                                "mensagem": f"Base '{b['nome_vertice']}': Tempo de rastreio de {duracao/3600:.2f}h é menor que o mínimo de 2 horas exigido pelo INCRA.",
+                                "mensagem": f"Levantamento #{b['levantamento_id']}: Base '{b['nome_vertice']}' com rastreio de {duracao/3600:.2f}h (mínimo exigido: 2h).",
                                 "acao": {
                                     "tipo": "rota",
                                     "destino": "#levantamentos",
@@ -304,26 +355,32 @@ def gerar_alertas_integridade():
     except Exception as e_rastreio:
         logger.error(f"Erro na validação de tempo mínimo de rastreio: {e_rastreio}")
         
-    # 3. Segmentos sem confrontantes vinculados
-    segmentos_sem_confrontante_query = """
-        SELECT s.levantamento_id, p_ini.nome_vertice as ponto_inicio, p_fim.nome_vertice as ponto_fim
+    # 3. Segmentos sem confrontantes vinculados (agrupados por levantamento ativo para evitar poluição visual)
+    segmentos_sem_confrontante_query = f"""
+        SELECT s.levantamento_id, COUNT(*) as total_sem_conf,
+               MIN(p_ini.nome_vertice) as exemplo_ini, MIN(p_fim.nome_vertice) as exemplo_fim
         FROM segmentos s
+        JOIN levantamentos l ON s.levantamento_id = l.id
         JOIN pontos p_ini ON s.ponto_inicio_id = p_ini.id
         JOIN pontos p_fim ON s.ponto_fim_id = p_fim.id
-        WHERE s.confrontante_id IS NULL
+        WHERE l.status = 'EM_ANDAMENTO'
+          AND s.levantamento_id IN ({placeholders})
+          AND s.confrontante_id IS NULL
+        GROUP BY s.levantamento_id
     """
     try:
-        seg_sem_conf = [dict(r) for r in execute_query(segmentos_sem_confrontante_query, fetch_all=True)]
+        seg_sem_conf = [dict(r) for r in execute_query(segmentos_sem_confrontante_query, params=tuple(lev_ids), fetch_all=True)]
     except Exception as e:
         logger.error(f"Erro ao buscar segmentos sem confrontante: {e}")
         seg_sem_conf = []
         
     for seg in seg_sem_conf:
+        total = seg['total_sem_conf']
         alertas.append({
             "tipo": "ALERTA",
             "icone": "user-x",
-            "titulo": f"Divisa sem Confrontante",
-            "mensagem": f"Levantamento {seg['levantamento_id']}: O segmento entre o ponto {seg['ponto_inicio']} e {seg['ponto_fim']} não possui vizinho vinculado.",
+            "titulo": f"{total} Divisa(s) sem Confrontante",
+            "mensagem": f"Levantamento #{seg['levantamento_id']}: {total} divisa(s) sem confrontante vinculado (ex: {seg['exemplo_ini']} a {seg['exemplo_fim']}).",
             "acao": {
                 "tipo": "rota",
                 "destino": "#levantamentos",
@@ -332,28 +389,35 @@ def gerar_alertas_integridade():
             }
         })
 
-    # 4. Pontos órfãos (não atrelados a nenhum segmento do levantamento)
-    pontos_orfaos_query = """
-        SELECT p.nome_vertice, p.levantamento_id
+    # 4. Pontos órfãos (vértices de perímetro que não compõem nenhuma divisa, agrupados por levantamento ativo)
+    pontos_orfaos_query = f"""
+        SELECT p.levantamento_id, COUNT(*) as total_orfaos, MIN(p.nome_vertice) as exemplo_vertice
         FROM pontos p
-        WHERE NOT EXISTS (
+        JOIN levantamentos l ON p.levantamento_id = l.id
+        WHERE l.status = 'EM_ANDAMENTO'
+          AND p.levantamento_id IN ({placeholders})
+          AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
+          AND (p.tipo_ponto NOT IN ('M', 'B') OR p.tipo_ponto IS NULL)
+          AND NOT EXISTS (
             SELECT 1 FROM segmentos s
             WHERE s.levantamento_id = p.levantamento_id
               AND (s.ponto_inicio_id = p.id OR s.ponto_fim_id = p.id)
-        )
+          )
+        GROUP BY p.levantamento_id
     """
     try:
-        pts_orfaos = [dict(r) for r in execute_query(pontos_orfaos_query, fetch_all=True)]
+        pts_orfaos = [dict(r) for r in execute_query(pontos_orfaos_query, params=tuple(lev_ids), fetch_all=True)]
     except Exception as e:
         logger.error(f"Erro ao buscar pontos orfaos: {e}")
         pts_orfaos = []
 
     for pt in pts_orfaos:
+        total = pt['total_orfaos']
         alertas.append({
             "tipo": "ALERTA",
             "icone": "map-pin",
-            "titulo": f"Vértice Órfão: {pt['nome_vertice']}",
-            "mensagem": f"Levantamento {pt['levantamento_id']}: O vértice {pt['nome_vertice']} não pertence a nenhuma divisa ou segmento de caminhamento.",
+            "titulo": f"{total} Vértice(s) sem Perímetro",
+            "mensagem": f"Levantamento #{pt['levantamento_id']}: {total} vértice(s) não compõem nenhuma divisa (ex: {pt['exemplo_vertice']}).",
             "acao": {
                 "tipo": "rota",
                 "destino": "#levantamentos",
@@ -362,11 +426,11 @@ def gerar_alertas_integridade():
             }
         })
 
-    # 5. Arquivos Brutos não convertidos (busca nominal exata)
-    lev_query = "SELECT id, pasta_projeto FROM levantamentos WHERE status = 'EM_ANDAMENTO' AND pasta_projeto IS NOT NULL"
+    # 5. Arquivos Brutos não convertidos (apenas de levantamentos ativos)
     try:
-        levantamentos = [dict(r) for r in execute_query(lev_query, fetch_all=True)]
-        for lev in levantamentos:
+        for lev in levs_ativos:
+            if lev['id'] not in lev_ids:
+                continue
             pasta_brutos = os.path.join(lev['pasta_projeto'], "Brutos")
             pasta_rinex = os.path.join(lev['pasta_projeto'], "Rinex")
             
@@ -379,14 +443,10 @@ def gerar_alertas_integridade():
                 brutos_nao_convertidos = []
                 for bruto in arquivos_brutos:
                     nome_base_bruto = os.path.splitext(bruto)[0].lower()
-                    
-                    tem_correspondente = False
-                    for rinex in arquivos_rinex:
-                        rinex_lower = rinex.lower()
-                        if rinex_lower.startswith(nome_base_bruto) and (rinex_lower.endswith('.obs') or rinex_lower.endswith('o')):
-                            tem_correspondente = True
-                            break
-                    
+                    tem_correspondente = any(
+                        r.lower().startswith(nome_base_bruto) and (r.lower().endswith('.obs') or r.lower().endswith('o'))
+                        for r in arquivos_rinex
+                    )
                     if not tem_correspondente:
                         brutos_nao_convertidos.append(bruto)
                 
@@ -395,7 +455,7 @@ def gerar_alertas_integridade():
                         "tipo": "ALERTA",
                         "icone": "folder",
                         "titulo": f"{len(brutos_nao_convertidos)} Bruto(s) Pendente(s)",
-                        "mensagem": f"Levantamento {lev['id']}: Arquivos brutos sem correspondente Rinex em /Brutos: {', '.join(brutos_nao_convertidos)}",
+                        "mensagem": f"Levantamento #{lev['id']}: Arquivos brutos sem correspondente RINEX: {', '.join(brutos_nao_convertidos[:3])}{'...' if len(brutos_nao_convertidos) > 3 else ''}.",
                         "acao": {
                             "tipo": "rota",
                             "destino": "#hgo",
@@ -406,49 +466,39 @@ def gerar_alertas_integridade():
     except Exception as e:
         logger.error(f"Erro ao buscar arquivos brutos nao convertidos: {e}")
 
-    # 6. Alerta dinâmico de fuso UTM (Meridiano Central)
-    lev_ativos_query = "SELECT id FROM levantamentos WHERE status = 'EM_ANDAMENTO'"
+    # 6. Alerta dinâmico de fuso UTM (Meridiano Central - apenas levantamentos ativos)
     try:
-        lev_ativos = [dict(r) for r in execute_query(lev_ativos_query, fetch_all=True)]
-        if lev_ativos:
-            lev_ids = [str(lev['id']) for lev in lev_ativos]
-            placeholders = ", ".join(["?"] * len(lev_ids))
-            pontos_query = f"SELECT levantamento_id, lon FROM pontos WHERE levantamento_id IN ({placeholders}) AND lon IS NOT NULL"
-            pts = execute_query(pontos_query, params=tuple(lev_ids), fetch_all=True)
+        pontos_query = f"SELECT levantamento_id, lon FROM pontos WHERE levantamento_id IN ({placeholders}) AND lon IS NOT NULL"
+        pts = execute_query(pontos_query, params=tuple(lev_ids), fetch_all=True)
 
-            from collections import defaultdict
-            pts_by_lev = defaultdict(list)
-            for p in pts:
-                pts_by_lev[str(p['levantamento_id'])].append(p['lon'])
-                
-            for lev_id in lev_ids:
-                lons = pts_by_lev.get(lev_id)
-                if lons:
-                    lon_media = sum(lons) / len(lons)
+        from collections import defaultdict
+        pts_by_lev = defaultdict(list)
+        for p in pts:
+            pts_by_lev[str(p['levantamento_id'])].append(p['lon'])
+            
+        for lev_id in lev_ids:
+            lons = pts_by_lev.get(str(lev_id))
+            if lons:
+                lon_media = sum(lons) / len(lons)
+                fuso_derivado = int((lon_media + 180) / 6) + 1
+                mc_derivado = fuso_derivado * 6 - 183
+                fuso_configurado = 22
 
-                    # Derivação do fuso UTM a partir da longitude média dos pontos importados
-                    fuso_derivado = int((lon_media + 180) / 6) + 1
-                    mc_derivado = fuso_derivado * 6 - 183
-
-                    # Fuso geográfico padrão configurado na esteira do HGO / Levantamento (Zone 22S -> Fuso 22, MC 51 W)
-                    fuso_configurado = 22
-
-                    if fuso_derivado != fuso_configurado:
-                        mc_derivado_str = f"{abs(mc_derivado)} W" if mc_derivado < 0 else f"{mc_derivado} E"
-                        alertas.append({
-                            "tipo": "ALERTA",
-                            "icone": "compass",
-                            "titulo": f"Divergência de Fuso UTM",
-                            "mensagem": f"Levantamento {lev_id}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso configurado no HGO (22 - MC 51 W).",
-                            "acao": {
-                                "tipo": "rota",
-                                "destino": "#levantamentos",
-                                "rotulo": "Ir ao Levantamento",
-                                "levantamento_id": int(lev_id) if str(lev_id).isdigit() else lev_id
-                            }
-                        })
+                if fuso_derivado != fuso_configurado:
+                    mc_derivado_str = f"{abs(mc_derivado)} W" if mc_derivado < 0 else f"{mc_derivado} E"
+                    alertas.append({
+                        "tipo": "ALERTA",
+                        "icone": "compass",
+                        "titulo": f"Divergência de Fuso UTM",
+                        "mensagem": f"Levantamento #{lev_id}: Fuso UTM derivado ({fuso_derivado} - MC {mc_derivado_str}) difere do fuso 22 (MC 51 W).",
+                        "acao": {
+                            "tipo": "rota",
+                            "destino": "#levantamentos",
+                            "rotulo": "Ir ao Levantamento",
+                            "levantamento_id": lev_id
+                        }
+                    })
     except Exception as e:
         logger.error(f"Erro na checagem de fuso UTM: {e}")
-
 
     return alertas

@@ -202,22 +202,32 @@ def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
 def delete_levantamento(lev_id: int, apagar_arquivos: bool = False):
     verificar_levantamento_arquivado(lev_id)
     try:
-        if not execute_query("SELECT id FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True):
+        lev_row = execute_query("SELECT pasta_projeto FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True)
+        if not lev_row:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+        pasta_cadastrada = lev_row["pasta_projeto"] if lev_row and "pasta_projeto" in lev_row.keys() else None
 
         # O caminho da pasta é derivado do registro no banco: resolve ANTES de apagá-lo
         wm = WorkspaceManager()
-        pasta = wm.get_levantamento_folder(lev_id) if apagar_arquivos else None
+        try:
+            pasta_obj = wm.get_levantamento_folder(lev_id)
+            pasta = str(pasta_obj) if pasta_obj else None
+        except Exception:
+            pasta = None
 
         with DatabaseManager() as conn:
             # Apagar DB (CASCADE vai limpar pontos, confrontantes e segmentos)
             conn.execute("DELETE FROM levantamentos WHERE id = ?", (lev_id,))
+            if pasta_cadastrada:
+                conn.execute("DELETE FROM historico_rinex WHERE arquivo_path LIKE ? || '%'", (pasta_cadastrada,))
+            if pasta and pasta != pasta_cadastrada:
+                conn.execute("DELETE FROM historico_rinex WHERE arquivo_path LIKE ? || '%'", (pasta,))
             conn.commit()
 
         # Apagar Físico (o registro já foi removido: falha aqui vira aviso, não erro)
-        if apagar_arquivos:
+        if apagar_arquivos and pasta:
             try:
-                wm.delete_workspace(lev_id, folder=pasta)
+                wm.delete_workspace(lev_id, folder=pasta_obj)
             except Exception as e_fs:
                 logging.getLogger(__name__).error(f"Erro ao apagar pasta física {pasta} do levantamento id={lev_id}: {e_fs}", exc_info=True)
                 return {
