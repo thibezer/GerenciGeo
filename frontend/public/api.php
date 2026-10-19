@@ -1449,7 +1449,7 @@ if ($route === '/dashboard/matriculas-geometrias' || (isset($_GET['action']) && 
 }
 
 // 5. Proxy SIGEF / INCRA Seguro
-if (isset($_GET['action']) && $_GET['action'] === 'proxy_sigef') {
+if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 'proxy_sigef')) {
     $targetUrl = isset($_GET['url']) ? trim($_GET['url']) : '';
     if (empty($targetUrl)) {
         jsonResponse(['error' => 'Parâmetro url é obrigatório.'], 400);
@@ -1468,6 +1468,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxy_sigef') {
     if ($scheme !== 'https' || !in_array($host, $allowedHosts, true)) {
         jsonResponse(['error' => 'Destino não permitido pelo proxy de segurança.'], 403);
     }
+
+    // Forçamos o formato para text/plain pois o i3Geo do INCRA falha com application/json
+    $targetUrl = str_replace(['INFO_FORMAT=application%2Fjson', 'INFO_FORMAT=application/json'], 'INFO_FORMAT=text/plain', $targetUrl);
+
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1477,13 +1481,53 @@ if (isset($_GET['action']) && $_GET['action'] === 'proxy_sigef') {
     curl_setopt($ch, CURLOPT_USERAGENT, 'GerenciGeo Cloud Proxy/2.0');
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    http_response_code($httpCode ?: 200);
-    header('Content-Type: ' . ($contentType ?: 'text/plain; charset=utf-8'));
-    echo $response;
-    exit;
+    if ($httpCode >= 400 || $response === false) {
+        jsonResponse(['error' => 'Falha de comunicação com o servidor do INCRA.', 'http_code' => $httpCode], 502);
+    }
+
+    // O INCRA responde em ISO-8859-1 (latin1); converte para UTF-8 limpo
+    if (function_exists('mb_convert_encoding')) {
+        $responseUtf8 = mb_convert_encoding((string)$response, 'UTF-8', 'ISO-8859-1, UTF-8');
+    } else {
+        $responseUtf8 = (string)$response;
+    }
+
+    // Se a resposta for o formato text/plain do MapServer i3Geo, parseia para JSON estruturado (Item 9 / RFC Geodésica)
+    if (str_contains($responseUtf8, 'GetFeatureInfo results:')) {
+        $features = [];
+        $currentFeature = [];
+        $lines = preg_split("/\r\n|\n|\r/", $responseUtf8);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match("/^([\w_]+)\s*=\s*['\"]?([^'\"]*)['\"]?$/u", $line, $matches)) {
+                $currentFeature[$matches[1]] = trim($matches[2]);
+            } elseif (stripos($line, 'Feature') !== false && !empty($currentFeature)) {
+                $features[] = [
+                    'properties' => $currentFeature,
+                    'id' => $currentFeature['parcela_codigo'] ?? ($currentFeature['id_parcela'] ?? ($currentFeature['co_parcela'] ?? null))
+                ];
+                $currentFeature = [];
+            }
+        }
+        if (!empty($currentFeature)) {
+            $features[] = [
+                'properties' => $currentFeature,
+                'id' => $currentFeature['parcela_codigo'] ?? ($currentFeature['id_parcela'] ?? ($currentFeature['co_parcela'] ?? null))
+            ];
+        }
+        jsonResponse(['features' => $features]);
+    }
+
+    // Se já for JSON válido, repassa direto
+    $jsonDecoded = json_decode($responseUtf8, true);
+    if (is_array($jsonDecoded)) {
+        jsonResponse($jsonDecoded);
+    }
+
+    // Fallback: devolve texto envelopado
+    jsonResponse(['features' => [], 'raw' => substr($responseUtf8, 0, 500)]);
 }
 
 // 6. Leitura e Gravação de Levantamento Compartilhado Público (por código)

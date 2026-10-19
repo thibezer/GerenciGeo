@@ -75,7 +75,7 @@ export async function consultarSigefData(
   timeoutMs: number = SIGEF_TIMEOUT_MS,
   signal?: AbortSignal
 ): Promise<any> {
-  const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&INFO_FORMAT=text/plain&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
+  const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&FEATURE_COUNT=10&INFO_FORMAT=text/plain&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
 
   const isLocal = window.location.origin.includes('localhost') ||
                   window.location.origin.includes('127.0.0.1') ||
@@ -122,7 +122,38 @@ export async function consultarSigefData(
 
 /** Todas as parcelas devolvidas pelo GetFeatureInfo (o ponto pode cair em várias sobrepostas). */
 function extrairParcelas(data: any): ParcelaSigef[] {
-  const features: any[] = data && Array.isArray(data.features) ? data.features : [];
+  let features: any[] = [];
+
+  if (data && typeof data === 'object' && Array.isArray(data.features)) {
+    features = data.features;
+  }
+
+  // Fallback: se data for string ou data.raw contiver resposta de MapServer text/plain
+  const rawText = typeof data === 'string' ? data : (data && typeof data.raw === 'string' ? data.raw : '');
+  if (features.length === 0 && rawText.includes('GetFeatureInfo results:')) {
+    let currentFeature: Record<string, string> = {};
+    const lines = rawText.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      const match = line.match(/^([\w_]+)\s*=\s*['"]?([^'"]*)['"]?$/);
+      if (match) {
+        currentFeature[match[1]] = match[2].trim();
+      } else if (line.toLowerCase().includes('feature') && Object.keys(currentFeature).length > 0) {
+        features.push({
+          properties: { ...currentFeature },
+          id: currentFeature.parcela_codigo || currentFeature.id_parcela || currentFeature.co_parcela || currentFeature.id
+        });
+        currentFeature = {};
+      }
+    }
+    if (Object.keys(currentFeature).length > 0) {
+      features.push({
+        properties: { ...currentFeature },
+        id: currentFeature.parcela_codigo || currentFeature.id_parcela || currentFeature.co_parcela || currentFeature.id
+      });
+    }
+  }
+
   const vistos = new Set<string>();
   const parcelas: ParcelaSigef[] = [];
   features.forEach((feat, i) => {
