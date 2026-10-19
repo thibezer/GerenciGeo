@@ -622,6 +622,27 @@ async def upload_anuencia_assinada(id: int, confrontante_id: int, file: UploadFi
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/download")
+def download_anuencia_assinada(id: int, confrontante_id: int):
+    """Permite baixar ou visualizar o termo assinado digitalizado com resolução portátil de caminhos."""
+    row = execute_query(
+        "SELECT caminho_documento_assinado FROM anuencias_confrontantes WHERE levantamento_id = ? AND confrontante_id = ?",
+        params=(id, confrontante_id), fetch_one=True
+    )
+    if not row or not row["caminho_documento_assinado"]:
+        raise HTTPException(status_code=404, detail="Nenhum termo assinado arquivado para este confrontante.")
+    file_path = Path(row["caminho_documento_assinado"])
+    if not file_path.exists():
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(id)
+        fallback = folder / "Documentos" / "Anuancias" / file_path.name
+        if fallback.exists():
+            file_path = fallback
+        else:
+            raise HTTPException(status_code=404, detail="Arquivo físico do termo assinado não localizado no disco.")
+    disposition = "inline" if file_path.suffix.lower() == ".pdf" else "attachment"
+    return FileResponse(str(file_path), filename=file_path.name, content_disposition_type=disposition)
+
 @router.get("/levantamentos/{id}/documentos/status-cartorio")
 def status_cartorio(id: int):
     """Consolida um relatório completo de pendências civis, de CRI e de confrontantes para dar entrada no cartório"""

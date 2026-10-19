@@ -36,7 +36,18 @@ npm run build
 cd ..
 ```
 
-### Passo 2.4: Primeira Carga de Dados da Nuvem
+### Passo 2.4: Copiar Chave de Criptografia Compartilhada (app_secrets.shared)
+Para que este novo computador consiga ler as senhas GOV.br dos clientes salvas em outros PCs:
+1. Copie o arquivo `app_secrets.shared` do computador principal para a raiz do repositório neste computador (ou defina a variável de ambiente `GERENCIGEO_SECRET_KEY`).
+2. *Nota:* Este arquivo é ignorado pelo Git por segurança (LGPD), logo deve ser transferido diretamente pelo usuário.
+
+### Passo 2.5: Pasta Base de Projetos (Opcional se não usar D:\)
+Por padrão o sistema utiliza `D:\Programação\Geo` (ou `D:\Desenvolvimento\Geo`). Se este computador possuir outra unidade (ex: apenas `C:\`), defina a variável de ambiente:
+```bash
+setx GERENCIGEO_EXPORT_FOLDER "C:\Geo"
+```
+
+### Passo 2.6: Primeira Carga de Dados da Nuvem
 Como o arquivo `gerencigeo.db` é protegido pelo `.gitignore`, o banco local iniciará vazio com as tabelas criadas automaticamente. Para carregar todos os dados da empresa:
 
 1. Inicie o sistema:
@@ -48,7 +59,7 @@ Como o arquivo `gerencigeo.db` é protegido pelo `.gitignore`, o banco local ini
    - **E-mail**: `admin@gerencigeo.com.br` (ou o e-mail cadastrado pelo Thiago)
    - **Senha**: `admin123` (ou a senha corporativa definida)
 4. Clique em **"Sincronizar Tudo"** (ou **"Baixar da Nuvem"**):
-   O motor [`services/gestores/nuvem_sync.py`](file:///d:/Desenvolvimento/GerenciGeo/services/gestores/nuvem_sync.py) baixará todos os clientes, propriedades, matrículas, levantamentos, pontos e divisas para o `gerencigeo.db` local do novo computador!
+   O motor [`services/gestores/nuvem_sync.py`](file:///d:/Programação/GerenciGeo/services/gestores/nuvem_sync.py) baixará todos os clientes, documentos, propriedades, matrículas, levantamentos, pontos, divisas, confrontantes e coproprietários para o `gerencigeo.db` local do novo computador!
 
 ---
 

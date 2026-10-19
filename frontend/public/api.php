@@ -421,6 +421,21 @@ function ensureSchema(PDO $pdo): void {
             registro_id INT NOT NULL,
             excluido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_reg_exc (tabela, registro_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS alteracoes_sigef (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            levantamento_id INT NOT NULL,
+            planilha_origem VARCHAR(255) NULL,
+            codigo_completo VARCHAR(100) NULL,
+            campo VARCHAR(100) NULL,
+            valor_original TEXT NULL,
+            valor_novo TEXT NULL,
+            status VARCHAR(50) DEFAULT 'pendente',
+            lancado_em DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME(3) NULL,
+            FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     ];
 
@@ -450,6 +465,8 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'propriedades', 'comarca', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'propriedades', 'uf', 'VARCHAR(10) DEFAULT "SP"');
     addColumnSafe($pdo, 'propriedades', 'area_total_ha', 'DECIMAL(12,4) DEFAULT 0');
+    addColumnSafe($pdo, 'propriedades', 'caminho_arquivo_car', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'propriedades', 'caminho_arquivo_ccir', 'VARCHAR(255) NULL');
 
     addColumnSafe($pdo, 'matriculas', 'numero', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'matriculas', 'numero_matricula', 'VARCHAR(100) NULL');
@@ -458,6 +475,14 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'matriculas', 'ccir', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'itr', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'denominacao', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'matriculas', 'livro_registro', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'folha_registro', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'caminho_arquivo_pdf', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'matriculas', 'cri_comarca', 'VARCHAR(150) NULL');
+    addColumnSafe($pdo, 'matriculas', 'cri_circunscricao', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'matriculas', 'valor_itr', 'DECIMAL(12,2) NULL');
+    addColumnSafe($pdo, 'matriculas', 'georreferenciamento', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'matricula_origem_desenho_id', 'INT NULL');
 
     addColumnSafe($pdo, 'levantamentos', 'nome', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'levantamentos', 'cliente_id', 'INT NULL');
@@ -485,6 +510,33 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pontos', 'status_correcao', "VARCHAR(50) DEFAULT 'CORRIGIDO'");
     addColumnSafe($pdo, 'pontos', 'origem_homologada', 'INT DEFAULT 0');
     addColumnSafe($pdo, 'pontos', 'ponto_base_id', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'ponto_origem_id', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'metodo_posicionamento', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'pontos', 'codigo_sigef', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'pontos', 'confrontante_id', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'ponto_vizinho', 'TINYINT DEFAULT 0');
+    addColumnSafe($pdo, 'pontos', 'dados_vizinho_json', 'LONGTEXT NULL');
+    addColumnSafe($pdo, 'pontos', 'sequencia_travada_id', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'nome_original', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'pontos', 'camada_ciclo_vida', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'pontos', 'fuso_utm', 'INT NULL');
+    addColumnSafe($pdo, 'pontos', 'hemisferio', 'VARCHAR(10) NULL');
+    addColumnSafe($pdo, 'pontos', 'delta_n', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'delta_e', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'delta_h', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'delta_3d', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'n_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'e_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'alt_corrigido', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'sigma_lat', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'sigma_lon', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'sigma_alt', 'DOUBLE NULL');
+    addColumnSafe($pdo, 'pontos', 'arquivo_rinex', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'pontos', 'arquivo_resultado_ppp', 'VARCHAR(255) NULL');
+
+    addColumnSafe($pdo, 'segmentos', 'metodo_posicionamento_sigef', "VARCHAR(50) DEFAULT 'PG1'");
+    addColumnSafe($pdo, 'segmentos', 'anuencia_assinada', 'TINYINT DEFAULT 0');
+    addColumnSafe($pdo, 'segmentos', 'origem_homologada', 'TINYINT DEFAULT 0');
 
     addColumnSafe($pdo, 'pendencias', 'data_criacao', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
 
@@ -512,12 +564,55 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'pessoas', 'bairro', "VARCHAR(100) NULL");
     addColumnSafe($pdo, 'pessoas', 'endereco_sem_numero', "VARCHAR(10) NULL");
     addColumnSafe($pdo, 'pessoas', 'numero_endereco', "VARCHAR(50) NULL");
+
     addColumnSafe($pdo, 'clientes', 'metadados', "LONGTEXT NULL");
+    addColumnSafe($pdo, 'clientes', 'cnh_numero', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'clientes', 'cnh_categoria', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'clientes', 'cnh_validade', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'clientes', 'cnh_orgao_uf', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'clientes', 'rg_orgao', "VARCHAR(50) NULL");
+    addColumnSafe($pdo, 'clientes', 'rg_uf', "VARCHAR(10) NULL");
+    addColumnSafe($pdo, 'clientes', 'naturalidade', "VARCHAR(100) NULL");
+    addColumnSafe($pdo, 'clientes', 'certidao_casamento_matricula', "VARCHAR(100) NULL");
+    addColumnSafe($pdo, 'clientes', 'bairro', "VARCHAR(100) NULL");
+
+    addColumnSafe($pdo, 'cliente_documentos', 'pessoa_id', 'INT NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'numero', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'uf_emissor', 'VARCHAR(10) NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'categoria_cnh', 'VARCHAR(10) NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'observacoes', 'TEXT NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'arquivo_path', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'cliente_documentos', 'arquivo_nome', 'VARCHAR(255) NULL');
+
     // endereco_sem_numero nasceu como VARCHAR(10): cortava (ou recusava) qualquer logradouro real
     try {
         $pdo->exec("ALTER TABLE pessoas MODIFY endereco_sem_numero VARCHAR(255) NULL");
     } catch (Exception $e) {}
+
     addColumnSafe($pdo, 'confrontantes', 'coproprietarios_json', "LONGTEXT NULL");
+    addColumnSafe($pdo, 'confrontantes', 'cns_confrontante', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'matricula_imovel', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'nome_propriedade', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'codigo_incra_imovel', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'caminho_matricula_pdf', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'poligono_wkt', 'LONGTEXT NULL');
+    addColumnSafe($pdo, 'confrontantes', 'confrontacoes_json', 'LONGTEXT NULL');
+    addColumnSafe($pdo, 'confrontantes', 'tipo_relacao', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'origem', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'lote', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'nome', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'cpf_cnpj', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'rg', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'nacionalidade', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'profissao', 'VARCHAR(150) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'estado_civil', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'regime_bens', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'endereco_completo', 'TEXT NULL');
+    addColumnSafe($pdo, 'confrontantes', 'nome_conjuge', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'cpf_conjuge', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'rg_conjuge', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'confrontantes', 'genero', 'VARCHAR(10) NULL');
+
     addColumnSafe($pdo, 'users', 'api_token', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'users', 'token_created_at', 'DATETIME NULL');
 
@@ -540,18 +635,19 @@ function ensureSchema(PDO $pdo): void {
 const SYNC_TABELAS_MYSQL = [
     'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
     'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
-    'banco_pontos', 'anuencias_confrontantes'
+    'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
+    'alteracoes_sigef'
 ];
 
 /**
  * Prepara o MySQL para o merge por registro (updated_at) e para as tabelas extras da sincronização.
- * Idempotente e executada uma única vez (flag 'schema_sync_v3' em configuracoes).
+ * Idempotente e executada uma única vez (flag 'schema_sync_v4' em configuracoes).
  * Triggers: carimbam updated_at (UTC, ms) em edições feitas direto na nuvem; o /sync/batch define @gg_sync
  * para que os triggers não sobrescrevam o carimbo vindo do PC.
  */
 function ensureSyncSchema(PDO $pdo): string {
     try {
-        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v3' LIMIT 1");
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v4' LIMIT 1");
         $st->execute();
         $flag = $st->fetchColumn();
         if ($flag) return (string)$flag;
@@ -624,7 +720,7 @@ function ensureSyncSchema(PDO $pdo): string {
     }
 
     try {
-        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v3', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v4', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
     } catch (Exception $e) {}
     return $resultado;
 }
@@ -1140,7 +1236,7 @@ if ($route === '/auth/register' || (isset($_GET['action']) && $_GET['action'] ==
     ]);
 }
 
-if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === 'login')) {
+if ($route === '/auth/login' || $route === '/nuvem/login' || (isset($_GET['action']) && in_array($_GET['action'], ['login', 'nuvem_login'], true))) {
     if ($method !== 'POST') {
         jsonResponse(['error' => 'Método não permitido.'], 405);
     }
@@ -1149,7 +1245,7 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
     $password = (string)($input['password'] ?? '');
 
     if (empty($email) || empty($password)) {
-        jsonResponse(['error' => 'Informe seu e-mail e sua senha.'], 400);
+        jsonResponse(['error' => 'Informe seu e-mail e sua senha.', 'mensagem' => 'Informe seu e-mail e sua senha.'], 400);
     }
 
     $pdo = getDb();
@@ -1161,20 +1257,21 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
     $dummyHash = '$2y$10$e8wF4nQ1l2D3k4j5h6g7f8e9d0c1b2a3s4d5f6g7h8j9k0l1z2x3c';
     if (!$user) {
         password_verify($password, $dummyHash);
-        jsonResponse(['error' => 'E-mail ou senha incorretos.'], 401);
+        jsonResponse(['sucesso' => false, 'error' => 'E-mail ou senha incorretos.', 'mensagem' => 'E-mail ou senha incorretos.'], 401);
     }
 
     if (!empty($user['is_blocked'])) {
-        jsonResponse(['error' => 'Os administradores bloquearam o seu acesso.'], 403);
+        jsonResponse(['sucesso' => false, 'error' => 'Os administradores bloquearam o seu acesso.', 'mensagem' => 'Os administradores bloquearam o seu acesso.'], 403);
     }
 
     if (!password_verify($password, $user['password'])) {
-        jsonResponse(['error' => 'E-mail ou senha incorretos.'], 401);
+        jsonResponse(['sucesso' => false, 'error' => 'E-mail ou senha incorretos.', 'mensagem' => 'E-mail ou senha incorretos.'], 401);
     }
 
     $token = emitirToken($pdo, (int)$user['id']);
 
     jsonResponse([
+        'sucesso' => true,
         'status' => 'success',
         'token' => $token,
         'user' => [
@@ -1189,7 +1286,29 @@ if ($route === '/auth/login' || (isset($_GET['action']) && $_GET['action'] === '
     ]);
 }
 
-if ($route === '/auth/logout' || (isset($_GET['action']) && $_GET['action'] === 'logout')) {
+if ($route === '/nuvem/realtime/status' || $route === '/nuvem/status' || (isset($_GET['action']) && in_array($_GET['action'], ['nuvem_status', 'realtime_status'], true))) {
+    $pdo = getDb();
+    $user = getAuthenticatedUser($pdo);
+    jsonResponse([
+        'status' => $user ? 'SYNCED' : 'UNAUTHENTICATED',
+        'enabled' => true,
+        'running' => true,
+        'autenticado' => $user !== null,
+        'user' => $user ? [
+            'name' => $user['name'],
+            'email' => $user['email'],
+            'role' => $user['role'] ?? 'admin'
+        ] : null,
+        'last_sync' => date('d/m/Y H:i'),
+        'last_check' => date('d/m/Y H:i'),
+        'pending_push' => false,
+        'pending_tables' => [],
+        'check_interval' => 60,
+        'server_time' => date('Y-m-d H:i:s')
+    ]);
+}
+
+if ($route === '/auth/logout' || $route === '/nuvem/logout' || (isset($_GET['action']) && in_array($_GET['action'], ['logout', 'nuvem_logout'], true))) {
     $pdo = getDb();
     $user = getAuthenticatedUser($pdo);
     if ($user) {
@@ -1200,7 +1319,7 @@ if ($route === '/auth/logout' || (isset($_GET['action']) && $_GET['action'] === 
             $pdo->prepare("UPDATE users SET api_token = NULL WHERE id = ? AND api_token = ?")->execute([$user['id'], $tk]);
         } catch (Exception $e) {}
     }
-    jsonResponse(['status' => 'success', 'message' => 'Logout realizado com sucesso.']);
+    jsonResponse(['sucesso' => true, 'status' => 'success', 'message' => 'Logout realizado com sucesso.']);
 }
 
 if ($route === '/auth/me' || (isset($_GET['action']) && $_GET['action'] === 'me')) {
@@ -2517,6 +2636,12 @@ if ($route === '/sync/batch' && $method === 'POST') {
                 $num = $m['numero_matricula'] ?? ($m['numero'] ?? 'S/N');
                 $m['numero'] = $num;
                 $m['numero_matricula'] = $num;
+                if (isset($m['livro_registro'])) $m['livro'] = $m['livro'] ?? $m['livro_registro'];
+                if (isset($m['livro'])) $m['livro_registro'] = $m['livro_registro'] ?? $m['livro'];
+                if (isset($m['folha_registro'])) $m['folha'] = $m['folha'] ?? $m['folha_registro'];
+                if (isset($m['folha'])) $m['folha_registro'] = $m['folha_registro'] ?? $m['folha'];
+                if (isset($m['caminho_arquivo_pdf'])) $m['caminho_pdf'] = $m['caminho_pdf'] ?? $m['caminho_arquivo_pdf'];
+                if (isset($m['caminho_pdf'])) $m['caminho_arquivo_pdf'] = $m['caminho_arquivo_pdf'] ?? $m['caminho_pdf'];
             }
             unset($m);
             syncTableRows($pdo, 'matriculas', $data['matriculas']);
@@ -2552,7 +2677,34 @@ if ($route === '/sync/batch' && $method === 'POST') {
             syncTableRows($pdo, 'pendencias', $data['pendencias']);
         }
         if (!empty($data['confrontantes'])) {
+            foreach ($data['confrontantes'] as &$cf) {
+                if (isset($cf['cns_confrontante'])) $cf['cns_cartorio'] = $cf['cns_cartorio'] ?? $cf['cns_confrontante'];
+                if (isset($cf['cns_cartorio'])) $cf['cns_confrontante'] = $cf['cns_confrontante'] ?? $cf['cns_cartorio'];
+                if (isset($cf['matricula_imovel'])) $cf['matricula_confrontante'] = $cf['matricula_confrontante'] ?? $cf['matricula_imovel'];
+                if (isset($cf['matricula_confrontante'])) $cf['matricula_imovel'] = $cf['matricula_imovel'] ?? $cf['matricula_confrontante'];
+                if (isset($cf['nome_propriedade'])) $cf['descricao_imovel'] = $cf['descricao_imovel'] ?? $cf['nome_propriedade'];
+                if (isset($cf['descricao_imovel'])) $cf['nome_propriedade'] = $cf['nome_propriedade'] ?? $cf['descricao_imovel'];
+            }
+            unset($cf);
             syncTableRows($pdo, 'confrontantes', $data['confrontantes']);
+        }
+        if (!empty($data['confrontante_coproprietarios'])) {
+            syncTableRows($pdo, 'confrontante_coproprietarios', $data['confrontante_coproprietarios']);
+        }
+        if (!empty($data['cliente_documentos'])) {
+            foreach ($data['cliente_documentos'] as &$cd) {
+                if (isset($cd['numero'])) $cd['numero_documento'] = $cd['numero_documento'] ?? $cd['numero'];
+                if (isset($cd['numero_documento'])) $cd['numero'] = $cd['numero'] ?? $cd['numero_documento'];
+                if (isset($cd['arquivo_path'])) $cd['caminho_arquivo'] = $cd['caminho_arquivo'] ?? $cd['arquivo_path'];
+                if (isset($cd['caminho_arquivo'])) $cd['arquivo_path'] = $cd['arquivo_path'] ?? $cd['caminho_arquivo'];
+                if (isset($cd['arquivo_nome'])) $cd['nome_arquivo_original'] = $cd['nome_arquivo_original'] ?? $cd['arquivo_nome'];
+                if (isset($cd['nome_arquivo_original'])) $cd['arquivo_nome'] = $cd['arquivo_nome'] ?? $cd['nome_arquivo_original'];
+            }
+            unset($cd);
+            syncTableRows($pdo, 'cliente_documentos', $data['cliente_documentos']);
+        }
+        if (!empty($data['alteracoes_sigef'])) {
+            syncTableRows($pdo, 'alteracoes_sigef', $data['alteracoes_sigef']);
         }
         foreach (['banco_pontos', 'anuencias_confrontantes'] as $tExtra) {
             if (!empty($data[$tExtra])) {
@@ -2627,7 +2779,8 @@ if ($route === '/sync/pull' && $method === 'GET') {
     $tables = [
         'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
         'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
-        'banco_pontos', 'anuencias_confrontantes'
+        'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
+        'alteracoes_sigef'
     ];
 
     $payload = [];

@@ -81,6 +81,76 @@ class TestNuvemSync(unittest.TestCase):
         self.assertIn("clientes", dados)
         self.assertIn("propriedades", dados)
         self.assertIn("matriculas", dados)
+        self.assertIn("confrontante_coproprietarios", dados)
+        self.assertIn("cliente_documentos", dados)
+        self.assertIn("alteracoes_sigef", dados)
+
+    def test_upsert_matricula_alias_livro_folha(self):
+        """Valida que campos com nomes diferentes vindo da nuvem são mapeados para as colunas locais"""
+        with DatabaseManager() as conn:
+            conn.execute("PRAGMA foreign_keys = OFF;")
+            conn.execute("INSERT OR IGNORE INTO propriedades (id, nome_propriedade) VALUES (9988, 'Prop Teste')")
+            conn.execute("DELETE FROM matriculas WHERE id = 9988")
+            conn.commit()
+
+            row_nuvem = {
+                "id": 9988,
+                "propriedade_id": 9988,
+                "numero": "12345-X",
+                "livro": "2-RG",
+                "folha": "123",
+                "caminho_pdf": "matricula_12345.pdf"
+            }
+            qtd = _upsert_tabela_local(conn, "matriculas", [row_nuvem])
+            self.assertEqual(qtd, 1)
+
+            cursor = conn.cursor()
+            cursor.execute("SELECT numero_matricula, livro_registro, folha_registro, caminho_arquivo_pdf FROM matriculas WHERE id = 9988")
+            m = cursor.fetchone()
+            self.assertEqual(m[0], "12345-X")
+            self.assertEqual(m[1], "2-RG")
+            self.assertEqual(m[2], "123")
+            self.assertEqual(m[3], "matricula_12345.pdf")
+
+            # Limpeza
+            conn.execute("DELETE FROM matriculas WHERE id = 9988")
+            conn.execute("DELETE FROM propriedades WHERE id = 9988")
+            conn.execute("DELETE FROM registros_excluidos WHERE id > 0 AND (tabela = 'matriculas' AND registro_id = 9988)")
+            conn.commit()
+
+    def test_upsert_confrontante_alias(self):
+        """Valida que campos cns_cartorio e matricula_confrontante são mapeados no upsert local"""
+        with DatabaseManager() as conn:
+            conn.execute("PRAGMA foreign_keys = OFF;")
+            conn.execute("INSERT OR IGNORE INTO pessoas (id, nome) VALUES (9988, 'Vizinho Teste')")
+            conn.execute("INSERT OR IGNORE INTO levantamentos (id) VALUES (9988)")
+            conn.execute("DELETE FROM confrontantes WHERE id = 9988")
+            conn.commit()
+
+            row_nuvem = {
+                "id": 9988,
+                "pessoa_id": 9988,
+                "levantamento_id": 9988,
+                "cns_cartorio": "12.345-6",
+                "matricula_confrontante": "9999",
+                "descricao_imovel": "Sitio Vizinho"
+            }
+            qtd = _upsert_tabela_local(conn, "confrontantes", [row_nuvem])
+            self.assertEqual(qtd, 1)
+
+            cursor = conn.cursor()
+            cursor.execute("SELECT cns_confrontante, matricula_imovel, nome_propriedade FROM confrontantes WHERE id = 9988")
+            cf = cursor.fetchone()
+            self.assertEqual(cf[0], "12.345-6")
+            self.assertEqual(cf[1], "9999")
+            self.assertEqual(cf[2], "Sitio Vizinho")
+
+            # Limpeza
+            conn.execute("DELETE FROM confrontantes WHERE id = 9988")
+            conn.execute("DELETE FROM levantamentos WHERE id = 9988")
+            conn.execute("DELETE FROM pessoas WHERE id = 9988")
+            conn.execute("DELETE FROM registros_excluidos WHERE id > 0 AND registro_id = 9988")
+            conn.commit()
 
 class TestChecarNovidades(unittest.IsolatedAsyncioTestCase):
     def setUp(self):

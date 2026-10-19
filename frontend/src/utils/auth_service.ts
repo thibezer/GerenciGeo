@@ -54,7 +54,10 @@ export class AuthService {
    * Realiza o cadastro de um novo usuário via API
    */
   static async register(name: string, email: string, password: string): Promise<AuthUser> {
-    const isCloudHost = window.location.origin.includes('hostingersite.com');
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    const isCloudHost = !isLocal;
     const endpoint = isCloudHost 
       ? `${window.location.origin}/api.php?action=register`
       : `${API_BASE}/auth/register`;
@@ -105,7 +108,10 @@ export class AuthService {
    * Realiza a autenticação via API (FastAPI local ou Hub Web Cloud na Hostinger)
    */
   static async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthUser> {
-    const isCloudHost = window.location.origin.includes('hostingersite.com');
+    const isLocal = window.location.origin.includes('localhost') || 
+                    window.location.origin.includes('127.0.0.1') || 
+                    window.location.origin.includes('[::1]');
+    const isCloudHost = !isLocal;
     const endpoint = isCloudHost 
       ? `${window.location.origin}/api.php?action=login`
       : `${API_BASE}/auth/login`;
@@ -123,10 +129,15 @@ export class AuthService {
       })
     });
 
-    const data = await res.json();
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`O servidor retornou uma resposta inesperada (HTTP ${res.status}).`);
+    }
 
     if (!res.ok) {
-      throw new Error(data.detail || data.error || data.message || 'Credenciais inválidas.');
+      throw new Error(data.detail || data.error || data.mensagem || data.message || 'Credenciais inválidas.');
     }
 
     const rawUser = data.user || data.data || (data.name ? data : null);
@@ -179,7 +190,10 @@ export class AuthService {
    */
   static async logout(): Promise<void> {
     try {
-      const isCloudHost = window.location.origin.includes('hostingersite.com');
+      const isLocal = window.location.origin.includes('localhost') || 
+                      window.location.origin.includes('127.0.0.1') || 
+                      window.location.origin.includes('[::1]');
+      const isCloudHost = !isLocal;
       const endpoint = isCloudHost 
         ? `${window.location.origin}/api.php?action=logout`
         : `${API_BASE}/auth/logout`;

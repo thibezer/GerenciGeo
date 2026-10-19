@@ -239,10 +239,16 @@ def sincronizar_pasta_ccir():
     logs_sync = []
     
     # 3. Remover registros de arquivos locais que foram deletados da pasta
-    for db_filename in list(arquivos_db_dict.keys()):
-        if db_filename not in arquivos_locais:
-            repo.delete_by_arquivo(db_filename)
-            logs_sync.append(f"Planilha '{db_filename}' removida do banco de dados (não encontrada na pasta).")
+    # Proteção: se a pasta não tiver nenhum arquivo CSV e nenhuma pasta _removidas (ex: novo PC onde a pasta Banco_CCIR ainda não foi populada),
+    # não apaga os registros pré-existentes do banco por segurança.
+    pasta_removidas = os.path.join(ccir_dir, "_removidas")
+    if not csv_files and not os.path.exists(pasta_removidas) and arquivos_db_dict:
+        logs_sync.append("Nenhum arquivo CSV encontrado na pasta Banco_CCIR. Registros do banco mantidos por segurança.")
+    else:
+        for db_filename in list(arquivos_db_dict.keys()):
+            if db_filename not in arquivos_locais:
+                repo.delete_by_arquivo(db_filename)
+                logs_sync.append(f"Planilha '{db_filename}' removida do banco de dados (não encontrada na pasta).")
             
     # 4. Inserir ou atualizar registros de arquivos locais
     for filename, local_info in arquivos_locais.items():

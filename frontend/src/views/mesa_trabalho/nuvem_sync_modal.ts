@@ -159,8 +159,31 @@ export function initNuvemSyncModal(ctx?: any) {
         badgeStatus.className = "text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold bg-white/5 text-white/50 border border-white/10";
       }
 
-      const res = await fetch(`${API_BASE}/nuvem/realtime/status`);
-      const data: SyncStatusPayload = await res.json();
+      const isLocal = window.location.origin.includes('localhost') || 
+                      window.location.origin.includes('127.0.0.1') || 
+                      window.location.origin.includes('[::1]');
+      const statusUrl = !isLocal 
+        ? `${window.location.origin}/api.php?action=nuvem_status`
+        : `${API_BASE}/nuvem/realtime/status`;
+
+      const res = await fetch(statusUrl);
+      let data: SyncStatusPayload;
+      try {
+        data = await res.json();
+      } catch {
+        data = { status: 'OFFLINE', enabled: false, running: false, autenticado: false, pending_push: false, pending_tables: [], check_interval: 60 };
+      }
+
+      if (!isLocal && !data.autenticado) {
+        const storedUser = localStorage.getItem('gerencigeo_auth_user');
+        if (storedUser) {
+          try {
+            data.user = JSON.parse(storedUser);
+            data.autenticado = true;
+            data.status = 'SYNCED';
+          } catch (e) {}
+        }
+      }
 
       if (data.status !== 'OFFLINE' && data.status !== 'UNAUTHENTICATED') {
         if (badgeStatus) {
@@ -245,19 +268,39 @@ export function initNuvemSyncModal(ctx?: any) {
       initIcons();
 
       try {
-        const res = await fetch(`${API_BASE}/nuvem/login`, {
+        const isLocal = window.location.origin.includes('localhost') || 
+                        window.location.origin.includes('127.0.0.1') || 
+                        window.location.origin.includes('[::1]');
+        const loginUrl = !isLocal 
+          ? `${window.location.origin}/api.php?action=login`
+          : `${API_BASE}/nuvem/login`;
+
+        const res = await fetch(loginUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        const data = await res.json();
 
-        if (res.ok && data.sucesso) {
+        let data: any;
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error(`O servidor retornou uma resposta inesperada (HTTP ${res.status}).`);
+        }
+
+        if (res.ok && (data.sucesso || data.status === 'success' || data.token)) {
+          if (data.token) {
+            localStorage.setItem('gerencigeo_auth_token', data.token);
+            if (data.user) {
+              localStorage.setItem('gerencigeo_auth_user', JSON.stringify(data.user));
+            }
+          }
+          if (alertaErro) alertaErro.classList.add('hidden');
           showToast("✓ Conectado à Nuvem com sucesso!", "success");
           await verificarStatusNuvem();
           renderizarFeedEventos();
         } else {
-          const msg = data.detail || data.mensagem || "Falha ao autenticar na nuvem.";
+          const msg = data.detail || data.mensagem || data.error || "Falha ao autenticar na nuvem.";
           if (alertaErro) {
             alertaErro.innerText = msg;
             alertaErro.classList.remove('hidden');

@@ -463,7 +463,12 @@ def get_arquivo_documento_cliente(cliente_id: int, doc_id: int, download: bool =
     
     file_path = row["arquivo_path"]
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor.")
+        from config import BASE_DIR
+        fallback = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id), os.path.basename(file_path))
+        if os.path.exists(fallback):
+            file_path = fallback
+        else:
+            raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor.")
     
     filename = row["arquivo_nome"] or os.path.basename(file_path)
     disposition = "attachment" if download else "inline"

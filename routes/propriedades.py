@@ -229,7 +229,11 @@ def download_propriedade_car(prop_id: int, download: bool = False):
         raise HTTPException(status_code=404, detail="Arquivo do CAR não cadastrado para esta propriedade.")
     path = Path(row["caminho_arquivo_car"])
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Arquivo do CAR físico não foi localizado no disco.")
+        fallback = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / path.name
+        if fallback.exists():
+            path = fallback
+        else:
+            raise HTTPException(status_code=404, detail="Arquivo do CAR físico não foi localizado no disco.")
     disposition = "attachment" if download else "inline"
     return FileResponse(path, filename=path.name, content_disposition_type=disposition)
 
@@ -240,7 +244,11 @@ def download_propriedade_ccir(prop_id: int, download: bool = False):
         raise HTTPException(status_code=404, detail="Arquivo do CCIR não cadastrado para esta propriedade.")
     path = Path(row["caminho_arquivo_ccir"])
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Arquivo do CCIR físico não foi localizado no disco.")
+        fallback = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / path.name
+        if fallback.exists():
+            path = fallback
+        else:
+            raise HTTPException(status_code=404, detail="Arquivo do CCIR físico não foi localizado no disco.")
     disposition = "attachment" if download else "inline"
     return FileResponse(path, filename=path.name, content_disposition_type=disposition)
 
