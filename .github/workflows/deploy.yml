@@ -1,16 +1,13 @@
-name: Build Frontend
+name: Build and Deploy Frontend to Hostinger
 
-# A publicação do site é feita pelo deploy Git da própria Hostinger (build do frontend/ a cada push na main).
-# Este workflow só valida que o frontend compila. O antigo passo SFTP gravava em public_html relativo ao
-# login, fora da pasta do domínio, e dava "Deploy Success" sem atualizar o site.
 on:
   push:
     branches:
       - main
 
 jobs:
-  build:
-    name: Build
+  deploy:
+    name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
     steps:
     - name: Get latest code
@@ -27,8 +24,23 @@ jobs:
       with:
         node-version: '20'
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
     - name: Install dependencies & Build
       run: |
         cd frontend
         npm install
         npm run build
+
+    - name: Install paramiko & Deploy to Hostinger via SFTP
+      env:
+        FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        FTP_PORT: ${{ secrets.FTP_PORT }}
+        FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+        FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      run: |
+        python -m pip install paramiko
+        python scripts/deploy_hostinger.py
