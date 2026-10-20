@@ -1,59 +1,58 @@
 export const renderClientesTemplate = (): string => `
-    <div class="space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <!-- Cabeçalho Principal -->
-      <div class="flex justify-between items-center h-10 sm:h-12 border-b border-white/5 pb-2 sm:pb-3">
+    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5">
         <div>
-          <h2 class="text-lg sm:text-xl font-bold tracking-tight text-white leading-none">Clientes</h2>
-          <p class="text-white/40 text-[10px] mt-1.5 hidden sm:block">Gestão cadastral, metadados extensíveis e logs de auditoria jurídica.</p>
+          <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Clientes</h2>
         </div>
       </div>
 
-      <!-- Mini Cards de Estatísticas Rápidas (KPIs Compactos) -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <ui-card elevacao="baixa" class="h-14 sm:h-16 flex items-center">
-          <div class="px-4 flex items-center gap-3 w-full">
-            <div class="p-1.5 bg-mint-vibrant/10 rounded-technical shrink-0">
-              <i data-lucide="users" class="w-4 h-4 text-mint-vibrant"></i>
+      <!-- Mini Cards de Estatísticas Rápidas (KPIs Compactos Menores) -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
+              <i data-lucide="users" class="w-3.5 h-3.5 text-mint-vibrant"></i>
             </div>
             <div class="min-w-0">
-              <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Total de Clientes</p>
-              <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-clientes">0</h3>
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Clientes</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-clientes">0</h3>
             </div>
           </div>
         </ui-card>
 
-        <ui-card elevacao="baixa" class="h-14 sm:h-16 flex items-center">
-          <div class="px-4 flex items-center gap-3 w-full">
-            <div class="p-1.5 bg-blue-500/10 rounded-technical shrink-0">
-              <i data-lucide="user" class="w-4 h-4 text-blue-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
+              <i data-lucide="user" class="w-3.5 h-3.5 text-blue-500"></i>
             </div>
             <div class="min-w-0">
-              <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Pessoas Físicas</p>
-              <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pf-clientes">0</h3>
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pessoas Físicas</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pf-clientes">0</h3>
             </div>
           </div>
         </ui-card>
 
-        <ui-card elevacao="baixa" class="h-14 sm:h-16 flex items-center">
-          <div class="px-4 flex items-center gap-3 w-full">
-            <div class="p-1.5 bg-indigo-500/10 rounded-technical shrink-0">
-              <i data-lucide="building-2" class="w-4 h-4 text-indigo-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
+              <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-500"></i>
             </div>
             <div class="min-w-0">
-              <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Pessoas Jurídicas</p>
-              <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pj-clientes">0</h3>
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pessoas Jurídicas</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pj-clientes">0</h3>
             </div>
           </div>
         </ui-card>
 
-        <ui-card elevacao="baixa" class="h-14 sm:h-16 flex items-center">
-          <div class="px-4 flex items-center gap-3 w-full">
-            <div class="p-1.5 bg-rose-500/10 rounded-technical shrink-0">
-              <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500"></i>
             </div>
             <div class="min-w-0">
-              <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Pendências de Cônjuge</p>
-              <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-incompletos-clientes">0</h3>
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pendências de Cônjuge</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-incompletos-clientes">0</h3>
             </div>
           </div>
         </ui-card>

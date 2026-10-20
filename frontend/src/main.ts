@@ -152,7 +152,7 @@ const navigate = async (route: string, param: string | null = null) => {
   // Ajusta padding e overflow do view-container quando entra na mesa_trabalho ou login
   if (route === 'mesa_trabalho' || route === 'compartilhado' || route === 'login') {
     container.className = 'flex-1 overflow-hidden p-0 min-w-0';
-  } else if (route === 'dashboard') {
+  } else if (route === 'dashboard' || route === 'clientes' || route === 'propriedades') {
     container.className = 'flex-1 overflow-y-auto p-2.5 sm:p-3.5 min-w-0';
   } else {
     container.className = 'flex-1 overflow-y-auto p-6 min-w-0';

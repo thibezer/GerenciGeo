@@ -27,54 +27,53 @@ const lerRespostaApi = async (res: Response): Promise<any> => {
 
 export const propriedadesRoute: RouteDef = {
   render: () => `
-    <div class="space-y-5 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <!-- Cabeçalho Principal -->
-      <div class="flex justify-between items-center h-10 sm:h-12 border-b border-white/5 pb-2 sm:pb-3">
+    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5">
         <div>
-          <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white leading-none">Propriedades</h1>
-          <p class="text-white/40 text-[10px] mt-1.5 hidden sm:block">Gestão fundiária, limites georreferenciados e documentação cartorial.</p>
+          <h1 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Propriedades</h1>
         </div>
       </div>
 
-      <!-- KPIs Compactos -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3">
-          <div class="p-1.5 bg-mint-vibrant/10 rounded-technical shrink-0">
-            <i data-lucide="home" class="w-4 h-4 text-mint-vibrant"></i>
+      <!-- KPIs Compactos Menores -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
+        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
+          <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
+            <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Total de Imóveis</p>
-            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-prop">0</h3>
+            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Imóveis</p>
+            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-prop">0</h3>
           </div>
         </div>
 
-        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3">
-          <div class="p-1.5 bg-blue-500/10 rounded-technical shrink-0">
-            <i data-lucide="map" class="w-4 h-4 text-blue-500"></i>
+        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
+          <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
+            <i data-lucide="map" class="w-3.5 h-3.5 text-blue-500"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Municípios Atendidos</p>
-            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-municipios-prop">0</h3>
+            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Municípios Atendidos</p>
+            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-municipios-prop">0</h3>
           </div>
         </div>
 
-        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3">
-          <div class="p-1.5 bg-indigo-500/10 rounded-technical shrink-0">
-            <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i>
+        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
+          <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-500"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Total de Matrículas</p>
-            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-mats">0</h3>
+            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Matrículas</p>
+            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-mats">0</h3>
           </div>
         </div>
 
-        <div class="glass-card h-14 sm:h-16 px-4 flex items-center gap-3">
-          <div class="p-1.5 bg-rose-500/10 rounded-technical shrink-0">
-            <i data-lucide="folder-git" class="w-4 h-4 text-rose-500"></i>
+        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
+          <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
+            <i data-lucide="folder-git" class="w-3.5 h-3.5 text-rose-500"></i>
           </div>
           <div class="min-w-0">
-            <p class="text-white/40 text-[9px] sm:text-[10px] uppercase tracking-wider font-semibold truncate">Projetos Ativos</p>
-            <h3 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-levs">0</h3>
+            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Projetos Ativos</p>
+            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-levs">0</h3>
           </div>
         </div>
       </div>
