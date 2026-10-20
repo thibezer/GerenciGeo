@@ -641,3 +641,24 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   3. **Resolução de 1 Clique**: Tarefas manuais devem dispor de botão "Concluir" para marcar como resolvida diretamente no card com animação e toast, sem redirecionar a tela. Inconformidades técnicas devem fornecer botão de navegação direta ao levantamento ou ferramenta de correção (ex: "Abrir HGO", "Ir ao Levantamento").
   4. **Filtros por Severidade**: A lista de auditoria deve permitir filtrar em memória por `TODOS`, `CRITICO`, `ALERTA` e `MANUAL`, mantendo contadores atualizados em tempo real.
   5. **Criação Rápida de Tarefas**: O cabeçalho do Action Center deve prover o botão `+ Nova Tarefa`, abrindo modal compacto integrado (`#modal-nova-tarefa-rapida`) para persistência imediata no banco via `POST /pendencias`.
+
+---
+
+## 41. Espelhamento e Compatibilidade Escopada com a Tela Online (Hub Web Cloud)
+- **Contexto e Problema**:
+  1. O GerenciGeo opera em arquitetura híbrida: software Desktop Local (FastAPI + SQLite + executáveis locais de geoprocessamento) e Hub Web Cloud online hospedado na Hostinger (`api.php` + MySQL).
+  2. Telas compartilhadas (`Dashboard`, `Clientes`, `Propriedades`, `Contagem de Pontos`, `Pendências`, `Configurações`, `Compartilhado`, `Login`) frequentemente sofrem alterações de layout, novos componentes de UI (`ui-components-kit`) ou novos campos de formulário no ambiente local.
+  3. Quando uma melhoria é feita apenas na versão desktop sem espelhamento na versão online, a tela web fica defasada ou quebra em tempo de execução por falta de rotas/colunas equivalentes no backend online (`api.php` e MySQL). Por outro lado, expor rotinas exclusivas do desktop local (caminhos de disco `C:\`, executáveis CAD/LibreOffice, rotinas pesadas locais como RINEX/HGO/Fronteira) na tela online gera falhas e links mortos.
+- **Regras Obrigatórias**:
+  1. **Espelhamento Obrigatório de Telas Compartilhadas**: Sempre que uma tela for alterada ou melhorada no sistema, garanta que as modificações de layout, estilo e regras de negócio sejam refletidas na visualização online correspondente.
+  2. **Filtro Estrito de Escopo ("Só o que tem que ter lá")**:
+     - Funções, botões, abas e atalhos dependentes do Desktop Local (acesso a arquivos no disco local, chamadas de executáveis locais, rotas locais-only como HGO, Levantamentos, Área de Fronteira e Mesa CAD) **nunca** devem ser acessíveis ou disparados no ambiente online.
+     - Utilizar checagens de ambiente (`if (!isLocal)` ou classe CSS `.local-only-route`) para ocultar ou desabilitar recursos exclusivos do desktop, exibindo fallbacks adequados ao contexto Web Cloud.
+  3. **Paridade no Backend Online (`api.php` e MySQL)**:
+     - Novos endpoints, parâmetros de busca ou payloads JSON consumidos pela tela devem ter sua rota equivalente implementada em `frontend/public/api.php`.
+     - Novas colunas no banco de dados devem ser registradas na função de migração idempotente `ensureSchema(PDO $pdo)` em `api.php` via `addColumnSafe(...)`.
+  4. **Paridade no Motor de Sincronização**:
+     - Novos campos persistíveis devem ser mapeados em `TABELAS_SINCRONIZAVEIS` em `database/models.py` e tratados com resolução defensiva em `services/gestores/nuvem_sync.py`.
+  5. **Validação de Build**:
+     - Toda alteração em telas deve compilar perfeitamente no build do frontend (`npm run build`), garantindo que o deploy automático da Hostinger ocorra sem falhas.
+

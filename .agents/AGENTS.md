@@ -52,3 +52,10 @@
      - O script já executa automaticamente: `git pull origin main`, build condicional do frontend (`npm run build`) e sincronização bidirecional com a Nuvem Hub (`nuvem_sync`).
      - Apresente um resumo sucinto de 2 linhas e encerre o turno.
 
+9. **Espelhamento de Mudanças de Telas para o Ambiente Online (Nuvem Hub)**:
+   - Sempre que qualquer alteração, melhoria de layout, novo campo ou refatoração for feita em uma tela do sistema, verifique se essa tela também existe no ambiente Web Online (Nuvem Hostinger: `Dashboard`, `Clientes`, `Propriedades`, `Contagem de Pontos`, `Pendências`, `Configurações`, `Compartilhado`, `Login`).
+   - Se a tela existir online, as modificações devem ser **obrigatoriamente espelhadas** para o ambiente online, respeitando rigorosamente o filtro de escopo (**"só o que tem que ter lá"**):
+     - **Isolamento Desktop**: Recursos, atalhos e botões que dependem exclusivamente do Desktop Local (caminhos no disco `C:\`, executáveis do Windows como AutoCAD ou LibreOffice, rotinas pesadas de geodesia local como RINEX, HGO, Área de Fronteira ou Mesa de Trabalho CAD) **NÃO** devem ser renderizados ou devem ser guardados por `if (!isLocal)` / `.local-only-route`.
+     - **Paridade de Backend Online**: Se a alteração exigir novos endpoints, filtros ou campos de resposta na API, o backend online (`frontend/public/api.php`) e as colunas no MySQL (`ensureSchema`) devem ser atualizados em paridade com as rotas FastAPI locais.
+     - **Integridade de Build**: Sempre validar que as alterações passam sem erros no build do frontend (`npm run build`).
+
