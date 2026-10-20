@@ -7,7 +7,6 @@ import { initIcons, showToast } from '../utils';
 import { renderDashboardTemplate } from './dashboard/dashboard_template';
 import {
   fetchStatus,
-  fetchStats,
   fetchAlerts,
   fetchGeometrias,
   downloadLocalShapefile,
@@ -46,19 +45,7 @@ export const dashboardRoute: RouteDef = {
         }
       });
 
-    // 2. Estatísticas Globais
-    fetchStats()
-      .then(data => {
-        const cli = document.getElementById('stat-clientes');
-        const prop = document.getElementById('stat-prop');
-        const prof = document.getElementById('stat-prof');
-        if (cli) cli.innerText = (data.clientes ?? 0).toString();
-        if (prop) prop.innerText = (data.propriedades ?? 0).toString();
-        if (prof) prof.innerText = (data.profissionais ?? 0).toString();
-      })
-      .catch(err => console.error("[Dashboard] Erro ao buscar stats:", err));
-
-    // 3. Action Center Híbrido: Auditoria, Ações Rápidas e Resolução Direta
+    // 2. Action Center Híbrido: Auditoria, Ações Rápidas e Resolução Direta
     let todosAlertas: any[] = [];
     let filtroAtual = 'TODOS';
 

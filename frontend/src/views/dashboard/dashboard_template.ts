@@ -3,12 +3,11 @@
  */
 export function renderDashboardTemplate(): string {
   return `
-    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
-      <!-- Topo Ultra Compacto (Altura Max ~45px) -->
-      <div class="flex justify-between items-center h-8 sm:h-10 border-b border-white/5 pb-1.5 sm:pb-2 order-first shrink-0">
-        <div>
-          <h2 class="text-base sm:text-lg font-bold tracking-tight text-white leading-none">Panorama Operacional</h2>
-          <p class="text-white/40 text-[9px] mt-1 hidden sm:block">Painel de comando GerenciGeo.</p>
+    <div class="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
+      <!-- Topo Comprimido (Ultra Baixo) -->
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 order-first shrink-0">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Panorama Operacional</h2>
         </div>
         <div class="flex items-center gap-2 text-right">
           <span class="text-[9px] font-mono text-white/20 uppercase tracking-widest hidden sm:inline">Status da API</span>
@@ -16,49 +15,7 @@ export function renderDashboardTemplate(): string {
         </div>
       </div>
 
-      <!-- Cards de KPIs Super Compactos -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 order-3 sm:order-2 shrink-0">
-        <!-- Clientes -->
-        <ui-card elevacao="baixa" class="h-12 sm:h-13 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
-              <i data-lucide="database" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold truncate">Clientes</p>
-              <h3 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none mt-0.5" id="stat-clientes">--</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <!-- Propriedades -->
-        <ui-card elevacao="baixa" class="h-12 sm:h-13 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-blue-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold truncate">Propriedades</p>
-              <h3 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none mt-0.5" id="stat-prop">--</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <!-- Profissionais -->
-        <ui-card elevacao="baixa" class="h-12 sm:h-13 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-purple-500/10 rounded-technical shrink-0">
-              <i data-lucide="activity" class="w-3.5 h-3.5 text-purple-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold truncate">Profissionais</p>
-              <h3 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none mt-0.5" id="stat-prof">--</h3>
-            </div>
-          </div>
-        </ui-card>
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 flex-1 lg:h-[calc(100vh-140px)] lg:max-h-[calc(100vh-140px)] order-2 sm:order-3">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 flex-1 lg:h-[calc(100vh-80px)] lg:max-h-[calc(100vh-80px)] order-2">
         <!-- Leaflet Map Container -->
         <div class="lg:col-span-2 glass-card h-[400px] sm:h-[450px] lg:h-full relative overflow-hidden border-white/5" id="map-container">
            <div id="map" class="w-full h-full"></div>
