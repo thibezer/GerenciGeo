@@ -27,16 +27,16 @@ const lerRespostaApi = async (res: Response): Promise<any> => {
 
 export const propriedadesRoute: RouteDef = {
   render: () => `
-    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
       <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5">
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0">
         <div>
           <h1 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Propriedades</h1>
         </div>
       </div>
 
       <!-- KPIs Compactos Menores -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
         <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
           <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
             <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
@@ -79,9 +79,9 @@ export const propriedadesRoute: RouteDef = {
       </div>
 
       <!-- Tabela Principal de Propriedades -->
-      <div class="glass-card overflow-hidden border border-white/5 flex flex-col">
+      <div class="glass-card overflow-hidden border border-white/5 flex flex-col flex-1 min-h-0">
         <!-- Filtros, Busca, Ordenação e Ações -->
-        <div class="p-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01]">
+        <div class="p-3 sm:p-3.5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01] shrink-0">
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-xl">
             <div class="relative flex-1">
               <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"></i>
@@ -106,10 +106,10 @@ export const propriedadesRoute: RouteDef = {
         </div>
 
         <!-- Tabela -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40 bg-white/[0.01]">
+              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
                 <th class="py-2 px-3 w-10">
                   <input type="checkbox" id="check-all-propriedades" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5" />
                 </th>
@@ -133,7 +133,7 @@ export const propriedadesRoute: RouteDef = {
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-3 sm:p-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40">
+        <div class="p-2.5 sm:p-3 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40 shrink-0 mt-auto">
           <div class="flex items-center gap-2">
             <span>Exibir por página:</span>
             <select id="paginacao-limite" class="glass-input h-7 py-0 px-2 text-xs bg-forest-deep">

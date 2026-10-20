@@ -1,14 +1,14 @@
 export const renderClientesTemplate = (): string => `
-    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
       <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5">
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0">
         <div>
           <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Clientes</h2>
         </div>
       </div>
 
       <!-- Mini Cards de Estatísticas Rápidas (KPIs Compactos Menores) -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
         <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
           <div class="px-3 flex items-center gap-2.5 w-full">
             <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
@@ -59,9 +59,9 @@ export const renderClientesTemplate = (): string => `
       </div>
 
       <!-- Tabela Principal de Clientes -->
-      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col">
+      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col flex-1 min-h-0">
         <!-- Filtros / Busca e Ações -->
-        <div class="p-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01]">
+        <div class="p-3 sm:p-3.5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01] shrink-0">
           <div class="flex items-center gap-2 flex-1 max-w-md">
             <ui-campo-texto id="busca-cliente" placeholder="Buscar cliente por nome, CPF ou CNPJ..." class="w-full"></ui-campo-texto>
           </div>
@@ -74,10 +74,10 @@ export const renderClientesTemplate = (): string => `
         </div>
 
         <!-- Tabela -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-white/[0.01]">
+              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
                 <th class="py-3 px-4 w-10">
                   <ui-checkbox id="check-all-clientes"></ui-checkbox>
                 </th>
@@ -101,7 +101,7 @@ export const renderClientesTemplate = (): string => `
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-3 sm:p-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40">
+        <div class="p-2.5 sm:p-3 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40 shrink-0 mt-auto">
           <div class="flex items-center gap-2">
             <span>Exibir por página:</span>
             <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
