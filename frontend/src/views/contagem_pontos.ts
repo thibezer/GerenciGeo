@@ -16,7 +16,7 @@ const atualizarLinhasProjetos = () => {
   const tbody = document.getElementById('contagem-linhas-projetos');
   if (!tbody || !dados) return;
   tbody.innerHTML = renderLinhasProjetos(dados.projetos, {
-    termo: (document.getElementById('filtro-projeto') as HTMLInputElement | null)?.value ?? '',
+    termo: (document.getElementById('filtro-projeto') as any)?.value ?? '',
     incluirTerceiros: (document.getElementById('filtro-incluir-terceiros') as HTMLInputElement | null)?.checked ?? false,
     somenteComPontos: (document.getElementById('filtro-somente-com-pontos') as HTMLInputElement | null)?.checked ?? true
   });
@@ -43,9 +43,12 @@ const carregar = async () => {
     container.querySelectorAll<HTMLElement>('.btn-copiar-ponto').forEach(btn =>
       btn.addEventListener('click', () => copiarTexto(btn.dataset.copiar ?? ''))
     );
-    ['filtro-projeto', 'filtro-incluir-terceiros', 'filtro-somente-com-pontos'].forEach(id =>
-      document.getElementById(id)?.addEventListener('input', atualizarLinhasProjetos)
-    );
+    ['filtro-projeto', 'filtro-incluir-terceiros', 'filtro-somente-com-pontos'].forEach(id => {
+      const el = document.getElementById(id);
+      el?.addEventListener('input', atualizarLinhasProjetos);
+      el?.addEventListener('ui-input', atualizarLinhasProjetos);
+      el?.addEventListener('change', atualizarLinhasProjetos);
+    });
   } catch (err: any) {
     container.innerHTML = `<div class="p-12 text-center text-red-400">Erro ao carregar a contagem: ${err.message}</div>`;
   }

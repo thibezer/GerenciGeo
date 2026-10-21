@@ -20,6 +20,7 @@
   "dependencies": {
     "@fluentui/web-components": "^3.0.2",
     "@tailwindcss/postcss": "^4.3.0",
+    "@thibezer/ui-components-kit": "^2.8.0",
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
     "lucide": "^1.14.0",

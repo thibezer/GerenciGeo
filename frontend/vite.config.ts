@@ -17,7 +17,10 @@ export default defineConfig({
     dedupe: ['leaflet'],
     alias: {
       leaflet: resolve(__dirname, 'node_modules/leaflet'),
-      ...(hasLocalUi ? { 'ui-components-kit': localUiPath } : {})
+      ...(hasLocalUi ? {
+        'ui-components-kit': localUiPath,
+        '@thibezer/ui-components-kit': localUiPath
+      } : {})
     }
   },
   server: {

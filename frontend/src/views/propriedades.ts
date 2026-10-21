@@ -37,71 +37,78 @@ export const propriedadesRoute: RouteDef = {
 
       <!-- KPIs Compactos Menores -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
-        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
-          <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
-            <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
+              <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Imóveis</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-prop">0</h3>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Imóveis</p>
-            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-prop">0</h3>
-          </div>
-        </div>
+        </ui-card>
 
-        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
-          <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
-            <i data-lucide="map" class="w-3.5 h-3.5 text-blue-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
+              <i data-lucide="map" class="w-3.5 h-3.5 text-blue-500"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Municípios Atendidos</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-municipios-prop">0</h3>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Municípios Atendidos</p>
-            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-municipios-prop">0</h3>
-          </div>
-        </div>
+        </ui-card>
 
-        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
-          <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
-            <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
+              <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-500"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Matrículas</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-mats">0</h3>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Matrículas</p>
-            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-mats">0</h3>
-          </div>
-        </div>
+        </ui-card>
 
-        <div class="glass-card h-9 sm:h-10 px-3 flex items-center gap-2.5">
-          <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
-            <i data-lucide="folder-git" class="w-3.5 h-3.5 text-rose-500"></i>
+        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
+          <div class="px-3 flex items-center gap-2.5 w-full">
+            <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
+              <i data-lucide="folder-git" class="w-3.5 h-3.5 text-rose-500"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Projetos Ativos</p>
+              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-levs">0</h3>
+            </div>
           </div>
-          <div class="min-w-0">
-            <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Projetos Ativos</p>
-            <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-levs">0</h3>
-          </div>
-        </div>
+        </ui-card>
       </div>
 
       <!-- Tabela Principal de Propriedades -->
-      <div class="glass-card overflow-hidden border border-white/5 flex flex-col flex-1 min-h-0">
+      <ui-card elevacao="baixa" class="overflow-hidden border border-white/5 flex flex-col flex-1 min-h-0">
         <!-- Filtros, Busca, Ordenação e Ações -->
         <div class="p-3 sm:p-3.5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01] shrink-0">
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-xl">
             <div class="relative flex-1">
-              <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"></i>
-              <input type="text" placeholder="Buscar propriedade por nome, município..." class="glass-input pl-9 w-full text-xs h-8.5" id="busca-propriedade" />
+              <ui-campo-texto id="busca-propriedade" placeholder="Buscar propriedade por nome, município..." class="w-full"></ui-campo-texto>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <span class="text-[10px] text-white/40 uppercase font-bold whitespace-nowrap">Ordenar:</span>
-              <select id="ordenacao-propriedade" class="glass-input h-8.5 py-0 px-2.5 text-xs bg-forest-deep">
+              <ui-select id="ordenacao-propriedade" value="nome-asc" class="h-8.5 py-0 px-2.5 text-xs bg-forest-deep">
                 <option value="nome-asc">Nome (A-Z)</option>
                 <option value="nome-desc">Nome (Z-A)</option>
                 <option value="data-desc">Mais Recentes (Cadastro)</option>
                 <option value="data-asc">Mais Antigas (Cadastro)</option>
-              </select>
+              </ui-select>
             </div>
           </div>
           <div class="flex gap-2 justify-end shrink-0">
-            <button class="btn-primary h-8.5 text-xs px-4" id="btn-abrir-modal-propriedade">
+            <ui-botao variante="primario" id="btn-abrir-modal-propriedade" class="h-8.5 text-xs px-4">
                <i data-lucide="plus" class="w-4 h-4"></i>
                Nova Propriedade
-            </button>
+            </ui-botao>
           </div>
         </div>
 
@@ -111,7 +118,7 @@ export const propriedadesRoute: RouteDef = {
             <thead>
               <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
                 <th class="py-2 px-3 w-10">
-                  <input type="checkbox" id="check-all-propriedades" class="rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5" />
+                  <ui-checkbox id="check-all-propriedades"></ui-checkbox>
                 </th>
                 <th class="py-2 px-3">Imóvel Rural</th>
                 <th class="py-2 px-3">Localidade</th>
@@ -136,18 +143,18 @@ export const propriedadesRoute: RouteDef = {
         <div class="p-2.5 sm:p-3 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40 shrink-0 mt-auto">
           <div class="flex items-center gap-2">
             <span>Exibir por página:</span>
-            <select id="paginacao-limite" class="glass-input h-7 py-0 px-2 text-xs bg-forest-deep">
+            <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
               <option value="10">10</option>
               <option value="25">25</option>
               <option value="50">50</option>
-            </select>
+            </ui-select>
             <span id="paginacao-info">Mostrando 0-0 de 0 propriedades</span>
           </div>
           <div class="flex items-center gap-1.5" id="paginacao-botoes">
             <!-- Botões dinâmicos -->
           </div>
         </div>
-      </div>
+      </ui-card>
     </div>
 
     <!-- BARRA DE AÇÕES EM LOTE FLUTUANTE -->
@@ -155,37 +162,30 @@ export const propriedadesRoute: RouteDef = {
       <span class="text-xs text-white/80 font-mono"><strong id="batch-selected-count" class="text-mint-vibrant">0</strong> selecionados</span>
       <div class="h-4 w-px bg-white/10"></div>
       <div class="flex gap-2">
-        <button id="btn-batch-delete" class="bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-transparent text-red-400 hover:text-white px-3 py-1.5 rounded-technical text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+        <ui-botao variante="destrutivo" id="btn-batch-delete">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           Excluir Selecionados
-        </button>
-        <button id="btn-batch-cancel" class="btn-secondary py-1.5 px-3 text-xs">
+        </ui-botao>
+        <ui-botao variante="secundario" id="btn-batch-cancel">
           Cancelar
-        </button>
+        </ui-botao>
       </div>
     </div>
 
     <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
-    <div id="modal-propriedade" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-       <div class="glass-card w-full max-w-2xl max-h-[92vh] flex flex-col border border-mint-vibrant/20 shadow-2xl overflow-hidden bg-[#0c1510]/98">
-          <!-- Header do Modal -->
-          <div class="px-4 py-3 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
-             <div class="flex items-center gap-3 min-w-0">
-                <div class="w-8.5 h-8.5 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/20 flex items-center justify-center text-mint-vibrant shrink-0">
-                   <i data-lucide="home" class="w-4.5 h-4.5 text-mint-vibrant"></i>
-                </div>
-                <div class="min-w-0">
-                   <h3 class="text-sm sm:text-base font-bold text-white truncate" id="modal-prop-titulo">Nova Propriedade</h3>
-                   <p class="text-[10px] text-white/40 font-mono leading-none mt-1 truncate" id="modal-prop-subtitulo">Preencha os dados cadastrais do imóvel rural</p>
-                </div>
+    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px;">
+       <div class="flex flex-col h-full overflow-hidden">
+          <!-- Subtítulo e Ações -->
+          <div class="px-2 py-1.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
+             <div class="min-w-0">
+                <p class="text-[10px] text-white/40 font-mono leading-none truncate" id="modal-prop-subtitulo">Preencha os dados cadastrais do imóvel rural</p>
              </div>
              <div class="flex items-center gap-1.5 shrink-0">
-                <button class="text-white/40 hover:text-red-400 transition-colors p-2 rounded hover:bg-red-500/10 cursor-pointer hidden" id="btn-prop-excluir" title="Excluir Propriedade">
-                   <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-                <button class="text-white/40 hover:text-white transition-colors p-2 rounded hover:bg-white/5 cursor-pointer" id="btn-fechar-modal-prop" title="Fechar (Esc)">
-                   <i data-lucide="x" class="w-4.5 h-4.5"></i>
-                </button>
+                <ui-botao variante="destrutivo" class="hidden" id="btn-prop-excluir" title="Excluir Propriedade">
+                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                   Excluir
+                </ui-botao>
+                <button type="button" class="hidden" id="btn-fechar-modal-prop"></button>
              </div>
           </div>
           
@@ -457,38 +457,31 @@ export const propriedadesRoute: RouteDef = {
           </div>
        </div>
     </div>
+    </ui-modal>
 
     <!-- MODAL DE HISTÓRICO DE ALTERAÇÃO DA MATRÍCULA -->
-    <div id="modal-historico-matricula" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-       <div class="glass-card w-full max-w-lg border border-mint-vibrant/10 shadow-2xl">
-          <div class="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-             <h3 class="text-xs font-bold text-white flex items-center gap-2">
-                <i data-lucide="history" class="w-4 h-4 text-mint-vibrant"></i>
-                <span id="modal-hist-mat-titulo">Histórico da Matrícula</span>
-             </h3>
-             <button class="text-white/40 hover:text-white transition-colors" id="btn-fechar-modal-hist-mat">
-                <i data-lucide="x" class="w-4.5 h-4.5"></i>
-             </button>
-          </div>
-          <div class="p-4 max-h-[50vh] overflow-y-auto pr-1">
-             <div class="det-tabela-wrap">
-                <table class="det-tabela det-tabela-sm">
-                   <thead>
-                      <tr>
-                         <th>Campo</th>
-                         <th>Antigo</th>
-                         <th>Novo</th>
-                         <th class="text-right">Data/Hora</th>
-                      </tr>
-                   </thead>
-                   <tbody id="tbl-hist-mat-corpo">
-                      <!-- Logs de alteração da matrícula -->
-                   </tbody>
-                </table>
-             </div>
+    <ui-modal id="modal-historico-matricula" titulo="Histórico da Matrícula" tamanho="medio">
+       <div class="p-4 max-h-[50vh] overflow-y-auto pr-1">
+          <div class="det-tabela-wrap">
+             <table class="det-tabela det-tabela-sm">
+                <thead>
+                   <tr>
+                      <th>Campo</th>
+                      <th>Antigo</th>
+                      <th>Novo</th>
+                      <th class="text-right">Data/Hora</th>
+                   </tr>
+                </thead>
+                <tbody id="tbl-hist-mat-corpo">
+                   <!-- Logs de alteração da matrícula -->
+                </tbody>
+             </table>
           </div>
        </div>
-    </div>
+       <div slot="footer" class="flex justify-end p-2.5 border-t border-white/5">
+          <ui-botao variante="secundario" id="btn-fechar-modal-hist-mat" dismiss-modal>Fechar</ui-botao>
+       </div>
+    </ui-modal>
   `,
   setup: () => {
     let propriedadeSelecionadaId: number | null = null;
@@ -585,8 +578,29 @@ export const propriedadesRoute: RouteDef = {
     });
 
     // --- MODAL UNIFICADO E ABAS ---
-    const modalPropriedade = document.getElementById('modal-propriedade');
-    const modalHistMat = document.getElementById('modal-historico-matricula');
+    const modalPropriedade = document.getElementById('modal-propriedade') as any;
+    const modalHistMat = document.getElementById('modal-historico-matricula') as any;
+
+    const abrirModalPropriedadeEl = () => {
+       if (modalPropriedade?.abrir) modalPropriedade.abrir();
+       else modalPropriedade?.classList.remove('hidden');
+    };
+
+    const fecharModalPropriedade = () => {
+       if (modalPropriedade?.fechar) modalPropriedade.fechar();
+       else modalPropriedade?.classList.add('hidden');
+       propriedadeSelecionadaId = null;
+    };
+
+    const abrirModalHistMat = () => {
+       if (modalHistMat?.abrir) modalHistMat.abrir();
+       else modalHistMat?.classList.remove('hidden');
+    };
+
+    const fecharModalHistMat = () => {
+       if (modalHistMat?.fechar) modalHistMat.fechar();
+       else modalHistMat?.classList.add('hidden');
+    };
 
     const ativarAba = (targetTab: string) => {
        document.querySelectorAll('.tab-btn-prop').forEach(btn => {
@@ -616,14 +630,11 @@ export const propriedadesRoute: RouteDef = {
        });
     });
 
-    const fecharModalPropriedade = () => {
-       modalPropriedade?.classList.add('hidden');
-       propriedadeSelecionadaId = null;
-    };
+
 
     document.getElementById('btn-fechar-modal-prop')?.addEventListener('click', fecharModalPropriedade);
     document.getElementById('btn-cancelar-prop')?.addEventListener('click', fecharModalPropriedade);
-    document.getElementById('btn-fechar-modal-hist-mat')?.addEventListener('click', () => modalHistMat?.classList.add('hidden'));
+    document.getElementById('btn-fechar-modal-hist-mat')?.addEventListener('click', fecharModalHistMat);
 
     document.getElementById('btn-abrir-modal-propriedade')?.addEventListener('click', () => {
        abrirModalPropriedade(null);
@@ -637,11 +648,11 @@ export const propriedadesRoute: RouteDef = {
 
     const handleKeyDownModal = (e: KeyboardEvent) => {
        if (e.key === 'Escape') {
-          if (modalHistMat && !modalHistMat.classList.contains('hidden')) {
-             modalHistMat.classList.add('hidden');
+          if (modalHistMat && (modalHistMat.aberto || !modalHistMat.classList.contains('hidden'))) {
+             fecharModalHistMat();
              return;
           }
-          if (modalPropriedade && !modalPropriedade.classList.contains('hidden')) {
+          if (modalPropriedade && (modalPropriedade.aberto || !modalPropriedade.classList.contains('hidden'))) {
              fecharModalPropriedade();
           }
        }
@@ -707,22 +718,41 @@ export const propriedadesRoute: RouteDef = {
     });
 
     // --- FILTROS, BUSCA E ORDENAÇÃO ---
-    document.getElementById('busca-propriedade')?.addEventListener('input', (e) => {
-       termoBusca = (e.target as HTMLInputElement).value.toLowerCase();
-       paginaAtual = 1;
-       renderTabela();
-    });
+    let timeoutBuscaProp: ReturnType<typeof setTimeout>;
+    const buscaInputProp = document.getElementById('busca-propriedade');
+    const handleBuscaProp = (e: Event) => {
+       clearTimeout(timeoutBuscaProp);
+       timeoutBuscaProp = setTimeout(() => {
+          const customEv = e as CustomEvent<{ value?: string }>;
+          const val = (e.target as any).value || customEv.detail?.value || '';
+          termoBusca = String(val).toLowerCase();
+          paginaAtual = 1;
+          renderTabela();
+       }, 200);
+    };
+    buscaInputProp?.addEventListener('input', handleBuscaProp);
+    buscaInputProp?.addEventListener('ui-input', handleBuscaProp);
 
-    document.getElementById('ordenacao-propriedade')?.addEventListener('change', () => {
+    const ordenacaoProp = document.getElementById('ordenacao-propriedade');
+    const handleOrdenacaoChange = () => {
        paginaAtual = 1;
        renderTabela();
-    });
+    };
+    ordenacaoProp?.addEventListener('change', handleOrdenacaoChange);
+    ordenacaoProp?.addEventListener('ui-selecionar', handleOrdenacaoChange);
 
-    document.getElementById('paginacao-limite')?.addEventListener('change', (e) => {
-       limitePorPagina = parseInt((e.target as HTMLSelectElement).value);
-       paginaAtual = 1;
-       renderTabela();
-    });
+    const selectPaginacaoProp = document.getElementById('paginacao-limite');
+    const handlePaginacaoChange = (e: Event) => {
+       const customEv = e as CustomEvent<{ id?: string }>;
+       const val = customEv.detail?.id || (e.target as HTMLSelectElement).value;
+       if (val) {
+          limitePorPagina = parseInt(val, 10);
+          paginaAtual = 1;
+          renderTabela();
+       }
+    };
+    selectPaginacaoProp?.addEventListener('change', handlePaginacaoChange);
+    selectPaginacaoProp?.addEventListener('ui-selecionar', handlePaginacaoChange);
 
     const getPropriedadesFiltradas = () => {
        if (!termoBusca) return todasPropriedades;
@@ -905,6 +935,17 @@ export const propriedadesRoute: RouteDef = {
 
        initIcons();
 
+       // Atualiza Checkbox Master
+       const checkAll = document.getElementById('check-all-propriedades') as any;
+       if (checkAll) {
+          const todosSel = visiveis.length > 0 && visiveis.every(p => propriedadesSelecionadas.has(p.id));
+          const algumSel = visiveis.some(p => propriedadesSelecionadas.has(p.id)) && !todosSel;
+          if ('marcado' in checkAll) checkAll.marcado = todosSel;
+          else checkAll.checked = todosSel;
+          if ('indeterminado' in checkAll) checkAll.indeterminado = algumSel;
+          else checkAll.indeterminate = algumSel;
+       }
+
        // Checkboxes
        body.querySelectorAll('.check-propriedade').forEach(cb => {
           cb.addEventListener('change', (e) => {
@@ -929,17 +970,21 @@ export const propriedadesRoute: RouteDef = {
     };
 
     // Checkbox Master
-    document.getElementById('check-all-propriedades')?.addEventListener('change', (e) => {
-       const check = e.target as HTMLInputElement;
+    const checkAllPropEl = document.getElementById('check-all-propriedades');
+    const handleCheckAllProps = (e: Event) => {
+       const check = e.target as any;
+       const isChecked = check.marcado ?? check.checked ?? false;
        const visiveis = getPropriedadesPaginaAtual();
-       if (check.checked) {
+       if (isChecked) {
           visiveis.forEach(p => propriedadesSelecionadas.add(p.id));
        } else {
           visiveis.forEach(p => propriedadesSelecionadas.delete(p.id));
        }
        updateBatchActionBar();
        renderTabela();
-    });
+    };
+    checkAllPropEl?.addEventListener('change', handleCheckAllProps);
+    checkAllPropEl?.addEventListener('ui-change', handleCheckAllProps);
 
     // --- CARREGAR DADOS GERAIS ---
     const loadPropriedades = () => {
@@ -1139,7 +1184,7 @@ export const propriedadesRoute: RouteDef = {
           ativarAba(abaInicial);
        }
 
-       modalPropriedade?.classList.remove('hidden');
+       abrirModalPropriedadeEl();
        initIcons();
     };
 
@@ -1489,7 +1534,7 @@ export const propriedadesRoute: RouteDef = {
        const corpoHist = document.getElementById('tbl-hist-mat-corpo');
        if (corpoHist) corpoHist.innerHTML = '<tr><td colspan="4" class="det-vazio text-center py-3">Carregando histórico...</td></tr>';
 
-       modalHistMat?.classList.remove('hidden');
+       abrirModalHistMat();
 
        try {
           const res = await fetch(`${API_BASE}/matriculas/${mid}/historico`);

@@ -39,7 +39,9 @@ export const patchModalShadow = (modalEl: HTMLElement) => {
     }
     :host([tamanho="grande"]) .ui-modal__dialog,
     :host(.modal-cliente-amplo) .ui-modal__dialog,
-    :host(#modal-cliente) .ui-modal__dialog {
+    :host(#modal-cliente) .ui-modal__dialog,
+    :host(.modal-propriedade-amplo) .ui-modal__dialog,
+    :host(#modal-propriedade) .ui-modal__dialog {
       max-width: var(--ui-modal-largura, 900px) !important;
     }
     :host([tamanho="medio"]) .ui-modal__dialog {

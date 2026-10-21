@@ -13,31 +13,33 @@ export const pendenciasRoute: RouteDef = {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-1 space-y-6">
-          <div class="glass-card p-6">
-            <h4 class="font-bold text-sm mb-4">Nova Pendência</h4>
+          <ui-card elevacao="baixa" class="p-6 flex flex-col">
+            <h4 class="font-bold text-sm mb-4 text-white">Nova Pendência</h4>
             <form id="form-pendencia" class="space-y-4">
-              <input type="text" name="titulo" placeholder="Título da tarefa..." required class="glass-input w-full">
-              <textarea name="descricao" placeholder="Descrição detalhada..." class="glass-input w-full h-24"></textarea>
-              <select name="prioridade" class="glass-input w-full">
+              <ui-campo-texto name="titulo" placeholder="Título da tarefa..." obrigatorio class="w-full"></ui-campo-texto>
+              <textarea name="descricao" placeholder="Descrição detalhada..." class="glass-input w-full h-24 text-xs p-3"></textarea>
+              <ui-select name="prioridade" value="MEDIA" class="w-full">
                 <option value="BAIXA">Prioridade Baixa</option>
-                <option value="MEDIA" selected>Prioridade Média</option>
+                <option value="MEDIA">Prioridade Média</option>
                 <option value="ALTA">Prioridade Alta</option>
-              </select>
-              <button type="submit" class="btn-primary w-full">Criar Tarefa</button>
+              </ui-select>
+              <ui-botao variante="primario" type="submit" class="w-full">Criar Tarefa</ui-botao>
             </form>
-          </div>
+          </ui-card>
         </div>
 
-        <div class="lg:col-span-2 glass-card overflow-hidden">
-          <div class="p-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
-            <h4 class="font-bold text-sm">Lista de Atividades</h4>
-            <div class="flex gap-2">
-              <span class="text-[10px] bg-mint-vibrant/20 text-mint-vibrant px-2 py-0.5 rounded-full" id="pendencias-count">0</span>
+        <div class="lg:col-span-2">
+          <ui-card elevacao="baixa" class="overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
+              <h4 class="font-bold text-sm text-white">Lista de Atividades</h4>
+              <div class="flex gap-2">
+                <ui-badge variante="sucesso" id="pendencias-count">0</ui-badge>
+              </div>
             </div>
-          </div>
-          <div id="lista-pendencias" class="divide-y divide-white/5 max-h-[600px] overflow-y-auto">
-            <div class="p-8 text-center text-white/20">Carregando tarefas...</div>
-          </div>
+            <div id="lista-pendencias" class="divide-y divide-white/5 max-h-[600px] overflow-y-auto">
+              <div class="p-8 text-center text-white/20">Carregando tarefas...</div>
+            </div>
+          </ui-card>
         </div>
       </div>
     </div>
@@ -113,14 +115,23 @@ export const pendenciasRoute: RouteDef = {
      document.getElementById('form-pendencia')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const form = e.target as HTMLFormElement;
-        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const btn = (form.querySelector('ui-botao[type="submit"]') || form.querySelector('button[type="submit"]')) as any;
         const formData = new FormData(form);
+        const payload: Record<string, any> = Object.fromEntries(formData.entries());
         
+        // Garante valores de web components se FormData estiver polifillado
+        const campoTitulo = form.querySelector('[name="titulo"]') as any;
+        if (campoTitulo && !payload.titulo) payload.titulo = campoTitulo.value || '';
+        const campoPrioridade = form.querySelector('[name="prioridade"]') as any;
+        if (campoPrioridade && !payload.prioridade) payload.prioridade = campoPrioridade.value || 'MEDIA';
+        const campoDescricao = form.querySelector('[name="descricao"]') as any;
+        if (campoDescricao && !payload.descricao) payload.descricao = campoDescricao.value || '';
+
         if (btn) btn.disabled = true;
         fetch(`${API_BASE}/pendencias`, {
            method: 'POST',
            headers: {'Content-Type': 'application/json'},
-           body: JSON.stringify(Object.fromEntries(formData.entries()))
+           body: JSON.stringify(payload)
         })
         .then(res => {
            if (!res.ok) throw new Error('Erro ao criar pendência');

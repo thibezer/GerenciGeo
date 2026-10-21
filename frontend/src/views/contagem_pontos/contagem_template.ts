@@ -53,7 +53,7 @@ const cartaoTipo = (cod: ContagemCodigo, t: ContagemTipo): string => {
     : '';
 
   return `
-    <div class="glass-card p-4 flex flex-col">
+    <ui-card elevacao="baixa" class="p-4 flex flex-col">
       <div class="flex items-center justify-between">
         <span class="text-[10px] uppercase tracking-wider font-semibold text-white/40">${NOMES_TIPO[t.tipo]} (${t.tipo})</span>
         <span class="text-[10px] text-white/30">${t.total} em ${t.projetos} projeto(s)</span>
@@ -90,7 +90,7 @@ const blocoConflitos = (conflitos: ContagemConflito[], projetos: ContagemProjeto
     return `#${id}${p ? ' ' + escapeHtml(p.propriedade) : ''}`;
   };
   return `
-    <div class="glass-card p-4 border border-amber-400/30">
+    <ui-card elevacao="baixa" class="p-4 border border-amber-400/30 flex flex-col">
       <h4 class="text-sm font-bold text-amber-400 mb-1"><i data-lucide="alert-circle" class="w-4 h-4 inline -mt-0.5"></i> Números usados em mais de um projeto</h4>
       <p class="text-[11px] text-white/40 mb-3">Normal quando o vértice físico é o mesmo (divisa compartilhada). Se forem pontos diferentes, renumere um deles.</p>
       <div class="space-y-1">
@@ -154,9 +154,9 @@ export function renderContagemTemplate(): string {
           <h2 class="text-2xl font-bold text-white">Contagem de Pontos</h2>
           <p class="text-white/40 text-sm mt-1">Qual numeração cada projeto está usando e qual o próximo ponto livre.</p>
         </div>
-        <button type="button" id="btn-recarregar-contagem" class="btn-secondary text-sm flex items-center gap-2">
+        <ui-botao variante="secundario" id="btn-recarregar-contagem" class="text-sm flex items-center gap-2">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i> Atualizar
-        </button>
+        </ui-botao>
       </div>
       <div id="contagem-conteudo">
         <div class="p-12 text-center text-white/20">Calculando contagem...</div>
@@ -199,7 +199,7 @@ export function renderContagemConteudo(dados: ContagemPontos): string {
 
       ${blocoConflitos(dados.conflitos, dados.projetos)}
 
-      <div class="glass-card overflow-hidden">
+      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col">
         <div class="p-4 border-b border-white/5 bg-white/[0.02] flex flex-wrap gap-3 items-center justify-between">
           <h4 class="font-bold text-sm">Pontos por projeto</h4>
           <div class="flex flex-wrap gap-4 items-center">
@@ -209,7 +209,7 @@ export function renderContagemConteudo(dados: ContagemPontos): string {
             <label class="flex items-center gap-1.5 text-[11px] text-white/50 cursor-pointer">
               <input type="checkbox" id="filtro-incluir-terceiros"> Mostrar códigos de terceiros
             </label>
-            <input type="search" id="filtro-projeto" placeholder="Buscar projeto ou código..." class="glass-input text-xs w-56">
+            <ui-campo-texto id="filtro-projeto" placeholder="Buscar projeto ou código..." class="w-56"></ui-campo-texto>
           </div>
         </div>
         <div class="overflow-x-auto">
@@ -225,7 +225,7 @@ export function renderContagemConteudo(dados: ContagemPontos): string {
             <tbody id="contagem-linhas-projetos"></tbody>
           </table>
         </div>
-      </div>
+      </ui-card>
 
       ${tabelaTerceiros}
     </div>`;
