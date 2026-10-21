@@ -1,5 +1,6 @@
 import './style.css';
 import './design-engine.css';
+import './lista-padrao.css';
 import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
 import { instalarFetchAutenticado } from './utils/fetch_autenticado';
@@ -152,7 +153,7 @@ const navigate = async (route: string, param: string | null = null) => {
   // Ajusta padding e overflow do view-container quando entra na mesa_trabalho ou login
   if (route === 'mesa_trabalho' || route === 'compartilhado' || route === 'login') {
     container.className = 'flex-1 overflow-hidden p-0 min-w-0';
-  } else if (route === 'dashboard' || route === 'clientes' || route === 'propriedades' || route === 'levantamentos') {
+  } else if (route === 'dashboard' || route === 'clientes' || route === 'propriedades' || route === 'levantamentos' || route === 'contagem_pontos' || route === 'hgo' || route === 'fronteira' || route === 'ccir' || route === 'pendencias' || route === 'configuracoes') {
     container.className = 'flex-1 overflow-y-auto p-2.5 sm:p-3.5 min-w-0 flex flex-col h-full';
   } else {
     container.className = 'flex-1 overflow-y-auto p-6 min-w-0';

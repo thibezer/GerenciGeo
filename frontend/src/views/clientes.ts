@@ -31,13 +31,15 @@ import {
   aplicarMascaraCep,
   ehPessoaJuridica,
   filtrarClientes,
+  filtrarPorSegmento,
+  contarSegmentos,
+  ordenarClientes,
   montarEnderecoDetalhe,
   renderOpcoesRepresentanteHtml,
   montarConfirmacaoExclusao,
   gerarLinkWhatsApp,
   copiarParaClipboard,
   isCnhVencida,
-  calcularEstatisticasClientes,
   renderLinhasTabelaHtml,
   renderBotoesPaginacaoHtml,
   renderMetadadosTabelaHtml,
@@ -46,6 +48,7 @@ import {
   renderDocumentosTabelaHtml,
   renderPropriedadesVinculadasHtml
 } from './clientes/clientes_helpers';
+import type { SegmentoCliente, CampoOrdenacaoCliente, DirecaoOrdenacao } from './clientes/clientes_helpers';
 
 interface UIModalElement extends HTMLElement {
   abrir?: () => void;
@@ -63,15 +66,26 @@ interface UISelectElement extends HTMLElement {
   value?: string;
 }
 
+let atalhoBuscaClientes: ((e: KeyboardEvent) => void) | null = null;
+
 export const clientesRoute: RouteDef = {
   render: () => renderClientesTemplate(),
+  cleanup: () => {
+    if (atalhoBuscaClientes) {
+      document.removeEventListener('keydown', atalhoBuscaClientes);
+      atalhoBuscaClientes = null;
+    }
+  },
   setup: () => {
     let clienteSelecionadoId: number | null = null;
     let todosClientes: Cliente[] = [];
     let documentosAtuais: ClienteDocumento[] = [];
     let termoBusca = "";
     let paginaAtual = 1;
-    let limitePorPagina = 10;
+    let limitePorPagina = 25;
+    let segmentoAtual: SegmentoCliente = 'todos';
+    let campoOrdem: CampoOrdenacaoCliente = 'nome';
+    let direcaoOrdem: DirecaoOrdenacao = 'asc';
     const clientesSelecionados = new Set<number>();
 
     // Formulário e Elementos da UI
@@ -372,14 +386,74 @@ export const clientesRoute: RouteDef = {
         const val = (e.target as HTMLInputElement).value || customEv.detail?.value || '';
         termoBusca = val;
         paginaAtual = 1;
-        // Seleção só vale para o que está na busca: excluir "selecionados" fora da tela é perigoso
-        const idsFiltrados = new Set(getClientesFiltrados().map(c => c.id));
-        Array.from(clientesSelecionados).forEach(id => { if (!idsFiltrados.has(id)) clientesSelecionados.delete(id); });
+        podarSelecaoFiltrada();
         renderTabela();
       }, 300);
     };
     buscaInput?.addEventListener('input', handleSearch);
     buscaInput?.addEventListener('ui-input', handleSearch);
+
+    // Seleção só vale para o que está na tela: excluir "selecionados" fora do filtro é perigoso
+    const podarSelecaoFiltrada = () => {
+      const idsFiltrados = new Set(getClientesFiltrados().map(c => c.id));
+      Array.from(clientesSelecionados).forEach(id => { if (!idsFiltrados.has(id)) clientesSelecionados.delete(id); });
+    };
+
+    const buscaWrap = document.getElementById('busca-wrap');
+    const buscaLimpar = document.getElementById('busca-limpar');
+    buscaInput?.addEventListener('input', () => {
+      buscaWrap?.classList.toggle('tem-valor', ((buscaInput as HTMLInputElement).value || '').length > 0);
+    });
+    const limparBusca = () => {
+      const input = buscaInput as HTMLInputElement | null;
+      if (!input) return;
+      input.value = '';
+      buscaWrap?.classList.remove('tem-valor');
+      clearTimeout(timeoutBusca);
+      termoBusca = '';
+      paginaAtual = 1;
+      renderTabela();
+    };
+    buscaLimpar?.addEventListener('click', () => { limparBusca(); (buscaInput as HTMLInputElement | null)?.focus(); });
+    buscaInput?.addEventListener('keydown', (e: Event) => {
+      if ((e as KeyboardEvent).key === 'Escape') { limparBusca(); (buscaInput as HTMLInputElement).blur(); }
+    });
+
+    // Atalho "/" foca a busca (ignorado enquanto se digita em outro campo ou há modal aberto)
+    atalhoBuscaClientes = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+      e.preventDefault();
+      (buscaInput as HTMLInputElement | null)?.focus();
+    };
+    document.addEventListener('keydown', atalhoBuscaClientes);
+
+    // Segmentos (Todos / PF / PJ / Pendências)
+    document.getElementById('seg-clientes')?.addEventListener('click', (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-seg]');
+      if (!btn) return;
+      segmentoAtual = (btn.getAttribute('data-seg') as SegmentoCliente) || 'todos';
+      paginaAtual = 1;
+      podarSelecaoFiltrada();
+      renderTabela();
+    });
+
+    // Ordenação por cabeçalho (clique ou Enter/Espaço); clicar de novo inverte a direção
+    const alternarOrdem = (th: HTMLElement) => {
+      const campo = th.getAttribute('data-ordem') as CampoOrdenacaoCliente | null;
+      if (!campo) return;
+      if (campo === campoOrdem) direcaoOrdem = direcaoOrdem === 'asc' ? 'desc' : 'asc';
+      else { campoOrdem = campo; direcaoOrdem = campo === 'vinculos' ? 'desc' : 'asc'; }
+      paginaAtual = 1;
+      renderTabela();
+    };
+    document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+      th.addEventListener('click', () => alternarOrdem(th));
+      th.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarOrdem(th); }
+      });
+    });
 
     // Limite de itens por página
     const selectPaginacao = document.getElementById('paginacao-limite');
@@ -395,7 +469,8 @@ export const clientesRoute: RouteDef = {
     selectPaginacao?.addEventListener('change', handlePaginacaoChange);
     selectPaginacao?.addEventListener('ui-selecionar', handlePaginacaoChange);
 
-    const getClientesFiltrados = (): Cliente[] => filtrarClientes(todosClientes, termoBusca);
+    const getClientesFiltrados = (): Cliente[] =>
+      ordenarClientes(filtrarClientes(filtrarPorSegmento(todosClientes, segmentoAtual), termoBusca), campoOrdem, direcaoOrdem);
 
     const getClientesPaginaAtual = (): Cliente[] => {
       const filtrados = getClientesFiltrados();
@@ -842,12 +917,49 @@ export const clientesRoute: RouteDef = {
     };
 
     // Renderização da Tabela de Clientes
+    const renderEstadoVazio = (statusDiv: HTMLElement, semCadastro: boolean) => {
+      statusDiv.classList.remove('hidden');
+      statusDiv.innerHTML = semCadastro
+        ? `<div class="lp-estado">
+             <div class="lp-estado-ico"><i data-lucide="users"></i></div>
+             <div class="lp-estado-titulo">Nenhum cliente cadastrado</div>
+             <div class="lp-estado-txt">Cadastre o primeiro cliente para vincular propriedades e levantamentos.</div>
+             <button type="button" class="lp-btn-primario" data-estado-acao="novo"><i data-lucide="plus" class="w-4 h-4"></i>Novo cliente</button>
+           </div>`
+        : `<div class="lp-estado">
+             <div class="lp-estado-ico"><i data-lucide="search"></i></div>
+             <div class="lp-estado-titulo">Nenhum cliente encontrado</div>
+             <div class="lp-estado-txt">Nada corresponde à busca ou ao filtro aplicado.</div>
+             <button type="button" class="lp-btn-sec" data-estado-acao="limpar">Limpar busca e filtros</button>
+           </div>`;
+    };
+
+    // Chips de segmento (contagem sobre a lista inteira) e indicador de ordenação nos cabeçalhos
+    const atualizarCabecalhoLista = () => {
+      const contagem = contarSegmentos(todosClientes);
+      (Object.keys(contagem) as SegmentoCliente[]).forEach(seg => {
+        const n = document.getElementById(`seg-n-${seg}`);
+        if (n) { n.innerText = String(contagem[seg]); n.classList.toggle('is-zero', contagem[seg] === 0); }
+      });
+      document.querySelectorAll<HTMLElement>('#seg-clientes [data-seg]').forEach(btn => {
+        const ativo = btn.getAttribute('data-seg') === segmentoAtual;
+        btn.classList.toggle('is-active', ativo);
+        btn.setAttribute('aria-pressed', String(ativo));
+      });
+      document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+        if (th.getAttribute('data-ordem') === campoOrdem) th.setAttribute('aria-sort', direcaoOrdem === 'asc' ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+      });
+    };
+
     const renderTabela = () => {
       const body = document.getElementById('tabela-clientes-body');
       const statusDiv = document.getElementById('tabela-clientes-status');
       const info = document.getElementById('paginacao-info');
       const botoes = document.getElementById('paginacao-botoes');
       if (!body) return;
+
+      atualizarCabecalhoLista();
 
       const filtrados = getClientesFiltrados();
       const total = filtrados.length;
@@ -857,10 +969,11 @@ export const clientesRoute: RouteDef = {
       const visiveis = getClientesPaginaAtual();
       if (total === 0) {
         body.innerHTML = '';
-        statusDiv?.classList.remove('hidden');
-        if (statusDiv) statusDiv.innerText = todosClientes.length === 0 ? "Nenhum cliente cadastrado no sistema." : "Nenhum resultado encontrado para a busca.";
+        if (statusDiv) renderEstadoVazio(statusDiv, todosClientes.length === 0);
         if (info) info.innerText = "Mostrando 0-0 de 0 clientes";
         if (botoes) botoes.innerHTML = '';
+        initIcons();
+        updateBatchActionBar();
         return;
       }
 
@@ -895,8 +1008,16 @@ export const clientesRoute: RouteDef = {
     // DELEGAÇÃO DE EVENTOS: Tabela de Clientes
     const bodyTabela = document.getElementById('tabela-clientes-body');
     bodyTabela?.addEventListener('click', (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>('.btn-action');
-      if (!target) return;
+      const alvo = e.target as HTMLElement;
+      const target = alvo.closest<HTMLElement>('.btn-action');
+      if (!target) {
+        // Linha inteira abre a ficha, exceto cliques no checkbox
+        if (alvo.closest('.lp-col-check')) return;
+        const linha = alvo.closest<HTMLElement>('tr[data-id]');
+        const linhaId = parseInt(linha?.getAttribute('data-id') || '0', 10);
+        if (linhaId) abrirDetalhesCliente(linhaId);
+        return;
+      }
       const action = target.getAttribute('data-action');
       const id = parseInt(target.getAttribute('data-id') || '0', 10);
       if (!id) return;
@@ -905,6 +1026,20 @@ export const clientesRoute: RouteDef = {
       else if (action === 'editar') abrirEdicaoCliente(id);
       else if (action === 'excluir') excluirClienteIndividual(id);
       else if (action === 'revelar-senha') revelarSenhaGovTabela(id);
+    });
+
+    // Enter na linha com foco abre a ficha
+    bodyTabela?.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || !(e.target as HTMLElement).matches('tr[data-id]')) return;
+      const linhaId = parseInt((e.target as HTMLElement).getAttribute('data-id') || '0', 10);
+      if (linhaId) abrirDetalhesCliente(linhaId);
+    });
+
+    // Ações do estado vazio (cadastrar / limpar filtros)
+    document.getElementById('tabela-clientes-status')?.addEventListener('click', (e: MouseEvent) => {
+      const acao = (e.target as HTMLElement).closest<HTMLElement>('[data-estado-acao]')?.getAttribute('data-estado-acao');
+      if (acao === 'novo') document.getElementById('btn-abrir-modal-cliente')?.click();
+      else if (acao === 'limpar') { segmentoAtual = 'todos'; limparBusca(); }
     });
 
     // DELEGAÇÃO DE EVENTOS: Paginação
@@ -1163,30 +1298,22 @@ export const clientesRoute: RouteDef = {
       const statusDiv = document.getElementById('tabela-clientes-status');
       if (!body) return Promise.resolve();
 
-      body.innerHTML = '';
-      statusDiv?.classList.remove('hidden');
-      if (statusDiv) statusDiv.innerText = "Carregando clientes...";
+      statusDiv?.classList.add('hidden');
+      body.innerHTML = Array.from({ length: 8 }, () => '<tr><td colspan="8" class="!p-0"><div class="lp-skel"></div></td></tr>').join('');
 
       return fetchTodosClientes()
         .then(data => {
           todosClientes = data;
-          const stats = calcularEstatisticasClientes(todosClientes);
-
-          const setKpiText = (id: string, text: string) => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = text;
-          };
-
-          setKpiText('stat-total-clientes', stats.total.toString());
-          setKpiText('stat-pf-clientes', stats.pf.toString());
-          setKpiText('stat-pj-clientes', stats.pj.toString());
-          setKpiText('stat-incompletos-clientes', stats.incompletos.toString());
-
           renderTabela();
         }).catch(err => {
           console.error("Erro ao obter clientes:", err);
-          statusDiv?.classList.remove('hidden');
-          if (statusDiv) statusDiv.innerHTML = '<span class="text-red-400 font-bold">Erro de conexão ao servidor.</span>';
+          body.innerHTML = '';
+          if (statusDiv) {
+            statusDiv.classList.remove('hidden');
+            statusDiv.innerHTML = '<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">Erro de conexão com o servidor</div><div class="lp-estado-txt">Não foi possível carregar os clientes.</div><button type="button" class="lp-btn-sec" id="btn-recarregar-clientes">Tentar novamente</button></div>';
+            document.getElementById('btn-recarregar-clientes')?.addEventListener('click', () => { loadClientes(); });
+            initIcons();
+          }
         });
     };
 

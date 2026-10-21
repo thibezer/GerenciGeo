@@ -8,7 +8,12 @@ import {
   montarConfirmacaoExclusao,
   renderOpcoesRepresentanteHtml,
   renderDocumentosTabelaHtml,
-  calcularEstatisticasClientes
+  calcularEstatisticasClientes,
+  listarPendenciasCliente,
+  filtrarPorSegmento,
+  contarSegmentos,
+  ordenarClientes,
+  renderLinhasTabelaHtml
 } from '../src/views/clientes/clientes_helpers';
 import type { Cliente } from '../src/types';
 
@@ -109,4 +114,45 @@ test('token só vai para a API do app e nunca para login/cadastro ou para sites 
   assert.equal(deveAnexarAutorizacao(`${base}/auth/register`, base), false);
   assert.equal(deveAnexarAutorizacao('/api.php?action=login', base), false);
   assert.equal(deveAnexarAutorizacao(`${base}/auth/me`, base), true);
+});
+
+test('pendências: cônjuge faltando, CNH vencida e sem contato; cadastro completo não tem nenhuma', () => {
+  const codigos = (c: Cliente) => listarPendenciasCliente(c).map(p => p.codigo);
+  assert.deepEqual(codigos(cli({ estado_civil: 'Casado(a)', nome_conjuge: ' ', telefone: '44999990000' })), ['conjuge']);
+  assert.deepEqual(codigos(cli({ cnh_validade: '2000-01-01', email: 'a@b.com' })), ['cnh-vencida']);
+  assert.deepEqual(codigos(cli({})), ['sem-contato']);
+  assert.deepEqual(codigos(cli({ estado_civil: 'Solteiro(a)', telefone: '44999990000' })), []);
+});
+
+test('segmentos: PF, PJ e pendências filtram e a contagem cobre a lista inteira', () => {
+  assert.deepEqual(ids(filtrarPorSegmento(clientes, 'pj')), [3, 4]);
+  assert.deepEqual(ids(filtrarPorSegmento(clientes, 'pf')), [1, 2]);
+  assert.equal(filtrarPorSegmento(clientes, 'todos'), clientes);
+  // só o cliente 1 tem contato; os demais caem em "sem contato"
+  assert.deepEqual(ids(filtrarPorSegmento(clientes, 'pendencias')), [2, 3, 4]);
+  assert.deepEqual(contarSegmentos(clientes), { todos: 4, pf: 2, pj: 2, pendencias: 3 });
+});
+
+test('ordenação: nome sem acento/caixa, vínculos desc, cidade vazia sempre no fim, sem mutar a entrada', () => {
+  const lista = [
+    cli({ id: 1, nome_completo: 'Ágata', cidade: 'Umuarama', total_propriedades: 1 }),
+    cli({ id: 2, nome_completo: 'beto', cidade: '', total_propriedades: 3, total_levantamentos: 2 }),
+    cli({ id: 3, nome_completo: 'Zeca', cidade: 'Douradina', total_levantamentos: 1 })
+  ];
+  assert.deepEqual(ids(ordenarClientes(lista, 'nome', 'asc')), [1, 2, 3]);
+  assert.deepEqual(ids(ordenarClientes(lista, 'nome', 'desc')), [3, 2, 1]);
+  assert.deepEqual(ids(ordenarClientes(lista, 'vinculos', 'desc')), [2, 1, 3]);
+  assert.deepEqual(ids(ordenarClientes(lista, 'cidade', 'asc')), [3, 1, 2]);
+  assert.deepEqual(ids(lista), [1, 2, 3]);
+});
+
+test('linhas da tabela escapam nome e marcam a seleção', () => {
+  const html = renderLinhasTabelaHtml(
+    [cli({ id: 7, nome_completo: '<img src=x onerror=alert(1)>', cpf_cnpj: '52998224725' })],
+    new Set([7])
+  );
+  assert.ok(!html.includes('<img'));
+  assert.ok(html.includes('&lt;img'));
+  assert.ok(html.includes('is-sel'));
+  assert.ok(html.includes('data-id="7"'));
 });

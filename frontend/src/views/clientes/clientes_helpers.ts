@@ -193,52 +193,160 @@ export const calcularEstatisticasClientes = (clientes: Cliente[]): ClienteEstati
   return { total: clientes.length, pf, pj, incompletos };
 };
 
+// ---------------------------------------------------------------------------
+// Listagem: segmentos, pendências, ordenação e renderização das linhas
+// (padrão de tela de listagem — ver "Arquivos .md/PADRAO_TELA_LISTAGEM.md")
+// ---------------------------------------------------------------------------
+
+export type SegmentoCliente = 'todos' | 'pf' | 'pj' | 'pendencias';
+export type CampoOrdenacaoCliente = 'nome' | 'cidade' | 'vinculos';
+export type DirecaoOrdenacao = 'asc' | 'desc';
+
+export interface PendenciaCliente {
+  codigo: 'conjuge' | 'cnh-vencida' | 'sem-contato';
+  rotulo: string;
+  tom: 'warn' | 'danger';
+}
+
+const nomeDoCliente = (cli: Cliente): string => cli.nome_completo || (cli as { nome?: string }).nome || 'Sem Nome';
+
+const casadoOuUniaoEstavel = (cli: Cliente): boolean => {
+  const estCivil = cli.estado_civil || '';
+  return estCivil.includes('Casado') || estCivil.includes('União Estável');
+};
+
+/** O que falta/vence no cadastro e merece atenção do operador. Vazio = cadastro em ordem. */
+export const listarPendenciasCliente = (cli: Cliente): PendenciaCliente[] => {
+  const pendencias: PendenciaCliente[] = [];
+  if (casadoOuUniaoEstavel(cli) && !(cli.nome_conjuge || '').trim()) {
+    pendencias.push({ codigo: 'conjuge', rotulo: 'Cônjuge pendente', tom: 'warn' });
+  }
+  if (isCnhVencida(cli.cnh_validade)) {
+    pendencias.push({ codigo: 'cnh-vencida', rotulo: 'CNH vencida', tom: 'danger' });
+  }
+  if (!(cli.telefone || '').trim() && !(cli.email || '').trim()) {
+    pendencias.push({ codigo: 'sem-contato', rotulo: 'Sem contato', tom: 'warn' });
+  }
+  return pendencias;
+};
+
+export const filtrarPorSegmento = <T extends Cliente>(clientes: T[], segmento: SegmentoCliente): T[] => {
+  switch (segmento) {
+    case 'pf': return clientes.filter(c => !ehPessoaJuridica(c));
+    case 'pj': return clientes.filter(c => ehPessoaJuridica(c));
+    case 'pendencias': return clientes.filter(c => listarPendenciasCliente(c).length > 0);
+    default: return clientes;
+  }
+};
+
+/** Contagem de cada segmento (sobre a lista inteira, para o número no chip não mudar com a busca). */
+export const contarSegmentos = (clientes: Cliente[]): Record<SegmentoCliente, number> => ({
+  todos: clientes.length,
+  pf: filtrarPorSegmento(clientes, 'pf').length,
+  pj: filtrarPorSegmento(clientes, 'pj').length,
+  pendencias: filtrarPorSegmento(clientes, 'pendencias').length
+});
+
+const totalVinculos = (cli: Cliente): number => (cli.total_propriedades || 0) + (cli.total_levantamentos || 0);
+
+/** Ordenação estável e sem mutar a lista de entrada; nome/cidade em pt-BR ignorando acentos e caixa. */
+export const ordenarClientes = <T extends Cliente>(clientes: T[], campo: CampoOrdenacaoCliente, direcao: DirecaoOrdenacao): T[] => {
+  const fator = direcao === 'asc' ? 1 : -1;
+  const comparaTexto = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
+  return [...clientes].sort((a, b) => {
+    let resultado = 0;
+    if (campo === 'nome') {
+      resultado = comparaTexto(nomeDoCliente(a), nomeDoCliente(b));
+    } else if (campo === 'cidade') {
+      const ca = (a.cidade || '').trim();
+      const cb = (b.cidade || '').trim();
+      // Sem cidade vai sempre para o fim, qualquer que seja a direção
+      if (!ca && cb) return 1;
+      if (ca && !cb) return -1;
+      resultado = comparaTexto(ca, cb);
+    } else {
+      resultado = totalVinculos(a) - totalVinculos(b);
+    }
+    if (resultado !== 0) return resultado * fator;
+    // Empate: desempata por nome A-Z em qualquer direção, para a ordem não "pular" ao inverter
+    return comparaTexto(nomeDoCliente(a), nomeDoCliente(b));
+  });
+};
+
+const renderContador = (icone: string, titulo: string, valor: number): string => `
+  <span class="lp-cnt ${valor ? '' : 'is-zero'}" title="${titulo}: ${valor}">
+    <i data-lucide="${icone}"></i>${valor}
+  </span>`;
+
 export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados: Set<number>): string => {
   return visiveis.map(cli => {
     const isSel = clientesSelecionados.has(cli.id);
-    const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.01]';
     const isPj = ehPessoaJuridica(cli);
-    const badgeTipo = isPj 
-      ? '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">PJ</span>'
-      : '<span class="text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">PF</span>';
+    const nomeExibicao = nomeDoCliente(cli);
+    const nomeEsc = escapeHtml(nomeExibicao);
+    const badgeTipo = isPj
+      ? '<span class="lp-tag lp-tag-pj">PJ</span>'
+      : '<span class="lp-tag lp-tag-pf">PF</span>';
+    const telefone = (cli.telefone || '').trim();
+    const email = (cli.email || '').trim();
+    // UF sozinha é ruído (o cadastro assume PR por padrão): só mostra quando há cidade
+    const cidadeUf = (cli.cidade || '').trim()
+      ? [cli.cidade, cli.estado].map(v => (v || '').trim()).filter(Boolean).join(' / ')
+      : '';
+    const pendencias = listarPendenciasCliente(cli);
+    const temGov = Boolean(cli.tem_senha_gov || cli.senha_gov);
 
-    const nomeExibicao = cli.nome_completo || (cli as any).nome || 'Sem Nome';
+    const celulaContato = telefone || email
+      ? `<div class="lp-id-txt">
+           <span class="lp-mono" style="font-size:12.5px">${telefone ? escapeHtml(telefone) : '<span class="lp-muted">—</span>'}</span>
+           <span class="lp-sub" title="${escapeHtml(email)}">${email ? escapeHtml(email) : '<span class="lp-muted">sem e-mail</span>'}</span>
+         </div>`
+      : '<span class="lp-muted">—</span>';
+
+    const celulaSituacao = pendencias.length
+      ? pendencias.map(p => `<span class="lp-tag ${p.tom === 'danger' ? 'lp-tag-danger' : 'lp-tag-warn'}"><i data-lucide="${p.tom === 'danger' ? 'alert-triangle' : 'alert-circle'}"></i>${p.rotulo}</span>`).join(' ')
+      : '<span class="lp-muted" style="font-size:12px">Em ordem</span>';
+
+    const celulaGov = temGov
+      ? `<span class="inline-flex items-center gap-1">
+           <span class="lp-mono" id="senha-gov-val-${cli.id}" style="font-size:12.5px">••••••••</span>
+           <button type="button" class="lp-ico-btn btn-action" data-action="revelar-senha" data-id="${cli.id}" title="Mostrar/ocultar senha GOV" aria-label="Mostrar ou ocultar senha GOV de ${nomeEsc}">
+             <i data-lucide="eye"></i>
+           </button>
+         </span>`
+      : '<span class="lp-muted">—</span>';
 
     return `
-      <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${cli.id}">
-        <td class="py-1.5 px-3">
+      <tr class="${isSel ? 'is-sel' : ''}" data-id="${cli.id}" tabindex="0" aria-label="Abrir ficha de ${nomeEsc}">
+        <td class="lp-col-check">
           <ui-checkbox class="check-cliente" data-id="${cli.id}" ${isSel ? 'marcado' : ''}></ui-checkbox>
         </td>
-        <td class="py-1.5 px-3 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72 btn-action" data-action="detalhes" data-id="${cli.id}">
-          <ui-avatar nome="${escapeHtml(nomeExibicao)}" tamanho="sm"></ui-avatar>
-          <div class="min-w-0 flex-1 flex items-center gap-1.5">
-            <span class="truncate font-semibold">${escapeHtml(nomeExibicao)}</span>
-            ${badgeTipo}
+        <td>
+          <div class="lp-id">
+            <ui-avatar nome="${nomeEsc}" tamanho="sm"></ui-avatar>
+            <div class="lp-id-txt">
+              <div class="lp-id-nome"><span title="${nomeEsc}">${nomeEsc}</span>${badgeTipo}</div>
+              <span class="lp-sub lp-mono">${escapeHtml(aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')) || '<span class="lp-muted">sem documento</span>'}</span>
+            </div>
           </div>
         </td>
-        <td class="py-1.5 px-3 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
-        <td class="py-1.5 px-3 font-mono text-white/75 font-medium">
-          ${(cli.tem_senha_gov || cli.senha_gov) ? `
-            <div class="flex items-center gap-1.5 font-mono">
-              <span id="senha-gov-val-${cli.id}">••••••••</span>
-              <button type="button" class="text-white/40 hover:text-mint-vibrant transition-colors p-1 cursor-pointer btn-action" data-action="revelar-senha" data-id="${cli.id}" title="Mostrar/Ocultar Senha GOV">
-                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-          ` : '-'}
+        <td class="lp-oculta-md">${celulaContato}</td>
+        <td class="lp-oculta-lg"><span class="lp-sub" style="font-size:13px;color:var(--lp-text)">${cidadeUf ? escapeHtml(cidadeUf) : '<span class="lp-muted">—</span>'}</span></td>
+        <td class="lp-col-num">
+          <span class="lp-vinculos">
+            ${renderContador('home', 'Propriedades', cli.total_propriedades || 0)}
+            ${renderContador('map-pin', 'Levantamentos', cli.total_levantamentos || 0)}
+          </span>
         </td>
-        <td class="py-1.5 px-3 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>
-        <td class="py-1.5 px-3 text-center font-mono font-medium">${cli.total_levantamentos || 0}</td>
-        <td class="py-1.5 px-3 text-right">
-          <div class="flex items-center justify-end gap-1">
-            <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="detalhes" data-id="${cli.id}" title="Ver Detalhes">
-              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+        <td class="lp-oculta-xl">${celulaGov}</td>
+        <td class="lp-oculta-sm">${celulaSituacao}</td>
+        <td class="lp-col-acoes">
+          <div class="lp-acoes">
+            <button type="button" class="lp-ico-btn btn-action" data-action="editar" data-id="${cli.id}" title="Editar" aria-label="Editar ${nomeEsc}">
+              <i data-lucide="edit"></i>
             </button>
-            <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="editar" data-id="${cli.id}" title="Editar">
-              <i data-lucide="edit" class="w-3.5 h-3.5"></i>
-            </button>
-            <button class="p-1 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="excluir" data-id="${cli.id}" title="Excluir">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <button type="button" class="lp-ico-btn is-danger btn-action" data-action="excluir" data-id="${cli.id}" title="Excluir" aria-label="Excluir ${nomeEsc}">
+              <i data-lucide="trash-2"></i>
             </button>
           </div>
         </td>
@@ -247,36 +355,7 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
   }).join('');
 };
 
-export const renderBotoesPaginacaoHtml = (paginaAtual: number, totalPaginas: number): string => {
-  let pagButtonsHtml = '';
-  if (totalPaginas > 1) {
-    pagButtonsHtml += `
-      <button class="h-7 px-2.5 rounded border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-all font-bold flex items-center justify-center cursor-pointer btn-page" ${paginaAtual === 1 ? 'disabled' : ''} data-page="${paginaAtual - 1}">
-        Anterior
-      </button>
-    `;
-    
-    for (let p = 1; p <= totalPaginas; p++) {
-      if (p === 1 || p === totalPaginas || (p >= paginaAtual - 1 && p <= paginaAtual + 1)) {
-        const activeClass = p === paginaAtual ? 'bg-mint-vibrant text-forest-deep border-transparent font-bold' : 'border-white/10 hover:bg-white/5 text-white/70';
-        pagButtonsHtml += `
-          <button class="w-7 h-7 rounded border text-xs font-mono transition-all flex items-center justify-center cursor-pointer btn-page ${activeClass}" data-page="${p}">
-            ${p}
-          </button>
-        `;
-      } else if (p === paginaAtual - 2 || p === paginaAtual + 2) {
-        pagButtonsHtml += `<span class="px-1 text-white/20 select-none">...</span>`;
-      }
-    }
-
-    pagButtonsHtml += `
-      <button class="h-7 px-2.5 rounded border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-all font-bold flex items-center justify-center cursor-pointer btn-page" ${paginaAtual === totalPaginas ? 'disabled' : ''} data-page="${paginaAtual + 1}">
-        Próxima
-      </button>
-    `;
-  }
-  return pagButtonsHtml;
-};
+export { renderBotoesPaginacaoHtml } from '../../utils/lista_padrao';
 
 export const renderMetadadosTabelaHtml = (metadadosObj: Record<string, string>): string => {
   const entries = Object.entries(metadadosObj);

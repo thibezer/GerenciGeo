@@ -1,77 +1,85 @@
 export const renderClientesTemplate = (): string => `
-    <div class="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
-      <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
-        <div class="flex items-center gap-2">
-          <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Clientes</h2>
-          <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 leading-none flex items-center gap-1" title="Total de Clientes">
-            <i data-lucide="users" class="w-3 h-3"></i>
-            <span id="stat-total-clientes">0</span>
-          </span>
+    <div class="gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior (padrão de listagem): título + segmentos + busca + ação primária -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo">Clientes</h2>
+          <div class="lp-seg" id="seg-clientes" role="group" aria-label="Filtrar clientes por tipo">
+            <button type="button" class="lp-seg-btn is-active" data-seg="todos" aria-pressed="true">Todos <span class="lp-seg-n" id="seg-n-todos">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="pf" aria-pressed="false">Pessoa física <span class="lp-seg-n" id="seg-n-pf">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="pj" aria-pressed="false">Pessoa jurídica <span class="lp-seg-n" id="seg-n-pj">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="pendencias" data-tom="warn" aria-pressed="false" title="Cônjuge faltando, CNH vencida ou sem contato">Pendências <span class="lp-seg-n" id="seg-n-pendencias">0</span></button>
+          </div>
         </div>
-        <div class="flex items-center gap-1.5">
-           <input type="text" placeholder="Buscar cliente por nome, CPF ou CNPJ..." class="glass-input text-[11px] w-48 sm:w-60 md:w-72 h-[26px] py-0 px-2 leading-none" id="busca-cliente" />
-           <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold cursor-pointer" id="btn-abrir-modal-cliente">
-              <i data-lucide="plus" class="w-3 h-3"></i>
-              Novo Cliente
-           </button>
+        <div class="lp-bar-right">
+          <label class="lp-busca" id="busca-wrap">
+            <i data-lucide="search"></i>
+            <input type="text" id="busca-cliente" placeholder="Buscar por nome, CPF/CNPJ, e-mail ou telefone" autocomplete="off" aria-label="Buscar cliente" />
+            <span class="lp-busca-fim">
+              <button type="button" class="lp-busca-limpar" id="busca-limpar" aria-label="Limpar busca"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+              <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
+            </span>
+          </label>
+          <button type="button" class="lp-btn-primario" id="btn-abrir-modal-cliente">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Novo cliente
+          </button>
         </div>
       </div>
 
       <!-- Tabela Principal de Clientes -->
-      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col flex-1 min-h-0">
-        <!-- Tabela -->
-        <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
-          <table class="w-full text-left border-collapse">
+      <div class="lp-card">
+        <div class="lp-wrap overflow-x-auto overflow-y-auto flex-1 min-h-0">
+          <table class="lp-tabela">
             <thead>
-              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
-                <th class="py-1.5 px-3 w-10">
-                  <ui-checkbox id="check-all-clientes"></ui-checkbox>
-                </th>
-                <th class="py-1.5 px-3">Nome Completo</th>
-                <th class="py-1.5 px-3">CPF / CNPJ</th>
-                <th class="py-1.5 px-3">Senha GOV</th>
-                <th class="py-1.5 px-3 text-center">Propriedades</th>
-                <th class="py-1.5 px-3 text-center">Projetos</th>
-                <th class="py-1.5 px-3 text-right">Ações</th>
+              <tr>
+                <th class="lp-col-check"><ui-checkbox id="check-all-clientes"></ui-checkbox></th>
+                <th class="lp-ordenavel" data-ordem="nome" aria-sort="ascending" tabindex="0">Cliente<span class="lp-sort-ico"></span></th>
+                <th class="lp-oculta-md">Contato</th>
+                <th class="lp-ordenavel lp-oculta-lg" data-ordem="cidade" tabindex="0">Cidade<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-col-num" data-ordem="vinculos" tabindex="0" title="Propriedades e levantamentos vinculados">Vínculos<span class="lp-sort-ico"></span></th>
+                <th class="lp-oculta-xl">Senha GOV</th>
+                <th class="lp-oculta-sm">Situação</th>
+                <th class="lp-col-acoes"><span class="sr-only">Ações</span></th>
               </tr>
             </thead>
-            <tbody id="tabela-clientes-body" class="divide-y divide-white/[0.02]">
+            <tbody id="tabela-clientes-body">
               <!-- Linhas via JS -->
             </tbody>
           </table>
-        </div>
 
-        <!-- Status de Tabela Vazia / Carregando -->
-        <div id="tabela-clientes-status" class="text-center py-12 text-white/30 text-sm hidden">
-          Carregando clientes...
+          <!-- Estado vazio / carregando / erro -->
+          <div id="tabela-clientes-status" class="hidden" role="status" aria-live="polite"></div>
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-1.5 sm:p-2 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-2 bg-white/[0.01] text-[11px] text-white/40 shrink-0 mt-auto">
+        <div class="lp-rodape">
           <div class="flex items-center gap-2">
-            <span>Exibir por página:</span>
-            <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
+            <span>Linhas por página</span>
+            <ui-select id="paginacao-limite" value="25" class="w-16 h-7">
               <option value="10">10</option>
               <option value="25">25</option>
               <option value="50">50</option>
+              <option value="100">100</option>
             </ui-select>
             <span id="paginacao-info">Mostrando 0-0 de 0 clientes</span>
           </div>
-          <div class="flex items-center gap-1.5" id="paginacao-botoes">
+          <div class="flex items-center gap-1" id="paginacao-botoes">
             <!-- Botões dinâmicos -->
           </div>
         </div>
-      </ui-card>
+      </div>
 
+    <!-- Fora do fluxo (absolute): barra de lote e modais não podem gerar gap/margem abaixo do card -->
+    <div class="absolute">
     <!-- BARRA DE AÇÕES EM LOTE FLUTUANTE -->
-    <div id="batch-action-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 z-40 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
-      <span class="text-xs text-white/80 font-mono"><strong id="batch-selected-count" class="text-mint-vibrant">0</strong> selecionados</span>
+    <div id="batch-action-bar" class="lp-lote hidden animate-in fade-in slide-in-from-bottom-6 duration-300" role="region" aria-label="Ações em lote">
+      <span><b id="batch-selected-count">0</b> selecionado(s)</span>
       <div class="h-4 w-px bg-white/10"></div>
       <div class="flex gap-2">
         <ui-botao variante="destrutivo" id="btn-batch-delete">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-          Excluir Selecionados
+          Excluir selecionados
         </ui-botao>
         <ui-botao variante="secundario" id="btn-batch-cancel">
           Cancelar
@@ -775,6 +783,8 @@ export const renderClientesTemplate = (): string => `
           </div>
        </div>
     </ui-modal>
+    </div>
+    </div>
 
 
 `;

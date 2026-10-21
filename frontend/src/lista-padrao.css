@@ -1,0 +1,242 @@
+/* ==========================================================================
+   PADRÃO DE TELA DE LISTAGEM (prefixo .lp-)
+   Criado na tela de Clientes. Documentação: "Arquivos .md/PADRAO_TELA_LISTAGEM.md"
+   Reaproveite estas classes nas demais listagens (Propriedades, Levantamentos...).
+   Cores/raios seguem os tokens do design system (mint-vibrant #00e08a, fundo forest).
+   ========================================================================== */
+
+:root {
+  --lp-accent: #00e08a;
+  --lp-warn: #fbbf24;
+  --lp-danger: #f87171;
+  --lp-text: rgba(255, 255, 255, 0.92);
+  --lp-text-2: rgba(255, 255, 255, 0.62);
+  --lp-text-3: rgba(255, 255, 255, 0.40);
+  --lp-line: rgba(255, 255, 255, 0.06);
+  --lp-line-strong: rgba(255, 255, 255, 0.12);
+  --lp-head-bg: #0e1712;
+  --lp-row-h: 48px;
+}
+
+/* ---------- Barra superior: título + segmentos + busca + ação primária ---------- */
+.lp-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 8px; border-bottom: 1px solid var(--lp-line); flex-shrink: 0; }
+.lp-bar-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex-wrap: wrap; }
+.lp-bar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.lp-titulo { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: #fff; line-height: 1; }
+
+/* Segmentos (filtro rápido de seleção única, com contagem) */
+.lp-seg { display: inline-flex; padding: 2px; gap: 2px; background: rgba(0, 0, 0, 0.28); border: 1px solid var(--lp-line-strong); border-radius: 8px; }
+.lp-seg-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: transparent; color: var(--lp-text-2); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+.lp-seg-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+.lp-seg-btn:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 1px; }
+.lp-seg-btn.is-active { background: rgba(0, 224, 138, 0.14); color: var(--lp-accent); box-shadow: inset 0 0 0 1px rgba(0, 224, 138, 0.28); }
+.lp-seg-n { font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--lp-text-2); line-height: 16px; }
+.lp-seg-btn.is-active .lp-seg-n { background: rgba(0, 224, 138, 0.2); color: var(--lp-accent); }
+.lp-seg-btn[data-tom="warn"] .lp-seg-n:not(.is-zero) { background: rgba(251, 191, 36, 0.18); color: var(--lp-warn); }
+
+/* Busca com ícone, botão limpar e dica de atalho */
+.lp-busca { position: relative; display: flex; align-items: center; width: clamp(200px, 26vw, 340px); }
+.lp-busca > svg, .lp-busca > i { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--lp-text-3); pointer-events: none; }
+.lp-busca input { width: 100%; height: 30px; padding: 0 52px 0 30px; font-size: 12.5px; color: var(--lp-text); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); border-radius: 8px; outline: none; transition: border-color .15s, background .15s; }
+.lp-busca input::placeholder { color: var(--lp-text-3); }
+.lp-busca input:focus { border-color: rgba(0, 224, 138, 0.6); background: rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 3px rgba(0, 224, 138, 0.12); }
+.lp-busca-fim { position: absolute; right: 6px; display: flex; align-items: center; gap: 4px; }
+.lp-kbd { font-family: ui-monospace, monospace; font-size: 10px; line-height: 1; padding: 3px 5px; border-radius: 4px; color: var(--lp-text-3); border: 1px solid var(--lp-line-strong); background: rgba(255, 255, 255, 0.04); }
+.lp-busca-limpar { display: none; width: 20px; height: 20px; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: transparent; color: var(--lp-text-2); cursor: pointer; }
+.lp-busca-limpar:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.lp-busca.tem-valor .lp-busca-limpar { display: inline-flex; }
+.lp-busca.tem-valor .lp-kbd { display: none; }
+
+/* Botão primário da barra (mesma altura do campo de busca) */
+.lp-btn-primario { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 700; color: #07130d; background: linear-gradient(90deg, #00e08a, #00c97c); border: 0; border-radius: 8px; cursor: pointer; box-shadow: 0 0 14px rgba(0, 224, 138, 0.28); transition: filter .15s, transform .1s; white-space: nowrap; }
+.lp-btn-primario:hover { filter: brightness(1.08); }
+.lp-btn-primario:active { transform: scale(0.97); }
+.lp-btn-primario:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Card da listagem ----------
+   NÃO use <ui-card> aqui: o conteúdo dele vai para um .ui-card__body sem min-height:0, então a
+   rolagem interna da tabela não funciona e o rodapé é cortado quando há muitas linhas. */
+.lp-card { display: flex; flex-direction: column; flex: 1 1 0%; min-height: 0; overflow: hidden; background-color: var(--ui-cor-fundo-card, #18181c); border: 1px solid var(--ui-cor-borda, rgba(255, 255, 255, 0.12)); border-radius: var(--ui-raio-borda, 8px); }
+
+/* ---------- Tabela ---------- */
+.lp-tabela { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+.lp-tabela thead th { position: sticky; top: 0; z-index: 10; background: var(--lp-head-bg); padding: 0 12px; height: 34px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--lp-text-3); border-bottom: 1px solid var(--lp-line-strong); white-space: nowrap; }
+.lp-tabela thead th.lp-ordenavel { cursor: pointer; user-select: none; }
+.lp-tabela thead th.lp-ordenavel:hover { color: #fff; }
+.lp-tabela thead th[aria-sort="ascending"], .lp-tabela thead th[aria-sort="descending"] { color: var(--lp-accent); }
+.lp-sort-ico { display: inline-block; width: 10px; margin-left: 4px; opacity: 0; font-size: 10px; }
+.lp-tabela thead th.lp-ordenavel:hover .lp-sort-ico { opacity: .5; }
+.lp-tabela thead th[aria-sort="ascending"] .lp-sort-ico, .lp-tabela thead th[aria-sort="descending"] .lp-sort-ico { opacity: 1; }
+.lp-tabela thead th[aria-sort="ascending"] .lp-sort-ico::before { content: "▲"; }
+.lp-tabela thead th[aria-sort="descending"] .lp-sort-ico::before { content: "▼"; }
+.lp-tabela thead th.lp-ordenavel:not([aria-sort="ascending"]):not([aria-sort="descending"]) .lp-sort-ico::before { content: "▲"; }
+
+.lp-tabela tbody td { height: var(--lp-row-h); padding: 4px 12px; font-size: 13px; color: var(--lp-text); border-bottom: 1px solid var(--lp-line); vertical-align: middle; }
+.lp-tabela tbody tr { cursor: pointer; transition: background .12s; }
+.lp-tabela tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
+.lp-tabela tbody tr:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: -2px; }
+.lp-tabela tbody tr.is-sel { background: rgba(0, 224, 138, 0.07); box-shadow: inset 2px 0 0 var(--lp-accent); }
+
+.lp-col-check { width: 44px; padding-right: 0 !important; }
+.lp-col-num { text-align: center; }
+.lp-col-acoes { width: 84px; text-align: right; }
+
+/* Célula de identidade: nome + linha secundária */
+.lp-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lp-id-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lp-id-nome { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; font-size: 13.5px; color: #fff; }
+.lp-id-nome > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-sub { font-size: 12px; color: var(--lp-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-mono { font-family: ui-monospace, 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.lp-muted { color: var(--lp-text-3); }
+
+/* Etiquetas (outline, sem competir com os dados — design_system.md §6.2) */
+.lp-tag { display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; font-size: 10.5px; font-weight: 700; line-height: 1; border-radius: 5px; border: 1px solid transparent; white-space: nowrap; }
+.lp-tag-pf { color: var(--lp-accent); background: rgba(0, 224, 138, 0.08); border-color: rgba(0, 224, 138, 0.24); }
+.lp-tag-pj { color: #a5b4fc; background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.3); }
+.lp-tag-info { color: #7dd3fc; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.28); }
+.lp-tag-mute { color: var(--lp-text-2); background: rgba(255, 255, 255, 0.05); border-color: var(--lp-line-strong); }
+.lp-tag-warn { color: var(--lp-warn); background: rgba(251, 191, 36, 0.08); border-color: rgba(251, 191, 36, 0.28); }
+.lp-tag-danger { color: var(--lp-danger); background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.3); }
+.lp-tag svg, .lp-tag i { width: 11px; height: 11px; }
+
+/* Contadores de vínculo (ícone + número; zero fica apagado) */
+.lp-vinculos { display: inline-flex; align-items: center; gap: 12px; }
+.lp-cnt { display: inline-flex; align-items: center; gap: 4px; font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; color: #fff; }
+.lp-cnt svg, .lp-cnt i { width: 13px; height: 13px; color: var(--lp-text-3); }
+.lp-cnt.is-zero { color: var(--lp-text-3); font-weight: 400; }
+
+/* Ações de linha: alvo de 28px (WCAG 2.2 · 2.5.8 pede >= 24px) */
+.lp-acoes { display: inline-flex; align-items: center; gap: 4px; opacity: .55; transition: opacity .12s; }
+.lp-tabela tbody tr:hover .lp-acoes, .lp-tabela tbody tr:focus-within .lp-acoes { opacity: 1; }
+.lp-ico-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--lp-text-2); cursor: pointer; transition: background .12s, color .12s; }
+.lp-ico-btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--lp-accent); }
+.lp-ico-btn.is-danger:hover { background: rgba(248, 113, 113, 0.12); color: var(--lp-danger); }
+.lp-ico-btn:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 0; }
+.lp-ico-btn svg, .lp-ico-btn i { width: 15px; height: 15px; }
+
+/* ---------- Estados vazio / carregando / erro ---------- */
+.lp-estado { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 56px 16px; text-align: center; color: var(--lp-text-2); }
+.lp-estado-ico { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); color: var(--lp-text-3); }
+.lp-estado-ico svg, .lp-estado-ico i { width: 20px; height: 20px; }
+.lp-estado-titulo { font-size: 14px; font-weight: 600; color: #fff; }
+.lp-estado-txt { font-size: 12.5px; max-width: 360px; }
+.lp-btn-sec { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--lp-text); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--lp-line-strong); border-radius: 8px; cursor: pointer; }
+.lp-btn-sec:hover { background: rgba(255, 255, 255, 0.1); }
+.lp-skel { height: var(--lp-row-h); border-bottom: 1px solid var(--lp-line); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent); background-size: 200% 100%; animation: lp-shimmer 1.4s infinite linear; }
+@keyframes lp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .lp-skel { animation: none; } }
+
+/* ---------- Rodapé / paginação ---------- */
+.lp-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--lp-line); font-size: 12px; color: var(--lp-text-2); background: rgba(255, 255, 255, 0.015); flex-shrink: 0; }
+.lp-pag-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 8px; font-size: 12px; font-family: ui-monospace, monospace; color: var(--lp-text-2); background: transparent; border: 1px solid var(--lp-line-strong); border-radius: 6px; cursor: pointer; transition: background .12s; }
+.lp-pag-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.lp-pag-btn:disabled { opacity: .35; cursor: default; }
+.lp-pag-btn.is-active { background: var(--lp-accent); border-color: transparent; color: #07130d; font-weight: 700; }
+
+/* ---------- Barra de seleção em lote ---------- */
+.lp-lote { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 16px; background: rgba(12, 21, 16, 0.96); backdrop-filter: blur(12px); border: 1px solid rgba(0, 224, 138, 0.25); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); font-size: 13px; color: var(--lp-text); }
+.lp-lote b { color: var(--lp-accent); font-family: ui-monospace, monospace; }
+.lp-lote.hidden { display: none; }
+
+/* ---------- Responsivo: colunas secundárias somem antes do scroll horizontal ----------
+   Container queries (não media queries): a largura útil é a da tabela, que perde ~230px para a sidebar. */
+.lp-wrap { container: lp / inline-size; }
+@container lp (max-width: 1179px) { .lp-oculta-xl { display: none !important; } }
+@container lp (max-width: 979px)  { .lp-oculta-lg { display: none !important; } }
+@container lp (max-width: 759px)  { .lp-oculta-md { display: none !important; } }
+@container lp (max-width: 599px)  { .lp-oculta-sm { display: none !important; } }
+@media (max-width: 1023px) { .lp-busca { width: 100%; } .lp-bar-right { width: 100%; } }
+
+/* ==========================================================================
+   Blocos extras do padrão (usados em painéis como Contagem de Pontos)
+   ========================================================================== */
+
+/* Tabela só de leitura: linha não é clicável */
+.lp-tabela.is-static tbody tr { cursor: default; }
+.lp-tabela.is-static tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
+.lp-tabela tbody td[colspan] { padding: 0; }
+
+/* Barra de ferramentas interna do card (abas + filtros + busca) */
+.lp-card-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; border-bottom: 1px solid var(--lp-line); background: rgba(255, 255, 255, 0.015); flex-shrink: 0; }
+
+/* Bloco de destaque (ex.: "próximo ponto disponível") */
+.lp-tile { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background-color: var(--ui-cor-fundo-card, #18181c); border: 1px solid var(--ui-cor-borda, rgba(255, 255, 255, 0.12)); border-radius: var(--ui-raio-borda, 8px); min-width: 0; }
+.lp-tile-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lp-tile-rotulo { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lp-text-3); }
+.lp-tile-valor { display: flex; align-items: center; gap: 6px; }
+.lp-tile-valor > .lp-mono { font-size: 22px; font-weight: 700; line-height: 1.1; color: var(--lp-accent); letter-spacing: 0.01em; }
+.lp-tile-rodape { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* Faixa numérica / código curto */
+.lp-chip { display: inline-block; font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1; padding: 3px 6px; border-radius: 5px; color: var(--lp-text-2); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); }
+
+/* Aviso recolhível (âmbar) e painel de detalhe */
+.lp-aviso { border: 1px solid rgba(251, 191, 36, 0.28); background: rgba(251, 191, 36, 0.05); border-radius: 8px; flex-shrink: 0; }
+.lp-aviso > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--lp-warn); cursor: pointer; list-style: none; }
+.lp-aviso > summary::-webkit-details-marker { display: none; }
+.lp-aviso > summary:hover { background: rgba(251, 191, 36, 0.06); }
+.lp-aviso > summary:focus-visible { outline: 2px solid var(--lp-warn); outline-offset: -2px; border-radius: 8px; }
+.lp-aviso-corpo { padding: 4px 12px 10px; max-height: 160px; overflow-y: auto; }
+.lp-painel { padding: 10px 12px; border: 1px solid var(--lp-line-strong); border-radius: 8px; background: rgba(255, 255, 255, 0.025); max-height: 140px; overflow-y: auto; flex-shrink: 0; }
+.lp-painel.hidden { display: none; }
+
+/* ==========================================================================
+   Terminal de logs e faixa de contexto (Organizador HGO)
+   ========================================================================== */
+.lp-faixa { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 44px; background-color: var(--ui-cor-fundo-card, #18181c); border: 1px solid var(--ui-cor-borda, rgba(255, 255, 255, 0.12)); border-radius: var(--ui-raio-borda, 8px); flex-shrink: 0; }
+.lp-faixa-rotulo { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lp-text-3); white-space: nowrap; }
+.lp-faixa-valor { flex: 1; min-width: 0; font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 13px; color: var(--lp-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.lp-faixa-valor.tem-valor { color: #fff; }
+.lp-progresso { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; flex: 1; min-width: 80px; }
+.lp-progresso > div { height: 100%; width: 0; background: var(--lp-accent); transition: width .3s; }
+.lp-terminal { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px; background: #050a08; font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace; font-size: 12.5px; line-height: 1.55; color: var(--lp-text-2); }
+.lp-log { padding: 1px 0; white-space: pre-wrap; word-break: break-word; color: rgba(0, 224, 138, 0.8); }
+.lp-log.is-erro { color: #fb7185; font-weight: 500; }
+.lp-log.is-aviso { color: #facc15; }
+.lp-log.is-sucesso { color: #34d399; font-weight: 600; }
+.lp-log.is-ocioso { color: var(--lp-text-3); }
+.lp-card-titulo { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--lp-line); background: rgba(255, 255, 255, 0.015); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lp-text-3); flex-shrink: 0; }
+.lp-card-titulo svg, .lp-card-titulo i { width: 14px; height: 14px; color: var(--lp-accent); }
+
+/* ==========================================================================
+   Campos de filtro compactos, popover e itens de lista (Banco CCIR)
+   ========================================================================== */
+.lp-campo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lp-campo > span { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--lp-text-3); }
+.lp-campo input, .lp-faixa-num input { height: 30px; padding: 0 10px; font-size: 12.5px; color: var(--lp-text); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); border-radius: 8px; outline: none; min-width: 0; width: 100%; transition: border-color .15s, background .15s; }
+.lp-campo input::placeholder, .lp-faixa-num input::placeholder { color: var(--lp-text-3); }
+.lp-campo input:focus, .lp-faixa-num input:focus { border-color: rgba(0, 224, 138, 0.6); background: rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 3px rgba(0, 224, 138, 0.12); }
+.lp-faixa-num { display: flex; align-items: center; gap: 6px; }
+.lp-faixa-num > span { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--lp-text-3); white-space: nowrap; }
+.lp-faixa-num > i { font-style: normal; color: var(--lp-text-3); }
+.lp-faixa-num input { width: 92px; text-align: center; }
+
+.lp-popover { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; width: 340px; max-width: 86vw; background-color: #101915; border: 1px solid var(--lp-line-strong); border-radius: 10px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55); overflow: hidden; }
+.lp-popover.hidden { display: none; }
+.lp-popover-corpo { max-height: 288px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.lp-planilha { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--lp-line); background: rgba(255, 255, 255, 0.02); }
+.lp-planilha:hover { background: rgba(255, 255, 255, 0.05); }
+.lp-planilha-nome { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-fav { text-decoration: none; }
+.lp-fav:hover { background: rgba(56, 189, 248, 0.12); }
+
+/* ==========================================================================
+   Formulário compacto dentro de card (Área de Fronteira)
+   ========================================================================== */
+.lp-campo select { height: 30px; padding: 0 8px; font-size: 12.5px; color: var(--lp-text); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); border-radius: 8px; outline: none; width: 100%; min-width: 0; cursor: pointer; transition: border-color .15s, background .15s; }
+.lp-campo select:focus { border-color: rgba(0, 224, 138, 0.6); background: rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 3px rgba(0, 224, 138, 0.12); }
+.lp-campo select option { background: #0e1712; color: #fff; }
+.lp-campo input[type="date"] { color-scheme: dark; }
+.lp-campo-rotulo { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--lp-text-3); }
+.lp-link { background: none; border: 0; padding: 2px 4px; font-size: 12px; font-weight: 600; color: var(--lp-text-2); cursor: pointer; border-radius: 4px; }
+.lp-link:hover { color: var(--lp-accent); }
+.lp-link:focus-visible { outline: 2px solid var(--lp-accent); }
+.lp-lista-sel { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding: 8px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--lp-line-strong); border-radius: 8px; }
+.lp-dropzone { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.01); transition: border-color .15s, background .15s; }
+
+/* O CSS sem @layer vence o utilitário `hidden` do Tailwind: sem isto, .hidden não esconde estes blocos */
+.lp-card.hidden, .lp-faixa.hidden, .lp-aviso.hidden, .lp-tile.hidden, .lp-estado.hidden { display: none !important; }
+
+/* Campo inválido (o JS aplica as classes Tailwind border-red-500/50 etc.; o CSS sem @layer as venceria) */
+.lp-campo input.border-red-500\/50, .lp-campo select.border-red-500\/50 { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.06); color: #fecaca; }

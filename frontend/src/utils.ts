@@ -353,6 +353,12 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
   toast.addEventListener('click', removeToast);
 };
 
+/** '2026-06-17' ou '2026-06-17 14:08:10' -> '17/06/2026' (sem passar por Date: evita o dia anterior por fuso). */
+export const formatarDataBr = (iso?: string | null): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((iso || '').trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—');
+};
+
 export const escapeHtml = (unsafe: string | null | undefined): string => {
   if (unsafe === null || unsafe === undefined) return '';
   return String(unsafe)
