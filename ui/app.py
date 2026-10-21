@@ -32,24 +32,16 @@ def main():
         # Trava o CWD para a raiz para evitar side-effects do UAC (que inicia na pasta System32)
         os.chdir(diretorio_raiz)
 
-        # 1. GARANTIA DE ARQUITETURA 64-BIT E ELEVAÇÃO UAC (antes de importar uvicorn/webview)
+        # 1. GARANTIA DE ARQUITETURA 64-BIT (antes de importar uvicorn/webview)
         is_32bit = (struct.calcsize("P") == 4)
-        is_admin = sou_administrador()
-
-        if (is_32bit or not is_admin) and os.environ.get("GERENCIGEO_NO_ADMIN") != "1":
-            python_exe = encontrar_python64() if is_32bit else sys.executable
-            python_exe = python_exe.replace("pythonw.exe", "python.exe")
-            
+        if is_32bit:
+            python_exe = encontrar_python64()
             args_list = [f'"{os.path.abspath(arg)}"' if i == 0 else f'"{arg}"' for i, arg in enumerate(sys.argv)]
             args = " ".join(args_list)
             cwd = diretorio_raiz
-            try:
-                ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", python_exe, args, cwd, 1)
-                if ret > 32:
-                    sys.exit(0)
-            except Exception:
-                pass
-            # Se não conseguiu elevar com UAC, prossegue sem elevação para não travar a aplicação
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "open", python_exe, args, cwd, 1)
+            if ret > 32:
+                sys.exit(0)
 
         # 2. IMPORTAÇÕES DO BACKEND (após garantir Python 64-bit e Admin)
         import uvicorn
