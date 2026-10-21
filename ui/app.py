@@ -116,6 +116,10 @@ def main():
                     js_api=api
                 )
 
+        # Define diretório de cache persistente para o WebView2 local
+        user_data_dir = os.path.join(diretorio_raiz, ".webview_cache")
+        os.makedirs(user_data_dir, exist_ok=True)
+
         api = WindowAPI()
         window = webview.create_window(
             "GerenciGeo",
@@ -126,7 +130,7 @@ def main():
             frameless=False,
             js_api=api
         )
-        webview.start(debug=True, private_mode=False)
+        webview.start(debug=False, private_mode=False, storage_path=user_data_dir)
 
     except Exception as e:
         error_msg = traceback.format_exc()
