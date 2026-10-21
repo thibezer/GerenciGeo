@@ -5,8 +5,8 @@
 import { initIcons, showToast } from '../../utils';
 import { API_BASE } from '../../config';
 import { realtimeSyncClient } from '../../utils/realtime_sync_client';
-import type { SyncEventItem, SyncStatusPayload } from '../../utils/realtime_sync_client';
-
+import type { SyncStatusPayload } from '../../utils/realtime_sync_client';
+import { renderizarFeedEventos, exibirResultadoSync } from './nuvem_sync_feed';
 
 let activeCtx: any = null;
 let isInitialized = false;
@@ -60,6 +60,10 @@ export function initNuvemSyncModal(ctx?: any) {
   const labelResultadoHora = document.getElementById('label-nuvem-resultado-hora') as HTMLElement;
   const labelResultadoMsg = document.getElementById('label-nuvem-resultado-msg') as HTMLElement;
 
+  const atualizarFeed = () => renderizarFeedEventos(feedEventos, labelContadorEventos);
+  const notificarResultado = (sucesso: boolean, titulo: string, msg: string) =>
+    exibirResultadoSync(containerResultado, labelResultadoStatus, labelResultadoHora, labelResultadoMsg, sucesso, titulo, msg);
+
   const fecharModal = () => {
     modal.classList.add('hidden');
   };
@@ -68,7 +72,7 @@ export function initNuvemSyncModal(ctx?: any) {
     modal.classList.remove('hidden');
     initIcons();
     await verificarStatusNuvem();
-    renderizarFeedEventos();
+    atualizarFeed();
   };
 
   document.addEventListener('click', (e) => {
@@ -97,57 +101,6 @@ export function initNuvemSyncModal(ctx?: any) {
   window.addEventListener('gerencigeo:abrir_modal_nuvem', () => {
     abrirModal();
   });
-
-  /**
-   * Renderiza a lista de eventos recentes de sincronização em tempo real
-   */
-  const renderizarFeedEventos = () => {
-    if (!feedEventos) return;
-    const eventos = realtimeSyncClient.getRecentEvents();
-
-    if (labelContadorEventos) {
-      labelContadorEventos.innerText = `${eventos.length} evento(s)`;
-    }
-
-    if (!eventos || eventos.length === 0) {
-      feedEventos.innerHTML = `<div class="text-white/30 text-center py-2 text-[10px]">Nenhuma atividade recente registrada.</div>`;
-      return;
-    }
-
-    feedEventos.innerHTML = eventos.map((evt: SyncEventItem) => {
-      let iconColor = "text-mint-vibrant";
-      let iconName = "activity";
-
-      if (evt.tipo === 'push') {
-        iconColor = "text-cyan-400";
-        iconName = "upload-cloud";
-      } else if (evt.tipo === 'pull') {
-        iconColor = "text-emerald-400";
-        iconName = "download-cloud";
-      } else if (evt.tipo === 'warning') {
-        iconColor = "text-amber-400";
-        iconName = "alert-circle";
-      } else if (evt.tipo === 'error') {
-        iconColor = "text-red-400";
-        iconName = "x-circle";
-      }
-
-      return `
-        <div class="flex items-start justify-between gap-2 py-1 border-b border-white/5 last:border-0 hover:bg-white/[0.02] px-1 rounded transition-colors">
-          <div class="flex items-start gap-1.5 min-w-0">
-            <span class="${iconColor} shrink-0 mt-0.5"><i data-lucide="${iconName}" class="w-3 h-3"></i></span>
-            <div class="min-w-0">
-              <span class="text-white/90 font-medium block truncate">${evt.titulo}</span>
-              ${evt.detalhe ? `<span class="text-white/40 text-[9px] block truncate">${evt.detalhe}</span>` : ''}
-            </div>
-          </div>
-          <span class="text-white/30 text-[9px] shrink-0 font-mono">${evt.hora}</span>
-        </div>
-      `;
-    }).join('');
-
-    initIcons();
-  };
 
   /**
    * Consulta o backend para checar conexão e autenticação
@@ -298,7 +251,7 @@ export function initNuvemSyncModal(ctx?: any) {
           if (alertaErro) alertaErro.classList.add('hidden');
           showToast("✓ Conectado à Nuvem com sucesso!", "success");
           await verificarStatusNuvem();
-          renderizarFeedEventos();
+          atualizarFeed();
         } else {
           const msg = data.detail || data.mensagem || data.error || "Falha ao autenticar na nuvem.";
           if (alertaErro) {
@@ -336,24 +289,6 @@ export function initNuvemSyncModal(ctx?: any) {
   }
 
   /**
-   * Helper para exibir o log de resultado no modal
-   */
-  const exibirResultadoSync = (sucesso: boolean, titulo: string, msg: string) => {
-    if (!containerResultado) return;
-    containerResultado.classList.remove('hidden');
-    if (labelResultadoStatus) {
-      labelResultadoStatus.innerText = sucesso ? `✓ ${titulo}` : `✕ ${titulo}`;
-      labelResultadoStatus.className = sucesso ? "text-mint-vibrant font-bold" : "text-red-400 font-bold";
-    }
-    if (labelResultadoHora) {
-      labelResultadoHora.innerText = new Date().toLocaleTimeString();
-    }
-    if (labelResultadoMsg) {
-      labelResultadoMsg.innerText = msg;
-    }
-  };
-
-  /**
    * Sincronização Bidirecional (Tudo) Forçada
    */
   if (btnSyncTudo) {
@@ -373,21 +308,21 @@ export function initNuvemSyncModal(ctx?: any) {
           const msg = `Download: ${rec} registros atualizados | Upload: ${env} registros enviados.`;
 
           showToast("✓ Sincronização concluída com sucesso!", "success");
-          exibirResultadoSync(true, "Sincronização Completa", msg);
+          notificarResultado(true, "Sincronização Completa", msg);
           if (labelUltimaSinc) labelUltimaSinc.innerText = data.last_sync || "Agora";
 
           if (activeCtx && typeof activeCtx.loadLevantamentoDetails === 'function') {
             await activeCtx.loadLevantamentoDetails();
           }
-          renderizarFeedEventos();
+          atualizarFeed();
         } else {
           const errDetail = data.detail || data.mensagem || "Falha na sincronização.";
           showToast(errDetail, "error");
-          exibirResultadoSync(false, "Falha na Sincronização", errDetail);
+          notificarResultado(false, "Falha na Sincronização", errDetail);
         }
       } catch (err: any) {
         showToast(err.message || "Erro de conexão com o servidor.", "error");
-        exibirResultadoSync(false, "Erro de Conexão", err.message);
+        notificarResultado(false, "Erro de Conexão", err.message);
       } finally {
         btnSyncTudo.disabled = false;
         btnSyncTudo.innerHTML = originalHtml;
@@ -411,11 +346,11 @@ export function initNuvemSyncModal(ctx?: any) {
         const data = await res.json();
         if (res.ok && data.sucesso) {
           showToast(`✓ Download concluído: ${data.total_recebidos} registros atualizados!`, "success");
-          exibirResultadoSync(true, "Download Concluído", data.mensagem);
+          notificarResultado(true, "Download Concluído", data.mensagem);
           if (activeCtx && typeof activeCtx.loadLevantamentoDetails === 'function') {
             await activeCtx.loadLevantamentoDetails();
           }
-          renderizarFeedEventos();
+          atualizarFeed();
         } else {
           showToast(data.detail || data.mensagem || "Erro ao baixar dados.", "error");
         }
@@ -444,8 +379,8 @@ export function initNuvemSyncModal(ctx?: any) {
         const data = await res.json();
         if (res.ok && data.sucesso) {
           showToast(`✓ Envio concluído: ${data.total_registros} registros transmitidos!`, "success");
-          exibirResultadoSync(true, "Envio Concluído", data.mensagem);
-          renderizarFeedEventos();
+          notificarResultado(true, "Envio Concluído", data.mensagem);
+          atualizarFeed();
         } else {
           showToast(data.detail || data.mensagem || "Erro ao enviar dados.", "error");
         }
@@ -474,7 +409,7 @@ export function initNuvemSyncModal(ctx?: any) {
 
   window.addEventListener('gerencigeo:sync_event', () => {
     if (!modal.classList.contains('hidden')) {
-      renderizarFeedEventos();
+      atualizarFeed();
     }
   });
 }

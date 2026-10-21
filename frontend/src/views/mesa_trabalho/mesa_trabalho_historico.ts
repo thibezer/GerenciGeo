@@ -97,11 +97,11 @@ export class GerenciadorHistoricoMesa {
   private aplicarSnapshot(snapshot: HistoricoSnapshot): void {
     if (!this.ctx.pontosList) return;
 
-    const mapSnapshot = new Map<number, PontoSnapshot>();
-    snapshot.pontos.forEach(p => mapSnapshot.set(p.id, p));
+    const mapSnapshot = new Map<string, PontoSnapshot>();
+    snapshot.pontos.forEach(p => mapSnapshot.set(String(p.id), p));
 
-    this.ctx.pontosList.forEach(pt => {
-      const snap = mapSnapshot.get(pt.id);
+    this.ctx.pontosList.forEach((pt: any) => {
+      const snap = mapSnapshot.get(String(pt.id));
       if (snap) {
         pt.ordem_caminhamento = snap.ordem_caminhamento;
         pt.ignorar_poligono = snap.ignorar_poligono;
