@@ -36,15 +36,20 @@ def main():
         is_32bit = (struct.calcsize("P") == 4)
         is_admin = sou_administrador()
 
-        if is_32bit or not is_admin:
+        if (is_32bit or not is_admin) and os.environ.get("GERENCIGEO_NO_ADMIN") != "1":
             python_exe = encontrar_python64() if is_32bit else sys.executable
             python_exe = python_exe.replace("pythonw.exe", "python.exe")
             
             args_list = [f'"{os.path.abspath(arg)}"' if i == 0 else f'"{arg}"' for i, arg in enumerate(sys.argv)]
             args = " ".join(args_list)
             cwd = diretorio_raiz
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", python_exe, args, cwd, 1)
-            sys.exit(0)
+            try:
+                ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", python_exe, args, cwd, 1)
+                if ret > 32:
+                    sys.exit(0)
+            except Exception:
+                pass
+            # Se não conseguiu elevar com UAC, prossegue sem elevação para não travar a aplicação
 
         # 2. IMPORTAÇÕES DO BACKEND (após garantir Python 64-bit e Admin)
         import uvicorn
@@ -62,6 +67,22 @@ def main():
         print("Iniciando Uvicorn Daemon e Janela Webview Nativa...")
         t = threading.Thread(target=iniciar_servidor, daemon=True)
         t.start()
+
+        # Aguarda ativamente o servidor HTTP subir antes de exibir a janela para evitar tela branca
+        import time
+        import urllib.request
+        server_ready = False
+        for _ in range(60):
+            try:
+                with urllib.request.urlopen("http://127.0.0.1:8000/docs", timeout=1) as resp:
+                    if resp.status == 200:
+                        server_ready = True
+                        break
+            except Exception:
+                time.sleep(0.3)
+
+        if not server_ready:
+            print("[AVISO] Servidor demorou para responder, abrindo webview mesmo assim...")
         
         class WindowAPI:
             def minimize(self):
@@ -96,7 +117,7 @@ def main():
                 )
 
         api = WindowAPI()
-        webview.create_window(
+        window = webview.create_window(
             "GerenciGeo",
             "http://127.0.0.1:8000/principal.html",
             width=1280,
@@ -105,7 +126,7 @@ def main():
             frameless=False,
             js_api=api
         )
-        webview.start(debug=False, private_mode=False)
+        webview.start(debug=True, private_mode=False)
 
     except Exception as e:
         error_msg = traceback.format_exc()
