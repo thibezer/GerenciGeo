@@ -1,4 +1,4 @@
-import L from 'leaflet';
+import type L from 'leaflet';
 import { MapaConfigManager } from '../../mapa_config';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 import { coordenadaPonto } from '../coordenadas_mapa';
@@ -55,7 +55,7 @@ export function aplicarIma(
     const d = map.latLngToContainerPoint([c.lat, c.lon]).distanceTo(alvo);
     if (d <= menor) {
       menor = d;
-      melhor = L.latLng(c.lat, c.lon);
+      melhor = { lat: c.lat, lng: c.lon } as any;
     }
   };
 

@@ -1,6 +1,9 @@
-export {
+export type {
   PontoSobrepostoInfo,
-  GrupoSobreposto,
+  GrupoSobreposto
+} from './sobrepostos_detector';
+
+export {
   calcularDistancia2D,
   calcularScoreMestre,
   detectarGruposSobrepostos

@@ -684,4 +684,24 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   4. **Motor Matemático Geodésico Desacoplado**:
      - Todos os cálculos de conformidade INCRA NTGIR 3ª Edição ($\sigma_M \le 0.10\text{m}$, $\sigma_V \le 0.50\text{m}$, $\sigma_P \le 3.00\text{m}$), azimutes DMS, distâncias e área por Gauss (Shoelace) residem isolados em `geodesica_calculos.ts` com cobertura de testes unitários automatizados.
 
+---
+
+## 43. Vetorização Interativa (Caneta de Seleção) e Resolução Topológica de Vértices Sobrepostos (Áreas 5 e 6)
+- **Contexto e Problema**:
+  1. A `ferramenta_caneta.ts` original possuía mais de 700 linhas, acumulando responsabilidades díspares: ciclo de vida do cursor de mapa, renderização SVG e linha elástica em `requestAnimationFrame`, ray-casting de ponto em polígono, ímã/snap para vértices e montagem do banner de controle.
+  2. O `unificador_sobrepostos.ts` continha 445 linhas misturando o algoritmo de componentes conexas (Union-Find) com a criação imperativa de elementos do modal de interface e comunicação assíncrona HTTP em lote (`PUT /pontos/batch`).
+  3. A `preview_divisa.ts` continha mais de 310 linhas, acoplando a lógica de requisição das métricas da divisa cartorial com a inicialização direta de camadas Tile e marcadores de extremo no Leaflet.
+- **Regras Obrigatórias**:
+  1. **Separação Caneta (Renderer ⇆ Geometria ⇆ Overlay ⇆ Orquestrador)**:
+     - `caneta_geometria.ts`: Algoritmo Ray-Casting puro e determinação determinística de inclusão perimetral, snap/ímã (`TOLERANCIA_IMA_PX = 12`) e leitura de configuração (`magnetSnap`), totalmente desacoplado do runtime pesado do Leaflet para permitir testes em Node.js.
+     - `caneta_desenho.ts`: Gerenciamento do `LayerGroup`, SVG renderer isolado, marcadores de vértice (`L.circleMarker`), polígono temporário e linha guia (rubberband com rAF).
+     - `caneta_overlay.ts`: Gerenciamento do banner flutuante (`#banner-caneta-selecao`) e sincronização de estado dos botões (`sincronizarBotoesCanetaUI`).
+     - `index.ts`: Orquestrador de ciclo de vida (`FerramentaCanetaSelecao`), garantindo que o arquivo principal permaneça estritamente abaixo do limite de 300 linhas.
+  2. **Topologia de Vértices Sobrepostos (Detecção ⇆ Interface Modal)**:
+     - `sobrepostos_detector.ts`: Motor de agrupamento via Union-Find com tolerância ajustável (3cm, 5cm padrão, 10cm, 50cm). Algoritmo de ranking de mestre sugerido priorizando pontos `'CORRIGIDO'` sobre `'BRUTO'`, marco tipo `'M'` sobre `'V'`/`'P'`, e nomes com máscara oficial SIGEF (`XXX-M-0000`).
+     - `sobrepostos_modal.ts`: Interface modal com seleção de mestre por rádio, pré-visualização de deltas em milímetros, suporte a `Ctrl+Z` (através de `ctx.salvarEstadoHistorico`) e atualização em lote atômica no backend (`PUT /levantamentos/{id}/pontos/batch`).
+  3. **Visualização de Divisa sem Monólito**:
+     - `preview_divisa_mapa.ts`: Criação do mapa Leaflet, alternância entre satélite ESRI e base escura CartoDB, ajuste assíncrono de escala e `fitBounds` seguro após renderização.
+     - `preview_divisa.ts`: Orquestrador focado em ciclo de vida do diálogo, acessibilidade (foco inicial e armadilha de tabulação com `Escape`) e preenchimento dos dados notariais e métricas de azimutes/distâncias.
+
 
