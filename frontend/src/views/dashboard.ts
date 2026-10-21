@@ -74,13 +74,13 @@ export const dashboardRoute: RouteDef = {
 
       if (elActionBadge) {
         if (totalCriticos > 0) {
-          elActionBadge.className = 'text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse';
+          elActionBadge.className = 'text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse';
           elActionBadge.innerText = `${totalCriticos} crítico${totalCriticos > 1 ? 's' : ''}`;
         } else if (totalTodos > 0) {
-          elActionBadge.className = 'text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30';
+          elActionBadge.className = 'text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30';
           elActionBadge.innerText = `${totalTodos} pendente${totalTodos > 1 ? 's' : ''}`;
         } else {
-          elActionBadge.className = 'text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-white/5 text-white/40 border border-white/10';
+          elActionBadge.className = 'text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold bg-white/5 text-white/40 border border-white/10';
           elActionBadge.innerText = 'Em dia';
         }
       }
@@ -117,12 +117,12 @@ export const dashboardRoute: RouteDef = {
         const icone = alert.icone || (tipo === 'CRITICO' ? 'alert-circle' : (tipo === 'MANUAL' ? 'check-square' : 'alert-circle'));
         
         let cardStyle = 'border-l-4 border-l-amber-500 bg-amber-500/[0.03] border-white/5';
-        let badgeHtml = '<span class="text-[8.5px] font-mono px-1.5 py-0.2 rounded font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">AVISO</span>';
+        let badgeHtml = '<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">AVISO</span>';
         let iconColor = 'text-amber-400';
 
         if (tipo === 'CRITICO') {
           cardStyle = 'border-l-4 border-l-red-500 bg-red-500/[0.04] border-white/5';
-          badgeHtml = '<span class="text-[8.5px] font-mono px-1.5 py-0.2 rounded font-bold bg-red-500/20 text-red-400 border border-red-500/30">CRÍTICO</span>';
+          badgeHtml = '<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/30">CRÍTICO</span>';
           iconColor = 'text-red-400';
         } else if (tipo === 'MANUAL') {
           const prioridade = alert.prioridade || 'MEDIA';
@@ -130,7 +130,7 @@ export const dashboardRoute: RouteDef = {
           cardStyle = isAlta 
             ? 'border-l-4 border-l-red-500 bg-red-500/[0.03] border-white/5' 
             : 'border-l-4 border-l-mint-vibrant bg-mint-vibrant/[0.03] border-white/5';
-          badgeHtml = `<span class="text-[8.5px] font-mono px-1.5 py-0.2 rounded font-bold ${isAlta ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30'}">${isAlta ? 'URGENTE' : 'TAREFA'}</span>`;
+          badgeHtml = `<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${isAlta ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30'}">${isAlta ? 'URGENTE' : 'TAREFA'}</span>`;
           iconColor = isAlta ? 'text-red-400' : 'text-mint-vibrant';
         }
 
@@ -139,12 +139,12 @@ export const dashboardRoute: RouteDef = {
         if (tipo === 'MANUAL' && id) {
           acoesHtml = `
             <div class="flex items-center gap-1.5 shrink-0 ml-auto">
-              <button class="btn-concluir-alerta px-2 py-0.8 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 text-mint-vibrant hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm" data-id="${id}" title="Marcar como concluída">
-                <i data-lucide="check" class="w-3 h-3"></i>
+              <button class="btn-concluir-alerta px-2.5 py-1 bg-mint-vibrant/10 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 text-mint-vibrant hover:text-white rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm" data-id="${id}" title="Marcar como concluída">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
                 <span>Concluir</span>
               </button>
-              <button class="btn-excluir-alerta p-1 text-white/30 hover:text-red-400 rounded transition-colors cursor-pointer" data-id="${id}" title="Excluir tarefa">
-                <i data-lucide="trash-2" class="w-3 h-3"></i>
+              <button class="btn-excluir-alerta p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors cursor-pointer" data-id="${id}" title="Excluir tarefa">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               </button>
             </div>
           `;
@@ -154,27 +154,27 @@ export const dashboardRoute: RouteDef = {
           const levId = alert.acao.levantamento_id ? String(alert.acao.levantamento_id) : '';
           acoesHtml = `
             <div class="flex items-center gap-1.5 shrink-0 ml-auto">
-              <button class="btn-acao-alerta px-2 py-0.8 bg-white/5 hover:bg-white/10 hover:border-mint-vibrant/40 border border-white/10 text-white/80 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm group" data-destino="${destino}" data-lev="${levId}" title="Executar ação recomendada">
+              <button class="btn-acao-alerta px-2.5 py-1 bg-white/5 hover:bg-white/10 hover:border-mint-vibrant/40 border border-white/10 text-white/80 hover:text-white rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm group" data-destino="${destino}" data-lev="${levId}" title="Executar ação recomendada">
                 <span>${rotulo}</span>
-                <i data-lucide="arrow-right" class="w-3 h-3 text-mint-vibrant group-hover:translate-x-0.5 transition-transform"></i>
+                <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-mint-vibrant group-hover:translate-x-0.5 transition-transform"></i>
               </button>
             </div>
           `;
         }
 
         return `
-          <div class="p-2.5 rounded-lg border ${cardStyle} transition-all hover:bg-white/[0.04] space-y-1.5">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <i data-lucide="${icone}" class="w-3.5 h-3.5 ${iconColor} shrink-0"></i>
+          <div class="p-3 rounded-xl border ${cardStyle} transition-all hover:bg-white/[0.04] space-y-2 shadow-sm">
+            <div class="flex items-center justify-between gap-2.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <i data-lucide="${icone}" class="w-4 h-4 ${iconColor} shrink-0"></i>
                 <h5 class="text-xs font-bold text-white tracking-tight truncate">${titulo}</h5>
               </div>
               <div class="shrink-0">
                 ${badgeHtml}
               </div>
             </div>
-            <p class="text-[10.5px] text-white/60 leading-relaxed font-sans">${mensagem}</p>
-            ${acoesHtml ? `<div class="pt-1 border-t border-white/5 flex items-center">${acoesHtml}</div>` : ''}
+            <p class="text-[11px] text-white/70 leading-relaxed font-sans">${mensagem}</p>
+            ${acoesHtml ? `<div class="pt-2 border-t border-white/5 flex items-center">${acoesHtml}</div>` : ''}
           </div>
         `;
       }).join('');
@@ -265,27 +265,33 @@ export const dashboardRoute: RouteDef = {
     const painelAlertas = document.getElementById('painel-alertas');
     const painelRapidas = document.getElementById('painel-acoes-rapidas');
 
+    const tabAtivaClasses = 'px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md font-semibold transition-all text-mint-vibrant bg-white/10 shadow-sm cursor-pointer flex items-center gap-1.5';
+    const tabInativaClasses = 'px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md font-semibold transition-all text-white/50 hover:text-white cursor-pointer flex items-center gap-1.5';
+
     tabAlertas?.addEventListener('click', () => {
-      tabAlertas.className = 'px-2 py-0.8 rounded-md font-bold transition-all text-mint-vibrant bg-white/10 shadow-sm cursor-pointer flex items-center gap-1.5';
-      if (tabRapidas) tabRapidas.className = 'px-2 py-0.8 rounded-md font-bold transition-all text-white/50 hover:text-white cursor-pointer flex items-center gap-1.5';
+      tabAlertas.className = tabAtivaClasses;
+      if (tabRapidas) tabRapidas.className = tabInativaClasses;
       painelAlertas?.classList.remove('hidden');
       painelRapidas?.classList.add('hidden');
     });
 
     tabRapidas?.addEventListener('click', () => {
-      if (tabRapidas) tabRapidas.className = 'px-2 py-0.8 rounded-md font-bold transition-all text-mint-vibrant bg-white/10 shadow-sm cursor-pointer flex items-center gap-1.5';
-      if (tabAlertas) tabAlertas.className = 'px-2 py-0.8 rounded-md font-bold transition-all text-white/50 hover:text-white cursor-pointer flex items-center gap-1.5';
+      if (tabRapidas) tabRapidas.className = tabAtivaClasses;
+      if (tabAlertas) tabAlertas.className = tabInativaClasses;
       painelRapidas?.classList.remove('hidden');
       painelAlertas?.classList.add('hidden');
     });
 
     // Filtros por Severidade
+    const filtroAtivoClasses = 'filtro-alerta-btn px-2.5 py-1 rounded-md border border-mint-vibrant/40 bg-mint-vibrant/10 text-mint-vibrant font-semibold transition-all cursor-pointer whitespace-nowrap shadow-sm active';
+    const filtroInativoClasses = 'filtro-alerta-btn px-2.5 py-1 rounded-md border border-white/5 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.05] text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap';
+
     document.querySelectorAll<HTMLElement>('.filtro-alerta-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll<HTMLElement>('.filtro-alerta-btn').forEach(b => {
-          b.className = 'filtro-alerta-btn px-2 py-0.5 rounded border border-transparent hover:border-white/10 text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap';
+          b.className = filtroInativoClasses;
         });
-        btn.className = 'filtro-alerta-btn px-2 py-0.5 rounded border border-mint-vibrant/40 bg-mint-vibrant/10 text-mint-vibrant font-bold transition-all cursor-pointer whitespace-nowrap active';
+        btn.className = filtroAtivoClasses;
         filtroAtual = btn.getAttribute('data-filtro') || 'TODOS';
         renderizarAlertas();
       });

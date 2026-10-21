@@ -24,43 +24,43 @@ export function renderDashboardTemplate(): string {
         <!-- Action Center Híbrido -->
         <ui-card elevacao="baixa" class="h-full flex flex-col min-h-0 overflow-hidden" style="height: 100%;">
           <!-- Header do Action Center -->
-          <div class="p-2.5 sm:p-3 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/[0.01]">
-             <div class="flex items-center gap-2 min-w-0">
-               <div class="w-6.5 h-6.5 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center text-mint-vibrant shrink-0 shadow-sm">
+          <div class="px-3.5 py-3 sm:px-4 sm:py-3.5 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/[0.02]">
+             <div class="flex items-center gap-2.5 min-w-0">
+               <div class="w-7 h-7 rounded-lg bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center text-mint-vibrant shrink-0 shadow-sm">
                  <i data-lucide="zap" class="w-3.5 h-3.5"></i>
                </div>
                <div class="min-w-0">
-                 <h4 class="text-xs sm:text-sm font-bold text-white tracking-wide truncate flex items-center gap-1.5 leading-tight">
+                 <h4 class="text-xs sm:text-sm font-bold text-white tracking-wide truncate flex items-center gap-2 leading-none">
                    Action Center
-                   <span id="action-center-badge" class="text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30">0</span>
+                   <span id="action-center-badge" class="text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30">0</span>
                  </h4>
                </div>
              </div>
-             <div class="flex items-center gap-1 shrink-0">
-               <button id="btn-nova-tarefa-rapida" class="px-2 py-1 bg-mint-vibrant/15 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 hover:border-mint-vibrant/50 text-mint-vibrant hover:text-white rounded text-[10.5px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm" title="Criar nova tarefa rápida">
-                 <i data-lucide="plus" class="w-3 h-3"></i>
+             <div class="flex items-center gap-1.5 shrink-0">
+               <button id="btn-nova-tarefa-rapida" class="h-7.5 px-2.5 bg-mint-vibrant/15 hover:bg-mint-vibrant/25 border border-mint-vibrant/30 hover:border-mint-vibrant/50 text-mint-vibrant hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm" title="Criar nova tarefa rápida">
+                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                  <span class="hidden sm:inline">Nova Tarefa</span>
                </button>
-               <button id="btn-recarregar-alertas" class="p-1 text-white/40 hover:text-white hover:bg-white/5 rounded transition-all cursor-pointer" title="Recarregar alertas">
+               <button id="btn-recarregar-alertas" class="w-7.5 h-7.5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 rounded-lg transition-all cursor-pointer" title="Recarregar alertas">
                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="icon-recarregar-alertas"></i>
                </button>
              </div>
           </div>
 
           <!-- Abas de Navegação -->
-          <div class="px-2.5 pt-2 pb-1.5 border-b border-white/5 flex items-center justify-between gap-1 shrink-0 bg-white/[0.005]">
-             <div class="flex items-center gap-1 p-0.5 bg-black/40 rounded-lg border border-white/5 text-[10.5px]">
-               <button id="tab-action-alertas" class="px-2 py-0.8 rounded-md font-bold transition-all text-mint-vibrant bg-white/10 shadow-sm cursor-pointer flex items-center gap-1.5">
-                 <i data-lucide="bell" class="w-3 h-3"></i>
+          <div class="px-3.5 py-2 sm:px-4 sm:py-2.5 border-b border-white/5 flex items-center justify-between gap-2 shrink-0 bg-white/[0.01]">
+             <div class="flex items-center gap-1 p-1 bg-black/40 rounded-lg border border-white/10 text-xs">
+               <button id="tab-action-alertas" class="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md font-semibold transition-all text-mint-vibrant bg-white/10 shadow-sm cursor-pointer flex items-center gap-1.5">
+                 <i data-lucide="bell" class="w-3.5 h-3.5"></i>
                  <span>Auditoria</span>
-                 <span id="tab-badge-alertas" class="text-[8.5px] px-1 py-0.2 rounded-full bg-mint-vibrant/20 text-mint-vibrant font-mono font-bold">0</span>
+                 <span id="tab-badge-alertas" class="text-[9px] px-1.5 py-0.5 rounded-full bg-mint-vibrant/20 text-mint-vibrant font-mono font-bold leading-none">0</span>
                </button>
-               <button id="tab-action-rapidas" class="px-2 py-0.8 rounded-md font-bold transition-all text-white/50 hover:text-white cursor-pointer flex items-center gap-1.5">
-                 <i data-lucide="layout-grid" class="w-3 h-3"></i>
+               <button id="tab-action-rapidas" class="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md font-semibold transition-all text-white/50 hover:text-white cursor-pointer flex items-center gap-1.5">
+                 <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
                  <span>Ações Rápidas</span>
                </button>
              </div>
-             <a href="#pendencias" class="text-[10px] text-mint-vibrant/80 hover:text-mint-vibrant hover:underline cursor-pointer flex items-center gap-0.5">
+             <a href="#pendencias" class="text-xs text-mint-vibrant/80 hover:text-mint-vibrant hover:underline cursor-pointer flex items-center gap-1 py-1 font-medium transition-colors">
                <span>Ver Agenda</span>
                <i data-lucide="chevron-right" class="w-3 h-3"></i>
              </a>
@@ -69,29 +69,29 @@ export function renderDashboardTemplate(): string {
           <!-- Painel 1: Alertas e Auditoria -->
           <div id="painel-alertas" class="flex flex-col flex-1 min-h-0">
              <!-- Filtros Rápidos por Severidade -->
-             <div class="px-2.5 py-1.5 border-b border-white/5 flex items-center gap-1 shrink-0 overflow-x-auto text-[9.5px]">
-               <button class="filtro-alerta-btn px-2 py-0.5 rounded border border-mint-vibrant/40 bg-mint-vibrant/10 text-mint-vibrant font-bold transition-all cursor-pointer whitespace-nowrap active" data-filtro="TODOS">
+             <div class="px-3.5 py-2 sm:px-4 sm:py-2.5 border-b border-white/5 flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto text-xs">
+               <button class="filtro-alerta-btn px-2.5 py-1 rounded-md border border-mint-vibrant/40 bg-mint-vibrant/10 text-mint-vibrant font-semibold transition-all cursor-pointer whitespace-nowrap shadow-sm active" data-filtro="TODOS">
                  Todos (<span id="count-todos">0</span>)
                </button>
-               <button class="filtro-alerta-btn px-2 py-0.5 rounded border border-transparent hover:border-white/10 text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="CRITICO">
+               <button class="filtro-alerta-btn px-2.5 py-1 rounded-md border border-white/5 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.05] text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="CRITICO">
                  Críticos (<span id="count-criticos">0</span>)
                </button>
-               <button class="filtro-alerta-btn px-2 py-0.5 rounded border border-transparent hover:border-white/10 text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="ALERTA">
+               <button class="filtro-alerta-btn px-2.5 py-1 rounded-md border border-white/5 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.05] text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="ALERTA">
                  Avisos (<span id="count-avisos">0</span>)
                </button>
-               <button class="filtro-alerta-btn px-2 py-0.5 rounded border border-transparent hover:border-white/10 text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="MANUAL">
+               <button class="filtro-alerta-btn px-2.5 py-1 rounded-md border border-white/5 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.05] text-white/50 hover:text-white font-medium transition-all cursor-pointer whitespace-nowrap" data-filtro="MANUAL">
                  Tarefas (<span id="count-tarefas">0</span>)
                </button>
              </div>
 
              <!-- Lista de Alertas -->
-             <div class="p-2 sm:p-2.5 overflow-y-auto space-y-2 flex-1 min-h-0 max-h-[350px] lg:max-h-[calc(100vh-250px)]" id="alerts-container">
+             <div class="p-3 sm:p-3.5 overflow-y-auto space-y-2.5 flex-1 min-h-0 max-h-[350px] lg:max-h-[calc(100vh-250px)]" id="alerts-container">
                <div class="text-center text-white/40 text-xs py-8">Carregando auditoria...</div>
              </div>
           </div>
 
           <!-- Painel 2: Ações Rápidas (Grid Operacional) -->
-          <div id="painel-acoes-rapidas" class="p-2.5 sm:p-3 overflow-y-auto space-y-2.5 flex-1 min-h-0 hidden">
+          <div id="painel-acoes-rapidas" class="p-3 sm:p-3.5 overflow-y-auto space-y-3 flex-1 min-h-0 hidden">
              <p class="text-[9.5px] text-white/40 font-mono uppercase tracking-wider mb-1">Atalhos Operacionais</p>
              <div class="grid grid-cols-2 gap-2">
                <!-- Novo Levantamento -->
