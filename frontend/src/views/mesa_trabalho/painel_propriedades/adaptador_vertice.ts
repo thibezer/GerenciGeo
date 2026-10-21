@@ -6,6 +6,7 @@ import {
   parseNumberDefault
 } from '../painel_propriedades_helpers';
 import type { Ponto, Segmento, Confrontante } from '../painel_propriedades_helpers';
+import { construirCategoriasVertice } from './adaptador_vertice_categorias';
 
 export function gerarPropriedadesVertice(p: Ponto, ctx: any): {
   categorias: CategoriaPropriedades[];
@@ -105,256 +106,28 @@ export function gerarPropriedadesVertice(p: Ponto, ctx: any): {
   ];
 
   const fusoAtual = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22S';
+  const tipoLimiteCalculado = p.tipo_limite_sigef || p.tipo_limite || (seg ? seg.tipo_limite_sigef : '') || '';
 
-  const categorias: CategoriaPropriedades[] = [
-    {
-      id: 'identificacao',
-      titulo: 'Identificação do Vértice',
-      aberto: true,
-      propriedades: [
-        {
-          id: 'nome_vertice',
-          rotulo: 'Nome Vértice',
-          tipo: isDisabled ? 'readonly' : 'texto',
-          valor: p.nome_vertice || p.ponto_nome || '',
-          placeholder: 'Ex: M-01',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'codigo_sigef',
-          rotulo: 'Código SIGEF',
-          tipo: isDisabled ? 'readonly' : 'texto',
-          valor: p.codigo_sigef || '',
-          placeholder: 'Ex: ABC-M-0001',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'matricula_id',
-          rotulo: 'Matrícula',
-          tipo: isDisabled ? 'readonly' : 'selecao',
-          valor: p.matricula_id != null ? String(p.matricula_id) : '',
-          opcoes: opcoesMatricula,
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'camada_origem',
-          rotulo: 'Camada / Origem',
-          tipo: 'readonly',
-          valor: origemTexto
-        },
-        ...(isDisabled
-          ? []
-          : [
-              {
-                id: 'acao_sugerir_codigo',
-                rotulo: 'Automação',
-                tipo: 'acao' as const,
-                valor: 'Sugerir Código',
-                rotuloAcao: 'Sugerir Próximo Código SIGEF'
-              }
-            ])
-      ]
-    },
-    {
-      id: 'coordenadas_utm',
-      titulo: `Coordenadas UTM (${fusoAtual})`,
-      aberto: true,
-      propriedades: [
-        {
-          id: 'e_corrigido',
-          rotulo: 'Este (E)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: eVal ?? 0,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'n_corrigido',
-          rotulo: 'Norte (N)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: nVal ?? 0,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'alt_corrigido',
-          rotulo: 'Altitude (H)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: hVal ?? 0,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'status_correcao',
-          rotulo: 'Status Ponto',
-          tipo: 'readonly',
-          valor: p.status_correcao || p.status_ponto || 'BRUTO'
-        }
-      ]
-    },
-    {
-      id: 'coordenadas_geo',
-      titulo: 'Coordenadas Geodésicas (SIRGAS 2000)',
-      aberto: false,
-      propriedades: [
-        {
-          id: 'lat',
-          rotulo: 'Latitude',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: latVal ?? 0,
-          casasDecimais: 9,
-          unidade: '°',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'lon',
-          rotulo: 'Longitude',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: lonVal ?? 0,
-          casasDecimais: 9,
-          unidade: '°',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'alt_geo',
-          rotulo: 'Altitude Elip. (h)',
-          tipo: 'readonly',
-          valor: hVal ?? 0,
-          casasDecimais: 3,
-          unidade: 'm'
-        }
-      ]
-    },
-    {
-      id: 'precisao_sigmas',
-      titulo: 'Precisão e Incertezas',
-      aberto: false,
-      propriedades: [
-        {
-          id: 'sigma_e',
-          rotulo: 'Sigma E (σE)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: p.sigma_e ?? 0.05,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'sigma_n',
-          rotulo: 'Sigma N (σN)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: p.sigma_n ?? 0.05,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'sigma_z',
-          rotulo: 'Sigma Z (σH)',
-          tipo: isDisabled ? 'readonly' : 'numero',
-          valor: p.sigma_z ?? p.sigma_alt ?? 0.08,
-          casasDecimais: 3,
-          unidade: 'm',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'resultante_mm',
-          rotulo: 'Resultante Horiz.',
-          tipo: 'readonly',
-          valor: resultante
-        }
-      ]
-    },
-    {
-      id: 'sigef_incra',
-      titulo: 'Atributos INCRA / SIGEF',
-      aberto: true,
-      propriedades: [
-        {
-          id: 'metodo_posicionamento',
-          rotulo: 'Método Pos.',
-          tipo: isDisabled ? 'readonly' : 'selecao',
-          valor: (p as any).metodo_posicionamento || '',
-          opcoes: opcoesMetodo,
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'tipo_limite_sigef',
-          rotulo: 'Tipo de Limite',
-          tipo: isDisabled ? 'readonly' : 'selecao',
-          valor: p.tipo_limite_sigef || p.tipo_limite || (seg ? seg.tipo_limite_sigef : '') || '',
-          opcoes: opcoesLimite,
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'base_apoio',
-          rotulo: 'Base de Apoio',
-          tipo: 'readonly',
-          valor: nomeBaseApoio
-        }
-      ]
-    },
-    {
-      id: 'confrontacao',
-      titulo: 'Confrontação Territorial',
-      aberto: false,
-      propriedades: [
-        {
-          id: 'confrontante_nome',
-          rotulo: 'Confrontante',
-          tipo: isDisabled ? 'readonly' : 'texto',
-          valor: confNome,
-          placeholder: 'Nome do proprietário confrontante',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'confrontante_matricula',
-          rotulo: 'Matrícula Conf.',
-          tipo: isDisabled ? 'readonly' : 'texto',
-          valor: confMatricula,
-          placeholder: 'Nº da matrícula do vizinho',
-          somenteLeitura: isDisabled
-        },
-        {
-          id: 'confrontante_cartorio',
-          rotulo: 'Cartório (CNS)',
-          tipo: isDisabled ? 'readonly' : 'texto',
-          valor: confCartorio,
-          placeholder: 'Código CNS do cartório',
-          somenteLeitura: isDisabled
-        }
-      ]
-    },
-    {
-      id: 'geometria_acoes',
-      titulo: 'Polígono & Gerenciamento',
-      aberto: true,
-      propriedades: [
-        {
-          id: 'ignorar_poligono',
-          rotulo: 'Ignorar no Polígono',
-          tipo: isDisabled ? 'readonly' : 'booleano',
-          valor: p.ignorar_poligono === 1,
-          somenteLeitura: isDisabled,
-          dica: 'Exclui o vértice do cálculo de área e perímetro sem apagá-lo'
-        },
-        ...(isDisabled
-          ? []
-          : [
-              {
-                id: 'acao_excluir_vertice',
-                rotulo: 'Exclusão',
-                tipo: 'acao' as const,
-                valor: 'Excluir Ponto',
-                rotuloAcao: 'Excluir Vértice'
-              }
-            ])
-      ]
-    }
-  ];
+  const categorias = construirCategoriasVertice({
+    p,
+    isDisabled,
+    origemTexto,
+    opcoesMatricula,
+    opcoesMetodo,
+    opcoesLimite,
+    fusoAtual,
+    eVal,
+    nVal,
+    hVal,
+    latVal,
+    lonVal,
+    resultante,
+    nomeBaseApoio,
+    confNome,
+    confMatricula,
+    confCartorio,
+    tipoLimiteCalculado
+  });
 
   // Seletor de Tipo Superior (M / V / P / O)
   const tipos: SeletorTipoItem[] = [

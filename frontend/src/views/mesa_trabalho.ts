@@ -14,25 +14,25 @@ import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
 import { consultarEPlotarSigef } from '../utils/sigef_consultor';
-import { FluentRibbonManager as RibbonManager } from '../ui/fluent_ribbon_manager';
-import { registerFluentComponents } from '../ui/fluent_setup';
 import { setNuvemSyncContext } from './mesa_trabalho/nuvem_sync_modal';
+import {
+  aplicarLargurasSalvas,
+  inicializarSplitters,
+  inicializarDragDropGlobal,
+  inicializarBarraAcoesLote,
+  setupRibbonInteractions,
+  inicializarAtalhosTeclado
+} from './mesa_trabalho/core';
 
 let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
 let _recenterHandler: (() => void) | null = null;
-let activeBroadcastChannel: BroadcastChannel | null = null;
-
-// Interceptadores globais de erros para diagnóstico estruturado
-window.addEventListener('error', (event) => {
-  console.error("[MesaTrabalho] Exceção global capturada:", event.error || event.message);
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-  console.error("[MesaTrabalho] Promessa não tratada capturada:", event.reason);
-});
 
 export let activeMapaController: any = null;
 let activeDragCleanup: (() => void) | null = null;
+let activeSplittersCleanup: (() => void) | null = null;
+let activeBatchActionsCleanup: (() => void) | null = null;
+let activeRibbonCleanup: (() => void) | null = null;
+let activeShortcutsCleanup: (() => void) | null = null;
 let routeCleanup: (() => void) | null = null;
 
 export const mesaTrabalhoRoute: RouteDef = {
@@ -135,7 +135,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     setupGeradorDocumentos(ctx);
 
     setupAuditoriaHistorico(ctx);
-    setupRibbonInteractions(ctx);
+    activeRibbonCleanup = setupRibbonInteractions(ctx);
 
     // 4. Implementação de Funções Centrais / Globais
     ctx.loadLevantamentoDetails = async () => {
@@ -1137,131 +1137,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
     };
 
-    const aplicarLargurasSalvas = () => {
-      const savedPropsWidth = localStorage.getItem('gerencigeo_props_panel_width') || '280px';
-      const panelProps = document.getElementById('painel-propriedades');
-      const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
-      if (panelProps && workspaceBody) {
-        if (panelProps.classList.contains('collapsed')) {
-          workspaceBody.style.setProperty('--props-panel-w', '36px');
-        } else {
-          workspaceBody.style.setProperty('--props-panel-w', savedPropsWidth);
-          panelProps.style.width = savedPropsWidth;
-        }
-      }
-
-      // Restaurar altura da tabela e mapa salvos
-      const savedTableHeight = localStorage.getItem('gerencigeo_table_height') || '280px';
-      const mainContent = document.querySelector('.workspace-main-content') as HTMLElement;
-      if (mainContent) {
-        mainContent.style.setProperty('--table-area-h', savedTableHeight.endsWith('px') ? savedTableHeight : `${savedTableHeight}px`);
-      }
-    };
-
     ctx.aplicarLargurasSplitters = aplicarLargurasSalvas;
-
-    const inicializarSplitters = () => {
-      // Redimensionador de Altura do Mapa vs Tabela (Splitter Horizontal)
-      const splitterMapa = document.getElementById('splitter-mapa-tabela');
-      const mainContent = document.querySelector('.workspace-main-content') as HTMLElement;
-
-      if (splitterMapa && mainContent) {
-        let isDraggingMapa = false;
-        let startY = 0;
-        let startHeight = 0;
-
-        const onMouseMoveMapa = (e: MouseEvent) => {
-          if (!isDraggingMapa) return;
-          const deltaY = startY - e.clientY;
-          const newHeight = Math.max(150, Math.min(window.innerHeight - 300, startHeight + deltaY));
-
-          mainContent.style.setProperty('--table-area-h', `${newHeight}px`);
-          localStorage.setItem('gerencigeo_table_height', `${newHeight}px`);
-          
-          if (ctx.triagemMap) {
-            ctx.triagemMap.invalidateSize();
-          }
-        };
-
-        const onMouseUpMapa = () => {
-          isDraggingMapa = false;
-          splitterMapa.classList.remove('resizing');
-          document.removeEventListener('mousemove', onMouseMoveMapa);
-          document.removeEventListener('mouseup', onMouseUpMapa);
-          document.body.classList.remove('cursor-row-resize', 'select-none');
-          
-          if (ctx.triagemMap) {
-            setTimeout(() => {
-              ctx.triagemMap?.invalidateSize();
-            }, 50);
-          }
-        };
-
-        splitterMapa.addEventListener('mousedown', (e: MouseEvent) => {
-          e.preventDefault();
-          isDraggingMapa = true;
-          startY = e.clientY;
-          
-          const activePanel = document.querySelector('.view-panel.active-view') as HTMLElement;
-          startHeight = activePanel ? activePanel.getBoundingClientRect().height : 280;
-
-          splitterMapa.classList.add('resizing');
-          document.addEventListener('mousemove', onMouseMoveMapa);
-          document.addEventListener('mouseup', onMouseUpMapa);
-          document.body.classList.add('cursor-row-resize', 'select-none');
-        });
-      }
-
-      // Redimensionador do Painel de Propriedades Lateral
-      const resizerProps = document.getElementById('props-panel-resizer');
-      const panelProps = document.getElementById('painel-propriedades');
-      const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
-
-      if (resizerProps && panelProps && workspaceBody) {
-        let isDraggingProps = false;
-        let startX = 0;
-        let startWidth = 0;
-
-        const onMouseMoveProps = (e: MouseEvent) => {
-          if (!isDraggingProps) return;
-          const deltaX = e.clientX - startX;
-          const newWidth = Math.max(200, Math.min(600, startWidth + deltaX));
-
-          workspaceBody.style.setProperty('--props-panel-w', `${newWidth}px`);
-          panelProps.style.width = `${newWidth}px`;
-          localStorage.setItem('gerencigeo_props_panel_width', `${newWidth}px`);
-
-          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
-        };
-
-        const onMouseUpProps = () => {
-          isDraggingProps = false;
-          resizerProps.classList.remove('resizing');
-          document.removeEventListener('mousemove', onMouseMoveProps);
-          document.removeEventListener('mouseup', onMouseUpProps);
-          document.body.classList.remove('cursor-col-resize', 'select-none');
-          if (ctx.triagemMap) {
-            setTimeout(() => ctx.triagemMap?.invalidateSize?.(), 50);
-          }
-        };
-
-        resizerProps.addEventListener('mousedown', (e: MouseEvent) => {
-          if (panelProps.classList.contains('collapsed')) return;
-
-          e.preventDefault();
-          isDraggingProps = true;
-          resizerProps.classList.add('resizing');
-          startX = e.clientX;
-          startWidth = panelProps.getBoundingClientRect().width;
-
-          document.body.classList.add('cursor-col-resize', 'select-none');
-          document.addEventListener('mousemove', onMouseMoveProps);
-          document.addEventListener('mouseup', onMouseUpProps);
-        });
-      }
-      
-      aplicarLargurasSalvas();
-    };
 
     // 8. Eventos Globais de Filtros de Tabela
     document.querySelectorAll('.btn-filtro-rapido').forEach(btn => {
@@ -1349,359 +1225,49 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     document.getElementById('btn-toggle-fonte-pontos')?.addEventListener('click', alternarFontePontosHandler);
 
-    // Eventos da barra flutuante de ações em lote da mesa
-    document.getElementById('btn-batch-cancel-mesa')?.addEventListener('click', () => {
-       ctx.selectedPontoIds = [];
-       ctx.selectedVizinhoPontoIds = [];
-       ctx.lastSelectedPontoId = null;
-       ctx.atualizarDestaqueLinhasTabela();
-    });
-
-    document.getElementById('btn-batch-limpar')?.addEventListener('click', () => {
-       ctx.selectedPontoIds = [];
-       ctx.selectedVizinhoPontoIds = [];
-       ctx.lastSelectedPontoId = null;
-       ctx.atualizarDestaqueLinhasTabela();
-    });
-    
-    document.getElementById('btn-batch-delete-mesa')?.addEventListener('click', () => {
-       if (ctx.selectedPontoIds.length > 0) {
-          confirmarExclusaoPonto(ctx.selectedPontoIds[0]);
-       }
-    });
-
-    document.getElementById('btn-batch-deletar')?.addEventListener('click', () => {
-       if (ctx.selectedPontoIds.length > 0) {
-          confirmarExclusaoPonto(ctx.selectedPontoIds[0]);
-       }
-    });
-
-    document.getElementById('btn-batch-ignorar')?.addEventListener('click', async () => {
-       if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
-          await customAlert("Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).");
-          return;
-       }
-       
-       const totalSelecionados = ctx.selectedPontoIds.length;
-       if (totalSelecionados === 0) return;
-
-       const pontosSel = ctx.pontosList.filter(p => ctx.selectedPontoIds.includes(p.id));
-       if (pontosSel.length === 0) return;
-
-       const temPontoAtivo = pontosSel.some(p => p.ignorar_poligono !== 1);
-       const novoEstado = temPontoAtivo ? 1 : 0;
-
-       if (!await customConfirm(`Deseja alterar a participação no polígono de ${totalSelecionados} vértice(s) para: "${novoEstado === 1 ? 'Ignorar' : 'Participar'}"?`)) return;
-
-       showToast("Atualizando vértices em lote...", "info");
-
-       try {
-          const promessas = ctx.selectedPontoIds.map(id => 
-             fetch(`${API_BASE}/pontos/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ignorar_poligono: novoEstado })
-             }).then(async r => {
-                if (r.status === 403) return { error: "Acesso negado (projeto arquivado)." };
-                if (!r.ok) {
-                   const txt = await r.json().catch(() => ({ error: "Erro desconhecido" }));
-                   return { error: txt.detail || txt.error || "Falha na requisição" };
-                }
-                return r.json().catch(() => ({}));
-             })
-          );
-
-          const resultados = await Promise.all(promessas);
-          const erros = resultados.filter(r => r.error).map(r => r.error);
-
-          if (erros.length > 0) {
-             await customAlert(`Ocorreram alguns erros ao tentar atualizar em lote:\n${erros.slice(0, 5).join('\n')}`);
-          } else {
-             showToast(`${totalSelecionados} vértice(s) atualizado(s) com sucesso!`, "success");
-          }
-
-          await ctx.loadLevantamentoDetails();
-       } catch (err) {
-          console.error("Erro ao alternar polígono em lote:", err);
-          showToast("Erro ao tentar atualizar os pontos selecionados em lote.", "error");
-       }
-    });
-
-    document.getElementById('btn-batch-integrate-mesa')?.addEventListener('click', async () => {
-       const totalVizinhos = ctx.selectedVizinhoPontoIds.length;
-       if (totalVizinhos === 0) return;
-
-       if (!await customConfirm(`Deseja integrar os ${totalVizinhos} pontos vizinhos selecionados ao levantamento da matrícula atual?`)) return;
-
-       const matriculaIdParam = ctx.currentMatriculaId ? `?matricula_id=${ctx.currentMatriculaId}` : '';
-       let sucessos = 0;
-       let falhas = 0;
-
-       showToast(`Integrando ${totalVizinhos} pontos...`, 'info');
-
-       for (const pId of ctx.selectedVizinhoPontoIds) {
-          try {
-             const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/integrar-vizinho/${pId}${matriculaIdParam}`, {
-                method: 'POST'
-             });
-             if (res.ok) {
-                sucessos++;
-             } else {
-                falhas++;
-             }
-          } catch (err) {
-             falhas++;
-          }
-       }
-
-       if (sucessos > 0) {
-          showToast(`${sucessos} pontos vizinhos integrados com sucesso!`, 'success');
-          await ctx.loadLevantamentoDetails();
-          ctx.selectedVizinhoPontoIds = [];
-          ctx.atualizarDestaqueLinhasTabela();
-       }
-       if (falhas > 0) {
-          showToast(`Falha ao integrar ${falhas} pontos vizinhos.`, 'error');
-       }
-    });
-
-    // Lógica para abrir o modal de filtro Revit
-    document.getElementById('btn-batch-filter-mesa')?.addEventListener('click', () => {
-       const container = document.getElementById('container-categorias-filtro');
-       if (!container) return;
-       
-       container.innerHTML = '';
-
-       const pontosSelecionados = ctx.pontosList.filter((p: any) => ctx.selectedPontoIds.includes(p.id));
-       const vizinhosSelecionados = ctx.pontosVizinhosList.filter((p: any) => ctx.selectedVizinhoPontoIds.includes(p.id));
-
-       const categorias = [
-         {
-           id: 'base-ppp',
-           nome: 'Bases Homologadas PPP (M)',
-           count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'M' || p.tipo === 'M').length
-         },
-         {
-           id: 'base-campo',
-           nome: 'Bases de Campo (B)',
-           count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'B' || p.tipo === 'B').length
-         },
-         {
-           id: 'rover-vertice',
-           nome: 'Vértices do Perímetro (P/V)',
-           count: pontosSelecionados.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.tipo_ponto !== 'M' && p.tipo !== 'M').length
-         },
-         {
-           id: 'ponto-bruto',
-           nome: 'Pontos com Status BRUTO',
-           count: pontosSelecionados.filter((p: any) => p.status_ponto === 'BRUTO').length
-         },
-         {
-           id: 'ponto-corrigido',
-           nome: 'Pontos com Status CORRIGIDO',
-           count: pontosSelecionados.filter((p: any) => p.status_ponto === 'CORRIGIDO').length
-         },
-         {
-           id: 'vizinho-ods',
-           nome: 'Vértices Vizinhos (Roxos)',
-           count: vizinhosSelecionados.length
-         }
-       ];
-
-       const categoriasAtivas = categorias.filter(c => c.count > 0);
-
-       if (categoriasAtivas.length === 0) {
-         container.innerHTML = '<div class="text-white/20 italic py-2 text-center text-xs">Nenhum elemento selecionado para filtrar.</div>';
-         return;
-       }
-
-       categoriasAtivas.forEach(cat => {
-         const item = document.createElement('label');
-         item.className = 'flex items-center gap-2.5 p-2 bg-white/[0.02] border border-white/5 hover:bg-white/[0.06] rounded-technical text-xs text-white/80 cursor-pointer select-none transition-all';
-         item.innerHTML = `
-           <input type="checkbox" checked value="${cat.id}" class="chk-filtro-categoria rounded border-white/10 text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-[#0c1510]" />
-           <div class="flex justify-between items-center w-full">
-             <span>${cat.nome}</span>
-             <span class="font-mono bg-white/5 border border-white/10 text-white/50 text-[10px] px-1.5 py-0.5 rounded">${cat.count}</span>
-           </div>
-         `;
-         container.appendChild(item);
-       });
-
-       document.getElementById('modal-filtro-revit-mesa')?.classList.remove('hidden');
-    });
-
-    document.getElementById('btn-filtro-selecionar-todos')?.addEventListener('click', () => {
-       document.querySelectorAll('.chk-filtro-categoria').forEach((chk: any) => (chk as HTMLInputElement).checked = true);
-    });
-  
-    document.getElementById('btn-filtro-limpar-todos')?.addEventListener('click', () => {
-       document.querySelectorAll('.chk-filtro-categoria').forEach((chk: any) => (chk as HTMLInputElement).checked = false);
-    });
-  
-    const fecharModalFiltro = () => {
-       document.getElementById('modal-filtro-revit-mesa')?.classList.add('hidden');
-    };
-    document.getElementById('btn-fechar-modal-filtro')?.addEventListener('click', fecharModalFiltro);
-    document.getElementById('btn-filtro-cancelar')?.addEventListener('click', fecharModalFiltro);
-  
-    document.getElementById('btn-filtro-aplicar')?.addEventListener('click', () => {
-       const checkedVals = Array.from(document.querySelectorAll('.chk-filtro-categoria:checked')).map((el: any) => el.value);
-  
-       const pontosSelecionados = ctx.pontosList.filter((p: any) => ctx.selectedPontoIds.includes(p.id));
-       const vizinhosSelecionados = ctx.pontosVizinhosList.filter((p: any) => ctx.selectedVizinhoPontoIds.includes(p.id));
-  
-       const novosPontoIds: number[] = [];
-       const novosVizinhoIds: number[] = [];
-  
-       pontosSelecionados.forEach((p: any) => {
-          const isM = p.tipo_ponto === 'M' || p.tipo === 'M';
-          const isB = p.tipo_ponto === 'B' || p.tipo === 'B';
-          const isRover = !isM && !isB;
-          const isBruto = p.status_ponto === 'BRUTO';
-          const isCorrigido = p.status_ponto === 'CORRIGIDO';
-  
-          let match = false;
-          if (isM && checkedVals.includes('base-ppp')) match = true;
-          if (isB && checkedVals.includes('base-campo')) match = true;
-          if (isRover && checkedVals.includes('rover-vertice')) match = true;
-          if (isBruto && checkedVals.includes('ponto-bruto')) match = true;
-          if (isCorrigido && checkedVals.includes('ponto-corrigido')) match = true;
-  
-          if (match) {
-             novosPontoIds.push(p.id);
-          }
-       });
-  
-       if (checkedVals.includes('vizinho-ods')) {
-          vizinhosSelecionados.forEach((p: any) => novosVizinhoIds.push(p.id));
-       }
-  
-       ctx.selectedPontoIds = novosPontoIds;
-       ctx.selectedVizinhoPontoIds = novosVizinhoIds;
-  
-       ctx.atualizarDestaqueLinhasTabela();
-       fecharModalFiltro();
-    });
-
-    const inicializarDragDropGlobal = () => {
-      let dragCounter = 0;
-      const overlay = document.createElement('div');
-      overlay.id = 'global-drag-overlay';
-      overlay.className = 'fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#0c1510]/85 backdrop-blur-md border-4 border-dashed border-mint-vibrant/60 m-6 rounded-2xl pointer-events-none opacity-0 transition-all duration-300';
-      overlay.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-8 text-center max-w-md bg-[#0e1b14]/95 border border-mint-vibrant/20 rounded-technical shadow-2xl scale-95 transition-transform duration-300" style="pointer-events: none;">
-          <div class="w-20 h-20 bg-mint-vibrant/10 rounded-full flex items-center justify-center mb-6 border border-mint-vibrant/30 animate-pulse">
-            <i data-lucide="upload-cloud" class="w-10 h-10 text-mint-vibrant"></i>
-          </div>
-          <h3 class="text-xl font-bold text-white mb-2">Importação Rápida de Campo</h3>
-          <p class="text-sm text-white/70 leading-relaxed mb-4">
-            Solte os arquivos <span class="font-mono text-mint-vibrant font-bold">.GNS</span>, <span class="font-mono text-mint-vibrant font-bold">.TXT</span>, <span class="font-mono text-mint-vibrant font-bold">.CSV</span> ou planilhas (<span class="font-mono text-mint-vibrant font-bold">.XLSX/.ODS</span>) em qualquer lugar para iniciar o processamento na Mesa Geodésica.
-          </p>
-          <span class="text-[10px] text-white/30 uppercase tracking-widest font-mono">GerenciGeo Auto-Detect</span>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      initIcons();
-
-      const handleDragEnter = (e: DragEvent) => {
-        if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
-          e.preventDefault();
-          dragCounter++;
-          overlay.classList.remove('pointer-events-none', 'opacity-0');
-          overlay.classList.add('opacity-100');
-          const innerCard = overlay.querySelector('div');
-          if (innerCard) {
-            innerCard.classList.remove('scale-95');
-            innerCard.classList.add('scale-100');
-          }
-        }
-      };
-
-      const handleDragOver = (e: DragEvent) => {
-        e.preventDefault();
-      };
-
-      const handleDragLeave = (e: DragEvent) => {
-        e.preventDefault();
-        dragCounter--;
-        if (dragCounter <= 0) {
-          dragCounter = 0;
-          overlay.classList.add('pointer-events-none', 'opacity-0');
-          overlay.classList.remove('opacity-100');
-          const innerCard = overlay.querySelector('div');
-          if (innerCard) {
-            innerCard.classList.remove('scale-100');
-            innerCard.classList.add('scale-95');
-          }
-        }
-      };
-
-      const handleDrop = (e: DragEvent) => {
-        e.preventDefault();
-        dragCounter = 0;
-        overlay.classList.add('pointer-events-none', 'opacity-0');
-        overlay.classList.remove('opacity-100');
-        const innerCard = overlay.querySelector('div');
-        if (innerCard) {
-          innerCard.classList.remove('scale-100');
-          innerCard.classList.add('scale-95');
-        }
-
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          ctx.alternarEtapa('geoprocessamento');
-          if (ctx.expandirIngestao) {
-            ctx.expandirIngestao();
-          }
-
-          Array.from(e.dataTransfer.files).forEach(f => {
-            const isGns = f.name.toLowerCase().endsWith('.gns');
-            ctx.filesQueue.push({ file: f, destination: isGns ? 'base' : 'rover_rtk' });
-          });
-
-          ctx.renderFilaArquivos();
-          showToast(`${e.dataTransfer.files.length} arquivo(s) adicionado(s) à fila de triagem.`, "success");
-        }
-      };
-
-      window.addEventListener('dragenter', handleDragEnter);
-      window.addEventListener('dragover', handleDragOver);
-      window.addEventListener('dragleave', handleDragLeave);
-      window.addEventListener('drop', handleDrop);
-
-      return () => {
-        window.removeEventListener('dragenter', handleDragEnter);
-        window.removeEventListener('dragover', handleDragOver);
-        window.removeEventListener('dragleave', handleDragLeave);
-        window.removeEventListener('drop', handleDrop);
-        overlay.remove();
-      };
-    };
-
     // 9. Lança Inicializadores
     setupEventDelegation();
     ctx.loadLevantamentoDetails();
     inicializarBuscaPonto();
     inicializarIngestaoCollapse();
     inicializarFiltroArquivos();
-    inicializarSplitters();
+    activeSplittersCleanup = inicializarSplitters(ctx);
+    activeBatchActionsCleanup = inicializarBarraAcoesLote(ctx, confirmarExclusaoPonto);
     ctx.inicializarEventosCartorio();
-    activeDragCleanup = inicializarDragDropGlobal();
+    activeDragCleanup = inicializarDragDropGlobal(ctx);
+    activeShortcutsCleanup = inicializarAtalhosTeclado(ctx, confirmarExclusaoPonto);
 
     // Registra destruidor de eventos ao desmontar a página
     const cleanup = () => {
-      // Remove listener do filtro de arquivos (previne memory leak — MT-09)
+      // Remove listener do filtro de arquivos (previne memory leak)
       if (_filtroArquivosClickHandler) {
         document.removeEventListener('click', _filtroArquivosClickHandler);
         _filtroArquivosClickHandler = null;
       }
-      // Limpa todas as instâncias ativas do RibbonManager para evitar vazamento de memória e listeners duplicados
-      Object.values(activeRibbonManagers).forEach(rm => rm.destroy());
-      activeRibbonManagers = {};
+
+      if (activeRibbonCleanup) {
+        activeRibbonCleanup();
+        activeRibbonCleanup = null;
+      }
+
+      if (activeSplittersCleanup) {
+        activeSplittersCleanup();
+        activeSplittersCleanup = null;
+      }
+
+      if (activeBatchActionsCleanup) {
+        activeBatchActionsCleanup();
+        activeBatchActionsCleanup = null;
+      }
 
       if (activeDragCleanup) {
         activeDragCleanup();
         activeDragCleanup = null;
+      }
+
+      if (activeShortcutsCleanup) {
+        activeShortcutsCleanup();
+        activeShortcutsCleanup = null;
       }
 
       // Limpa eventos globais de seleção e recentralização do mapa
@@ -1714,13 +1280,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         _recenterHandler = null;
       }
 
-      // Fecha BroadcastChannel de configuração do mapa
-      if (activeBroadcastChannel) {
-        activeBroadcastChannel.close();
-        activeBroadcastChannel = null;
-      }
-
-      // Destrói atalhos de teclado e histórico (Ctrl+Z / Ctrl+Y)
+      // Destrói histórico (Ctrl+Z / Ctrl+Y)
       if (ctx.gerenciadorHistorico && typeof ctx.gerenciadorHistorico.destroy === 'function') {
         ctx.gerenciadorHistorico.destroy();
         ctx.gerenciadorHistorico = null;
@@ -1762,208 +1322,4 @@ export const mesaTrabalhoRoute: RouteDef = {
     }
   }
 };
-
-let activeRibbonManagers: Record<string, RibbonManager> = {};
-
-function setupRibbonInteractions(ctx: any): void {
-  registerFluentComponents();
-  const tabButtons = document.querySelectorAll('.rl3-tab');
-  const panelRows = document.querySelectorAll('.rl3-panel');
-
-  // Inicializa o Gerenciador de Responsividade do Ribbon para todos os painéis de abas
-  const ribbonPanelIds = ['panel-geoprocessamento', 'panel-perimetro', 'panel-cartorio', 'panel-auditoria'];
-  
-  // Limpa instâncias anteriores caso já existam
-  Object.values(activeRibbonManagers).forEach(rm => rm.destroy());
-  activeRibbonManagers = {};
-
-  ribbonPanelIds.forEach(panelId => {
-    try {
-      const rm = new RibbonManager(panelId);
-      rm.init().catch(console.error);
-      activeRibbonManagers[panelId] = rm;
-    } catch (err) {
-      console.warn(`[RibbonManager] Painel ${panelId} não inicializado:`, err);
-    }
-  });
-
-  // Suporte a navegabilidade nativa por teclado no <fluent-tablist> (Setas Esquerda/Direita)
-  const tablist = document.querySelector('fluent-tablist');
-  if (tablist) {
-    tablist.addEventListener('change', (e: Event) => {
-      const target = e.target as any;
-      const activeTab = target?.activeTab || target;
-      const tabTarget = activeTab?.getAttribute('data-tab');
-      if (tabTarget) {
-        tabButtons.forEach(btn => {
-          btn.classList.toggle('active', btn.getAttribute('data-tab') === tabTarget);
-        });
-        panelRows.forEach(row => row.classList.add('hidden'));
-
-        let panelId = 'panel-geoprocessamento';
-        if (tabTarget === 'cartorio') panelId = 'panel-perimetro';
-        else if (tabTarget === 'documentos') panelId = 'panel-cartorio';
-        else if (tabTarget === 'auditoria') panelId = 'panel-auditoria';
-
-        const targetPanel = document.getElementById(panelId);
-        if (targetPanel) {
-          targetPanel.classList.remove('hidden');
-          const rm = activeRibbonManagers[panelId];
-          if (rm) requestAnimationFrame(() => rm.adjustLayout());
-        }
-
-        if (ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
-          ctx.alternarEtapa(tabTarget);
-        }
-      }
-    });
-  }
-
-  tabButtons.forEach(button => {
-    button.addEventListener('click', (e: Event) => {
-      const targetBtn = e.currentTarget as HTMLButtonElement;
-      const tabTarget = targetBtn.getAttribute('data-tab');
-
-      if (!tabTarget) return;
-
-      tabButtons.forEach(btn => {
-        btn.classList.remove('active');
-      });
-      targetBtn.classList.add('active');
-
-      panelRows.forEach(row => row.classList.add('hidden'));
-      
-      let panelId = 'panel-geoprocessamento';
-      if (tabTarget === 'cartorio') panelId = 'panel-perimetro';
-      else if (tabTarget === 'documentos') panelId = 'panel-cartorio';
-      else if (tabTarget === 'auditoria') panelId = 'panel-auditoria';
-
-      const targetPanel = document.getElementById(panelId);
-      if (targetPanel) {
-        targetPanel.classList.remove('hidden');
-        const rm = activeRibbonManagers[panelId];
-        if (rm) {
-          requestAnimationFrame(() => rm.adjustLayout());
-        }
-      }
-
-      if (ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
-        ctx.alternarEtapa(tabTarget);
-      }
-    });
-  });
-
-  const btnVoltar = document.getElementById('btn-voltar-lista');
-  if (btnVoltar) {
-    btnVoltar.addEventListener('click', () => {
-      window.location.hash = '#levantamentos';
-    });
-  }
-
-  // Recarrega os marcadores e a geometria ao mudar as opções visuais
-  if (activeBroadcastChannel) {
-    activeBroadcastChannel.close();
-    activeBroadcastChannel = null;
-  }
-  const bcConfig = new BroadcastChannel('gerencigeo_map_config');
-  activeBroadcastChannel = bcConfig;
-  bcConfig.onmessage = (event) => {
-    if (event.data === 'RELOAD_REQUIRED' && typeof ctx.renderMatriculaDados === 'function') {
-      setTimeout(() => {
-        ctx.renderMatriculaDados();
-      }, 50);
-    }
-  };
-
-
-  // Listeners para os botões de navegação global transferidos da barra lateral
-  const navButtons = [
-    { id: 'nav-btn-dashboard', hash: '#dashboard' },
-    { id: 'nav-btn-clientes', hash: '#clientes' },
-    { id: 'nav-btn-levantamentos', hash: '#levantamentos' },
-    { id: 'nav-btn-propriedades', hash: '#propriedades' },
-    { id: 'nav-btn-hgo', hash: '#hgo' },
-    { id: 'nav-btn-fronteira', hash: '#fronteira' },
-    { id: 'nav-btn-ccir', hash: '#ccir' },
-    { id: 'nav-btn-configuracoes', hash: '#configuracoes' }
-  ];
-
-  navButtons.forEach(btnInfo => {
-    const btn = document.getElementById(btnInfo.id);
-    if (btn) {
-      btn.addEventListener('click', () => {
-        window.location.hash = btnInfo.hash;
-      });
-    }
-  });
-
-  const btnSalvar = document.getElementById('btn-salvar-rascunho');
-  if (btnSalvar) {
-    btnSalvar.addEventListener('click', () => {
-      if (ctx && typeof ctx.salvarRascunhoLocal === 'function') {
-        ctx.salvarRascunhoLocal();
-      } else {
-        showToast("Rascunho salvo com sucesso localmente!", "success");
-      }
-    });
-  }
-
-
-  // AutoCAD Titlebar Window Actions via pywebview js_api
-  const winBtnMin = document.getElementById('win-btn-minimize');
-  if (winBtnMin) {
-    winBtnMin.addEventListener('click', () => {
-      (window as any).pywebview?.api?.minimize();
-    });
-  }
-
-  const winBtnMax = document.getElementById('win-btn-maximize');
-  if (winBtnMax) {
-    winBtnMax.addEventListener('click', () => {
-      (window as any).pywebview?.api?.toggle_maximize();
-    });
-  }
-
-  const winBtnClose = document.getElementById('win-btn-close');
-  if (winBtnClose) {
-    winBtnClose.addEventListener('click', () => {
-      (window as any).pywebview?.api?.close();
-    });
-  }
-
-  // AutoCAD Properties Panel Toggle Action
-  const panel = document.getElementById('painel-propriedades');
-  const btnToggleProps = document.getElementById('btn-toggle-props');
-  const workspaceBody = document.querySelector('.workspace-body') as HTMLElement;
-  if (panel && btnToggleProps && workspaceBody) {
-    btnToggleProps.addEventListener('click', () => {
-      panel.classList.add('transition-width');
-      const isCollapsed = panel.classList.toggle('collapsed');
-      
-      if (isCollapsed) {
-        workspaceBody.style.setProperty('--props-panel-w', '36px');
-      } else {
-        const larguraSalva = localStorage.getItem('gerencigeo_props_panel_width') || '280px';
-        workspaceBody.style.setProperty('--props-panel-w', larguraSalva);
-      }
-
-      const icon = btnToggleProps.querySelector('i, svg');
-      if (icon) {
-        if (isCollapsed) {
-          icon.innerHTML = `<path d="m9 18 6-6-6-6"/>`; // chevron-right
-          btnToggleProps.setAttribute('title', 'Expandir painel');
-        } else {
-          icon.innerHTML = `<path d="m15 18-6-6 6-6"/>`; // chevron-left
-          btnToggleProps.setAttribute('title', 'Recolher painel');
-        }
-      }
-
-      // Remove a transição e invalida mapa para o redimensionamento fluir
-      setTimeout(() => {
-        panel.classList.remove('transition-width');
-        if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
-      }, 190);
-    });
-  }
-}
 

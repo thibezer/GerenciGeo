@@ -1,116 +1,42 @@
-import { API_BASE } from '../../config';
 import { escapeHtml, initIcons, showToast } from '../../utils';
-import type { MesaTrabalhoContext } from './mesa_trabalho_context';
-import type { CamadaConfrontantes, TrechoMapa } from './camada_confrontantes';
 import { confirmar } from './dialogos_cartorio';
-import { extrairDetalhe } from './emissao_pecas';
+import {
+  type ResumoConfrontantes,
+  type Filtro,
+  type Ordem,
+  type ListaConfrontantesDeps,
+  type ListaConfrontantes,
+  FILTROS,
+  CHAVE_ORDEM,
+  CHAVE_FILTRO,
+  lerPref,
+  gravarPref,
+  estadoDe,
+  CLS_BTN_SEC,
+  CLS_LINK,
+  CLS_BTN_PRIM
+} from './lista_confrontantes_tipos';
+import {
+  htmlCard,
+  htmlSemConfrontante,
+  caixaEstado
+} from './lista_confrontantes_cards';
+import {
+  filtrarEOrdenarConfrontantes,
+  atualizarBarraUI,
+  atualizarBadgeUI,
+  atualizarBotaoLoteUI
+} from './lista_confrontantes_filtros';
+import {
+  buscarResumoConfrontantes,
+  despacharDispensaAnuencia,
+  despacharAssinaturaAnuencia
+} from './lista_confrontantes_servico';
 
-export interface TrechoConfrontante { de: string; para: string; qtd_divisas: number; comprimento_m: number; tipo_limite: string | null }
-export interface ResumoConfrontante {
-  qtd_divisas: number;
-  comprimento_m: number;
-  trechos: TrechoConfrontante[];
-}
-export interface ConfrontanteResumo extends ResumoConfrontante {
-  id: number;
-  nome: string;
-  matricula_imovel: string | null;
-  lote?: string | null;
-  cpf_cnpj: string | null;
-  assinadas: number;
-  /** Anuência dispensada (via/curso d'água público); `dispensa_inferida` = veio do nome, sem decisão explícita. */
-  dispensada?: boolean;
-  dispensa_inferida?: boolean;
-  status_anuencia?: string;
-  /** Posição do confrontante no perímetro (quando o backend informa). */
-  ordem_perimetro?: number | null;
-}
-export interface ResumoConfrontantes {
-  confrontantes: ConfrontanteResumo[];
-  sem_confrontante: ResumoConfrontante;
-  total_divisas: number;
-  sequencia: TrechoMapa[];
-}
-
-// ── Helpers de texto ────────────────────────────────────────────────────────────────────────────────────
-
-export const fmtMetros = (m: number) => `${m.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
-
-export const pluralizar = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
-
-/** Prefixa "Lote" só quando o campo ainda não começa por isso ("Lote n° 5-A-13" já vem completo). */
-export const rotuloLote = (lote: string | null | undefined): string => {
-  const t = (lote ?? '').trim();
-  if (!t) return '';
-  return /^lote\b/i.test(t) ? t : `Lote ${t}`;
-};
-
-export const rotuloMatricula = (mat: string | null | undefined): string => {
-  const t = (mat ?? '').trim();
-  if (!t) return '';
-  return /^mat(r[ií]cula)?\b/i.test(t) ? t : `Mat. ${t}`;
-};
-
-const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const mesmoTexto = (a: string, b: string) => semAcento(a).replace(/\s+/g, ' ').trim() === semAcento(b).replace(/\s+/g, ' ').trim();
-
-type EstadoConf = 'dispensada' | 'assinada' | 'incompleto' | 'pendente';
-type Filtro = 'todos' | 'pendentes' | 'sem_cpf' | 'assinadas' | 'dispensadas';
-type Ordem = 'az' | 'perimetro';
-
-const estadoDe = (c: ConfrontanteResumo): EstadoConf => {
-  if (c.dispensada) return 'dispensada';
-  if (c.qtd_divisas > 0 && c.assinadas >= c.qtd_divisas) return 'assinada';
-  if (!c.cpf_cnpj) return 'incompleto';
-  return 'pendente';
-};
-
-const CHIP_ESTADO: Record<EstadoConf, { texto: string; icone: string; cls: string }> = {
-  incompleto: { texto: 'Cadastro incompleto', icone: 'alert-circle', cls: 'text-amber-200 bg-amber-500/10 border-amber-500/35' },
-  pendente: { texto: 'Pendente de assinatura', icone: 'file-signature', cls: 'text-sky-200 bg-sky-500/10 border-sky-500/35' },
-  assinada: { texto: 'Assinada', icone: 'check-circle-2', cls: 'text-emerald-200 bg-emerald-500/10 border-emerald-500/35' },
-  dispensada: { texto: 'Dispensada', icone: 'landmark', cls: 'text-slate-200 bg-slate-500/10 border-slate-400/35' },
-};
-
-const FILTROS: { id: Filtro; rotulo: string }[] = [
-  { id: 'todos', rotulo: 'Todos' },
-  { id: 'pendentes', rotulo: 'Pendentes' },
-  { id: 'sem_cpf', rotulo: 'Sem CPF' },
-  { id: 'assinadas', rotulo: 'Assinadas' },
-  { id: 'dispensadas', rotulo: 'Dispensadas' },
-];
-
-const CHAVE_ORDEM = 'gerencigeo_cartorio_conf_ordem';
-const CHAVE_FILTRO = 'gerencigeo_cartorio_conf_filtro';
-const lerPref = (chave: string): string | null => { try { return localStorage.getItem(chave); } catch { return null; } };
-const gravarPref = (chave: string, valor: string) => { try { localStorage.setItem(chave, valor); } catch { /* storage indisponível */ } };
-
-const CLS_BTN_BASE = 'inline-flex items-center justify-center gap-1 px-2.5 min-h-[28px] text-[11px] font-bold rounded border transition-all active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-mint-vibrant';
-const CLS_BTN_PRIM = `${CLS_BTN_BASE} border-mint-vibrant/50 bg-mint-vibrant/15 text-mint-vibrant hover:bg-mint-vibrant/25`;
-const CLS_BTN_SEC = `${CLS_BTN_BASE} border-white/15 text-white/80 hover:text-white hover:bg-white/10 hover:border-mint-vibrant/40`;
-const CLS_LINK = 'text-[11px] text-white/70 hover:text-white underline underline-offset-2 min-h-[28px] inline-flex items-center px-1 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-mint-vibrant';
-
-export interface ListaConfrontantesDeps {
-  ctx: MesaTrabalhoContext;
-  signal: AbortSignal;
-  camadaConf: CamadaConfrontantes;
-  abrirEdicao: (id: number) => void;
-  abrirNovo: () => void;
-  preVisualizar: (id: number, gatilho: HTMLElement | null) => void;
-  gerarAnuencia: (id: number, botao: HTMLElement | null) => void;
-  gerarLote: (ids: number[], botao: HTMLElement | null) => void;
-  filtrarTabelaPorConfrontante: (nome: string) => void;
-  filtrarTabelaSemConfrontante: () => void;
-  irParaTabelaVertices: () => void;
-  /** Chamado após cada carga bem-sucedida (para atualizar a camada do mapa). */
-  aoCarregar: (resumo: ResumoConfrontantes | null) => void;
-}
-
-export interface ListaConfrontantes {
-  carregar: (opts?: { silencioso?: boolean }) => Promise<void>;
-  getResumo: () => ResumoConfrontantes | null;
-  destruir: () => void;
-}
+export * from './lista_confrontantes_tipos';
+export * from './lista_confrontantes_cards';
+export * from './lista_confrontantes_filtros';
+export * from './lista_confrontantes_servico';
 
 export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConfrontantes | null {
   const { ctx, signal, camadaConf } = deps;
@@ -119,14 +45,13 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
   const btnLote = document.getElementById('btn-anuencia-lote') as HTMLButtonElement | null;
   if (!lista) return null;
 
-  // O rolamento aninhado some: a barra com o contador fica sticky no topo da lista e a página inteira rola
   lista.classList.remove('max-h-[360px]', 'overflow-auto', 'pr-1');
   lista.style.maxHeight = 'none';
   lista.style.overflow = 'visible';
-  // Os cartões usam a grade própria do corpo; o contêiner vira bloco
   lista.style.display = 'block';
 
-  const rotuloLoteOriginal = btnLote?.querySelector('span')?.textContent?.trim() || btnLote?.textContent?.trim() || 'Gerar todas as anuências';
+  const rotuloLoteOriginal =
+    btnLote?.querySelector('span')?.textContent?.trim() || btnLote?.textContent?.trim() || 'Gerar todas as anuências';
 
   let resumo: ResumoConfrontantes | null = null;
   let resumoLev: number | null = null;
@@ -144,7 +69,6 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
   let destacado: number | null = null;
   let timerBusca: ReturnType<typeof setTimeout> | null = null;
 
-  // ── Estrutura fixa: barra (sticky) + corpo ──────────────────────────────────────────────────────────
   lista.innerHTML = `
     <div data-conf-barra class="sticky top-0 z-10 bg-[#0c1510] border-b border-white/5 pb-2 mb-2 space-y-2 hidden">
       <div class="flex items-center gap-2 flex-wrap">
@@ -193,252 +117,18 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     badge.classList.add('text-white/70');
   }
 
-  // ── Dados derivados ─────────────────────────────────────────────────────────────────────────────────
-  const ordemPerimetroDe = (): Map<number, number> => {
-    const mapa = new Map<number, number>();
-    (resumo?.confrontantes || []).forEach(c => {
-      if (typeof c.ordem_perimetro === 'number') mapa.set(c.id, c.ordem_perimetro);
-    });
-    if (mapa.size < (resumo?.confrontantes.length || 0)) {
-      // Sem `ordem_perimetro` do backend: usa a primeira aparição na sequência do perímetro
-      mapa.clear();
-      let i = 0;
-      (resumo?.sequencia || []).forEach(t => {
-        if (t.confrontante_id !== null && !mapa.has(t.confrontante_id)) mapa.set(t.confrontante_id, i++);
-      });
-    }
-    return mapa;
-  };
-
-  const passaFiltro = (c: ConfrontanteResumo): boolean => {
-    const est = estadoDe(c);
-    switch (filtro) {
-      case 'pendentes': return est === 'pendente' || est === 'incompleto';
-      case 'sem_cpf': return !c.cpf_cnpj && !c.dispensada;
-      case 'assinadas': return est === 'assinada';
-      case 'dispensadas': return est === 'dispensada';
-      default: return true;
-    }
-  };
-
-  const passaBusca = (c: ConfrontanteResumo): boolean => {
-    const termo = semAcento(busca.trim());
-    if (!termo) return true;
-    return semAcento(`${c.nome} ${c.lote || ''} ${c.matricula_imovel || ''}`).includes(termo);
-  };
-
-  const visiveis = (): ConfrontanteResumo[] => {
-    const itens = (resumo?.confrontantes || []).filter(c => passaFiltro(c) && passaBusca(c));
-    if (ordem === 'perimetro') {
-      const pos = ordemPerimetroDe();
-      itens.sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9) || a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true, sensitivity: 'base' }));
-    } else {
-      itens.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true, sensitivity: 'base' }));
-    }
-    return itens;
-  };
+  const visiveis = () =>
+    filtrarEOrdenarConfrontantes(resumo?.confrontantes || [], filtro, busca, ordem, resumo?.sequencia || []);
 
   const exigidos = () => (resumo?.confrontantes || []).filter(c => !c.dispensada);
 
-  // ── Renderização ────────────────────────────────────────────────────────────────────────────────────
-  const htmlCard = (c: ConfrontanteResumo): string => {
-    const est = estadoDe(c);
-    const chip = CHIP_ESTADO[est];
-    const aberto = expandidos.has(c.id);
-    const nome = escapeHtml(c.nome);
-    const parcial = !c.dispensada && c.assinadas > 0 && c.assinadas < c.qtd_divisas;
-    const completo = est === 'assinada';
-    const ocupado = ocupados.has(c.id);
-
-    const lote = rotuloLote(c.lote);
-    const loteTxt = lote && !mesmoTexto(lote, c.nome) ? escapeHtml(lote) : '';
-    const matTxt = c.matricula_imovel && !mesmoTexto(c.matricula_imovel, c.nome) ? escapeHtml(rotuloMatricula(c.matricula_imovel)) : '';
-    const partesSub = [
-      loteTxt,
-      matTxt,
-      pluralizar(c.qtd_divisas, 'divisa', 'divisas'),
-      fmtMetros(c.comprimento_m),
-      est === 'incompleto'
-        ? `<button type="button" class="link-conf-completar ${CLS_LINK} !px-0 text-amber-300 hover:text-amber-200" data-id="${c.id}" aria-label="Completar cadastro de ${nome}: falta CPF/CNPJ" title="Completar qualificação (sem CPF/CNPJ)">sem CPF/CNPJ</button>`
-        : '',
-    ].filter(Boolean);
-
-    const checkLote = modoSelecao
-      ? `<label class="mt-0.5 inline-flex items-center justify-center w-7 h-7 shrink-0 cursor-pointer" title="Incluir no lote">
-           <input type="checkbox" class="chk-conf-lote accent-emerald-400 w-4 h-4" data-id="${c.id}" aria-label="Incluir ${nome} no lote" ${selecionados.has(c.id) ? 'checked' : ''} />
-         </label>`
-      : '';
-
-    const blocoAssinatura = c.dispensada
-      ? `<span class="text-[11px] text-slate-300" title="${c.dispensa_inferida ? 'Dispensada automaticamente pelo nome (via ou curso de água público). Clique em Exigir se este confrontante for particular.' : 'Anuência dispensada (ente público).'}">${c.dispensa_inferida ? 'Ente público (pelo nome)' : 'Ente público'}</span>
-         <button type="button" class="btn-conf-exigir ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Voltar a exigir a anuência de ${nome}" title="Voltar a exigir a anuência deste confrontante">Exigir</button>`
-      : `<label class="inline-flex items-center gap-1.5 min-h-[28px] text-[11px] ${completo ? 'text-emerald-300' : 'text-white/70'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
-           <input type="checkbox" class="chk-conf-assinada accent-emerald-400 w-4 h-4" data-id="${c.id}" ${parcial ? 'data-parcial="1"' : ''} ${completo ? 'checked' : ''} ${ocupado ? 'disabled' : ''}
-                  aria-label="Anuência assinada de ${nome}${parcial ? ` (${c.assinadas} de ${c.qtd_divisas} divisas)` : ''}" />
-           <span>${parcial ? `${c.assinadas}/${c.qtd_divisas} divisas` : 'Assinada'}</span>
-         </label>
-         <button type="button" class="btn-conf-dispensar ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Dispensar a anuência de ${nome}" title="Ente público (estrada, rio, ferrovia): dispensa a anuência e tira da contagem">Dispensar</button>`;
-
-    const btnEditar = (primario: boolean) => primario
-      ? `<button type="button" class="btn-conf-editar ${CLS_BTN_PRIM}" data-id="${c.id}" aria-label="Completar cadastro de ${nome}" title="Completar a qualificação (CPF/CNPJ, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3"></i>Completar cadastro</button>`
-      : `<button type="button" class="btn-conf-editar ${CLS_BTN_SEC}" data-id="${c.id}" aria-label="Editar ${nome}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3 text-mint-vibrant"></i>Editar</button>`;
-    const btnTrecho = `<button type="button" class="btn-conf-ver ${CLS_BTN_SEC}" data-id="${c.id}" aria-label="Pré-visualizar divisa de ${nome}" title="Pré-visualizar divisa"><i data-lucide="eye" class="w-3 h-3"></i>Divisa</button>`;
-    const btnGerar = (primario: boolean) => `<button type="button" class="btn-conf-gerar ${primario ? CLS_BTN_PRIM : CLS_BTN_SEC}" data-id="${c.id}" aria-label="Gerar anuência de ${nome}" title="${est === 'incompleto' ? 'Gerar anuência (cadastro incompleto)' : 'Gerar anuência'}"><i data-lucide="file-down" class="w-3 h-3"></i>${primario ? 'Gerar anuência' : 'Gerar'}</button>`;
-
-    let acoes: string;
-    if (est === 'incompleto') acoes = `${btnEditar(true)}${btnTrecho}${btnGerar(false)}`;
-    else if (est === 'pendente') acoes = `${btnGerar(true)}${btnEditar(false)}${btnTrecho}`;
-    else if (est === 'assinada') acoes = `${btnEditar(false)}${btnTrecho}${btnGerar(false)}`;
-    else acoes = `${btnEditar(false)}${btnTrecho}`;
-
-    const trechos = c.trechos.map(t => `
-      <div class="flex items-center justify-between gap-2 text-[11px] font-mono text-white/70 pt-1">
-        <span class="truncate">${escapeHtml(t.de)} ➔ ${escapeHtml(t.para)}</span>
-        <span class="shrink-0 text-white/60">${pluralizar(t.qtd_divisas, 'divisa', 'divisas')} · ${fmtMetros(t.comprimento_m)}${t.tipo_limite ? ` · ${escapeHtml(t.tipo_limite)}` : ''}</span>
-      </div>`).join('');
-
-    return `
-      <div role="listitem" class="bg-white/[0.025] border border-white/[0.09] rounded-lg" data-conf-id="${c.id}">
-        <div class="px-2.5 pt-2 pb-2 space-y-1.5">
-          <div class="flex items-start gap-1.5">
-            ${checkLote}
-            <button type="button" class="btn-conf-expandir inline-flex items-center justify-center w-7 h-7 shrink-0 rounded text-white/70 hover:text-white hover:bg-white/10"
-                    data-id="${c.id}" aria-expanded="${aberto}" aria-controls="conf-trechos-${c.id}"
-                    aria-label="${aberto ? 'Ocultar' : 'Mostrar'} trechos de ${nome}" title="${aberto ? 'Ocultar trechos' : 'Mostrar trechos'}">
-              <i data-lucide="${aberto ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
-            </button>
-            <button type="button" class="btn-conf-focar group min-w-0 flex-1 text-left rounded px-1 py-1 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-mint-vibrant"
-                    data-id="${c.id}" aria-pressed="${destacado === c.id}" aria-label="Enquadrar ${nome} no mapa" title="Enquadrar no mapa">
-              <span class="flex items-start gap-1.5 text-[13px] font-semibold leading-snug">
-                <i data-lucide="map-pin" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-mint-vibrant/80 group-hover:text-mint-vibrant"></i>
-                <span class="break-words underline-offset-2 group-hover:underline">${nome}</span>
-              </span>
-            </button>
-          </div>
-          <div class="pl-9 text-[11px] text-white/60 leading-snug flex flex-wrap items-center gap-x-1.5">${partesSub.map((p, i) => (i > 0 ? `<span aria-hidden="true">·</span>` : '') + `<span>${p}</span>`).join('')}</div>
-          <div class="pl-9 flex items-center gap-2 flex-wrap">
-            <span class="inline-flex items-center gap-1 px-2 min-h-[22px] text-[11px] font-semibold rounded-full border ${chip.cls}"><i data-lucide="${chip.icone}" class="w-3 h-3"></i>${chip.texto}</span>
-            ${blocoAssinatura}
-          </div>
-          <div class="pl-9 flex items-center gap-1.5 flex-wrap">${acoes}</div>
-        </div>
-        <div id="conf-trechos-${c.id}" class="px-3 pb-2.5 pt-0.5 space-y-1 border-t border-white/5" ${aberto ? '' : 'hidden'}>
-          ${aberto ? `${trechos}<button type="button" class="btn-conf-filtrar ${CLS_LINK} text-mint-vibrant/90 hover:text-mint-vibrant" data-id="${c.id}">Filtrar a tabela por este confrontante</button>` : ''}
-        </div>
-      </div>`;
-  };
-
-  const htmlSemConfrontante = (): string => {
-    const sem = resumo?.sem_confrontante;
-    if (!sem || sem.qtd_divisas <= 0) return '';
-    return `
-      <div class="col-span-all flex items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2" style="grid-column:1/-1" role="listitem">
-        <div class="text-[11px] text-amber-200"><strong>${pluralizar(sem.qtd_divisas, 'divisa', 'divisas')}</strong> sem confrontante · ${fmtMetros(sem.comprimento_m)}</div>
-        <button type="button" class="btn-conf-filtrar-sem ${CLS_LINK} text-amber-300 hover:text-amber-100 font-bold">Ver na tabela</button>
-      </div>`;
-  };
-
-  const caixaEstado = (conteudo: string) => `<div class="text-center py-5 px-2 space-y-3" style="grid-column:1/-1">${conteudo}</div>`;
-
-  const atualizarBarra = () => {
-    const todos = resumo?.confrontantes || [];
-    const mostrarBarra = estado === 'dados' && todos.length > 0;
-    barra.classList.toggle('hidden', !mostrarBarra);
-    if (!mostrarBarra) return;
-
-    const contar: Record<Filtro, number> = {
-      todos: todos.length,
-      pendentes: todos.filter(c => ['pendente', 'incompleto'].includes(estadoDe(c))).length,
-      sem_cpf: todos.filter(c => !c.cpf_cnpj && !c.dispensada).length,
-      assinadas: todos.filter(c => estadoDe(c) === 'assinada').length,
-      dispensadas: todos.filter(c => c.dispensada).length,
-    };
-    barra.querySelectorAll<HTMLElement>('[data-filtro]').forEach(chip => {
-      const id = chip.dataset.filtro as Filtro;
-      const ativo = id === filtro;
-      chip.setAttribute('aria-pressed', String(ativo));
-      chip.classList.toggle('bg-mint-vibrant/15', ativo);
-      chip.classList.toggle('border-mint-vibrant/50', ativo);
-      chip.classList.toggle('text-mint-vibrant', ativo);
-      const cont = chip.querySelector<HTMLElement>(`[data-conf-cont="${id}"]`);
-      if (cont) cont.textContent = String(contar[id]);
-    });
-
-    const ex = exigidos();
-    const assinados = ex.filter(c => estadoDe(c) === 'assinada').length;
-    const pct = ex.length ? Math.round((assinados / ex.length) * 100) : 0;
-    const barraProg = barra.querySelector<HTMLElement>('[data-conf-progresso-barra]');
-    const txtProg = barra.querySelector<HTMLElement>('[data-conf-progresso-texto]');
-    const completa = ex.length > 0 && assinados === ex.length;
-    if (barraProg) {
-      barraProg.style.width = `${pct}%`;
-      barraProg.classList.toggle('bg-emerald-400', completa);
-      barraProg.classList.toggle('bg-amber-400', !completa);
-    }
-    if (txtProg) txtProg.textContent = ex.length ? `${assinados}/${ex.length} assinadas` : 'Nenhuma anuência exigida';
-
-    const boxSel = barra.querySelector<HTMLElement>('[data-conf-selecao]');
-    boxSel?.classList.toggle('hidden', !modoSelecao);
-    const txtSel = barra.querySelector<HTMLElement>('[data-conf-sel-texto]');
-    if (txtSel) txtSel.textContent = `${selecionados.size} de ${todos.length} no lote`;
-    const btnSel = barra.querySelector<HTMLElement>('[data-acao="alternar-selecao"]');
-    if (btnSel) {
-      btnSel.setAttribute('aria-pressed', String(modoSelecao));
-      btnSel.textContent = modoSelecao ? 'Sair da seleção' : 'Selecionar para lote';
-    }
-  };
-
-  const atualizarBadge = () => {
-    if (!badge) return;
-    const todos = resumo?.confrontantes || [];
-    const base = 'bg-white/5 border-white/10 text-white/70';
-    const verde = 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
-    let texto = '—';
-    let completa = false;
-    if (estado === 'carregando') texto = 'Carregando…';
-    else if (estado === 'erro') texto = 'Erro ao carregar';
-    else if (resumo && todos.length > 0) {
-      const ex = exigidos();
-      const assinados = ex.filter(c => estadoDe(c) === 'assinada').length;
-      const disp = todos.length - ex.length;
-      completa = ex.length > 0 && assinados === ex.length;
-      texto = ex.length
-        ? `${assinados}/${ex.length} ${ex.length === 1 ? 'anuência assinada' : 'anuências assinadas'}`
-        : 'Nenhuma anuência exigida';
-      if (disp) texto += ` · ${pluralizar(disp, 'dispensada', 'dispensadas')}`;
-    }
-    badge.innerText = texto;
-    verde.split(' ').forEach(c => badge.classList.toggle(c, completa));
-    base.split(' ').forEach(c => badge.classList.toggle(c, !completa));
-    badge.setAttribute('title', completa ? 'Todas as anuências exigidas foram assinadas' : '');
-  };
-
-  const atualizarBotaoLote = () => {
-    if (!btnLote) return;
-    const ex = exigidos();
-    const rotulo = btnLote.querySelector('span');
-    let texto = rotuloLoteOriginal;
-    let desabilitado = estado !== 'dados' || ex.length === 0;
-    let titulo = 'Gera as anuências dos confrontantes exigidos em um único documento';
-    if (estado === 'dados' && modoSelecao) {
-      texto = `Gerar anuências selecionadas (${selecionados.size})`;
-      desabilitado = selecionados.size === 0;
-      titulo = selecionados.size === 0 ? 'Marque ao menos um confrontante para gerar o lote' : 'Gera apenas as anuências marcadas';
-    } else if (estado === 'dados' && ex.length === 0) {
-      titulo = 'Não há confrontante com anuência exigida nesta matrícula';
-    } else if (estado !== 'dados') {
-      titulo = 'Aguardando a lista de confrontantes';
-    }
-    if (rotulo) rotulo.textContent = texto;
-    btnLote.disabled = desabilitado;
-    btnLote.setAttribute('aria-disabled', String(desabilitado));
-    btnLote.classList.toggle('opacity-50', desabilitado);
-    btnLote.classList.toggle('cursor-not-allowed', desabilitado);
-    btnLote.title = titulo;
+  const sincronizarIndicadores = () => {
+    atualizarBarraUI(barra, resumo, filtro, modoSelecao, selecionados, estado);
+    atualizarBadgeUI(badge, resumo, estado);
+    atualizarBotaoLoteUI(btnLote, resumo, modoSelecao, selecionados, estado, rotuloLoteOriginal);
   };
 
   const renderizarCorpo = () => {
-    // Guarda o foco para restaurá-lo depois de reescrever o HTML (teclado não pode perder o lugar)
     const ativo = document.activeElement as HTMLElement | null;
     let chaveFoco: { id: string; classe: string } | null = null;
     if (ativo && corpo.contains(ativo)) {
@@ -468,7 +158,7 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
            </div>`);
     } else {
       const itens = visiveis();
-      const alerta = htmlSemConfrontante();
+      const alerta = htmlSemConfrontante(resumo.sem_confrontante);
       if (itens.length === 0) {
         corpo.innerHTML = alerta + (resumo.confrontantes.length === 0
           ? caixaEstado(`<p class="text-[12px] text-white/60 italic">Nenhum confrontante cadastrado ainda para estas divisas.</p>
@@ -476,15 +166,13 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
           : caixaEstado(`<p class="text-[12px] text-white/60 italic">Nenhum confrontante corresponde ao filtro.</p>
               <button type="button" data-acao="limpar-filtros" class="${CLS_BTN_SEC}">Limpar busca e filtros</button>`));
       } else {
-        corpo.innerHTML = alerta + itens.map(htmlCard).join('');
+        corpo.innerHTML = alerta + itens.map(c => htmlCard(c, expandidos, ocupados, modoSelecao, selecionados, destacado)).join('');
       }
     }
 
     initIcons();
     corpo.querySelectorAll<HTMLInputElement>('input[data-parcial="1"]').forEach(i => { i.indeterminate = true; });
-    atualizarBarra();
-    atualizarBadge();
-    atualizarBotaoLote();
+    sincronizarIndicadores();
 
     if (chaveFoco) {
       const alvo = corpo.querySelector<HTMLElement>(`[data-conf-id="${chaveFoco.id}"] .${chaveFoco.classe}`);
@@ -492,7 +180,6 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     }
   };
 
-  // ── Carga ───────────────────────────────────────────────────────────────────────────────────────────
   async function carregar(opts?: { silencioso?: boolean }) {
     const lev = ctx.currentLevId;
     const mat = ctx.currentMatriculaId;
@@ -514,21 +201,18 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     }
 
     try {
-      const res = await fetch(`${API_BASE}/levantamentos/${lev}/matriculas/${mat}/resumo-confrontantes`, { signal });
-      if (meuSeq !== reqSeq || lev !== ctx.currentLevId || mat !== ctx.currentMatriculaId) return;   // resposta obsoleta
-      if (!res.ok) throw new Error(await extrairDetalhe(res, 'Não foi possível carregar os confrontantes.'));
-      resumo = await res.json();
-      if (meuSeq !== reqSeq) return;
+      const dados = await buscarResumoConfrontantes(lev, mat, signal);
+      if (meuSeq !== reqSeq || lev !== ctx.currentLevId || mat !== ctx.currentMatriculaId) return;
+      resumo = dados;
       resumoLev = lev; resumoMat = mat;
       estado = 'dados';
-      if (destacado !== null && !resumo!.confrontantes.some(c => c.id === destacado)) destacado = null;
-      const idsValidos = new Set(resumo!.confrontantes.map(c => c.id));
+      if (destacado !== null && !resumo.confrontantes.some(c => c.id === destacado)) destacado = null;
+      const idsValidos = new Set(resumo.confrontantes.map(c => c.id));
       [...selecionados].forEach(id => { if (!idsValidos.has(id)) selecionados.delete(id); });
     } catch (err: any) {
       if (err?.name === 'AbortError' || meuSeq !== reqSeq) return;
       console.error('Erro ao carregar resumo de confrontantes:', err);
       if (resumo && silencioso) {
-        // Mantém a lista anterior em vez de apagá-la
         showToast('Não foi possível atualizar a lista de confrontantes; exibindo os dados anteriores.', 'error');
         return;
       }
@@ -540,21 +224,14 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     deps.aoCarregar(resumo);
   }
 
-  // ── Ações ───────────────────────────────────────────────────────────────────────────────────────────
   const definirDispensa = async (id: number, dispensada: boolean) => {
     if (ocupados.has(id)) return;
     const lev = ctx.currentLevId;
+    if (!lev) return;
     ocupados.add(id);
     renderizarCorpo();
     try {
-      const res = await fetch(`${API_BASE}/levantamentos/${lev}/confrontantes/${id}/dispensa-anuencia`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dispensada }),
-        signal,
-      });
-      if (!res.ok) throw new Error(await extrairDetalhe(res, 'Não foi possível alterar a dispensa da anuência.'));
-      showToast(dispensada ? 'Anuência dispensada.' : 'Anuência voltou a ser exigida.', 'success', 2000);
+      await despacharDispensaAnuencia(lev, id, dispensada, signal);
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
       showToast(escapeHtml(err?.message || 'Não foi possível alterar a dispensa da anuência.'), 'error');
@@ -583,18 +260,12 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
 
     const lev = ctx.currentLevId;
     const mat = ctx.currentMatriculaId;
+    if (!lev || !mat) return;
     ocupados.add(id);
     el.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/levantamentos/${lev}/matriculas/${mat}/confrontantes/${id}/anuencia-assinada`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assinada: marcar }),
-        signal,
-      });
-      if (!res.ok) throw new Error(await extrairDetalhe(res, 'Não foi possível salvar o status da anuência.'));
+      await despacharAssinaturaAnuencia(lev, mat, id, conf.nome, marcar, signal);
       conf.assinadas = marcar ? conf.qtd_divisas : 0;
-      showToast(marcar ? `Anuência de ${escapeHtml(conf.nome)} marcada como assinada.` : `Anuência de ${escapeHtml(conf.nome)} desmarcada.`, 'success', 2000);
     } catch (err: any) {
       ocupados.delete(id);
       if (err?.name === 'AbortError') return;
@@ -641,7 +312,6 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     renderizarCorpo();
   };
 
-  // ── Eventos (delegados; vinculados uma única vez) ───────────────────────────────────────────────────
   lista.addEventListener('click', (e) => {
     const alvo = e.target as HTMLElement;
 
@@ -700,8 +370,7 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
     } else if (el.classList.contains('chk-conf-lote')) {
       const id = Number(el.dataset.id);
       if (el.checked) selecionados.add(id); else selecionados.delete(id);
-      atualizarBarra();
-      atualizarBotaoLote();
+      sincronizarIndicadores();
     } else if ((e.target as EventTarget) === selOrdem) {
       ordem = selOrdem.value === 'perimetro' ? 'perimetro' : 'az';
       gravarPref(CHAVE_ORDEM, ordem);

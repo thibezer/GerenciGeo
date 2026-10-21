@@ -662,3 +662,26 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   5. **Validação de Build**:
      - Toda alteração em telas deve compilar perfeitamente no build do frontend (`npm run build`), garantindo que o deploy automático da Hostinger ocorra sem falhas.
 
+---
+
+## 42. Orquestração e Ciclo de Vida da Mesa de Trabalho: Cleanups de Módulos e Atalhos Topográficos (Áreas 1 e 2)
+- **Contexto e Problema**:
+  1. A `mesa_trabalho.ts` e a `mesa_geodesica.ts` eram arquivos monolíticos massivos (> 1.500 linhas cada) misturando ciclo de vida de rotas, splitters, atalhos de teclado, drag & drop de arquivos e cálculos geodésicos.
+  2. Ouvintes de eventos no `window` e `document` (como `mousemove` de splitters, `dragenter`/`drop` global, atalhos de teclado e `BroadcastChannel`) ficavam ativos mesmo após sair da rota, gerando retenção de memória e chamadas fantasmas ao Leaflet (`_leaflet_pos`).
+- **Regras Obrigatórias**:
+  1. **Decomposição em Submódulos Coesos (< 300 linhas)**:
+     - `frontend/src/views/mesa_trabalho/core/`: `splitters.ts`, `drag_drop_global.ts`, `batch_actions_bar.ts`, `ribbon_interactions.ts`, `shortcuts.ts`.
+     - `frontend/src/views/mesa_trabalho/geodesica/`: `geodesica_calculos.ts`, `geodesica_tabela.ts`, `geodesica_ingestao.ts`, `geodesica_vizinhos.ts`.
+  2. **Contrato de Cleanup Obrigatório em Módulos de Interface**:
+     - Toda função inicializadora (`inicializarSplitters`, `inicializarDragDropGlobal`, `inicializarBarraAcoesLote`, `setupRibbonInteractions`, `inicializarAtalhosTeclado`) deve retornar estritamente uma função de teardown `() => void`.
+     - O método `mesaTrabalhoRoute.cleanup()` deve invocar cada função de limpeza atômica, desanexando os ouvintes do DOM e liberando referências do mapa e do `BroadcastChannel`.
+  3. **Atalhos Topográficos Produtivos Padronizados**:
+     - `F2`: Foco e seleção imediata no campo de busca de vértices (`#input-search-ponto`).
+     - `F4`: Alternância / toggle do painel lateral de propriedades (`#btn-toggle-props`).
+     - `Esc`: Limpeza de seleções ativas de vértices/segmentos e fechamento de modais abertos.
+     - `Del` / `Delete`: Disparo de exclusão confirmada para vértices selecionados (bloqueado em projetos `'ARQUIVADO'`).
+     - `1` a `4`: Alternância direta entre as 4 abas da Mesa de Trabalho (1: Geoprocessamento, 2: Perímetro, 3: Cartório, 4: Auditoria) quando nenhum input/textarea estiver focado.
+  4. **Motor Matemático Geodésico Desacoplado**:
+     - Todos os cálculos de conformidade INCRA NTGIR 3ª Edição ($\sigma_M \le 0.10\text{m}$, $\sigma_V \le 0.50\text{m}$, $\sigma_P \le 3.00\text{m}$), azimutes DMS, distâncias e área por Gauss (Shoelace) residem isolados em `geodesica_calculos.ts` com cobertura de testes unitários automatizados.
+
+
