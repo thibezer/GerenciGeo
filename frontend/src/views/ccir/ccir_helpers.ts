@@ -19,58 +19,94 @@ export const aplicarMascaraCpfCnpj = (value: string): string => {
   }
 };
 
+export const formatarDataImportacao = (iso?: string | null): string => {
+  const s = iso || '';
+  return s.length >= 16 ? `${s.substring(8, 10)}/${s.substring(5, 7)} ${s.substring(11, 16)}` : (s || '—');
+};
+
 export const renderPlanilhasImportadas = (files: any[]): string => {
   if (!files || files.length === 0) {
-    return `<p class="text-xs text-white/20 text-center py-4">Nenhuma planilha cadastrada.</p>`;
+    return `<p class="lp-sub" style="text-align:center;padding:16px 0">Nenhuma planilha cadastrada.</p>`;
   }
 
   return files.map((f: any) => `
-    <div class="p-2 rounded bg-white/[0.01] border border-white/5 flex items-center justify-between group">
+    <div class="lp-planilha">
       <div class="min-w-0 flex-1">
-        <p class="text-[11px] font-bold text-white truncate" title="${escapeHtml(f.arquivo_origem)}">${escapeHtml(f.arquivo_origem)}</p>
-        <p class="text-[9px] text-white/40 mt-0.5">${f.total_registros} reg • ${f.data_importacao.substring(8, 10)}/${f.data_importacao.substring(5, 7)} ${f.data_importacao.substring(11, 16)}</p>
+        <p class="lp-planilha-nome" title="${escapeHtml(f.arquivo_origem)}">${escapeHtml(f.arquivo_origem)}</p>
+        <p class="lp-sub" style="font-size:11.5px">${Number(f.total_registros || 0).toLocaleString('pt-BR')} reg • ${formatarDataImportacao(f.data_importacao)}</p>
       </div>
-      <button class="text-white/20 hover:text-red-400 p-1 rounded hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all btn-delete-ccir-file cursor-pointer" data-file="${escapeHtml(f.arquivo_origem)}">
-        <i data-lucide="trash-2" class="w-3 h-3"></i>
+      <button type="button" class="lp-ico-btn is-danger btn-delete-ccir-file" data-file="${escapeHtml(f.arquivo_origem)}" title="Remover planilha" aria-label="Remover planilha ${escapeHtml(f.arquivo_origem)}">
+        <i data-lucide="trash-2"></i>
       </button>
     </div>
   `).join('');
 };
 
+// ---------------- Formatação e ordenação dos resultados (puras) ----------------
+
+export const formatarAreaCcir = (v: number | null | undefined): string =>
+  v === null || v === undefined ? '' : v.toFixed(4).replace('.', ',');
+
+export const formatarPercentualCcir = (v: number | null | undefined): string =>
+  v === null || v === undefined ? '' : v.toFixed(2).replace('.', ',') + '%';
+
+export type CampoOrdemCcir = 'codigo' | 'imovel' | 'municipio' | 'area' | 'titular' | 'pct';
+export type DirecaoOrdemCcir = 'asc' | 'desc';
+
+/** Ordenação estável, sem mutar a entrada; valor ausente vai sempre para o fim; empate desempata por denominação. */
+export const ordenarResultadosCcir = (data: any[], campo: CampoOrdemCcir, direcao: DirecaoOrdemCcir): any[] => {
+  const fator = direcao === 'asc' ? 1 : -1;
+  const txt = (v: unknown): string => String(v ?? '');
+  const cmp = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true });
+  const chave = (r: any): string | number | null => {
+    switch (campo) {
+      case 'codigo': return r.codigo_imovel || null;
+      case 'imovel': return r.denominacao || null;
+      case 'municipio': return r.municipio ? `${r.municipio}-${r.uf ?? ''}` : null;
+      case 'titular': return r.titular || null;
+      case 'area': return r.area_total ?? null;
+      default: return r.percentual_detencao ?? null;
+    }
+  };
+  return [...data].sort((a, b) => {
+    const ka = chave(a);
+    const kb = chave(b);
+    if (ka === null && kb !== null) return 1;
+    if (ka !== null && kb === null) return -1;
+    let r = 0;
+    if (ka !== null && kb !== null) r = typeof ka === 'number' && typeof kb === 'number' ? ka - kb : cmp(txt(ka), txt(kb));
+    return r !== 0 ? r * fator : cmp(txt(a.denominacao), txt(b.denominacao));
+  });
+};
+
 export const renderCcirResultadosTabela = (data: any[]): string => {
   if (!data || data.length === 0) {
-    return `
-      <tr>
-        <td colspan="7" class="p-12 text-center text-white/20">Nenhum registro encontrado para a busca.</td>
-      </tr>
-    `;
+    return `<tr><td colspan="7"><div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="search"></i></div><div class="lp-estado-titulo">Nenhum registro encontrado</div><div class="lp-estado-txt">Nada corresponde aos filtros aplicados.</div><button type="button" class="lp-btn-sec" data-estado-acao="limpar">Limpar filtros</button></div></td></tr>`;
   }
 
   return data.map((r: any) => {
-    const areaFmt = r.area_total !== null ? r.area_total.toFixed(4).replace('.', ',') : '';
-    const pctFmt = r.percentual_detencao !== null ? r.percentual_detencao.toFixed(2).replace('.', ',') + '%' : '';
-
+    const nome = escapeHtml(r.denominacao || '');
     return `
-      <tr class="hover:bg-white/[0.01] transition-all cursor-pointer ccir-row" data-codigo="${escapeHtml(r.codigo_imovel)}">
-        <td class="p-3 font-mono font-bold text-white/80">${formatarCCIR(r.codigo_imovel)}</td>
-        <td class="p-3 font-bold text-white">${escapeHtml(r.denominacao || '')}</td>
-        <td class="p-3 text-white/60">${escapeHtml(r.municipio || '')}-${escapeHtml(r.uf || '')}</td>
-        <td class="p-3 text-right font-mono text-white/80">${areaFmt}</td>
-        <td class="p-3 text-white/80">${escapeHtml(r.titular || '')}</td>
-        <td class="p-3 text-right font-mono text-mint-vibrant font-bold">${pctFmt}</td>
-        <td class="p-3 text-center">
-          <div class="flex items-center justify-center gap-1.5">
-            <button class="text-mint-vibrant hover:bg-mint-vibrant/10 p-1.5 rounded btn-view-ccir-detail cursor-pointer" data-codigo="${escapeHtml(r.codigo_imovel)}" title="Visualizar Coproprietários">
-              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+      <tr class="ccir-row" data-codigo="${escapeHtml(r.codigo_imovel)}" tabindex="0" aria-label="Ver coproprietários de ${nome || escapeHtml(r.codigo_imovel)}">
+        <td><span class="lp-mono" style="font-size:12.5px;font-weight:700;color:var(--lp-text)">${formatarCCIR(r.codigo_imovel)}</span></td>
+        <td><div class="lp-id-nome"><span title="${nome}">${nome || '<span class="lp-muted">sem denominação</span>'}</span></div></td>
+        <td class="lp-oculta-md"><span class="lp-sub" style="font-size:13px;color:var(--lp-text-2)">${escapeHtml(r.municipio || '')}-${escapeHtml(r.uf || '')}</span></td>
+        <td class="lp-col-num"><span class="lp-mono" style="font-size:12.5px">${formatarAreaCcir(r.area_total)}</span></td>
+        <td class="lp-oculta-sm"><span class="lp-sub" style="font-size:13px;color:var(--lp-text-2)" title="${escapeHtml(r.titular || '')}">${escapeHtml(r.titular || '')}</span></td>
+        <td class="lp-col-num"><span class="lp-mono" style="font-size:12.5px;font-weight:700;color:var(--lp-accent)">${formatarPercentualCcir(r.percentual_detencao)}</span></td>
+        <td class="lp-col-acoes" style="width:84px">
+          <div class="lp-acoes">
+            <button type="button" class="lp-ico-btn btn-view-ccir-detail" data-codigo="${escapeHtml(r.codigo_imovel)}" title="Ver coproprietários" aria-label="Ver coproprietários de ${nome}">
+              <i data-lucide="eye"></i>
             </button>
-            <button class="text-blue-400 hover:bg-blue-500/10 p-1.5 rounded btn-emitir-ccir-incra cursor-pointer" 
-                    data-codigo="${escapeHtml(r.codigo_imovel)}" 
-                    data-uf="${escapeHtml(r.uf || '')}" 
-                    data-municipio="${escapeHtml(r.municipio || '')}" 
+            <button type="button" class="lp-ico-btn btn-emitir-ccir-incra" style="color:#7dd3fc"
+                    data-codigo="${escapeHtml(r.codigo_imovel)}"
+                    data-uf="${escapeHtml(r.uf || '')}"
+                    data-municipio="${escapeHtml(r.municipio || '')}"
                     data-titular="${escapeHtml(r.titular || '')}"
-                    data-imovel="${escapeHtml(r.denominacao || '')}"
-                    title="Emitir CCIR no Portal do INCRA">
-              <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+                    data-imovel="${nome}"
+                    title="Emitir CCIR no portal do INCRA" aria-label="Emitir CCIR de ${nome}">
+              <i data-lucide="globe"></i>
             </button>
           </div>
         </td>

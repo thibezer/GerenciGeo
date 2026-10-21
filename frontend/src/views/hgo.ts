@@ -1,63 +1,87 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { registerInterval, showToast } from '../utils';
+import { registerInterval, showToast, initIcons } from '../utils';
+import {
+  classificarLog,
+  extrairProgresso,
+  percentual,
+  estadoHgo,
+  ROTULO_ESTADO,
+  type EstadoHgo
+} from './hgo/hgo_helpers';
+
+const CLASSE_ESTADO: Record<EstadoHgo, string> = {
+  'sem-pasta': 'lp-tag-mute',
+  pronto: 'lp-tag-info',
+  processando: 'lp-tag-warn',
+  concluido: 'lp-tag-pf',
+  erro: 'lp-tag-danger'
+};
 
 export const hgoRoute: RouteDef = {
   render: () => `
-     <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div class="flex justify-between items-center">
-        <div>
-          <h2 class="text-3xl font-bold">Organizador HGO / Triagem</h2>
-          <p class="text-white/40 mt-1">Organização inteligente de arquivos brutos por base e rover.</p>
+    <div class="gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior (padrão de listagem): título + contexto + ações -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo">Organizador HGO</h2>
+          <span class="lp-sub lp-oculta-sm" style="font-size:12.5px">Organização inteligente de arquivos brutos por base e rover</span>
         </div>
-        <div class="flex gap-3">
-          <button class="btn-primary" id="btn-start-hgo">
+        <div class="lp-bar-right">
+          <button type="button" class="lp-btn-sec" id="btn-pick-folder">
+            <i data-lucide="folder-tree" class="w-3.5 h-3.5"></i>
+            Procurar pasta
+          </button>
+          <button type="button" class="lp-btn-primario" id="btn-start-hgo">
             <i data-lucide="play" class="w-4 h-4"></i>
-            Converter e Organizar
+            Converter e organizar
           </button>
         </div>
       </div>
 
-      <div class="glass-card p-6 flex items-center gap-4">
-         <button class="btn-secondary whitespace-nowrap" id="btn-pick-folder">
-            <i data-lucide="folder-tree" class="w-4 h-4"></i>
-            Procurar Pasta Local
-         </button>
-         <div class="flex-1 bg-white/5 border border-white/10 rounded-technical px-4 py-2 font-mono text-sm text-white/60 truncate" id="lbl-folder-path">
-            Nenhuma pasta selecionada...
-         </div>
+      <!-- Faixa da pasta de trabalho + estado -->
+      <div class="lp-faixa">
+        <span class="lp-faixa-rotulo">Pasta de trabalho</span>
+        <span class="lp-faixa-valor" id="lbl-folder-path" title="Nenhuma pasta selecionada"><bdi>Nenhuma pasta selecionada...</bdi></span>
+        <span class="lp-tag lp-tag-mute" id="hgo-estado" role="status" aria-live="polite">${ROTULO_ESTADO['sem-pasta']}</span>
       </div>
 
-      <!-- Painel de Progresso HGO -->
-      <div class="glass-card p-6 mt-6 hidden" id="hgo-progress-panel">
-         <div class="flex justify-between items-center text-xs font-mono mb-2">
-            <span class="text-white/60 font-semibold">Progresso do Processamento:</span>
-            <span id="hgo-progress-percent" class="text-mint-vibrant font-bold">0/0 (0%)</span>
-         </div>
-         <div class="w-full bg-white/5 border border-white/10 h-2.5 rounded-full overflow-hidden">
-            <div class="bg-mint-vibrant h-full transition-all duration-300 w-0" id="hgo-progress-bar"></div>
-         </div>
+      <!-- Progresso (aparece quando o log informa [n/m]) -->
+      <div class="lp-faixa hidden" id="hgo-progress-panel">
+        <span class="lp-faixa-rotulo">Progresso</span>
+        <div class="lp-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="hgo-progress-track"><div id="hgo-progress-bar"></div></div>
+        <span class="lp-mono" style="font-size:12.5px;font-weight:700;color:var(--lp-accent)" id="hgo-progress-percent">0/0 (0%)</span>
       </div>
-      
-      <div class="glass-card bg-[#050a08] border-mint-vibrant/10 overflow-hidden flex flex-col h-64 mt-6">
-          <div class="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <i data-lucide="terminal" class="w-4 h-4 text-mint-vibrant"></i>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">Terminal de Logs HGO</span>
-            </div>
-          </div>
-          <div class="flex-1 p-4 font-mono text-xs overflow-y-auto space-y-1 text-white/60" id="terminal-output-hgo">
-             <div class="text-white/30">[IDLE] Aguardando seleção de pasta.</div>
-          </div>
+
+      <!-- Terminal de logs: ocupa o resto da altura e rola por dentro -->
+      <div class="lp-card" style="background:#050a08">
+        <div class="lp-card-titulo">
+          <i data-lucide="terminal"></i>
+          Terminal de logs HGO
+          <span class="lp-sub" style="margin-left:auto;font-size:11px;text-transform:none;letter-spacing:0" id="hgo-log-count">0 linhas</span>
+        </div>
+        <div class="lp-terminal" id="terminal-output-hgo" role="log" aria-live="off">
+          <div class="lp-log is-ocioso">[IDLE] Aguardando seleção de pasta.</div>
+        </div>
       </div>
-     </div>
-   `,
+    </div>
+  `,
   setup: () => {
+    initIcons();
     let currentFolder = "";
+    let ultimosLogs: string[] = [];
     const lblPath = document.getElementById('lbl-folder-path');
     const term = document.getElementById('terminal-output-hgo');
     let lastLogCount = 0;
-    
+
+    const atualizarEstado = () => {
+      const chip = document.getElementById('hgo-estado');
+      if (!chip) return;
+      const estado = estadoHgo(!!currentFolder, extrairProgresso(ultimosLogs), ultimosLogs[ultimosLogs.length - 1]);
+      chip.className = `lp-tag ${CLASSE_ESTADO[estado]}`;
+      chip.innerText = ROTULO_ESTADO[estado];
+    };
+
     const pollLogs = () => {
       fetch(`${API_BASE}/logs`)
         .then(res => {
@@ -65,53 +89,34 @@ export const hgoRoute: RouteDef = {
           return res.json();
         })
         .then(data => {
-          const logs = data.logs || [];
+          const logs: string[] = data.logs || [];
           if (logs.length > lastLogCount && term) {
-            let totalFiles = 0;
-            let processedFiles = 0;
-
             term.innerHTML = '';
-            logs.forEach((log: string) => {
+            logs.forEach(log => {
               const div = document.createElement('div');
-              div.className = 'py-0.5';
-              
-              // Cores semânticas reativas e dinâmicas nos logs
-              const upperLog = log.toUpperCase();
-              if (upperLog.includes('ERROR') || upperLog.includes('ERRO') || upperLog.includes('FALHA') || upperLog.includes('CRITICAL') || upperLog.includes('REJEITADO')) {
-                div.className += ' text-rose-400 font-medium';
-              } else if (upperLog.includes('WARN') || upperLog.includes('AVISO') || upperLog.includes('ATENÇÃO')) {
-                div.className += ' text-yellow-400';
-              } else if (upperLog.includes('SUCCESS') || upperLog.includes('SUCESSO') || upperLog.includes('CONCLUÍDO') || upperLog.includes('CRIADA') || upperLog.includes('OK')) {
-                div.className += ' text-emerald-400 font-semibold';
-              } else {
-                div.className += ' text-mint-vibrant/80';
-              }
-              
+              const nivel = classificarLog(log);
+              div.className = nivel === 'info' ? 'lp-log' : `lp-log is-${nivel}`;
               div.innerText = `> ${log}`;
               term.appendChild(div);
-
-              // Parse do progresso (ex: "Convertendo arquivo [1/15]")
-              const match = log.match(/\[(\d+)\/(\d+)\]/) || log.match(/(\d+)\s+de\s+(\d+)/);
-              if (match) {
-                 processedFiles = parseInt(match[1]);
-                 totalFiles = parseInt(match[2]);
-              }
             });
-            
             term.scrollTop = term.scrollHeight;
             lastLogCount = logs.length;
+            ultimosLogs = logs;
 
-            // Atualiza barra de progresso visual
-            if (totalFiles > 0) {
-              const percent = Math.round((processedFiles / totalFiles) * 100);
-              const progressPanel = document.getElementById('hgo-progress-panel');
+            const contador = document.getElementById('hgo-log-count');
+            if (contador) contador.innerText = `${logs.length} linha(s)`;
+
+            const progresso = extrairProgresso(logs);
+            if (progresso) {
+              const pct = percentual(progresso);
+              document.getElementById('hgo-progress-panel')?.classList.remove('hidden');
               const progressPercent = document.getElementById('hgo-progress-percent');
               const progressBar = document.getElementById('hgo-progress-bar');
-              
-              if (progressPanel) progressPanel.classList.remove('hidden');
-              if (progressPercent) progressPercent.innerText = `${processedFiles}/${totalFiles} (${percent}%)`;
-              if (progressBar) progressBar.style.width = `${percent}%`;
+              if (progressPercent) progressPercent.innerText = `${progresso.processados}/${progresso.total} (${pct}%)`;
+              if (progressBar) progressBar.style.width = `${pct}%`;
+              document.getElementById('hgo-progress-track')?.setAttribute('aria-valuenow', String(pct));
             }
+            atualizarEstado();
           }
         })
         .catch(err => console.warn('Erro ao buscar logs HGO:', err));
@@ -129,10 +134,15 @@ export const hgoRoute: RouteDef = {
         if (data.path) {
           currentFolder = data.path;
           if (lblPath) {
-            lblPath.innerText = currentFolder;
-            lblPath.classList.remove('text-white/60');
-            lblPath.classList.add('text-white');
+            // <bdi> + direction:rtl no CSS mostram o FIM do caminho (a pasta que importa) quando ele é longo
+            lblPath.innerHTML = '';
+            const texto = document.createElement('bdi');
+            texto.innerText = currentFolder;
+            lblPath.appendChild(texto);
+            lblPath.title = currentFolder;
+            lblPath.classList.add('tem-valor');
           }
+          atualizarEstado();
           showToast("Pasta de trabalho selecionada com sucesso!", "success");
         }
       } catch (e) {
