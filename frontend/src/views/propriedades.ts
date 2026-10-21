@@ -27,105 +27,47 @@ const lerRespostaApi = async (res: Response): Promise<any> => {
 
 export const propriedadesRoute: RouteDef = {
   render: () => `
-    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+    <div class="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
       <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0">
-        <div>
-          <h1 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Propriedades</h1>
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Propriedades</h2>
+          <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 leading-none flex items-center gap-1" title="Total de Imóveis">
+            <i data-lucide="home" class="w-3 h-3"></i>
+            <span id="stat-total-prop">0</span>
+          </span>
         </div>
-      </div>
-
-      <!-- KPIs Compactos Menores -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
-              <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Imóveis</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-prop">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
-              <i data-lucide="map" class="w-3.5 h-3.5 text-blue-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Municípios Atendidos</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-municipios-prop">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
-              <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Matrículas</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-mats">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
-              <i data-lucide="folder-git" class="w-3.5 h-3.5 text-rose-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Projetos Ativos</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-levs">0</h3>
-            </div>
-          </div>
-        </ui-card>
+        <div class="flex items-center gap-1.5">
+           <input type="text" placeholder="Buscar propriedade por nome, município..." class="glass-input text-[11px] w-48 sm:w-60 md:w-72 h-[26px] py-0 px-2 leading-none" id="busca-propriedade" />
+           <select id="ordenacao-propriedade" class="glass-input text-[11px] h-[26px] py-0 px-1.5 leading-none cursor-pointer" title="Ordenar propriedades">
+              <option value="nome-asc">Nome (A-Z)</option>
+              <option value="nome-desc">Nome (Z-A)</option>
+              <option value="data-desc">Mais Recentes</option>
+              <option value="data-asc">Mais Antigas</option>
+           </select>
+           <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold cursor-pointer" id="btn-abrir-modal-propriedade">
+              <i data-lucide="plus" class="w-3 h-3"></i>
+              Nova Propriedade
+           </button>
+        </div>
       </div>
 
       <!-- Tabela Principal de Propriedades -->
-      <ui-card elevacao="baixa" class="overflow-hidden border border-white/5 flex flex-col flex-1 min-h-0">
-        <!-- Filtros, Busca, Ordenação e Ações -->
-        <div class="p-3 sm:p-3.5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01] shrink-0">
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 max-w-xl">
-            <div class="relative flex-1">
-              <ui-campo-texto id="busca-propriedade" placeholder="Buscar propriedade por nome, município..." class="w-full"></ui-campo-texto>
-            </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <span class="text-[10px] text-white/40 uppercase font-bold whitespace-nowrap">Ordenar:</span>
-              <ui-select id="ordenacao-propriedade" value="nome-asc" class="h-8.5 py-0 px-2.5 text-xs bg-forest-deep">
-                <option value="nome-asc">Nome (A-Z)</option>
-                <option value="nome-desc">Nome (Z-A)</option>
-                <option value="data-desc">Mais Recentes (Cadastro)</option>
-                <option value="data-asc">Mais Antigas (Cadastro)</option>
-              </ui-select>
-            </div>
-          </div>
-          <div class="flex gap-2 justify-end shrink-0">
-            <ui-botao variante="primario" id="btn-abrir-modal-propriedade" class="h-8.5 text-xs px-4">
-               <i data-lucide="plus" class="w-4 h-4"></i>
-               Nova Propriedade
-            </ui-botao>
-          </div>
-        </div>
-
+      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col flex-1 min-h-0">
         <!-- Tabela -->
         <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
-                <th class="py-2 px-3 w-10">
+              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
+                <th class="py-1.5 px-3 w-10">
                   <ui-checkbox id="check-all-propriedades"></ui-checkbox>
                 </th>
-                <th class="py-2 px-3">Imóvel Rural</th>
-                <th class="py-2 px-3">Localidade</th>
-                <th class="py-2 px-3">Proprietário Principal</th>
-                <th class="py-2 px-3 text-center">Matrículas</th>
-                <th class="py-2 px-3 text-center">Projetos</th>
-                <th class="py-2 px-3 text-right">Ações</th>
+                <th class="py-1.5 px-3">Imóvel Rural</th>
+                <th class="py-1.5 px-3">Localidade</th>
+                <th class="py-1.5 px-3">Proprietário Principal</th>
+                <th class="py-1.5 px-3 text-center">Matrículas</th>
+                <th class="py-1.5 px-3 text-center">Projetos</th>
+                <th class="py-1.5 px-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody id="tabela-propriedades-body" class="divide-y divide-white/[0.02]">
@@ -140,7 +82,7 @@ export const propriedadesRoute: RouteDef = {
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-2.5 sm:p-3 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40 shrink-0 mt-auto">
+        <div class="p-1.5 sm:p-2 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-2 bg-white/[0.01] text-[11px] text-white/40 shrink-0 mt-auto">
           <div class="flex items-center gap-2">
             <span>Exibir por página:</span>
             <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
@@ -484,6 +426,7 @@ export const propriedadesRoute: RouteDef = {
     </ui-modal>
   `,
   setup: () => {
+    initIcons();
     let propriedadeSelecionadaId: number | null = null;
     let todasPropriedades: any[] = [];
     let termoBusca = "";
