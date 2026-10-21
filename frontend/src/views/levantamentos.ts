@@ -38,28 +38,27 @@ export const levantamentosRoute: RouteDef = {
     <div class="space-y-6 animate-in fade-in duration-300">
       <!-- LISTA DE LEVANTAMENTOS -->
       <div id="painel-lista-projetos" class="space-y-6">
-        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          <div>
-            <h2 class="text-3xl font-bold">Mesa de Levantamentos</h2>
-            <p class="text-white/40 mt-1">Selecione um projeto de georreferenciamento ativo para iniciar a triagem espacial.</p>
+        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-2 min-h-[35px] max-h-none md:max-h-[35px]">
+          <div class="flex items-center">
+            <h2 class="text-base md:text-lg font-bold leading-none tracking-tight">Mesa de Levantamentos</h2>
           </div>
-          <div class="flex flex-col sm:flex-row gap-3 sm:items-center w-full sm:w-auto">
+          <div class="flex flex-wrap sm:flex-nowrap gap-2 items-center w-full sm:w-auto">
              <!-- Alternador de Modos de Visualização -->
-             <div class="flex gap-0.5 bg-white/5 p-1 rounded-lg border border-white/5 shrink-0 justify-center" id="lev-view-toggle">
-                <button class="p-1.5 rounded transition-all" id="btn-mode-grid" title="Visualização em Cards">
-                   <i data-lucide="layout-grid" class="w-4 h-4"></i>
+             <div class="flex items-center gap-0.5 bg-white/5 p-0.5 rounded-lg border border-white/5 shrink-0 justify-center h-[30px]" id="lev-view-toggle">
+                <button class="p-1 rounded transition-all h-6 w-6 flex items-center justify-center" id="btn-mode-grid" title="Visualização em Cards">
+                   <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
                 </button>
-                <button class="p-1.5 rounded transition-all" id="btn-mode-list" title="Visualização em Lista (Windows Explorer)">
-                   <i data-lucide="list" class="w-4 h-4"></i>
+                <button class="p-1 rounded transition-all h-6 w-6 flex items-center justify-center" id="btn-mode-list" title="Visualização em Lista (Windows Explorer)">
+                   <i data-lucide="list" class="w-3.5 h-3.5"></i>
                 </button>
              </div>
-             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-full sm:w-56 md:w-64" id="busca-levantamento" />
-             <button class="btn-primary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-novo-lev">
-                <i data-lucide="plus" class="w-4 h-4"></i>
+             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-full sm:w-56 md:w-64 h-[30px] py-0 px-2.5 leading-none" id="busca-levantamento" />
+             <button class="btn-primary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 h-[30px] py-0 px-3 font-semibold" id="btn-novo-lev">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                 Novo Levantamento
              </button>
-             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2 text-mint-vibrant border-mint-vibrant/20" id="btn-triagem-txt">
-                <i data-lucide="filter" class="w-4 h-4"></i>
+             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 h-[30px] py-0 px-3 text-mint-vibrant border-mint-vibrant/20 font-semibold" id="btn-triagem-txt">
+                <i data-lucide="filter" class="w-3.5 h-3.5"></i>
                 Área de Triagem
              </button>
           </div>
@@ -242,12 +241,12 @@ export const levantamentosRoute: RouteDef = {
          const btnList = document.getElementById('btn-mode-list');
          if (btnGrid && btnList) {
             if (viewMode === 'grid') {
-               btnGrid.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-               btnList.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-            } else {
-               btnList.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-               btnGrid.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-            }
+            btnGrid.className = "p-1 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-6 w-6 flex items-center justify-center";
+            btnList.className = "p-1 rounded transition-all text-white/40 hover:text-white h-6 w-6 flex items-center justify-center";
+         } else {
+            btnList.className = "p-1 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-6 w-6 flex items-center justify-center";
+            btnGrid.className = "p-1 rounded transition-all text-white/40 hover:text-white h-6 w-6 flex items-center justify-center";
+         }
          }
       };
 
