@@ -1,10 +1,20 @@
 import type { RouteDef } from '../types';
 import { API_BASE, PUBLIC_HOST_URL } from '../config';
-import { initIcons, formatarCCIR, showToast, escapeHtml } from '../utils';
+import { initIcons, showToast, escapeHtml } from '../utils';
 import L from 'leaflet';
+import {
+   filtrarLevantamentos,
+   filtrarPorSegmento,
+   contarSegmentosLev,
+   ordenarLevantamentos,
+   renderLinhasLevHtml,
+   renderCardsLevHtml
+} from './levantamentos/levantamentos_helpers';
+import type { SegmentoLev, CampoOrdemLev, DirecaoOrdem } from './levantamentos/levantamentos_helpers';
 
 
 let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
+let atalhoBuscaLev: ((e: KeyboardEvent) => void) | null = null;
 // Em escopo de módulo para que o cleanup consiga destruir o mapa se a tela for trocada com o modal aberto
 let mapaTriagem: L.Map | null = null;
 
@@ -17,16 +27,6 @@ const extrairMensagemErro = (data: any, fallback: string): string => {
    return data?.error || fallback;
 };
 
-const formatarProprietarios = (l: any, textoVazio: string): string =>
-   l.clientes && l.clientes.length
-      ? l.clientes.map((c: any) => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
-      : textoVazio;
-
-const classeStatus = (status: string): string =>
-   status === 'CONCLUIDO' ? 'bg-mint-vibrant/15 text-mint-vibrant'
-      : status === 'ARQUIVADO' ? 'bg-red-500/15 text-red-400'
-         : 'bg-yellow-500/15 text-yellow-400';
-
 // Data de hoje no fuso local (toISOString usaria UTC e, à noite no Brasil, já daria o dia seguinte)
 const dataLocalHoje = (): string => {
    const d = new Date();
@@ -35,39 +35,47 @@ const dataLocalHoje = (): string => {
 
 export const levantamentosRoute: RouteDef = {
    render: () => `
-    <div class="space-y-2 animate-in fade-in duration-300">
-      <!-- LISTA DE LEVANTAMENTOS -->
-      <div id="painel-lista-projetos" class="space-y-2">
-        <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
-          <div class="flex items-center">
-            <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Mesa de Levantamentos</h2>
-          </div>
-          <div class="flex items-center gap-1.5">
-             <!-- Alternador de Modos de Visualização -->
-             <div class="flex items-center gap-0.5 bg-white/5 p-0.5 rounded border border-white/5 shrink-0 justify-center h-[26px]" id="lev-view-toggle">
-                <button class="p-0.5 rounded transition-all h-5 w-5 flex items-center justify-center" id="btn-mode-grid" title="Visualização em Cards">
-                   <i data-lucide="layout-grid" class="w-3 h-3"></i>
-                </button>
-                <button class="p-0.5 rounded transition-all h-5 w-5 flex items-center justify-center" id="btn-mode-list" title="Visualização em Lista (Windows Explorer)">
-                   <i data-lucide="list" class="w-3 h-3"></i>
-                </button>
-             </div>
-             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-[11px] w-40 sm:w-48 md:w-56 h-[26px] py-0 px-2 leading-none" id="busca-levantamento" />
-             <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold" id="btn-novo-lev">
-                <i data-lucide="plus" class="w-3 h-3"></i>
-                Novo Levantamento
-             </button>
-             <button class="btn-secondary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 text-mint-vibrant border-mint-vibrant/20 font-semibold" id="btn-triagem-txt">
-                <i data-lucide="filter" class="w-3 h-3"></i>
-                Área de Triagem
-             </button>
+    <div class="gap-2 animate-in fade-in duration-300 flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior (padrão de listagem): título + segmentos + visualização + busca + ações -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo">Levantamentos</h2>
+          <div class="lp-seg" id="seg-levantamentos" role="group" aria-label="Filtrar levantamentos por situação">
+            <button type="button" class="lp-seg-btn is-active" data-seg="todos" aria-pressed="true">Todos <span class="lp-seg-n" id="seg-n-todos">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="andamento" aria-pressed="false">Andamento <span class="lp-seg-n" id="seg-n-andamento">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="concluido" aria-pressed="false">Concluídos <span class="lp-seg-n" id="seg-n-concluido">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="arquivado" aria-pressed="false">Arquivados <span class="lp-seg-n" id="seg-n-arquivado">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="pendencias" data-tom="warn" aria-pressed="false" title="Sem proprietário, sem TRT ou sem pontos">Pendências <span class="lp-seg-n" id="seg-n-pendencias">0</span></button>
           </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="grid-projetos">
-          <div class="text-white/20 p-8 text-center col-span-full">Carregando levantamentos...</div>
+        <div class="lp-bar-right">
+          <!-- Alternador de visualização -->
+          <div class="lp-seg" id="lev-view-toggle" role="group" aria-label="Modo de visualização">
+            <button type="button" class="lp-seg-btn" id="btn-mode-list" title="Lista" aria-label="Visualizar em lista" style="padding:0 7px"><i data-lucide="list" class="w-3.5 h-3.5"></i></button>
+            <button type="button" class="lp-seg-btn" id="btn-mode-grid" title="Cards" aria-label="Visualizar em cards" style="padding:0 7px"><i data-lucide="layout-grid" class="w-3.5 h-3.5"></i></button>
+          </div>
+          <label class="lp-busca" id="busca-wrap" style="width:clamp(150px,13vw,280px)">
+            <i data-lucide="search"></i>
+            <input type="text" id="busca-levantamento" placeholder="Buscar levantamento" title="Busca por propriedade, município, proprietário, CAR, CCIR ou TRT" autocomplete="off" aria-label="Buscar levantamento" />
+            <span class="lp-busca-fim">
+              <button type="button" class="lp-busca-limpar" id="busca-limpar" aria-label="Limpar busca"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+              <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
+            </span>
+          </label>
+          <button type="button" class="lp-btn-sec" id="btn-triagem-txt" title="Área de Triagem (importar arquivos .txt)" style="color:var(--lp-accent);border-color:rgba(0,224,138,.25)">
+            <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+            Triagem
+          </button>
+          <button type="button" class="lp-btn-primario" id="btn-novo-lev" title="Novo levantamento" aria-label="Novo levantamento">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Novo
+          </button>
         </div>
       </div>
-      
+
+      <!-- Área da lista (tabela dentro de .lp-card, ou grade de cards): é aqui que rola -->
+      <div id="grid-projetos" class="lp-card"></div>
+
       <!-- MODAL NOVO/EDITAR LEVANTAMENTO -->
       <div id="modal-levantamento" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
          <div class="glass-card w-full max-w-md">
@@ -234,37 +242,25 @@ export const levantamentosRoute: RouteDef = {
       let levantamentosList: any[] = [];
       let globalPropriedadesList: any[] = [];
       let editandoLevId: number | null = null;
-      let viewMode: 'grid' | 'list' = (localStorage.getItem('lev_view_mode') as 'grid' | 'list') || 'grid';
+      let viewMode: 'grid' | 'list' = (localStorage.getItem('lev_view_mode') as 'grid' | 'list') || 'list';
+      let segmentoAtual: SegmentoLev = 'todos';
+      let termoBusca = '';
+      let campoOrdem: CampoOrdemLev = 'data';
+      let direcaoOrdem: DirecaoOrdem = 'desc';
 
       const updateToggleButtonsState = () => {
-         const btnGrid = document.getElementById('btn-mode-grid');
-         const btnList = document.getElementById('btn-mode-list');
-         if (btnGrid && btnList) {
-            if (viewMode === 'grid') {
-            btnGrid.className = "p-0.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-5 w-5 flex items-center justify-center";
-            btnList.className = "p-0.5 rounded transition-all text-white/40 hover:text-white h-5 w-5 flex items-center justify-center";
-         } else {
-            btnList.className = "p-0.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-5 w-5 flex items-center justify-center";
-            btnGrid.className = "p-0.5 rounded transition-all text-white/40 hover:text-white h-5 w-5 flex items-center justify-center";
-         }
-         }
+         const ativar = (id: string, ativo: boolean) => {
+            const btn = document.getElementById(id);
+            btn?.classList.toggle('is-active', ativo);
+            btn?.setAttribute('aria-pressed', String(ativo));
+         };
+         ativar('btn-mode-list', viewMode === 'list');
+         ativar('btn-mode-grid', viewMode === 'grid');
       };
 
-      // Reaplicada após cada renderização (troca grade/lista, recarga) para o filtro digitado não se perder
-      const aplicarFiltroBusca = () => {
-         const term = ((document.getElementById('busca-levantamento') as HTMLInputElement | null)?.value || '').toLowerCase();
-         document.querySelectorAll('.lev-card-item, .lev-list-item').forEach(el => {
-            const propTitle = el.querySelector('.prop-title-text, .btn-auditar-link')?.textContent?.toLowerCase() || '';
-            const owners = el.querySelector('.prop-owners-text, td:nth-child(5)')?.textContent?.toLowerCase() || '';
-            const extra = el.querySelector('.prop-extra-text, td:nth-child(2)')?.textContent?.toLowerCase() || '';
-            const match = propTitle.includes(term) || owners.includes(term) || extra.includes(term);
-            if (el.classList.contains('lev-card-item')) {
-               (el as HTMLElement).style.display = match ? 'flex' : 'none';
-            } else {
-               (el as HTMLElement).style.display = match ? 'table-row' : 'none';
-            }
-         });
-      };
+      // Pipeline único: segmento -> busca -> ordenação (a tela inteira renderiza a partir daqui)
+      const getListaVisivel = (): any[] =>
+         ordenarLevantamentos(filtrarLevantamentos(filtrarPorSegmento(levantamentosList, segmentoAtual), termoBusca), campoOrdem, direcaoOrdem);
 
       const configurarComboboxPropriedades = () => {
          const inputBusca = document.getElementById('input-lev-prop-busca') as HTMLInputElement;
@@ -328,160 +324,114 @@ export const levantamentosRoute: RouteDef = {
       const loadLevantamentos = () => {
          const grid = document.getElementById('grid-projetos');
          if (!grid) return;
-         grid.innerHTML = '<div class="text-white/20 p-8 text-center col-span-full">Carregando levantamentos...</div>';
+         grid.className = 'lp-card';
+         grid.innerHTML = Array.from({ length: 6 }, () => '<div class="lp-skel"></div>').join('');
 
          fetch(`${API_BASE}/levantamentos`)
-            .then(res => res.json())
+            .then(res => {
+               if (!res.ok) throw new Error(`HTTP ${res.status}`);
+               return res.json();
+            })
             .then(data => {
-               levantamentosList = data;
-               if (!data || data.length === 0) {
-                  grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
-                  grid.innerHTML = '<div class="text-white/30 p-8 text-center col-span-full bg-white/[0.01] border border-dashed border-white/5 rounded-xl">Nenhum levantamento cadastrado. Crie um novo para iniciar.</div>';
-                  return;
-               }
-
-               renderListaProjetos(data);
+               levantamentosList = Array.isArray(data) ? data : [];
+               renderTela();
             })
             .catch(() => {
-               grid.innerHTML = `<div class="text-red-400 p-8 text-center col-span-full">Erro de conexão com o servidor API.</div>`;
+               grid.className = 'lp-card';
+               grid.innerHTML = '<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">Erro de conexão com o servidor</div><div class="lp-estado-txt">Não foi possível carregar os levantamentos.</div><button type="button" class="lp-btn-sec" id="btn-recarregar-lev">Tentar novamente</button></div>';
+               document.getElementById('btn-recarregar-lev')?.addEventListener('click', () => loadLevantamentos());
+               initIcons();
             });
+      };
+
+      // Chips de segmento (contagem sobre a lista inteira)
+      const atualizarCabecalhoLista = () => {
+         const contagem = contarSegmentosLev(levantamentosList);
+         (Object.keys(contagem) as SegmentoLev[]).forEach(seg => {
+            const n = document.getElementById(`seg-n-${seg}`);
+            if (n) { n.innerText = String(contagem[seg]); n.classList.toggle('is-zero', contagem[seg] === 0); }
+         });
+         document.querySelectorAll<HTMLElement>('#seg-levantamentos [data-seg]').forEach(btn => {
+            const ativo = btn.getAttribute('data-seg') === segmentoAtual;
+            btn.classList.toggle('is-active', ativo);
+            btn.setAttribute('aria-pressed', String(ativo));
+         });
+      };
+
+      const renderEstadoVazio = (grid: HTMLElement, semCadastro: boolean) => {
+         grid.className = 'lp-card';
+         grid.innerHTML = semCadastro
+            ? `<div class="lp-estado">
+                 <div class="lp-estado-ico"><i data-lucide="folder"></i></div>
+                 <div class="lp-estado-titulo">Nenhum levantamento cadastrado</div>
+                 <div class="lp-estado-txt">Crie um levantamento para iniciar a triagem e a auditoria dos pontos.</div>
+                 <button type="button" class="lp-btn-primario" data-estado-acao="novo"><i data-lucide="plus" class="w-4 h-4"></i>Novo levantamento</button>
+               </div>`
+            : `<div class="lp-estado">
+                 <div class="lp-estado-ico"><i data-lucide="search"></i></div>
+                 <div class="lp-estado-titulo">Nenhum levantamento encontrado</div>
+                 <div class="lp-estado-txt">Nada corresponde à busca ou ao filtro aplicado.</div>
+                 <button type="button" class="lp-btn-sec" data-estado-acao="limpar">Limpar busca e filtros</button>
+               </div>`;
+      };
+
+      const renderTela = () => {
+         atualizarCabecalhoLista();
+         renderListaProjetos(getListaVisivel());
       };
 
       const renderListaProjetos = (lista: any[]) => {
          const grid = document.getElementById('grid-projetos');
          if (!grid) return;
 
-         if (viewMode === 'grid') {
-            grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
-            grid.innerHTML = lista.map((l: any) => {
-               const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário vinculado'));
-               const car = escapeHtml(l.codigo_car || 'Não Informado');
-               const ccir = escapeHtml(l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'Não Informado');
-
-               return `
-               <div class="glass-card p-4 flex flex-col justify-between hover:border-mint-vibrant/20 transition-colors group lev-card-item" data-id="${l.id}">
-                 <div>
-                   <div class="flex justify-between items-start gap-4 mb-2">
-                     <h4 class="font-bold text-base text-white group-hover:text-mint-vibrant transition-colors prop-title-text max-w-[70%] truncate">${escapeHtml(l.nome_propriedade)}</h4>
-                     <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase shrink-0 ${classeStatus(l.status)}">${l.status.replace('_', ' ')}</span>
-                   </div>
-                   
-                   <div class="flex items-center justify-between text-[10px] text-white/30 font-mono mt-1 border-b border-white/5 pb-1.5">
-                      <div class="flex items-center gap-1">
-                         <i data-lucide="calendar" class="w-3 h-3 text-white/20 shrink-0"></i>
-                         <span>Início: ${escapeHtml(l.data_inicio)}</span>
-                      </div>
-                      <div class="flex items-center gap-1">
-                         <i data-lucide="map-pin" class="w-3 h-3 text-white/20 shrink-0"></i>
-                         <span>${l.total_pontos || 0} Pts • ${l.total_segmentos || 0} Div</span>
-                      </div>
-                   </div>
-
-                   <p class="text-xs text-white/60 mt-1.5 truncate font-medium">Proprietários: <span class="text-white/40 prop-owners-text">${proprietarios}</span></p>
-                   
-                   <div class="space-y-0.5 mt-2 pt-1.5 border-t border-white/5 text-[10px] font-mono text-white/40 prop-extra-text">
-                      <div class="flex items-center gap-1.5"><span class="text-mint-vibrant font-bold shrink-0">CAR:</span> <span class="truncate" title="${car}">${car}</span></div>
-                      <div class="flex items-center gap-1.5"><span class="text-blue-400 font-bold shrink-0">CCIR:</span> <span class="truncate" title="${ccir}">${ccir}</span></div>
-                      <div class="flex items-center gap-1.5"><span class="text-white/60 font-bold shrink-0">MUNICÍPIO:</span> <span>${escapeHtml(l.municipio || 'Não Informado')}/${escapeHtml(l.uf)}</span></div>
-                   </div>
-                 </div>
-                 
-                 <div class="flex gap-2 md:gap-2 items-center mt-3.5 border-t border-white/5 pt-2.5">
-                    <button class="btn-primary text-xs py-2.5 px-3 md:py-1.5 md:px-3 flex-1 btn-auditar active:scale-95 transition-all" data-id="${l.id}">
-                      <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                      Auditar & Triar
-                    </button>
-                    ${l.status === 'ARQUIVADO' ? `
-                    <button class="btn-secondary text-mint-vibrant hover:bg-mint-vibrant/10 p-3.5 md:px-2 md:py-1.5 btn-desarquivar-lev active:scale-95 transition-all" data-id="${l.id}" title="Desarquivar Levantamento">
-                      <i data-lucide="lock-open" class="w-4 h-4"></i>
-                    </button>
-                    ` : ''}
-                    <button class="btn-secondary text-white/40 hover:text-mint-vibrant p-3.5 md:px-2 md:py-1.5 btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar Levantamento">
-                      <i data-lucide="edit" class="w-4 h-4"></i>
-                    </button>
-                    <button class="btn-secondary text-blue-400 hover:bg-blue-500/10 p-3.5 md:px-2 md:py-1.5 btn-compartilhar-lev active:scale-95 transition-all" data-id="${l.id}" title="Gerar link público de compartilhamento">
-                      <i data-lucide="share-2" class="w-4 h-4"></i>
-                    </button>
-                    <button class="btn-secondary text-red-400 hover:bg-red-500/10 p-3.5 md:px-2 md:py-1.5 btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}">
-                      <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                  </div>
-               </div>
-             `;
-            }).join('');
+         if (lista.length === 0) {
+            renderEstadoVazio(grid, levantamentosList.length === 0);
+         } else if (viewMode === 'grid') {
+            grid.className = 'flex-1 min-h-0 overflow-y-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 content-start pr-1';
+            grid.innerHTML = renderCardsLevHtml(lista);
          } else {
-            // Visualização em Lista do Windows Explorer
-            grid.className = "w-full overflow-x-auto";
+            grid.className = 'lp-card';
+            const th = (campo: CampoOrdemLev | null, rotulo: string, extra = '') => {
+               if (!campo) return `<th class="${extra}">${rotulo}</th>`;
+               const ordem = campo === campoOrdem ? ` aria-sort="${direcaoOrdem === 'asc' ? 'ascending' : 'descending'}"` : '';
+               return `<th class="lp-ordenavel ${extra}" data-ordem="${campo}"${ordem} tabindex="0">${rotulo}<span class="lp-sort-ico"></span></th>`;
+            };
             grid.innerHTML = `
-            <div class="glass-card p-0 overflow-hidden border border-white/5">
-               <table class="w-full text-left text-xs border-collapse">
-                  <thead>
-                     <tr class="bg-white/[0.02] text-[10px] font-bold uppercase tracking-wider text-white/40 border-b border-white/5">
-                        <th class="px-3 py-1.5 w-8"></th>
-                        <th class="px-3 py-1.5">Nome / Localidade</th>
-                        <th class="px-3 py-1.5 w-32">Status</th>
-                        <th class="px-3 py-1.5 w-32">Data de início</th>
-                        <th class="px-3 py-1.5">Proprietários</th>
-                        <th class="px-3 py-1.5 w-40">Tamanho / Medições</th>
-                        <th class="px-3 py-1.5 text-center w-28">Ações</th>
-                     </tr>
-                  </thead>
-                  <tbody class="divide-y divide-white/5 text-white/80">
-                     ${lista.map((l: any) => {
-               const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário'));
-               return `
-                           <tr class="hover:bg-white/[0.01] transition-colors lev-list-item" data-id="${l.id}">
-                              <td class="px-3 py-1.5 text-center">
-                                 <i data-lucide="folder" class="w-4 h-4 text-amber-400 fill-amber-400/20 shrink-0"></i>
-                              </td>
-                              <td class="px-3 py-1.5 font-bold text-white max-w-xs truncate">
-                                 <span class="hover:text-mint-vibrant cursor-pointer btn-auditar-link" data-id="${l.id}">${escapeHtml(l.nome_propriedade)}</span>
-                                 <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${escapeHtml(l.codigo_car || 'N/I')} • CCIR: ${escapeHtml(l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'N/I')}</span>
-                              </td>
-                              <td class="px-3 py-1.5">
-                                 <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase ${classeStatus(l.status)}">${l.status.replace('_', ' ')}</span>
-                              </td>
-                              <td class="px-3 py-1.5 text-white/60 font-mono">${escapeHtml(l.data_inicio)}</td>
-                              <td class="px-3 py-1.5 text-white/40 truncate max-w-xs" title="${proprietarios}">${proprietarios}</td>
-                              <td class="px-3 py-1.5 text-white/40 font-mono uppercase">${l.total_pontos || 0} pts • ${l.total_segmentos || 0} div</td>
-                              <td class="px-3 py-1.5">
-                                 <div class="flex items-center justify-center gap-3.5 md:gap-1.5">
-                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-3 md:p-1.5 rounded btn-auditar-icon active:scale-95 transition-all" data-id="${l.id}" title="Auditar & Triar">
-                                       <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    ${l.status === 'ARQUIVADO' ? `
-                                    <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-3 md:p-1.5 rounded btn-desarquivar-lev active:scale-95 transition-all" data-id="${l.id}" title="Desarquivar Levantamento">
-                                       <i data-lucide="lock-open" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    ` : ''}
-                                    <button class="text-white/40 hover:text-mint-vibrant p-3 md:p-1.5 rounded btn-editar-lev active:scale-95 transition-all" data-id="${l.id}" title="Editar">
-                                       <i data-lucide="edit" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    <button class="text-blue-400 hover:bg-blue-500/10 p-3 md:p-1.5 rounded btn-compartilhar-lev active:scale-95 transition-all" data-id="${l.id}" title="Compartilhar Link Público">
-                                       <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    <button class="text-red-400 hover:bg-red-500/10 p-3 md:p-1.5 rounded btn-excluir-lev active:scale-95 transition-all" data-id="${l.id}" title="Excluir">
-                                       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                 </div>
-                              </td>
-                           </tr>
-                        `;
-            }).join('')}
-                  </tbody>
-               </table>
-            </div>
-          `;
+               <div class="lp-wrap overflow-x-auto overflow-y-auto flex-1 min-h-0">
+                  <table class="lp-tabela">
+                     <thead>
+                        <tr>
+                           ${th('nome', 'Levantamento')}
+                           ${th('data', 'Início')}
+                           ${th(null, 'Status')}
+                           ${th(null, 'Proprietários', 'lp-oculta-xl')}
+                           ${th('pontos', 'Medições', 'lp-col-num lp-oculta-md')}
+                           <th class="lp-col-acoes" style="width:150px"><span class="sr-only">Ações</span></th>
+                        </tr>
+                     </thead>
+                     <tbody>${renderLinhasLevHtml(lista)}</tbody>
+                  </table>
+               </div>
+               <div class="lp-rodape">
+                  <span>Mostrando ${lista.length} de ${levantamentosList.length} levantamento(s)</span>
+                  <span class="lp-muted" style="font-size:11px">Clique na linha para abrir na mesa de trabalho</span>
+               </div>`;
          }
 
          initIcons();
-         aplicarFiltroBusca();
 
          // Delegação de eventos no grid-projetos
          grid.onclick = (e) => {
             const target = e.target as HTMLElement;
+            const th = target.closest<HTMLElement>('th[data-ordem]');
+            if (th) { alternarOrdem(th); return; }
             const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev, .btn-compartilhar-lev') as HTMLElement;
-            if (!btn) return;
+            if (!btn) {
+               // Linha inteira abre a mesa de trabalho (mesma ação do botão Auditar)
+               const linhaId = parseInt(target.closest<HTMLElement>('tr.lev-list-item')?.getAttribute('data-id') || '0');
+               if (linhaId) { localStorage.setItem('active_levantamento_id', linhaId.toString()); window.location.hash = '#mesa_trabalho'; }
+               return;
+            }
 
             const id = parseInt(btn.getAttribute('data-id') || '0');
 
@@ -599,24 +549,79 @@ export const levantamentosRoute: RouteDef = {
       // --- BOTOES DE ALTERNAÇÃO DE VISUALIZAÇÃO ---
       updateToggleButtonsState();
 
-      document.getElementById('btn-mode-grid')?.addEventListener('click', () => {
-         if (viewMode === 'grid') return;
-         viewMode = 'grid';
-         localStorage.setItem('lev_view_mode', 'grid');
+      const trocarModo = (modo: 'grid' | 'list') => {
+         if (viewMode === modo) return;
+         viewMode = modo;
+         localStorage.setItem('lev_view_mode', modo);
          updateToggleButtonsState();
-         renderListaProjetos(levantamentosList);
+         renderTela();
+      };
+      document.getElementById('btn-mode-grid')?.addEventListener('click', () => trocarModo('grid'));
+      document.getElementById('btn-mode-list')?.addEventListener('click', () => trocarModo('list'));
+
+      // --- ORDENAÇÃO (clique ou Enter/Espaço no cabeçalho; de novo inverte a direção) ---
+      const alternarOrdem = (th: HTMLElement) => {
+         const campo = th.getAttribute('data-ordem') as CampoOrdemLev | null;
+         if (!campo) return;
+         if (campo === campoOrdem) direcaoOrdem = direcaoOrdem === 'asc' ? 'desc' : 'asc';
+         else { campoOrdem = campo; direcaoOrdem = campo === 'nome' ? 'asc' : 'desc'; }
+         renderTela();
+      };
+      document.getElementById('grid-projetos')?.addEventListener('keydown', (e: KeyboardEvent) => {
+         const alvo = e.target as HTMLElement;
+         if (e.key === 'Enter' && alvo.matches('tr.lev-list-item')) {
+            localStorage.setItem('active_levantamento_id', alvo.getAttribute('data-id') || '0');
+            window.location.hash = '#mesa_trabalho';
+         } else if ((e.key === 'Enter' || e.key === ' ') && alvo.matches('th[data-ordem]')) {
+            e.preventDefault();
+            alternarOrdem(alvo);
+         }
       });
 
-      document.getElementById('btn-mode-list')?.addEventListener('click', () => {
-         if (viewMode === 'list') return;
-         viewMode = 'list';
-         localStorage.setItem('lev_view_mode', 'list');
-         updateToggleButtonsState();
-         renderListaProjetos(levantamentosList);
+      // --- SEGMENTOS ---
+      document.getElementById('seg-levantamentos')?.addEventListener('click', (e: MouseEvent) => {
+         const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-seg]');
+         if (!btn) return;
+         segmentoAtual = (btn.getAttribute('data-seg') as SegmentoLev) || 'todos';
+         renderTela();
       });
 
-      // --- BUSCA DINÂMICA FILTRADA ---
-      document.getElementById('busca-levantamento')?.addEventListener('input', () => aplicarFiltroBusca());
+      // --- BUSCA (debounce; ✕ limpa; Esc limpa; "/" foca) ---
+      const buscaInput = document.getElementById('busca-levantamento') as HTMLInputElement | null;
+      const buscaWrap = document.getElementById('busca-wrap');
+      let timeoutBusca: ReturnType<typeof setTimeout>;
+      buscaInput?.addEventListener('input', () => {
+         buscaWrap?.classList.toggle('tem-valor', buscaInput.value.length > 0);
+         clearTimeout(timeoutBusca);
+         timeoutBusca = setTimeout(() => { termoBusca = buscaInput.value; renderTela(); }, 250);
+      });
+      const limparBusca = () => {
+         if (!buscaInput) return;
+         buscaInput.value = '';
+         buscaWrap?.classList.remove('tem-valor');
+         clearTimeout(timeoutBusca);
+         termoBusca = '';
+         renderTela();
+      };
+      document.getElementById('busca-limpar')?.addEventListener('click', () => { limparBusca(); buscaInput?.focus(); });
+      buscaInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+         if (e.key === 'Escape') { limparBusca(); buscaInput.blur(); }
+      });
+      atalhoBuscaLev = (e: KeyboardEvent) => {
+         if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+         const alvo = e.target as HTMLElement | null;
+         if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+         e.preventDefault();
+         buscaInput?.focus();
+      };
+      document.addEventListener('keydown', atalhoBuscaLev);
+
+      // Ações do estado vazio (criar / limpar filtros)
+      document.getElementById('grid-projetos')?.addEventListener('click', (e: MouseEvent) => {
+         const acao = (e.target as HTMLElement).closest<HTMLElement>('[data-estado-acao]')?.getAttribute('data-estado-acao');
+         if (acao === 'novo') document.getElementById('btn-novo-lev')?.click();
+         else if (acao === 'limpar') { segmentoAtual = 'todos'; limparBusca(); }
+      });
 
       document.getElementById('btn-novo-lev')?.addEventListener('click', async () => {
          editandoLevId = null;
@@ -1228,6 +1233,10 @@ export const levantamentosRoute: RouteDef = {
       loadProfissionais();
    },
    cleanup: () => {
+      if (atalhoBuscaLev) {
+         document.removeEventListener('keydown', atalhoBuscaLev);
+         atalhoBuscaLev = null;
+      }
       if (mapaTriagem) {
          mapaTriagem.remove();
          mapaTriagem = null;
