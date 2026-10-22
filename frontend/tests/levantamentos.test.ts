@@ -7,7 +7,8 @@ import {
   contarSegmentosLev,
   filtrarLevantamentos,
   ordenarLevantamentos,
-  renderLinhasLevHtml
+  renderLinhasLevHtml,
+  resumirProprietariosLev
 } from '../src/views/levantamentos/levantamentos_helpers';
 import type { Levantamento } from '../src/views/levantamentos/levantamentos_helpers';
 
@@ -70,4 +71,31 @@ test('linhas escapam o nome e arquivado ganha o botão de desarquivar', () => {
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('&lt;img'));
   assert.equal(html.split('btn-desarquivar-lev').length - 1, 1);
+});
+
+test('proprietários: principal pela maior participação, "+N" para os demais e lista completa no tooltip', () => {
+  assert.equal(resumirProprietariosLev(lev({ clientes: [] })), null);
+  const resumo = resumirProprietariosLev(lev({
+    clientes: [
+      { nome_completo: 'Ana Paula Barreiros Pozzobom', percentual_participacao: 25 },
+      { nome_completo: 'João Carlos Pozzobon', percentual_participacao: 50 },
+      { nome_completo: 'Cezar Pozzobom Neto', percentual_participacao: 25 }
+    ]
+  }));
+  assert.equal(resumo?.principal, 'João Carlos Pozzobon (50%)');
+  assert.equal(resumo?.extras, 2);
+  assert.ok(resumo?.completo.includes('Cezar Pozzobom Neto (25%)'));
+});
+
+test('linha com muitos proprietários mostra só o principal e a contagem; a lista inteira fica só no tooltip', () => {
+  const html = renderLinhasLevHtml([lev({
+    id: 5,
+    clientes: Array.from({ length: 6 }, (_, i) => ({ nome_completo: `Dono Numero ${i + 1}`, percentual_participacao: 100 - i }))
+  })]);
+  const semAtributos = html.replace(/title="[^"]*"/g, '');
+  assert.ok(html.includes('lp-celula-fixa'));
+  assert.ok(semAtributos.includes('Dono Numero 1 (100%)'));
+  assert.ok(semAtributos.includes('+5'));
+  assert.ok(!semAtributos.includes('Dono Numero 6'), 'demais nomes não aparecem no texto visível');
+  assert.ok(html.includes('Dono Numero 6 (95%)'), 'mas aparecem no tooltip');
 });

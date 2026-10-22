@@ -401,10 +401,10 @@ export const levantamentosRoute: RouteDef = {
                   <table class="lp-tabela">
                      <thead>
                         <tr>
-                           ${th('nome', 'Levantamento')}
+                           ${th('nome', 'Levantamento', 'lp-celula-nome')}
                            ${th('data', 'Início')}
                            ${th(null, 'Status')}
-                           ${th(null, 'Proprietários', 'lp-oculta-xl')}
+                           ${th(null, 'Proprietários', 'lp-oculta-lg lp-celula-fixa')}
                            ${th('pontos', 'Medições', 'lp-col-num lp-oculta-md')}
                            <th class="lp-col-acoes" style="width:150px"><span class="sr-only">Ações</span></th>
                         </tr>

@@ -5,6 +5,22 @@ import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
 import { instalarFetchAutenticado } from './utils/fetch_autenticado';
 
+// Garante o padrão dos componentes e da aplicação em modo noturno (dark mode) na web
+if (typeof document !== 'undefined') {
+  document.documentElement.classList.add('dark');
+  document.documentElement.setAttribute('data-tema', 'escuro');
+  document.documentElement.setAttribute('data-theme', 'dark');
+  document.documentElement.style.colorScheme = 'dark';
+}
+try {
+  const uiBus = (uiKit as any).UIBus;
+  if (uiBus && typeof uiBus.definirTema === 'function') {
+    uiBus.definirTema('escuro');
+  }
+} catch (e) {
+  console.warn('[GerenciGeo] Não foi possível definir tema noturno no UIBus:', e);
+}
+
 // A API exige o token de sessão nos cadastros: anexa o Authorization às chamadas da API
 instalarFetchAutenticado();
 

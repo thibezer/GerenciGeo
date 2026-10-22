@@ -240,3 +240,9 @@
 
 /* Campo inválido (o JS aplica as classes Tailwind border-red-500/50 etc.; o CSS sem @layer as venceria) */
 .lp-campo input.border-red-500\/50, .lp-campo select.border-red-500\/50 { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.06); color: #fecaca; }
+
+/* Coluna de texto longo que NÃO pode alargar a tabela (evita rolagem horizontal):
+   largura percentual + max-width:0 faz o conteúdo ser cortado com reticências em vez de empurrar as colunas. */
+.lp-tabela .lp-celula-fixa { max-width: 0; overflow: hidden; }
+.lp-tabela .lp-celula-nome { width: 34%; }
+.lp-tabela th.lp-celula-fixa:not(.lp-celula-nome) { width: 30%; }

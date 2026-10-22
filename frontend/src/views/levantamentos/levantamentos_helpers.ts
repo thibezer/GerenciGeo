@@ -51,6 +51,25 @@ export const formatarProprietarios = (l: Levantamento, textoVazio: string): stri
     ? l.clientes.map(c => `${c.nome_completo} (${(c.percentual_participacao || 0).toFixed(0)}%)`).join(', ')
     : textoVazio;
 
+/**
+ * Resumo para a tabela: o proprietário de maior participação (empate: nome A-Z) e quantos outros existem.
+ * `completo` traz a lista inteira, para o tooltip. Sem proprietários devolve null.
+ */
+export const resumirProprietariosLev = (l: Levantamento): { principal: string; extras: number; completo: string } | null => {
+  const clientes = l.clientes || [];
+  if (clientes.length === 0) return null;
+  const ordenados = [...clientes].sort((a, b) => {
+    const diff = (b.percentual_participacao || 0) - (a.percentual_participacao || 0);
+    return diff !== 0 ? diff : a.nome_completo.localeCompare(b.nome_completo, 'pt-BR', { sensitivity: 'base' });
+  });
+  const p = ordenados[0];
+  return {
+    principal: `${p.nome_completo} (${(p.percentual_participacao || 0).toFixed(0)}%)`,
+    extras: clientes.length - 1,
+    completo: formatarProprietarios(l, '')
+  };
+};
+
 /** O que falta no levantamento. Arquivado já está fechado: não tem pendência. */
 export const listarPendenciasLev = (l: Levantamento): PendenciaLev[] => {
   if (l.status === 'ARQUIVADO') return [];
@@ -116,11 +135,18 @@ const tagsPendencia = (l: Levantamento): string =>
 export const renderLinhasLevHtml = (lista: Levantamento[]): string => lista.map(l => {
   const nome = escapeHtml(l.nome_propriedade);
   const local = [l.municipio, l.uf].map(v => (v || '').trim()).filter(Boolean).join(' / ');
-  const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário'));
+  const resumo = resumirProprietariosLev(l);
+  // A célula nunca cresce com a lista: o nome do principal é cortado com reticências e o resto vira "+N"
+  const celulaProprietarios = resumo
+    ? `<div class="flex items-center gap-1.5" style="min-width:0" title="${escapeHtml(resumo.completo)}">
+         <span class="lp-sub" style="font-size:12.5px;color:var(--lp-text-2);min-width:0">${escapeHtml(resumo.principal)}</span>
+         ${resumo.extras > 0 ? `<span class="lp-tag lp-tag-mute" style="flex-shrink:0">+${resumo.extras}</span>` : ''}
+       </div>`
+    : '<span class="lp-muted" style="font-size:12.5px">Sem proprietário</span>';
   const arquivado = l.status === 'ARQUIVADO';
   return `
     <tr class="lev-list-item" data-id="${l.id}" tabindex="0" aria-label="Abrir ${nome} na mesa de trabalho">
-      <td>
+      <td class="lp-celula-fixa lp-celula-nome">
         <div class="lp-id">
           <i data-lucide="folder" class="w-4 h-4 shrink-0" style="color:#fbbf24"></i>
           <div class="lp-id-txt">
@@ -136,7 +162,7 @@ export const renderLinhasLevHtml = (lista: Levantamento[]): string => lista.map(
           ${tagsPendencia(l)}
         </div>
       </td>
-      <td class="lp-oculta-xl"><span class="lp-sub" style="font-size:12.5px;color:var(--lp-text-2)" title="${proprietarios}">${proprietarios}</span></td>
+      <td class="lp-oculta-lg lp-celula-fixa">${celulaProprietarios}</td>
       <td class="lp-col-num lp-oculta-md">
         <span class="lp-vinculos">
           <span class="lp-cnt ${l.total_pontos ? '' : 'is-zero'}" title="Pontos"><i data-lucide="map-pin"></i>${l.total_pontos || 0}</span>

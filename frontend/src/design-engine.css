@@ -157,6 +157,25 @@
   --ui-cor-primaria: var(--geo-accent);
 }
 
+/* Garante o padrão dos componentes sempre em modo noturno na web */
+:root,
+:root[data-tema="escuro"],
+:root.dark,
+[data-tema="escuro"],
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-altura-minima: 34px;
+  --ui-campo-altura: 34px;
+  --ui-cor-fundo-elevado: rgba(255, 255, 255, 0.04);
+  --ui-cor-fundo-menu: var(--geo-bg-surface);
+  --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
+  --ui-cor-borda: var(--geo-border-default);
+  --ui-raio-borda: 6px;
+  --ui-cor-texto: var(--geo-text-primary);
+  --ui-cor-texto-secundario: var(--geo-text-secondary);
+  --ui-cor-primaria: var(--geo-accent);
+}
+
 
 /* ===========================================================
    2. RESET DE FONTE GLOBAL

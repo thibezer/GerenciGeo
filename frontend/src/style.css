@@ -4,6 +4,11 @@
 @config "../tailwind.config.js";
 
 @layer base {
+  :root,
+  html {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-forest-deep text-white font-inter selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
     scrollbar-width: thin;
