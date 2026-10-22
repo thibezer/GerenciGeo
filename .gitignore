@@ -58,6 +58,8 @@ uploads/
 .antigravityignore
 .DS_Store
 Thumbs.db
+.webview_cache/
+Geo_Workspace/
 
 # Documentos gerados com dados pessoais de clientes (CPF, nomes): nunca versionar
 /anuencia_*.html
