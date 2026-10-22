@@ -35,31 +35,30 @@ const dataLocalHoje = (): string => {
 
 export const levantamentosRoute: RouteDef = {
    render: () => `
-    <div class="space-y-6 animate-in fade-in duration-300">
+    <div class="space-y-2 animate-in fade-in duration-300">
       <!-- LISTA DE LEVANTAMENTOS -->
-      <div id="painel-lista-projetos" class="space-y-6">
-        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-          <div>
-            <h2 class="text-3xl font-bold">Mesa de Levantamentos</h2>
-            <p class="text-white/40 mt-1">Selecione um projeto de georreferenciamento ativo para iniciar a triagem espacial.</p>
+      <div id="painel-lista-projetos" class="space-y-2">
+        <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
+          <div class="flex items-center">
+            <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Mesa de Levantamentos</h2>
           </div>
-          <div class="flex flex-col sm:flex-row gap-3 sm:items-center w-full sm:w-auto">
+          <div class="flex items-center gap-1.5">
              <!-- Alternador de Modos de Visualização -->
-             <div class="flex gap-0.5 bg-white/5 p-1 rounded-lg border border-white/5 shrink-0 justify-center" id="lev-view-toggle">
-                <button class="p-1.5 rounded transition-all" id="btn-mode-grid" title="Visualização em Cards">
-                   <i data-lucide="layout-grid" class="w-4 h-4"></i>
+             <div class="flex items-center gap-0.5 bg-white/5 p-0.5 rounded border border-white/5 shrink-0 justify-center h-[26px]" id="lev-view-toggle">
+                <button class="p-0.5 rounded transition-all h-5 w-5 flex items-center justify-center" id="btn-mode-grid" title="Visualização em Cards">
+                   <i data-lucide="layout-grid" class="w-3 h-3"></i>
                 </button>
-                <button class="p-1.5 rounded transition-all" id="btn-mode-list" title="Visualização em Lista (Windows Explorer)">
-                   <i data-lucide="list" class="w-4 h-4"></i>
+                <button class="p-0.5 rounded transition-all h-5 w-5 flex items-center justify-center" id="btn-mode-list" title="Visualização em Lista (Windows Explorer)">
+                   <i data-lucide="list" class="w-3 h-3"></i>
                 </button>
              </div>
-             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-xs w-full sm:w-56 md:w-64" id="busca-levantamento" />
-             <button class="btn-primary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2" id="btn-novo-lev">
-                <i data-lucide="plus" class="w-4 h-4"></i>
+             <input type="text" placeholder="Buscar levantamento..." class="glass-input text-[11px] w-40 sm:w-48 md:w-56 h-[26px] py-0 px-2 leading-none" id="busca-levantamento" />
+             <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold" id="btn-novo-lev">
+                <i data-lucide="plus" class="w-3 h-3"></i>
                 Novo Levantamento
              </button>
-             <button class="btn-secondary text-xs flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0 py-2.5 sm:py-2 text-mint-vibrant border-mint-vibrant/20" id="btn-triagem-txt">
-                <i data-lucide="filter" class="w-4 h-4"></i>
+             <button class="btn-secondary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 text-mint-vibrant border-mint-vibrant/20 font-semibold" id="btn-triagem-txt">
+                <i data-lucide="filter" class="w-3 h-3"></i>
                 Área de Triagem
              </button>
           </div>
@@ -242,12 +241,12 @@ export const levantamentosRoute: RouteDef = {
          const btnList = document.getElementById('btn-mode-list');
          if (btnGrid && btnList) {
             if (viewMode === 'grid') {
-               btnGrid.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-               btnList.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-            } else {
-               btnList.className = "p-1.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant";
-               btnGrid.className = "p-1.5 rounded transition-all text-white/40 hover:text-white";
-            }
+            btnGrid.className = "p-0.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-5 w-5 flex items-center justify-center";
+            btnList.className = "p-0.5 rounded transition-all text-white/40 hover:text-white h-5 w-5 flex items-center justify-center";
+         } else {
+            btnList.className = "p-0.5 rounded transition-all bg-mint-vibrant/20 text-mint-vibrant h-5 w-5 flex items-center justify-center";
+            btnGrid.className = "p-0.5 rounded transition-all text-white/40 hover:text-white h-5 w-5 flex items-center justify-center";
+         }
          }
       };
 
@@ -418,13 +417,13 @@ export const levantamentosRoute: RouteDef = {
                <table class="w-full text-left text-xs border-collapse">
                   <thead>
                      <tr class="bg-white/[0.02] text-[10px] font-bold uppercase tracking-wider text-white/40 border-b border-white/5">
-                        <th class="px-4 py-3 w-8"></th>
-                        <th class="px-4 py-3">Nome / Localidade</th>
-                        <th class="px-4 py-3 w-32">Status</th>
-                        <th class="px-4 py-3 w-40">Data de início</th>
-                        <th class="px-4 py-3">Proprietários</th>
-                        <th class="px-4 py-3 w-44">Tamanho / Medições</th>
-                        <th class="px-4 py-3 text-center w-28">Ações</th>
+                        <th class="px-3 py-1.5 w-8"></th>
+                        <th class="px-3 py-1.5">Nome / Localidade</th>
+                        <th class="px-3 py-1.5 w-32">Status</th>
+                        <th class="px-3 py-1.5 w-32">Data de início</th>
+                        <th class="px-3 py-1.5">Proprietários</th>
+                        <th class="px-3 py-1.5 w-40">Tamanho / Medições</th>
+                        <th class="px-3 py-1.5 text-center w-28">Ações</th>
                      </tr>
                   </thead>
                   <tbody class="divide-y divide-white/5 text-white/80">
@@ -432,20 +431,20 @@ export const levantamentosRoute: RouteDef = {
                const proprietarios = escapeHtml(formatarProprietarios(l, 'Sem proprietário'));
                return `
                            <tr class="hover:bg-white/[0.01] transition-colors lev-list-item" data-id="${l.id}">
-                              <td class="px-4 py-3 text-center">
+                              <td class="px-3 py-1.5 text-center">
                                  <i data-lucide="folder" class="w-4 h-4 text-amber-400 fill-amber-400/20 shrink-0"></i>
                               </td>
-                              <td class="px-4 py-3 font-bold text-white max-w-xs truncate">
+                              <td class="px-3 py-1.5 font-bold text-white max-w-xs truncate">
                                  <span class="hover:text-mint-vibrant cursor-pointer btn-auditar-link" data-id="${l.id}">${escapeHtml(l.nome_propriedade)}</span>
                                  <span class="block text-[9px] text-white/20 mt-0.5 truncate font-mono">CAR: ${escapeHtml(l.codigo_car || 'N/I')} • CCIR: ${escapeHtml(l.codigo_ccir ? formatarCCIR(l.codigo_ccir) : 'N/I')}</span>
                               </td>
-                              <td class="px-4 py-3">
+                              <td class="px-3 py-1.5">
                                  <span class="text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase ${classeStatus(l.status)}">${l.status.replace('_', ' ')}</span>
                               </td>
-                              <td class="px-4 py-3 text-white/60 font-mono">${escapeHtml(l.data_inicio)}</td>
-                              <td class="px-4 py-3 text-white/40 truncate max-w-xs" title="${proprietarios}">${proprietarios}</td>
-                              <td class="px-4 py-3 text-white/40 font-mono uppercase">${l.total_pontos || 0} pts • ${l.total_segmentos || 0} div</td>
-                              <td class="px-4 py-3">
+                              <td class="px-3 py-1.5 text-white/60 font-mono">${escapeHtml(l.data_inicio)}</td>
+                              <td class="px-3 py-1.5 text-white/40 truncate max-w-xs" title="${proprietarios}">${proprietarios}</td>
+                              <td class="px-3 py-1.5 text-white/40 font-mono uppercase">${l.total_pontos || 0} pts • ${l.total_segmentos || 0} div</td>
+                              <td class="px-3 py-1.5">
                                  <div class="flex items-center justify-center gap-3.5 md:gap-1.5">
                                     <button class="text-mint-vibrant hover:bg-mint-vibrant/20 p-3 md:p-1.5 rounded btn-auditar-icon active:scale-95 transition-all" data-id="${l.id}" title="Auditar & Triar">
                                        <i data-lucide="play" class="w-3.5 h-3.5"></i>

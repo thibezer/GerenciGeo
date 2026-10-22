@@ -206,18 +206,18 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
 
     return `
       <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${cli.id}">
-        <td class="py-2.5 px-4">
+        <td class="py-1.5 px-3">
           <ui-checkbox class="check-cliente" data-id="${cli.id}" ${isSel ? 'marcado' : ''}></ui-checkbox>
         </td>
-        <td class="py-2.5 px-4 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72 btn-action" data-action="detalhes" data-id="${cli.id}">
+        <td class="py-1.5 px-3 font-medium text-white flex items-center gap-2.5 cursor-pointer hover:text-mint-vibrant truncate w-72 btn-action" data-action="detalhes" data-id="${cli.id}">
           <ui-avatar nome="${escapeHtml(nomeExibicao)}" tamanho="sm"></ui-avatar>
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
             <span class="truncate font-semibold">${escapeHtml(nomeExibicao)}</span>
             ${badgeTipo}
           </div>
         </td>
-        <td class="py-2.5 px-4 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
-        <td class="py-2.5 px-4 font-mono text-white/75 font-medium">
+        <td class="py-1.5 px-3 font-mono text-white/75">${aplicarMascaraCpfCnpj(cli.cpf_cnpj || '')}</td>
+        <td class="py-1.5 px-3 font-mono text-white/75 font-medium">
           ${(cli.tem_senha_gov || cli.senha_gov) ? `
             <div class="flex items-center gap-1.5 font-mono">
               <span id="senha-gov-val-${cli.id}">••••••••</span>
@@ -227,17 +227,17 @@ export const renderLinhasTabelaHtml = (visiveis: Cliente[], clientesSelecionados
             </div>
           ` : '-'}
         </td>
-        <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>
-        <td class="py-2.5 px-4 text-center font-mono font-medium">${cli.total_levantamentos || 0}</td>
-        <td class="py-2.5 px-4 text-right">
+        <td class="py-1.5 px-3 text-center font-mono font-medium">${cli.total_propriedades || 0}</td>
+        <td class="py-1.5 px-3 text-center font-mono font-medium">${cli.total_levantamentos || 0}</td>
+        <td class="py-1.5 px-3 text-right">
           <div class="flex items-center justify-end gap-1">
-            <button class="p-1.5 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="detalhes" data-id="${cli.id}" title="Ver Detalhes">
+            <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="detalhes" data-id="${cli.id}" title="Ver Detalhes">
               <i data-lucide="eye" class="w-3.5 h-3.5"></i>
             </button>
-            <button class="p-1.5 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="editar" data-id="${cli.id}" title="Editar">
+            <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="editar" data-id="${cli.id}" title="Editar">
               <i data-lucide="edit" class="w-3.5 h-3.5"></i>
             </button>
-            <button class="p-1.5 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="excluir" data-id="${cli.id}" title="Excluir">
+            <button class="p-1 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer btn-action" data-action="excluir" data-id="${cli.id}" title="Excluir">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
             </button>
           </div>

@@ -1,92 +1,39 @@
 export const renderClientesTemplate = (): string => `
-    <div class="space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+    <div class="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
       <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0">
-        <div>
+      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
+        <div class="flex items-center gap-2">
           <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Clientes</h2>
+          <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 leading-none flex items-center gap-1" title="Total de Clientes">
+            <i data-lucide="users" class="w-3 h-3"></i>
+            <span id="stat-total-clientes">0</span>
+          </span>
         </div>
-      </div>
-
-      <!-- Mini Cards de Estatísticas Rápidas (KPIs Compactos Menores) -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-mint-vibrant/10 rounded-technical shrink-0">
-              <i data-lucide="users" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Total de Clientes</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-total-clientes">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-blue-500/10 rounded-technical shrink-0">
-              <i data-lucide="user" class="w-3.5 h-3.5 text-blue-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pessoas Físicas</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pf-clientes">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-indigo-500/10 rounded-technical shrink-0">
-              <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pessoas Jurídicas</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-pj-clientes">0</h3>
-            </div>
-          </div>
-        </ui-card>
-
-        <ui-card elevacao="baixa" class="h-9 sm:h-10 flex items-center">
-          <div class="px-3 flex items-center gap-2.5 w-full">
-            <div class="p-1 bg-rose-500/10 rounded-technical shrink-0">
-              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500"></i>
-            </div>
-            <div class="min-w-0">
-              <p class="text-white/40 text-[8px] sm:text-[8.5px] uppercase tracking-wider font-semibold truncate">Pendências de Cônjuge</p>
-              <h3 class="text-xs sm:text-sm font-bold tracking-tight text-white leading-none mt-0.5" id="stat-incompletos-clientes">0</h3>
-            </div>
-          </div>
-        </ui-card>
+        <div class="flex items-center gap-1.5">
+           <input type="text" placeholder="Buscar cliente por nome, CPF ou CNPJ..." class="glass-input text-[11px] w-48 sm:w-60 md:w-72 h-[26px] py-0 px-2 leading-none" id="busca-cliente" />
+           <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold cursor-pointer" id="btn-abrir-modal-cliente">
+              <i data-lucide="plus" class="w-3 h-3"></i>
+              Novo Cliente
+           </button>
+        </div>
       </div>
 
       <!-- Tabela Principal de Clientes -->
       <ui-card elevacao="baixa" class="overflow-hidden flex flex-col flex-1 min-h-0">
-        <!-- Filtros / Busca e Ações -->
-        <div class="p-3 sm:p-3.5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white/[0.01] shrink-0">
-          <div class="flex items-center gap-2 flex-1 max-w-md">
-            <ui-campo-texto id="busca-cliente" placeholder="Buscar cliente por nome, CPF ou CNPJ..." class="w-full"></ui-campo-texto>
-          </div>
-          <div class="flex gap-2 justify-end">
-            <ui-botao variante="primario" id="btn-abrir-modal-cliente">
-               <i data-lucide="plus" class="w-4 h-4"></i>
-               Novo Cliente
-            </ui-botao>
-          </div>
-        </div>
-
         <!-- Tabela -->
         <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
-                <th class="py-3 px-4 w-10">
+                <th class="py-1.5 px-3 w-10">
                   <ui-checkbox id="check-all-clientes"></ui-checkbox>
                 </th>
-                <th class="py-3 px-4">Nome Completo</th>
-                <th class="py-3 px-4">CPF / CNPJ</th>
-                <th class="py-3 px-4">Senha GOV</th>
-                <th class="py-3 px-4 text-center">Propriedades</th>
-                <th class="py-3 px-4 text-center">Projetos</th>
-                <th class="py-3 px-4 text-right">Ações</th>
+                <th class="py-1.5 px-3">Nome Completo</th>
+                <th class="py-1.5 px-3">CPF / CNPJ</th>
+                <th class="py-1.5 px-3">Senha GOV</th>
+                <th class="py-1.5 px-3 text-center">Propriedades</th>
+                <th class="py-1.5 px-3 text-center">Projetos</th>
+                <th class="py-1.5 px-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody id="tabela-clientes-body" class="divide-y divide-white/[0.02]">
@@ -101,7 +48,7 @@ export const renderClientesTemplate = (): string => `
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-2.5 sm:p-3 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-white/[0.01] text-xs text-white/40 shrink-0 mt-auto">
+        <div class="p-1.5 sm:p-2 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-2 bg-white/[0.01] text-[11px] text-white/40 shrink-0 mt-auto">
           <div class="flex items-center gap-2">
             <span>Exibir por página:</span>
             <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
