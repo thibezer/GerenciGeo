@@ -48,15 +48,14 @@
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            const agora = new Date();
-            const dia = agora.getDate();
-            const mes = meses[agora.getMonth()];
-            const ano = agora.getFullYear();
-            const dataFormatada = dia + " de " + mes + " de " + ano;
             const el = document.getElementById('data-impressao');
-            if (el) {
-                el.textContent = dataFormatada;
+            if (el && !el.textContent.trim()) {
+                const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+                const agora = new Date();
+                const dia = agora.getDate();
+                const mes = meses[agora.getMonth()];
+                const ano = agora.getFullYear();
+                el.textContent = dia + " de " + mes + " de " + ano;
             }
         });
     </script>
@@ -136,9 +135,18 @@
             </div>
         </div>
 
-        <!-- Seção de Fechamento (Data) unida para evitar quebra órfã -->
-        <div class="break-inside-avoid w-full mt-4">
-            <p class="text-xs text-slate-500 font-medium text-left">{municipio}-{uf}, <span id="data-impressao">{data_hoje_extenso}</span>.</p>
+        <!-- Seção de Fechamento (Data e Assinatura do RT) unida para evitar quebra órfã -->
+        <div class="break-inside-avoid w-full mt-8 flex flex-col items-center">
+            <p class="text-xs text-slate-500 font-medium text-left w-full mb-8">
+                {municipio}-{uf}, <span id="data-impressao">{data_hoje_extenso}</span>.
+            </p>
+            
+            <div class="flex flex-col items-center min-w-[280px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
+                <div class="text-sm font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
+                <div class="text-xs text-slate-500 text-center font-medium mt-0.5">{formacao_prof}</div>
+                <div class="text-[11px] text-slate-400 text-center font-medium font-mono mt-0.5">{conselho_exibicao}</div>
+            </div>
         </div>
     </div>
 </body>

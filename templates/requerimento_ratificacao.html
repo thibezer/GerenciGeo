@@ -47,15 +47,14 @@
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            const agora = new Date();
-            const dia = agora.getDate();
-            const mes = meses[agora.getMonth()];
-            const ano = agora.getFullYear();
-            const dataFormatada = dia + " de " + mes + " de " + ano;
             const el = document.getElementById('data-impressao');
-            if (el) {
-                el.textContent = dataFormatada;
+            if (el && !el.textContent.trim()) {
+                const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+                const agora = new Date();
+                const dia = agora.getDate();
+                const mes = meses[agora.getMonth()];
+                const ano = agora.getFullYear();
+                el.textContent = dia + " de " + mes + " de " + ano;
             }
         });
     </script>
@@ -103,7 +102,7 @@
  
             <!-- Endereçamento do Documento -->
             <p class="text-[11px] font-black uppercase tracking-wide text-slate-900 mb-3 leading-normal select-all">
-                ILMO. SR. OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca_exibicao} - PARANÁ
+                ILMO. SR. OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE {comarca_exibicao} - {estado_nome}
             </p>
  
             <!-- Conteúdo do Requerimento -->
@@ -172,7 +171,7 @@
 
         <!-- Seção de Fechamento (Data e Assinaturas) unidas para evitar quebra órfã -->
         <div class="break-inside-avoid w-full mt-4">
-            <p class="text-xs font-semibold text-slate-500 text-left">{municipio}-PR, <span id="data-impressao"></span>.</p>
+            <p class="text-xs font-semibold text-slate-500 text-left">{municipio}-{uf}, <span id="data-impressao">{data_hoje_extenso}</span>.</p>
             <div class="pt-4">
                 {bloco_assinaturas_html}
             </div>

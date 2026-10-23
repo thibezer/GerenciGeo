@@ -552,9 +552,14 @@ def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_
 @router.get("/levantamentos/{id}/documentos/gerar-requerimento", response_class=HTMLResponse)
 def gerar_requerimento(id: int, matricula_id: int):
     try:
-        from services.gestores.levantamento_manager import gerar_requerimento_html
-        html = gerar_requerimento_html(id, matricula_id)
-        return HTMLResponse(content=html)
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
+        try:
+            html = CartorioReportGenerator.gerar_requerimento_cartorio_html(id, matricula_id)
+            return HTMLResponse(content=html)
+        except Exception:
+            from services.gestores.levantamento_manager import gerar_requerimento_html
+            html = gerar_requerimento_html(id, matricula_id)
+            return HTMLResponse(content=html)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
@@ -563,6 +568,18 @@ def gerar_requerimento(id: int, matricula_id: int):
 @router.get("/levantamentos/{id}/documentos/anuencias/{confrontante_id}/pdf", response_class=HTMLResponse)
 def gerar_termo_anuencia_na_matricula(id: int, confrontante_id: int):
     try:
+        from services.documentacao.cartorio_generator import CartorioReportGenerator
+        row_mat = execute_query(
+            "SELECT matricula_id FROM segmentos WHERE levantamento_id = ? AND confrontante_id = ? LIMIT 1",
+            params=(id, confrontante_id),
+            fetch_one=True
+        )
+        if row_mat and row_mat["matricula_id"]:
+            try:
+                html = CartorioReportGenerator.gerar_declaracao_anuencia_html(id, row_mat["matricula_id"], confrontante_id)
+                return HTMLResponse(content=html)
+            except Exception:
+                pass
         from services.gestores.levantamento_manager import gerar_termo_anuencia_html
         html = gerar_termo_anuencia_html(id, confrontante_id)
         return HTMLResponse(content=html)

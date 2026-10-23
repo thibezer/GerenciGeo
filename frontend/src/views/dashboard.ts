@@ -116,20 +116,21 @@ export const dashboardRoute: RouteDef = {
         const mensagem = sanitizeHtml(alert.mensagem || '');
         const icone = alert.icone || (tipo === 'CRITICO' ? 'alert-circle' : (tipo === 'MANUAL' ? 'check-square' : 'alert-circle'));
         
-        let cardStyle = 'border-l-4 border-l-amber-500 bg-amber-500/[0.03] border-white/5';
+        let cardStyle = 'bg-amber-500/[0.03]';
+        let accentColor = 'bg-amber-500';
         let badgeHtml = '<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">AVISO</span>';
         let iconColor = 'text-amber-400';
 
         if (tipo === 'CRITICO') {
-          cardStyle = 'border-l-4 border-l-red-500 bg-red-500/[0.04] border-white/5';
+          cardStyle = 'bg-red-500/[0.04]';
+          accentColor = 'bg-red-500';
           badgeHtml = '<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/30">CRÍTICO</span>';
           iconColor = 'text-red-400';
         } else if (tipo === 'MANUAL') {
           const prioridade = alert.prioridade || 'MEDIA';
           const isAlta = prioridade === 'ALTA';
-          cardStyle = isAlta 
-            ? 'border-l-4 border-l-red-500 bg-red-500/[0.03] border-white/5' 
-            : 'border-l-4 border-l-mint-vibrant bg-mint-vibrant/[0.03] border-white/5';
+          cardStyle = isAlta ? 'bg-red-500/[0.03]' : 'bg-mint-vibrant/[0.03]';
+          accentColor = isAlta ? 'bg-red-500' : 'bg-mint-vibrant';
           badgeHtml = `<span class="text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${isAlta ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30'}">${isAlta ? 'URGENTE' : 'TAREFA'}</span>`;
           iconColor = isAlta ? 'text-red-400' : 'text-mint-vibrant';
         }
@@ -163,7 +164,8 @@ export const dashboardRoute: RouteDef = {
         }
 
         return `
-          <div class="p-3 rounded-xl border ${cardStyle} transition-all hover:bg-white/[0.04] space-y-2 shadow-sm">
+          <div class="relative overflow-hidden pl-4 pr-3 py-3 rounded-lg border border-white/[0.06] ${cardStyle} transition-colors hover:bg-white/[0.04] hover:border-white/10 space-y-2">
+            <span class="absolute left-0 top-0 bottom-0 w-[3px] ${accentColor}"></span>
             <div class="flex items-center justify-between gap-2.5">
               <div class="flex items-center gap-2 min-w-0">
                 <i data-lucide="${icone}" class="w-4 h-4 ${iconColor} shrink-0"></i>
