@@ -197,6 +197,8 @@ def get_dados_fronteira(prop_id: int):
             "proprietario": dict(owner) if owner else None,
             "matriculas": matriculas_list
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao obter dados de fronteira: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

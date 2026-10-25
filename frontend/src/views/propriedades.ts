@@ -992,7 +992,7 @@ export const propriedadesRoute: RouteDef = {
              listaFlutuante.innerHTML = '<div class="p-2.5 text-xs text-white/30 italic">Nenhum cliente localizado.</div>';
           } else {
              listaFlutuante.innerHTML = filtrados.map(c => `
-                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${c.nome_completo}">
+                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${escapeHtml(c.nome_completo)}">
                    <span class="font-bold text-white">${escapeHtml(c.nome_completo)}</span>
                    <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${escapeHtml(c.cpf_cnpj)}</span>
                 </div>

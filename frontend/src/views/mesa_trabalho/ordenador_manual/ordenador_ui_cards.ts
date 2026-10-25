@@ -1,4 +1,4 @@
-import { initIcons } from '../../../utils';
+import { initIcons, escapeHtml } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export function renderizarCardsOrdenador(ctx: MesaTrabalhoContext): void {
@@ -94,7 +94,7 @@ export function renderizarCardsOrdenador(ctx: MesaTrabalhoContext): void {
                    min="1"
                    max="${totalPontos}"
                    title="Digite a posição desejada" />
-            <span class="font-bold truncate" title="${p.nome_vertice}">${p.nome_vertice}</span>
+            <span class="font-bold truncate" title="${escapeHtml(p.nome_vertice)}">${escapeHtml(p.nome_vertice)}</span>
             <span class="text-[9px] text-white/30 shrink-0">(${tipoP})</span>
             ${matBadgeHtml}
             ${lockIconHtml}

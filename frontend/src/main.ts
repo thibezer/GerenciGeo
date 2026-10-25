@@ -129,10 +129,40 @@ const routeLoaders: Record<string, () => Promise<RouteDef>> = {
 
 const routeCache: Record<string, RouteDef> = {};
 
+// Nome amigável de cada tela para o cabeçalho e o título da aba (mesmos rótulos do menu lateral)
+const routeLabels: Record<string, string> = {
+  login: 'Login',
+  dashboard: 'Dashboard',
+  clientes: 'Clientes',
+  levantamentos: 'Levantamentos',
+  mesa_trabalho: 'Mesa de Trabalho',
+  propriedades: 'Propriedades',
+  hgo: 'Organizador HGO',
+  pendencias: 'Pendências',
+  contagem_pontos: 'Contagem de Pontos',
+  configuracoes: 'Configurações',
+  fronteira: 'Área de Fronteira',
+  ccir: 'Banco CCIR',
+  compartilhado: 'Levantamento Compartilhado'
+};
+
+const renderEstadoTela = (icone: string, titulo: string, detalhe: string, comBotaoRecarregar: boolean) => `
+  <div class="flex flex-col items-center justify-center text-center gap-3 p-12 h-full min-h-[50vh]">
+    <i data-lucide="${icone}" class="w-10 h-10 text-white/25"></i>
+    <h3 class="text-sm font-semibold text-white/80">${titulo}</h3>
+    <p class="text-xs text-white/40 max-w-md leading-relaxed">${detalhe}</p>
+    <div class="flex gap-2 mt-2">
+      ${comBotaoRecarregar ? `<button type="button" data-acao-tela="recarregar" class="px-3 py-1.5 text-xs font-semibold rounded-technical bg-mint-vibrant/15 text-mint-vibrant hover:bg-mint-vibrant/25 transition-colors">Recarregar</button>` : ''}
+      <a href="#dashboard" class="px-3 py-1.5 text-xs font-semibold rounded-technical bg-white/5 text-white/70 hover:bg-white/10 transition-colors">Ir para o Dashboard</a>
+    </div>
+  </div>`;
 
 let activeRoute: RouteDef | null = null;
+// Cada navegação recebe um número; se outra começar enquanto o módulo carrega, a mais antiga desiste de desenhar
+let navegacaoAtual = 0;
 
 const navigate = async (route: string, param: string | null = null) => {
+  const minhaNavegacao = ++navegacaoAtual;
   // Autenticação: se deslogado e tentando acessar rota interna, redireciona para login
   if (!AuthService.isAuthenticated() && route !== 'login') {
     window.location.hash = '#login';
@@ -183,28 +213,61 @@ const navigate = async (route: string, param: string | null = null) => {
     }
   }
   
+  activeRoute = null;
   clearTimeoutsAndIntervals();
+  const rotulo = routeLabels[route] || 'Página não encontrada';
   if (breadcrumbCurrent) {
-     breadcrumbCurrent.textContent = route.charAt(0).toUpperCase() + route.slice(1);
+     breadcrumbCurrent.textContent = rotulo;
   }
-  
+  document.title = `${rotulo} | GerenciGeo`;
+
   let currentRoute = routeCache[route];
+  let falhaCarregamento = false;
   if (!currentRoute && routeLoaders[route]) {
+    // Indicador discreto enquanto o módulo da tela é baixado (primeiro acesso ou conexão lenta na nuvem)
+    container.innerHTML = `
+      <div class="flex items-center justify-center gap-2 p-12 h-full min-h-[50vh] text-xs text-white/40">
+        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Carregando ${rotulo}...
+      </div>`;
+    initIcons();
     try {
       currentRoute = await routeLoaders[route]();
       routeCache[route] = currentRoute;
     } catch (e) {
+      falhaCarregamento = true;
       console.error(`Erro ao carregar módulo da rota '${route}':`, e);
     }
   }
+
+  // O usuário já pediu outra tela enquanto esta carregava
+  if (minhaNavegacao !== navegacaoAtual) return;
 
   activeRoute = currentRoute || null;
   if (currentRoute) {
     container.innerHTML = currentRoute.render();
     initIcons();
-    if (currentRoute.setup) currentRoute.setup(param);
+    if (currentRoute.setup) {
+      // Uma falha no setup não pode deixar a tela "morta" sem nenhum aviso ao operador
+      const avisarFalhaSetup = (e: unknown) => {
+        console.error(`Erro ao inicializar a tela '${route}':`, e);
+        showToast(`Não foi possível carregar completamente a tela ${rotulo}. Tente recarregar.`, 'error', 5000);
+      };
+      try {
+        const retorno = currentRoute.setup(param);
+        if (retorno instanceof Promise) retorno.catch(avisarFalhaSetup);
+      } catch (e) {
+        avisarFalhaSetup(e);
+      }
+    }
+  } else if (falhaCarregamento) {
+    // Normalmente acontece na nuvem logo após uma atualização (arquivos antigos em cache) ou sem conexão
+    container.innerHTML = renderEstadoTela('alert-triangle', `Não foi possível abrir ${rotulo}`,
+      'Verifique a conexão. Se o sistema acabou de ser atualizado, recarregue a página para baixar a versão nova.', true);
+    initIcons();
   } else {
-    container.innerHTML = `<div class="p-12 text-center text-white/20">Módulo em desenvolvimento...</div>`;
+    container.innerHTML = renderEstadoTela('compass', 'Página não encontrada',
+      'O endereço acessado não corresponde a nenhuma tela do GerenciGeo.', false);
+    initIcons();
   }
   
   document.querySelectorAll('.nav-link').forEach(link => {
@@ -246,6 +309,11 @@ const initApp = () => {
   const param = parts.length > 1 ? parts[1] : null;
   navigate(baseRoute, param);
   initIcons();
+
+  // Botão "Recarregar" das telas de erro de carregamento
+  document.getElementById('view-container')?.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-acao-tela="recarregar"]')) window.location.reload();
+  });
 
   // Inicializa o motor de sincronização em tempo real e o modal global da nuvem
   realtimeSyncClient.init();
@@ -395,6 +463,9 @@ const initApp = () => {
 
     btnHamburger.addEventListener('click', () => toggleMobileSidebar(true));
     sidebarOverlay.addEventListener('click', () => toggleMobileSidebar(false));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sidebar.classList.contains('sidebar-mobile-active')) toggleMobileSidebar(false);
+    });
 
     // Fechar ao navegar por qualquer link da sidebar
     document.querySelectorAll('#sidebar nav a').forEach(link => {

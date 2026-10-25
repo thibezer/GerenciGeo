@@ -9,6 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import json
 
+logger = logging.getLogger(__name__)
+
 async def rodar_conversao_hgo_subprocess(
     arquivos: list[str],
     destino: str,
@@ -61,6 +63,8 @@ async def rodar_conversao_hgo_subprocess(
 
 class GNSSPipelineWorker(threading.Thread):
     def __init__(self, lista_arquivos, pasta_destino, result_queue, caminho_exe=None, levantamento_id=None):
+        from database.repository import HistoricoRinexRepo
+        from services.gestores.workspace_manager import WorkspaceManager
         super().__init__()
         self.lista_arquivos = lista_arquivos
         self.pasta_destino = pasta_destino
@@ -76,6 +80,8 @@ class GNSSPipelineWorker(threading.Thread):
         self._stop_event.set()
 
     def run(self):
+        from buscador_rinex import encontrar_rinex
+        from services.processamento.triagem_inteligente import ler_metadados_rinex
         # 1. TRIAGEM DE QUALIDADE (< 50KB)
         validos = []
         corrompidos = []

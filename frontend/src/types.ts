@@ -1,6 +1,6 @@
 export interface RouteDef {
   render: () => string;
-  setup?: (param?: string | null) => void;
+  setup?: (param?: string | null) => void | Promise<void>;
   cleanup?: () => void;
 }
 

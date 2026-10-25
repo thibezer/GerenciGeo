@@ -67,7 +67,7 @@ export const fronteiraRoute: RouteDef = {
             return;
           }
           selectProp.innerHTML = '<option value="">[Selecione a Propriedade]</option>' + data.map((p: any) => `
-            <option value="${p.id}">${p.nome_propriedade} (${p.municipio}/${p.uf})</option>
+            <option value="${p.id}">${escapeHtml(p.nome_propriedade)} (${escapeHtml(p.municipio)}/${escapeHtml(p.uf)})</option>
           `).join('');
         })
         .catch(() => {
@@ -84,7 +84,7 @@ export const fronteiraRoute: RouteDef = {
             return;
           }
           selectProf.innerHTML = '<option value="">[Selecione o Responsável Técnico]</option>' + data.map((p: any) => `
-            <option value="${p.id}">${p.nome} (Registro: ${p.registro})</option>
+            <option value="${p.id}">${escapeHtml(p.nome)} (Registro: ${escapeHtml(p.registro)})</option>
           `).join('');
         })
         .catch(() => {
