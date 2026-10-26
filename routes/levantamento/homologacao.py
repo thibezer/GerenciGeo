@@ -116,6 +116,8 @@ def parse_csv_sigef(content: bytes, fuso_utm: int):
                 lat, lon, este, norte = resolver_coordenadas_robust(get_val('X') or get_val('LONGITUDE'), get_val('Y') or get_val('LATITUDE'), fuso_utm)
                 if lat is None or lon is None or este is None or norte is None:
                     continue
+                if vertice not in pontos:
+                    ordem.append(vertice)
                 pontos[vertice] = {
                     "tipo_ponto": tipo, "numero": num, "codigo_completo": vertice,
                     "norte": norte, "este": este, "altitude": parse_num_robust(get_val('Z')),
@@ -127,7 +129,6 @@ def parse_csv_sigef(content: bytes, fuso_utm: int):
                     "tipo_limite": get_val('LADO'),
                     "cns_confrontante": "", "matricula_confrontante": "", "confrontante_descritivo": ""
                 }
-                ordem.append(vertice)
                 
             elif 'DO_VERTICE' in headers and 'CONFRONTANTE_DESC' in headers:
                 _, _, do_vertice = extract_codigo_parts(get_val('DO_VERTICE'))

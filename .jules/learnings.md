@@ -705,3 +705,21 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - `preview_divisa.ts`: Orquestrador focado em ciclo de vida do diálogo, acessibilidade (foco inicial e armadilha de tabulação com `Escape`) e preenchimento dos dados notariais e métricas de azimutes/distâncias.
 
 
+
+---
+
+## 44. Tolerância e Desambiguação de Vértices com Mesmo Nome na Importação de Cadernetas (TxtGeodesicParser)
+- **Contexto e Problema**:
+  1. No trabalho de campo topográfico, operadores de coletores frequentemente nomeiam múltiplos marcos ou piquetes com rótulos genéricos idênticos (ex.: `divisa`, `divisa1`, `cerca`, `rio`) ao longo do perímetro.
+  2. O `TxtGeodesicParser` lançava `ValueError("Vértice duplicado detectado no próprio arquivo de importação...")` interrompendo sumariamente toda a ingestão de caderneta via HTTP 400.
+  3. Além disso, quando o arquivo de campo continha o vértice inicial repetido na última linha para fechar a poligonal, ou quando um ponto importado colidia com um já existente no banco, ocorria falha de restrição `UNIQUE` (`IntegrityError`).
+  4. Linhas com separadores vazios em layouts Topcon (ex.: `rio114,...,,0.008,...`) geravam `ValueError: could not convert string to float: ''` e eram descartadas.
+- **Regras Obrigatórias**:
+  1. **Desambiguação Automática de Nomes Duplicados**:
+     - No próprio arquivo ou entre arquivos (`unir_lotes`), se um nome já foi visto, gerar sufixo sequencial (`_1`, `_2`, etc.) para `nome_vertice`, mantendo o nome digitado no coletor na coluna `nome_original`.
+  2. **Reconhecimento de Fechamento Explícito**:
+     - Se o último ponto do arquivo coincidir em nome e posição ($\Delta < 0.20\text{m}$) com o primeiro vértice, reconhecer como fechamento redundante e descartar a duplicata, já que a topologia perimetral do GerenciGeo gera o segmento $P_{last} \to P_1$ automaticamente.
+  3. **Salvaguarda contra Restrição UNIQUE no Banco**:
+     - Em `_inserir_pontos`, verificar se `(levantamento_id, matricula_id, nome_vertice)` já existe e desambiguar com sufixo numérico antes da inserção, com retry atômico em caso de `IntegrityError`.
+  4. **Robustez de Layout Topcon**:
+     - Tratar colunas extras vazias ou strings de descrição na 5ª coluna sem abortar a conversão dos sigmas numéricos subsequentes.
