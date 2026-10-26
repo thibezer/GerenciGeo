@@ -1372,3 +1372,284 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
 
 
 
+
+
+# ── Motor de Vértices Virtuais (PA1 / PA2 - INCRA/SIGEF) ───────────────────────
+
+class PayloadCalcularComboPA1PA2(BaseModel):
+    eixo_inicio_id: int
+    eixo_fim_id: int
+    divisa_inicio_id: int
+    divisa_fim_id: int
+    largura_faixa: float
+    lado: Literal["DIREITA", "ESQUERDA"]
+    nome_vertice: Optional[str] = "V01"
+
+
+class PayloadCalcularPA2Puro(BaseModel):
+    alinhamento1_inicio_id: int
+    alinhamento1_fim_id: int
+    alinhamento2_inicio_id: int
+    alinhamento2_fim_id: int
+    nome_vertice: Optional[str] = "V01"
+
+
+class PayloadInserirVerticeVirtual(BaseModel):
+    nome_vertice: str
+    este: float
+    norte: float
+    altitude: float
+    sigma_este: float
+    sigma_norte: float
+    sigma_altitude: float
+    sigma_planimetrico: float
+    metodo: str = "PA1+PA2"
+    fuso_utm: Optional[int] = 22
+    ordem_caminhamento: Optional[int] = None
+    confrontante_id: Optional[int] = None
+
+
+def _obter_ponto_apoio_db(ponto_id: int):
+    from services.processamento.vertices_virtuais import PontoApoio
+
+    row = execute_query(
+        """
+        SELECT id, nome_vertice, lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
+               e_corrigido, n_corrigido, e_original, n_original, alt_original,
+               sigma_e, sigma_n, sigma_z, sigma_lat, sigma_lon, sigma_alt, fuso_utm
+        FROM pontos WHERE id = ?
+        """,
+        params=(ponto_id,),
+        fetch_one=True,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Ponto de apoio ID {ponto_id} não encontrado.")
+
+    p = dict(row)
+    e = p.get("e_corrigido") or p.get("e_original")
+    n = p.get("n_corrigido") or p.get("n_original")
+    alt = p.get("alt_corrigido") or p.get("alt") or p.get("alt_original") or 0.0
+
+    if e is None or n is None:
+        lat = p.get("lat_corrigido") or p.get("lat")
+        lon = p.get("lon_corrigido") or p.get("lon")
+        if lat is not None and lon is not None:
+            fuso = p.get("fuso_utm") or (int((lon + 180) / 6) + 1)
+            transformer = get_transformer("epsg:4674", f"epsg:319{60 + fuso}", always_xy=True)
+            e_calc, n_calc = transformer.transform(lon, lat)
+            e = e or e_calc
+            n = n or n_calc
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
+            )
+
+    s_e = p.get("sigma_e") or p.get("sigma_lon") or 0.02
+    s_n = p.get("sigma_n") or p.get("sigma_lat") or 0.02
+    s_z = p.get("sigma_z") or p.get("sigma_alt") or 0.03
+
+    return PontoApoio(
+        nome=p.get("nome_vertice") or f"P{p['id']}",
+        este=float(e),
+        norte=float(n),
+        altitude=float(alt),
+        sigma_este=float(s_e),
+        sigma_norte=float(s_n),
+        sigma_altitude=float(s_z),
+    )
+
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-combo-pa1-pa2")
+def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: PayloadCalcularComboPA1PA2):
+    """
+    Calcula analiticamente o vértice virtual conjugado PA1 (Paralela/Faixa de Domínio) + PA2 (Interseção).
+    Aplica LPV estocástica para determinação das incertezas SIGEF/INCRA.
+    """
+    from services.processamento.vertices_virtuais import MotorVerticesVirtuais, LadoOffset
+
+    try:
+        e1 = _obter_ponto_apoio_db(payload.eixo_inicio_id)
+        e2 = _obter_ponto_apoio_db(payload.eixo_fim_id)
+        d1 = _obter_ponto_apoio_db(payload.divisa_inicio_id)
+        d2 = _obter_ponto_apoio_db(payload.divisa_fim_id)
+
+        lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
+
+        resultado = MotorVerticesVirtuais.calcular_combo_pa1_pa2(
+            eixo_1=e1,
+            eixo_2=e2,
+            divisa_1=d1,
+            divisa_2=d2,
+            largura_faixa=payload.largura_faixa,
+            lado=lado_enum,
+            nome_vertice=payload.nome_vertice or "V01",
+        )
+
+        return {
+            "sucesso": True,
+            "resultado": {
+                "nome": resultado.nome,
+                "este": resultado.este,
+                "norte": resultado.norte,
+                "altitude": resultado.altitude,
+                "sigma_este": resultado.sigma_este,
+                "sigma_norte": resultado.sigma_norte,
+                "sigma_altitude": resultado.sigma_altitude,
+                "sigma_planimetrico": resultado.sigma_planimetrico,
+                "tipo_ponto": resultado.tipo_ponto,
+                "metodo": resultado.metodo,
+                "conforme_norma_incra": resultado.conforme_norma_incra,
+                "alerta": resultado.alerta,
+                "angulo_intersecao_graus": resultado.angulo_intersecao_graus,
+            }
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro no cálculo do combo PA1+PA2: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Falha interna no motor de cálculo: {str(e)}")
+
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-pa2-puro")
+def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcularPA2Puro):
+    """
+    Calcula o vértice virtual por interseção analítica pura de dois alinhamentos (PA2).
+    """
+    from services.processamento.vertices_virtuais import MotorVerticesVirtuais
+
+    try:
+        r1_p1 = _obter_ponto_apoio_db(payload.alinhamento1_inicio_id)
+        r1_p2 = _obter_ponto_apoio_db(payload.alinhamento1_fim_id)
+        r2_p1 = _obter_ponto_apoio_db(payload.alinhamento2_inicio_id)
+        r2_p2 = _obter_ponto_apoio_db(payload.alinhamento2_fim_id)
+
+        resultado = MotorVerticesVirtuais.calcular_pa2_puro(
+            alinhamento1_p1=r1_p1,
+            alinhamento1_p2=r1_p2,
+            alinhamento2_p1=r2_p1,
+            alinhamento2_p2=r2_p2,
+            nome_vertice=payload.nome_vertice or "V01",
+        )
+
+        return {
+            "sucesso": True,
+            "resultado": {
+                "nome": resultado.nome,
+                "este": resultado.este,
+                "norte": resultado.norte,
+                "altitude": resultado.altitude,
+                "sigma_este": resultado.sigma_este,
+                "sigma_norte": resultado.sigma_norte,
+                "sigma_altitude": resultado.sigma_altitude,
+                "sigma_planimetrico": resultado.sigma_planimetrico,
+                "tipo_ponto": resultado.tipo_ponto,
+                "metodo": resultado.metodo,
+                "conforme_norma_incra": resultado.conforme_norma_incra,
+                "alerta": resultado.alerta,
+                "angulo_intersecao_graus": resultado.angulo_intersecao_graus,
+            }
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro no cálculo do PA2 puro: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Falha interna no motor de cálculo: {str(e)}")
+
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar")
+def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: PayloadInserirVerticeVirtual):
+    """
+    Insere o vértice virtual calculado atomicamente no banco de dados, convertendo coordenadas
+    UTM para Geográficas SIRGAS 2000 e atualizando a ordem de caminhamento da matrícula.
+    """
+    verificar_levantamento_arquivado(id)
+    try:
+        fuso = payload.fuso_utm or 22
+        transformer = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
+        lon_calc, lat_calc = transformer.transform(payload.este, payload.norte)
+
+        ordem = payload.ordem_caminhamento
+        if not ordem:
+            row_max = execute_query(
+                "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?",
+                params=(id, matricula_id),
+                fetch_one=True,
+            )
+            max_ord = row_max["max_ord"] if row_max else None
+            ordem = (max_ord + 1) if max_ord is not None else 1
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO pontos (
+                    levantamento_id, matricula_id, nome_vertice, tipo_ponto,
+                    lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
+                    n_corrigido, e_corrigido,
+                    sigma_n, sigma_e, sigma_z, sigma_lat, sigma_lon, sigma_alt,
+                    fuso_utm, metodo_posicionamento,
+                    status_ponto, status_correcao, camada_ciclo_vida,
+                    ordem_caminhamento, confrontante_id
+                ) VALUES (
+                    ?, ?, ?, 'V',
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?,
+                    'CORRIGIDO', 'CORRIGIDO', 'PERIMETRO',
+                    ?, ?
+                )
+                """,
+                (
+                    id, matricula_id, payload.nome_vertice,
+                    lat_calc, lon_calc, payload.altitude, lat_calc, lon_calc, payload.altitude,
+                    payload.norte, payload.este,
+                    payload.sigma_norte, payload.sigma_este, payload.sigma_altitude,
+                    payload.sigma_norte, payload.sigma_este, payload.sigma_altitude,
+                    fuso, payload.metodo,
+                    ordem, payload.confrontante_id
+                ),
+            )
+            novo_id = cursor.lastrowid
+            conn.commit()
+
+        sanitizar_ordens_duplicadas(id)
+
+        from services.processamento.historico_campo import HistoricoCampoLogger
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=id,
+            tipo_evento="VERTICE_VIRTUAL_CRIADO",
+            descricao=f"Vértice Virtual {payload.nome_vertice} ({payload.metodo}) inserido com sucesso em E={payload.este:.3f}, N={payload.norte:.3f}, Alt={payload.altitude:.3f}.",
+            dados_detalhados={
+                "ponto_id": novo_id,
+                "nome_vertice": payload.nome_vertice,
+                "metodo": payload.metodo,
+                "este": payload.este,
+                "norte": payload.norte,
+                "altitude": payload.altitude,
+                "sigma_planimetrico": payload.sigma_planimetrico,
+            }
+        )
+
+        return {
+            "sucesso": True,
+            "id": novo_id,
+            "mensagem": f"Vértice virtual '{payload.nome_vertice}' cadastrado com sucesso.",
+            "coordenadas": {
+                "este": payload.este,
+                "norte": payload.norte,
+                "altitude": payload.altitude,
+                "lat": lat_calc,
+                "lon": lon_calc,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao inserir vértice virtual: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir vértice virtual: {str(e)}")

@@ -4,6 +4,8 @@ export interface RouteDef {
   cleanup?: () => void;
 }
 
+export * from './types/verticesVirtuais';
+
 export interface Ponto {
   id: number;
   lat?: number;
