@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, showToast, formatUTM } from '../utils';
+import { initIcons, showToast, formatUTM, escapeHtml } from '../utils';
 import { renderCompartilhado } from './compartilhado_template';
 let mapController: any = null;
 let currentPublicData: any = null;
@@ -93,7 +93,7 @@ const renderPropriedadesPonto = (ponto: any) => {
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${tipoInfo.bg}">${tipoInfo.label}</span>
                 </div>
                 <h4 class="font-mono text-base font-bold text-mint-vibrant tracking-tight flex items-center justify-between">
-                    <span>${ponto.nome_vertice || `Ponto ${ponto.id}`}</span>
+                    <span>${escapeHtml(ponto.nome_vertice) || `Ponto ${ponto.id}`}</span>
                     ${ponto.ordem_caminhamento ? `<span class="text-xs text-white/40 font-sans font-normal">Ord #${ponto.ordem_caminhamento}</span>` : ''}
                 </h4>
                 
@@ -156,7 +156,7 @@ const renderPropriedadesPonto = (ponto: any) => {
                 <div class="pt-1">
                     <span class="text-white/40 text-[10px] uppercase font-bold block mb-1">Confrontante Oficial:</span>
                     <div class="text-white bg-white/5 border border-white/10 px-2.5 py-1.5 rounded text-xs leading-snug">
-                        ${ponto.nome_confrontante}
+                        ${escapeHtml(ponto.nome_confrontante)}
                     </div>
                 </div>` : ''}
             </div>
@@ -189,8 +189,8 @@ const renderTabelas = () => {
 
         return `
         <tr id="row-ponto-all-${p.id}" class="${rowClass} cursor-pointer transition-colors" onclick="window.selecionarPontoPublico(${p.id})">
-            <td class="px-3 py-2 font-mono font-bold ${isSelected ? 'text-mint-vibrant' : 'text-white'}">${p.nome_vertice || `P-${p.id}`}</td>
-            <td class="px-3 py-2 text-center font-mono text-white/60">${p.tipo || '-'}</td>
+            <td class="px-3 py-2 font-mono font-bold ${isSelected ? 'text-mint-vibrant' : 'text-white'}">${escapeHtml(p.nome_vertice) || `P-${p.id}`}</td>
+            <td class="px-3 py-2 text-center font-mono text-white/60">${escapeHtml(p.tipo) || '-'}</td>
             <td class="px-3 py-2 font-mono">${norte}</td>
             <td class="px-3 py-2 font-mono">${este}</td>
             <td class="px-3 py-2 text-center font-mono text-white/60">${p.altitude != null ? Number(p.altitude).toFixed(2) : '—'}</td>
@@ -237,10 +237,10 @@ const renderTabelas = () => {
         orgHtml += `
         <tr id="row-ponto-org-${p.id}" class="${rowClass} cursor-pointer transition-colors" onclick="window.selecionarPontoPublico(${p.id})">
             <td class="px-3 py-2 text-center text-mint-vibrant font-bold font-mono">${p.ordem_caminhamento}</td>
-            <td class="px-3 py-2 font-mono font-bold ${isSelected ? 'text-mint-vibrant' : 'text-white'}">${p.nome_vertice || `P-${p.id}`}</td>
+            <td class="px-3 py-2 font-mono font-bold ${isSelected ? 'text-mint-vibrant' : 'text-white'}">${escapeHtml(p.nome_vertice) || `P-${p.id}`}</td>
             <td class="px-3 py-2 font-mono">${norte}</td>
             <td class="px-3 py-2 font-mono">${este}</td>
-            <td class="px-3 py-2 text-white/80 truncate max-w-[180px]" title="${p.nome_confrontante || ''}">${p.nome_confrontante || '—'}</td>
+            <td class="px-3 py-2 text-white/80 truncate max-w-[180px]" title="${escapeHtml(p.nome_confrontante)}">${escapeHtml(p.nome_confrontante) || '—'}</td>
             <td class="px-3 py-2 text-center font-mono text-mint-vibrant/90 font-bold">${distance > 0 ? distance.toFixed(2) : '—'}</td>
         </tr>`;
     }
@@ -426,7 +426,7 @@ const updateUI = () => {
     if (!currentPublicData) return;
     
     const pNome = document.getElementById('txt-nome-propriedade-publico');
-    if (pNome) pNome.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4 shrink-0 text-mint-vibrant"></i><span class="truncate">${currentPublicData.nome_propriedade || `Levantamento #${currentPublicData.id}`}</span>`;
+    if (pNome) pNome.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4 shrink-0 text-mint-vibrant"></i><span class="truncate">${escapeHtml(currentPublicData.nome_propriedade) || `Levantamento #${currentPublicData.id}`}</span>`;
     
     const pCli = document.getElementById('txt-nome-cliente-publico');
     if (pCli) {

@@ -1,146 +1,149 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons } from '../utils';
+import { initIcons, showToast, customConfirm, customAlert } from '../utils';
 import { realtimeSyncClient } from '../utils/realtime_sync_client';
+import {
+  aplicarMascaraCPF,
+  validarCPF,
+  filtrarProfissionais,
+  renderLinhasProfissionais,
+  renderLinhasBancoPontos,
+  type Profissional
+} from './configuracoes/configuracoes_helpers';
+
+let atalhoBuscaCfg: ((e: KeyboardEvent) => void) | null = null;
+let escModalBanco: ((e: KeyboardEvent) => void) | null = null;
 
 export const configuracoesRoute: RouteDef = {
   render: () => `
-    <div class="space-y-6 animate-in fade-in duration-300 select-text">
-      <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div>
-          <h2 class="text-3xl font-bold">Configurações do Sistema</h2>
-          <p class="text-white/40 mt-1">Gerencie os parâmetros globais e o cadastro de Responsáveis Técnicos do GerenciGeo.</p>
+    <div class="gap-2 animate-in fade-in duration-300 select-text flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior (padrão de listagem): título + total + busca + ação primária -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo" title="Parâmetros globais e cadastro de Responsáveis Técnicos do GerenciGeo">Configurações</h2>
+          <span class="lp-tag lp-tag-pf" id="cfg-prof-count" title="Responsáveis técnicos cadastrados">0 profissionais</span>
         </div>
-        <button id="btn-novo-profissional" class="btn-primary text-xs flex items-center gap-1.5 cursor-pointer max-w-[200px]">
-          <i data-lucide="user-plus" class="w-4 h-4"></i>
-          Adicionar Profissional
-        </button>
+        <div class="lp-bar-right">
+          <label class="lp-busca" id="busca-wrap" style="width:clamp(170px,18vw,320px)">
+            <i data-lucide="search"></i>
+            <input type="text" id="busca-profissional" placeholder="Buscar profissional" autocomplete="off" aria-label="Buscar profissional" />
+            <span class="lp-busca-fim">
+              <button type="button" class="lp-busca-limpar" id="busca-limpar" aria-label="Limpar busca"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+              <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
+            </span>
+          </label>
+          <button type="button" id="btn-novo-profissional" class="lp-btn-primario">
+            <i data-lucide="user-plus" class="w-4 h-4"></i>
+            Adicionar profissional
+          </button>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Esquerda/Centro: Lista de Profissionais Cadastrados -->
-        <div class="lg:col-span-2 space-y-6">
-          <div class="glass-card p-6 flex flex-col h-full min-h-[400px]">
-            <h3 class="text-sm font-bold uppercase tracking-widest text-white/40 border-b border-white/5 pb-3 flex items-center gap-2">
-              <i data-lucide="users" class="w-4 h-4 text-mint-vibrant"></i>
-              Responsáveis Técnicos Cadastrados
-            </h3>
-            
-            <div id="profissionais-lista-container" class="space-y-4 flex-grow overflow-y-auto mt-4">
-              <!-- Injetado via JS -->
-              <p class="text-xs text-white/30 italic py-4 text-center animate-pulse">Carregando profissionais...</p>
-            </div>
+      <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-2 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
+        <!-- Esquerda: responsáveis técnicos (tabela que rola por dentro) -->
+        <div class="lp-card lg:min-h-0" style="min-height:280px">
+          <div class="lp-card-titulo"><i data-lucide="users"></i>Responsáveis técnicos cadastrados</div>
+          <div class="lp-wrap overflow-x-auto overflow-y-auto flex-1 min-h-0">
+            <table class="lp-tabela">
+              <thead>
+                <tr>
+                  <th>Responsável</th>
+                  <th class="lp-oculta-md">Conselho / registro</th>
+                  <th class="lp-oculta-lg">CPF</th>
+                  <th>Cód. INCRA</th>
+                  <th class="lp-col-num lp-oculta-sm" title="Vértices homologados (M + P + V)">Vértices</th>
+                  <th class="lp-col-acoes" style="width:120px"><span class="sr-only">Ações</span></th>
+                </tr>
+              </thead>
+              <tbody id="profissionais-lista-container"></tbody>
+            </table>
+            <div id="profissionais-status" class="hidden" role="status" aria-live="polite"></div>
           </div>
+          <div class="lp-rodape"><span id="cfg-rodape">Carregando profissionais...</span><span class="lp-muted" style="font-size:11px">Clique na linha para editar</span></div>
         </div>
 
-        <!-- Direita: Formulário de Cadastro / Edição Lateral -->
-        <div class="space-y-6">
-          <div class="glass-card p-6 flex flex-col hidden" id="card-profissional-form">
-            <h3 class="text-sm font-bold uppercase tracking-widest text-mint-vibrant border-b border-mint-vibrant/20 pb-3 flex items-center gap-2" id="form-prof-titulo">
-              <i data-lucide="user-plus" class="w-4 h-4 animate-pulse"></i>
-              Cadastrar Novo Profissional
-            </h3>
-            
-            <form id="form-profissional" class="space-y-4 mt-4 text-xs select-text">
+        <!-- Direita: formulário (quando aberto), nuvem e ajuda — rola por dentro -->
+        <div class="flex flex-col gap-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <div class="lp-card hidden" id="card-profissional-form" style="flex:none;overflow:visible">
+            <div class="lp-card-titulo" id="form-prof-titulo" style="color:var(--lp-accent)"><i data-lucide="user-plus"></i>Cadastrar novo profissional</div>
+            <form id="form-profissional" class="flex flex-col gap-2.5 select-text" style="padding:12px">
               <input type="hidden" id="input-prof-id" value="" />
-              
-              <div>
-                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nome Completo *</label>
-                <input type="text" id="input-prof-nome" required class="glass-input w-full text-xs font-bold" placeholder="Ex: Eng. João da Silva" />
+
+              <label class="lp-campo"><span>Nome completo *</span>
+                <input type="text" id="input-prof-nome" required placeholder="Ex: Eng. João da Silva" />
+              </label>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="lp-campo"><span>Formação técnica *</span>
+                  <input type="text" id="input-prof-formacao" required placeholder="Ex: Engenheiro Agrônomo" />
+                </label>
+                <label class="lp-campo"><span>Nacionalidade</span>
+                  <input type="text" id="input-prof-nacionalidade" placeholder="Ex: brasileiro(a)" value="brasileiro(a)" />
+                </label>
               </div>
 
               <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Formação Técnica *</label>
-                  <input type="text" id="input-prof-formacao" required class="glass-input w-full text-xs" placeholder="Ex: Engenheiro Agrônomo" />
-                </div>
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nacionalidade</label>
-                  <input type="text" id="input-prof-nacionalidade" class="glass-input w-full text-xs" placeholder="Ex: brasileiro(a)" value="brasileiro(a)" />
-                </div>
+                <label class="lp-campo"><span>CPF *</span>
+                  <input type="text" id="input-prof-cpf" required class="lp-mono" placeholder="000.000.000-00" inputmode="numeric" />
+                  <span id="cpf-validation-msg" class="hidden" style="color:var(--lp-danger);letter-spacing:.06em">CPF inválido</span>
+                </label>
+                <label class="lp-campo"><span>RG *</span>
+                  <input type="text" id="input-prof-rg" required class="lp-mono" placeholder="Ex: 12.345.678-9" />
+                </label>
               </div>
 
               <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">CPF *</label>
-                  <input type="text" id="input-prof-cpf" required class="glass-input w-full text-xs font-mono" placeholder="000.000.000-00" />
-                  <span id="cpf-validation-msg" class="text-[9px] text-red-400 mt-1 hidden font-bold uppercase tracking-widest block animate-pulse">CPF Inválido</span>
-                </div>
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">RG *</label>
-                  <input type="text" id="input-prof-rg" required class="glass-input w-full text-xs font-mono" placeholder="Ex: 12.345.678-9" />
-                </div>
+                <label class="lp-campo"><span>Conselho *</span>
+                  <input type="text" id="input-prof-conselho" required style="text-transform:uppercase" placeholder="Ex: CFTA ou CREA" />
+                </label>
+                <label class="lp-campo"><span>Registro *</span>
+                  <input type="text" id="input-prof-registro" required class="lp-mono" style="text-transform:uppercase" placeholder="Ex: CFTA-PR-12345" />
+                </label>
               </div>
 
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Conselho *</label>
-                  <input type="text" id="input-prof-conselho" required class="glass-input w-full text-xs uppercase" placeholder="Ex: CFTA ou CREA" />
-                </div>
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Nº no Conselho (Registro) *</label>
-                  <input type="text" id="input-prof-registro" required class="glass-input w-full text-xs font-mono uppercase" placeholder="Ex: CFTA-PR-12345" />
-                </div>
-              </div>
-              
-              <div>
-                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Código Credenciado INCRA *</label>
-                <input type="text" id="input-prof-codigo" required class="glass-input w-full text-xs font-mono uppercase" placeholder="Ex: ABCD" />
-              </div>
-              
-              <div>
-                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Endereço Residencial</label>
-                <input type="text" id="input-prof-endereco-res" class="glass-input w-full text-xs" placeholder="Rua, número, bairro, cidade - UF" />
-              </div>
+              <label class="lp-campo"><span>Código credenciado INCRA *</span>
+                <input type="text" id="input-prof-codigo" required class="lp-mono" style="text-transform:uppercase" placeholder="Ex: ABCD" />
+              </label>
+              <label class="lp-campo"><span>Endereço residencial</span>
+                <input type="text" id="input-prof-endereco-res" placeholder="Rua, número, bairro, cidade - UF" />
+              </label>
+              <label class="lp-campo"><span>Endereço comercial (profissional)</span>
+                <input type="text" id="input-prof-endereco" placeholder="Av. Brasil, 1500, Paranavaí - PR" />
+              </label>
 
-              <div>
-                <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Endereço Comercial (Profissional)</label>
-                <input type="text" id="input-prof-endereco" class="glass-input w-full text-xs" placeholder="Av. Brasil, 1500, Paranavaí - PR" />
-              </div>
-              
-              <div class="pt-4 border-t border-white/5 flex justify-end gap-2">
-                <button type="button" id="btn-cancelar-prof" class="btn-secondary text-xs cursor-pointer">
-                  Cancelar
-                </button>
-                <button type="submit" id="btn-salvar-prof" class="btn-primary text-xs flex items-center gap-1 cursor-pointer">
-                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <div class="flex justify-end gap-2 pt-2" style="border-top:1px solid var(--lp-line)">
+                <button type="button" id="btn-cancelar-prof" class="lp-btn-sec">Cancelar</button>
+                <button type="submit" id="btn-salvar-prof" class="lp-btn-primario">
+                  <i data-lucide="save" class="w-4 h-4"></i>
                   Salvar
                 </button>
               </div>
             </form>
           </div>
 
-          <!-- Card de Sincronização com a Nuvem (antes ficava na barra superior) -->
-          <div class="glass-card p-6 space-y-4">
-            <h4 class="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-1.5">
-              <i data-lucide="cloud" class="w-4 h-4 text-mint-vibrant"></i>
-              Sincronização com a Nuvem
-            </h4>
-            <p class="text-xs text-white/60 leading-relaxed">
-              Status da conexão em tempo real com a Nuvem GerenciGeo. Clique para entrar, sincronizar manualmente ou pausar.
-            </p>
-            <button id="btn-global-sync-pill" type="button" class="btn-abrir-nuvem w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-mint-vibrant/30 transition-all cursor-pointer group" title="Sincronização em Tempo Real com a Nuvem">
-              <span class="flex items-center gap-2.5">
-                <span id="sync-pill-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
-                <span id="sync-pill-text" class="font-mono text-xs text-white/80 group-hover:text-white font-medium">Nuvem</span>
-              </span>
-              <span id="sync-pill-badge" class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-white/10 text-white/50">Verificando...</span>
-            </button>
+          <!-- Sincronização com a Nuvem -->
+          <div class="lp-card" style="flex:none;overflow:visible">
+            <div class="lp-card-titulo"><i data-lucide="cloud"></i>Sincronização com a nuvem</div>
+            <div class="flex flex-col gap-2" style="padding:12px">
+              <p class="lp-sub" style="font-size:12.5px;line-height:1.5">Status da conexão em tempo real com a Nuvem GerenciGeo. Clique para entrar, sincronizar manualmente ou pausar.</p>
+              <button id="btn-global-sync-pill" type="button" class="btn-abrir-nuvem w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-mint-vibrant/30 transition-all cursor-pointer group" title="Sincronização em Tempo Real com a Nuvem">
+                <span class="flex items-center gap-2.5">
+                  <span id="sync-pill-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                  <span id="sync-pill-text" class="font-mono text-xs text-white/80 group-hover:text-white font-medium">Nuvem</span>
+                </span>
+                <span id="sync-pill-badge" class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-white/10 text-white/50">Verificando...</span>
+              </button>
+            </div>
           </div>
 
-          <!-- Card de Ajuda Técnico -->
-          <div class="glass-card p-6 space-y-4">
-            <h4 class="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-1.5">
-              <i data-lucide="info" class="w-4 h-4 text-mint-vibrant"></i>
-              Instruções Técnicas
-            </h4>
-            <p class="text-xs text-white/60 leading-relaxed">
-              O Responsável Técnico é o profissional que assinará os laudos de faixa de fronteira, cartas de anuência de confrontação e requerimentos imobiliários do sistema GerenciGeo.
-            </p>
-            <p class="text-xs text-white/60 leading-relaxed mt-2">
-              Certifique-se de preencher o <strong>Registro CREA/CFTA</strong> e o <strong>Código Credenciado INCRA</strong> corretamente para evitar erros de consistência nos templates HTML oficiais das matrículas.
-            </p>
-          </div>
+          <!-- Instruções técnicas (recolhidas por padrão) -->
+          <details class="lp-aviso" style="border-color:var(--lp-line-strong);background:rgba(255,255,255,.02)">
+            <summary style="color:var(--lp-text-2)"><i data-lucide="info" class="w-4 h-4" style="color:var(--lp-accent)"></i>Instruções técnicas</summary>
+            <div class="lp-aviso-corpo lp-sub" style="font-size:12.5px;line-height:1.55;max-height:none">
+              <p>O Responsável Técnico é o profissional que assinará os laudos de faixa de fronteira, cartas de anuência de confrontação e requerimentos imobiliários do sistema GerenciGeo.</p>
+              <p style="margin-top:8px">Certifique-se de preencher o <strong>Registro CREA/CFTA</strong> e o <strong>Código Credenciado INCRA</strong> corretamente para evitar erros de consistência nos templates HTML oficiais das matrículas.</p>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -238,346 +241,218 @@ export const configuracoesRoute: RouteDef = {
     </div>
   `,
   setup: () => {
+    initIcons();
     realtimeSyncClient.renderizarStatus();
     const listContainer = document.getElementById('profissionais-lista-container');
+    const status = document.getElementById('profissionais-status');
     const formCard = document.getElementById('card-profissional-form');
     const btnNovo = document.getElementById('btn-novo-profissional');
     const btnCancel = document.getElementById('btn-cancelar-prof');
     const formProf = document.getElementById('form-profissional') as HTMLFormElement;
     const formTitulo = document.getElementById('form-prof-titulo');
-    
+
     const inputId = document.getElementById('input-prof-id') as HTMLInputElement;
     const inputNome = document.getElementById('input-prof-nome') as HTMLInputElement;
     const inputRegistro = document.getElementById('input-prof-registro') as HTMLInputElement;
     const inputCodigo = document.getElementById('input-prof-codigo') as HTMLInputElement;
     const inputEndereco = document.getElementById('input-prof-endereco') as HTMLInputElement;
-    
-    // Novos inputs
     const inputFormacao = document.getElementById('input-prof-formacao') as HTMLInputElement;
     const inputNacionalidade = document.getElementById('input-prof-nacionalidade') as HTMLInputElement;
     const inputCpf = document.getElementById('input-prof-cpf') as HTMLInputElement;
     const inputRg = document.getElementById('input-prof-rg') as HTMLInputElement;
     const inputConselho = document.getElementById('input-prof-conselho') as HTMLInputElement;
     const inputEnderecoRes = document.getElementById('input-prof-endereco-res') as HTMLInputElement;
-
-    let profissionais: any[] = [];
-
-    // Funções utilitárias de validação e máscara de CPF
-    const aplicarMascaraCPF = (value: string) => {
-      let v = value.replace(/\D/g, ''); // Remove tudo o que não é dígito
-      if (v.length > 11) v = v.substring(0, 11);
-      
-      if (v.length <= 3) {
-        return v;
-      }
-      if (v.length <= 6) {
-        return `${v.substring(0, 3)}.${v.substring(3)}`;
-      }
-      if (v.length <= 9) {
-        return `${v.substring(0, 3)}.${v.substring(3, 6)}.${v.substring(6)}`;
-      }
-      return `${v.substring(0, 3)}.${v.substring(3, 6)}.${v.substring(6, 9)}-${v.substring(9)}`;
-    };
-
-    const validarCPF = (cpf: string) => {
-      const cleanCpf = cpf.replace(/\D/g, '');
-      if (cleanCpf.length !== 11) return false;
-      if (/^(\d)\1{10}$/.test(cleanCpf)) return false;
-      
-      let add = 0;
-      for (let i = 0; i < 9; i++) {
-        add += parseInt(cleanCpf.charAt(i)) * (10 - i);
-      }
-      let rev = 11 - (add % 11);
-      if (rev === 10 || rev === 11) rev = 0;
-      if (rev !== parseInt(cleanCpf.charAt(9))) return false;
-      
-      add = 0;
-      for (let i = 0; i < 10; i++) {
-        add += parseInt(cleanCpf.charAt(i)) * (11 - i);
-      }
-      rev = 11 - (add % 11);
-      if (rev === 10 || rev === 11) rev = 0;
-      if (rev !== parseInt(cleanCpf.charAt(10))) return false;
-      
-      return true;
-    };
-
     const msgCpf = document.getElementById('cpf-validation-msg');
 
-    // Aplica a máscara em tempo real
-    inputCpf?.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement;
-      target.value = aplicarMascaraCPF(target.value);
-      
-      const cleanVal = target.value.replace(/\D/g, '');
-      if (cleanVal.length === 11) {
-        if (!validarCPF(target.value)) {
-          target.classList.add('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-          msgCpf?.classList.remove('hidden');
-        } else {
-          target.classList.remove('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-          msgCpf?.classList.add('hidden');
-        }
-      } else {
-        target.classList.remove('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-        msgCpf?.classList.add('hidden');
-      }
+    let profissionais: Profissional[] = [];
+    let termo = '';
+
+    const CLASSES_INVALIDO = ['border-red-500/50', 'bg-red-500/5', 'text-red-200'];
+    const marcarCpf = (invalido: boolean) => {
+      CLASSES_INVALIDO.forEach(c => inputCpf.classList.toggle(c, invalido));
+      msgCpf?.classList.toggle('hidden', !invalido);
+    };
+    // Só avalia com os 11 dígitos digitados: antes disso não há o que reclamar
+    const avaliarCpf = () => marcarCpf(inputCpf.value.replace(/\D/g, '').length === 11 && !validarCPF(inputCpf.value));
+
+    inputCpf?.addEventListener('input', () => {
+      inputCpf.value = aplicarMascaraCPF(inputCpf.value);
+      avaliarCpf();
     });
 
-    const loadProfissionais = async () => {
-      if (listContainer) {
-        listContainer.innerHTML = '<p class="text-xs text-white/30 italic py-4 text-center animate-pulse">Carregando lista...</p>';
-      }
-      try {
-        const res = await fetch(`${API_BASE}/profissionais`);
-        profissionais = await res.json();
-        renderProfissionais();
-      } catch (err) {
-        console.error(err);
-        if (listContainer) {
-          listContainer.innerHTML = '<p class="text-xs text-red-400 py-4 text-center">Falha ao carregar profissionais.</p>';
-        }
-      }
-    };
+    // --- LISTA ---
+    const getVisiveis = (): Profissional[] => filtrarProfissionais(profissionais, termo);
 
     const renderProfissionais = () => {
       if (!listContainer) return;
+      const visiveis = getVisiveis();
+      const contador = document.getElementById('cfg-prof-count');
+      if (contador) contador.innerText = `${profissionais.length} profissiona${profissionais.length === 1 ? 'l' : 'is'}`;
+      const rodape = document.getElementById('cfg-rodape');
+      if (rodape) rodape.innerText = `Mostrando ${visiveis.length} de ${profissionais.length} profissional(is)`;
 
-      if (profissionais.length === 0) {
-        listContainer.innerHTML = `
-          <div class="text-center py-12 text-white/20 border border-dashed border-white/5 rounded-xl flex flex-col items-center justify-center">
-             <i data-lucide="users" class="w-8 h-8 text-white/20 mb-2"></i>
-             <p class="text-xs">Nenhum profissional técnico cadastrado no sistema.</p>
-          </div>
-        `;
-        initIcons();
-        return;
+      if (visiveis.length === 0) {
+        listContainer.innerHTML = '';
+        if (status) {
+          status.classList.remove('hidden');
+          status.innerHTML = profissionais.length === 0
+            ? `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="users"></i></div><div class="lp-estado-titulo">Nenhum profissional cadastrado</div><div class="lp-estado-txt">O responsável técnico assina laudos, anuências e requerimentos.</div><button type="button" class="lp-btn-primario" data-estado-acao="novo"><i data-lucide="user-plus" class="w-4 h-4"></i>Adicionar profissional</button></div>`
+            : `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="search"></i></div><div class="lp-estado-titulo">Nenhum profissional encontrado</div><div class="lp-estado-txt">Nada corresponde à busca.</div><button type="button" class="lp-btn-sec" data-estado-acao="limpar">Limpar busca</button></div>`;
+        }
+      } else {
+        status?.classList.add('hidden');
+        listContainer.innerHTML = renderLinhasProfissionais(visiveis);
       }
-
-      listContainer.innerHTML = profissionais.map((p: any) => `
-        <div class="p-4 bg-white/[0.01] border border-white/5 hover:border-mint-vibrant/20 rounded-xl space-y-3 transition-all select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div class="space-y-1 flex-1">
-            <h4 class="text-xs font-bold text-white flex items-center gap-2">
-              ${p.nome}
-              ${p.contador_m + p.contador_p + p.contador_v > 0 
-                ? `<span class="text-[9px] bg-mint-vibrant/10 text-mint-vibrant px-1.5 py-0.5 rounded font-mono font-bold">${p.contador_m + p.contador_p + p.contador_v} Vértices</span>`
-                : ''}
-            </h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-white/40 font-mono">
-              <p><strong>Formação:</strong> ${p.formacao || 'Não Informada'}</p>
-              <p><strong>Nacionalidade:</strong> ${p.nacionalidade || 'brasileiro(a)'}</p>
-              <p><strong>CPF:</strong> ${p.cpf || 'Não Informado'}</p>
-              <p><strong>RG:</strong> ${p.rg || 'Não Informado'}</p>
-              <p><strong>Conselho:</strong> ${p.conselho || 'Não Informado'} (Reg: ${p.registro})</p>
-              <p><strong>Incra:</strong> ${p.codigo_credenciado || 'N/A'}</p>
-              <p class="sm:col-span-2 truncate max-w-[320px]"><strong>End. Comercial:</strong> ${p.endereco || 'Não Informado'}</p>
-              <p class="sm:col-span-2 truncate max-w-[320px]"><strong>End. Residencial:</strong> ${p.endereco_residencial || 'Não Informado'}</p>
-            </div>
-          </div>
-          
-          <div class="flex items-center gap-2 shrink-0">
-            <button 
-              onclick="window.verBancoPontos(${p.id})"
-              class="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant border-mint-vibrant/20 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              Banco de Pontos
-            </button>
-            <button 
-              onclick="window.editarProfissional(${p.id})"
-              class="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/70 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-              Editar
-            </button>
-            <button 
-              onclick="window.excluirProfissional(${p.id})"
-              class="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border-red-500/10 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-              Excluir
-            </button>
-          </div>
-        </div>
-      `).join('');
       initIcons();
     };
 
+    const loadProfissionais = async () => {
+      if (listContainer) listContainer.innerHTML = Array.from({ length: 4 }, () => '<tr><td colspan="6" class="!p-0"><div class="lp-skel"></div></td></tr>').join('');
+      status?.classList.add('hidden');
+      try {
+        const res = await fetch(`${API_BASE}/profissionais`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        profissionais = Array.isArray(data) ? data : [];
+        renderProfissionais();
+      } catch (err) {
+        console.error(err);
+        if (listContainer) listContainer.innerHTML = '';
+        if (status) {
+          status.classList.remove('hidden');
+          status.innerHTML = `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">Falha ao carregar profissionais</div><button type="button" class="lp-btn-sec" id="btn-recarregar-prof">Tentar novamente</button></div>`;
+          document.getElementById('btn-recarregar-prof')?.addEventListener('click', loadProfissionais);
+          initIcons();
+        }
+      }
+    };
+
+    // --- FORMULÁRIO ---
     const resetForm = () => {
       formProf.reset();
       inputId.value = '';
       inputNacionalidade.value = 'brasileiro(a)';
-      inputCpf.classList.remove('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-      msgCpf?.classList.add('hidden');
-      if (formTitulo) {
-        formTitulo.innerHTML = `<i data-lucide="user-plus" class="w-4 h-4 animate-pulse"></i> Cadastrar Novo Profissional`;
-      }
+      marcarCpf(false);
+      if (formTitulo) formTitulo.innerHTML = `<i data-lucide="user-plus"></i>Cadastrar novo profissional`;
       initIcons();
     };
 
-    btnNovo?.addEventListener('click', () => {
-      resetForm();
+    const abrirForm = () => {
       formCard?.classList.remove('hidden');
-    });
+      formCard?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      inputNome.focus();
+    };
 
-    btnCancel?.addEventListener('click', () => {
-      formCard?.classList.add('hidden');
-      resetForm();
-    });
+    btnNovo?.addEventListener('click', () => { resetForm(); abrirForm(); });
+    btnCancel?.addEventListener('click', () => { formCard?.classList.add('hidden'); resetForm(); });
 
-    formProf?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const nome = inputNome.value.trim();
-      const registro = inputRegistro.value.trim();
-      const codigo_credenciado = inputCodigo.value.trim();
-      const endereco = inputEndereco.value.trim();
-      
-      const formacao = inputFormacao.value.trim();
-      const nacionalidade = inputNacionalidade.value.trim();
-      const cpf = inputCpf.value.trim();
-      const rg = inputRg.value.trim();
-      const conselho = inputConselho.value.trim();
-      const endereco_residencial = inputEnderecoRes.value.trim();
-      const profId = inputId.value;
-
-      // Validação robusta de CPF na submissão
-      if (cpf && !validarCPF(cpf)) {
-        alert("Atenção: O CPF informado para o Responsável Técnico é inválido. Por favor, digite um CPF válido.");
-        inputCpf.classList.add('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-        inputCpf.focus();
-        return;
-      }
-
-      const payload = { 
-        nome, registro, codigo_credenciado, endereco, 
-        formacao, nacionalidade, cpf, rg, conselho, endereco_residencial 
-      };
-
-      try {
-        let res;
-        if (profId) {
-          res = await fetch(`${API_BASE}/profissionais/${profId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-        } else {
-          res = await fetch(`${API_BASE}/profissionais`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-        }
-
-        const data = await res.json();
-        if (data.error || (data.detail && typeof data.detail === 'string')) {
-          alert(`Erro ao salvar profissional: ${data.error || data.detail}`);
-        } else {
-          alert(data.message || "Profissional salvo com sucesso!");
-          formCard?.classList.add('hidden');
-          resetForm();
-          loadProfissionais();
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Erro de comunicação com a API.");
-      }
-    });
-
-    (window as any).editarProfissional = (id: number) => {
+    const editarProfissional = (id: number) => {
       const p = profissionais.find(x => x.id === id);
       if (!p) return;
-
       inputId.value = String(p.id);
       inputNome.value = p.nome || '';
       inputRegistro.value = p.registro || '';
       inputCodigo.value = p.codigo_credenciado || '';
       inputEndereco.value = p.endereco || '';
-      
       inputFormacao.value = p.formacao || '';
       inputNacionalidade.value = p.nacionalidade || 'brasileiro(a)';
       inputCpf.value = aplicarMascaraCPF(p.cpf || '');
       inputRg.value = p.rg || '';
       inputConselho.value = p.conselho || '';
       inputEnderecoRes.value = p.endereco_residencial || '';
-      
-      // Valida imediatamente ao carregar
-      const cleanVal = inputCpf.value.replace(/\D/g, '');
-      if (cleanVal.length === 11) {
-        if (!validarCPF(inputCpf.value)) {
-          inputCpf.classList.add('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-          msgCpf?.classList.remove('hidden');
-        } else {
-          inputCpf.classList.remove('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-          msgCpf?.classList.add('hidden');
-        }
-      } else {
-        inputCpf.classList.remove('border-red-500/50', 'bg-red-500/5', 'text-red-200');
-        msgCpf?.classList.add('hidden');
-      }
-
-      if (formTitulo) {
-        formTitulo.innerHTML = `<i data-lucide="edit" class="w-4 h-4 animate-pulse"></i> Editar Cadastro Técnico`;
-      }
+      avaliarCpf();
+      if (formTitulo) formTitulo.innerHTML = `<i data-lucide="edit"></i>Editar cadastro técnico`;
       initIcons();
-      formCard?.classList.remove('hidden');
+      abrirForm();
     };
 
-    (window as any).excluirProfissional = async (id: number) => {
-      const p = profissionais.find(x => x.id === id);
-      if (!p) return;
+    formProf?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const cpf = inputCpf.value.trim();
+      const profId = inputId.value;
 
-      if (!confirm(`Deseja realmente remover o cadastro do profissional ${p.nome}? Esta ação é irreversível.`)) return;
+      if (cpf && !validarCPF(cpf)) {
+        marcarCpf(true);
+        inputCpf.focus();
+        showToast('O CPF informado para o responsável técnico é inválido.', 'error');
+        return;
+      }
 
+      const payload = {
+        nome: inputNome.value.trim(),
+        registro: inputRegistro.value.trim(),
+        codigo_credenciado: inputCodigo.value.trim(),
+        endereco: inputEndereco.value.trim(),
+        formacao: inputFormacao.value.trim(),
+        nacionalidade: inputNacionalidade.value.trim(),
+        cpf,
+        rg: inputRg.value.trim(),
+        conselho: inputConselho.value.trim(),
+        endereco_residencial: inputEnderecoRes.value.trim()
+      };
+
+      const btnSalvar = document.getElementById('btn-salvar-prof') as HTMLButtonElement | null;
+      if (btnSalvar) btnSalvar.disabled = true;
       try {
-        const res = await fetch(`${API_BASE}/profissionais/${p.id}`, {
-          method: 'DELETE'
+        const res = await fetch(profId ? `${API_BASE}/profissionais/${profId}` : `${API_BASE}/profissionais`, {
+          method: profId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
-        
-        if (data.error) {
-          alert(`Aviso de Segurança: ${data.error}`);
+        if (data.error || (data.detail && typeof data.detail === 'string')) {
+          showToast(`Erro ao salvar profissional: ${data.error || data.detail}`, 'error');
         } else {
-          alert("Profissional removido com sucesso!");
+          showToast(data.message || 'Profissional salvo com sucesso!', 'success');
+          formCard?.classList.add('hidden');
+          resetForm();
           loadProfissionais();
         }
       } catch (err) {
         console.error(err);
-        alert("Erro de comunicação com a API.");
+        showToast('Erro de comunicação com a API.', 'error');
+      } finally {
+        if (btnSalvar) btnSalvar.disabled = false;
+      }
+    });
+
+    const excluirProfissional = async (id: number) => {
+      const p = profissionais.find(x => x.id === id);
+      if (!p) return;
+      if (!(await customConfirm(`Deseja realmente remover o cadastro do profissional ${p.nome}? Esta ação é irreversível.`))) return;
+      try {
+        const res = await fetch(`${API_BASE}/profissionais/${p.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.error) {
+          customAlert(`Aviso de segurança: ${data.error}`);
+        } else {
+          showToast('Profissional removido com sucesso!', 'success');
+          loadProfissionais();
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Erro de comunicação com a API.', 'error');
       }
     };
 
-    // --- LÓGICA DO BANCO DE PONTOS ---
+    // --- BANCO DE PONTOS ---
     const modalBanco = document.getElementById('modal-banco-pontos');
-    const btnFecharBanco = document.getElementById('btn-fechar-modal-banco');
-    const btnFecharBancoRod = document.getElementById('btn-fechar-modal-banco-rod');
+    const fecharModalBanco = () => modalBanco?.classList.add('hidden');
+    document.getElementById('btn-fechar-modal-banco')?.addEventListener('click', fecharModalBanco);
+    document.getElementById('btn-fechar-modal-banco-rod')?.addEventListener('click', fecharModalBanco);
+    escModalBanco = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharModalBanco(); };
+    document.addEventListener('keydown', escModalBanco);
 
-    const fecharModalBanco = () => {
-      modalBanco?.classList.add('hidden');
-    };
-
-    btnFecharBanco?.addEventListener('click', fecharModalBanco);
-    btnFecharBancoRod?.addEventListener('click', fecharModalBanco);
-
-    (window as any).verBancoPontos = async (id: number) => {
+    const verBancoPontos = async (id: number) => {
       const p = profissionais.find(x => x.id === id);
       if (!p) return;
 
       const txtNome = document.getElementById('txt-banco-prof-nome');
       if (txtNome) txtNome.innerText = p.nome;
 
-      // Limpa dados antigos
       ['m', 'p', 'v'].forEach(t => {
-        const estTotal = document.getElementById(`est-${t}-total`);
-        if (estTotal) estTotal.innerText = 'Carregando...';
-        const estUltimo = document.getElementById(`est-${t}-ultimo`);
-        if (estUltimo) estUltimo.innerText = '...';
-        const estProximo = document.getElementById(`est-${t}-proximo`);
-        if (estProximo) estProximo.innerText = '...';
-        const estLacunas = document.getElementById(`est-${t}-lacunas`);
-        if (estLacunas) estLacunas.innerText = '...';
+        const set = (suf: string, v: string) => { const el = document.getElementById(`est-${t}-${suf}`); if (el) el.innerText = v; };
+        set('total', 'Carregando...'); set('ultimo', '...'); set('proximo', '...'); set('lacunas', '...');
       });
       const tblCorpo = document.getElementById('tbl-banco-pontos-corpo');
       if (tblCorpo) tblCorpo.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30 animate-pulse">Consultando base de dados...</td></tr>`;
@@ -590,64 +465,92 @@ export const configuracoesRoute: RouteDef = {
         const data = await res.json();
 
         if (data && data.estatisticas) {
-          // Atualiza estatísticas na tela
           ['M', 'P', 'V'].forEach(t => {
             const tl = t.toLowerCase();
             const est = data.estatisticas[t];
-            
-            const estTotal = document.getElementById(`est-${tl}-total`);
-            if (estTotal) estTotal.innerText = `${est.total_usados} Usados`;
-            
-            const estUltimo = document.getElementById(`est-${tl}-ultimo`);
-            if (estUltimo) estUltimo.innerText = est.ultimo_usado > 0 ? `${data.profissional.codigo_credenciado}-${t}-${String(est.ultimo_usado).padStart(4, '0')}` : 'Nenhum';
-            
-            const estProximo = document.getElementById(`est-${tl}-proximo`);
-            if (estProximo) estProximo.innerText = `${data.profissional.codigo_credenciado}-${t}-${String(est.proximo_recomendado).padStart(4, '0')}`;
-            
-            const lacunasSpan = document.getElementById(`est-${tl}-lacunas`);
-            if (lacunasSpan) {
-              if (est.lacunas && est.lacunas.length > 0) {
-                lacunasSpan.innerText = est.lacunas.map((l: number) => `${t}-${String(l).padStart(4, '0')}`).join(', ');
-              } else {
-                lacunasSpan.innerText = 'Nenhuma';
-              }
-            }
+            const set = (suf: string, v: string) => { const el = document.getElementById(`est-${tl}-${suf}`); if (el) el.innerText = v; };
+            const cod = data.profissional.codigo_credenciado;
+            set('total', `${est.total_usados} Usados`);
+            set('ultimo', est.ultimo_usado > 0 ? `${cod}-${t}-${String(est.ultimo_usado).padStart(4, '0')}` : 'Nenhum');
+            set('proximo', `${cod}-${t}-${String(est.proximo_recomendado).padStart(4, '0')}`);
+            set('lacunas', est.lacunas && est.lacunas.length > 0
+              ? est.lacunas.map((l: number) => `${t}-${String(l).padStart(4, '0')}`).join(', ')
+              : 'Nenhuma');
           });
 
-          // Atualiza tabela
           const tbody = document.getElementById('tbl-banco-pontos-corpo');
           if (tbody) {
-            if (!data.pontos || data.pontos.length === 0) {
-              tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30">Nenhum ponto registrado no banco de dados para este profissional.</td></tr>`;
-            } else {
-              tbody.innerHTML = data.pontos.map((pt: any) => {
-                const dataFmt = new Date(pt.created_at).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-                return `
-                  <tr class="hover:bg-white/[0.01] transition-all font-mono text-[11px]">
-                     <td class="px-4 py-2 text-mint-vibrant font-bold">${pt.codigo_completo}</td>
-                     <td class="px-4 py-2">${pt.tipo_ponto}</td>
-                     <td class="px-4 py-2 text-right">${pt.numero}</td>
-                     <td class="px-4 py-2 font-sans font-medium text-white">${pt.nome_propriedade || '[Arquivo Desvinculado]'}</td>
-                     <td class="px-4 py-2 text-white/40">${dataFmt}</td>
-                  </tr>
-                `;
-              }).join('');
-            }
+            tbody.innerHTML = !data.pontos || data.pontos.length === 0
+              ? `<tr><td colspan="5" class="px-4 py-8 text-center text-white/30">Nenhum ponto registrado no banco de dados para este profissional.</td></tr>`
+              : renderLinhasBancoPontos(data.pontos);
           }
         }
       } catch (err) {
-        console.error("Erro ao carregar banco de pontos:", err);
-        alert("Erro ao consultar banco de pontos.");
+        console.error('Erro ao carregar banco de pontos:', err);
+        showToast('Erro ao consultar banco de pontos.', 'error');
         fecharModalBanco();
       }
     };
 
+    // --- EVENTOS DA TABELA (delegação): ações, linha inteira e teclado ---
+    listContainer?.addEventListener('click', (e: MouseEvent) => {
+      const alvo = e.target as HTMLElement;
+      const btn = alvo.closest<HTMLElement>('.btn-action');
+      if (btn) {
+        const id = parseInt(btn.dataset.id || '0', 10);
+        if (!id) return;
+        if (btn.dataset.action === 'banco') verBancoPontos(id);
+        else if (btn.dataset.action === 'editar') editarProfissional(id);
+        else if (btn.dataset.action === 'excluir') excluirProfissional(id);
+        return;
+      }
+      const linhaId = parseInt(alvo.closest<HTMLElement>('tr[data-id]')?.dataset.id || '0', 10);
+      if (linhaId) editarProfissional(linhaId);
+    });
+    listContainer?.addEventListener('keydown', (e: KeyboardEvent) => {
+      const alvo = e.target as HTMLElement;
+      if (e.key === 'Enter' && alvo.matches('tr[data-id]')) editarProfissional(parseInt(alvo.dataset.id || '0', 10));
+    });
+
+    // --- BUSCA: debounce, ✕ e Esc limpam, "/" foca ---
+    const buscaInput = document.getElementById('busca-profissional') as HTMLInputElement | null;
+    const buscaWrap = document.getElementById('busca-wrap');
+    let timeout: ReturnType<typeof setTimeout>;
+    buscaInput?.addEventListener('input', () => {
+      buscaWrap?.classList.toggle('tem-valor', buscaInput.value.length > 0);
+      clearTimeout(timeout);
+      timeout = setTimeout(() => { termo = buscaInput.value; renderProfissionais(); }, 200);
+    });
+    const limparBusca = () => {
+      if (!buscaInput) return;
+      buscaInput.value = '';
+      buscaWrap?.classList.remove('tem-valor');
+      clearTimeout(timeout);
+      termo = '';
+      renderProfissionais();
+    };
+    document.getElementById('busca-limpar')?.addEventListener('click', () => { limparBusca(); buscaInput?.focus(); });
+    buscaInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { limparBusca(); buscaInput.blur(); }
+    });
+    status?.addEventListener('click', (e: MouseEvent) => {
+      const acao = (e.target as HTMLElement).closest<HTMLElement>('[data-estado-acao]')?.dataset.estadoAcao;
+      if (acao === 'novo') btnNovo?.click();
+      else if (acao === 'limpar') limparBusca();
+    });
+    atalhoBuscaCfg = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+      e.preventDefault();
+      buscaInput?.focus();
+    };
+    document.addEventListener('keydown', atalhoBuscaCfg);
+
     loadProfissionais();
+  },
+  cleanup: () => {
+    if (atalhoBuscaCfg) { document.removeEventListener('keydown', atalhoBuscaCfg); atalhoBuscaCfg = null; }
+    if (escModalBanco) { document.removeEventListener('keydown', escModalBanco); escModalBanco = null; }
   }
 };

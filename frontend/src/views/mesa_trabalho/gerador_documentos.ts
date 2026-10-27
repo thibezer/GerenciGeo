@@ -2468,7 +2468,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               const labelDiv = document.createElement('div');
               labelDiv.className = 'flex items-center gap-2 text-xs text-white/50';
               labelDiv.innerHTML = `
-                <span class="font-semibold text-white/80">${aba.nome}</span>
+                <span class="font-semibold text-white/80">${escapeHtml(aba.nome)}</span>
                 <span class="text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-white/40 font-mono">${aba.qtd_pontos} pts</span>
               `;
               

@@ -36,7 +36,19 @@ export const fronteiraRoute: RouteDef = {
     const dropzoneShp = document.getElementById('dropzone-shp');
     const inputUploadShp = document.getElementById('input-upload-shp') as HTMLInputElement;
     const textUploadShp = document.getElementById('text-upload-shp');
-    const iconUploadShp = document.getElementById('icon-upload-shp');
+
+    // O Lucide troca <i data-lucide> por <svg>, e `svg.className = ...` lança TypeError (propriedade só de leitura):
+    // por isso o ícone é substituído por um novo <i> e redesenhado, em vez de ter a classe alterada.
+    const trocarIconeUpload = (nome: string, classe: string) => {
+      const atual = document.getElementById('icon-upload-shp');
+      if (!atual) return;
+      const novo = document.createElement('i');
+      novo.id = 'icon-upload-shp';
+      novo.setAttribute('data-lucide', nome);
+      novo.setAttribute('class', classe);
+      atual.replaceWith(novo);
+      initIcons();
+    };
 
     // Elementos do Modal
     const modal = document.getElementById('modal-dados-fronteira');
@@ -55,7 +67,7 @@ export const fronteiraRoute: RouteDef = {
             return;
           }
           selectProp.innerHTML = '<option value="">[Selecione a Propriedade]</option>' + data.map((p: any) => `
-            <option value="${p.id}">${p.nome_propriedade} (${p.municipio}/${p.uf})</option>
+            <option value="${p.id}">${escapeHtml(p.nome_propriedade)} (${escapeHtml(p.municipio)}/${escapeHtml(p.uf)})</option>
           `).join('');
         })
         .catch(() => {
@@ -72,7 +84,7 @@ export const fronteiraRoute: RouteDef = {
             return;
           }
           selectProf.innerHTML = '<option value="">[Selecione o Responsável Técnico]</option>' + data.map((p: any) => `
-            <option value="${p.id}">${p.nome} (Registro: ${p.registro})</option>
+            <option value="${p.id}">${escapeHtml(p.nome)} (Registro: ${escapeHtml(p.registro)})</option>
           `).join('');
         })
         .catch(() => {
@@ -399,11 +411,7 @@ export const fronteiraRoute: RouteDef = {
           fallbackLon = data.lon;
 
           if (textUploadShp) textUploadShp.innerHTML = `<span class="text-mint-vibrant font-bold">✓ Shapefile Geral Processado: ${escapeHtml(file.name)}</span>`;
-          if (iconUploadShp) {
-            iconUploadShp.className = "w-6 h-6 text-mint-vibrant";
-            iconUploadShp.setAttribute("data-lucide", "check-circle");
-          }
-          initIcons();
+          trocarIconeUpload('check-circle', 'w-6 h-6 text-mint-vibrant shrink-0');
           
           atualizarMonitorGeodesicoLote();
           customAlert(`Shapefile Geral lido com sucesso!\n\nMenor distância calculada até a divisa: ${data.distancia_fronteira_km.toFixed(3)} km.`);
@@ -424,12 +432,8 @@ export const fronteiraRoute: RouteDef = {
       fallbackDistanciaKm = null;
       fallbackLat = null;
       fallbackLon = null;
-      if (textUploadShp) textUploadShp.innerText = "Clique ou arraste o Shapefile (.ZIP) Geral";
-      if (iconUploadShp) {
-        iconUploadShp.className = "w-6 h-6 text-white/30";
-        iconUploadShp.setAttribute("data-lucide", "upload-cloud");
-      }
-      initIcons();
+      if (textUploadShp) textUploadShp.innerText = "Shapefile (.ZIP) geral da propriedade — clique ou arraste (opcional)";
+      trocarIconeUpload('upload-cloud', 'w-6 h-6 text-white/30 shrink-0');
       atualizarMonitorGeodesicoLote();
     };
 

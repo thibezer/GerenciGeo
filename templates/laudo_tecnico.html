@@ -58,6 +58,10 @@
                 max-height: none !important;
                 overflow: visible !important;
             }
+
+            table thead {
+                display: table-header-group !important;
+            }
         }
     </style>
 </head>
@@ -115,7 +119,7 @@
                     <h3 class="font-bold text-slate-900 mb-1">2. Padrões Cartográficos e Datum de Referência</h3>
                     <p>O processamento topográfico final e a planta do imóvel rural foram gerados de forma rigorosa no
                         Sistema Geodésico de Referência <strong>SIRGAS 2000</strong>, projetado em coordenadas planas
-                        **UTM Zona 22S (EPSG:31982)** com Meridiano Central 51° W e Elipsoide de Referência GRS80.</p>
+                        <strong>UTM Zona {zona_utm}S (EPSG:{epsg_utm})</strong> com Meridiano Central {meridiano_central}° W e Elipsoide de Referência GRS80.</p>
                 </div>
 
                 <div>
@@ -146,9 +150,16 @@
             </div>
         </div>
 
-        <!-- Seção de Fechamento (Data) unida para evitar quebra órfã -->
-        <div class="break-inside-avoid mt-4 flex flex-col items-center self-center w-full">
-            <p class="w-full text-left text-xs font-medium text-slate-900">{municipio}-{uf}, {data_extenso}.</p>
+        <!-- Seção de Fechamento (Data e Assinatura do RT) unida para evitar quebra órfã -->
+        <div class="break-inside-avoid mt-8 flex flex-col items-center self-center w-full">
+            <p class="w-full text-left text-xs font-medium text-slate-900 mb-8">{municipio}-{uf}, {data_extenso}.</p>
+            
+            <div class="flex flex-col items-center min-w-[280px]">
+                <div class="w-full border-t border-slate-400 mt-6 mb-2"></div>
+                <div class="text-sm font-bold text-slate-900 text-center uppercase tracking-wide">{nome_prof}</div>
+                <div class="text-xs text-slate-500 text-center font-medium mt-0.5">{formacao_prof}</div>
+                <div class="text-[11px] text-slate-400 text-center font-medium font-mono mt-0.5">{conselho_exibicao}</div>
+            </div>
         </div>
     </div>
 </body>

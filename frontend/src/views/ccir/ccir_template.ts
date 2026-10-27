@@ -1,151 +1,114 @@
 /**
  * ccir_template.ts — Marcação HTML da tela Banco de Dados CCIR.
+ * Padrão de tela: "Arquivos .md/PADRAO_TELA_LISTAGEM.md".
  */
 export function renderCcirTemplate(): string {
   return `
-    <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <!-- Cabeçalho -->
-      <div class="flex justify-between items-center h-10 sm:h-12 border-b border-white/5 pb-2 sm:pb-3">
-        <div>
-          <h2 class="text-lg sm:text-xl font-bold tracking-tight text-white leading-none">Banco de Dados CCIR</h2>
-          <p class="text-white/40 text-[10px] mt-1.5 hidden sm:block">Consulte cadastros do CCIR de forma integrada e gerencie planilhas locais.</p>
+    <div class="gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior: título + total + ferramentas -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo" title="Consulte cadastros do CCIR e gerencie as planilhas locais">Banco CCIR</h2>
+          <span class="lp-tag lp-tag-pf" id="ccir-results-count" role="status" aria-live="polite">0 registros</span>
+          
+        </div>
+        <div class="lp-bar-right">
+          <div class="relative">
+            <button type="button" class="lp-btn-sec" id="btn-planilhas" aria-haspopup="true" aria-expanded="false" title="Planilhas CSV já importadas">
+              <i data-lucide="database" class="w-3.5 h-3.5"></i>
+              Planilhas <span class="lp-seg-n" id="ccir-planilhas-count">0</span>
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+            </button>
+            <div class="lp-popover hidden" id="popover-planilhas" role="dialog" aria-label="Planilhas importadas">
+              <div class="lp-card-titulo"><i data-lucide="database"></i>Planilhas importadas</div>
+              <div id="ccir-imported-files" class="lp-popover-corpo">
+                <p class="lp-sub" style="text-align:center;padding:16px 0">Carregando planilhas...</p>
+              </div>
+            </div>
+          </div>
+          <button type="button" id="btn-open-ccir-folder" class="lp-btn-sec" title="Abrir a pasta externa de dados do CCIR">
+            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+            Abrir pasta
+          </button>
+          <a href="javascript:(function(){navigator.clipboard.readText().then(t=>{try{const d=JSON.parse(t);if(!d.codigo){alert('Nenhum dado de CCIR na área de transferência!');return;}const c=document.querySelector('input[name=\\'codigoImovel\\'],#codigoImovel');if(c){c.value=d.codigo.replace(/\\D/g,'');c.dispatchEvent(new Event('input',{bubbles:!0}));c.dispatchEvent(new Event('change',{bubbles:!0}));}const u=document.querySelector('select[name=\\'ufSede\\'],#ufSede');if(u){u.value=d.uf.toUpperCase();u.dispatchEvent(new Event('change',{bubbles:!0}));}setTimeout(()=>{const m=document.querySelector('select[name=\\'municipioSede\\'],#municipioSede');if(m){for(let i=0;i<m.options.length;i++){const o=m.options[i].text.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');const s=d.municipio.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');if(o.includes(s)||s.includes(o)){m.selectedIndex=i;m.dispatchEvent(new Event('change',{bubbles:!0}));break;}}}const l=d.cpf.replace(/\\D/g,'');const f=l.length<=11;const r=document.getElementById(f?'tipoPessoaFisica':'tipoPessoaJuridica')||document.querySelector(f?'input[value=\\'F\\']':'input[value=\\'J\\']');if(r){r.checked=!0;r.dispatchEvent(new Event('click',{bubbles:!0}));r.dispatchEvent(new Event('change',{bubbles:!0}));}setTimeout(()=>{const p=document.querySelector('input[name=\\'cpfDeclarante\\'],#cpfDeclarante,input[name=\\'cnpjDeclarante\\'],#cnpjDeclarante');if(p){p.value=l;p.dispatchEvent(new Event('input',{bubbles:!0}));p.dispatchEvent(new Event('change',{bubbles:!0}));}const h=document.querySelector('.h-captcha,iframe[title*=\\'hCaptcha\\']');if(h)h.scrollIntoView({behavior:\\'smooth\\'});},150);},600);}catch(e){alert('Erro ao ler dados da área de transferência!');}});})();" class="lp-btn-sec lp-fav" title="Arraste este botão para a barra de favoritos do navegador: ele preenche os campos do emissor do INCRA" style="color:#7dd3fc;border-color:rgba(56,189,248,.3);cursor:grab" draggable="true">
+            <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+            Favorito INCRA
+          </a>
+          <button type="button" id="btn-sync-ccir" class="lp-btn-primario" title="Sincroniza automaticamente as planilhas CSV da pasta externa de dados">
+            <i data-lucide="refresh-cw" class="w-4 h-4" id="sync-icon"></i>
+            Sincronizar
+          </button>
         </div>
       </div>
 
-      <!-- Painel de Sincronização e Ferramentas no Topo -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Bloco de Sincronização de Pasta -->
-        <div class="glass-card p-4 flex flex-col justify-between space-y-3">
-          <div>
-            <h4 class="font-bold text-xs text-mint-vibrant flex items-center gap-1.5">
-              <i data-lucide="folder-sync" class="w-3.5 h-3.5"></i>
-              Sincronização de Pasta
-            </h4>
-            <p class="text-[10px] text-white/50 leading-relaxed mt-1">
-              O sistema sincroniza automaticamente as planilhas CSV inseridas na pasta externa de dados.
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <button id="btn-sync-ccir" class="btn-primary flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs cursor-pointer">
-              <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="sync-icon"></i>
-              Sincronizar Pasta
+      <!-- Resultados com filtros (o formulário fica dentro do card) -->
+      <div class="lp-card">
+        <form id="form-ccir-search" class="lp-card-barra" style="align-items:flex-end">
+          <label class="lp-campo" style="flex:1 1 150px">
+            <span>Código do imóvel</span>
+            <input type="text" name="codigo_imovel" placeholder="Código CCIR" class="lp-mono" autocomplete="off">
+          </label>
+          <label class="lp-campo" style="flex:2 1 200px">
+            <span>Denominação</span>
+            <input type="text" name="denominacao" placeholder="Nome da propriedade" autocomplete="off">
+          </label>
+          <label class="lp-campo" style="flex:2 1 200px">
+            <span>Titular</span>
+            <input type="text" name="titular" placeholder="Nome do proprietário" autocomplete="off">
+          </label>
+          <label class="lp-campo" style="flex:1 1 150px">
+            <span>Município</span>
+            <input type="text" name="municipio" placeholder="Nome da cidade" autocomplete="off">
+          </label>
+          <div class="flex items-end gap-2">
+            <button type="button" class="lp-btn-sec" id="btn-mais-filtros" aria-expanded="false" aria-controls="filtros-avancados">
+              <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+              Área e detenção
             </button>
-            <button id="btn-open-ccir-folder" class="btn-secondary flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs cursor-pointer">
-              <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
-              Abrir Pasta
+            <button type="button" id="btn-clear-ccir-search" class="lp-btn-sec">Limpar</button>
+            <button type="submit" class="lp-btn-primario">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              Filtrar
             </button>
           </div>
-        </div>
-
-        <!-- Bloco de Planilhas Importadas -->
-        <div class="glass-card p-4 flex flex-col justify-between">
-          <h4 class="font-bold text-xs text-white mb-2 flex items-center gap-1.5">
-            <i data-lucide="database" class="w-3.5 h-3.5 text-white/40"></i>
-            Planilhas Importadas
-          </h4>
-          <div id="ccir-imported-files" class="space-y-1.5 max-h-24 overflow-y-auto pr-1 text-xs">
-            <p class="text-[11px] text-white/20 text-center py-4">Carregando planilhas...</p>
-          </div>
-        </div>
-
-        <!-- Bloco de Emissão Automática -->
-        <div class="glass-card p-4 flex flex-col justify-between space-y-3">
-          <div>
-            <h4 class="font-bold text-xs text-blue-400 flex items-center gap-1.5">
-              <i data-lucide="globe" class="w-3.5 h-3.5 animate-pulse"></i>
-              Preenchimento INCRA
-            </h4>
-            <p class="text-[10px] text-white/50 leading-relaxed mt-1">
-              Arraste o botão abaixo para a barra de favoritos do seu navegador para preencher os campos.
-            </p>
-          </div>
-          <div>
-            <a href="javascript:(function(){navigator.clipboard.readText().then(t=>{try{const d=JSON.parse(t);if(!d.codigo){alert('Nenhum dado de CCIR na área de transferência!');return;}const c=document.querySelector('input[name=\\'codigoImovel\\'],#codigoImovel');if(c){c.value=d.codigo.replace(/\\D/g,'');c.dispatchEvent(new Event('input',{bubbles:!0}));c.dispatchEvent(new Event('change',{bubbles:!0}));}const u=document.querySelector('select[name=\\'ufSede\\'],#ufSede');if(u){u.value=d.uf.toUpperCase();u.dispatchEvent(new Event('change',{bubbles:!0}));}setTimeout(()=>{const m=document.querySelector('select[name=\\'municipioSede\\'],#municipioSede');if(m){for(let i=0;i<m.options.length;i++){const o=m.options[i].text.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');const s=d.municipio.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');if(o.includes(s)||s.includes(o)){m.selectedIndex=i;m.dispatchEvent(new Event('change',{bubbles:!0}));break;}}}const l=d.cpf.replace(/\\D/g,'');const f=l.length<=11;const r=document.getElementById(f?'tipoPessoaFisica':'tipoPessoaJuridica')||document.querySelector(f?'input[value=\\'F\\']':'input[value=\\'J\\']');if(r){r.checked=!0;r.dispatchEvent(new Event('click',{bubbles:!0}));r.dispatchEvent(new Event('change',{bubbles:!0}));}setTimeout(()=>{const p=document.querySelector('input[name=\\'cpfDeclarante\\'],#cpfDeclarante,input[name=\\'cnpjDeclarante\\'],#cnpjDeclarante');if(p){p.value=l;p.dispatchEvent(new Event('input',{bubbles:!0}));p.dispatchEvent(new Event('change',{bubbles:!0}));}const h=document.querySelector('.h-captcha,iframe[title*=\\'hCaptcha\\']');if(h)h.scrollIntoView({behavior:\\'smooth\\'});},150);},600);}catch(e){alert('Erro ao ler dados da área de transferência!');}});})();" class="btn-primary text-center block w-full py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-white border border-blue-500/30 hover:border-transparent select-none cursor-grab font-bold transition-all" title="Arraste este botão para a sua barra de favoritos do navegador">
-              Preencher CCIR (Favorito)
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Busca Avançada de Imóveis (Largura Total) -->
-      <div class="glass-card p-5">
-        <h4 class="font-bold text-xs text-white mb-3 flex items-center gap-1.5">
-          <i data-lucide="search" class="w-3.5 h-3.5 text-white/40"></i>
-          Busca Avançada de Imóveis
-        </h4>
-        <form id="form-ccir-search" class="space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div>
-              <label class="text-[9px] text-white/40 uppercase font-bold block mb-1">Código do Imóvel</label>
-              <input type="text" name="codigo_imovel" placeholder="Código CCIR..." class="glass-input w-full text-xs py-1.5 font-mono">
+          <div id="filtros-avancados" class="hidden w-full flex flex-wrap items-end gap-x-6 gap-y-2 pt-2" style="border-top:1px solid var(--lp-line)">
+            <div class="lp-faixa-num">
+              <span>Área (ha)</span>
+              <input type="number" step="any" name="area_min" placeholder="Mín." aria-label="Área mínima">
+              <i>a</i>
+              <input type="number" step="any" name="area_max" placeholder="Máx." aria-label="Área máxima">
             </div>
-            <div>
-              <label class="text-[9px] text-white/40 uppercase font-bold block mb-1">Denominação do Imóvel</label>
-              <input type="text" name="denominacao" placeholder="Nome da propriedade..." class="glass-input w-full text-xs py-1.5">
-            </div>
-            <div>
-              <label class="text-[9px] text-white/40 uppercase font-bold block mb-1">Titular (Beneficiário)</label>
-              <input type="text" name="titular" placeholder="Nome do proprietário..." class="glass-input w-full text-xs py-1.5">
-            </div>
-            <div>
-              <label class="text-[9px] text-white/40 uppercase font-bold block mb-1">Município/UF</label>
-              <input type="text" name="municipio" placeholder="Nome da cidade..." class="glass-input w-full text-xs py-1.5">
-            </div>
-          </div>
-
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-white/5">
-            <div class="flex flex-wrap items-center gap-6 text-xs">
-              <div class="flex items-center gap-1.5">
-                <span class="text-[9px] text-white/40 uppercase font-bold">Área (ha):</span>
-                <input type="number" step="any" name="area_min" placeholder="Mínima" class="glass-input w-20 text-center text-xs py-1">
-                <span class="text-white/40 text-xs">a</span>
-                <input type="number" step="any" name="area_max" placeholder="Máxima" class="glass-input w-20 text-center text-xs py-1">
-              </div>
-              <div class="flex items-center gap-1.5">
-                <span class="text-[9px] text-white/40 uppercase font-bold">Detenção (%):</span>
-                <input type="number" step="any" name="pct_min" placeholder="Mínimo" class="glass-input w-20 text-center text-xs py-1">
-                <span class="text-white/40 text-xs">a</span>
-                <input type="number" step="any" name="pct_max" placeholder="Máximo" class="glass-input w-20 text-center text-xs py-1">
-              </div>
-            </div>
-
-            <div class="flex justify-end gap-2 shrink-0">
-              <button type="button" id="btn-clear-ccir-search" class="btn-secondary text-xs py-1 px-4 cursor-pointer">Limpar Filtros</button>
-              <button type="submit" class="btn-primary text-xs py-1 px-6 flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                Filtrar Registros
-              </button>
+            <div class="lp-faixa-num">
+              <span>Detenção (%)</span>
+              <input type="number" step="any" name="pct_min" placeholder="Mín." aria-label="Detenção mínima">
+              <i>a</i>
+              <input type="number" step="any" name="pct_max" placeholder="Máx." aria-label="Detenção máxima">
             </div>
           </div>
         </form>
-      </div>
 
-      <!-- Tabela de Resultados (Largura Total) -->
-      <div class="glass-card overflow-hidden">
-        <div class="p-4 border-b border-white/5 bg-white/[0.01] flex justify-between items-center">
-          <h4 class="font-bold text-xs">Resultados da Consulta</h4>
-          <span class="text-[9px] bg-mint-vibrant/20 text-mint-vibrant px-2.5 py-0.5 rounded font-mono" id="ccir-results-count">0 registros</span>
-        </div>
-        
-        <div class="overflow-x-auto min-w-0">
-          <table class="w-full text-left border-collapse text-xs">
+        <div class="lp-wrap overflow-x-auto overflow-y-auto flex-1 min-h-0">
+          <table class="lp-tabela">
             <thead>
-              <tr class="bg-white/[0.02] text-white/40 text-[9px] uppercase tracking-wider font-bold border-b border-white/5">
-                <th class="p-3">Código CCIR</th>
-                <th class="p-3">Imóvel</th>
-                <th class="p-3">Município/UF</th>
-                <th class="p-3 text-right">Área (ha)</th>
-                <th class="p-3">Titular</th>
-                <th class="p-3 text-right">% Det.</th>
-                <th class="p-3 text-center">Ações</th>
+              <tr>
+                <th class="lp-ordenavel" data-ordem="codigo" tabindex="0">Código CCIR<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel" data-ordem="imovel" aria-sort="ascending" tabindex="0">Imóvel<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-oculta-md" data-ordem="municipio" tabindex="0">Município/UF<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-col-num" data-ordem="area" tabindex="0">Área (ha)<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-oculta-sm" data-ordem="titular" tabindex="0">Titular<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-col-num" data-ordem="pct" tabindex="0">% Det.<span class="lp-sort-ico"></span></th>
+                <th class="lp-col-acoes"><span class="sr-only">Ações</span></th>
               </tr>
             </thead>
-            <tbody id="ccir-results-body" class="divide-y divide-white/5">
-              <tr>
-                <td colspan="7" class="p-12 text-center text-white/20">Utilize os filtros acima para realizar uma busca.</td>
-              </tr>
+            <tbody id="ccir-results-body">
+              <tr><td colspan="7"><div class="lp-skel"></div></td></tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="lp-rodape">
+          <span id="ccir-rodape-info">Aguardando consulta...</span>
+          <span class="lp-muted" style="font-size:11px">Clique na linha para ver os coproprietários</span>
         </div>
       </div>
     </div>

@@ -1,125 +1,116 @@
+/**
+ * fronteira_template.ts — Marcação HTML da tela de Certificação de Área de Fronteira.
+ * Padrão de tela: "Arquivos .md/PADRAO_TELA_LISTAGEM.md" (barra única, viewport fixo, rolagem interna).
+ */
 export function renderFronteiraTemplate(): string {
   return `
-    <div class="space-y-6 animate-in fade-in duration-300 select-text">
-      <div>
-        <h2 class="text-3xl font-bold">Certificação de Área de Fronteira</h2>
-        <p class="text-white/40 mt-1">Análise espacial geodésica baseada na propriedade rural e geração documental sob a Lei Federal nº 6.634/79.</p>
+    <div class="gap-2 animate-in fade-in duration-300 select-text flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior: título + base legal + ação primária (o submit usa form="..." para ficar sempre visível) -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo">Área de Fronteira</h2>
+          <span class="lp-sub lp-oculta-sm" style="font-size:12.5px" title="Análise espacial geodésica baseada na propriedade rural e geração documental sob a Lei Federal nº 6.634/79">Certificação e documentos sob a Lei Federal nº 6.634/79</span>
+        </div>
+        <div class="lp-bar-right">
+          <button type="submit" form="form-gerar-fronteira" disabled id="btn-submit-fronteira" class="lp-btn-primario opacity-50 cursor-not-allowed" title="Selecione propriedade, matrícula(s) e responsável técnico para habilitar">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            Revisar dados e gerar impressões
+          </button>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Colunas 1 e 2: Formulário, Seleção de Matrículas e Monitor -->
-        <div class="lg:col-span-2 space-y-6">
-          <!-- Card de Configuração e Entrada -->
-          <div class="glass-card p-6 space-y-6">
-            <h3 class="text-sm font-bold uppercase tracking-widest text-white/40 border-b border-white/5 pb-3">Dados de Operação</h3>
-            
-            <form id="form-gerar-fronteira" class="space-y-5">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="md:col-span-2">
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Selecionar Propriedade *</label>
-                  <select id="select-fronteira-prop" required class="glass-input w-full text-xs cursor-pointer">
-                     <option value="">Carregando propriedades...</option>
+      <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-2 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
+        <!-- Coluna principal: dados de operação + monitor (rola por dentro) -->
+        <div class="flex flex-col gap-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <div class="lp-card" style="flex:none;overflow:visible">
+            <div class="lp-card-titulo">Dados de operação</div>
+            <form id="form-gerar-fronteira" class="flex flex-col gap-3" style="padding:12px">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label class="lp-campo md:col-span-2">
+                  <span>Propriedade *</span>
+                  <select id="select-fronteira-prop" required>
+                    <option value="">Carregando propriedades...</option>
                   </select>
-                </div>
+                </label>
 
-                <div class="md:col-span-2 space-y-2">
+                <div class="md:col-span-2 flex flex-col gap-1">
                   <div class="flex justify-between items-center">
-                    <label class="block text-[10px] text-white/40 uppercase font-bold">Selecionar Matrícula(s) *</label>
-                    <span class="text-[9px] text-white/30 uppercase cursor-pointer hover:text-white" id="btn-selecionar-todas-m">Marcar Todas</span>
+                    <span class="lp-campo-rotulo">Matrícula(s) *</span>
+                    <button type="button" class="lp-link" id="btn-selecionar-todas-m">Marcar todas</button>
                   </div>
-                  <div id="matriculas-checkbox-list" class="glass-input p-3 rounded-xl space-y-2 max-h-[250px] overflow-y-auto border border-white/5 bg-white/[0.01]">
-                     <p class="text-xs text-white/30 italic py-2 text-center">Selecione uma propriedade para listar as matrículas correspondentes.</p>
+                  <div id="matriculas-checkbox-list" class="lp-lista-sel">
+                    <p class="lp-sub" style="text-align:center;padding:12px 0;font-style:italic">Selecione uma propriedade para listar as matrículas correspondentes.</p>
                   </div>
                 </div>
-              </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Responsável Técnico (Profissional) *</label>
-                  <select id="select-fronteira-prof" required class="glass-input w-full text-xs cursor-pointer">
-                     <option value="">Carregando responsáveis técnicos...</option>
+                <label class="lp-campo">
+                  <span>Responsável técnico *</span>
+                  <select id="select-fronteira-prof" required>
+                    <option value="">Carregando responsáveis técnicos...</option>
                   </select>
-                </div>
+                </label>
                 <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Número do TRT *</label>
-                    <input type="text" id="input-fronteira-trt" required class="glass-input w-full text-xs font-mono uppercase" placeholder="Ex: CFTA-PR-XXXX" />
-                  </div>
-                  <div>
-                    <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">Data Quitação</label>
-                    <input type="date" id="input-fronteira-data-trt" class="glass-input w-full text-xs" />
-                  </div>
+                  <label class="lp-campo">
+                    <span>Número do TRT *</span>
+                    <input type="text" id="input-fronteira-trt" required class="lp-mono" style="text-transform:uppercase" placeholder="Ex: CFTA-PR-XXXX" autocomplete="off" />
+                  </label>
+                  <label class="lp-campo">
+                    <span>Data quitação</span>
+                    <input type="date" id="input-fronteira-data-trt" />
+                  </label>
                 </div>
               </div>
 
-              <!-- Upload de Shapefile geral para a Propriedade (Opcional) -->
-              <div class="space-y-2">
-                <label class="block text-[10px] text-white/40 uppercase font-bold">Upload de Shapefile (.ZIP) Geral da Propriedade (Opcional)</label>
-                <div id="dropzone-shp" class="border border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:border-mint-vibrant/40 transition-colors flex flex-col items-center justify-center space-y-2 bg-white/[0.005]">
-                   <i data-lucide="upload-cloud" class="w-6 h-6 text-white/30" id="icon-upload-shp"></i>
-                   <p class="text-xs text-white/60" id="text-upload-shp">Clique ou arraste o Shapefile (.ZIP) Geral</p>
-                   <p class="text-[9px] text-white/30 uppercase tracking-wider">Será usado como fallback se a matrícula não possuir shapefile individual</p>
-                   <input type="file" id="input-upload-shp" accept=".zip" class="hidden" />
+              <!-- Upload de Shapefile geral para a Propriedade (opcional) -->
+              <div id="dropzone-shp" class="lp-dropzone border border-dashed border-white/10 hover:border-mint-vibrant/40 cursor-pointer">
+                <i data-lucide="upload-cloud" class="w-6 h-6 text-white/30 shrink-0" id="icon-upload-shp"></i>
+                <div class="min-w-0">
+                  <p class="text-white/70" style="font-size:13px" id="text-upload-shp">Shapefile (.ZIP) geral da propriedade — clique ou arraste (opcional)</p>
+                  <p class="lp-sub" style="font-size:11.5px">Usado como alternativa quando a matrícula não tem shapefile individual</p>
                 </div>
-              </div>
-
-              <div class="pt-4 border-t border-white/5 flex justify-end">
-                <button type="submit" disabled id="btn-submit-fronteira" class="btn-primary text-xs flex items-center gap-1.5 opacity-50 cursor-not-allowed">
-                  <i data-lucide="shield-check" class="w-4 h-4"></i>
-                  Revisar Dados & Gerar Impressões HTML
-                </button>
+                <input type="file" id="input-upload-shp" accept=".zip" class="hidden" />
               </div>
             </form>
           </div>
 
-          <!-- Card do Monitor Geodésico Premium -->
-          <div class="glass-card p-6 space-y-4 hidden" id="card-monitor-geodesico">
-            <h3 class="text-sm font-bold uppercase tracking-widest text-mint-vibrant border-b border-mint-vibrant/20 pb-3 flex items-center gap-2">
-              <i data-lucide="cpu" class="w-4 h-4 animate-pulse"></i>
-              Monitor Geodésico de Fronteira (Matrícula Ativa)
-            </h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div class="bg-white/[0.01] border border-white/5 p-3 rounded-lg flex flex-col justify-between">
-                <span class="text-[9px] text-white/30 uppercase font-bold">Referência Espacial</span>
-                <span class="text-xs font-mono font-bold text-white mt-1" id="mon-vertice-nome">-</span>
-                <span class="text-[9px] text-mint-vibrant/60 font-mono mt-0.5" id="mon-vertice-status">-</span>
+          <!-- Monitor geodésico (aparece com a matrícula ativa) -->
+          <div class="lp-card hidden" id="card-monitor-geodesico" style="flex:none;overflow:visible">
+            <div class="lp-card-titulo" style="color:var(--lp-accent)"><i data-lucide="compass"></i>Monitor geodésico de fronteira (matrícula ativa)</div>
+            <div style="padding:12px" class="flex flex-col gap-3">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div class="lp-tile">
+                  <span class="lp-tile-rotulo">Referência espacial</span>
+                  <span class="lp-mono" style="font-size:14px;font-weight:700;color:#fff" id="mon-vertice-nome">-</span>
+                  <span class="lp-mono" style="font-size:11.5px;color:var(--lp-accent);opacity:.7" id="mon-vertice-status">-</span>
+                </div>
+                <div class="lp-tile">
+                  <span class="lp-tile-rotulo">Coordenada extrema (M ou shapefile)</span>
+                  <span class="lp-mono" style="font-size:12.5px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="mon-vertice-coords">-</span>
+                  <span class="lp-sub" style="font-size:11.5px">SIRGAS 2000</span>
+                </div>
+                <div class="lp-tile">
+                  <span class="lp-tile-rotulo">Menor distância até a soberania</span>
+                  <span class="lp-mono" style="font-size:18px;font-weight:700;color:#fff" id="mon-distancia">-</span>
+                  <span class="lp-sub" style="font-size:11.5px">Brasil-Paraguai</span>
+                </div>
               </div>
-              <div class="bg-white/[0.01] border border-white/5 p-3 rounded-lg flex flex-col justify-between">
-                <span class="text-[9px] text-white/30 uppercase font-bold">Coordenada Extrema (M ou Shapefile)</span>
-                <span class="text-[10px] font-mono text-white mt-1 truncate" id="mon-vertice-coords">-</span>
-                <span class="text-[9px] text-white/30 font-mono mt-0.5">SIRGAS 2000</span>
-              </div>
-              <div class="bg-white/[0.01] border border-white/5 p-3 rounded-lg flex flex-col justify-between">
-                <span class="text-[9px] text-white/30 uppercase font-bold">Menor Distância até a Soberania</span>
-                <span class="text-xs font-mono font-bold text-white mt-1" id="mon-distancia">-</span>
-                <span class="text-[9px] text-white/30 font-mono mt-0.5">Brasil-Paraguai</span>
-              </div>
-            </div>
-
-            <!-- Alerta Legal da Lei 6.634/79 -->
-            <div id="alerta-fronteira-legal" class="p-4 rounded-xl flex items-start gap-3 transition-colors duration-300">
-               <!-- Alerta inserido dinamicamente no JS -->
+              <!-- Alerta Legal da Lei 6.634/79 (preenchido pelo JS) -->
+              <div id="alerta-fronteira-legal" class="p-4 rounded-xl flex items-start gap-3 transition-colors duration-300"></div>
             </div>
           </div>
         </div>
 
-        <!-- Coluna 3: Repositório de Documentos Emitidos (Atalhos de Emissão Direta) -->
-        <div class="space-y-6">
-          <div class="glass-card flex flex-col h-full min-h-[460px]">
-            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-              <h4 class="text-sm font-bold flex items-center gap-2">
-                <i data-lucide="folder-open" class="w-5 h-5 text-mint-vibrant"></i>
-                Documentos Emitidos (HTML)
-              </h4>
-              <button class="text-white/40 hover:text-white" id="btn-atualizar-docs" title="Atualizar Lista">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-              </button>
-            </div>
-            
-            <div class="p-4 flex-grow overflow-y-auto space-y-3" id="documentos-lista-container">
-              <div class="text-center text-white/30 text-xs py-8">Selecione uma propriedade para listar os atalhos de documentos.</div>
-            </div>
+        <!-- Coluna lateral: documentos emitidos (rola por dentro) -->
+        <div class="lp-card lg:min-h-0" style="min-height:260px">
+          <div class="lp-card-titulo">
+            <i data-lucide="folder-open"></i>
+            Documentos emitidos (HTML)
+            <button type="button" class="lp-ico-btn" style="margin-left:auto" id="btn-atualizar-docs" title="Atualizar lista" aria-label="Atualizar lista de documentos">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+          <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2" style="padding:10px" id="documentos-lista-container">
+            <div class="lp-sub" style="text-align:center;padding:24px 0;font-size:12.5px">Selecione uma propriedade para listar os atalhos de documentos.</div>
           </div>
         </div>
       </div>

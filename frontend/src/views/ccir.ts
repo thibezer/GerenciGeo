@@ -2,7 +2,7 @@
  * views/ccir.ts — Controller do Banco de Dados CCIR.
  */
 import type { RouteDef } from '../types';
-import { initIcons, formatarCCIR, showToast, customAlert, customConfirm } from '../utils';
+import { initIcons, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml } from '../utils';
 import { renderCcirTemplate } from './ccir/ccir_template';
 import {
   fetchCcirFiles,
@@ -17,12 +17,30 @@ import {
   aplicarMascaraCpfCnpj,
   renderPlanilhasImportadas,
   renderCcirResultadosTabela,
-  renderCcirDetalhesModalHtml
+  renderCcirDetalhesModalHtml,
+  ordenarResultadosCcir,
+  type CampoOrdemCcir,
+  type DirecaoOrdemCcir
 } from './ccir/ccir_helpers';
+
+// Limite imposto pelo backend em /ccir/search (routes/ccir.py): quando o total bate nele, há mais registros
+const LIMITE_BUSCA = 200;
+
+let fecharPopoverHandler: ((e: Event) => void) | null = null;
 
 export const ccirRoute: RouteDef = {
   render: () => renderCcirTemplate(),
+  cleanup: () => {
+    if (fecharPopoverHandler) {
+      document.removeEventListener('click', fecharPopoverHandler);
+      document.removeEventListener('keydown', fecharPopoverHandler);
+      fecharPopoverHandler = null;
+    }
+  },
   setup: () => {
+    let resultados: any[] = [];
+    let campoOrdem: CampoOrdemCcir = 'imovel';
+    let direcaoOrdem: DirecaoOrdemCcir = 'asc';
     const btnSync = document.getElementById('btn-sync-ccir');
     const btnOpenFolder = document.getElementById('btn-open-ccir-folder');
     const formSearch = document.getElementById('form-ccir-search') as HTMLFormElement;
@@ -36,6 +54,8 @@ export const ccirRoute: RouteDef = {
           if (!container) return;
 
           container.innerHTML = renderPlanilhasImportadas(files);
+          const contador = document.getElementById('ccir-planilhas-count');
+          if (contador) contador.innerText = String(files.length);
           initIcons();
 
           // Bind exclusão de planilha
@@ -60,7 +80,7 @@ export const ccirRoute: RouteDef = {
         })
         .catch(err => {
           const container = document.getElementById('ccir-imported-files');
-          if (container) container.innerHTML = `<p class="text-xs text-red-400 text-center py-4">Erro ao carregar arquivos: ${err.message}</p>`;
+          if (container) container.innerHTML = `<p class="lp-sub" style="text-align:center;padding:16px 0;color:var(--lp-danger)">Erro ao carregar arquivos: ${escapeHtml(err.message)}</p>`;
         });
     };
 
@@ -79,51 +99,102 @@ export const ccirRoute: RouteDef = {
 
       searchCcir(params)
         .then(data => {
-          const body = document.getElementById('ccir-results-body');
-          const count = document.getElementById('ccir-results-count');
-          if (!body || !count) return;
-
-          count.innerText = `${data.length} registros`;
-          body.innerHTML = renderCcirResultadosTabela(data);
-          initIcons();
-
-          // Bind duplo clique nas linhas
-          document.querySelectorAll('.ccir-row').forEach(row => {
-            row.addEventListener('dblclick', () => {
-              const codigo = row.getAttribute('data-codigo');
-              if (codigo) showDetails(codigo);
-            });
-          });
-
-          // Bind botão de visualização
-          document.querySelectorAll('.btn-view-ccir-detail').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const codigo = btn.getAttribute('data-codigo');
-              if (codigo) showDetails(codigo);
-            });
-          });
-
-          // Bind botão de emissão externa
-          document.querySelectorAll('.btn-emitir-ccir-incra').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const codigo = btn.getAttribute('data-codigo') || '';
-              const uf = btn.getAttribute('data-uf') || '';
-              const municipio = btn.getAttribute('data-municipio') || '';
-              const titular = btn.getAttribute('data-titular') || '';
-              const imovel = btn.getAttribute('data-imovel') || '';
-
-              if (codigo) {
-                abrirModalEmissao(codigo, uf, municipio, imovel, titular);
-              }
-            });
-          });
+          resultados = data;
+          renderResultados();
         })
         .catch(err => {
           showToast("Erro ao realizar busca: " + err.message, "error");
         });
     };
+
+    // Desenha a tabela a partir dos resultados já carregados (reordenar não refaz a busca)
+    const renderResultados = () => {
+      const body = document.getElementById('ccir-results-body');
+      const count = document.getElementById('ccir-results-count');
+      const rodape = document.getElementById('ccir-rodape-info');
+      if (!body || !count) return;
+
+      count.innerText = `${resultados.length.toLocaleString('pt-BR')} registro(s)`;
+      if (rodape) {
+        rodape.innerText = resultados.length >= LIMITE_BUSCA
+          ? `Mostrando os primeiros ${LIMITE_BUSCA} registros: refine os filtros para ver os demais`
+          : `Mostrando ${resultados.length} registro(s)`;
+      }
+      document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+        if (th.getAttribute('data-ordem') === campoOrdem) th.setAttribute('aria-sort', direcaoOrdem === 'asc' ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+      });
+      body.innerHTML = renderCcirResultadosTabela(ordenarResultadosCcir(resultados, campoOrdem, direcaoOrdem));
+      initIcons();
+    };
+
+    // Delegação de eventos da tabela: linha inteira, ver coproprietários, emitir e estado vazio
+    document.getElementById('ccir-results-body')?.addEventListener('click', (e: MouseEvent) => {
+      const alvo = e.target as HTMLElement;
+      const emitir = alvo.closest<HTMLElement>('.btn-emitir-ccir-incra');
+      if (emitir) {
+        const codigo = emitir.getAttribute('data-codigo') || '';
+        if (codigo) {
+          abrirModalEmissao(
+            codigo,
+            emitir.getAttribute('data-uf') || '',
+            emitir.getAttribute('data-municipio') || '',
+            emitir.getAttribute('data-imovel') || '',
+            emitir.getAttribute('data-titular') || ''
+          );
+        }
+        return;
+      }
+      if (alvo.closest('[data-estado-acao="limpar"]')) { btnClear?.click(); return; }
+      const codigoLinha = alvo.closest<HTMLElement>('tr.ccir-row')?.getAttribute('data-codigo');
+      if (codigoLinha) showDetails(codigoLinha);
+    });
+    document.getElementById('ccir-results-body')?.addEventListener('keydown', (e: KeyboardEvent) => {
+      const alvo = e.target as HTMLElement;
+      if (e.key === 'Enter' && alvo.matches('tr.ccir-row')) {
+        const codigoLinha = alvo.getAttribute('data-codigo');
+        if (codigoLinha) showDetails(codigoLinha);
+      }
+    });
+
+    // Ordenação por cabeçalho (clique ou Enter/Espaço); clicar de novo inverte a direção
+    const alternarOrdem = (th: HTMLElement) => {
+      const campo = th.getAttribute('data-ordem') as CampoOrdemCcir | null;
+      if (!campo) return;
+      if (campo === campoOrdem) direcaoOrdem = direcaoOrdem === 'asc' ? 'desc' : 'asc';
+      else { campoOrdem = campo; direcaoOrdem = campo === 'area' || campo === 'pct' ? 'desc' : 'asc'; }
+      renderResultados();
+    };
+    document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+      th.addEventListener('click', () => alternarOrdem(th));
+      th.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarOrdem(th); }
+      });
+    });
+
+    // Filtros de área/detenção recolhíveis
+    const btnMaisFiltros = document.getElementById('btn-mais-filtros');
+    btnMaisFiltros?.addEventListener('click', () => {
+      const painel = document.getElementById('filtros-avancados');
+      const aberto = painel?.classList.toggle('hidden') === false;
+      btnMaisFiltros.setAttribute('aria-expanded', String(aberto));
+    });
+
+    // Popover das planilhas importadas (fecha ao clicar fora ou com Esc)
+    const btnPlanilhas = document.getElementById('btn-planilhas');
+    const popover = document.getElementById('popover-planilhas');
+    const fecharPopover = () => { popover?.classList.add('hidden'); btnPlanilhas?.setAttribute('aria-expanded', 'false'); };
+    btnPlanilhas?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const aberto = popover?.classList.toggle('hidden') === false;
+      btnPlanilhas.setAttribute('aria-expanded', String(aberto));
+    });
+    fecharPopoverHandler = (e: Event) => {
+      if (e.type === 'keydown') { if ((e as KeyboardEvent).key === 'Escape') fecharPopover(); return; }
+      if (popover && !popover.contains(e.target as Node)) fecharPopover();
+    };
+    document.addEventListener('click', fecharPopoverHandler);
+    document.addEventListener('keydown', fecharPopoverHandler);
 
     // 3. Abre modal de co-propriedade e detalhes
     const showDetails = (codigo_imovel: string) => {

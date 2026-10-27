@@ -490,6 +490,30 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
             </tr>
             """
 
+    from services.processamento.geoprocessamento import calcular_zona_utm_segura
+
+    zona_utm = 22
+    row_lon = execute_query(
+        """
+        SELECT AVG(COALESCE(lon_corrigido, lon)) as avg_lon 
+        FROM pontos 
+        WHERE levantamento_id = ? 
+          AND (lon IS NOT NULL OR lon_corrigido IS NOT NULL) 
+          AND (lon != 0.0 OR lon_corrigido != 0.0)
+        """,
+        params=(lev_id,),
+        fetch_one=True
+    )
+    if row_lon and row_lon["avg_lon"] is not None:
+        try:
+            zona_utm = calcular_zona_utm_segura(float(row_lon["avg_lon"]))
+        except Exception:
+            zona_utm = 22
+
+    meridiano_central = abs(6 * zona_utm - 183)
+    epsg_utm = 31960 + zona_utm
+    formacao_prof = valor_preenchido(dados["lev"].get("formacao_profissional")) or "Responsável Técnico"
+
     template = carregar_template("laudo_tecnico.html")
     return renderizar_template(template, {
         "nome_lote": nome_lote,
@@ -508,6 +532,10 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
         "nome_prof": _nome_prof(dados),
         "conselho_exibicao": _conselho_exibicao(dados),
         "endereco_prof": endereco_prof,
+        "formacao_prof": formacao_prof,
+        "zona_utm": str(zona_utm),
+        "meridiano_central": str(meridiano_central),
+        "epsg_utm": str(epsg_utm),
     })
 
 

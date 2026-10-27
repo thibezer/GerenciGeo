@@ -1,4 +1,4 @@
-import { initIcons } from '../../utils';
+import { initIcons, escapeHtml } from '../../utils';
 import { realtimeSyncClient } from '../../utils/realtime_sync_client';
 import type { SyncEventItem } from '../../utils/realtime_sync_client';
 
@@ -45,7 +45,7 @@ export function renderizarFeedEventos(
           <div class="flex items-start gap-1.5 min-w-0">
             <span class="${iconColor} shrink-0 mt-0.5"><i data-lucide="${iconName}" class="w-3 h-3"></i></span>
             <div class="min-w-0">
-              <span class="text-white/90 font-medium block truncate">${evt.titulo}</span>
+              <span class="text-white/90 font-medium block truncate">${escapeHtml(evt.titulo)}</span>
               ${evt.detalhe ? `<span class="text-white/40 text-[9px] block truncate">${evt.detalhe}</span>` : ''}
             </div>
           </div>

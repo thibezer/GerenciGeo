@@ -1,8 +1,10 @@
 export interface RouteDef {
   render: () => string;
-  setup?: (param?: string | null) => void;
+  setup?: (param?: string | null) => void | Promise<void>;
   cleanup?: () => void;
 }
+
+export * from './types/verticesVirtuais';
 
 export interface Ponto {
   id: number;

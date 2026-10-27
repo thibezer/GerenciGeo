@@ -1,5 +1,5 @@
 import { API_BASE } from '../../../config';
-import { initIcons, showToast } from '../../../utils';
+import { initIcons, showToast, escapeHtml } from '../../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from '../mesa_trabalho_tabela';
 import { aplicarFiltrosMesa } from '../pontos_visiveis';
 import { pontosParaMapa } from '../coordenadas_mapa';
@@ -258,7 +258,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
           div.className = 'flex items-center gap-1.5 w-full';
           div.setAttribute('data-ponto-id', String(item.id));
           div.innerHTML = `
-            <span class="text-xs ${colorClass} truncate">${item.nome_vertice}</span>
+            <span class="text-xs ${colorClass} truncate">${escapeHtml(item.nome_vertice)}</span>
             <button class="btn-focar-ponto-mapa p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${item.id}" title="Focar no Mapa" type="button">
               <i data-lucide="crosshair" class="w-3 h-3"></i>
             </button>

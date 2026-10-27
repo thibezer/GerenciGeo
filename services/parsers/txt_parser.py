@@ -227,14 +227,19 @@ class TxtGeodesicParser:
                     if len(partes) >= 5:
                         desc = partes[4].lower()
                     if len(partes) >= 8:
-                        sig_n = float(partes[5])
-                        sig_e = float(partes[6])
-                        sig_z = float(partes[7])
+                        sig_n = float(partes[5]) if partes[5] else 0.0
+                        sig_e = float(partes[6]) if partes[6] else 0.0
+                        sig_z = float(partes[7]) if partes[7] else 0.0
                 else:
-                    if len(partes) >= 7:
-                        sig_n = float(partes[4])
-                        sig_e = float(partes[5])
-                        sig_z = float(partes[6])
+                    if len(partes) >= 8 and (partes[4] == "" or not partes[4].replace('.', '', 1).replace('-', '', 1).isdigit()):
+                        desc = partes[4].lower()
+                        sig_n = float(partes[5]) if partes[5] else 0.0
+                        sig_e = float(partes[6]) if partes[6] else 0.0
+                        sig_z = float(partes[7]) if partes[7] else 0.0
+                    elif len(partes) >= 7:
+                        sig_n = float(partes[4]) if partes[4] else 0.0
+                        sig_e = float(partes[5]) if partes[5] else 0.0
+                        sig_z = float(partes[6]) if partes[6] else 0.0
 
                 ponto_dict = {
                     "nome": nome,
@@ -392,9 +397,9 @@ class TxtGeodesicParser:
             
         ordem = ordem_inicial
         pontos_processados = []
-        vertices_vistos = set()
+        nomes_vistos = set()
 
-        for p in pontos_brutos:
+        for idx, p in enumerate(pontos_brutos):
             if aplicar_translace_plana:
                 # Aplica translação rigorosa plana UTM de corpo rígido
                 e_corrigido = p["e_original"] + delta_e
@@ -430,7 +435,8 @@ class TxtGeodesicParser:
                 sigma_lon_prop = p["sigma_e"]
                 sigma_alt_prop = p["sigma_z"]
 
-            nome_upper = p["nome"].strip().upper()
+            nome_original = p["nome"].strip()
+            nome_upper = nome_original.upper()
             match_completo = re.search(r"\b([A-Z]{3,4})-(M|P|V)-(\d+)\b", nome_upper)
             match_simples = re.search(r"\b(M|P|V)-(\d+)\b", nome_upper)
             
@@ -452,19 +458,33 @@ class TxtGeodesicParser:
                 lon_corr_val = lon_corrigido
                 alt_corr_val = alt_corrigido
 
-            # VALIDAR INTEGRIDADE INTERNA DO ARQUIVO IMPORTADO
-            identificador_unico = (p["nome"].upper(), tipo)
-            if identificador_unico in vertices_vistos:
-                raise ValueError(
-                    f"Vértice duplicado detectado no próprio arquivo de importação: "
-                    f"Código '{p['nome']}' de Tipo '{tipo}' aparece mais de uma vez."
-                )
-            vertices_vistos.add(identificador_unico)
+            # 1. Detecção de fechamento de polígono perimetral:
+            # Se for o último ponto do arquivo e coincidir em nome e posição (< 0.20m) com o primeiro ponto,
+            # trata-se de fechamento explícito do arquivo de campo (o GerenciGeo já fecha a topologia nativamente).
+            if idx == len(pontos_brutos) - 1 and len(pontos_processados) >= 2:
+                primeiro_pt = pontos_processados[0]
+                dist_ao_primeiro = math.hypot(p["n_original"] - primeiro_pt["n_original"], p["e_original"] - primeiro_pt["e_original"])
+                if nome_upper == primeiro_pt["nome_original"].upper() and dist_ao_primeiro < 0.20:
+                    logger.info(f"[PARSER] Vértice final '{nome_original}' coincide com o ponto inicial ({dist_ao_primeiro:.3f}m). Ignorando duplicação de fechamento.")
+                    continue
+
+            # 2. Resolução inteligente de vértices com mesmo nome:
+            # Caso o nome do vértice já exista neste arquivo, desambigua com sufixo _1, _2, etc.,
+            # preservando o nome original na coluna nome_original e garantindo unicidade no banco.
+            nome_final = nome_original
+            if nome_final.upper() in nomes_vistos:
+                sufixo = 1
+                while f"{nome_original}_{sufixo}".upper() in nomes_vistos:
+                    sufixo += 1
+                nome_final = f"{nome_original}_{sufixo}"
+                logger.info(f"[PARSER] Vértice com mesmo nome detectado: '{nome_original}' diferenciado para '{nome_final}'.")
+            nomes_vistos.add(nome_final.upper())
 
             ponto_final = {
                 "levantamento_id": self.levantamento_id,
                 "matricula_id": self.matricula_id,
-                "nome_vertice": p["nome"],
+                "nome_vertice": nome_final,
+                "nome_original": nome_original,
                 "tipo_ponto": tipo,
                 "lat": lat_corrigido,
                 "lon": lon_corrigido,
@@ -545,22 +565,24 @@ class TxtGeodesicParser:
     def unir_lotes(lotes: list) -> list:
         """
         Junta os pontos processados de vários arquivos num único caminhamento: renumera a ordem de
-        forma contínua a partir da ordem inicial do primeiro arquivo (cada arquivo calcula a sua a partir
-        do banco, então elas se sobreporiam) e barra vértices repetidos entre arquivos.
+        forma contínua a partir da ordem inicial do primeiro arquivo e desambigua vértices com mesmo nome.
         """
         pontos = [p for lote in lotes for p in lote]
         if not pontos:
             return pontos
 
-        vistos = {}
+        nomes_vistos = set()
         for p in pontos:
-            chave = (p["nome_vertice"].upper(), p["tipo_ponto"])
-            if chave in vistos:
-                raise ValueError(
-                    f"Vértice duplicado entre arquivos da importação: Código '{p['nome_vertice']}' de Tipo "
-                    f"'{p['tipo_ponto']}' aparece em '{vistos[chave]}' e em '{p['arquivo_origem']}'."
-                )
-            vistos[chave] = p["arquivo_origem"]
+            nome_original = p.get("nome_original") or p["nome_vertice"]
+            nome_atual = p["nome_vertice"]
+            if nome_atual.upper() in nomes_vistos:
+                sufixo = 1
+                while f"{nome_original}_{sufixo}".upper() in nomes_vistos:
+                    sufixo += 1
+                nome_atual = f"{nome_original}_{sufixo}"
+                logger.info(f"[PARSER] Vértice com mesmo nome entre arquivos: '{p['nome_vertice']}' ajustado para '{nome_atual}'.")
+                p["nome_vertice"] = nome_atual
+            nomes_vistos.add(nome_atual.upper())
 
         ordem = pontos[0]["ordem_caminhamento"]
         for p in pontos:
@@ -572,41 +594,64 @@ class TxtGeodesicParser:
         ids_inseridos = []
         query = """
             INSERT INTO pontos (
-                levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, 
+                levantamento_id, matricula_id, nome_vertice, nome_original, tipo_ponto, lat, lon, alt, 
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
                 sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id,
                 arquivo_origem, status_correcao, fuso_utm
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         for p in pontos:
-            if p["matricula_id"] is None:
-                cursor.execute(
-                    "SELECT 1 FROM pontos WHERE levantamento_id = ? AND matricula_id IS NULL AND UPPER(nome_vertice) = UPPER(?) AND tipo_ponto = ?",
-                    (p["levantamento_id"], p["nome_vertice"], p["tipo_ponto"])
-                )
-                if cursor.fetchone():
-                    raise ValueError(
-                        f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
-                        f"neste levantamento (sem matrícula). Remova a duplicata antes de prosseguir."
+            nome_base = p.get("nome_original") or p["nome_vertice"]
+            nome_final = p["nome_vertice"]
+            tipo = p["tipo_ponto"]
+            mat_id = p["matricula_id"]
+            lev_id = p["levantamento_id"]
+
+            # Garante que o nome_vertice não colida com nenhum vértice pré-existente no banco
+            sufixo = 1
+            while True:
+                if mat_id is None:
+                    cursor.execute(
+                        "SELECT 1 FROM pontos WHERE levantamento_id = ? AND matricula_id IS NULL AND UPPER(nome_vertice) = UPPER(?)",
+                        (lev_id, nome_final)
                     )
-            try:
-                cursor.execute(query, (
-                    p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p["tipo_ponto"],
-                    p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
-                    p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
-                    p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
-                    p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
-                    p["arquivo_origem"], p["status_correcao"], p.get("fuso_utm", 22)
-                ))
-                ids_inseridos.append(cursor.lastrowid)
-            except sqlite3.IntegrityError as e_integ:
-                if "UNIQUE constraint failed" in str(e_integ):
-                    raise ValueError(
-                        f"O vértice '{p['nome_vertice']}' do tipo '{p['tipo_ponto']}' já está cadastrado "
-                        f"neste levantamento/matrícula. Remova a duplicata antes de prosseguir."
+                else:
+                    cursor.execute(
+                        "SELECT 1 FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND UPPER(nome_vertice) = UPPER(?)",
+                        (lev_id, mat_id, nome_final)
                     )
-                raise e_integ
+                if not cursor.fetchone():
+                    break
+                nome_final = f"{nome_base}_{sufixo}"
+                logger.info(f"[PARSER] Vértice '{p['nome_vertice']}' já existe no banco. Ajustando para '{nome_final}'.")
+                sufixo += 1
+
+            p["nome_vertice"] = nome_final
+
+            # Inserção com salvaguarda atômica contra qualquer concorrência ou restrição UNIQUE
+            inserido = False
+            while not inserido:
+                try:
+                    cursor.execute(query, (
+                        p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p.get("nome_original", p["nome_vertice"]), p["tipo_ponto"],
+                        p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
+                        p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
+                        p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
+                        p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
+                        p["arquivo_origem"], p["status_correcao"], p.get("fuso_utm", 22)
+                    ))
+                    ids_inseridos.append(cursor.lastrowid)
+                    inserido = True
+                except sqlite3.IntegrityError as e_integ:
+                    if "UNIQUE constraint failed" in str(e_integ):
+                        nome_final = f"{nome_base}_{sufixo}"
+                        p["nome_vertice"] = nome_final
+                        sufixo += 1
+                        logger.warning(f"[PARSER] Conflito UNIQUE detectado durante inserção. Tentando nome alternativo '{nome_final}'.")
+                    else:
+                        raise e_integ
+
         return ids_inseridos
 
     def _inserir_topologia(self, cursor, ids_pontos: list, pontos_processados: list) -> int:

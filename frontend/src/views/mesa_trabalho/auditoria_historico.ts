@@ -1,5 +1,5 @@
 import { API_BASE } from '../../config';
-import { initIcons } from '../../utils';
+import { initIcons, escapeHtml } from '../../utils';
 import { renderHistoricoTimelineHtml } from './mesa_trabalho_tabela';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 
@@ -84,17 +84,17 @@ export function setupAuditoriaHistorico(ctx: MesaTrabalhoContext) {
           : arquivos.map((f: any) => `
             <div class="flex items-center justify-between px-2.5 py-2 bg-white/[0.06] hover:bg-white/[0.09] rounded-md gap-2 transition-all group/item cursor-default">
               <div class="min-w-0 flex-1">
-                <p class="font-mono text-[11px] text-white/85 truncate font-medium leading-none" title="${f.nome}">${f.nome}</p>
+                <p class="font-mono text-[11px] text-white/85 truncate font-medium leading-none" title="${escapeHtml(f.nome)}">${escapeHtml(f.nome)}</p>
                 <p class="text-[8px] text-white/35 mt-1 font-mono">${f.tamanho} · ${f.modificado}</p>
               </div>
               <div class="flex items-center gap-px shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                <button class="btn-visualizar-workspace text-white/50 hover:text-white p-1 hover:bg-white/10 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Visualizar">
+                <button class="btn-visualizar-workspace text-white/50 hover:text-white p-1 hover:bg-white/10 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${escapeHtml(f.nome)}" title="Visualizar">
                   <i data-lucide="eye" class="w-3 h-3"></i>
                 </button>
-                <button class="btn-download-workspace text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Download">
+                <button class="btn-download-workspace text-mint-vibrant hover:text-white p-1 hover:bg-mint-vibrant/20 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${escapeHtml(f.nome)}" title="Download">
                   <i data-lucide="download" class="w-3 h-3"></i>
                 </button>
-                <button class="btn-deletar-workspace text-white/30 hover:text-red-400 p-1 hover:bg-red-500/15 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${f.nome}" title="Excluir">
+                <button class="btn-deletar-workspace text-white/30 hover:text-red-400 p-1 hover:bg-red-500/15 rounded transition-all active:scale-95" data-cat="${cat}" data-nome="${escapeHtml(f.nome)}" title="Excluir">
                   <i data-lucide="trash-2" class="w-3 h-3"></i>
                 </button>
               </div>

@@ -22,7 +22,7 @@ export function renderDashboardTemplate(): string {
         </div>
 
         <!-- Action Center Híbrido -->
-        <ui-card elevacao="baixa" class="h-full flex flex-col min-h-0 overflow-hidden" style="height: 100%;">
+        <div class="glass-card h-full flex flex-col min-h-0 overflow-hidden">
           <!-- Header do Action Center -->
           <div class="px-3.5 py-3 sm:px-4 sm:py-3.5 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/[0.02]">
              <div class="flex items-center gap-2.5 min-w-0">
@@ -169,7 +169,7 @@ export function renderDashboardTemplate(): string {
                </p>
              </div>
           </div>
-        </ui-card>
+        </div>
       </div>
     </div>
 

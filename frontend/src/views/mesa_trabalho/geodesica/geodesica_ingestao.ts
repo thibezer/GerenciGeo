@@ -1,5 +1,5 @@
 import { API_BASE } from '../../../config';
-import { initIcons } from '../../../utils';
+import { initIcons, escapeHtml } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
@@ -91,7 +91,7 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
         extraSelectorsHtml += `
           <select class="glass-input text-[9px] py-0.5 px-1.5 select-file-base shrink-0 w-[140px]" data-idx="${idx}" title="Vincular à Base de Campo">
             <option value="">[Nenhuma Base (Autodetectar)]</option>
-            ${basesParaRenderizar.map(p => `<option value="${p.id}" ${item.base_escolhida_id === p.id ? 'selected' : ''}>Base: ${p.nome_vertice}</option>`).join('')}
+            ${basesParaRenderizar.map(p => `<option value="${p.id}" ${item.base_escolhida_id === p.id ? 'selected' : ''}>Base: ${escapeHtml(p.nome_vertice)}</option>`).join('')}
           </select>
         `;
       }

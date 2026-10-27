@@ -1567,6 +1567,18 @@ if (isset($_GET['codigo']) && $method === 'GET') {
 
 $pdo = getDb();
 
+// 0. CONTAGEM DE PONTOS (painel de numeração SIGEF). A lógica fica em arquivo próprio (espelho do Python) e só é
+// carregada aqui, dentro de try/catch: um erro nela nunca derruba o restante da API.
+if ($route === '/contagem-pontos' && $method === 'GET') {
+    try {
+        require_once __DIR__ . '/api_contagem_pontos.php';
+        jsonResponse(obterContagemPontos($pdo));
+    } catch (Throwable $e) {
+        error_log('[contagem-pontos] ' . $e->getMessage());
+        jsonResponse(['detail' => 'Erro ao calcular a contagem de pontos.'], 500);
+    }
+}
+
 // 1. ROTAS DE CLIENTES
 if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $matches)) {
     $id = isset($matches[1]) && $matches[1] !== '' ? (int)$matches[1] : null;

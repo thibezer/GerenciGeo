@@ -1,10 +1,20 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml, formatarDataHoraUtc } from '../utils';
+import { renderBotoesPaginacaoHtml } from '../utils/lista_padrao';
+import {
+  filtrarPropriedades,
+  filtrarPorSegmentoProp,
+  contarSegmentosProp,
+  ordenarPropriedades,
+  renderLinhasPropHtml
+} from './propriedades/propriedades_helpers';
+import type { SegmentoProp, CampoOrdemProp, DirecaoOrdem } from './propriedades/propriedades_helpers';
 
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
 let keydownHandlerModal: ((e: KeyboardEvent) => void) | null = null;
+let atalhoBuscaProp: ((e: KeyboardEvent) => void) | null = null;
 
 // O backend (FastAPI) devolve erros em `detail` com status HTTP de erro; normaliza para `error`,
 // que é o campo verificado pelos handlers desta tela.
@@ -27,86 +37,86 @@ const lerRespostaApi = async (res: Response): Promise<any> => {
 
 export const propriedadesRoute: RouteDef = {
   render: () => `
-    <div class="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
-      <!-- Cabeçalho Principal Comprimido (Ultra Baixo) -->
-      <div class="flex justify-between items-center h-7 sm:h-8 border-b border-white/5 pb-1 sm:pb-1.5 shrink-0 gap-2">
-        <div class="flex items-center gap-2">
-          <h2 class="text-sm sm:text-base font-bold tracking-tight text-white leading-none">Propriedades</h2>
-          <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20 leading-none flex items-center gap-1" title="Total de Imóveis">
-            <i data-lucide="home" class="w-3 h-3"></i>
-            <span id="stat-total-prop">0</span>
-          </span>
+    <div class="gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full min-h-0 flex-1">
+      <!-- Barra superior (padrão de listagem): título + segmentos + busca + ação primária -->
+      <div class="lp-bar">
+        <div class="lp-bar-left">
+          <h2 class="lp-titulo">Propriedades</h2>
+          <div class="lp-seg" id="seg-propriedades" role="group" aria-label="Filtrar propriedades">
+            <button type="button" class="lp-seg-btn is-active" data-seg="todos" aria-pressed="true">Todas <span class="lp-seg-n" id="seg-n-todos">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="com-lev" aria-pressed="false" title="Propriedades com levantamento">Com levantamento <span class="lp-seg-n" id="seg-n-com-lev">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="sem-lev" aria-pressed="false" title="Propriedades sem levantamento">Sem levantamento <span class="lp-seg-n" id="seg-n-sem-lev">0</span></button>
+            <button type="button" class="lp-seg-btn" data-seg="pendencias" data-tom="warn" aria-pressed="false" title="Sem proprietário, composição incompleta ou sem matrícula">Pendências <span class="lp-seg-n" id="seg-n-pendencias">0</span></button>
+          </div>
         </div>
-        <div class="flex items-center gap-1.5">
-           <input type="text" placeholder="Buscar propriedade por nome, município..." class="glass-input text-[11px] w-48 sm:w-60 md:w-72 h-[26px] py-0 px-2 leading-none" id="busca-propriedade" />
-           <select id="ordenacao-propriedade" class="glass-input text-[11px] h-[26px] py-0 px-1.5 leading-none cursor-pointer" title="Ordenar propriedades">
-              <option value="nome-asc">Nome (A-Z)</option>
-              <option value="nome-desc">Nome (Z-A)</option>
-              <option value="data-desc">Mais Recentes</option>
-              <option value="data-asc">Mais Antigas</option>
-           </select>
-           <button class="btn-primary text-[11px] flex items-center justify-center gap-1 shrink-0 h-[26px] py-0 px-2.5 font-semibold cursor-pointer" id="btn-abrir-modal-propriedade">
-              <i data-lucide="plus" class="w-3 h-3"></i>
-              Nova Propriedade
-           </button>
+        <div class="lp-bar-right">
+          <label class="lp-busca" id="busca-wrap" style="width:clamp(150px,15vw,300px)">
+            <i data-lucide="search"></i>
+            <input type="text" id="busca-propriedade" placeholder="Buscar por nome, município, proprietário…" title="Busca por nome, município, proprietário, CAR ou CCIR" autocomplete="off" aria-label="Buscar propriedade" />
+            <span class="lp-busca-fim">
+              <button type="button" class="lp-busca-limpar" id="busca-limpar" aria-label="Limpar busca"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+              <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
+            </span>
+          </label>
+          <button type="button" class="lp-btn-primario" id="btn-abrir-modal-propriedade" title="Nova propriedade" aria-label="Nova propriedade">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Nova propriedade
+          </button>
         </div>
       </div>
 
-      <!-- Tabela Principal de Propriedades -->
-      <ui-card elevacao="baixa" class="overflow-hidden flex flex-col flex-1 min-h-0">
-        <!-- Tabela -->
-        <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0">
-          <table class="w-full text-left border-collapse">
+      <!-- Tabela Principal de Propriedades (lp-card, NÃO ui-card: ver guia de listagem §8) -->
+      <div class="lp-card">
+        <div class="lp-wrap overflow-x-auto overflow-y-auto flex-1 min-h-0">
+          <table class="lp-tabela">
             <thead>
-              <tr class="sticky top-0 z-10 border-b border-white/5 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-white/40 bg-[#0e1712]">
-                <th class="py-1.5 px-3 w-10">
-                  <ui-checkbox id="check-all-propriedades"></ui-checkbox>
-                </th>
-                <th class="py-1.5 px-3">Imóvel Rural</th>
-                <th class="py-1.5 px-3">Localidade</th>
-                <th class="py-1.5 px-3">Proprietário Principal</th>
-                <th class="py-1.5 px-3 text-center">Matrículas</th>
-                <th class="py-1.5 px-3 text-center">Projetos</th>
-                <th class="py-1.5 px-3 text-right">Ações</th>
+              <tr>
+                <th class="lp-col-check"><ui-checkbox id="check-all-propriedades"></ui-checkbox></th>
+                <th class="lp-ordenavel" data-ordem="nome" aria-sort="ascending" tabindex="0">Imóvel rural<span class="lp-sort-ico"></span></th>
+                <th>Proprietário</th>
+                <th class="lp-oculta-xl">Documentos</th>
+                <th class="lp-ordenavel lp-col-num" data-ordem="vinculos" tabindex="0" title="Matrículas e levantamentos vinculados">Vínculos<span class="lp-sort-ico"></span></th>
+                <th class="lp-ordenavel lp-oculta-lg" data-ordem="cadastro" tabindex="0">Cadastro<span class="lp-sort-ico"></span></th>
+                <th class="lp-oculta-sm">Situação</th>
+                <th class="lp-col-acoes"><span class="sr-only">Ações</span></th>
               </tr>
             </thead>
-            <tbody id="tabela-propriedades-body" class="divide-y divide-white/[0.02]">
+            <tbody id="tabela-propriedades-body">
               <!-- Linhas via JS -->
             </tbody>
           </table>
-        </div>
 
-        <!-- Status de Tabela Vazia / Carregando -->
-        <div id="tabela-propriedades-status" class="text-center py-12 text-white/30 text-sm hidden">
-          Carregando propriedades...
+          <!-- Estado vazio / carregando / erro -->
+          <div id="tabela-propriedades-status" class="hidden" role="status" aria-live="polite"></div>
         </div>
 
         <!-- Rodapé / Paginação -->
-        <div class="p-1.5 sm:p-2 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-2 bg-white/[0.01] text-[11px] text-white/40 shrink-0 mt-auto">
+        <div class="lp-rodape">
           <div class="flex items-center gap-2">
-            <span>Exibir por página:</span>
-            <ui-select id="paginacao-limite" value="10" class="w-16 h-7">
+            <span>Linhas por página</span>
+            <ui-select id="paginacao-limite" value="25" class="w-16 h-7">
               <option value="10">10</option>
               <option value="25">25</option>
               <option value="50">50</option>
+              <option value="100">100</option>
             </ui-select>
             <span id="paginacao-info">Mostrando 0-0 de 0 propriedades</span>
           </div>
-          <div class="flex items-center gap-1.5" id="paginacao-botoes">
+          <div class="flex items-center gap-1" id="paginacao-botoes">
             <!-- Botões dinâmicos -->
           </div>
         </div>
-      </ui-card>
+      </div>
     </div>
 
     <!-- BARRA DE AÇÕES EM LOTE FLUTUANTE -->
-    <div id="batch-action-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 glass-card border border-mint-vibrant/20 bg-[#0c1510]/95 backdrop-blur-md px-6 py-3 shadow-2xl flex items-center gap-6 z-40 hidden animate-in fade-in slide-in-from-bottom-6 duration-300">
-      <span class="text-xs text-white/80 font-mono"><strong id="batch-selected-count" class="text-mint-vibrant">0</strong> selecionados</span>
+    <div id="batch-action-bar" class="lp-lote hidden animate-in fade-in slide-in-from-bottom-6 duration-300" role="region" aria-label="Ações em lote">
+      <span><b id="batch-selected-count">0</b> selecionada(s)</span>
       <div class="h-4 w-px bg-white/10"></div>
       <div class="flex gap-2">
         <ui-botao variante="destrutivo" id="btn-batch-delete">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-          Excluir Selecionados
+          Excluir selecionadas
         </ui-botao>
         <ui-botao variante="secundario" id="btn-batch-cancel">
           Cancelar
@@ -431,7 +441,10 @@ export const propriedadesRoute: RouteDef = {
     let todasPropriedades: any[] = [];
     let termoBusca = "";
     let paginaAtual = 1;
-    let limitePorPagina = 10;
+    let limitePorPagina = 25;
+    let segmentoAtual: SegmentoProp = 'todos';
+    let campoOrdem: CampoOrdemProp = 'nome';
+    let direcaoOrdem: DirecaoOrdem = 'asc';
     const propriedadesSelecionadas = new Set<number>();
     let todosClientesList: any[] = [];
 
@@ -661,28 +674,85 @@ export const propriedadesRoute: RouteDef = {
     });
 
     // --- FILTROS, BUSCA E ORDENAÇÃO ---
+    // Pipeline único: segmento -> busca -> ordenação -> página
+    const getPropriedadesOrdenadas = (): any[] =>
+       ordenarPropriedades(filtrarPropriedades(filtrarPorSegmentoProp(todasPropriedades, segmentoAtual), termoBusca), campoOrdem, direcaoOrdem);
+
+    const getPropriedadesPaginaAtual = (): any[] => {
+       const inicio = (paginaAtual - 1) * limitePorPagina;
+       return getPropriedadesOrdenadas().slice(inicio, inicio + limitePorPagina);
+    };
+
+    // Seleção só vale para o que está na tela: excluir "selecionadas" fora do filtro é perigoso
+    const podarSelecaoFiltrada = () => {
+       const idsVisiveis = new Set(getPropriedadesOrdenadas().map(p => p.id));
+       Array.from(propriedadesSelecionadas).forEach(id => { if (!idsVisiveis.has(id)) propriedadesSelecionadas.delete(id); });
+    };
+
     let timeoutBuscaProp: ReturnType<typeof setTimeout>;
-    const buscaInputProp = document.getElementById('busca-propriedade');
-    const handleBuscaProp = (e: Event) => {
+    const buscaInputProp = document.getElementById('busca-propriedade') as HTMLInputElement | null;
+    const buscaWrap = document.getElementById('busca-wrap');
+    const handleBuscaProp = () => {
+       buscaWrap?.classList.toggle('tem-valor', (buscaInputProp?.value || '').length > 0);
        clearTimeout(timeoutBuscaProp);
        timeoutBuscaProp = setTimeout(() => {
-          const customEv = e as CustomEvent<{ value?: string }>;
-          const val = (e.target as any).value || customEv.detail?.value || '';
-          termoBusca = String(val).toLowerCase();
+          termoBusca = buscaInputProp?.value || '';
           paginaAtual = 1;
+          podarSelecaoFiltrada();
           renderTabela();
-       }, 200);
+       }, 250);
     };
     buscaInputProp?.addEventListener('input', handleBuscaProp);
-    buscaInputProp?.addEventListener('ui-input', handleBuscaProp);
 
-    const ordenacaoProp = document.getElementById('ordenacao-propriedade');
-    const handleOrdenacaoChange = () => {
+    const limparBusca = () => {
+       if (!buscaInputProp) return;
+       buscaInputProp.value = '';
+       buscaWrap?.classList.remove('tem-valor');
+       clearTimeout(timeoutBuscaProp);
+       termoBusca = '';
        paginaAtual = 1;
        renderTabela();
     };
-    ordenacaoProp?.addEventListener('change', handleOrdenacaoChange);
-    ordenacaoProp?.addEventListener('ui-selecionar', handleOrdenacaoChange);
+    document.getElementById('busca-limpar')?.addEventListener('click', () => { limparBusca(); buscaInputProp?.focus(); });
+    buscaInputProp?.addEventListener('keydown', (e: KeyboardEvent) => {
+       if (e.key === 'Escape') { limparBusca(); buscaInputProp.blur(); }
+    });
+
+    // Atalho "/" foca a busca (ignorado ao digitar em outro campo)
+    atalhoBuscaProp = (e: KeyboardEvent) => {
+       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+       const alvo = e.target as HTMLElement | null;
+       if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+       e.preventDefault();
+       buscaInputProp?.focus();
+    };
+    document.addEventListener('keydown', atalhoBuscaProp);
+
+    // Segmentos
+    document.getElementById('seg-propriedades')?.addEventListener('click', (e: MouseEvent) => {
+       const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-seg]');
+       if (!btn) return;
+       segmentoAtual = (btn.getAttribute('data-seg') as SegmentoProp) || 'todos';
+       paginaAtual = 1;
+       podarSelecaoFiltrada();
+       renderTabela();
+    });
+
+    // Ordenação por cabeçalho (clique ou Enter/Espaço); clicar de novo inverte a direção
+    const alternarOrdem = (th: HTMLElement) => {
+       const campo = th.getAttribute('data-ordem') as CampoOrdemProp | null;
+       if (!campo) return;
+       if (campo === campoOrdem) direcaoOrdem = direcaoOrdem === 'asc' ? 'desc' : 'asc';
+       else { campoOrdem = campo; direcaoOrdem = campo === 'nome' ? 'asc' : 'desc'; }
+       paginaAtual = 1;
+       renderTabela();
+    };
+    document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+       th.addEventListener('click', () => alternarOrdem(th));
+       th.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarOrdem(th); }
+       });
+    });
 
     const selectPaginacaoProp = document.getElementById('paginacao-limite');
     const handlePaginacaoChange = (e: Event) => {
@@ -697,184 +767,74 @@ export const propriedadesRoute: RouteDef = {
     selectPaginacaoProp?.addEventListener('change', handlePaginacaoChange);
     selectPaginacaoProp?.addEventListener('ui-selecionar', handlePaginacaoChange);
 
-    const getPropriedadesFiltradas = () => {
-       if (!termoBusca) return todasPropriedades;
-       return todasPropriedades.filter(p => 
-          (p.nome_propriedade || '').toLowerCase().includes(termoBusca) ||
-          (p.municipio || '').toLowerCase().includes(termoBusca) ||
-          (p.uf || '').toLowerCase().includes(termoBusca)
-       );
-    };
-
-    const getPropriedadesOrdenadas = () => {
-       const filtradas = getPropriedadesFiltradas();
-       const selectOrdenacao = document.getElementById('ordenacao-propriedade') as HTMLSelectElement;
-       const tipo = selectOrdenacao ? selectOrdenacao.value : 'nome-asc';
-       
-       const ordenadas = [...filtradas];
-       if (tipo === 'nome-asc') {
-          ordenadas.sort((a, b) => (a.nome_propriedade || '').localeCompare(b.nome_propriedade || ''));
-       } else if (tipo === 'nome-desc') {
-          ordenadas.sort((a, b) => (b.nome_propriedade || '').localeCompare(a.nome_propriedade || ''));
-       } else if (tipo === 'data-desc') {
-          ordenadas.sort((a, b) => (b.id || 0) - (a.id || 0)); // ID decrescente = mais recente
-       } else if (tipo === 'data-asc') {
-          ordenadas.sort((a, b) => (a.id || 0) - (b.id || 0)); // ID crescente = mais antigo
-       }
-       return ordenadas;
-    };
-
-    const getPropriedadesPaginaAtual = () => {
-       const ordenadas = getPropriedadesOrdenadas();
-       const inicio = (paginaAtual - 1) * limitePorPagina;
-       return ordenadas.slice(inicio, inicio + limitePorPagina);
-    };
-
-    // --- ELEIÇÃO E TEXTO DO PROPRIETÁRIO PRINCIPAL ---
-    const obterProprietarioPrincipalTexto = (clientes: any[]) => {
-       if (!clientes || clientes.length === 0) {
-          return '<span class="text-white/20 italic text-[11px]">Sem proprietário</span>';
-       }
-       
-       const clientesOrdenados = [...clientes].sort((a, b) => {
-          const partA = a.percentual_participacao || 0;
-          const partB = b.percentual_participacao || 0;
-          if (partB !== partA) {
-             return partB - partA; 
-          }
-          return (a.nome_completo || '').localeCompare(b.nome_completo || ''); 
-       });
-       
-       const principal = clientesOrdenados[0];
-       const nomeCompleto = principal.nome_completo || '';
-       const partesNome = nomeCompleto.trim().split(/\s+/);
-       const nomeAbreviado = partesNome.slice(0, 2).join(' ');
-       
-       if (clientes.length > 1) {
-          return `<span class="font-semibold text-white/80">${nomeAbreviado}</span> <span class="text-white/40 text-[10px]">e mais ${clientes.length - 1}</span>`;
-       }
-       return `<span class="font-semibold text-white/80">${nomeAbreviado}</span>`;
-    };
-
     // --- RENDERIZAÇÃO DA TABELA ---
+    const renderEstadoVazio = (statusDiv: HTMLElement, semCadastro: boolean) => {
+       statusDiv.classList.remove('hidden');
+       statusDiv.innerHTML = semCadastro
+          ? `<div class="lp-estado">
+               <div class="lp-estado-ico"><i data-lucide="home"></i></div>
+               <div class="lp-estado-titulo">Nenhuma propriedade cadastrada</div>
+               <div class="lp-estado-txt">Cadastre um imóvel rural para vincular proprietários, matrículas e levantamentos.</div>
+               <button type="button" class="lp-btn-primario" data-estado-acao="novo"><i data-lucide="plus" class="w-4 h-4"></i>Nova propriedade</button>
+             </div>`
+          : `<div class="lp-estado">
+               <div class="lp-estado-ico"><i data-lucide="search"></i></div>
+               <div class="lp-estado-titulo">Nenhuma propriedade encontrada</div>
+               <div class="lp-estado-txt">Nada corresponde à busca ou ao filtro aplicado.</div>
+               <button type="button" class="lp-btn-sec" data-estado-acao="limpar">Limpar busca e filtros</button>
+             </div>`;
+    };
+
+    // Chips de segmento (contagem sobre a lista inteira) e indicador de ordenação nos cabeçalhos
+    const atualizarCabecalhoLista = () => {
+       const contagem = contarSegmentosProp(todasPropriedades);
+       (Object.keys(contagem) as SegmentoProp[]).forEach(seg => {
+          const n = document.getElementById(`seg-n-${seg}`);
+          if (n) { n.innerText = String(contagem[seg]); n.classList.toggle('is-zero', contagem[seg] === 0); }
+       });
+       document.querySelectorAll<HTMLElement>('#seg-propriedades [data-seg]').forEach(btn => {
+          const ativo = btn.getAttribute('data-seg') === segmentoAtual;
+          btn.classList.toggle('is-active', ativo);
+          btn.setAttribute('aria-pressed', String(ativo));
+       });
+       document.querySelectorAll<HTMLElement>('.lp-tabela th[data-ordem]').forEach(th => {
+          if (th.getAttribute('data-ordem') === campoOrdem) th.setAttribute('aria-sort', direcaoOrdem === 'asc' ? 'ascending' : 'descending');
+          else th.removeAttribute('aria-sort');
+       });
+    };
+
     const renderTabela = () => {
        const body = document.getElementById('tabela-propriedades-body');
        const statusDiv = document.getElementById('tabela-propriedades-status');
        const info = document.getElementById('paginacao-info');
        const botoes = document.getElementById('paginacao-botoes');
-       
        if (!body) return;
 
-       const ordenadas = getPropriedadesOrdenadas();
-       const total = ordenadas.length;
+       atualizarCabecalhoLista();
+
+       const total = getPropriedadesOrdenadas().length;
        const totalPaginas = Math.ceil(total / limitePorPagina);
-       
-       if (paginaAtual > totalPaginas) {
-          paginaAtual = Math.max(1, totalPaginas);
-       }
+       if (paginaAtual > totalPaginas) paginaAtual = Math.max(1, totalPaginas);
 
        const visiveis = getPropriedadesPaginaAtual();
 
-       const totalImoveis = todasPropriedades.length;
-       const municipiosDiferentes = new Set(todasPropriedades.map(p => `${(p.municipio || '').trim().toUpperCase()}/${(p.uf || '').trim().toUpperCase()}`)).size;
-       
-       let totalMatriculasAcumuladas = 0;
-       let totalLevantamentosAcumulados = 0;
-       
-       todasPropriedades.forEach(p => {
-          totalMatriculasAcumuladas += (p.total_matriculas || 0);
-          totalLevantamentosAcumulados += (p.total_levantamentos || 0);
-       });
-
-       const setStatText = (id: string, text: string) => {
-          const el = document.getElementById(id);
-          if (el) el.innerText = text;
-       };
-
-       setStatText('stat-total-prop', totalImoveis.toString());
-       setStatText('stat-municipios-prop', municipiosDiferentes.toString());
-       setStatText('stat-total-mats', totalMatriculasAcumuladas.toString());
-       setStatText('stat-total-levs', totalLevantamentosAcumulados.toString());
-
        if (total === 0) {
           body.innerHTML = '';
-          statusDiv?.classList.remove('hidden');
-          if (statusDiv) statusDiv.innerText = todasPropriedades.length === 0 ? "Nenhuma propriedade cadastrada no sistema." : "Nenhum resultado encontrado para a busca.";
+          if (statusDiv) renderEstadoVazio(statusDiv, todasPropriedades.length === 0);
           if (info) info.innerText = "Mostrando 0-0 de 0 propriedades";
           if (botoes) botoes.innerHTML = '';
+          initIcons();
+          updateBatchActionBar();
           return;
        }
 
        statusDiv?.classList.add('hidden');
+       body.innerHTML = renderLinhasPropHtml(visiveis, propriedadesSelecionadas);
 
-       body.innerHTML = visiveis.map(p => {
-          const isSel = propriedadesSelecionadas.has(p.id);
-          const rowClass = isSel ? 'bg-mint-vibrant/5 border-l-2 border-l-mint-vibrant' : 'hover:bg-white/[0.015]';
-
-          return `
-             <tr class="border-b border-white/5 transition-all text-xs ${rowClass}" data-id="${p.id}">
-                <td class="py-1.5 px-3 w-10">
-                   <input type="checkbox" data-id="${p.id}" class="check-propriedade rounded border-white/10 text-mint-vibrant bg-white/5 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5" ${isSel ? 'checked' : ''} />
-                </td>
-                <td class="py-1.5 px-3 font-medium text-white cursor-pointer hover:text-mint-vibrant truncate max-w-xs" onclick="window.abrirModalPropriedade(${p.id})">
-                   <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-md bg-mint-vibrant/10 flex items-center justify-center text-xs font-bold text-mint-vibrant shrink-0">
-                         <i data-lucide="home" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-                      </div>
-                      <span class="truncate font-semibold text-xs">${escapeHtml(p.nome_propriedade)}</span>
-                   </div>
-                </td>
-                <td class="py-1.5 px-3 text-white/70 text-xs">${escapeHtml(p.municipio)} / ${escapeHtml(p.uf)}</td>
-                <td class="py-1.5 px-3 text-xs">${obterProprietarioPrincipalTexto(p.clientes)}</td>
-                <td class="py-1.5 px-3 text-center font-mono font-medium text-white/70 text-xs">${p.total_matriculas || 0}</td>
-                <td class="py-1.5 px-3 text-center font-mono font-medium text-white/70 text-xs">${p.total_levantamentos || 0}</td>
-                <td class="py-1.5 px-3 text-right">
-                   <div class="flex items-center justify-end gap-0.5">
-                      <button class="p-1 text-white/40 hover:text-mint-vibrant rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.abrirModalPropriedade(${p.id}, 'tab-prop-dados')" title="Ver e Editar Propriedade">
-                         <i data-lucide="edit" class="w-3.5 h-3.5"></i>
-                      </button>
-                      <button class="p-1 text-white/40 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer" onclick="window.excluirPropriedadeIndividual(${p.id})" title="Excluir">
-                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                      </button>
-                   </div>
-                </td>
-             </tr>
-          `;
-       }).join('');
-
-       // Paginação Info e Botões
        const inicioItem = (paginaAtual - 1) * limitePorPagina + 1;
        const fimItem = Math.min(paginaAtual * limitePorPagina, total);
        if (info) info.innerText = `Mostrando ${inicioItem}-${fimItem} de ${total} propriedades`;
-
-       let pagButtonsHtml = '';
-       if (totalPaginas > 1) {
-          pagButtonsHtml += `
-             <button class="h-7 px-2.5 rounded border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-all font-bold flex items-center justify-center cursor-pointer" ${paginaAtual === 1 ? 'disabled' : ''} onclick="window.mudarPaginaPropriedades(${paginaAtual - 1})">
-                Anterior
-             </button>
-          `;
-          
-          for (let p = 1; p <= totalPaginas; p++) {
-             if (p === 1 || p === totalPaginas || (p >= paginaAtual - 1 && p <= paginaAtual + 1)) {
-                const activeClass = p === paginaAtual ? 'bg-mint-vibrant text-forest-deep border-transparent font-bold' : 'border-white/10 hover:bg-white/5 text-white/70';
-                pagButtonsHtml += `
-                   <button class="w-7 h-7 rounded border text-xs font-mono transition-all flex items-center justify-center cursor-pointer ${activeClass}" onclick="window.mudarPaginaPropriedades(${p})">
-                      ${p}
-                   </button>
-                `;
-             } else if (p === paginaAtual - 2 || p === paginaAtual + 2) {
-                pagButtonsHtml += `<span class="px-1 text-white/20 select-none">...</span>`;
-             }
-          }
-
-          pagButtonsHtml += `
-             <button class="h-7 px-2.5 rounded border border-white/10 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-all font-bold flex items-center justify-center cursor-pointer" ${paginaAtual === totalPaginas ? 'disabled' : ''} onclick="window.mudarPaginaPropriedades(${paginaAtual + 1})">
-                Próxima
-             </button>
-          `;
-       }
-       if (botoes) botoes.innerHTML = pagButtonsHtml;
+       if (botoes) botoes.innerHTML = renderBotoesPaginacaoHtml(paginaAtual, totalPaginas);
 
        initIcons();
 
@@ -889,28 +849,53 @@ export const propriedadesRoute: RouteDef = {
           else checkAll.indeterminate = algumSel;
        }
 
-       // Checkboxes
-       body.querySelectorAll('.check-propriedade').forEach(cb => {
-          cb.addEventListener('change', (e) => {
-             const check = e.target as HTMLInputElement;
-             const id = parseInt(check.getAttribute('data-id') || '0');
-             if (check.checked) {
-                propriedadesSelecionadas.add(id);
-             } else {
-                propriedadesSelecionadas.delete(id);
-             }
-             updateBatchActionBar();
-             renderTabela();
-          });
-       });
-
        updateBatchActionBar();
     };
 
-    (window as any).mudarPaginaPropriedades = (novaPagina: number) => {
-       paginaAtual = novaPagina;
+    // Delegação de eventos da tabela: seleção, ações, linha inteira e teclado
+    const bodyTabelaProp = document.getElementById('tabela-propriedades-body');
+    bodyTabelaProp?.addEventListener('change', (e: Event) => {
+       const check = (e.target as HTMLElement).closest<HTMLInputElement>('.check-propriedade');
+       if (!check) return;
+       const id = parseInt(check.getAttribute('data-id') || '0');
+       if (check.checked) propriedadesSelecionadas.add(id);
+       else propriedadesSelecionadas.delete(id);
+       updateBatchActionBar();
        renderTabela();
-    };
+    });
+    bodyTabelaProp?.addEventListener('click', (e: MouseEvent) => {
+       const alvo = e.target as HTMLElement;
+       const btn = alvo.closest<HTMLElement>('.btn-action');
+       if (btn) {
+          const id = parseInt(btn.getAttribute('data-id') || '0');
+          if (!id) return;
+          if (btn.getAttribute('data-action') === 'editar') abrirModalPropriedade(id, 'tab-prop-dados');
+          else if (btn.getAttribute('data-action') === 'excluir') excluirPropriedadeIndividual(id);
+          return;
+       }
+       if (alvo.closest('.lp-col-check')) return;
+       const linhaId = parseInt(alvo.closest<HTMLElement>('tr[data-id]')?.getAttribute('data-id') || '0');
+       if (linhaId) abrirModalPropriedade(linhaId, 'tab-prop-dados');
+    });
+    bodyTabelaProp?.addEventListener('keydown', (e: KeyboardEvent) => {
+       if (e.key !== 'Enter' || !(e.target as HTMLElement).matches('tr[data-id]')) return;
+       const linhaId = parseInt((e.target as HTMLElement).getAttribute('data-id') || '0');
+       if (linhaId) abrirModalPropriedade(linhaId, 'tab-prop-dados');
+    });
+
+    // Ações do estado vazio (cadastrar / limpar filtros)
+    document.getElementById('tabela-propriedades-status')?.addEventListener('click', (e: MouseEvent) => {
+       const acao = (e.target as HTMLElement).closest<HTMLElement>('[data-estado-acao]')?.getAttribute('data-estado-acao');
+       if (acao === 'novo') document.getElementById('btn-abrir-modal-propriedade')?.click();
+       else if (acao === 'limpar') { segmentoAtual = 'todos'; limparBusca(); }
+    });
+
+    // Paginação
+    document.getElementById('paginacao-botoes')?.addEventListener('click', (e: MouseEvent) => {
+       const alvo = (e.target as HTMLElement).closest<HTMLElement>('.btn-page');
+       const pagina = parseInt(alvo?.getAttribute('data-page') || '0');
+       if (pagina) { paginaAtual = pagina; renderTabela(); }
+    });
 
     // Checkbox Master
     const checkAllPropEl = document.getElementById('check-all-propriedades');
@@ -930,22 +915,29 @@ export const propriedadesRoute: RouteDef = {
     checkAllPropEl?.addEventListener('ui-change', handleCheckAllProps);
 
     // --- CARREGAR DADOS GERAIS ---
+    const mostrarErroLista = (statusDiv: HTMLElement | null, mensagem: string) => {
+       if (!statusDiv) return;
+       statusDiv.classList.remove('hidden');
+       statusDiv.innerHTML = `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">${escapeHtml(mensagem)}</div><div class="lp-estado-txt">Não foi possível carregar as propriedades.</div><button type="button" class="lp-btn-sec" id="btn-recarregar-prop">Tentar novamente</button></div>`;
+       document.getElementById('btn-recarregar-prop')?.addEventListener('click', () => { loadPropriedades(); });
+       initIcons();
+    };
+
     const loadPropriedades = () => {
        const body = document.getElementById('tabela-propriedades-body');
        const statusDiv = document.getElementById('tabela-propriedades-status');
        
        if (!body) return Promise.resolve();
 
-       body.innerHTML = '';
-       statusDiv?.classList.remove('hidden');
-       if (statusDiv) statusDiv.innerText = "Carregando propriedades...";
+       statusDiv?.classList.add('hidden');
+       body.innerHTML = Array.from({ length: 8 }, () => '<tr><td colspan="8" class="!p-0"><div class="lp-skel"></div></td></tr>').join('');
 
        return fetch(`${API_BASE}/propriedades`)
           .then(res => res.json())
           .then(data => {
              if (data.error) {
-                statusDiv?.classList.remove('hidden');
-                if (statusDiv) statusDiv.innerHTML = `<span class="text-red-400 font-bold">Erro: ${data.error}</span>`;
+                body.innerHTML = '';
+                mostrarErroLista(statusDiv, `Erro: ${data.error}`);
                 return;
              }
              todasPropriedades = Array.isArray(data) ? data : [];
@@ -966,8 +958,8 @@ export const propriedadesRoute: RouteDef = {
           })
           .catch(err => {
              console.error("Erro ao carregar propriedades:", err);
-             statusDiv?.classList.remove('hidden');
-             if (statusDiv) statusDiv.innerHTML = '<span class="text-red-400 font-bold">Erro de conexão ao servidor.</span>';
+             body.innerHTML = '';
+             mostrarErroLista(statusDiv, 'Erro de conexão com o servidor.');
           });
     };
 
@@ -1000,7 +992,7 @@ export const propriedadesRoute: RouteDef = {
              listaFlutuante.innerHTML = '<div class="p-2.5 text-xs text-white/30 italic">Nenhum cliente localizado.</div>';
           } else {
              listaFlutuante.innerHTML = filtrados.map(c => `
-                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${c.nome_completo}">
+                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${escapeHtml(c.nome_completo)}">
                    <span class="font-bold text-white">${escapeHtml(c.nome_completo)}</span>
                    <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${escapeHtml(c.cpf_cnpj)}</span>
                 </div>
@@ -1848,6 +1840,10 @@ export const propriedadesRoute: RouteDef = {
     loadClientesList();
   },
   cleanup: () => {
+    if (atalhoBuscaProp) {
+      document.removeEventListener('keydown', atalhoBuscaProp);
+      atalhoBuscaProp = null;
+    }
     if (clickOutsideHandlerClientes) {
       document.removeEventListener('click', clickOutsideHandlerClientes);
       clickOutsideHandlerClientes = null;

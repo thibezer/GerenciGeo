@@ -5,6 +5,8 @@
  * divisas/segmentos, auditoria de translação geodésica e logs do histórico de campo.
  */
 
+import { escapeHtml } from '../../utils';
+
 // Interface auxiliar para os pontos
 interface Ponto {
   id: number;
@@ -102,7 +104,7 @@ export const renderAuditoriaTranslacaoHtml = (
 
   return `
     <tr class="hover:bg-white/[0.02] border-b border-white/5 font-sans text-xs">
-      <td class="px-4 py-2.5 text-white text-xs">${p.nome_vertice}</td>
+      <td class="px-4 py-2.5 text-white text-xs">${escapeHtml(p.nome_vertice)}</td>
       <td class="px-2 py-2.5 text-right text-xs text-white/40 tabular-nums">${originalE}<br/><span class="text-[10px]">${originalN}</span></td>
       <td class="px-2 py-2.5 text-right text-xs text-mint-vibrant/90 tabular-nums">${corrE}<br/><span class="text-[10px] text-mint-vibrant/70">${corrN}</span></td>
       <td class="px-2 py-2.5 text-right text-xs ${parseFloat(devE) === 0 ? 'text-white/30' : 'text-blue-400'} tabular-nums">${devE}mm</td>
@@ -161,7 +163,7 @@ export const renderHistoricoTimelineHtml = (log: any): string => {
           <span class="text-[10px] font-bold tracking-wider uppercase text-white/30 font-mono">${log.tipo_evento}</span>
           <span class="text-[9px] text-white/30 font-mono">${dataFormatada}</span>
         </div>
-        <h5 class="text-xs font-bold text-white mt-1 leading-relaxed">${log.descricao}</h5>
+        <h5 class="text-xs font-bold text-white mt-1 leading-relaxed">${escapeHtml(log.descricao)}</h5>
         ${extraDetailsHtml}
       </div>
     </div>

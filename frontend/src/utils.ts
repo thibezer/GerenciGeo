@@ -1,4 +1,4 @@
-import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, User, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, EyeOff, Mail, LogIn, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw, Scissors, HeartHandshake, Files, FileDown, UserPlus, ListOrdered, Landmark, DownloadCloud, AlertTriangle, ArrowRight, Building2, Clipboard, FileUp, FolderGit, FolderSync, GripVertical, Loader2, Locate, LockOpen, LogOut, MessageCircle, PenTool, Printer, Sparkles, Zap } from 'lucide';
+import { createIcons, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, Map as MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, User, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, EyeOff, Mail, LogIn, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw, Scissors, HeartHandshake, Files, FileDown, UserPlus, ListOrdered, Landmark, DownloadCloud, AlertTriangle, ArrowRight, Building2, Clipboard, FileUp, FolderGit, FolderSync, GripVertical, Loader2, Locate, LockOpen, LogOut, MessageCircle, PenTool, Printer, Sparkles, Zap, CheckSquare, Clock, UserX, CheckCircle, Cloud, File, Shield } from 'lucide';
 
 // --- FUNÇÕES AUXILIARES GLOBAIS DE VALIDAÇÃO E MÁSCARAS ---
 export const formatarCAR = (v: string): string => {
@@ -63,7 +63,7 @@ export const deltaClass = (meters: number | null | undefined): string => {
 // Initialize Icons
 export const initIcons = () => {
   createIcons({
-    icons: { Landmark, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, User, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, EyeOff, Mail, LogIn, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw, Scissors, HeartHandshake, Files, FileDown, UserPlus, ListOrdered, DownloadCloud, AlertTriangle, ArrowRight, Building2, Clipboard, FileUp, FolderGit, FolderSync, GripVertical, Loader2, Locate, LockOpen, LogOut, MessageCircle, PenTool, Printer, Sparkles, Zap }
+    icons: { Landmark, Crosshair, LayoutDashboard, Cpu, FolderTree, History, MapPin, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, FolderOpen, RefreshCw, Bell, Settings, Plus, Play, X, Trash2, Download, Upload, MapIcon, Terminal, Activity, Database, CheckCircle2, AlertCircle, HelpCircle, ExternalLink, Users, User, Edit, Home, Lock, Unlock, Globe, FileCheck, Folder, LayoutGrid, List, Filter, UploadCloud, CornerDownRight, Check, Map, Save, Pentagon, FileText, Archive, FileSpreadsheet, ArrowUpDown, ShieldAlert, ArchiveX, ShieldCheck, Lightbulb, Minimize2, Layers, Scan, Edit3, Eye, EyeOff, Mail, LogIn, FileEdit, UserCheck, FileSignature, BookOpen, Calendar, Minus, Square, FileSymlink, SlidersHorizontal, Search, FileBox, FileDigit, CloudLightning, Pause, Copy, Share2, Info, Compass, RotateCcw, RotateCw, Scissors, HeartHandshake, Files, FileDown, UserPlus, ListOrdered, DownloadCloud, AlertTriangle, ArrowRight, Building2, Clipboard, FileUp, FolderGit, FolderSync, GripVertical, Loader2, Locate, LockOpen, LogOut, MessageCircle, PenTool, Printer, Sparkles, Zap, CheckSquare, Clock, UserX, CheckCircle, Cloud, File, Shield }
   });
 };
 
@@ -351,6 +351,12 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
   
   setTimeout(removeToast, duration);
   toast.addEventListener('click', removeToast);
+};
+
+/** '2026-06-17' ou '2026-06-17 14:08:10' -> '17/06/2026' (sem passar por Date: evita o dia anterior por fuso). */
+export const formatarDataBr = (iso?: string | null): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((iso || '').trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—');
 };
 
 export const escapeHtml = (unsafe: string | null | undefined): string => {
