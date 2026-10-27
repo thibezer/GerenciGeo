@@ -144,38 +144,105 @@
   --gg-espaco-lg:        var(--geo-sp-6, 24px);
   --gg-raio-borda:       6px;
 
-  /* --- Overrides Nativos para o ui-components-kit --- */
+  /* --- Overrides Nativos para o ui-components-kit (Modo Escuro Permanente) --- */
   --ui-altura-minima: 34px;
   --ui-campo-altura: 34px;
-  --ui-cor-fundo-elevado: rgba(255, 255, 255, 0.04);
-  --ui-cor-fundo-menu: var(--geo-bg-surface);
+  --ui-cor-primaria: var(--geo-accent, #00E08A);
+  --ui-cor-texto-sobre-primaria: #000000;
+  --ui-cor-destaque: var(--geo-accent, #00E08A);
+
+  /* Neutros e Fundos Escuros para Componentes UI */
+  --ui-cor-fundo: #09090B;
+  --ui-cor-superficie: #111113;
+  --ui-cor-fundo-card: #141417;
+  --ui-cor-fundo-elevado: #1A1A1D;
+  --ui-cor-fundo-menu: #111113;
+  --ui-cor-fundo-recuado: rgba(0, 0, 0, 0.25);
   --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
-  --ui-cor-borda: var(--geo-border-default);
+
+  /* Textos e Estados */
+  --ui-cor-texto: var(--geo-text-primary, rgba(255, 255, 255, 0.92));
+  --ui-cor-texto-secundario: var(--geo-text-secondary, rgba(255, 255, 255, 0.68));
+  --ui-cor-texto-erro: #ff5555;
+  --ui-cor-texto-sucesso: #00E08A;
+  --ui-cor-texto-alerta: #ffb86c;
+  --ui-cor-texto-info: #33b5ff;
+  --ui-cor-texto-sobre-status: #000000;
+
+  /* Botões e Interações */
+  --ui-cor-botao-secundario-fundo: #1e1e24;
+  --ui-cor-botao-secundario-hover: #2a2a34;
+  --ui-cor-botao-destrutivo-fundo: #d32f2f;
+  --ui-cor-botao-destrutivo-hover: #b71c1c;
+  --ui-cor-botao-destrutivo-texto: #ffffff;
+
+  /* Bordas e Sombras */
+  --ui-cor-borda: var(--geo-border-default, rgba(255, 255, 255, 0.11));
   --ui-raio-borda: 6px;
-  --ui-cor-texto: var(--geo-text-primary);
-  --ui-cor-texto-secundario: var(--geo-text-secondary); /* era --geo-text-disabled (1,7:1) */
-  --ui-cor-primaria: var(--geo-accent);
+  --ui-sombra-sm: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ui-sombra-md: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --ui-sombra-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
-/* Garante o padrão dos componentes sempre em modo noturno na web */
+/* Garante o padrão dos componentes e do sistema SEMPRE em modo escuro */
 :root,
 :root[data-tema="escuro"],
 :root.dark,
 [data-tema="escuro"],
-[data-theme="dark"] {
-  color-scheme: dark;
+[data-theme="dark"],
+body {
+  color-scheme: dark !important;
   --ui-altura-minima: 34px;
   --ui-campo-altura: 34px;
-  --ui-cor-fundo-elevado: rgba(255, 255, 255, 0.04);
-  --ui-cor-fundo-menu: var(--geo-bg-surface);
-  --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
-  --ui-cor-borda: var(--geo-border-default);
-  --ui-raio-borda: 6px;
-  --ui-cor-texto: var(--geo-text-primary);
-  --ui-cor-texto-secundario: var(--geo-text-secondary);
-  --ui-cor-primaria: var(--geo-accent);
+  --ui-cor-primaria: var(--geo-accent, #00E08A) !important;
+  --ui-cor-texto-sobre-primaria: #000000 !important;
+  --ui-cor-destaque: var(--geo-accent, #00E08A) !important;
+
+  --ui-cor-fundo: #09090B !important;
+  --ui-cor-superficie: #111113 !important;
+  --ui-cor-fundo-card: #141417 !important;
+  --ui-cor-fundo-elevado: #1A1A1D !important;
+  --ui-cor-fundo-menu: #111113 !important;
+  --ui-cor-fundo-recuado: rgba(0, 0, 0, 0.25) !important;
+  --ui-cor-hover-menu: rgba(255, 255, 255, 0.08) !important;
+
+  --ui-cor-texto: var(--geo-text-primary, rgba(255, 255, 255, 0.92)) !important;
+  --ui-cor-texto-secundario: var(--geo-text-secondary, rgba(255, 255, 255, 0.68)) !important;
+  --ui-cor-borda: var(--geo-border-default, rgba(255, 255, 255, 0.11)) !important;
+  --ui-raio-borda: 6px !important;
 }
 
+/* Neutraliza qualquer forçador externo de modo claro no ecossistema GerenciGeo */
+@media (prefers-color-scheme: light) {
+  :root,
+  html,
+  body {
+    color-scheme: dark !important;
+    --ui-cor-fundo: #09090B !important;
+    --ui-cor-superficie: #111113 !important;
+    --ui-cor-fundo-card: #141417 !important;
+    --ui-cor-fundo-elevado: #1A1A1D !important;
+    --ui-cor-fundo-menu: #111113 !important;
+    --ui-cor-texto: rgba(255, 255, 255, 0.92) !important;
+    --ui-cor-texto-secundario: rgba(255, 255, 255, 0.68) !important;
+    --ui-cor-borda: rgba(255, 255, 255, 0.11) !important;
+  }
+}
+
+:root[data-tema="claro"],
+:root.light,
+[data-tema="claro"],
+[data-theme="light"] {
+  color-scheme: dark !important;
+  --ui-cor-fundo: #09090B !important;
+  --ui-cor-superficie: #111113 !important;
+  --ui-cor-fundo-card: #141417 !important;
+  --ui-cor-fundo-elevado: #1A1A1D !important;
+  --ui-cor-fundo-menu: #111113 !important;
+  --ui-cor-texto: rgba(255, 255, 255, 0.92) !important;
+  --ui-cor-texto-secundario: rgba(255, 255, 255, 0.68) !important;
+  --ui-cor-borda: rgba(255, 255, 255, 0.11) !important;
+}
 
 /* ===========================================================
    2. RESET DE FONTE GLOBAL

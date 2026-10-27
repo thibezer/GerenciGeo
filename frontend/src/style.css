@@ -19,7 +19,8 @@
 
 @layer components {
   .glass-card {
-    @apply bg-surface-glass border border-border-glass backdrop-blur-xl rounded-technical shadow-lg transition-all duration-300;
+    background-color: #111113;
+    @apply border border-border-glass backdrop-blur-xl rounded-technical shadow-lg transition-all duration-300;
   }
   .glass-card:hover {
     @apply border-white/20 shadow-[0_8px_30px_rgb(0,0,0,0.12)];

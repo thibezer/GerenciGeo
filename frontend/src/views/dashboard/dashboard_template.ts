@@ -17,12 +17,12 @@ export function renderDashboardTemplate(): string {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3 flex-1 lg:h-[calc(100vh-80px)] lg:max-h-[calc(100vh-80px)] order-2">
         <!-- Leaflet Map Container -->
-        <div class="lg:col-span-2 glass-card h-[400px] sm:h-[450px] lg:h-full relative overflow-hidden border-white/5" id="map-container">
+        <div class="lg:col-span-2 glass-card bg-[#111113] h-[400px] sm:h-[450px] lg:h-full relative overflow-hidden border-white/5" id="map-container">
            <div id="map" class="w-full h-full"></div>
         </div>
 
         <!-- Action Center Híbrido -->
-        <div class="glass-card h-full flex flex-col min-h-0 overflow-hidden">
+        <div class="glass-card bg-[#111113] h-full flex flex-col min-h-0 overflow-hidden">
           <!-- Header do Action Center -->
           <div class="px-3.5 py-3 sm:px-4 sm:py-3.5 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/[0.02]">
              <div class="flex items-center gap-2.5 min-w-0">
