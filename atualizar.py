@@ -36,30 +36,77 @@ def executar_git_pull():
         print(f"[ERRO] Falha ao executar git pull:\n{e.stderr or e.stdout}")
         return None
 
-def recompilar_frontend(git_output):
+def recompilar_frontend(git_output, forcar_build=False):
     log_passo(2, "Verificando compilacao do Frontend...")
     frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
     dist_dir = os.path.join(frontend_dir, "dist")
+    src_dir = os.path.join(frontend_dir, "src")
+    node_modules_dir = os.path.join(frontend_dir, "node_modules")
     
     precisa_build = False
     
-    # Se a pasta dist não existir, build obrigatório
-    if not os.path.exists(dist_dir) or not os.listdir(dist_dir):
+    # 1. Se foi passado argumento para forçar build (--build ou --force)
+    if forcar_build or "--build" in sys.argv or "--force" in sys.argv:
+        print("[!] Solicitado build forcado do frontend.")
+        precisa_build = True
+    # 2. Se a pasta dist não existir ou estiver vazia
+    elif not os.path.exists(dist_dir) or not os.listdir(dist_dir):
         print("[!] Pasta 'frontend/dist' ausente ou vazia. Compilando...")
         precisa_build = True
+    # 3. Se o git pull trouxe alterações no frontend
     elif git_output and ("frontend/" in git_output or "package.json" in git_output):
-        print("[!] Alteracoes detectadas no frontend. Recompilando...")
+        print("[!] Alteracoes detectadas no frontend via Git. Recompilando...")
         precisa_build = True
+    # 4. Verificação de timestamp: se algum arquivo em src/ for mais recente que dist/
     else:
-        print("[OK] Frontend ja esta atualizado e compilado. Pulando build para economizar tempo!")
+        try:
+            dist_mtime = 0
+            for root, _, files in os.walk(dist_dir):
+                for f in files:
+                    p = os.path.join(root, f)
+                    dist_mtime = max(dist_mtime, os.path.getmtime(p))
+            
+            src_mtime = 0
+            for root, _, files in os.walk(src_dir):
+                for f in files:
+                    p = os.path.join(root, f)
+                    src_mtime = max(src_mtime, os.path.getmtime(p))
+            
+            if src_mtime > dist_mtime:
+                print("[!] Codigo fonte do frontend e mais recente que o dist atual. Recompilando...")
+                precisa_build = True
+            else:
+                print("[OK] Frontend ja esta atualizado e compilado.")
+        except Exception:
+            precisa_build = True
 
     if precisa_build:
+        # Se node_modules não existir, executa npm install primeiro
+        if not os.path.exists(node_modules_dir):
+            print("[!] 'node_modules' ausente. Executando 'npm install'...")
+            try:
+                subprocess.run("npm install", cwd=frontend_dir, shell=True, check=True)
+                print("[OK] Dependencias do frontend instaladas!")
+            except subprocess.CalledProcessError as e:
+                print(f"[ERRO] Falha ao executar 'npm install':\n{e}")
+                return
+
         try:
             print("Executando 'npm run build'...")
             res = subprocess.run("npm run build", cwd=frontend_dir, shell=True, capture_output=True, text=True, check=True)
             print("[OK] Frontend compilado com sucesso!")
+            
+            # Limpa cache do WebView2 para garantir carregamento imediato da nova versão
+            cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".webview_cache")
+            if os.path.exists(cache_dir):
+                import shutil
+                try:
+                    shutil.rmtree(cache_dir)
+                    print("[OK] Cache antigo do WebView2 limpo com sucesso!")
+                except Exception:
+                    pass
         except subprocess.CalledProcessError as e:
-            print(f"[AVISO] Aviso no build do frontend:\n{e.stderr or e.stdout}")
+            print(f"[ERRO] Falha no build do frontend:\n{e.stderr or e.stdout}")
 
 def sincronizar_nuvem():
     log_passo(3, "Sincronizando dados com a Nuvem Hub (Hostinger)...")
