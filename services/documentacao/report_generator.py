@@ -315,7 +315,13 @@ class BorderAreaReportGenerator:
         nac_prof = valor_preenchido(lev_data.get("nacionalidade_profissional")) or "brasileiro(a)"
         formacao_prof = valor_preenchido(lev_data.get("formacao_profissional")) or "Responsável Técnico"
         cpf_prof = formatar_cpf(lev_data.get("cpf_profissional")) or lacuna
-        rg_prof = formatar_rg(lev_data.get("rg_profissional")) or lacuna
+        rg_prof_raw = valor_preenchido(lev_data.get("rg_profissional"))
+        if rg_prof_raw:
+            rg_prof = formatar_rg(rg_prof_raw)
+            trecho_rg_prof = Html(f', portador da Carteira de Identidade RG nº <strong class="text-slate-900">{esc(rg_prof)}</strong>')
+        else:
+            rg_prof = ""
+            trecho_rg_prof = Html("")
         conselho_prof = valor_preenchido(lev_data.get("conselho_profissional"))
         registro_prof = valor_preenchido(lev_data.get("registro_profissional"))
 
@@ -361,6 +367,7 @@ class BorderAreaReportGenerator:
             "formacao_prof": formacao_prof,
             "cpf_prof": cpf_prof,
             "rg_prof": rg_prof,
+            "trecho_rg_prof": trecho_rg_prof,
             "conselho_exibicao": conselho_exibicao,
             "end_residencial_prof": end_residencial_prof,
             "end_comercial_prof": end_comercial_prof,

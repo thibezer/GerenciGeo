@@ -189,8 +189,8 @@ export function renderFronteiraTemplate(): string {
                     <input type="text" id="modal-owner-cpf" required class="glass-input w-full text-xs font-mono" />
                   </div>
                   <div>
-                    <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">RG/IE *</label>
-                    <input type="text" id="modal-owner-rg" required class="glass-input w-full text-xs font-mono" />
+                    <label class="block text-[10px] text-white/40 uppercase font-bold mb-1">RG/IE</label>
+                    <input type="text" id="modal-owner-rg" class="glass-input w-full text-xs font-mono" />
                   </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -223,7 +223,7 @@ export function renderFronteiraTemplate(): string {
                       <input type="text" id="modal-owner-conjuge-cpf" class="glass-input w-full text-[11px] font-mono" />
                     </div>
                     <div>
-                      <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">RG Cônjuge *</label>
+                      <label class="block text-[9px] text-white/40 uppercase font-bold mb-0.5">RG Cônjuge</label>
                       <input type="text" id="modal-owner-conjuge-rg" class="glass-input w-full text-[11px] font-mono" />
                     </div>
                   </div>

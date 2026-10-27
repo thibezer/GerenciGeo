@@ -87,8 +87,8 @@ export const configuracoesRoute: RouteDef = {
                   <input type="text" id="input-prof-cpf" required class="lp-mono" placeholder="000.000.000-00" inputmode="numeric" />
                   <span id="cpf-validation-msg" class="hidden" style="color:var(--lp-danger);letter-spacing:.06em">CPF inválido</span>
                 </label>
-                <label class="lp-campo"><span>RG *</span>
-                  <input type="text" id="input-prof-rg" required class="lp-mono" placeholder="Ex: 12.345.678-9" />
+                <label class="lp-campo"><span>RG</span>
+                  <input type="text" id="input-prof-rg" class="lp-mono" placeholder="Ex: 12.345.678-9" />
                 </label>
               </div>
 

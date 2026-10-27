@@ -62,7 +62,7 @@ export const tratarExibicaoConjuge = (estadoCivil: string, modalConjugeRow: HTML
     modalConjugeRow.classList.remove('hidden');
     (document.getElementById('modal-owner-conjuge-nome') as HTMLInputElement).required = true;
     (document.getElementById('modal-owner-conjuge-cpf') as HTMLInputElement).required = true;
-    (document.getElementById('modal-owner-conjuge-rg') as HTMLInputElement).required = true;
+    (document.getElementById('modal-owner-conjuge-rg') as HTMLInputElement).required = false;
   } else {
     modalConjugeRow.classList.add('hidden');
     (document.getElementById('modal-owner-conjuge-nome') as HTMLInputElement).required = false;

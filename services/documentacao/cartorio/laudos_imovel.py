@@ -549,7 +549,13 @@ def gerar_termo_responsabilidade_sigef_html(lev_id: int, matricula_id: int, nume
 
     lacuna_prof = "_" * 20
     formacao_prof = valor_preenchido(dados["lev"].get("formacao_profissional")) or "Responsável Técnico"
-    rg_prof = valor_preenchido(dados["lev"].get("rg_profissional")) or lacuna_prof
+    rg_prof_raw = valor_preenchido(dados["lev"].get("rg_profissional"))
+    if rg_prof_raw:
+        rg_prof = formatar_rg(rg_prof_raw)
+        clausula_docs_prof = Html(f'portador da Cédula de Identidade RG nº <strong class="text-slate-900">{esc(rg_prof)}</strong> e CPF nº <strong class="text-slate-900">{esc(formatar_cpf(dados["lev"].get("cpf_profissional")) or lacuna_prof)}</strong>')
+    else:
+        rg_prof = ""
+        clausula_docs_prof = Html(f'inscrito no CPF sob o nº <strong class="text-slate-900">{esc(formatar_cpf(dados["lev"].get("cpf_profissional")) or lacuna_prof)}</strong>')
     cpf_prof = formatar_cpf(dados["lev"].get("cpf_profissional")) or lacuna_prof
     end_residencial_prof = valor_preenchido(dados["lev"].get("endereco_residencial_profissional")) or lacuna_prof
     end_comercial_prof = valor_preenchido(dados["lev"].get("endereco_profissional")) or lacuna_prof
@@ -629,6 +635,7 @@ def gerar_termo_responsabilidade_sigef_html(lev_id: int, matricula_id: int, nume
         "nome_prof": _nome_prof(dados),
         "formacao_prof": formacao_prof,
         "conselho_exibicao": _conselho_exibicao(dados),
+        "clausula_docs_prof": clausula_docs_prof,
         "rg_prof": rg_prof,
         "cpf_prof": cpf_prof,
         "end_residencial_prof": end_residencial_prof,
@@ -1004,8 +1011,16 @@ def gerar_requerimento_averbacao_casamento_html(
     nome_requerente = valor_preenchido(target_owner.get("nome_completo")) or "_" * 30
     nacionalidade_requerente = flexionar_nacionalidade(target_owner.get("nacionalidade"), g_req)
     profissao_requerente = valor_preenchido(target_owner.get("profissao")) or "_" * 20
-    rg_requerente = formatar_rg(target_owner.get("rg_ie")) or "_" * 15
+    rg_req_raw = valor_preenchido(target_owner.get("rg_ie"))
+    rg_requerente = formatar_rg(rg_req_raw) if rg_req_raw else ""
     cpf_requerente = formatar_cpf(target_owner.get("cpf_cnpj")) or "_" * 14
+    inscrito_req = flex(g_req, "inscrito", "inscrita", "inscrito(a)")
+    portador_req = flex(g_req, "portador", "portadora", "portador(a)")
+    if rg_requerente:
+        orgao_uf_txt = f", órgão expedidor {esc(orgao_rg_requerente)}" if orgao_rg_requerente and orgao_rg_requerente != "_____/__" else ""
+        documentos_requerente = Html(f"{portador_req} da cédula de identidade RG nº <strong>{esc(rg_requerente)}</strong>{orgao_uf_txt}, {inscrito_req} no CPF/MF sob o nº <strong>{esc(cpf_requerente)}</strong>")
+    else:
+        documentos_requerente = Html(f"{inscrito_req} no CPF/MF sob o nº <strong>{esc(cpf_requerente)}</strong>")
 
     end_parts = []
     if valor_preenchido(target_owner.get("endereco_completo")):
@@ -1025,8 +1040,16 @@ def gerar_requerimento_averbacao_casamento_html(
         valor_preenchido(params.get("nacionalidade_conjuge")) or target_owner.get("nacionalidade_conjuge"), gc
     )
     profissao_conjuge = valor_preenchido(params.get("profissao_conjuge")) or valor_preenchido(target_owner.get("profissao_conjuge")) or "_" * 20
-    rg_conjuge = formatar_rg(valor_preenchido(params.get("rg_conjuge")) or target_owner.get("rg_conjuge")) or "_" * 15
+    rg_conj_raw = valor_preenchido(params.get("rg_conjuge")) or valor_preenchido(target_owner.get("rg_conjuge"))
+    rg_conjuge = formatar_rg(rg_conj_raw) if rg_conj_raw else ""
     cpf_conjuge = formatar_cpf(valor_preenchido(params.get("cpf_conjuge")) or target_owner.get("cpf_conjuge")) or "_" * 14
+    inscrito_conj = flex(gc, "inscrito", "inscrita", "inscrito(a)")
+    portador_conj = flex(gc, "portador", "portadora", "portador(a)")
+    if rg_conjuge:
+        orgao_uf_c_txt = f", órgão expedidor {esc(orgao_rg_conjuge)}" if orgao_rg_conjuge and orgao_rg_conjuge != "_____/__" else ""
+        documentos_conjuge = Html(f"{portador_conj} da cédula de identidade RG nº <strong>{esc(rg_conjuge)}</strong>{orgao_uf_c_txt}, {inscrito_conj} no CPF/MF sob o nº <strong>{esc(cpf_conjuge)}</strong>")
+    else:
+        documentos_conjuge = Html(f"{inscrito_conj} no CPF/MF sob o nº <strong>{esc(cpf_conjuge)}</strong>")
     endereco_conjuge = valor_preenchido(params.get("endereco_conjuge")) or "no mesmo endereço acima indicado"
 
     # 6. Qualidade do Proprietário e Matrícula
@@ -1086,6 +1109,7 @@ def gerar_requerimento_averbacao_casamento_html(
         "nome_requerente": nome_requerente,
         "nacionalidade_requerente": nacionalidade_requerente,
         "profissao_requerente": profissao_requerente,
+        "documentos_requerente": documentos_requerente,
         "rg_requerente": rg_requerente,
         "orgao_uf_rg_requerente": orgao_rg_requerente,
         "cpf_requerente": cpf_requerente,
@@ -1095,6 +1119,7 @@ def gerar_requerimento_averbacao_casamento_html(
         "nome_conjuge": nome_conjuge,
         "nacionalidade_conjuge": nacionalidade_conjuge,
         "profissao_conjuge": profissao_conjuge,
+        "documentos_conjuge": documentos_conjuge,
         "rg_conjuge": rg_conjuge,
         "orgao_uf_rg_conjuge": orgao_rg_conjuge,
         "cpf_conjuge": cpf_conjuge,

@@ -146,7 +146,9 @@ def rotulo_doc(nome_escapado: str) -> str:
 def _clausula_docs(ref: str, g: str | None, rg: str, cpf: str) -> str:
     portador = flex(g, "portador", "portadora", "portador(a)")
     inscrito = flex(g, "inscrito", "inscrita", "inscrito(a)")
-    return f"{ref} {portador} da cédula de identidade RG nº {rg} e {inscrito} no CPF sob o nº {cpf}"
+    if rg:
+        return f"{ref} {portador} da cédula de identidade RG nº {rg} e {inscrito} no CPF sob o nº {cpf}"
+    return f"{ref} {inscrito} no CPF sob o nº {cpf}"
 
 
 def qualificar_pessoa(
@@ -168,7 +170,8 @@ def qualificar_pessoa(
     destaque = (lambda x: _strong(x)) if destaque_docs else (lambda x: x)
 
     cpf = destaque(valor_ou_lacuna(formatar_cpf(p["cpf_cnpj"]), 18))
-    rg = destaque(valor_ou_lacuna(formatar_rg(p["rg"]), 15))
+    rg_raw = valor_preenchido(p["rg"])
+    rg = destaque(esc(formatar_rg(rg_raw))) if rg_raw else ""
     dom = destaque(valor_ou_lacuna(valor_preenchido(p["endereco_completo"]) or valor_preenchido(domicilio_padrao), 50))
 
     # Pessoa jurídica (CNPJ): sem RG, estado civil ou cônjuge.
@@ -192,9 +195,10 @@ def qualificar_pessoa(
         residente = flex(g, "residente e domiciliado", "residente e domiciliada", "residente e domiciliado(a)")
         inscrito = flex(g, "inscrito", "inscrita", "inscrito(a)")
         portador = flex(g, "portador", "portadora", "portador(a)")
+        trecho_rg = f" e {portador} da cédula de identidade RG nº {rg}" if rg else ""
         texto = (
             f"{nome_s}, {nac}, {prof}, {est}, {residente} em {dom}, "
-            f"{inscrito} no CPF/MF sob o nº {cpf} e {portador} da cédula de identidade RG nº {rg}"
+            f"{inscrito} no CPF/MF sob o nº {cpf}{trecho_rg}"
         )
         info = {"pj": False, "casal": False, "uniao": False, "genero": g, "genero_conjuge": None, "nome_conjuge": ""}
         return Html(texto), info
@@ -218,7 +222,8 @@ def qualificar_pessoa(
     nome_c_s = _strong(nome_c)
     nac_c = esc(flexionar_nacionalidade(p["nacionalidade_conjuge"], gc))
     prof_c = valor_ou_lacuna(p["profissao_conjuge"], 25)
-    rg_c = destaque(valor_ou_lacuna(formatar_rg(p["rg_conjuge"]), 15))
+    rg_c_raw = valor_preenchido(p["rg_conjuge"])
+    rg_c = destaque(esc(formatar_rg(rg_c_raw))) if rg_c_raw else ""
     cpf_c = destaque(valor_ou_lacuna(formatar_cpf(p["cpf_conjuge"]), 18))
 
     if uniao:
@@ -313,10 +318,15 @@ def qualificacao_resumida(d: dict) -> Html:
     if eh_cnpj(p["cpf_cnpj"]):
         return Html(f"{nome_s}, pessoa jurídica inscrita no CNPJ nº {cpf}")
     g = genero_normalizado(p["genero"])
-    rg = valor_ou_lacuna(formatar_rg(p["rg"]), 15)
+    rg_raw = valor_preenchido(p["rg"])
+    if rg_raw:
+        rg = esc(formatar_rg(rg_raw))
+        return Html(
+            f"{nome_s}, {flex(g, 'inscrito', 'inscrita', 'inscrito(a)')} no CPF nº {cpf} "
+            f"e {flex(g, 'portador', 'portadora', 'portador(a)')} do RG nº {rg}"
+        )
     return Html(
-        f"{nome_s}, {flex(g, 'inscrito', 'inscrita', 'inscrito(a)')} no CPF nº {cpf} "
-        f"e {flex(g, 'portador', 'portadora', 'portador(a)')} do RG nº {rg}"
+        f"{nome_s}, {flex(g, 'inscrito', 'inscrita', 'inscrito(a)')} no CPF nº {cpf}"
     )
 
 
