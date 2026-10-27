@@ -7,7 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        'forest-deep': '#0c1510',
+        'forest-deep': '#09090B',        /* Modo escuro neutro — era #0c1510 verde-floresta */
+        'dark-base':   '#09090B',        /* Alias semântico para o fundo base */
+        'dark-surface': '#111113',       /* Superfícies elevadas */
         'mint-vibrant': '#00E08A',
         'surface-glass': 'rgba(255, 255, 255, 0.05)',
         'border-glass': 'rgba(255, 255, 255, 0.1)',

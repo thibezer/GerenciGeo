@@ -10,7 +10,8 @@
   }
 
   body {
-    @apply bg-forest-deep text-white font-inter selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
+    background-color: #09090B;
+    @apply text-white font-inter selection:bg-mint-vibrant/30 selection:text-mint-vibrant;
     scrollbar-width: thin;
     scrollbar-color: #00E08A22 transparent;
   }
@@ -72,7 +73,7 @@
 
 /* Leaflet Adjustments */
 .leaflet-container {
-    background: #0c1510 !important;
+    background: #09090B !important;
     font-family: var(--geo-font-sans), sans-serif !important;
 }
 
@@ -94,7 +95,7 @@
 }
 
 .leaflet-control-layers {
-    background: rgba(12, 21, 16, 0.8) !important;
+    background: rgba(9, 9, 11, 0.88) !important;
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     color: white !important;
@@ -102,7 +103,7 @@
 }
 
 .leaflet-control-zoom-in, .leaflet-control-zoom-out {
-    background: rgba(12, 21, 16, 0.8) !important;
+    background: rgba(9, 9, 11, 0.88) !important;
     color: white !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
@@ -155,10 +156,10 @@
 /* Customização de selects e options glass-input */
 select.glass-input {
   color: white !important;
-  background-color: #0c1510 !important;
+  background-color: #111113 !important;
 }
 select.glass-input option {
-  background-color: #0c1510 !important;
+  background-color: #111113 !important;
   color: white !important;
 }
 
@@ -238,7 +239,7 @@ select.glass-input option {
 
 .confrontante-label-text {
    display: inline-block;
-   background-color: rgba(12, 21, 16, 0.9); /* Fundo Deep Forest escuro com opacidade */
+   background-color: rgba(9, 9, 11, 0.92); /* Fundo escuro neutro — modo escuro padrão */
    color: var(--geo-accent, #00f5a0); /* Verde menta vibrante do padrão de design */
    font-family: var(--geo-font-sans), 'Fira Code', monospace;
    font-size: 9px;
@@ -253,7 +254,7 @@ select.glass-input option {
 
 /* Tooltip customizado do Leaflet para confrontantes flutuantes */
 .confrontante-tooltip-label {
-    background-color: rgba(12, 21, 16, 0.9) !important;
+    background-color: rgba(9, 9, 11, 0.94) !important;
     border: 1px solid rgba(0, 245, 160, 0.3) !important;
     color: var(--geo-accent, #00f5a0) !important;
     font-size: 8px !important;
@@ -277,7 +278,7 @@ select.glass-input option {
   position: absolute;
   z-index: var(--geo-z-tooltip);
   min-width: 160px;
-  background-color: rgba(12, 21, 16, 0.95);
+  background-color: rgba(9, 9, 11, 0.97);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
@@ -327,7 +328,7 @@ th.resizable-col,
 tr.sticky th,
 thead th,
 #tbl-pontos-header th {
-   background-color: #0b130e !important; /* Fundo escuro totalmente opaco combinando com forest-deep */
+   background-color: #111113 !important; /* Fundo escuro neutro opaco — modo escuro padrão */
    opacity: 1 !important;
    z-index: var(--geo-z-elevated);
 }
@@ -341,7 +342,7 @@ thead th,
   position: sticky;
   top: 0;
   z-index: var(--geo-z-modal);
-  background-color: rgba(12, 21, 16, 0.85);
+  background-color: rgba(9, 9, 11, 0.88);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

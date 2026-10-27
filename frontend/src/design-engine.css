@@ -59,11 +59,11 @@
   --geo-accent-border-hover:  rgba(0, 224, 138, 0.32);
   --geo-accent-border-strong: rgba(0, 224, 138, 0.45);
 
-  /* --- Superfícies sobre o mapa / cartões (= tailwind forest-deep #0c1510) --- */
-  --geo-surface-forest:       #0c1510;
-  --geo-surface-forest-glass: rgba(12, 21, 16, 0.88);
-  --geo-surface-sticky:       #0d1511;
-  --geo-surface-card:         rgba(12, 21, 16, 0.5);
+  /* --- Superfícies sobre o mapa / cartões (modo escuro neutro) --- */
+  --geo-surface-forest:       #111113;
+  --geo-surface-forest-glass: rgba(17, 17, 19, 0.88);
+  --geo-surface-sticky:       #111113;
+  --geo-surface-card:         rgba(17, 17, 19, 0.55);
 
   /* --- Mapa da etapa Peças de Cartório ---
      "sem confrontante": laranja #FF8A3D (8,2:1 no fundo), distinto do vermelho do WMS INCRA
@@ -190,6 +190,12 @@ button {
   font-family: var(--geo-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fundo base do app — modo escuro neutro */
+body {
+  background-color: var(--geo-bg-base) !important;
+  color: var(--geo-text-primary);
 }
 
 
