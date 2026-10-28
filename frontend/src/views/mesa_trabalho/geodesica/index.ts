@@ -194,13 +194,19 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
 
     if (ctx.modoCoordenadas === 'geodesico') {
       ctx.modoCoordenadas = 'utm';
-      if (btn) btn.innerText = 'Ver em Geodésico';
+      if (btn) {
+        btn.innerText = 'Geodésico';
+        btn.title = 'Alternar para coordenadas Geodésicas';
+      }
       if (lbl) lbl.innerText = 'Vértices UTM (SIRGAS 22S)';
       if (btnUtm) btnUtm.classList.add('active');
       if (btnGeo) btnGeo.classList.remove('active');
     } else {
       ctx.modoCoordenadas = 'geodesico';
-      if (btn) btn.innerText = 'Ver em UTM';
+      if (btn) {
+        btn.innerText = 'UTM';
+        btn.title = 'Alternar para coordenadas UTM';
+      }
       if (lbl) lbl.innerText = 'Vértices Geodésicos';
       if (btnGeo) btnGeo.classList.add('active');
       if (btnUtm) btnUtm.classList.remove('active');
@@ -347,11 +353,13 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
 
     if (btn) {
       if (ctx.ocultarForaPoligono) {
-        btn.innerText = 'Mostrar Fora da Poligonal';
+        btn.innerText = 'Mostrar Todos';
+        btn.title = 'Exibir todos os vértices da matrícula';
         btn.classList.replace('bg-white/5', 'bg-mint-vibrant/20');
         btn.classList.add('border-mint-vibrant/40');
       } else {
-        btn.innerText = 'Ocultar Fora da Poligonal';
+        btn.innerText = 'Só Polígono';
+        btn.title = 'Ocultar vértices fora da poligonal da matrícula';
         btn.classList.replace('bg-mint-vibrant/20', 'bg-white/5');
         btn.classList.remove('border-mint-vibrant/40');
       }

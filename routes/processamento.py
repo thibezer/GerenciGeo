@@ -201,7 +201,7 @@ async def start_hgo(payload: dict, background_tasks: BackgroundTasks):
 
 # Hosts aceitos pelo proxy do SIGEF (o front só consulta o WMS do acervo fundiário; o portal do SIGEF
 # fica permitido para os links de exportação). Qualquer outro destino é recusado (evita SSRF/proxy aberto).
-SIGEF_PROXY_HOSTS = frozenset({"acervofundiario.incra.gov.br", "sigef.incra.gov.br"})
+SIGEF_PROXY_HOSTS = frozenset({"geoportal.incra.gov.br", "acervofundiario.incra.gov.br", "sigef.incra.gov.br"})
 # (conexão, leitura) em segundos — somados ficam abaixo dos 12 s que o front espera antes de abortar.
 SIGEF_PROXY_TIMEOUT = (4, 7)
 SIGEF_PROXY_MAX_BYTES = 2_000_000
@@ -234,11 +234,13 @@ def proxy_sigef(url: str):
     log = logging.getLogger(__name__)
     alvo = _validar_url_sigef(url)
 
-    # Forçamos o formato para text/plain pois o i3Geo do INCRA falha com application/json
-    if "INFO_FORMAT=application%2Fjson" in alvo:
-        alvo = alvo.replace("INFO_FORMAT=application%2Fjson", "INFO_FORMAT=text/plain")
-    elif "INFO_FORMAT=application/json" in alvo:
-        alvo = alvo.replace("INFO_FORMAT=application/json", "INFO_FORMAT=text/plain")
+    # Apenas o i3Geo legado do acervofundiario falha com application/json e precisa de text/plain.
+    # O novo Geoportal INCRA (GeoServer) suporta e exige application/json nativo.
+    if "acervofundiario.incra.gov.br" in alvo:
+        if "INFO_FORMAT=application%2Fjson" in alvo:
+            alvo = alvo.replace("INFO_FORMAT=application%2Fjson", "INFO_FORMAT=text/plain")
+        elif "INFO_FORMAT=application/json" in alvo:
+            alvo = alvo.replace("INFO_FORMAT=application/json", "INFO_FORMAT=text/plain")
 
     try:
         response = None
@@ -266,7 +268,11 @@ def proxy_sigef(url: str):
         raise HTTPException(status_code=502, detail="Resposta do INCRA grande demais.")
 
     try:
-        response.encoding = 'latin-1'  # INCRA usa latin-1
+        content_type = response.headers.get("Content-Type", "").lower()
+        if "geoportal.incra.gov.br" in alvo or "json" in content_type or "utf-8" in content_type:
+            response.encoding = 'utf-8'
+        else:
+            response.encoding = 'latin-1'
         text = response.text
 
         # Se a resposta parece ser o formato text/plain do MapServer

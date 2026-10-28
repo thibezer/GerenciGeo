@@ -273,30 +273,22 @@ export const renderMesaTrabalho = (): string => {
              <!-- Inferior: Tabela de Vértices Geodésicos -->
              <div class="table-container-wrapper" id="container-tabela-vertices">
                 <div class="vtx-filter-bar">
-                  <span class="text-[9px] text-white/30 uppercase tracking-wider font-semibold mr-1.5">Filtros:</span>
                   <button class="vtx-filter-chip active" data-filtro="todos">Todos</button>
-                  <button class="vtx-filter-chip" data-filtro="bases">Bases (M/B)</button>
-                  <button class="vtx-filter-chip" data-filtro="rovers">Rovers (P/V)</button>
+                  <button class="vtx-filter-chip" data-filtro="bases">Bases</button>
+                  <button class="vtx-filter-chip" data-filtro="rovers">Rovers</button>
                   <button class="vtx-filter-chip" data-filtro="brutos">Brutos</button>
                   <button class="vtx-filter-chip" data-filtro="corrigidos">Corrigidos</button>
                   
-                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-2" id="btn-toggle-coordenadas" type="button">
-                    Ver em Geodésico
+                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-2" id="btn-toggle-coordenadas" type="button" title="Alternar coordenadas (UTM / Geodésicas)">
+                    Geodésico
                   </button>
-                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-toggle-ocultar-ignorados" type="button">
-                    Ocultar Fora da Poligonal
-                  </button>
-                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-ativar-reordenacao" type="button">
-                    Reordenar Manual
-                  </button>
-                  <button class="text-[9px] px-2.5 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1 flex items-center gap-1" id="btn-ferramenta-caneta" type="button" title="Seleção Poligonal / Caneta estilo Photoshop (Atalho: P)">
-                    <i data-lucide="pen-tool" class="w-3 h-3"></i>
-                    Caneta de Seleção
+                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-toggle-ocultar-ignorados" type="button" title="Ocultar vértices fora da poligonal da matrícula">
+                    Só Polígono
                   </button>
                   <div class="relative inline-block ml-1" id="dropdown-filtro-arquivos-parent">
-                    <button class="text-[9px] px-2.5 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant flex items-center gap-1" id="btn-filtro-arquivos" type="button">
+                    <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant flex items-center gap-1" id="btn-filtro-arquivos" type="button" title="Filtrar por arquivos de origem">
                       <i data-lucide="filter" class="w-3 h-3"></i>
-                      Filtrar por Arquivo
+                      Arquivos
                     </button>
                     <!-- Popover flutuante absoluto -->
                     <div class="absolute left-0 mt-1 w-56 bg-[#0e1b14] border border-mint-vibrant/20 rounded shadow-2xl p-3 z-[var(--geo-z-dropdown)] hidden flex flex-col space-y-2 max-h-60 overflow-y-auto" id="popover-filtro-arquivos">
@@ -308,7 +300,7 @@ export const renderMesaTrabalho = (): string => {
 
                   <div class="vtx-search">
                      <i data-lucide="search"></i>
-                     <input type="text" id="input-search-ponto" placeholder="Filtrar ponto..." />
+                     <input type="text" id="input-search-ponto" placeholder="Buscar vértice..." />
                   </div>
                 </div>
 

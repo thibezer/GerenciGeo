@@ -1461,6 +1461,7 @@ if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 
     $scheme = strtolower($parsed['scheme']);
     $host = strtolower($parsed['host']);
     $allowedHosts = [
+        'geoportal.incra.gov.br',
         'acervofundiario.incra.gov.br',
         'sigef.incra.gov.br',
         'servicodados.ibge.gov.br'
@@ -1469,8 +1470,10 @@ if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 
         jsonResponse(['error' => 'Destino não permitido pelo proxy de segurança.'], 403);
     }
 
-    // Forçamos o formato para text/plain pois o i3Geo do INCRA falha com application/json
-    $targetUrl = str_replace(['INFO_FORMAT=application%2Fjson', 'INFO_FORMAT=application/json'], 'INFO_FORMAT=text/plain', $targetUrl);
+    // Apenas o i3Geo legado do acervofundiario precisa de text/plain; o Geoportal (GeoServer) suporta application/json nativo
+    if (str_contains($host, 'acervofundiario')) {
+        $targetUrl = str_replace(['INFO_FORMAT=application%2Fjson', 'INFO_FORMAT=application/json'], 'INFO_FORMAT=text/plain', $targetUrl);
+    }
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $targetUrl);

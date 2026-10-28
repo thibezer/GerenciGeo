@@ -72,10 +72,10 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
   if (btnTodos) btnTodos.textContent = `Todos (${totalTodos})`;
 
   const btnBases = document.querySelector('.vtx-filter-chip[data-filtro="bases"]');
-  if (btnBases) btnBases.textContent = `Bases (M/B) (${totalBases})`;
+  if (btnBases) btnBases.textContent = `Bases (${totalBases})`;
 
   const btnRovers = document.querySelector('.vtx-filter-chip[data-filtro="rovers"]');
-  if (btnRovers) btnRovers.textContent = `Rovers (P/V) (${totalRovers})`;
+  if (btnRovers) btnRovers.textContent = `Rovers (${totalRovers})`;
 
   const btnBrutos = document.querySelector('.vtx-filter-chip[data-filtro="brutos"]');
   if (btnBrutos) btnBrutos.textContent = `Brutos (${totalBrutos})`;
