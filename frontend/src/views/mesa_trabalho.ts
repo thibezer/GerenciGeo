@@ -349,6 +349,25 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.triagemMap = typeof canvasEl.getMap === 'function' ? canvasEl.getMap() : (canvasEl.controller?.getMap() || null);
         ctx.canvasInteracao = canvasEl.controller?.canvasInteracao;
 
+        // Assegura que o LayerManager do CAD aponte a camada WMS do SIGEF para o Geoportal oficial do INCRA
+        const lm = typeof canvasEl.getLayerManager === 'function' ? canvasEl.getLayerManager() : canvasEl.controller?.layerManager;
+        if (lm) {
+          const sigefLayer = typeof lm.getLayer === 'function' ? lm.getLayer('sigef') : lm.layers?.find((l: any) => l.id === 'sigef');
+          if (sigefLayer) {
+            sigefLayer.dados = {
+              url: 'https://geoportal.incra.gov.br/geoserver/wms',
+              layers: 'geonode:sigef_geo',
+              format: 'image/png',
+              attribution: 'INCRA/SIGEF'
+            };
+            const inst = lm.layerInstances?.get('sigef');
+            if (inst && typeof inst.setUrl === 'function') {
+              inst.setUrl('https://geoportal.incra.gov.br/geoserver/wms');
+              inst.setParams?.({ layers: 'geonode:sigef_geo' });
+            }
+          }
+        }
+
         // Clique repetido sobre vértices empilhados alterna entre eles (antes da seleção por caixa do canvas)
         instalarAlternanciaPilha(ctx, canvasEl);
 

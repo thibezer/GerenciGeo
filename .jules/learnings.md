@@ -723,3 +723,24 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - Em `_inserir_pontos`, verificar se `(levantamento_id, matricula_id, nome_vertice)` já existe e desambiguar com sufixo numérico antes da inserção, com retry atômico em caso de `IntegrityError`.
   4. **Robustez de Layout Topcon**:
      - Tratar colunas extras vazias ou strings de descrição na 5ª coluna sem abortar a conversão dos sigmas numéricos subsequentes.
+
+
+---
+
+## 45. Migração da Camada WMS do SIGEF/INCRA (Descontinuação do Acervo Fundiário e Adoção do Geoportal GeoServer)
+- **Contexto e Problema**:
+  1. O servidor antigo de geoserviços WMS do INCRA baseado em i3Geo (`https://acervofundiario.incra.gov.br/i3geo/ogc.php`) teve seu domínio **desativado pelo Governo Federal e removido dos servidores DNS mundiais** (`NXDOMAIN`, `[Errno 11001] getaddrinfo failed`), fazendo com que o mapa Leaflet parasse de exibir os polígonos certificados do SIGEF.
+  2. O serviço antigo dependia de camadas separadas por estado (ex.: `certificada_sigef_particular_pr`) e retornava dados em `text/plain` com parsing frágil de strings MapServer.
+  3. O endpoint de proxy de segurança (`/proxy/sigef` no FastAPI e `api.php?action=proxy_sigef` na Hostinger) possuía whitelist rígida que bloqueava novos domínios do INCRA e forçava a substituição de `INFO_FORMAT=application/json` para `text/plain`.
+- **Regras Obrigatórias**:
+  1. **Novo Endpoint Oficial WMS do INCRA**:
+     - Host: `geoportal.incra.gov.br` (GeoServer oficial do INCRA / Serpro).
+     - URL Base WMS: `https://geoportal.incra.gov.br/geoserver/wms`.
+     - Camada Unificada Nacional: `geonode:sigef_geo` ("Sigef - todas parcelas", que cobre o Brasil inteiro sem necessidade de alternar siglas por UF).
+  2. **Whitelist de Segurança dos Proxies (Backend Local e Nuvem Hostinger)**:
+     - `SIGEF_PROXY_HOSTS` em `routes/processamento.py` e `$allowedHosts` em `frontend/public/api.php` devem incluir obrigatoriamente `'geoportal.incra.gov.br'`, mantendo `'sigef.incra.gov.br'` para download de CSVs/Shapefiles e `'acervofundiario.incra.gov.br'` por compatibilidade legada.
+  3. **Preservação de `application/json` Nativo**:
+     - O GeoServer do Geoportal suporta e responde GeoJSON nativamente em `INFO_FORMAT=application/json`. É proibido forçar `text/plain` quando o host for `geoportal.incra.gov.br`.
+     - O encoding deve ser tratado como `utf-8` para garantir que nomes de imóveis e proprietários acentuados não sejam corrompidos.
+  4. **Atualização no Componente Web `<ui-canvas-cad>`**:
+     - No `main.ts` (`aplicarAdaptersCAD`) e na inicialização da Mesa de Trabalho (`mesa_trabalho.ts`), a camada com id `'sigef'` no `LayerManager` deve ser configurada dinamicamente com `dados: { url: 'https://geoportal.incra.gov.br/geoserver/wms', layers: 'geonode:sigef_geo' }`, sobrescrevendo qualquer URL padrão legada do pacote.

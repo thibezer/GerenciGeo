@@ -456,9 +456,9 @@ export const dashboardRoute: RouteDef = {
       updateWhenIdle: true
     }).addTo(map);
 
-    // Camada WMS SIGEF/INCRA
-    const sigef = L.tileLayer.wms('https://acervofundiario.incra.gov.br/i3geo/ogc.php', {
-      layers: 'certificada_sigef_particular_pr',
+    // Camada WMS SIGEF/INCRA (Geoportal Oficial INCRA / GeoServer)
+    const sigef = L.tileLayer.wms('https://geoportal.incra.gov.br/geoserver/wms', {
+      layers: 'geonode:sigef_geo',
       format: 'image/png',
       transparent: true,
       version: '1.1.1',
@@ -471,7 +471,7 @@ export const dashboardRoute: RouteDef = {
     }).addTo(map);
 
     const overlayMaps: { [key: string]: L.Layer } = {
-      "Imóveis SIGEF (PR)": sigef
+      "Imóveis SIGEF (Oficial)": sigef
     };
 
     // Controle de camadas nativo do Leaflet inicia recolhido para não poluir visualmente

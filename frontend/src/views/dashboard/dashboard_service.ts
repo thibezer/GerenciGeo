@@ -66,7 +66,7 @@ export const consultarSigefGetFeatureInfo = async (
   size: { x: number; y: number },
   bbox: string
 ): Promise<any> => {
-  const targetUrl = `https://acervofundiario.incra.gov.br/i3geo/ogc.php?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=certificada_sigef_particular_pr&LAYERS=certificada_sigef_particular_pr&INFO_FORMAT=text/plain&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
+  const targetUrl = `https://geoportal.incra.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=geonode:sigef_geo&LAYERS=geonode:sigef_geo&INFO_FORMAT=application/json&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
   const isLocal = window.location.origin.includes('localhost') || 
                   window.location.origin.includes('127.0.0.1') || 
                   window.location.origin.includes('[::1]');

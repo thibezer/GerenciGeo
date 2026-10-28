@@ -113,6 +113,20 @@ class TestProxySigef(unittest.TestCase):
         self.assertEqual(mock_get.call_count, 2)
         self.assertTrue(mock_get.call_args.args[0].startswith("https://acervofundiario.incra.gov.br/i3geo/outro.php"))
 
+    def test_geoportal_incra_e_permitido_e_mantem_application_json(self):
+        url_geoportal = (
+            "https://geoportal.incra.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo"
+            "&LAYERS=geonode:sigef_geo&QUERY_LAYERS=geonode:sigef_geo&INFO_FORMAT=application/json&X=128&Y=128"
+        )
+        fake_geojson = '{"type":"FeatureCollection","features":[{"id":"geo-1","properties":{"nome_area":"Fazenda Geoportal"}}]}'
+        r = _resposta(fake_geojson, status=200, headers={"Content-Type": "application/json"})
+        r.json = lambda: {"type": "FeatureCollection", "features": [{"id": "geo-1", "properties": {"nome_area": "Fazenda Geoportal"}}]}
+        with patch.object(processamento.requests, "get", return_value=r) as mock_get:
+            resp = self._get(url_geoportal)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("INFO_FORMAT=application/json", mock_get.call_args.args[0])
+        self.assertEqual(resp.json()["features"][0]["properties"]["nome_area"], "Fazenda Geoportal")
+
 
 if __name__ == "__main__":
     unittest.main()

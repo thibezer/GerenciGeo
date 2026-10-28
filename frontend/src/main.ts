@@ -32,6 +32,30 @@ aplicarPatchesUI();
 // Adapters de compatibilidade para métodos legados chamados pelas views da Mesa de Trabalho
 export const aplicarAdaptersCAD = (cadProto: any) => {
   if (!cadProto) return;
+  const configurarCamadaSigef = (ctrl: any) => {
+    const lm = ctrl?.layerManager;
+    if (!lm) return;
+    const sigefLayer = typeof lm.getLayer === 'function' ? lm.getLayer('sigef') : lm.layers?.find((l: any) => l.id === 'sigef');
+    if (sigefLayer) {
+      sigefLayer.dados = {
+        url: 'https://geoportal.incra.gov.br/geoserver/wms',
+        layers: 'geonode:sigef_geo',
+        format: 'image/png',
+        attribution: 'INCRA/SIGEF'
+      };
+      const inst = lm.layerInstances?.get('sigef');
+      if (inst && typeof inst.setUrl === 'function' && inst._url?.includes('acervofundiario')) {
+        inst.setUrl('https://geoportal.incra.gov.br/geoserver/wms');
+        inst.setParams?.({ layers: 'geonode:sigef_geo' });
+      }
+    }
+  };
+  const origGetCtrl = cadProto.getController;
+  cadProto.getController = function() {
+    const ctrl = origGetCtrl ? origGetCtrl.call(this) : this.controller;
+    if (ctrl) configurarCamadaSigef(ctrl);
+    return ctrl;
+  };
   if (!cadProto.plotPontos) {
     cadProto.plotPontos = function(pontos: any[]) {
       this.pontos = pontos;
