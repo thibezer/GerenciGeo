@@ -143,19 +143,19 @@ export function inicializarBarraAcoesLote(
 
     const categorias = [
       {
-        id: 'base-ppp',
-        nome: 'Bases Homologadas PPP (M)',
+        id: 'marco',
+        nome: 'Marcos (M)',
         count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'M' || p.tipo === 'M').length
       },
       {
         id: 'base-campo',
-        nome: 'Bases de Campo (B)',
+        nome: 'Bases (B)',
         count: pontosSelecionados.filter((p: any) => p.tipo_ponto === 'B' || p.tipo === 'B').length
       },
       {
         id: 'rover-vertice',
-        nome: 'Vértices do Perímetro (P/V)',
-        count: pontosSelecionados.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B' && p.tipo_ponto !== 'M' && p.tipo !== 'M').length
+        nome: 'Vértices do Perímetro (M/P/V)',
+        count: pontosSelecionados.filter((p: any) => p.tipo_ponto !== 'B' && p.tipo !== 'B').length
       },
       {
         id: 'ponto-bruto',
@@ -220,12 +220,12 @@ export function inicializarBarraAcoesLote(
     pontosSelecionados.forEach((p: any) => {
       const isM = p.tipo_ponto === 'M' || p.tipo === 'M';
       const isB = p.tipo_ponto === 'B' || p.tipo === 'B';
-      const isRover = !isM && !isB;
+      const isRover = !isB;
       const isBruto = p.status_ponto === 'BRUTO';
       const isCorrigido = p.status_ponto === 'CORRIGIDO';
 
       let match = false;
-      if (isM && checkedVals.includes('base-ppp')) match = true;
+      if (isM && checkedVals.includes('marco')) match = true;
       if (isB && checkedVals.includes('base-campo')) match = true;
       if (isRover && checkedVals.includes('rover-vertice')) match = true;
       if (isBruto && checkedVals.includes('ponto-bruto')) match = true;

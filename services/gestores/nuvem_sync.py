@@ -361,8 +361,17 @@ def _upsert_tabela_local(conn: sqlite3.Connection, tabela: str, rows: list) -> i
                 if t_cand in ('M', 'P', 'V', 'B'):
                     dados_validos["tipo_ponto"] = t_cand
                 else:
+                    # O tipo vem do código SIGEF (ABC-P-0001 → P), nunca da 1ª letra do nome:
+                    # credenciados como "BJQ" faziam vértices de vizinhos virarem base ('B').
+                    from utils.geodesia_parser import REGEX_MARCO_SIGEF, REGEX_MARCO_SEM_PREFIXO
                     nv = str(dados_validos.get("nome_vertice") or "").strip().upper()
-                    dados_validos["tipo_ponto"] = nv[0] if nv.startswith(('M', 'P', 'V', 'B')) else 'V'
+                    m_sigef = REGEX_MARCO_SIGEF.search(nv) or REGEX_MARCO_SEM_PREFIXO.search(nv)
+                    if m_sigef:
+                        dados_validos["tipo_ponto"] = m_sigef.group(m_sigef.lastindex - 1).upper()
+                    elif "BASE" in nv:
+                        dados_validos["tipo_ponto"] = 'B'
+                    else:
+                        dados_validos["tipo_ponto"] = 'V'
 
             if "alt" in cols_locais and not dados_validos.get("alt") and r.get("altitude"):
                 dados_validos["alt"] = r.get("altitude")

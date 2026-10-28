@@ -727,12 +727,12 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
         logger.error(f"[VINCULO_TARDE] Falha crítica de transação ao atualizar rovers: {e_db}")
         raise e_db
 
-def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquivo_origem: str, dados_brutos: dict, dados_corrigidos: dict, base_id: int = None, tipo_ponto_base: str = 'M') -> int:
+def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquivo_origem: str, dados_brutos: dict, dados_corrigidos: dict, base_id: int = None, tipo_ponto_base: str = 'B') -> int:
     """
     Aplica a correção manual por translação plana rigorosa em todo o lote de pontos
     pertencente ao arquivo_origem, usando dados brutos de campo e coordenadas oficiais homologadas.
-    Insere/atualiza o ponto base de campo com coordenadas oficiais, respeitando o tipo
-    solicitado (tipo_ponto_base: 'M' para Base PPP ou 'B' para Base Física).
+    Insere/atualiza o ponto base de campo com coordenadas oficiais. A base é sempre 'B';
+    'M' só é aceito para não reclassificar silenciosamente uma base legada já gravada como marco.
     """
     import math
     import logging
@@ -749,7 +749,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     # tipo 'B' (Base Física). O ponto virava/permanecia 'M' silenciosamente, dando
     # a impressão de que "marcar como base" não tinha feito efeito.
     if tipo_ponto_base not in ('M', 'B'):
-        tipo_ponto_base = 'M'
+        tipo_ponto_base = 'B'
 
     try:
         wm = WorkspaceManager()
@@ -835,12 +835,18 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
     sig_base_alt = float(dados_corrigidos.get("sigma_alt") or 0.0100)
     
     if base_id is None:
+        # Reaproveita a base já existente com esse nome (B, ou M legado) mantendo o tipo gravado,
+        # para não duplicar a base nem reclassificá-la sem o usuário pedir.
         query_check_base = """
-            SELECT id FROM pontos
-            WHERE levantamento_id = ? AND nome_vertice = ? AND tipo_ponto = ?
+            SELECT id, tipo_ponto FROM pontos
+            WHERE levantamento_id = ? AND nome_vertice = ? AND tipo_ponto IN (?, 'M')
+            ORDER BY CASE WHEN tipo_ponto = ? THEN 0 ELSE 1 END
+            LIMIT 1
         """
-        row_base = execute_query(query_check_base, params=(levantamento_id, nome_base, tipo_ponto_base), fetch_one=True)
-        base_id = row_base["id"] if row_base else None
+        row_base = execute_query(query_check_base, params=(levantamento_id, nome_base, tipo_ponto_base, tipo_ponto_base), fetch_one=True)
+        if row_base:
+            base_id = row_base["id"]
+            tipo_ponto_base = row_base["tipo_ponto"]
     
     if base_id:
         query_upsert_base = """

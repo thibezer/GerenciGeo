@@ -181,15 +181,15 @@ export const fronteiraRoute: RouteDef = {
           
           fetchPontosLevantamento(levs[0].id)
             .then(pontos => {
-              const marcos = pontos.filter((p: any) => p.tipo_ponto === 'M');
-              marcos.sort((a: any, b: any) => (b.status_ponto === 'CORRIGIDO' ? 1 : 0) - (a.status_ponto === 'CORRIGIDO' ? 1 : 0));
+              const bases = pontos.filter((p: any) => p.tipo_ponto === 'B');
+              bases.sort((a: any, b: any) => (b.status_ponto === 'CORRIGIDO' ? 1 : 0) - (a.status_ponto === 'CORRIGIDO' ? 1 : 0));
               
-              if (marcos.length === 0) {
+              if (bases.length === 0) {
                 atualizarMonitorGeodesicoLote();
                 return;
               }
               
-              const base = marcos[0];
+              const base = bases[0];
               const lat = base.lat_corrigido !== null ? base.lat_corrigido : base.lat;
               const lon = base.lon_corrigido !== null ? base.lon_corrigido : base.lon;
               
@@ -230,7 +230,7 @@ export const fronteiraRoute: RouteDef = {
           const lat = matComDados.lat || BORDER_LAT;
           const lon = matComDados.lon || BORDER_LON;
           const dist = matComDados.distancia_fronteira_km || 0;
-          const status = matComDados.has_shapefile ? "Shapefile Individual" : "Base M do Banco de Dados";
+          const status = matComDados.has_shapefile ? "Shapefile Individual" : "Base do Banco de Dados";
           exibirDadosNoMonitor(`Matrícula ${matComDados.numero_matricula}`, status, lat, lon, dist);
           cardMonitor?.classList.remove('hidden');
           return;

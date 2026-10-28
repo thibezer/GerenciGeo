@@ -743,13 +743,23 @@ def get_pontos_sugeridos_levantamento(id: int):
         sugestoes = {}
         with DatabaseManager() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT tipo_ponto, MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto IN ('M', 'P', 'V') GROUP BY tipo_ponto", (prof_id,))
-            max_nums = {'M': 0, 'P': 0, 'V': 0}
-            for row in cursor.fetchall():
-                if row["tipo_ponto"] in max_nums: max_nums[row["tipo_ponto"]] = row["max_num"] if row["max_num"] else 0
+            if codigo_cred:
+                # Considera os códigos já dados em qualquer projeto (nome do vértice e código SIGEF do painel),
+                # além do banco de pontos homologados: sem isso, sugerir para dois pontos seguidos repetia o código.
+                from services.gestores.contagem_pontos import proximos_numeros_livres
+                cursor.execute("SELECT nome_vertice AS nome FROM pontos UNION ALL SELECT codigo_sigef FROM pontos WHERE codigo_sigef IS NOT NULL")
+                nomes = [r["nome"] for r in cursor.fetchall()]
+                cursor.execute("SELECT codigo_completo FROM banco_pontos WHERE profissional_id = ?", (prof_id,))
+                nomes += [r["codigo_completo"] for r in cursor.fetchall()]
+                proximos = proximos_numeros_livres(codigo_cred, nomes)
+            else:
+                cursor.execute("SELECT tipo_ponto, MAX(numero) as max_num FROM banco_pontos WHERE profissional_id = ? AND tipo_ponto IN ('M', 'P', 'V') GROUP BY tipo_ponto", (prof_id,))
+                proximos = {'M': 1, 'P': 1, 'V': 1}
+                for row in cursor.fetchall():
+                    if row["tipo_ponto"] in proximos: proximos[row["tipo_ponto"]] = (row["max_num"] or 0) + 1
 
             for t in ['M', 'P', 'V']:
-                proximo = max_nums[t] + 1
+                proximo = proximos[t]
                 sugestoes[t] = {
                     "proximo_numero": proximo,
                     "codigo_sugerido": f"{codigo_cred}-{t}-{proximo:04d}" if codigo_cred else f"{t}-{proximo}"

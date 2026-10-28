@@ -14,19 +14,29 @@ export function gerarPropriedadesMulti(pontosMulti: Ponto[], ctx: any): {
   const confrontantesList: Confrontante[] = ctx.confrontantesList ?? [];
   const matriculasList: any[] = ctx.matriculasList ?? [];
 
+  // Vazio também é um valor: 1 ponto com matrícula + 3 sem é "Vários", não a matrícula do único.
+  // Isso importa porque o "Aplicar" envia todos os valores exibidos para o lote inteiro.
   const resolveField = (extractor: (p: Ponto) => string): string => {
-    const vals = pontosMulti.map(extractor);
-    const unique = [...new Set(vals.filter(v => v !== ''))];
+    const unique = [...new Set(pontosMulti.map(extractor))];
     return unique.length === 1 ? unique[0] : '';
   };
+  const isMisto = (extractor: (p: Ponto) => string): boolean => new Set(pontosMulti.map(extractor)).size > 1;
 
-  const tipoResolvido = resolveField(p => (p.tipo_ponto || p.tipo || '').toUpperCase());
-  const matriculaResolvida = resolveField(p => p.matricula_id != null ? String(p.matricula_id) : '');
-  const metodoResolvido = resolveField(p => (p as any).metodo_posicionamento || '');
-  const limiteResolvido = resolveField(p => {
+  const extrairTipo = (p: Ponto) => (p.tipo_ponto || p.tipo || '').toUpperCase();
+  const extrairMatricula = (p: Ponto) => p.matricula_id != null ? String(p.matricula_id) : '';
+  const extrairMetodo = (p: Ponto) => (p as any).metodo_posicionamento || '';
+  const extrairLimite = (p: Ponto) => {
     const seg = segmentosList.find((s: Segmento) => String(s.ponto_inicio_id) === String(p.id));
     return p.tipo_limite_sigef || p.tipo_limite || (seg ? seg.tipo_limite_sigef : '') || '';
-  });
+  };
+
+  const tipoResolvido = resolveField(extrairTipo);
+  const matriculaResolvida = resolveField(extrairMatricula);
+  const matriculaMista = isMisto(extrairMatricula);
+  const metodoResolvido = resolveField(extrairMetodo);
+  const metodoMisto = isMisto(extrairMetodo);
+  const limiteResolvido = resolveField(extrairLimite);
+  const limiteMisto = isMisto(extrairLimite);
 
   const resolveConf = (field: 'nome' | 'matricula_imovel' | 'cns_confrontante'): string => {
     const vals = pontosMulti.map(p => {
@@ -36,7 +46,7 @@ export function gerarPropriedadesMulti(pontosMulti: Ponto[], ctx: any): {
       const cObj = confrontantesList.find((c: Confrontante) => String(c.id) === String(cId));
       return cObj ? (cObj[field] || '') : '';
     });
-    const unique = [...new Set(vals.filter(v => v !== ''))];
+    const unique = [...new Set(vals)];
     return unique.length === 1 ? unique[0] : '';
   };
 
@@ -48,7 +58,7 @@ export function gerarPropriedadesMulti(pontosMulti: Ponto[], ctx: any): {
   const todosIgnorados = ignorarVals.length > 0 && ignorarVals.every(v => v === true);
 
   const opcoesMatricula: OpcaoPropriedade[] = [
-    { id: '', rotulo: matriculaResolvida ? 'Manter / Sem Matrícula' : 'Várias (Sem Alteração)' },
+    { id: '', rotulo: matriculaMista ? 'Várias (Sem Alteração)' : (matriculaResolvida ? 'Manter' : 'Sem Matrícula (Sem Alteração)') },
     ...matriculasList.map((m: any) => ({
       id: String(m.id),
       rotulo: m.numero_matricula ? `Matrícula ${m.numero_matricula}` : `Matrícula #${m.id}`
@@ -60,11 +70,11 @@ export function gerarPropriedadesMulti(pontosMulti: Ponto[], ctx: any): {
     { id: 'M', rotulo: 'Marco [M]' },
     { id: 'P', rotulo: 'Ponto [P]' },
     { id: 'V', rotulo: 'Vértice Virtual [V]' },
-    { id: 'O', rotulo: 'Outro [O]' }
+    { id: 'B', rotulo: 'Base [B]' }
   ];
 
   const opcoesMetodo: OpcaoPropriedade[] = [
-    { id: '', rotulo: metodoResolvido ? 'Não Especificado' : 'Vários (Sem Alteração)' },
+    { id: '', rotulo: metodoMisto ? 'Vários (Sem Alteração)' : 'Não Especificado' },
     ...METODOS_SIGEF.map(m => ({
       id: m.codigo,
       rotulo: `${m.codigo} - ${m.nome}`
@@ -72,7 +82,7 @@ export function gerarPropriedadesMulti(pontosMulti: Ponto[], ctx: any): {
   ];
 
   const opcoesLimite: OpcaoPropriedade[] = [
-    { id: '', rotulo: limiteResolvido ? 'Não Especificado' : 'Vários (Sem Alteração)' },
+    { id: '', rotulo: limiteMisto ? 'Vários (Sem Alteração)' : 'Não Especificado' },
     ...LIMITES_SIGEF.map(l => ({
       id: l.codigo,
       rotulo: `${l.codigo} - ${l.nome}`

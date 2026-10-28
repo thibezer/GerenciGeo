@@ -326,8 +326,8 @@ def gerar_alertas_integridade():
             SELECT p.nome_vertice, p.arquivo_rinex, p.levantamento_id, l.pasta_projeto
             FROM pontos p
             JOIN levantamentos l ON p.levantamento_id = l.id
-            WHERE (p.tipo_ponto = 'M' OR p.tipo_ponto = 'B') 
-              AND p.arquivo_rinex IS NOT NULL 
+            WHERE p.tipo_ponto = 'B'
+              AND p.arquivo_rinex IS NOT NULL
               AND l.status = 'EM_ANDAMENTO'
               AND p.levantamento_id IN ({placeholders})
         """
@@ -397,7 +397,7 @@ def gerar_alertas_integridade():
         WHERE l.status = 'EM_ANDAMENTO'
           AND p.levantamento_id IN ({placeholders})
           AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
-          AND (p.tipo_ponto NOT IN ('M', 'B') OR p.tipo_ponto IS NULL)
+          AND (p.tipo_ponto != 'B' OR p.tipo_ponto IS NULL)
           AND NOT EXISTS (
             SELECT 1 FROM segmentos s
             WHERE s.levantamento_id = p.levantamento_id
@@ -423,6 +423,47 @@ def gerar_alertas_integridade():
                 "destino": "#levantamentos",
                 "rotulo": "Ir ao Levantamento",
                 "levantamento_id": pt.get('levantamento_id')
+            }
+        })
+
+    # 4.1. Bases gravadas como Marco (M): legado da época em que 'M' significava "Base PPP".
+    # Só sinaliza; a correção (trocar o tipo para B) é feita caso a caso pelo usuário.
+    marcos_suspeitos_query = f"""
+        SELECT p.levantamento_id, COUNT(*) as total, MIN(p.nome_vertice) as exemplo_vertice
+        FROM pontos p
+        JOIN levantamentos l ON p.levantamento_id = l.id
+        WHERE l.status = 'EM_ANDAMENTO'
+          AND p.levantamento_id IN ({placeholders})
+          AND p.tipo_ponto = 'M'
+          AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
+          AND (
+            EXISTS (SELECT 1 FROM pontos r WHERE r.ponto_base_id = p.id)
+            OR p.arquivo_rinex IS NOT NULL
+            OR p.arquivo_resultado_ppp IS NOT NULL
+            OR p.ignorar_poligono = 1
+            OR UPPER(p.nome_vertice) LIKE '%BASE%'
+            OR UPPER(p.nome_vertice) GLOB 'B[0-9][0-9][0-9][0-9][0-9][0-9]*'
+          )
+        GROUP BY p.levantamento_id
+    """
+    try:
+        marcos_suspeitos = [dict(r) for r in execute_query(marcos_suspeitos_query, params=tuple(lev_ids), fetch_all=True)]
+    except Exception as e:
+        logger.error(f"Erro ao buscar bases gravadas como marco: {e}")
+        marcos_suspeitos = []
+
+    for ms in marcos_suspeitos:
+        total = ms['total']
+        alertas.append({
+            "tipo": "ALERTA",
+            "icone": "flag",
+            "titulo": f"{total} Possível(is) Base(s) Gravada(s) como Marco",
+            "mensagem": f"Levantamento #{ms['levantamento_id']}: {total} ponto(s) tipo M com sinais de base (ex: {ms['exemplo_vertice']}). Confira e, se for base, troque o tipo para B.",
+            "acao": {
+                "tipo": "rota",
+                "destino": "#levantamentos",
+                "rotulo": "Ir ao Levantamento",
+                "levantamento_id": ms.get('levantamento_id')
             }
         })
 

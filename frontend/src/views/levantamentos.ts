@@ -811,11 +811,12 @@ export const levantamentosRoute: RouteDef = {
 
                // Copiado o mesmo estilo do mapa oficial do GerenciGeo
                const isBaseFisica = p.descricao && p.descricao.toLowerCase() === 'set_base';
-               const isBasePPP = p.nome && (p.nome.toUpperCase().startsWith('M') || p.nome.toUpperCase().includes('BASE'));
-               if (!isBaseFisica && !(p.nome && p.nome.toUpperCase().includes('BASE'))) coordsPerimetro.push(latLng);
+               // Nome iniciado por 'M' é marco de divisa (vértice do perímetro), não base
+               const isBasePeloNome = !!p.nome && p.nome.toUpperCase().includes('BASE');
+               if (!isBaseFisica && !isBasePeloNome) coordsPerimetro.push(latLng);
                let markerBg = 'bg-mint-vibrant text-[#0c1510]';
 
-               if (isBasePPP) {
+               if (isBasePeloNome) {
                   markerBg = 'bg-indigo-600 text-white';
                } else if (isBaseFisica) {
                   markerBg = 'bg-rose-600 text-white';
@@ -832,8 +833,8 @@ export const levantamentosRoute: RouteDef = {
                   iconSize: [20, 20]
                });
 
-               const popupRole = isBasePPP
-                  ? 'Base Homologada PPP (Provável)'
+               const popupRole = isBasePeloNome
+                  ? 'Base (Provável, pelo nome)'
                   : (isBaseFisica ? 'Base de Campo (RTK set_base)' : 'Vértice de Perímetro');
 
                const marker = L.marker(latLng, { icon: customIcon })
@@ -1142,7 +1143,9 @@ export const levantamentosRoute: RouteDef = {
             if (!resPts.ok) throw new Error(`Pontos: HTTP ${resPts.status}`);
             const pontos = await resPts.json();
             if (selectBase) {
-               const bases = pontos.filter((p: any) => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'B');
+               // Base é o tipo B; um M só entra se já for base de rovers (legado de quando M era "Base PPP")
+               const idsBase = new Set(pontos.map((p: any) => p.ponto_base_id).filter(Boolean));
+               const bases = pontos.filter((p: any) => p.tipo_ponto === 'B' || idsBase.has(p.id) || p.nome_vertice.toUpperCase().includes('BASE'));
                if (bases.length === 0) {
                   selectBase.innerHTML = '<option value="">[Sem Bases]</option>';
                   selectBase.disabled = true;

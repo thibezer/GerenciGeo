@@ -144,13 +144,14 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
 
     # Caso não tenha Shapefile ou tenha ocorrido erro, busca pontos geodésicos no banco.
     # REGRA 8 gemini.md: A distância deve ser calculada a partir da base do levantamento
-    # (ponto tipo 'M' ativo, prioritariamente CORRIGIDO) usando pyproj.Geod(ellps="GRS80").
+    # (ponto tipo 'B' ativo, prioritariamente CORRIGIDO) usando pyproj.Geod(ellps="GRS80").
+    # 'M' é marco de divisa, não base: sem base cadastrada, cai no fallback de todos os pontos.
     params_m = [propriedade_id]
     query_base_m = """
         SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
         FROM pontos p
         JOIN levantamentos l ON p.levantamento_id = l.id
-        WHERE l.propriedade_id = ? AND p.tipo_ponto = 'M'
+        WHERE l.propriedade_id = ? AND p.tipo_ponto = 'B'
           AND p.lat IS NOT NULL AND p.lon IS NOT NULL
           AND p.lat != 0.0 AND p.lon != 0.0
     """
@@ -162,9 +163,9 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
 
     rows = execute_query(query_base_m, params=tuple(params_m), fetch_all=True)
 
-    # Se não houver pontos tipo 'M', fallback para qualquer ponto do levantamento com coordenadas válidas
+    # Se não houver pontos tipo 'B', fallback para qualquer ponto do levantamento com coordenadas válidas
     if not rows:
-        logger.warning("[FRONTEIRA] Nenhum ponto tipo 'M' (base) encontrado. Usando fallback com todos os pontos válidos.")
+        logger.warning("[FRONTEIRA] Nenhum ponto tipo 'B' (base) encontrado. Usando fallback com todos os pontos válidos.")
         params_fb = [propriedade_id]
         query_fallback = """
             SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
@@ -202,12 +203,12 @@ def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = 
                     continue
 
         if menor_dist != float('inf'):
-            logger.info(f"[FRONTEIRA] Calculada menor distância a partir de ponto tipo 'M' do Banco: {menor_dist:.3f} km")
+            logger.info(f"[FRONTEIRA] Calculada menor distância a partir dos pontos do Banco: {menor_dist:.3f} km")
             return menor_dist, coord_referencia[0], coord_referencia[1]
 
     raise ErroDocumento(
-        "A propriedade selecionada não possui arquivos Shapefile enviados nem bases geodésicas (pontos tipo 'M') "
-        "no banco de dados. Por favor, envie o Shapefile da área ou cadastre a base PPP para calcular a distância."
+        "A propriedade selecionada não possui arquivos Shapefile enviados nem pontos geodésicos "
+        "no banco de dados. Por favor, envie o Shapefile da área ou cadastre a base (tipo B) para calcular a distância."
     )
 
 

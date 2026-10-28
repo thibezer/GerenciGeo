@@ -108,10 +108,27 @@ export function gerarPropriedadesVertice(p: Ponto, ctx: any): {
   const fusoAtual = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22S';
   const tipoLimiteCalculado = p.tipo_limite_sigef || p.tipo_limite || (seg ? seg.tipo_limite_sigef : '') || '';
 
+  // Tipos aceitos pelo backend (M/P/V/B). 'B' é base de campo; 'M' é marco de divisa.
+  const tipos: SeletorTipoItem[] = [
+    { id: 'M', rotulo: 'Marco [M]', subtipo: 'Limite Fixo Artificial' },
+    { id: 'P', rotulo: 'Ponto [P]', subtipo: 'Limite Natural ou Inacessível' },
+    { id: 'V', rotulo: 'Vértice Virtual [V]', subtipo: 'Cálculo de Projeção' },
+    { id: 'B', rotulo: 'Base [B]', subtipo: 'Ocupação de Base (fora do perímetro)' }
+  ];
+
+  const tipoAtual = (p.tipo_ponto || p.tipo || '').toUpperCase();
+  const tipoSelecionadoId = tipos.some(t => t.id === tipoAtual) ? tipoAtual : '';
+  const opcoesTipo: OpcaoPropriedade[] = [
+    ...(tipoSelecionadoId ? [] : [{ id: '', rotulo: 'Não Definido' }]),
+    ...tipos.map(t => ({ id: String(t.id), rotulo: String(t.rotulo) }))
+  ];
+
   const categorias = construirCategoriasVertice({
     p,
     isDisabled,
     origemTexto,
+    tipoSelecionadoId,
+    opcoesTipo,
     opcoesMatricula,
     opcoesMetodo,
     opcoesLimite,
@@ -128,17 +145,6 @@ export function gerarPropriedadesVertice(p: Ponto, ctx: any): {
     confCartorio,
     tipoLimiteCalculado
   });
-
-  // Seletor de Tipo Superior (M / V / P / O)
-  const tipos: SeletorTipoItem[] = [
-    { id: 'M', rotulo: 'Marco [M]', subtipo: 'Limite Fixo Artificial' },
-    { id: 'P', rotulo: 'Ponto [P]', subtipo: 'Limite Natural ou Inacessível' },
-    { id: 'V', rotulo: 'Vértice Virtual [V]', subtipo: 'Cálculo de Projeção' },
-    { id: 'O', rotulo: 'Outro [O]', subtipo: 'Não Normatizado' }
-  ];
-
-  const tipoAtual = (p.tipo_ponto || p.tipo || 'M').toUpperCase();
-  const tipoSelecionadoId = tipos.some(t => t.id === tipoAtual) ? tipoAtual : 'M';
 
   return {
     categorias,

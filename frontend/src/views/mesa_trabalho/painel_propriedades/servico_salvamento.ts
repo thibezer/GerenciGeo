@@ -39,9 +39,11 @@ export function salvarPontoDebounced(
     case 'matricula_id':
       pendingPontoUpdates.matricula_id = novoValor !== '' && novoValor != null ? Number(novoValor) : null;
       break;
-    case 'tipo_ponto':
-      pendingPontoUpdates.tipo_ponto = String(novoValor ?? '').toUpperCase();
+    case 'tipo_ponto': {
+      const tipo = String(novoValor ?? '').trim().toUpperCase();
+      if (tipo) pendingPontoUpdates.tipo_ponto = tipo;
       break;
+    }
     case 'e_corrigido':
       pendingPontoUpdates.e_corrigido = parseNumberOrNull(novoValor);
       break;
@@ -128,9 +130,10 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
       Object.assign(pontoAlvo, data.ponto);
     }
 
-    if (payload.matricula_id !== undefined) {
+    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined) {
       // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
       // as listas locais ficariam desatualizadas e o mapa seguiria desenhando o vértice no perímetro antigo.
+      // O tipo também muda o perímetro (B fica de fora), os filtros de Bases e as cores do mapa.
       await ctx.loadLevantamentoDetails?.();
       ctx.atualizarPainelPropriedades?.();
       return;
@@ -226,13 +229,18 @@ export async function sugerirCodigoSIGEF(p: Ponto, ctx: any, onAtualizado: (codi
       throw new Error('Falha ao obter sugestões de código.');
     }
     const data = await res.json();
-    const sugestoes: string[] = data.sugestoes || [];
-    if (sugestoes.length === 0) {
-      showToast('Nenhum código sugerido disponível.', 'info');
+    // O backend devolve uma sugestão por tipo ({ M, P, V }): a letra do código SIGEF tem de ser a do tipo do ponto
+    const tipo = String(p.tipo_ponto || p.tipo || '').toUpperCase();
+    if (tipo === 'B') {
+      showToast('Base (B) não recebe código SIGEF: só marcos (M), pontos (P) e vértices virtuais (V).', 'info');
+      return;
+    }
+    const proximoCodigo: string | undefined = data.sugestoes?.[tipo]?.codigo_sugerido;
+    if (!proximoCodigo) {
+      showToast('Nenhum código sugerido disponível para este tipo de ponto.', 'info');
       return;
     }
 
-    const proximoCodigo = sugestoes[0];
     onAtualizado(proximoCodigo);
     salvarPontoDebounced(p, 'codigo_sigef', proximoCodigo, ctx, 50);
     showToast(`Código sugerido aplicado: ${proximoCodigo}`, 'success');

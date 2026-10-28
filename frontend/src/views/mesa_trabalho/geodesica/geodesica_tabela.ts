@@ -63,8 +63,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
 
   // Contagens dinâmicas de filtros rápidos
   const totalTodos = pontosMat.length;
-  const totalBases = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B').length;
-  const totalRovers = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B').length;
+  const totalBases = pontosMat.filter(p => p.tipo_ponto === 'B' || p.tipo === 'B').length;
+  const totalRovers = pontosMat.filter(p => p.tipo_ponto !== 'B' && p.tipo !== 'B').length;
   const totalBrutos = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO').length;
   const totalCorrigidos = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO').length;
 
@@ -167,7 +167,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
   const uiTabela = document.getElementById('ui-tbl-pontos-triagem') as any;
   if (uiTabela) {
     const pontosProcessados = pontosMat.map(p => {
-      const isBasePPP = p.tipo_ponto === 'M' || p.tipo === 'M';
+      const isMarco = p.tipo_ponto === 'M' || p.tipo === 'M';
       const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
       const ordemExibida = mapaOrdemReal.get(p.id) || '-';
 
@@ -219,7 +219,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         delta_h_num: deltaHNum,
         status_str: isCorrigido ? 'CORRIGIDO' : 'BRUTO',
         is_corrigido: isCorrigido,
-        is_base_ppp: isBasePPP,
+        is_marco: isMarco,
         is_base_fisica: isBaseFisica
       };
     });
@@ -253,7 +253,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         alinhamento: 'esquerda',
         ordenavel: true,
         render: (_: any, item: any) => {
-          const colorClass = item.is_base_ppp ? 'text-indigo-400 font-bold' : (item.is_base_fisica ? 'text-rose-400 font-bold' : 'text-white');
+          const colorClass = item.is_marco ? 'text-indigo-400 font-bold' : (item.is_base_fisica ? 'text-rose-400 font-bold' : 'text-white');
           const div = document.createElement('div');
           div.className = 'flex items-center gap-1.5 w-full';
           div.setAttribute('data-ponto-id', String(item.id));
@@ -285,7 +285,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         alinhamento: 'centro',
         ordenavel: true,
         render: (_: any, item: any) => {
-          if (item.is_base_ppp) return htmlToEl('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">M</span>');
+          if (item.is_marco) return htmlToEl('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300">M</span>');
           if (item.is_base_fisica) return htmlToEl('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">B</span>');
           return htmlToEl(`<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/50">${item.tipo_ponto || item.tipo || '-'}</span>`);
         }

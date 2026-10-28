@@ -444,6 +444,10 @@ class TxtGeodesicParser:
                 tipo = match_completo.group(2)
             elif match_simples:
                 tipo = match_simples.group(1)
+            elif p.get("descricao") == "set_base" or "BASE" in nome_upper or re.match(r"^B\d{6}(_\d+)?$", nome_upper):
+                # Ocupação de base no arquivo (set_base, "BASE" ou sessão do receptor como B040109):
+                # é 'B' (fora do perímetro), nunca 'M' (marco de divisa)
+                tipo = "B"
             elif nome_upper.startswith("M"):
                 tipo = "M"
             elif nome_upper.startswith("V"):

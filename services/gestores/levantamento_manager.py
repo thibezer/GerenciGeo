@@ -265,7 +265,11 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
         # Monta placeholders ?, ?, ? ...
         placeholders = ', '.join(['?'] * len(pontos_ids))
 
-        rows = execute_query(f"SELECT id, ponto_vizinho, matricula_id, nome_vertice FROM pontos WHERE levantamento_id = ? AND id IN ({placeholders})", params=(levantamento_id, *pontos_ids), fetch_all=True)
+        rows = execute_query(
+            f"SELECT id, ponto_vizinho, matricula_id, nome_vertice, tipo_ponto, ignorar_poligono, origem_homologada, camada_ciclo_vida "
+            f"FROM pontos WHERE levantamento_id = ? AND id IN ({placeholders})",
+            params=(levantamento_id, *pontos_ids), fetch_all=True
+        )
         valid_ids = {row['id']: dict(row) for row in rows if row['ponto_vizinho'] != 1}
 
         if not valid_ids:
@@ -317,6 +321,15 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                     update_fields.append("tipo_ponto = ?")
                     update_values.append(tipo_ponto)
 
+                    tipo_anterior = valid_ids[pid].get('tipo_ponto')
+                    if tipo_ponto == 'B' and tipo_anterior != 'B':
+                        # Base não é amarrada a outra base
+                        update_fields.append("ponto_base_id = ?")
+                        update_values.append(None)
+                    # Base fica fora do perímetro: entrar ou sair de 'B' muda as divisas da matrícula
+                    if (tipo_ponto == 'B') != (tipo_anterior == 'B') and valid_ids[pid]['matricula_id']:
+                        matriculas_afetadas.add(valid_ids[pid]['matricula_id'])
+
                 if 'metodo_posicionamento' in p_update and p_update['metodo_posicionamento'] is not None:
                     update_fields.append("metodo_posicionamento = ?")
                     update_values.append(p_update['metodo_posicionamento'])
@@ -361,6 +374,23 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
                     val_seq = p_update['sequencia_travada_id']
                     update_fields.append("sequencia_travada_id = ?")
                     update_values.append(str(val_seq).strip() if val_seq and str(val_seq).strip() else None)
+
+                # Mesma regra de camada da edição individual (atualizar_ponto_geodesico)
+                if any(k in p_update for k in ('tipo_ponto', 'matricula_id', 'ignorar_poligono')):
+                    atual = valid_ids[pid]
+                    mat_final = p_update['matricula_id'] if 'matricula_id' in p_update else atual['matricula_id']
+                    mat_final = int(mat_final) if mat_final is not None and int(mat_final) > 0 else None
+                    ign_final = p_update.get('ignorar_poligono') if p_update.get('ignorar_poligono') is not None else atual['ignorar_poligono']
+                    tipo_final = p_update.get('tipo_ponto') or atual['tipo_ponto']
+                    if atual.get('origem_homologada') == 1:
+                        nova_camada = "HOMOLOGADO"
+                    elif mat_final and not ign_final and tipo_final != 'B':
+                        nova_camada = "PERIMETRO"
+                    else:
+                        nova_camada = "CAMPO"
+                    if nova_camada != atual.get('camada_ciclo_vida'):
+                        update_fields.append("camada_ciclo_vida = ?")
+                        update_values.append(nova_camada)
 
                 if update_fields:
                     update_values.append(pid)
@@ -485,6 +515,12 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         pt_antigo = dict(row)
         levantamento_id = pt_antigo["levantamento_id"]
 
+        # Base de campo é o tipo 'B'; 'M' é marco de divisa (vértice do perímetro). Um 'M' só continua
+        # sendo tratado como base quando já tem rovers vinculados: legado da época em que 'M' significava
+        # "Base PPP" (casos listados por scripts/diagnosticar_bases_como_marco.py).
+        row_rovers = execute_query("SELECT COUNT(*) AS n FROM pontos WHERE ponto_base_id = ?", params=(pid,), fetch_one=True)
+        base_legada_marco = pt_antigo["tipo_ponto"] == "M" and bool(row_rovers and row_rovers["n"])
+
         # Variáveis de controle para disparo posterior de lógicas de domínio
         reordenar_poligono_reativo = False
         recalcular_rover = False
@@ -529,7 +565,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         
         tipo_atual = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
         
-        if (tipo_atual == 'M' or tipo_atual == 'B') and n_corr is not None and e_corr is not None and alt_corr is not None:
+        eh_base = tipo_atual == 'B' or (tipo_atual == 'M' and base_legada_marco)
+
+        if eh_base and n_corr is not None and e_corr is not None and alt_corr is not None:
             # 1. Caso o ponto base possua arquivo_origem (Lote de RTK / Caderneta importada)
             if pt_antigo.get("arquivo_origem"):
                 corrigir_lote_rtk = True
@@ -547,8 +585,8 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 data["status_ponto"] = "CORRIGIDO"
                 data["status_correcao"] = "CORRIGIDO"
 
-        elif (tipo_atual in ('P', 'V')) and n_corr is not None and e_corr is not None:
-            # Para pontos de detalhe (P/V): converte UTM → Geodésico e salva lat/lon
+        elif (tipo_atual in ('M', 'P', 'V')) and n_corr is not None and e_corr is not None:
+            # Para vértices do perímetro (M/P/V): converte UTM → Geodésico e salva lat/lon
             zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
             epsg_utm = f"319{60 + zona}"
             transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
@@ -603,12 +641,16 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             campos_update.append("tipo_ponto = ?")
             valores_update.append(tipo_ponto)
             
-            if tipo_ponto in ['M', 'B']:
+            if tipo_ponto == 'B':
                 # Usa placeholder seguro em vez de NULL literal para evitar mismatch de parâmetros
                 campos_update.append("ponto_base_id = ?")
                 valores_update.append(None)
                 pt_antigo["ponto_base_id"] = None
-                
+
+            # Base fica fora do perímetro: entrar ou sair de 'B' muda os vértices das divisas da matrícula
+            if (tipo_ponto == 'B') != (pt_antigo["tipo_ponto"] == 'B') and pt_antigo["matricula_id"]:
+                reordenar_poligono_reativo = True
+
             HistoricoCampoLogger.registrar_evento(
                 levantamento_id=levantamento_id,
                 tipo_evento="EDICAO_PONTO",
@@ -780,7 +822,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             )
             
             novo_status = status_val or pt_antigo["status_ponto"]
-            if pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
+            if base_legada_marco and pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
                 propagar_base_bloco = True
 
         # E. Executa o UPDATE do ponto, confrontante e segmento sob uma única transação atômica
@@ -897,7 +939,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
             logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
 
-        if recalcular_rover and pt_antigo.get("tipo_ponto") in ["P", "V"]:
+        if recalcular_rover and pt_antigo.get("tipo_ponto") in ["M", "P", "V"]:
             new_base_id = pt_antigo.get("ponto_base_id")
             recomputar_rover_apos_vinculo_base(pid, new_base_id, pt_antigo)
 

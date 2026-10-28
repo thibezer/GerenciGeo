@@ -15,9 +15,9 @@ export function aplicarFiltrosMesa<T extends Record<string, any>>(ctx: MesaTraba
 
   if (ctx.filtroRapidoAtivo !== 'todos') {
     if (ctx.filtroRapidoAtivo === 'bases') {
-      lista = lista.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
+      lista = lista.filter(p => p.tipo_ponto === 'B' || p.tipo === 'B');
     } else if (ctx.filtroRapidoAtivo === 'rovers') {
-      lista = lista.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      lista = lista.filter(p => p.tipo_ponto !== 'B' && p.tipo !== 'B');
     } else if (ctx.filtroRapidoAtivo === 'brutos') {
       lista = lista.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
     } else if (ctx.filtroRapidoAtivo === 'corrigidos') {

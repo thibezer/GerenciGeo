@@ -39,9 +39,9 @@ export function filtrarPontosParaExportacao(ctx: MesaTrabalhoContext): any[] {
   // 2. Filtros rápidos de tipo/status
   if (ctx.filtroRapidoAtivo !== 'todos') {
     if (ctx.filtroRapidoAtivo === 'bases') {
-      pontos = pontos.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
+      pontos = pontos.filter(p => p.tipo_ponto === 'B' || p.tipo === 'B');
     } else if (ctx.filtroRapidoAtivo === 'rovers') {
-      pontos = pontos.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      pontos = pontos.filter(p => p.tipo_ponto !== 'B' && p.tipo !== 'B');
     } else if (ctx.filtroRapidoAtivo === 'brutos') {
       pontos = pontos.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
     } else if (ctx.filtroRapidoAtivo === 'corrigidos') {
@@ -68,8 +68,8 @@ export function filtrarPontosParaExportacao(ctx: MesaTrabalhoContext): any[] {
 // ─────────────────────────────────────────────────────────────────
 
 const MAPA_BLOCOS_CAD: Record<string, string> = {
-  'M': 'BL-MEMOVEM3',  // Marco Base PPP
-  'B': 'BL-MEMOVEM3',  // Marco Base Auxiliar
+  'M': 'BL-MEMOVEM3',  // Marco de divisa (materializado)
+  'B': 'BL-MEMOVEM3',  // Base de campo (mesmo bloco de marco materializado)
   'V': 'BL-MEMOVEV3',  // Vértice Virtual
   'P': 'BL-MEMOVEP3',  // Ponto de Detalhe
   'O': 'BL-MEMOVEP3',  // Outros

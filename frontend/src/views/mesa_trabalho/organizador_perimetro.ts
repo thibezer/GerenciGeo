@@ -56,8 +56,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
 
   // Calcula as contagens dinâmicas de filtros rápidos antes de aplicar o filtro ativo
   const totalTodos = pontosMat.length;
-  const totalBases = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B').length;
-  const totalRovers = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B').length;
+  const totalBases = pontosMat.filter(p => p.tipo_ponto === 'B' || p.tipo === 'B').length;
+  const totalRovers = pontosMat.filter(p => p.tipo_ponto !== 'B' && p.tipo !== 'B').length;
   const totalBrutos = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO').length;
   const totalCorrigidos = pontosMat.filter(p => p.status_ponto === 'CORRIGIDO' || p.status_correcao === 'CORRIGIDO').length;
 
@@ -65,9 +65,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
   if (btnTodos) btnTodos.textContent = `Todos (${totalTodos})`;
   // Mantemos atualização para compatibilidade das classes se houver
   const btnBasesEl = document.querySelector('.btn-filtro-rapido[data-filtro="bases"]');
-  if (btnBasesEl) btnBasesEl.textContent = `Bases (M/B) (${totalBases})`;
+  if (btnBasesEl) btnBasesEl.textContent = `Bases (B) (${totalBases})`;
   const btnRoversEl = document.querySelector('.btn-filtro-rapido[data-filtro="rovers"]');
-  if (btnRoversEl) btnRoversEl.textContent = `Rovers (P/V) (${totalRovers})`;
+  if (btnRoversEl) btnRoversEl.textContent = `Rovers (M/P/V) (${totalRovers})`;
   const btnBrutosEl = document.querySelector('.btn-filtro-rapido[data-filtro="brutos"]');
   if (btnBrutosEl) btnBrutosEl.textContent = `Brutos (${totalBrutos})`;
   const btnCorrigidosEl = document.querySelector('.btn-filtro-rapido[data-filtro="corrigidos"]');
@@ -79,9 +79,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
 
   if (ctx.filtroRapidoAtivo !== 'todos') {
     if (ctx.filtroRapidoAtivo === 'bases') {
-      pontosMat = pontosMat.filter(p => p.tipo_ponto === 'M' || p.tipo === 'M' || p.tipo_ponto === 'B' || p.tipo === 'B');
+      pontosMat = pontosMat.filter(p => p.tipo_ponto === 'B' || p.tipo === 'B');
     } else if (ctx.filtroRapidoAtivo === 'rovers') {
-      pontosMat = pontosMat.filter(p => p.tipo_ponto !== 'M' && p.tipo !== 'M' && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+      pontosMat = pontosMat.filter(p => p.tipo_ponto !== 'B' && p.tipo !== 'B');
     } else if (ctx.filtroRapidoAtivo === 'brutos') {
       pontosMat = pontosMat.filter(p => p.status_ponto !== 'CORRIGIDO' && p.status_correcao !== 'CORRIGIDO');
     } else if (ctx.filtroRapidoAtivo === 'corrigidos') {

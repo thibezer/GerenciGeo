@@ -68,7 +68,9 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
       btnProcessarModalEl.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Iniciar Processamento`;
     }
 
-    const basesPossiveis = ctx.pontosList.filter(p => p.tipo_ponto === 'M' || p.nome_vertice.toUpperCase().includes('BASE') || p.tipo_ponto === 'BASE');
+    // Base é o tipo B; um M só entra se já for base de rovers (legado de quando M era "Base PPP")
+    const idsBase = new Set(ctx.pontosList.map(p => p.ponto_base_id).filter(Boolean));
+    const basesPossiveis = ctx.pontosList.filter(p => p.tipo_ponto === 'B' || idsBase.has(p.id) || p.nome_vertice.toUpperCase().includes('BASE'));
     const basesParaRenderizar = basesPossiveis.length > 0 ? basesPossiveis : ctx.pontosList;
 
     filaContainer!.innerHTML = ctx.filesQueue.map((item, idx) => {

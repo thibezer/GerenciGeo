@@ -90,6 +90,18 @@ def _resumir_tipo(codigo: str, tipo: str, usos: Dict[int, set], com_lacunas: boo
     }
 
 
+def proximos_numeros_livres(codigo: str, nomes: Iterable[str]) -> Dict[str, int]:
+    """Próximo número de cada tipo (M/P/V) do credenciado, considerando todos os nomes/códigos já usados.
+    Mesma regra da contagem: números isolados no topo (ex.: 9999) não empurram a sequência."""
+    codigo = str(codigo or "").upper()
+    usados: Dict[str, Dict[int, set]] = defaultdict(dict)
+    for nome in nomes:
+        parsed = interpretar_nome(nome)
+        if parsed and parsed[0] == codigo:
+            usados[parsed[1]][parsed[2]] = set()
+    return {t: _resumir_tipo(codigo, t, usados.get(t, {}), com_lacunas=False)["proximo"] for t in TIPOS}
+
+
 def calcular_contagem(pontos: List[dict], levantamentos: Dict[int, dict], profissionais: List[dict]) -> dict:
     """
     pontos: [{nome_vertice, levantamento_id}]

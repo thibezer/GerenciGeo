@@ -5,6 +5,8 @@ export interface ParametrosCategoriasVertice {
   p: Ponto;
   isDisabled: boolean;
   origemTexto: string;
+  tipoSelecionadoId: string;
+  opcoesTipo: OpcaoPropriedade[];
   opcoesMatricula: OpcaoPropriedade[];
   opcoesMetodo: OpcaoPropriedade[];
   opcoesLimite: OpcaoPropriedade[];
@@ -27,6 +29,8 @@ export function construirCategoriasVertice(params: ParametrosCategoriasVertice):
     p,
     isDisabled,
     origemTexto,
+    tipoSelecionadoId,
+    opcoesTipo,
     opcoesMatricula,
     opcoesMetodo,
     opcoesLimite,
@@ -57,6 +61,17 @@ export function construirCategoriasVertice(params: ParametrosCategoriasVertice):
           valor: p.nome_vertice || p.ponto_nome || '',
           placeholder: 'Ex: M-01',
           somenteLeitura: isDisabled
+        },
+        {
+          id: 'tipo_ponto',
+          rotulo: 'Tipo do Ponto',
+          tipo: isDisabled ? 'readonly' : 'selecao',
+          valor: isDisabled
+            ? String(opcoesTipo.find(o => String(o.id) === tipoSelecionadoId)?.rotulo ?? (p.tipo_ponto || '-'))
+            : tipoSelecionadoId,
+          opcoes: opcoesTipo,
+          somenteLeitura: isDisabled,
+          dica: 'M: marco de divisa · P: ponto · V: vértice virtual · B: base de campo (fica fora do perímetro)'
         },
         {
           id: 'codigo_sigef',

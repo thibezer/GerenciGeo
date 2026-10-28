@@ -246,7 +246,7 @@ class ExportacaoService:
                 tip_lim = ""
                 cns = p.get("pt_cns_confrontante") or ""
                 matr = p.get("pt_matricula_imovel") or ""
-                if p["tipo_ponto"] == "M":
+                if p["tipo_ponto"] == "B":
                     confrontante = "APOIO BASE PPP"
 
             # Sanitização simples para evitar vírgulas internas no CSV
