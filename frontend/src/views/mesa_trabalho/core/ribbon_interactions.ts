@@ -352,6 +352,22 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
     };
     mesaRibbon.addEventListener('ui-ferramenta', onFerramenta);
     cleanups.push(() => mesaRibbon.removeEventListener('ui-ferramenta', onFerramenta));
+
+    // Ouvinte para redimensionamento do viewport do mapa quando o Ribbon for recolhido ou expandido
+    const onRecolhidoChange = () => {
+      requestAnimationFrame(() => {
+        try {
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
+        } catch (e) {}
+      });
+      setTimeout(() => {
+        try {
+          if (ctx.triagemMap) ctx.triagemMap.invalidateSize?.();
+        } catch (e) {}
+      }, 150);
+    };
+    mesaRibbon.addEventListener('ui-recolhido-change', onRecolhidoChange);
+    cleanups.push(() => mesaRibbon.removeEventListener('ui-recolhido-change', onRecolhidoChange));
   }
 
   // 2. Botão Voltar para Levantamentos

@@ -21,45 +21,45 @@ export const REGIMES_BENS_OPTIONS = `
 export const renderMesaTrabalho = (): string => {
   return `
     <div class="workspace-wrapper animate-in fade-in duration-300">
-      <header class="ribbon-master-container fluent-ribbon-theme">
-        <!-- Camada 1 — App Bar (Application Menu Bar) com Fluent UI -->
+      <header class="ribbon-master-container">
+        <!-- Camada 1 — App Bar (Application Menu Bar) -->
         <div id="ribbon-layer1" class="ribbon-layer1">
 
           <div class="rl1-qat">
-            <fluent-button appearance="transparent" class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
+            <button class="rl1-btn" id="btn-voltar-lista" title="Voltar para levantamentos (Esc)" type="button">
               <i data-lucide="chevron-left"></i><span>Voltar</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="btn-salvar-rascunho" title="Salvar rascunho (Ctrl+S)" type="button">
+            </button>
+            <button class="rl1-btn" id="btn-salvar-rascunho" title="Salvar rascunho (Ctrl+S)" type="button">
               <i data-lucide="save"></i><span>Salvar</span>
-            </fluent-button>
+            </button>
             
-            <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
+            <div class="rl1-separator"></div>
             
-            <!-- Botões de Navegação Global Fluent UI -->
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-dashboard" title="Dashboard" type="button">
+            <!-- Botões de Navegação Global -->
+            <button class="rl1-btn" id="nav-btn-dashboard" title="Dashboard" type="button">
               <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-clientes" title="Clientes" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-clientes" title="Clientes" type="button">
               <i data-lucide="users"></i><span>Clientes</span>
-            </fluent-button>
-            <fluent-button appearance="primary" class="rl1-btn active" id="nav-btn-levantamentos" title="Levantamentos" type="button">
+            </button>
+            <button class="rl1-btn active" id="nav-btn-levantamentos" title="Levantamentos" type="button">
               <i data-lucide="map-pin"></i><span>Levantamentos</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-propriedades" title="Propriedades" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-propriedades" title="Propriedades" type="button">
               <i data-lucide="home"></i><span>Propriedades</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-hgo" title="Organizador HGO" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-hgo" title="Organizador HGO" type="button">
               <i data-lucide="folder-tree"></i><span>HGO</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-fronteira" title="Área de Fronteira" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-fronteira" title="Área de Fronteira" type="button">
               <i data-lucide="file-check"></i><span>Fronteira</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-ccir" title="Banco CCIR" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-ccir" title="Banco CCIR" type="button">
               <i data-lucide="database"></i><span>CCIR</span>
-            </fluent-button>
-            <fluent-button appearance="transparent" class="rl1-btn" id="nav-btn-configuracoes" title="Configurações" type="button">
+            </button>
+            <button class="rl1-btn" id="nav-btn-configuracoes" title="Configurações" type="button">
               <i data-lucide="settings"></i><span>Configurações</span>
-            </fluent-button>
+            </button>
           </div>
           <div class="rl1-spacer"></div>
           <div class="rl1-context">
@@ -76,27 +76,27 @@ export const renderMesaTrabalho = (): string => {
               <option value="" class="bg-[#0c1510]">Selecione...</option>
             </select>
           </div>
-          <fluent-divider orientation="vertical" class="rl1-separator"></fluent-divider>
+          <div class="rl1-separator"></div>
           <div class="rl1-user">
-            <fluent-avatar class="rl1-avatar" id="avatar-user" name="Administrador" initials="AD" color="colorful" title="Administrador"></fluent-avatar>
+            <div class="rl1-avatar" id="avatar-user" title="Administrador">AD</div>
           </div>
         </div>
 
-        <!-- Camada 2 — Metadados do Projeto com Fluent UI Badge -->
+        <!-- Camada 2 — Metadados do Projeto -->
         <div id="ribbon-layer2" class="ribbon-layer2">
           <span class="rl2-prop-name" id="txt-nome-propriedade">Carregando...</span>
-          <fluent-badge appearance="filled" color="success" class="rl2-badge status-ativo" id="badge-status-lev">—</fluent-badge>
-          <fluent-divider orientation="vertical" class="rl2-sep"></fluent-divider>
+          <span class="rl2-badge status-ativo text-[9px] px-2 py-0.5 rounded-full font-mono uppercase font-semibold tracking-wider border border-mint-vibrant/25 bg-mint-vibrant/10 text-mint-vibrant" id="badge-status-lev">—</span>
+          <div class="rl2-sep"></div>
           <span class="rl2-meta-item">
             <span class="rl2-meta-label">Cliente:</span>
             <span class="rl2-meta-value" id="txt-nome-cliente">—</span>
           </span>
-          <fluent-divider orientation="vertical" class="rl2-sep"></fluent-divider>
+          <div class="rl2-sep"></div>
           <span class="rl2-meta-item">
             <span class="rl2-meta-label">CAR:</span>
             <span class="rl2-meta-value font-mono" id="txt-codigo-car">—</span>
           </span>
-          <fluent-divider orientation="vertical" class="rl2-sep"></fluent-divider>
+          <div class="rl2-sep"></div>
           <span class="rl2-meta-item">
             <span class="rl2-meta-label">TRT:</span>
             <span class="rl2-meta-value font-mono" id="txt-numero-trt">—</span>

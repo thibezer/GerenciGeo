@@ -752,8 +752,9 @@ td[colspan][class*="text-center"] {
 
 /* Redimensionamento automático do Canvas inferior */
 .workspace-body {
-    flex-grow: 1;
-    height: calc(100vh - var(--ribbon-h)); /* Ribbon: 30px + 24px + 26px + 92px */
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: auto !important;
     overflow: hidden;
     position: relative;
 }
@@ -762,17 +763,19 @@ td[colspan][class*="text-center"] {
 .ribbon-master-container {
     display: flex;
     flex-direction: column;
-    background-color: #1a1e1b;
-    border-bottom: 2px solid #2d332f;
+    background-color: #0b0e0c;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     position: sticky;
     top: 0;
     z-index: 2000;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--ui-fonte-base, 'Inter', system-ui, sans-serif);
     color: #e0e0e0;
     user-select: none;
     width: 100%;
-    height: var(--ribbon-h); /* Altura fixa controlada (30px + 24px + 26px + 92px) */
+    height: auto !important;
+    min-height: 0 !important;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 /* Camada 1 */
@@ -996,15 +999,15 @@ ui-ribbon#mesa-ribbon {
   display: block;
   flex-shrink: 0;
   width: 100%;
-  --ui-cor-superficie: #111714;
-  --ui-cor-fundo-elevado: #151d18;
+  --ui-cor-superficie: #0b0e0c;
+  --ui-cor-fundo-elevado: #101512;
   --ui-cor-primaria: #00E08A;
   --ui-cor-borda: rgba(255, 255, 255, 0.08);
   --ui-cor-texto: rgba(255, 255, 255, 0.90);
   --ui-cor-texto-secundario: rgba(255, 255, 255, 0.50);
   --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
   --ui-fonte-base: 'Inter', system-ui, sans-serif;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
 }
 
 /* Camada 3 (Legado) */
@@ -1927,9 +1930,11 @@ fluent-dropdown.rl1-select {
 .workspace-body {
   display: grid !important;
   grid-template-columns: var(--props-panel-w) 1fr !important;
-  height: calc(100vh - var(--ribbon-h)) !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: auto !important;
   overflow: hidden !important;
-  padding: 0 !important; /* Remove paddings que causam scroll */
+  padding: 0 !important;
   margin: 0 !important;
   gap: 0 !important;
   background: var(--geo-bg-base);
