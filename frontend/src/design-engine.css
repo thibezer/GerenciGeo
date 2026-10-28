@@ -991,7 +991,23 @@ td[colspan][class*="text-center"] {
 }
 .rl2-meta-value.font-mono { font-family: monospace; font-size: 10px; }
 
-/* Camada 3 */
+/* Customização do componente Oficial <ui-ribbon> da Mesa de Trabalho */
+ui-ribbon#mesa-ribbon {
+  display: block;
+  flex-shrink: 0;
+  width: 100%;
+  --ui-cor-superficie: #111714;
+  --ui-cor-fundo-elevado: #151d18;
+  --ui-cor-primaria: #00E08A;
+  --ui-cor-borda: rgba(255, 255, 255, 0.08);
+  --ui-cor-texto: rgba(255, 255, 255, 0.90);
+  --ui-cor-texto-secundario: rgba(255, 255, 255, 0.50);
+  --ui-cor-hover-menu: rgba(255, 255, 255, 0.08);
+  --ui-fonte-base: 'Inter', system-ui, sans-serif;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Camada 3 (Legado) */
 .ribbon-layer3 {
   background: #111714;
   border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -2015,12 +2031,6 @@ fluent-dropdown.rl1-select {
 /* Layout por largura disponível do PRÓPRIO painel (flex-wrap/auto-fit): independe da largura da janela.
    Container queries (container-type) NÃO são usadas aqui de propósito: ele aplica layout containment
    e re-ancora position:fixed dos menus suspensos do ui-components-kit. */
-.grade-docs-conf { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-.grade-docs-conf > .grade-docs-conf__pecas { flex: 3 1 560px; min-width: 0; }
-.grade-docs-conf > .grade-docs-conf__conf  { flex: 1 1 340px; min-width: 0; }
-/* Peças técnicas recolhido: confrontantes passa a usar a linha toda em vez de deixar um vazio ao lado */
-.grade-docs-conf:has(> details.doc-collapsible:not([open])) > * { flex-basis: 100%; }
-
 .doc-grupos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
@@ -2195,11 +2205,77 @@ details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent);
 }
 .lista-resumo-confrontantes > .col-span-all { grid-column: 1 / -1; }
 
-/* Tabela de vértices da homologação: única região com rolagem própria (cabeçalho sticky da tabela,
-   rolagem horizontal). Altura limitada por viewport em vez do "100vh - 360px" mágico. */
-#container-vertices-homologados { overflow: auto; min-height: 260px; max-height: clamp(320px, 72vh, 760px); }
+/* Tabela de vértices (passo Divisas): ocupa o resto da altura do passo e rola sozinha,
+   para o cabeçalho sticky da tabela funcionar. */
+#container-vertices-homologados { overflow: auto; min-height: 240px; }
 /* Lista de alterações do SIGEF: pode ter centenas de linhas; mantém rolagem própria, focável por teclado */
 #lista-alteracoes-sigef { overflow: auto; max-height: clamp(220px, 45vh, 480px); }
+
+/* Peças de Cartório em 4 passos: barra de passos fixa no topo e um corpo rolável por passo
+   (sem rolagem dentro de rolagem). O corpo ativo é o único sem o atributo [hidden]. */
+.cartorio-painel { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.cartorio-passos {
+  flex: none; display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px;
+  padding: 10px 12px;
+  background: var(--geo-surface-sticky);
+  border-bottom: 1px solid var(--geo-border-subtle);
+}
+.cartorio-passo {
+  flex: 1 1 140px; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; text-align: left; cursor: pointer;
+  color: var(--geo-text-primary); background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--geo-border-subtle); border-radius: 8px;
+  transition: background var(--geo-transition-fast), border-color var(--geo-transition-fast);
+}
+.cartorio-passo:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--geo-border-default); }
+.cartorio-passo:focus-visible { outline: 2px solid var(--geo-accent); outline-offset: 2px; }
+.cartorio-passo__num {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 999px;
+  font-family: var(--geo-font-mono); font-size: 11px; font-weight: 700;
+  color: var(--geo-text-secondary); border: 1px solid var(--geo-border-default);
+}
+.cartorio-passo__texto { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cartorio-passo__titulo { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.cartorio-passo__status {
+  font-size: 11px; line-height: 1.3; color: var(--geo-text-tertiary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cartorio-passo[data-estado="ok"] .cartorio-passo__num { color: var(--geo-status-ok); border-color: var(--geo-status-ok-border); }
+.cartorio-passo[data-estado="ok"] .cartorio-passo__status { color: var(--geo-status-ok); }
+.cartorio-passo[data-estado="aviso"] .cartorio-passo__num { color: var(--geo-status-warn); border-color: var(--geo-status-warn-border); }
+.cartorio-passo[data-estado="aviso"] .cartorio-passo__status { color: var(--geo-status-warn); }
+.cartorio-passo[aria-selected="true"] { background: var(--geo-accent-bg-strong); border-color: var(--geo-accent-border-strong); }
+.cartorio-passo[aria-selected="true"] .cartorio-passo__num { color: #0A0A0B; background: var(--geo-accent); border-color: transparent; }
+#badge-pendencias-cartorio { align-self: center; }
+
+.cartorio-passos-area { position: relative; flex: 1 1 auto; min-height: 0; }
+.cartorio-passo-corpo { position: absolute; inset: 0; overflow: auto; padding: 16px; }
+.cartorio-passo-corpo[hidden] { display: none; }
+.cartorio-passo-corpo--divisas { display: flex; flex-direction: column; gap: 12px; }
+.cartorio-passo-corpo--divisas > * { flex: none; }
+.cartorio-passo-corpo--divisas > #container-vertices-homologados { flex: 1 1 auto; }
+
+/* Passo Confrontantes: busca/ações ficam visíveis enquanto a lista rola */
+.cartorio-conf-barra {
+  position: sticky; top: 0; z-index: 6;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: -16px -16px 12px; padding: 12px 16px;
+  background: var(--geo-surface-sticky);
+  border-bottom: 1px solid var(--geo-border-subtle);
+}
+
+/* Qualificação do confrontante: painel sobre os passos (o mapa continua visível para "Ver no mapa") */
+.cartorio-gaveta {
+  position: absolute; inset: 0; z-index: 20;
+  overflow: auto; padding: 16px 18px;
+  background: var(--geo-surface-forest);
+  border-top: 1px solid var(--geo-border-subtle);
+}
+
+/* Prontidão de cada peça técnica (badge injetado em TS antes do ícone de download) */
+.doc-row-status { flex-shrink: 0; font-family: var(--geo-font-sans); font-weight: 600; }
 
 /* Etapa Peças de Cartório: ribbon sem a linha de ferramentas (só havia um atalho duplicado) */
 .workspace-wrapper.ribbon-compacto { --ribbon-h: 80px; }

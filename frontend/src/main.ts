@@ -1,6 +1,8 @@
 import './style.css';
 import './design-engine.css';
 import './lista-padrao.css';
+import '@thibezer/ui-components-kit/style.css';
+import '@thibezer/ui-components-kit/tools';
 import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
 import { instalarFetchAutenticado } from './utils/fetch_autenticado';

@@ -544,8 +544,8 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       ctx.renderMatriculaDados();
       ctx.carregarConfrontantesAtivosSelect();
-      if (ctx.currentProfissionalId !== null && ctx.etapaAtiva === 'documentos') {
-        ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
+      if (ctx.etapaAtiva === 'documentos') {
+        ctx.carregarHomologacaoDados(ctx.currentProfissionalId ?? 0);
       }
 
       if (ctx.triagemMap) {
@@ -631,8 +631,9 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (typeof ctx.carregarConfrontantesAtivosSelect === 'function') {
           ctx.carregarConfrontantesAtivosSelect();
         }
-        if (ctx.currentProfissionalId && typeof ctx.carregarHomologacaoDados === 'function') {
-          ctx.carregarHomologacaoDados(ctx.currentProfissionalId);
+        // Sem profissional vinculado a etapa também carrega (o passo Peças é que aponta a falta dele)
+        if (typeof ctx.carregarHomologacaoDados === 'function') {
+          ctx.carregarHomologacaoDados(ctx.currentProfissionalId ?? 0);
         }
       } else if (etapa === 'cartorio') {
         if (typeof ctx.carregarConfrontantesAtivosSelect === 'function') {
@@ -661,27 +662,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         splitterMapa?.classList.add('hidden');
       }
 
-      const tabBtn = document.querySelector(`.rl3-tab[data-tab="${etapa}"]`) as HTMLButtonElement;
-      if (tabBtn) {
-        const tabButtons = document.querySelectorAll('.rl3-tab');
-        const panelRows = document.querySelectorAll('.rl3-panel');
-        
-        tabButtons.forEach(btn => {
-          btn.classList.remove('active');
-        });
-        tabBtn.classList.add('active');
-
-        panelRows.forEach(row => row.classList.add('hidden'));
-        
-        let panelId = 'panel-geoprocessamento';
-        if (etapa === 'cartorio') panelId = 'panel-perimetro';
-        else if (etapa === 'documentos') panelId = 'panel-cartorio';
-        else if (etapa === 'auditoria') panelId = 'panel-auditoria';
-
-        const targetPanel = document.getElementById(panelId);
-        if (targetPanel) {
-          targetPanel.classList.remove('hidden');
-        }
+      // Sincroniza a aba ativa no Web Component <ui-ribbon> oficial
+      const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+      if (mesaRibbon && typeof mesaRibbon.selecionarAba === 'function' && mesaRibbon.abaAtiva !== etapa) {
+        mesaRibbon.selecionarAba(etapa, false);
       }
 
       initIcons();
@@ -1217,6 +1201,16 @@ export const mesaTrabalhoRoute: RouteDef = {
         if (btnToggle) {
           btnToggle.className = "rl3-tool-btn rl3-btn-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 text-amber-300 transition-all";
         }
+      }
+
+      // Atualiza o item no Ribbon oficial
+      const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+      if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
+        mesaRibbon.atualizarItem('btn-toggle-fonte-pontos', {
+          rotulo: ctx.bancoPontosExibido
+            ? `Planilha SIGEF (${ctx.bancoPontosList.length} pts)`
+            : 'Fonte: Campo'
+        });
       }
 
       initIcons();

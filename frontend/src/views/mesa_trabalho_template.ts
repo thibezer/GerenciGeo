@@ -103,182 +103,36 @@ export const renderMesaTrabalho = (): string => {
           </span>
         </div>
 
-        <!-- Camada 3 — Abas de Ferramentas (Tool Tabs) com Fluent UI Tablist -->
-        <div id="ribbon-layer3" class="ribbon-layer3">
-          <!-- Sub-camada 3a: Abas de navegação Fluent Tablist -->
-          <fluent-tablist class="rl3-tabs" role="tablist">
-            <fluent-tab class="rl3-tab active" id="tab-geoprocessamento" role="tab" aria-selected="true" aria-controls="panel-geoprocessamento" data-tab="geoprocessamento">
-              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="cpu" aria-hidden="true"></i><span>Mesa Geodésica</span></div>
-            </fluent-tab>
-            <fluent-tab class="rl3-tab" id="tab-perimetro" role="tab" aria-selected="false" aria-controls="panel-perimetro" data-tab="cartorio">
-              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="pentagon" aria-hidden="true"></i><span>Org. de Perímetro</span></div>
-            </fluent-tab>
-            <fluent-tab class="rl3-tab" id="tab-cartorio" role="tab" aria-selected="false" aria-controls="panel-cartorio" data-tab="documentos">
-              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="file-text" aria-hidden="true"></i><span>Peças de Cartório</span></div>
-            </fluent-tab>
-            <fluent-tab class="rl3-tab" id="tab-auditoria" role="tab" aria-selected="false" aria-controls="panel-auditoria" data-tab="auditoria">
-              <div class="flex items-center justify-center gap-1.5 w-full h-full"><i data-lucide="history" aria-hidden="true"></i><span>Histórico de Auditoria</span></div>
-            </fluent-tab>
-          </fluent-tablist>
+        <!-- Camada 3 — Ribbon Oficial dos Componentes (@thibezer/ui-components-kit) -->
+        <ui-ribbon id="mesa-ribbon" aba-ativa="geoprocessamento" class="mesa-ribbon-custom"></ui-ribbon>
 
-          <!-- Sub-camada 3b: Painéis de ferramentas -->
-          <div class="rl3-panels">
-            <!-- PAINEL: Mesa Geodésica -->
-            <div class="rl3-panel" id="panel-geoprocessamento" role="tabpanel">
-              <!-- Grupo: Ingestão -->
-              <div class="rl3-group" data-group-id="grp-ingestao">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-drop-arquivos" title="Arraste ou selecione arquivos .GNS/.TXT" type="button">
-                    <i data-lucide="upload-cloud"></i>
-                    <span>Ingestão</span>
-                  </fluent-button>
-                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-processar-lote" title="Processar todos os arquivos na fila (F5)" type="button">
-                    <i data-lucide="play"></i>
-                    <span>Processar Lote</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Ingestão</div>
-              </div>
-              <fluent-divider orientation="vertical" class="rl3-divider"></fluent-divider>
-
-              <!-- Grupo: Vizinhos (SIGEF) -->
-              <div class="rl3-group" data-group-id="grp-vizinhos">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-importar-csv-vizinho" title="Importar confrontante (CSV do SIGEF)" type="button">
-                    <i data-lucide="download"></i>
-                    <span>Importar Vizinhos</span>
-                  </fluent-button>
-                  <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV,.ods,.ODS" multiple />
-                  <fluent-button appearance="outline" class="rl3-tool-btn rl3-btn-lg rl3-btn-danger" id="btn-limpar-vizinhos" title="Limpar confrontantes importados" type="button">
-                    <i data-lucide="trash-2"></i>
-                    <span>Limpar Camada</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Vizinhos (SIGEF)</div>
-              </div>
-              <fluent-divider orientation="vertical" class="rl3-divider"></fluent-divider>
-
-              <!-- Grupo: Coordenadas -->
-              <div class="rl3-group" data-group-id="grp-coordenadas">
-                <div class="rl3-group-tools">
-                  <div class="rl3-toggle-row">
-                    <span class="rl3-toggle-label">Modo:</span>
-                    <fluent-button appearance="primary" class="rl3-toggle-btn active" id="btn-modo-utm" data-mode="utm" type="button">UTM</fluent-button>
-                    <fluent-button appearance="transparent" class="rl3-toggle-btn" id="btn-modo-geo" data-mode="geodesico" type="button">Geo</fluent-button>
-                  </div>
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-download-rinex-zip" title="Baixar todos os RINEX do workspace como ZIP" type="button">
-                    <i data-lucide="archive"></i>
-                    <span>RINEX .ZIP</span>
-                  </fluent-button>
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10" id="btn-toggle-fonte-pontos" title="Alternar entre Pontos de Campo (Processamento) e Pontos Homologados da Planilha (SIGEF/INCRA)" type="button">
-                    <i data-lucide="layers" class="text-amber-400" id="icon-fonte-pontos"></i>
-                    <span id="txt-fonte-pontos" class="text-amber-300 font-semibold">Fonte: Campo</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Coordenadas</div>
-              </div>
-              <fluent-divider orientation="vertical" class="rl3-divider"></fluent-divider>
-
-              <!-- Grupo: Exportar -->
-              <div class="rl3-group" data-group-id="grp-exportar">
-                <div class="rl3-group-tools">
-                  <!-- Coluna 1 (Botões pequenos) -->
-                  <div class="rl3-tool-col">
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-kml" type="button">
-                      <i data-lucide="map-pin"></i>
-                      <span>KML</span>
-                    </fluent-button>
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-unificar-sigef" type="button">
-                      <i data-lucide="file-spreadsheet"></i>
-                      <span>Unificar SIGEF</span>
-                    </fluent-button>
-                  </div>
-                  
-                  <!-- Botão Grande -->
-                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-consolidar-pontos-utm" type="button">
-                    <i data-lucide="upload"></i>
-                    <span>Exportar Dados</span>
-                  </fluent-button>
-
-                  <!-- Coluna 2 (Botões pequenos) -->
-                  <div class="rl3-tool-col">
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-tabela-csv" title="Exportar tabela de vértices filtrados em CSV" type="button">
-                      <i data-lucide="download"></i>
-                      <span>Exportar CSV</span>
-                    </fluent-button>
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-exportar-cad" title="Copiar vértices para colar no AutoCAD (comando GCOLA)" type="button">
-                      <i data-lucide="copy"></i>
-                      <span>Copiar CAD</span>
-                    </fluent-button>
-                    <fluent-button appearance="transparent" class="rl3-tool-btn rl3-btn-small" id="btn-importar-cad" title="Importar/Sincronizar vértices copiados do AutoCAD (comando GCOPIAR)" type="button">
-                      <i data-lucide="clipboard"></i>
-                      <span>Importar CAD</span>
-                    </fluent-button>
-                  </div>
-
-                </div>
-                <div class="rl3-group-label">Exportar</div>
-              </div>
-              <fluent-divider orientation="vertical" class="rl3-divider"></fluent-divider>
-
-              <!-- Grupo: Edição -->
-              <div class="rl3-group" data-group-id="grp-edicao">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-reordenar-caminhamento" title="Ativar modo de reordenação manual do caminhamento" type="button">
-                    <i data-lucide="arrow-up-down"></i>
-                    <span>Reordenar</span>
-                  </fluent-button>
-                  <fluent-button appearance="outline" class="rl3-tool-btn rl3-btn-lg rl3-btn-warn" id="btn-override-base-manual" title="Sobrescrever ponto base manualmente" type="button">
-                    <i data-lucide="shield-alert"></i>
-                    <span>Base Manual</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Edição</div>
-              </div>
-              <fluent-divider orientation="vertical" class="rl3-divider"></fluent-divider>
-
-              <!-- Grupo: Projeto -->
-              <div class="rl3-group" data-group-id="grp-projeto">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="subtle" class="rl3-tool-btn rl3-btn-lg" id="btn-sincronizar-nuvem" type="button">
-                    <i data-lucide="cloud-lightning"></i>
-                    <span>Nuvem</span>
-                  </fluent-button>
-                  <fluent-button appearance="outline" class="rl3-tool-btn rl3-btn-lg rl3-btn-danger" id="btn-arquivar-projeto-seguro" title="Arquivar este levantamento" type="button">
-                    <i data-lucide="archive-x"></i>
-                    <span>Arquivar</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Projeto</div>
-              </div>
-            </div>
-
-            <!-- PAINEL: Organizador de Perímetro -->
-            <div class="rl3-panel hidden" id="panel-perimetro" role="tabpanel">
-              <div class="rl3-group" data-group-id="grp-topografia">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-calcular-confrontantes" type="button">
-                    <i data-lucide="cpu"></i>
-                    <span>Calcular Lados</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Topografia</div>
-              </div>
-            </div>
-
-            <!-- PAINEL: Histórico de Auditoria -->
-            <div class="rl3-panel hidden" id="panel-auditoria" role="tabpanel">
-              <div class="rl3-group" data-group-id="grp-auditoria">
-                <div class="rl3-group-tools">
-                  <fluent-button appearance="primary" class="rl3-tool-btn rl3-btn-lg" id="btn-verificar-sigmas" type="button">
-                    <i data-lucide="shield-check"></i>
-                    <span>Validar INCRA</span>
-                  </fluent-button>
-                </div>
-                <div class="rl3-group-label">Auditoria</div>
-              </div>
-            </div>
-          </div>
+        <!-- Elementos de ponte e compatibilidade de eventos/upload -->
+        <div id="mesa-ribbon-compat-bridge" class="hidden" style="display: none !important;" aria-hidden="true">
+          <input type="file" id="input-csv-vizinho" class="hidden" accept=".csv,.CSV,.ods,.ODS" multiple />
+          <button type="button" id="btn-drop-arquivos"></button>
+          <button type="button" id="btn-processar-lote"></button>
+          <button type="button" id="btn-importar-csv-vizinho"></button>
+          <button type="button" id="btn-limpar-vizinhos"></button>
+          <button type="button" id="btn-modo-utm"></button>
+          <button type="button" id="btn-modo-geo"></button>
+          <button type="button" id="btn-download-rinex-zip"></button>
+          <button type="button" id="btn-toggle-fonte-pontos">
+            <span id="txt-fonte-pontos">Fonte: Campo</span>
+            <i id="icon-fonte-pontos"></i>
+          </button>
+          <button type="button" id="btn-consolidar-pontos-utm"></button>
+          <button type="button" id="btn-exportar-kml"></button>
+          <button type="button" id="btn-unificar-sigef"></button>
+          <button type="button" id="btn-exportar-tabela-csv"></button>
+          <button type="button" id="btn-exportar-cad"></button>
+          <button type="button" id="btn-importar-cad"></button>
+          <button type="button" id="btn-reordenar-caminhamento"></button>
+          <button type="button" id="btn-override-base-manual"></button>
+          <button type="button" id="btn-sincronizar-nuvem"></button>
+          <button type="button" id="btn-arquivar-projeto-seguro"></button>
+          <button type="button" id="btn-calcular-confrontantes"></button>
+          <button type="button" id="btn-ativar-reordenacao"></button>
+          <button type="button" id="btn-verificar-sigmas"></button>
         </div>
       </header>
 

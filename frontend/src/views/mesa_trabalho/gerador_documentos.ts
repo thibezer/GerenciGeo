@@ -4,6 +4,8 @@ import { initIcons, showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { CamadaConfrontantes } from './camada_confrontantes';
 import type { TrechoMapa } from './camada_confrontantes';
+import { criarPassosCartorio } from './passos_cartorio';
+import { configurarSplitterCartorio } from './splitter_cartorio';
 import {
   normalizarEstadoCivil,
   normalizarRegimeBens,
@@ -87,6 +89,17 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   let resumoConf: ResumoConfrontantes | null = null;
   const confExpandidos = new Set<number>();
 
+  // Fluxo em 4 passos + splitter mapa | painel
+  const passos = criarPassosCartorio();
+  configurarSplitterCartorio(() => ctx.triagemMap?.invalidateSize?.());
+  // Matrícula para a qual o passo inicial já foi escolhido (trocar de matrícula reabre no passo com pendência)
+  let matriculaDosPassos: unknown = undefined;
+  const reiniciarPassosSeTrocouMatricula = () => {
+    if (matriculaDosPassos === ctx.currentMatriculaId) return;
+    matriculaDosPassos = ctx.currentMatriculaId;
+    passos.reiniciarEscolha();
+  };
+
   // Cartões recolhíveis: lembram o estado entre sessões
   document.querySelectorAll<HTMLDetailsElement>('details[data-persist]').forEach(d => {
     const chave = `gerencigeo_${d.dataset.persist}`;
@@ -142,6 +155,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       camadaConf.remover();
       return;
     }
+    matriculaDosPassos = undefined;
+    reiniciarPassosSeTrocouMatricula();
     // O mapa muda de tamanho ao entrar na etapa: espera o layout assentar antes de enquadrar
     enquadrarPendente = true;
     setTimeout(() => {
@@ -183,6 +198,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const pendentes = alteracoes.filter(a => a.status === 'pendente');
     const visiveis = alteracoes.filter(a => a.status === 'pendente' || mostrarLancadas);
     if (badge) badge.innerText = `${pendentes.length} pendente${pendentes.length === 1 ? '' : 's'}`;
+    passos.atualizar({ alteracoesSigef: pendentes.length });
     painel.classList.toggle('hidden', visiveis.length === 0);
     if (visiveis.length === 0) { lista.innerHTML = ''; return; }
 
@@ -244,14 +260,20 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     if (!lista) return;
     const r = resumoConf;
     if (!r || (r.confrontantes.length === 0 && r.sem_confrontante.qtd_divisas === 0)) {
-      lista.innerHTML = `<div class="text-white/20 italic py-4 text-center text-xs">Nenhum confrontante vinculado às divisas desta matrícula.</div>`;
+      lista.innerHTML = `<div class="txt-aux italic py-4 text-center text-xs">Nenhum confrontante vinculado às divisas desta matrícula.</div>`;
       if (badge) badge.innerText = '—';
+      passos.atualizar({ anuenciasExigidas: 0, anuenciasAssinadas: 0, confrontantesSemCpf: 0 });
       return;
     }
 
     const exigidos = r.confrontantes.filter(c => !c.dispensada);
     const dispensados = r.confrontantes.length - exigidos.length;
     const assinados = exigidos.filter(c => c.assinadas === c.qtd_divisas).length;
+    passos.atualizar({
+      anuenciasExigidas: exigidos.length,
+      anuenciasAssinadas: assinados,
+      confrontantesSemCpf: exigidos.filter(c => !c.cpf_cnpj).length,
+    });
     if (badge) badge.innerText = `${assinados}/${exigidos.length} anuências assinadas${dispensados ? ` · ${dispensados} dispensada${dispensados === 1 ? '' : 's'}` : ''}`;
 
     const sem = r.sem_confrontante;
@@ -331,29 +353,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     atualizarCamadaMapa();
   };
 
-  /** Garante que o formulário fique visível no painel interno sem deslocar a janela ou sumir com o cabeçalho */
+  /** O formulário abre como painel sobre os passos: começa do topo e leva o foco ao primeiro campo */
   const ajustarVisibilidadeFormulario = (form: HTMLElement) => {
-    if (window.scrollY !== 0) {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    }
-
-    const painel = document.getElementById('panel-homologacao-incra');
-    if (!painel) return;
-
-    setTimeout(() => {
-      if (window.scrollY !== 0) {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      }
-      const formRect = form.getBoundingClientRect();
-      const painelRect = painel.getBoundingClientRect();
-      if (formRect.bottom > painelRect.bottom || formRect.top < painelRect.top) {
-        const offset = form.offsetTop - painel.offsetTop;
-        painel.scrollTo({
-          top: Math.max(0, offset - 10),
-          behavior: 'smooth'
-        });
-      }
-    }, 50);
+    form.scrollTop = 0;
+    setTimeout(() => (document.getElementById('input-conf-cpf') as HTMLElement | null)?.focus?.(), 50);
   };
 
   /** Abre o formulário de qualificação completa preenchido com os dados do confrontante */
@@ -452,14 +455,14 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         if (conf && busca) {
           busca.value = conf.nome;
           renderTabelaVertices();
-          busca.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          passos.irPara('divisas');
         }
       } else if (btn.classList.contains('btn-conf-filtrar-sem')) {
         const chk = document.getElementById('chk-vertices-so-pendentes') as HTMLInputElement | null;
         if (chk) {
           chk.checked = true;
           renderTabelaVertices();
-          chk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          passos.irPara('divisas');
         }
       }
     });
@@ -543,6 +546,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       pendTxt.innerText = `${pendentes} sem confrontante`;
       pendTxt.classList.toggle('hidden', pendentes === 0);
     }
+    passos.atualizar({ vertices: vertices.length, verticesSemConfrontante: pendentes });
   };
 
   const renderTabelaVertices = () => {
@@ -761,6 +765,13 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
 
   // 1. Carrega os dados de homologação do SIGEF (poligonal importada)
   ctx.carregarHomologacaoDados = async (_profissionalId: number) => {
+    reiniciarPassosSeTrocouMatricula();
+    if (ctx.currentLevantamento) {
+      passos.atualizar({
+        propriedadeVinculada: !!ctx.currentLevantamento.propriedade_id,
+        profissionalVinculado: !!ctx.currentLevantamento.profissional_id,
+      });
+    }
     renderPlanilhasHomologadas();
     vincularEventosTabelaVertices();
     if (!ctx.currentLevId) return;
@@ -847,6 +858,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   // 2. Carrega confrontantes ativos no select da anuência
   ctx.carregarConfrontantesAtivosSelect = async () => {
     if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+    reiniciarPassosSeTrocouMatricula();
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes-ativos`);
       const confs = await res.json();
@@ -883,19 +895,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/planilhas-homologadas`);
       const planilhas = await res.json();
 
-      const painelImp = document.getElementById('painel-importacao') as HTMLDetailsElement | null;
-      const resumoImp = document.getElementById('resumo-importacao');
       const lista = Array.isArray(planilhas) ? planilhas : [];
-      if (resumoImp) {
-        const total = lista.reduce((acc: number, p: any) => acc + (p.qtd_pontos || 0), 0);
-        resumoImp.innerText = lista.length ? `${lista.length} planilha${lista.length === 1 ? '' : 's'} · ${total} pontos` : 'nenhuma planilha';
-      }
-      // Sem preferência salva: recolhido quando já há planilha importada, aberto quando falta importar
-      if (painelImp && painelImp.dataset.estadoSalvo !== '1' && painelImp.dataset.estadoInicial !== '1') {
-        painelImp.open = lista.length === 0;
-        painelImp.dataset.estadoInicial = '1';
-        delete painelImp.dataset.estadoSalvo;
-      }
+      passos.atualizar({
+        planilhas: lista.length,
+        pontosPlanilhas: lista.reduce((acc: number, p: any) => acc + (p.qtd_pontos || 0), 0),
+      });
 
       if (!Array.isArray(planilhas) || planilhas.length === 0) {
         container.innerHTML = `<div class="text-white/20 italic py-2 text-center">Nenhuma planilha cadastrada.</div>`;

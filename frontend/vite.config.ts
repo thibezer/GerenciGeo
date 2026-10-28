@@ -9,6 +9,7 @@ const candidatePaths = [
 ];
 const localUiPath = candidatePaths.find(p => fs.existsSync(p));
 const hasLocalUi = Boolean(localUiPath);
+const localUiDir = localUiPath ? resolve(localUiPath, '..') : '';
 
 export default defineConfig({
   resolve: {
@@ -18,8 +19,11 @@ export default defineConfig({
     alias: {
       leaflet: resolve(__dirname, 'node_modules/leaflet'),
       ...(hasLocalUi ? {
-        'ui-components-kit': localUiPath,
-        '@thibezer/ui-components-kit': localUiPath
+        'ui-components-kit$': localUiPath,
+        'ui-components-kit': localUiDir,
+        '@thibezer/ui-components-kit/style.css': resolve(localUiDir, 'tokens/index.css'),
+        '@thibezer/ui-components-kit$': localUiPath,
+        '@thibezer/ui-components-kit': localUiDir
       } : {})
     }
   },
