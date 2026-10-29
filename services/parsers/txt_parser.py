@@ -656,6 +656,25 @@ class TxtGeodesicParser:
                     else:
                         raise e_integ
 
+        # Se a base de apoio estiver contida no próprio arquivo importado e nenhuma base prévia foi informada:
+        # vincula automaticamente todos os rovers deste arquivo à base inserida.
+        if not self.base_escolhida_id and ids_inseridos:
+            base_ids = [
+                id_pt for id_pt, p in zip(ids_inseridos, pontos)
+                if p.get("tipo_ponto") == "B"
+            ]
+            if base_ids:
+                id_base_arquivo = base_ids[0]
+                placeholders = ','.join(['?'] * len(ids_inseridos))
+                cursor.execute(
+                    f"UPDATE pontos SET ponto_base_id = ? WHERE id IN ({placeholders}) AND tipo_ponto != 'B' AND ponto_base_id IS NULL",
+                    (id_base_arquivo, *ids_inseridos)
+                )
+                logger.info(f"[PARSER] {len(ids_inseridos) - len(base_ids)} rovers do arquivo vinculados automaticamente à Base interna ID {id_base_arquivo}.")
+                for p in pontos:
+                    if p.get("tipo_ponto") != "B" and not p.get("ponto_base_id"):
+                        p["ponto_base_id"] = id_base_arquivo
+
         return ids_inseridos
 
     def _inserir_topologia(self, cursor, ids_pontos: list, pontos_processados: list) -> int:

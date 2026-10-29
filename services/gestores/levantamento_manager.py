@@ -567,34 +567,27 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         
         eh_base = tipo_atual == 'B' or (tipo_atual == 'M' and base_legada_marco)
 
-        if eh_base and n_corr is not None and e_corr is not None and alt_corr is not None:
-            # 1. Caso o ponto base possua arquivo_origem (Lote de RTK / Caderneta importada)
-            if pt_antigo.get("arquivo_origem"):
-                corrigir_lote_rtk = True
-            else:
-                # 2. Caso seja uma base isolada sem arquivo_origem (Ingestão Manual)
-                zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
-                epsg_utm = f"319{60 + zona}"
-                
-                transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-                lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
-                
-                data["lat"] = lat_val
-                data["lon"] = lon_val
-                data["alt"] = alt_corr
-                data["status_ponto"] = "CORRIGIDO"
-                data["status_correcao"] = "CORRIGIDO"
+        # Sincronização e conversão UTM -> Geodésica para qualquer tipo de ponto (B, M, P, V)
+        n_eff = n_corr if n_corr is not None else pt_antigo.get("n_corrigido")
+        e_eff = e_corr if e_corr is not None else pt_antigo.get("e_corrigido")
+        alt_eff = alt_corr if alt_corr is not None else (
+            data.get("alt") if data.get("alt") is not None else (
+                pt_antigo.get("alt_corrigido") or pt_antigo.get("alt_original") or pt_antigo.get("alt") or 0.0
+            )
+        )
 
-        elif (tipo_atual in ('M', 'P', 'V')) and n_corr is not None and e_corr is not None:
-            # Para vértices do perímetro (M/P/V): converte UTM → Geodésico e salva lat/lon
+        if n_eff is not None and e_eff is not None and (n_corr is not None or e_corr is not None or alt_corr is not None):
             zona = int(''.join(filter(str.isdigit, fuso_corr or "22S")))
             epsg_utm = f"319{60 + zona}"
             transformer_to_latlon = get_transformer(f"epsg:{epsg_utm}", "epsg:4674", always_xy=True)
-            lon_val, lat_val = transformer_to_latlon.transform(e_corr, n_corr)
+            lon_val, lat_val = transformer_to_latlon.transform(e_eff, n_eff)
             data["lat"] = float(lat_val)
             data["lon"] = float(lon_val)
-            if alt_corr is not None:
-                data["alt"] = alt_corr
+            if alt_eff is not None:
+                data["alt"] = float(alt_eff)
+            if eh_base:
+                data["status_ponto"] = "CORRIGIDO"
+                data["status_correcao"] = "CORRIGIDO"
 
 
         if corrigir_lote_rtk:
@@ -822,7 +815,7 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             )
             
             novo_status = status_val or pt_antigo["status_ponto"]
-            if base_legada_marco and pt_antigo["tipo_ponto"] == "M" and novo_status == "CORRIGIDO":
+            if (eh_base or (base_legada_marco and pt_antigo["tipo_ponto"] == "M")) and novo_status == "CORRIGIDO":
                 propagar_base_bloco = True
 
         # E. Executa o UPDATE do ponto, confrontante e segmento sob uma única transação atômica
@@ -938,6 +931,11 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         if propagar_base_bloco:
             rovers_corrigidos = corrigir_rovers_em_bloco(levantamento_id, pid)
             logger.info(f"Translação reativa em bloco concluída. {rovers_corrigidos} rovers corrigidos com base em {pt_antigo['nome_vertice']}.")
+            if rovers_corrigidos > 0 and pt_antigo.get("matricula_id"):
+                try:
+                    reordenar_perimetro_matricula(levantamento_id, pt_antigo["matricula_id"])
+                except Exception as ex_reorder:
+                    logger.warning(f"Falha ao regenerar divisas após translação da base: {ex_reorder}")
 
         if recalcular_rover and pt_antigo.get("tipo_ponto") in ["M", "P", "V"]:
             new_base_id = pt_antigo.get("ponto_base_id")

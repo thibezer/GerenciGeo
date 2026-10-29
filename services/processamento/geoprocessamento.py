@@ -369,7 +369,7 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
     
     # 1. Recupera as informações da Base
     row_base = execute_query(
-        "SELECT id, nome_vertice, lat, lon, alt, e_original, n_original, alt_original, sigma_lat, sigma_lon, sigma_alt, status_ponto FROM pontos WHERE id = ? AND levantamento_id = ?",
+        "SELECT id, nome_vertice, lat, lon, alt, e_original, n_original, alt_original, sigma_lat, sigma_lon, sigma_alt, status_ponto, arquivo_origem, n_corrigido, e_corrigido, alt_corrigido FROM pontos WHERE id = ? AND levantamento_id = ?",
         params=(base_id, levantamento_id),
         fetch_one=True
     )
@@ -378,8 +378,8 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         return 0
         
     base = dict(row_base)
-    if not base["lat"] or base["lat"] == 0.0 or base["status_ponto"] != 'CORRIGIDO':
-        logger.info(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} ainda está no estado BRUTO. Translação adiada.")
+    if (not base["lat"] or base["lat"] == 0.0) and not (base.get("n_corrigido") and base.get("e_corrigido")):
+        logger.info(f"[GEOPROCESSAMENTO] A base {base['nome_vertice']} não possui coordenadas corrigidas. Translação adiada.")
         return 0
         
     if not base["e_original"] or not base["n_original"]:
@@ -387,8 +387,8 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         return 0
         
     try:
-        # A. Determina o fuso com base na longitude da base corrigida
-        longitude_base = base["lon"]
+        # A. Determina o fuso com base na longitude ou este original da base
+        longitude_base = base.get("lon")
         zona_utm = calcular_zona_utm_segura(longitude_base)
         epsg_utm = f"319{60 + zona_utm}"
         
@@ -400,8 +400,18 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         # C. Converte coordenada geodésica original da Base para ECEF original
         x_base_orig, y_base_orig, z_base_orig = geodesic_to_ecef(lat_base_orig, lon_base_orig, alt_base_orig)
         
-        # D. Converte coordenada geodésica corrigida da Base (IBGE-PPP) para ECEF corrigida
-        x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base["lat"], base["lon"], base["alt"])
+        # D. Converte coordenada geodésica corrigida da Base para ECEF corrigida
+        if base.get("n_corrigido") and base.get("e_corrigido"):
+            lon_c, lat_c = transformer_to_latlon.transform(base["e_corrigido"], base["n_corrigido"])
+            base_lat_corr = float(lat_c)
+            base_lon_corr = float(lon_c)
+            base_alt_corr = float(base.get("alt_corrigido") or base.get("alt") or alt_base_orig)
+        else:
+            base_lat_corr = float(base["lat"])
+            base_lon_corr = float(base["lon"])
+            base_alt_corr = float(base["alt"] or alt_base_orig)
+            
+        x_base_corr, y_base_corr, z_base_corr = geodesic_to_ecef(base_lat_corr, base_lon_corr, base_alt_corr)
         
         # E. Vetor Delta 3D ECEF
         delta_x = x_base_corr - x_base_orig
@@ -413,13 +423,25 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
         logger.error(f"[GEOPROCESSAMENTO] Falha ao calcular vetor Delta ECEF para Base {base['nome_vertice']}: {e_trans}")
         return 0
         
-    # 3. Recupera todos os rovers ativos vinculados a essa Base
-    query_rovers = """
-        SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
-        FROM pontos 
-        WHERE levantamento_id = ? AND ponto_base_id = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
-    """
-    rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
+    # 3. Recupera todos os rovers ativos vinculados a essa Base ou do mesmo arquivo_origem
+    if base.get("arquivo_origem"):
+        query_rovers = """
+            SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
+            FROM pontos 
+            WHERE levantamento_id = ? 
+              AND (ponto_base_id = ? OR (ponto_base_id IS NULL AND arquivo_origem = ? AND id != ?))
+              AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
+              AND tipo_ponto != 'B'
+        """
+        rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id, base["arquivo_origem"], base_id), fetch_all=True)
+    else:
+        query_rovers = """
+            SELECT id, nome_vertice, e_original, n_original, alt_original, sigma_n, sigma_e, sigma_z 
+            FROM pontos 
+            WHERE levantamento_id = ? AND ponto_base_id = ? AND (ponto_vizinho IS NULL OR ponto_vizinho = 0)
+              AND tipo_ponto != 'B'
+        """
+        rows_rovers = execute_query(query_rovers, params=(levantamento_id, base_id), fetch_all=True)
     if not rows_rovers:
         logger.info(f"[GEOPROCESSAMENTO] Nenhum rover vinculado para a Base {base['nome_vertice']}.")
         return 0
@@ -470,20 +492,34 @@ def corrigir_rovers_em_bloco(levantamento_id: int, base_id: int) -> int:
                     sig_lon_prop = math.sqrt(sig_e_val**2 + sig_base_lon**2)
                     sig_alt_prop = math.sqrt(sig_z_val**2 + sig_base_alt**2)
                     
-                    # F. Atualiza no banco
+                    # F. Converte de volta para UTM e calcula deltas
+                    transformer_to_utm = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+                    e_rover_corr, n_rover_corr = transformer_to_utm.transform(lon_corr, lat_corr)
+                    
+                    dn = round((n_rover_corr - n_orig) * 1000, 2)
+                    de = round((e_rover_corr - e_orig) * 1000, 2)
+                    dh = round((alt_corr - alt_orig) * 1000, 2)
+                    d3d = round(math.sqrt(dn**2 + de**2 + dh**2), 2)
+
+                    # G. Atualiza no banco (coordenadas geodésicas, canônicas UTM, deltas e vínculo com a base)
                     cursor.execute(
                         """
                         UPDATE pontos 
                         SET lat = ?, lon = ?, alt = ?, 
                             lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                            n_corrigido = ?, e_corrigido = ?,
+                            delta_n = ?, delta_e = ?, delta_h = ?, delta_3d = ?,
                             sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
-                            status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO' 
+                            status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
+                            ponto_base_id = ?
                         WHERE id = ? AND levantamento_id = ?
                         """,
                         (lat_corr, lon_corr, alt_corr, 
                          lat_corr, lon_corr, alt_corr,
+                         round(n_rover_corr, 4), round(e_rover_corr, 4),
+                         dn, de, dh, d3d,
                          sig_lat_prop, sig_lon_prop, sig_alt_prop,
-                         r["id"], levantamento_id)
+                         base_id, r["id"], levantamento_id)
                     )
                     total_corrigidos += 1
                     detalhamento_logs.append({
@@ -760,12 +796,9 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                 linhas = f.readlines()
             parser_layout = TxtGeodesicParser(levantamento_id)
             layout = parser_layout.identificar_layout(linhas)
-            if layout != "rtk":
-                raise ValueError("Este arquivo de pontos não é do tipo RTK (foi gerado por software próprio e seus pontos já estão corrigidos).")
+            logger.info(f"[OVERRIDE_MANUAL] Layout detectado para '{arquivo_origem}': {layout}")
     except Exception as e_layout:
         logger.warning(f"[OVERRIDE_MANUAL] Verificação de layout do arquivo {arquivo_origem}: {e_layout}")
-        if "não é do tipo RTK" in str(e_layout):
-            raise e_layout
     
     # 1. Determina a Coordenada Corrigida Oficinal da Base (em Lat/Lon/Alt Geodésica)
     try:
@@ -942,11 +975,20 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                     sig_lon_prop = math.sqrt(sig_e_val**2 + sig_base_lon**2)
                     sig_alt_prop = math.sqrt(sig_z_val**2 + sig_base_alt**2)
                     
+                    transformer_to_utm_rov = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
+                    e_rover_corr, n_rover_corr = transformer_to_utm_rov.transform(lon_corr, lat_corr)
+                    dn = round((n_rover_corr - n_orig) * 1000, 2)
+                    de = round((e_rover_corr - e_orig) * 1000, 2)
+                    dh = round((alt_corr - alt_orig) * 1000, 2)
+                    d3d = round(math.sqrt(dn**2 + de**2 + dh**2), 2)
+
                     cursor.execute(
                         """
                         UPDATE pontos 
                         SET lat = ?, lon = ?, alt = ?, 
                             lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                            n_corrigido = ?, e_corrigido = ?,
+                            delta_n = ?, delta_e = ?, delta_h = ?, delta_3d = ?,
                             sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
                             status_ponto = 'CORRIGIDO', status_correcao = 'CORRIGIDO',
                             ponto_base_id = ?
@@ -954,6 +996,8 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
                         """,
                         (lat_corr, lon_corr, alt_corr, 
                          lat_corr, lon_corr, alt_corr,
+                         round(n_rover_corr, 4), round(e_rover_corr, 4),
+                         dn, de, dh, d3d,
                          sig_lat_prop, sig_lon_prop, sig_alt_prop,
                          base_id, r["id"], levantamento_id)
                     )
