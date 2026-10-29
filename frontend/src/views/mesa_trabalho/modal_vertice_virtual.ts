@@ -7,6 +7,31 @@ import type { LadoOffset, RespostaVerticeVirtual } from '../../types/verticesVir
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
 
+type Aba = 'offset' | 'faixa';
+type CampoDistancia = 'distancia' | 'largura';
+
+// A API responde em snake_case; o restante do modal trabalha com o tipo camelCase
+const normalizarResultado = (r: any): RespostaVerticeVirtual => ({
+  nome: String(r.nome),
+  este: Number(r.este),
+  norte: Number(r.norte),
+  altitude: Number(r.altitude ?? 0),
+  sigmaEste: Number(r.sigma_este ?? r.sigmaEste ?? 0),
+  sigmaNorte: Number(r.sigma_norte ?? r.sigmaNorte ?? 0),
+  sigmaAltitude: Number(r.sigma_altitude ?? r.sigmaAltitude ?? 0),
+  sigmaPlanimetrico: Number(r.sigma_planimetrico ?? r.sigmaPlanimetrico ?? 0),
+  tipoPonto: 'V',
+  metodo: r.metodo,
+  conformeNormaIncra: Boolean(r.conforme_norma_incra ?? r.conformeNormaIncra),
+  alerta: r.alerta || undefined,
+  anguloIntersecaoGraus: r.angulo_intersecao_graus ?? r.anguloIntersecaoGraus ?? undefined,
+});
+
+const paraNumero = (texto: string) => {
+  const v = parseFloat(texto.replace(',', '.'));
+  return Number.isFinite(v) ? v : 0;
+};
+
 export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promise<void> {
   const levId = ctx.currentLevId;
   const matId = ctx.currentMatriculaId;
@@ -23,6 +48,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     showToast('São necessários pelo menos 2 pontos cadastrados no levantamento para cálculo virtual.', 'info');
     return;
   }
+
+  const fusoUtm = Number(pontosDisponiveis.find(p => p.fuso_utm)?.fuso_utm) || 22;
 
   // Camadas de preview no Leaflet
   let previewLayerGroup: L.LayerGroup | null = null;
@@ -43,26 +70,33 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   container.className = 'w-full max-w-3xl mx-4 bg-[#111113] border border-white/10 rounded-technical shadow-2xl transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col text-white';
 
   // Pré-seleção: se houver pontos selecionados, usa-os
-  const idsIniciais = (ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
+  const idsIniciais: number[] = (ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
     ? ctx.selectedPontoIds
     : pontosDisponiveis.slice(0, 4).map(p => p.id);
+  const idPadrao = (i: number) => idsIniciais[i] ?? pontosDisponiveis[i % pontosDisponiveis.length].id;
 
-  let abaAtiva: 'offset' | 'pa1pa2' = 'offset';
-  // Valor bruto do input, para não perder o que o usuário está digitando ("1.", "") ao re-renderizar
+  let abaAtiva: Aba = 'offset';
+
+  // Deslocamento paralelo (cadeia)
+  // Valores brutos dos inputs, para não perder o que o usuário está digitando ("1.", "") ao re-renderizar
   let distanciaTexto = '15';
   let ladoOffset: LadoOffset = 'DIREITA';
   let prefixoNome = 'V';
   let pontosSelecionadosIds: number[] = [...idsIniciais];
 
-  let resultadosOffset: RespostaVerticeVirtual[] = [];
-  let previaDesatualizada = false;
+  // Faixa de domínio (PA1 + PA2)
+  let larguraTexto = '15';
+  let ladoFaixa: LadoOffset = 'DIREITA';
+  let nomeVerticeFaixa = 'V-01';
+  let eixoIds: [number, number] = [idPadrao(0), idPadrao(1)];
+  let divisaIds: [number, number] = [idPadrao(2), idPadrao(3)];
+
+  const previas: Record<Aba, { resultados: RespostaVerticeVirtual[]; desatualizada: boolean }> = {
+    offset: { resultados: [], desatualizada: false },
+    faixa: { resultados: [], desatualizada: false },
+  };
   let calculando = false;
   let salvando = false;
-
-  const distanciaOffset = () => {
-    const v = parseFloat(distanciaTexto.replace(',', '.'));
-    return Number.isFinite(v) ? v : 0;
-  };
 
   const nomePonto = (pid: number) => {
     const p = pontosDisponiveis.find(pt => pt.id === pid);
@@ -88,21 +122,23 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     setTimeout(() => overlay.remove(), 200);
   };
 
-  // Qualquer mudança de parâmetro torna a prévia anterior inválida
+  // Qualquer mudança de parâmetro torna a prévia da aba atual inválida
   const invalidarPrevia = () => {
-    if (resultadosOffset.length > 0) {
-      resultadosOffset = [];
-      previaDesatualizada = true;
+    const previa = previas[abaAtiva];
+    if (previa.resultados.length > 0) {
+      previa.resultados = [];
+      previa.desatualizada = true;
       limparPreviewMapa();
     }
   };
 
-  const desenharPreviewLoteNoMapa = (resultados: RespostaVerticeVirtual[]) => {
-    if (!previewLayerGroup || !map || resultados.length === 0) return;
+  const desenharPreviewNoMapa = (resultados: RespostaVerticeVirtual[]) => {
+    if (!previewLayerGroup || !map) return;
     previewLayerGroup.clearLayers();
+    if (resultados.length === 0) return;
 
     // Converte UTM para LatLng aproximado baseado nos pontos de apoio ou pela API
-    const latlngs: L.LatLngExpression[] = [];
+    const latlngs: [number, number][] = [];
     resultados.forEach(r => {
       // Procura ponto mais próximo para obter projeção de referência
       const ptRef = pontosDisponiveis[0];
@@ -124,11 +160,11 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
           fillColor: '#059669',
           fillOpacity: 0.8
         });
-        marker.bindTooltip(`<b>${r.nome} (Virtual)</b><br>E: ${r.este.toFixed(3)} | N: ${r.norte.toFixed(3)}<br>σP: ${(r.sigmaPlanimetrico * 100).toFixed(1)} cm`, {
+        marker.bindTooltip(`<b>${escapeHtml(r.nome)} (Virtual)</b><br>E: ${r.este.toFixed(3)} | N: ${r.norte.toFixed(3)}<br>σP: ${(r.sigmaPlanimetrico * 100).toFixed(1)} cm`, {
           permanent: false,
           direction: 'top'
         });
-        previewLayerGroup.addLayer(marker);
+        previewLayerGroup!.addLayer(marker);
       }
     });
 
@@ -141,51 +177,79 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       });
       previewLayerGroup.addLayer(line);
       map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 18 });
+    } else if (latlngs.length === 1) {
+      map.setView(latlngs[0], Math.max(map.getZoom(), 17));
     }
   };
 
-  const calcularOffsetApi = async () => {
-    if (pontosSelecionadosIds.length < 2) {
-      showToast('Selecione pelo menos 2 pontos de apoio.', 'info');
-      return;
-    }
-    if (distanciaOffset() <= 0) {
-      showToast('Informe uma distância maior que zero.', 'info');
-      return;
-    }
+  const executarCalculo = async (aba: Aba, url: string, corpo: object) => {
     calculando = true;
     renderConteudo();
 
     try {
-      const res = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas/${matId}/vertices-virtuais/calcular-offset-lote`, {
+      const res = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas/${matId}/vertices-virtuais/${url}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ponto_ids: pontosSelecionadosIds,
-          distancia: distanciaOffset(),
-          lado: ladoOffset,
-          prefixo_nome: prefixoNome || 'V'
-        })
+        body: JSON.stringify(corpo)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Falha ao calcular offset.');
+      if (!res.ok) throw new Error(data.detail || 'Falha no cálculo dos vértices virtuais.');
 
-      resultadosOffset = data.resultados || [];
-      previaDesatualizada = false;
-      desenharPreviewLoteNoMapa(resultadosOffset);
+      const brutos = aba === 'offset' ? (data.resultados || []) : (data.resultado ? [data.resultado] : []);
+      previas[aba].resultados = brutos.map(normalizarResultado);
+      previas[aba].desatualizada = false;
+      if (abaAtiva === aba) desenharPreviewNoMapa(previas[aba].resultados);
     } catch (err: any) {
       showToast(err.message, 'error');
     } finally {
       calculando = false;
       renderConteudo();
-      if (resultadosOffset.length > 0) {
+      if (previas[abaAtiva].resultados.length > 0) {
         container.querySelector('#vv-secao-previa')?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }
   };
 
-  const confirmarInsercaoLote = async () => {
-    if (resultadosOffset.length === 0) {
+  const calcularOffsetApi = () => {
+    if (pontosSelecionadosIds.length < 2) {
+      showToast('Selecione pelo menos 2 pontos de apoio.', 'info');
+      return;
+    }
+    if (paraNumero(distanciaTexto) <= 0) {
+      showToast('Informe uma distância maior que zero.', 'info');
+      return;
+    }
+    executarCalculo('offset', 'calcular-offset-lote', {
+      ponto_ids: pontosSelecionadosIds,
+      distancia: paraNumero(distanciaTexto),
+      lado: ladoOffset,
+      prefixo_nome: prefixoNome || 'V'
+    });
+  };
+
+  const calcularFaixaApi = () => {
+    if (eixoIds[0] === eixoIds[1] || divisaIds[0] === divisaIds[1]) {
+      showToast('O início e o fim de cada linha precisam ser pontos diferentes.', 'info');
+      return;
+    }
+    if (paraNumero(larguraTexto) <= 0) {
+      showToast('Informe uma largura de faixa maior que zero.', 'info');
+      return;
+    }
+    executarCalculo('faixa', 'calcular-combo-pa1-pa2', {
+      eixo_inicio_id: eixoIds[0],
+      eixo_fim_id: eixoIds[1],
+      divisa_inicio_id: divisaIds[0],
+      divisa_fim_id: divisaIds[1],
+      largura_faixa: paraNumero(larguraTexto),
+      lado: ladoFaixa,
+      nome_vertice: nomeVerticeFaixa || 'V-01'
+    });
+  };
+
+  const confirmarInsercao = async () => {
+    const resultados = previas[abaAtiva].resultados;
+    if (resultados.length === 0) {
       showToast('Calcule a prévia dos vértices antes de confirmar.', 'info');
       return;
     }
@@ -197,8 +261,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fuso_utm: 22,
-          vertices: resultadosOffset.map(r => ({
+          fuso_utm: fusoUtm,
+          vertices: resultados.map(r => ({
             nome_vertice: r.nome,
             este: r.este,
             norte: r.norte,
@@ -220,7 +284,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
         await ctx.loadLevantamentoDetails();
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(typeof err?.message === 'string' ? err.message : 'Erro ao persistir vértices virtuais.', 'error');
       salvando = false;
       renderConteudo();
     }
@@ -241,31 +305,110 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     </div>
   `;
 
+  const secao = (conteudo: string, id = '') => `
+    <section ${id ? `id="${id}"` : ''} class="pt-4 border-t border-white/5 first:pt-0 first:border-t-0">${conteudo}</section>
+  `;
+
+  const botaoInverter = (id: string, visivel: boolean) => `
+    <button type="button" id="${id}" class="shrink-0 flex items-center gap-1 text-[11px] text-white/50 hover:text-white px-2 py-1 rounded hover:bg-white/5 ${visivel ? '' : 'invisible'}" title="Inverter o sentido">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+      Inverter sentido
+    </button>
+  `;
+
+  const campoDistancia = (campo: CampoDistancia, rotulo: string, texto: string) => {
+    const valor = paraNumero(texto);
+    return `
+      <div>
+        <label for="input-${campo}" class="block text-[11px] text-white/50 mb-1">${rotulo}</label>
+        <div class="relative">
+          <input id="input-${campo}" type="text" inputmode="decimal" value="${escapeHtml(texto)}" class="w-full bg-white/5 border ${valor > 0 ? 'border-white/10' : 'border-red-500/50'} rounded-md pl-2.5 pr-8 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono" />
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-white/40 pointer-events-none">m</span>
+        </div>
+        <div class="flex flex-wrap gap-1 mt-1.5">
+          ${PRESETS_DISTANCIA.map(d => `
+            <button type="button" class="btn-preset text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${valor === d ? 'bg-emerald-500/15 text-emerald-300' : 'text-white/45 hover:text-white hover:bg-white/5'}" data-campo="${campo}" data-val="${d}">${d}</button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  const seletorLado = (campo: CampoDistancia, ladoAtual: LadoOffset) => {
+    const btn = (lado: LadoOffset, rotulo: string, icone: string) => `
+      <button type="button" data-campo="${campo}" data-lado="${lado}" class="btn-lado flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold transition-all ${ladoAtual === lado ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/60' : 'text-white/50 hover:text-white hover:bg-white/5'}">
+        ${icone}${rotulo}
+      </button>
+    `;
+    return `
+      <div>
+        <span class="block text-[11px] text-white/50 mb-1">Lado</span>
+        <div class="flex gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10">
+          ${btn('ESQUERDA', 'Esquerda', '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>')}
+          ${btn('DIREITA', 'Direita', '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>')}
+        </div>
+      </div>
+    `;
+  };
+
+  const caixaDiagrama = (svg: string) => `
+    <div class="rounded-lg bg-black/30 border border-white/5 px-1 py-0.5">${svg}</div>
+  `;
+
+  const defsSeta = `
+    <defs>
+      <marker id="vv-seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.55)" />
+      </marker>
+    </defs>
+  `;
+  const estiloRotulo = 'font-size="9" font-family="ui-monospace,monospace"';
+
   // Esquema ilustrativo: linha de apoio (cinza, com sentido) e linha deslocada (verde tracejada)
-  const renderDiagramaLado = () => {
+  const renderDiagramaOffset = () => {
     const base = [[24, 52], [84, 42], [144, 56], [204, 46]];
     const dy = ladoOffset === 'DIREITA' ? 26 : -26;
     const pts = (arr: number[][]) => arr.map(([x, y]) => `${x},${y}`).join(' ');
     const desloc = base.map(([x, y]) => [x, y + dy]);
     const inicio = escapeHtml(nomePonto(pontosSelecionadosIds[0]).slice(0, 10));
     const fim = escapeHtml(nomePonto(pontosSelecionadosIds[pontosSelecionadosIds.length - 1]).slice(0, 10));
-    const dist = distanciaOffset();
+    const dist = paraNumero(distanciaTexto);
     const yCota = (base[0][1] + desloc[0][1]) / 2;
+    const yRotulos = ladoOffset === 'DIREITA' ? 30 : 100;
     return `
       <svg viewBox="0 0 228 104" class="w-full h-auto" aria-hidden="true">
-        <defs>
-          <marker id="vv-seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.55)" />
-          </marker>
-        </defs>
+        ${defsSeta}
         <polyline points="${pts(desloc)}" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="5 4" />
         ${desloc.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3" fill="#10b981" />`).join('')}
         <line x1="${base[0][0]}" y1="${base[0][1]}" x2="${desloc[0][0]}" y2="${desloc[0][1]}" stroke="rgba(16,185,129,0.5)" stroke-width="1" />
-        <text x="${base[0][0] + 5}" y="${yCota + 3}" font-size="9" fill="#6ee7b7" font-family="ui-monospace,monospace">${dist > 0 ? `${dist} m` : '? m'}</text>
+        <text x="${base[0][0] + 5}" y="${yCota + 3}" ${estiloRotulo} fill="#6ee7b7">${dist > 0 ? `${dist} m` : '? m'}</text>
         <polyline points="${pts(base)}" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" marker-end="url(#vv-seta)" />
         ${base.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3" fill="#111113" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" />`).join('')}
-        <text x="${base[0][0]}" y="${ladoOffset === 'DIREITA' ? 30 : 100}" font-size="9" fill="rgba(255,255,255,0.5)" font-family="ui-monospace,monospace" text-anchor="start">${inicio}</text>
-        <text x="${base[3][0]}" y="${ladoOffset === 'DIREITA' ? 30 : 100}" font-size="9" fill="rgba(255,255,255,0.5)" font-family="ui-monospace,monospace" text-anchor="end">${fim}</text>
+        <text x="${base[0][0]}" y="${yRotulos}" ${estiloRotulo} fill="rgba(255,255,255,0.5)" text-anchor="start">${inicio}</text>
+        <text x="${base[3][0]}" y="${yRotulos}" ${estiloRotulo} fill="rgba(255,255,255,0.5)" text-anchor="end">${fim}</text>
+      </svg>
+    `;
+  };
+
+  // Esquema: eixo (cinza, com sentido), limite da faixa (verde tracejado) e divisa (âmbar) cruzando-o no vértice V
+  const renderDiagramaFaixa = () => {
+    const yEixo = 52;
+    const yFaixa = yEixo + (ladoFaixa === 'DIREITA' ? 30 : -30);
+    // Divisa inclinada de (120,4) a (164,100); ponto de cruzamento com a faixa
+    const xDivisa = (y: number) => 120 + ((y - 4) / 96) * 44;
+    const largura = paraNumero(larguraTexto);
+    return `
+      <svg viewBox="0 0 228 104" class="w-full h-auto" aria-hidden="true">
+        ${defsSeta}
+        <line x1="12" y1="${yFaixa}" x2="216" y2="${yFaixa}" stroke="#10b981" stroke-width="2" stroke-dasharray="5 4" />
+        <line x1="120" y1="4" x2="164" y2="100" stroke="#f59e0b" stroke-width="2" stroke-opacity="0.8" />
+        <line x1="40" y1="${yEixo}" x2="40" y2="${yFaixa}" stroke="rgba(16,185,129,0.5)" stroke-width="1" />
+        <text x="44" y="${(yEixo + yFaixa) / 2 + 3}" ${estiloRotulo} fill="#6ee7b7">${largura > 0 ? `${largura} m` : '? m'}</text>
+        <line x1="12" y1="${yEixo}" x2="214" y2="${yEixo}" stroke="rgba(255,255,255,0.55)" stroke-width="2" marker-end="url(#vv-seta)" />
+        <circle cx="${xDivisa(yFaixa)}" cy="${yFaixa}" r="5" fill="#10b981" stroke="#111113" stroke-width="2" />
+        <text x="${xDivisa(yFaixa) + 8}" y="${yFaixa + (ladoFaixa === 'DIREITA' ? 12 : -5)}" ${estiloRotulo} fill="#6ee7b7" font-weight="bold">V</text>
+        <text x="12" y="${yEixo + (ladoFaixa === 'DIREITA' ? -5 : 12)}" ${estiloRotulo} fill="rgba(255,255,255,0.5)">eixo</text>
+        <text x="${ladoFaixa === 'DIREITA' ? 126 : 168}" y="${ladoFaixa === 'DIREITA' ? 12 : 98}" ${estiloRotulo} fill="#fbbf24">divisa</text>
       </svg>
     `;
   };
@@ -289,7 +432,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
         ${restantes.length > 0 ? `
           <select id="sel-adicionar-apoio" class="bg-transparent border border-dashed border-white/20 hover:border-emerald-500/60 rounded-md px-2 py-1 text-[11px] text-white/60 focus:outline-none focus:border-emerald-500 cursor-pointer">
             <option value="" class="bg-[#111113]">+ Adicionar ponto</option>
-            ${restantes.map(p => `<option value="${p.id}" class="bg-[#111113]">${escapeHtml(String(p.nome_vertice || `P${p.id}`))}</option>`).join('')}
+            ${restantes.map(p => `<option value="${p.id}" class="bg-[#111113]">${escapeHtml(nomePonto(p.id))}</option>`).join('')}
           </select>
         ` : ''}
       </div>
@@ -297,37 +440,58 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     `;
   };
 
+  // Par de selects início → fim para uma linha definida por dois pontos
+  const renderParPontos = (linha: 'eixo' | 'divisa', ids: [number, number]) => {
+    const select = (i: 0 | 1) => `
+      <select data-linha="${linha}" data-indice="${i}" class="sel-par-ponto w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 cursor-pointer">
+        ${pontosDisponiveis.map(p => `<option value="${p.id}" class="bg-[#111113]" ${p.id === ids[i] ? 'selected' : ''}>${escapeHtml(nomePonto(p.id))}</option>`).join('')}
+      </select>
+    `;
+    return `
+      <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 max-w-sm">
+        ${select(0)}
+        <span class="text-white/30">→</span>
+        ${select(1)}
+      </div>
+      ${ids[0] === ids[1] ? '<div class="mt-2 text-[11px] text-amber-400">Escolha dois pontos diferentes.</div>' : ''}
+    `;
+  };
+
   const renderResultados = () => {
+    const { resultados, desatualizada } = previas[abaAtiva];
+
     if (calculando) {
       return `
         <div class="flex items-center justify-center gap-2 py-8 rounded-lg bg-white/[0.02] border border-white/5 text-white/50">
           <svg class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>
-          Calculando vértices…
+          Calculando…
         </div>
       `;
     }
 
-    if (resultadosOffset.length === 0) {
+    if (resultados.length === 0) {
       return `
-        <div class="flex items-center gap-3 px-4 py-4 rounded-lg border border-dashed ${previaDesatualizada ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-white/10'}">
-          <svg class="shrink-0 ${previaDesatualizada ? 'text-amber-400' : 'text-white/30'}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <div class="text-[11px] leading-snug ${previaDesatualizada ? 'text-amber-200/80' : 'text-white/45'}">
-            ${previaDesatualizada
-              ? 'Os parâmetros mudaram. Gere a prévia novamente para conferir os vértices antes de inserir.'
-              : 'Nenhuma prévia gerada ainda. Os vértices calculados também aparecem no mapa, em verde tracejado.'}
+        <div class="flex items-center gap-3 px-4 py-4 rounded-lg border border-dashed ${desatualizada ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-white/10'}">
+          <svg class="shrink-0 ${desatualizada ? 'text-amber-400' : 'text-white/30'}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <div class="text-[11px] leading-snug ${desatualizada ? 'text-amber-200/80' : 'text-white/45'}">
+            ${desatualizada
+              ? 'Os parâmetros mudaram. Gere a prévia novamente para conferir antes de inserir.'
+              : 'Nenhuma prévia gerada ainda. O resultado também aparece no mapa, em verde.'}
           </div>
         </div>
       `;
     }
 
-    const conformes = resultadosOffset.filter(r => r.conformeNormaIncra).length;
-    const todosConformes = conformes === resultadosOffset.length;
+    const conformes = resultados.filter(r => r.conformeNormaIncra).length;
+    const todosConformes = conformes === resultados.length;
+    const comAngulo = resultados.some(r => r.anguloIntersecaoGraus !== undefined) && abaAtiva === 'faixa';
+    const alertas = resultados.filter(r => r.alerta);
     return `
       <div class="border border-white/10 rounded-lg overflow-hidden">
         <div class="px-3 py-2 bg-white/[0.04] border-b border-white/10 flex items-center justify-between gap-2">
-          <span class="text-[12px] font-semibold text-white/90">Prévia · ${resultadosOffset.length} vértice(s)</span>
+          <span class="text-[12px] font-semibold text-white/90">${resultados.length} vértice${resultados.length > 1 ? 's' : ''}</span>
           <span class="text-[11px] ${todosConformes ? 'text-emerald-400' : 'text-amber-400'}">
-            ${conformes} de ${resultadosOffset.length} dentro do limite INCRA (σP ≤ ${(LIMITE_SIGMA_P_M * 100).toFixed(0)} cm)
+            ${resultados.length > 1 ? `${conformes} de ${resultados.length} dentro` : todosConformes ? 'Dentro' : 'Fora'} do limite INCRA (σP ≤ ${(LIMITE_SIGMA_P_M * 100).toFixed(0)} cm)
           </span>
         </div>
         <div class="max-h-48 overflow-y-auto">
@@ -338,17 +502,19 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
                 <th class="px-3 py-1.5 font-medium text-right">Este (m)</th>
                 <th class="px-3 py-1.5 font-medium text-right">Norte (m)</th>
                 <th class="px-3 py-1.5 font-medium text-right">Altitude (m)</th>
+                ${comAngulo ? '<th class="px-3 py-1.5 font-medium text-right" title="Ângulo entre o limite da faixa e a divisa">Ângulo</th>' : ''}
                 <th class="px-3 py-1.5 font-medium text-right">σP</th>
                 <th class="px-3 py-1.5 font-medium"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-white/5 font-mono">
-              ${resultadosOffset.map(r => `
-                <tr class="hover:bg-white/[0.03]" ${r.alerta ? `title="${escapeHtml(r.alerta)}"` : ''}>
+              ${resultados.map(r => `
+                <tr class="hover:bg-white/[0.03]">
                   <td class="px-3 py-1.5 font-bold text-emerald-400">${escapeHtml(r.nome)}</td>
                   <td class="px-3 py-1.5 text-right text-white/80">${r.este.toFixed(3)}</td>
                   <td class="px-3 py-1.5 text-right text-white/80">${r.norte.toFixed(3)}</td>
                   <td class="px-3 py-1.5 text-right text-white/80">${r.altitude.toFixed(3)}</td>
+                  ${comAngulo ? `<td class="px-3 py-1.5 text-right text-white/80">${r.anguloIntersecaoGraus !== undefined ? `${r.anguloIntersecaoGraus.toFixed(1)}°` : '—'}</td>` : ''}
                   <td class="px-3 py-1.5 text-right ${r.conformeNormaIncra ? 'text-white/80' : 'text-red-400'}">${(r.sigmaPlanimetrico * 100).toFixed(1)} cm</td>
                   <td class="px-3 py-1.5 text-right">
                     ${r.conformeNormaIncra
@@ -361,117 +527,106 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
           </table>
         </div>
       </div>
+      ${alertas.length > 0 ? `
+        <div class="mt-2 space-y-1">
+          ${alertas.map(r => `
+            <div class="flex items-start gap-2 text-[11px] text-amber-200/80">
+              <span class="text-amber-400">⚠</span>
+              <span><b class="font-mono">${escapeHtml(r.nome)}</b>: ${escapeHtml(r.alerta)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     `;
   };
 
+  const renderSecaoPrevia = (num: number, podeCalcular: boolean) => secao(`
+    ${tituloEtapa(num, 'Conferir prévia', 'Confira coordenadas e precisão antes de inserir.', `
+      <button id="btn-calcular-preview" type="button" class="shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all border ${podeCalcular ? 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10' : 'border-white/10 text-white/30 cursor-not-allowed'}" ${podeCalcular ? '' : 'disabled'}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        ${previas[abaAtiva].resultados.length > 0 ? 'Recalcular' : 'Gerar prévia no mapa'}
+      </button>
+    `)}
+    <div class="pl-[30px]">${renderResultados()}</div>
+  `, 'vv-secao-previa');
+
   const renderAbaOffset = () => {
-    const dist = distanciaOffset();
     const n = pontosSelecionadosIds.length;
-    const podeCalcular = n >= 2 && dist > 0 && !calculando;
+    const podeCalcular = n >= 2 && paraNumero(distanciaTexto) > 0 && !calculando;
     const exemplos = n > 0
       ? (n <= 3
         ? Array.from({ length: n }, (_, i) => nomeVirtual(i)).join(', ')
         : `${nomeVirtual(0)}, ${nomeVirtual(1)} … ${nomeVirtual(n - 1)}`)
       : '';
-    const btnLado = (lado: LadoOffset, rotulo: string, icone: string) => `
-      <button type="button" data-lado="${lado}" class="btn-lado flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold transition-all ${ladoOffset === lado ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/60' : 'text-white/50 hover:text-white hover:bg-white/5'}">
-        ${icone}${rotulo}
-      </button>
-    `;
 
     return `
-      <section>
-        ${tituloEtapa(1, 'Pontos de apoio', 'Sequência medida que define o alinhamento. A ordem determina o sentido.', `
-          <button type="button" id="btn-inverter-cadeia" class="shrink-0 flex items-center gap-1 text-[11px] text-white/50 hover:text-white px-2 py-1 rounded hover:bg-white/5 ${n < 2 ? 'invisible' : ''}" title="Inverter o sentido da sequência">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
-            Inverter sentido
-          </button>
-        `)}
+      ${secao(`
+        ${tituloEtapa(1, 'Pontos de apoio', 'Sequência medida que define o alinhamento. A ordem determina o sentido.', botaoInverter('btn-inverter-cadeia', n >= 2))}
         <div class="pl-[30px]">${renderCadeia()}</div>
-      </section>
+      `)}
 
-      <section class="pt-4 border-t border-white/5">
+      ${secao(`
         ${tituloEtapa(2, 'Deslocamento', 'Distância e lado da linha paralela, olhando no sentido da sequência.')}
         <div class="pl-[30px] grid grid-cols-1 sm:grid-cols-[1fr_1fr_228px] gap-4 items-start">
-          <div>
-            <label for="input-dist-offset" class="block text-[11px] text-white/50 mb-1">Distância</label>
-            <div class="relative">
-              <input id="input-dist-offset" type="text" inputmode="decimal" value="${escapeHtml(distanciaTexto)}" class="w-full bg-white/5 border ${dist > 0 ? 'border-white/10' : 'border-red-500/50'} rounded-md pl-2.5 pr-8 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono" />
-              <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-white/40 pointer-events-none">m</span>
-            </div>
-            <div class="flex flex-wrap gap-1 mt-1.5">
-              ${PRESETS_DISTANCIA.map(d => `
-                <button type="button" class="btn-preset-dist text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${dist === d ? 'bg-emerald-500/15 text-emerald-300' : 'text-white/45 hover:text-white hover:bg-white/5'}" data-val="${d}">${d}</button>
-              `).join('')}
-            </div>
-          </div>
-
-          <div>
-            <span class="block text-[11px] text-white/50 mb-1">Lado</span>
-            <div class="flex gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10">
-              ${btnLado('ESQUERDA', 'Esquerda', '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>')}
-              ${btnLado('DIREITA', 'Direita', '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>')}
-            </div>
-          </div>
-
-          <div class="rounded-lg bg-black/30 border border-white/5 px-1 py-0.5">
-            ${n >= 2 ? renderDiagramaLado() : '<div class="h-[104px] flex items-center justify-center text-[10px] text-white/30">Esquema do deslocamento</div>'}
-          </div>
+          ${campoDistancia('distancia', 'Distância', distanciaTexto)}
+          ${seletorLado('distancia', ladoOffset)}
+          ${caixaDiagrama(n >= 2 ? renderDiagramaOffset() : '<div class="h-[104px] flex items-center justify-center text-[10px] text-white/30">Esquema do deslocamento</div>')}
         </div>
-      </section>
+      `)}
 
-      <section class="pt-4 border-t border-white/5">
+      ${secao(`
         ${tituloEtapa(3, 'Nome dos vértices', 'Prefixo usado na numeração. Um vértice virtual por ponto de apoio.')}
         <div class="pl-[30px] flex flex-wrap items-center gap-3">
           <input id="input-prefixo" type="text" value="${escapeHtml(prefixoNome)}" maxlength="12" class="w-24 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
           ${n > 0 ? `<span class="text-[11px] text-white/45">Serão criados <b class="text-white/80">${n}</b>: <span class="font-mono text-white/70">${escapeHtml(exemplos)}</span></span>` : ''}
         </div>
-      </section>
+      `)}
 
-      <section id="vv-secao-previa" class="pt-4 border-t border-white/5">
-        ${tituloEtapa(4, 'Conferir prévia', 'Confira coordenadas e precisão antes de inserir.', `
-          <button id="btn-calcular-preview-lote" type="button" class="shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all border ${podeCalcular ? 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10' : 'border-white/10 text-white/30 cursor-not-allowed'}" ${podeCalcular ? '' : 'disabled'}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-            ${resultadosOffset.length > 0 ? 'Recalcular' : 'Gerar prévia no mapa'}
-          </button>
-        `)}
-        <div class="pl-[30px]">${renderResultados()}</div>
-      </section>
+      ${renderSecaoPrevia(4, podeCalcular)}
     `;
   };
 
-  const renderAbaPa1Pa2 = () => `
-    <div class="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 text-[11px] text-amber-100/80 leading-snug">
-      <svg class="shrink-0 text-amber-400 mt-px" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <div>
-        <b class="text-amber-200">Em desenvolvimento.</b> Este modo vai calcular o vértice no cruzamento da faixa de domínio (paralela ao eixo da via) com a divisa do confrontante. Por enquanto, use <b>Deslocamento paralelo</b>.
-      </div>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-50 pointer-events-none select-none" aria-disabled="true">
-      ${[['Eixo da via', 'sel-eixo'], ['Divisa do confrontante', 'sel-div']].map(([rotulo, id]) => `
-        <div>
-          <span class="block text-[11px] text-white/50 mb-1">${rotulo} (início → fim)</span>
-          <div class="grid grid-cols-2 gap-2">
-            <select id="${id}-1" disabled class="w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white">
-              ${pontosDisponiveis.map(p => `<option value="${p.id}">${escapeHtml(String(p.nome_vertice))}</option>`).join('')}
-            </select>
-            <select id="${id}-2" disabled class="w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white">
-              ${pontosDisponiveis.slice(1).map(p => `<option value="${p.id}">${escapeHtml(String(p.nome_vertice))}</option>`).join('')}
-            </select>
-          </div>
+  const renderAbaFaixa = () => {
+    const linhasValidas = eixoIds[0] !== eixoIds[1] && divisaIds[0] !== divisaIds[1];
+    const podeCalcular = linhasValidas && paraNumero(larguraTexto) > 0 && !calculando;
+
+    return `
+      ${secao(`
+        ${tituloEtapa(1, 'Eixo da via', 'Dois pontos medidos sobre o eixo. O sentido início → fim define o lado.', botaoInverter('btn-inverter-eixo', true))}
+        <div class="pl-[30px]">${renderParPontos('eixo', eixoIds)}</div>
+      `)}
+
+      ${secao(`
+        ${tituloEtapa(2, 'Divisa do confrontante', 'Dois pontos sobre a divisa. A linha é prolongada até cruzar a faixa.')}
+        <div class="pl-[30px]">${renderParPontos('divisa', divisaIds)}</div>
+      `)}
+
+      ${secao(`
+        ${tituloEtapa(3, 'Faixa de domínio', 'Largura medida a partir do eixo e lado da faixa, olhando no sentido do eixo.')}
+        <div class="pl-[30px] grid grid-cols-1 sm:grid-cols-[1fr_1fr_228px] gap-4 items-start">
+          ${campoDistancia('largura', 'Largura', larguraTexto)}
+          ${seletorLado('largura', ladoFaixa)}
+          ${caixaDiagrama(renderDiagramaFaixa())}
         </div>
-      `).join('')}
-    </div>
-  `;
+      `)}
+
+      ${secao(`
+        ${tituloEtapa(4, 'Nome do vértice', 'Identificador do vértice criado no cruzamento.')}
+        <div class="pl-[30px]">
+          <input id="input-nome-faixa" type="text" value="${escapeHtml(nomeVerticeFaixa)}" maxlength="16" class="w-32 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
+        </div>
+      `)}
+
+      ${renderSecaoPrevia(5, podeCalcular)}
+    `;
+  };
 
   const renderRodape = () => {
-    const n = resultadosOffset.length;
-    const pronto = abaAtiva === 'offset' && n > 0 && !salvando;
-    const dica = abaAtiva !== 'offset'
-      ? ''
-      : n > 0
-        ? 'Os vértices serão adicionados ao perímetro da matrícula.'
-        : 'Gere a prévia para habilitar a inserção.';
+    const n = previas[abaAtiva].resultados.length;
+    const pronto = n > 0 && !salvando;
+    const dica = n > 0
+      ? 'Será adicionado ao perímetro da matrícula.'
+      : 'Gere a prévia para habilitar a inserção.';
     return `
       <div class="px-6 py-4 border-t border-white/10 flex items-center justify-between gap-4 shrink-0">
         <button id="btn-cancelar-modal" type="button" class="px-4 py-2 rounded-md text-white/60 hover:text-white hover:bg-white/5 transition-all text-xs font-semibold">
@@ -479,13 +634,19 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
         </button>
         <div class="flex items-center gap-3">
           <span class="max-sm:hidden text-[11px] text-white/40">${dica}</span>
-          <button id="btn-confirmar-gravar-lote" type="button" class="px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${pronto ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-white/5 text-white/30 cursor-not-allowed'}" ${pronto ? '' : 'disabled'}>
+          <button id="btn-confirmar-gravar" type="button" class="px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${pronto ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-white/5 text-white/30 cursor-not-allowed'}" ${pronto ? '' : 'disabled'}>
             ${salvando ? 'Inserindo…' : n > 0 ? `Inserir ${n} vértice${n > 1 ? 's' : ''}` : 'Inserir vértices'}
           </button>
         </div>
       </div>
     `;
   };
+
+  const botaoAba = (aba: Aba, rotulo: string) => `
+    <button data-aba="${aba}" type="button" class="btn-aba px-3 py-1.5 rounded-md font-semibold transition-all ${abaAtiva === aba ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'}">
+      ${rotulo}
+    </button>
+  `;
 
   const renderConteudo = () => {
     container.innerHTML = `
@@ -501,18 +662,18 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
 
       <div class="px-6 shrink-0">
         <div class="inline-flex p-0.5 rounded-lg bg-white/5 border border-white/10 text-xs">
-          <button id="tab-offset" type="button" class="px-3 py-1.5 rounded-md font-semibold transition-all ${abaAtiva === 'offset' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'}">
-            Deslocamento paralelo
-          </button>
-          <button id="tab-pa1pa2" type="button" class="px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5 ${abaAtiva === 'pa1pa2' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'}">
-            Faixa de domínio
-            <span class="text-[9px] font-semibold px-1 py-px rounded bg-amber-500/15 text-amber-300">em breve</span>
-          </button>
+          ${botaoAba('offset', 'Deslocamento paralelo')}
+          ${botaoAba('faixa', 'Faixa de domínio × divisa')}
         </div>
+        <p class="text-[11px] text-white/40 mt-2">
+          ${abaAtiva === 'offset'
+            ? 'Cria uma linha paralela a uma sequência de pontos, com um vértice para cada ponto.'
+            : 'Cria um único vértice onde o limite da faixa de domínio (paralela ao eixo da via) cruza a divisa do confrontante.'}
+        </p>
       </div>
 
       <div class="px-6 py-5 overflow-y-auto space-y-4 flex-1 text-xs">
-        ${abaAtiva === 'offset' ? renderAbaOffset() : renderAbaPa1Pa2()}
+        ${abaAtiva === 'offset' ? renderAbaOffset() : renderAbaFaixa()}
       </div>
 
       ${renderRodape()}
@@ -522,15 +683,17 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     container.querySelector('#btn-fechar-modal-vvirtual')?.addEventListener('click', fecharModal);
     container.querySelector('#btn-cancelar-modal')?.addEventListener('click', fecharModal);
 
-    container.querySelector('#tab-offset')?.addEventListener('click', () => {
-      abaAtiva = 'offset';
-      renderConteudo();
-    });
-    container.querySelector('#tab-pa1pa2')?.addEventListener('click', () => {
-      abaAtiva = 'pa1pa2';
-      renderConteudo();
+    container.querySelectorAll<HTMLElement>('.btn-aba').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const aba = btn.dataset.aba as Aba;
+        if (aba === abaAtiva) return;
+        abaAtiva = aba;
+        desenharPreviewNoMapa(previas[aba].resultados);
+        renderConteudo();
+      });
     });
 
+    // Deslocamento paralelo
     container.querySelectorAll<HTMLElement>('.btn-remover-apoio').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.id);
@@ -555,15 +718,51 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       renderConteudo();
     });
 
-    container.querySelector('#input-dist-offset')?.addEventListener('input', (e) => {
-      distanciaTexto = (e.target as HTMLInputElement).value;
+    container.querySelector('#input-prefixo')?.addEventListener('input', (e) => {
+      prefixoNome = (e.target as HTMLInputElement).value.trim().toUpperCase();
       invalidarPrevia();
-      renderMantendoFoco('input-dist-offset');
+      renderMantendoFoco('input-prefixo');
     });
 
-    container.querySelectorAll<HTMLElement>('.btn-preset-dist').forEach(btn => {
+    // Faixa de domínio
+    container.querySelectorAll<HTMLSelectElement>('.sel-par-ponto').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const linha = sel.dataset.linha === 'eixo' ? eixoIds : divisaIds;
+        linha[Number(sel.dataset.indice)] = Number(sel.value);
+        invalidarPrevia();
+        renderConteudo();
+      });
+    });
+
+    container.querySelector('#btn-inverter-eixo')?.addEventListener('click', () => {
+      eixoIds = [eixoIds[1], eixoIds[0]];
+      invalidarPrevia();
+      renderConteudo();
+    });
+
+    container.querySelector('#input-nome-faixa')?.addEventListener('input', (e) => {
+      nomeVerticeFaixa = (e.target as HTMLInputElement).value.trim().toUpperCase();
+      invalidarPrevia();
+      renderMantendoFoco('input-nome-faixa');
+    });
+
+    // Campos compartilhados (distância/largura e lado)
+    const definirTexto = (campo: CampoDistancia, texto: string) => {
+      if (campo === 'distancia') distanciaTexto = texto;
+      else larguraTexto = texto;
+    };
+
+    (['distancia', 'largura'] as CampoDistancia[]).forEach(campo => {
+      container.querySelector(`#input-${campo}`)?.addEventListener('input', (e) => {
+        definirTexto(campo, (e.target as HTMLInputElement).value);
+        invalidarPrevia();
+        renderMantendoFoco(`input-${campo}`);
+      });
+    });
+
+    container.querySelectorAll<HTMLElement>('.btn-preset').forEach(btn => {
       btn.addEventListener('click', () => {
-        distanciaTexto = btn.dataset.val || '15';
+        definirTexto(btn.dataset.campo as CampoDistancia, btn.dataset.val || '15');
         invalidarPrevia();
         renderConteudo();
       });
@@ -572,21 +771,20 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     container.querySelectorAll<HTMLElement>('.btn-lado').forEach(btn => {
       btn.addEventListener('click', () => {
         const lado = btn.dataset.lado as LadoOffset;
-        if (lado === ladoOffset) return;
-        ladoOffset = lado;
+        const atual = btn.dataset.campo === 'distancia' ? ladoOffset : ladoFaixa;
+        if (lado === atual) return;
+        if (btn.dataset.campo === 'distancia') ladoOffset = lado;
+        else ladoFaixa = lado;
         invalidarPrevia();
         renderConteudo();
       });
     });
 
-    container.querySelector('#input-prefixo')?.addEventListener('input', (e) => {
-      prefixoNome = (e.target as HTMLInputElement).value.trim().toUpperCase();
-      invalidarPrevia();
-      renderMantendoFoco('input-prefixo');
+    container.querySelector('#btn-calcular-preview')?.addEventListener('click', () => {
+      if (abaAtiva === 'offset') calcularOffsetApi();
+      else calcularFaixaApi();
     });
-
-    container.querySelector('#btn-calcular-preview-lote')?.addEventListener('click', calcularOffsetApi);
-    container.querySelector('#btn-confirmar-gravar-lote')?.addEventListener('click', confirmarInsercaoLote);
+    container.querySelector('#btn-confirmar-gravar')?.addEventListener('click', confirmarInsercao);
   };
 
   // Re-renderiza a partir de um input de texto sem tirar o cursor do lugar

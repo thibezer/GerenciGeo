@@ -748,3 +748,22 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - As features retornadas pelo GeoServer possuem o campo raiz `feat.id = "sigef_geo.XXXXX"`, que é apenas a chave primária sequencial interna do GeoNode.
      - O identificador oficial da parcela no SIGEF (utilizado para abrir os detalhes em `https://sigef.incra.gov.br/geo/parcela/detalhe/<uuid>/`, baixar shapefiles e exportar CSVs de limites e vértices) reside exclusivamente em `properties.parcela_codigo` (ou `co_parcela` / `id_parcela`).
      - Os proxies backend (`routes/processamento.py` e `frontend/public/api.php`) e o extrator de parcelas do frontend (`frontend/src/utils/sigef_consultor.ts`) devem obrigatoriamente priorizar `parcela_codigo` e normalizar `feat.id` para esse UUID, ignorando qualquer prefixo `sigef_geo.` para impedir links corrompidos no popup e erros de importação de confrontantes.
+
+
+---
+
+## 46. Ciclo de Vida da Participação no Polígono (`ignorar_poligono`) e Autorregeneração de Divisas
+- **Contexto e Problema**:
+  1. Ao acionar o botão ou checkbox de "Tirar do Polígono" / "Ignorar no Polígono" na Mesa de Trabalho, o vértice não saía do polígono traçado no mapa e as divisas continuavam conectadas a ele.
+  2. No backend (`services/gestores/levantamento_manager.py:atualizar_ponto_geodesico`), o gatilho de reordenação `reordenar_poligono_reativo = True` para a alteração de `ignorar_poligono` estava indevidamente aninhado dentro da condicional `if atualizar_coordenadas:`. Quando o frontend enviava apenas o payload `{"ignorar_poligono": 1}` (sem alterar lat/lon/alt), a condição avaliava como `False`, de modo que a função `reordenar_perimetro_matricula` nunca era executada e os registros na tabela `segmentos` permaneciam intactos ligando o vértice ignorado.
+  3. No frontend (`servico_salvamento.ts`), após o PATCH de `ignorar_poligono`, não era disparado `await ctx.loadLevantamentoDetails()`, mantendo `ctx.segmentosList` obsoleto no cliente e fazendo com que `ctx.atualizarPolilinhaMapaTemp` continuasse plotando as divisas antigas.
+  4. Na barra de ações flutuante da Mesa de Trabalho (`#batch-action-bar-mesa`), o botão de ação em lote para alternar polígono não estava renderizado (residia apenas em um container oculto `#vtx-batch-bar`), e a ação de lote do painel de propriedades (`acao_ignorar_todos`) realizava `.click()` em um ID sem ouvinte configurado.
+- **Regras Obrigatórias**:
+  1. **Desacoplamento de Reordenação no Backend**:
+     - No backend (`atualizar_ponto_geodesico`), a detecção de mudança em `ignorar_poligono` deve ser avaliada de forma independente de coordenadas, disparando obrigatoriamente `reordenar_poligono_reativo = True` sempre que o valor diferir do banco de dados.
+     - Em `reordenar_perimetro_matricula`, caso os pontos ativos filtrados fiquem com $n < 3$, os segmentos anteriores da matrícula devem ser purgados do banco (`DELETE FROM segmentos WHERE matricula_id = ?`) para impedir polígonos fantasmas ou corrompidos.
+  2. **Recarga Imediata de Geometria no Frontend**:
+     - Qualquer mutação em `ignorar_poligono` no frontend (seja via checkbox na tabela de vértices, toggle no painel de propriedades ou lote) deve chamar `await ctx.loadLevantamentoDetails()` e atualizar o painel de propriedades, forçando a re-renderização das novas divisas no mapa e recalibrando área e perímetro.
+  3. **Ações em Lote e Estado Visual Reativo**:
+     - A barra de ações flutuante da Mesa de Trabalho (`#batch-action-bar-mesa`) deve incluir o botão `#btn-batch-ignorar-mesa`, e a rotina `ctx.atualizarDestaqueLinhasTabela()` deve ajustar dinamicamente seu rótulo e cor ("Tirar do Polígono" quando há pontos ativos selecionados, e "Incluir no Polígono" quando todos os selecionados já estão ignorados).
+     - As bases físicas (`tipo_ponto === 'B'`) devem permanecer desabilitadas para inclusão perimetral na coluna de polígono, respeitando a constituição do projeto.
