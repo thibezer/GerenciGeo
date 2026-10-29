@@ -23,7 +23,9 @@ const SVGS = {
   cpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>`,
   fileText: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
   fileCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>`,
-  shieldCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`
+  shieldCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
+  offsetCad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/><path d="M5 18h14"/></svg>`,
+  verticeVirtual: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
 };
 
 export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
@@ -54,7 +56,7 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               rotulo: 'Processar Lote',
               tamanho: 'grande',
               tipo: 'botao',
-              atalho: 'F5',
+              atalho: 'Ctrl+Enter',
               icone: SVGS.play
             }
           ]
@@ -170,6 +172,21 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           prioridade: 5,
           itens: [
             {
+              id: 'btn-offset-cad',
+              rotulo: 'Offset CAD',
+              tamanho: 'grande',
+              tipo: 'botao',
+              atalho: 'O',
+              icone: SVGS.offsetCad
+            },
+            {
+              id: 'btn-vertice-virtual',
+              rotulo: 'Vértice Virtual',
+              tamanho: 'grande',
+              tipo: 'botao',
+              icone: SVGS.verticeVirtual
+            },
+            {
               id: 'btn-reordenar-caminhamento',
               rotulo: 'Reordenar',
               tamanho: 'grande',
@@ -217,6 +234,21 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           rotulo: 'Topografia',
           prioridade: 7,
           itens: [
+            {
+              id: 'btn-offset-cad',
+              rotulo: 'Offset CAD',
+              tamanho: 'grande',
+              tipo: 'botao',
+              atalho: 'O',
+              icone: SVGS.offsetCad
+            },
+            {
+              id: 'btn-vertice-virtual',
+              rotulo: 'Vértice Virtual',
+              tamanho: 'grande',
+              tipo: 'botao',
+              icone: SVGS.verticeVirtual
+            },
             {
               id: 'btn-calcular-confrontantes',
               rotulo: 'Calcular Lados',
@@ -341,6 +373,23 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
       }
       if (toolId === 'btn-ir-requerimento') {
         showToast('Acesse o requerimento de ratificação no painel de cartório.', 'info');
+        return;
+      }
+
+      if (toolId === 'btn-offset-cad') {
+        import('../ferramenta_offset_mapa').then(({ FerramentaOffsetMapa }) => {
+          if (!ctx.ferramentaOffsetMapa) {
+            ctx.ferramentaOffsetMapa = new FerramentaOffsetMapa(ctx);
+          }
+          ctx.ferramentaOffsetMapa.alternar();
+        });
+        return;
+      }
+
+      if (toolId === 'btn-vertice-virtual') {
+        import('../modal_vertice_virtual').then(({ abrirModalVerticeVirtual }) => {
+          abrirModalVerticeVirtual(ctx);
+        });
         return;
       }
 

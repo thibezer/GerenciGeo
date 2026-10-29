@@ -251,6 +251,14 @@ export const renderMesaTrabalho = (): string => {
                  <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                  <span>Caneta</span>
                </button>
+                <button id="btn-mapa-offset-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Offset CAD - Deslocamento Paralelo (Atalho: O)">
+                  <i data-lucide="git-commit" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Offset</span>
+                </button>
+                <button id="btn-mapa-vvirtual-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Assistente de Vértice Virtual (PA1 / PA2)">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Virtual</span>
+                </button>
                <!-- Camadas da etapa Peças de Cartório (visíveis só nela) -->
                <button id="btn-mapa-toggle-confrontantes" class="btn-mapa-cartorio hidden px-2 py-1 rounded transition-all items-center gap-1.5 text-xs font-bold border" type="button" title="Divisas coloridas por confrontante (preto/branco alternado)">
                  <i data-lucide="layers" class="w-3.5 h-3.5"></i>
@@ -313,6 +321,7 @@ export const renderMesaTrabalho = (): string => {
                   <span class="text-[10px] text-white/70 font-mono"><strong id="vtx-batch-count">0</strong> selecionados</span>
                   <div class="rl1-separator"></div>
                   <button class="vtx-filter-chip hover:bg-yellow-500/10 hover:text-yellow-400 border-yellow-500/20" id="btn-batch-ignorar" type="button">Alternar Polígono</button>
+                  <button class="vtx-filter-chip hover:bg-emerald-500/10 hover:text-emerald-400 border-emerald-500/20 font-bold" id="btn-batch-offset-v" type="button" title="Criar Vértices Virtuais paralelos (Offset CAD)">Offset (V)</button>
                   <button class="vtx-filter-chip hover:bg-red-500/10 hover:text-red-400 border-red-500/20 font-bold" id="btn-batch-deletar" type="button">Apagar Pontos</button>
                   <button class="vtx-filter-chip" id="btn-batch-limpar" type="button">Cancelar</button>
                 </div>

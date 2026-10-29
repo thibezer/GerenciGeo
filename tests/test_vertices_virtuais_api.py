@@ -159,6 +159,82 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
             self.assertIsNotNone(row[5])
             self.assertIsNotNone(row[6])
 
+    def test_endpoint_calcular_offset_lote(self):
+        """Testa o cálculo analítico de offset em lote via endpoint."""
+        payload = {
+            "ponto_ids": [self.e1_id, self.e2_id],
+            "distancia": 15.0,
+            "lado": "DIREITA",
+            "prefixo_nome": "VT"
+        }
+        res = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/calcular-offset-lote",
+            json=payload
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        data = res.json()
+        self.assertTrue(data["sucesso"])
+        self.assertEqual(data["total"], 2)
+        resultados = data["resultados"]
+        self.assertEqual(resultados[0]["nome"], "VT-01")
+        self.assertEqual(resultados[1]["nome"], "VT-02")
+        self.assertAlmostEqual(resultados[0]["este"], 500015.0, places=2)
+        self.assertAlmostEqual(resultados[1]["este"], 500015.0, places=2)
+
+    def test_endpoint_confirmar_offset_lote(self):
+        """Testa a persistência atômica de lote de vértices virtuais."""
+        payload_lote = {
+            "fuso_utm": 22,
+            "vertices": [
+                {
+                    "nome_vertice": "VT-01",
+                    "este": 500015.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.028,
+                    "sigma_norte": 0.028,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.04,
+                    "metodo": "PA1"
+                },
+                {
+                    "nome_vertice": "VT-02",
+                    "este": 500015.0,
+                    "norte": 7001000.0,
+                    "altitude": 510.0,
+                    "sigma_este": 0.028,
+                    "sigma_norte": 0.028,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.04,
+                    "metodo": "PA1"
+                }
+            ]
+        }
+        res = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/confirmar-lote",
+            json=payload_lote
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        data = res.json()
+        self.assertTrue(data["sucesso"])
+        self.assertEqual(data["total_inseridos"], 2)
+        ids = data["ids"]
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for vid in ids:
+                cursor.execute(
+                    "SELECT tipo_ponto, status_ponto, camada_ciclo_vida, lat, lon FROM pontos WHERE id = ?",
+                    (vid,)
+                )
+                row = cursor.fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[0], "V")
+                self.assertEqual(row[1], "CORRIGIDO")
+                self.assertEqual(row[2], "PERIMETRO")
+                self.assertIsNotNone(row[3])
+                self.assertIsNotNone(row[4])
+
 
 if __name__ == "__main__":
     unittest.main()

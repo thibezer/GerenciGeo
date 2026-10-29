@@ -7,7 +7,7 @@ Padrão INCRA/SIGEF (3ª Edição) - SIRGAS 2000.
 from dataclasses import dataclass
 from enum import Enum
 import math
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import numpy as np
 
 
@@ -309,3 +309,95 @@ class MotorVerticesVirtuais:
             alerta=alerta,
             angulo_intersecao_graus=round(angulo_intersecao, 2),
         )
+
+    @classmethod
+    def calcular_offset_polilinha(
+        cls,
+        pontos: List[PontoApoio],
+        distancia: float,
+        lado: LadoOffset,
+        prefixo_nome: str = "V",
+    ) -> List[ResultadoVerticeVirtual]:
+        """
+        Calcula o deslocamento paralelo (estilo OFFSET do AutoCAD) para uma cadeia/sequência
+        de vértices de apoio, gerando os vértices virtuais correspondentes com interseção
+        analítica nos cantos intermediários e propagação estocástica INCRA/SIGEF.
+        """
+        if distancia < 0:
+            raise ValueError("A distância de offset não pode ser negativa.")
+        if len(pontos) < 2:
+            raise ValueError("São necessários pelo menos 2 pontos para calcular o deslocamento paralelo.")
+
+        num_pts = len(pontos)
+        # 1. Calcula os segmentos deslocados para cada trecho consecutivo
+        segmentos_offset = []
+        for i in range(num_pts - 1):
+            p1 = np.array([pontos[i].este, pontos[i].norte], dtype=float)
+            p2 = np.array([pontos[i + 1].este, pontos[i + 1].norte], dtype=float)
+            off_p1, off_p2 = cls._calcular_offset_pa1(p1, p2, distancia, lado)
+            segmentos_offset.append((off_p1, off_p2))
+
+        resultados: List[ResultadoVerticeVirtual] = []
+
+        # Formatação limpa do nome do vértice
+        sep = "" if (prefixo_nome.endswith("-") or prefixo_nome.endswith("_")) else "-"
+
+        for i in range(num_pts):
+            pt_origem = pontos[i]
+            nome_v = f"{prefixo_nome}{sep}{i + 1:02d}"
+
+            if i == 0:
+                # Primeiro vértice: extremidade inicial do primeiro segmento deslocado
+                coord = segmentos_offset[0][0]
+                metodo = "PA1"
+                angulo = 90.0
+            elif i == num_pts - 1:
+                # Último vértice: extremidade final do último segmento deslocado
+                coord = segmentos_offset[-1][1]
+                metodo = "PA1"
+                angulo = 90.0
+            else:
+                # Vértice intermediário: interseção analítica dos dois segmentos adjacentes
+                seg_ant = segmentos_offset[i - 1]
+                seg_post = segmentos_offset[i]
+                metodo = "PA1+PA2"
+                try:
+                    coord, _, angulo = cls._intersecao_retas_2d(
+                        seg_ant[0], seg_ant[1],
+                        seg_post[0], seg_post[1]
+                    )
+                except ValueError:
+                    # Se forem colineares ou muito agudos, usa a média vetorial dos pontos de canto
+                    coord = (seg_ant[1] + seg_post[0]) / 2.0
+                    angulo = 180.0
+
+            # Incertezas propagadas a partir do ponto de apoio original com ruído analítico de offset (2 cm)
+            sigma_e = float(math.hypot(pt_origem.sigma_este, 0.02))
+            sigma_n = float(math.hypot(pt_origem.sigma_norte, 0.02))
+            sigma_alt = float(pt_origem.sigma_altitude)
+            sigma_p = float(math.hypot(sigma_e, sigma_n))
+
+            conforme = sigma_p <= cls.TOLERANCIA_ARTIFICIAL
+            alerta = "" if conforme else (
+                f"Precisão de {sigma_p:.3f} m excede o limite regulamentar do INCRA ({cls.TOLERANCIA_ARTIFICIAL:.2f} m)."
+            )
+
+            resultados.append(
+                ResultadoVerticeVirtual(
+                    nome=nome_v,
+                    este=round(float(coord[0]), 3),
+                    norte=round(float(coord[1]), 3),
+                    altitude=round(float(pt_origem.altitude), 3),
+                    sigma_este=round(sigma_e, 4),
+                    sigma_norte=round(sigma_n, 4),
+                    sigma_altitude=round(sigma_alt, 4),
+                    sigma_planimetrico=round(sigma_p, 4),
+                    tipo_ponto="V",
+                    metodo=metodo,
+                    conforme_norma_incra=conforme,
+                    alerta=alerta,
+                    angulo_intersecao_graus=round(float(angulo), 2),
+                )
+            )
+
+        return resultados

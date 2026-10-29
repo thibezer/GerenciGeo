@@ -188,6 +188,44 @@ class TestMotorVerticesVirtuais(unittest.TestCase):
             )
         self.assertIn("coincidentes", str(ctx.exception))
 
+    def test_calcular_offset_polilinha_lote(self):
+        """Valida deslocamento de polilinha com 3 vértices (estilo OFFSET AutoCAD com canto intermediário)."""
+        # Traçado em "L": (500000, 7000000) -> (500000, 7000100) -> (500100, 7000100)
+        p1 = PontoApoio("P1", 500000.0, 7000000.0, 500.0, 0.02, 0.02, 0.02)
+        p2 = PontoApoio("P2", 500000.0, 7000100.0, 505.0, 0.02, 0.02, 0.02)
+        p3 = PontoApoio("P3", 500100.0, 7000100.0, 510.0, 0.02, 0.02, 0.02)
+
+        # Offset de 10m à direita (no sentido de avanço)
+        resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
+            pontos=[p1, p2, p3],
+            distancia=10.0,
+            lado=LadoOffset.DIREITA,
+            prefixo_nome="V",
+        )
+
+        self.assertEqual(len(resultados), 3)
+        self.assertEqual(resultados[0].nome, "V-01")
+        self.assertEqual(resultados[1].nome, "V-02")
+        self.assertEqual(resultados[2].nome, "V-03")
+
+        # P1: deslocado 10m para a direita (Este + 10): E=500010, N=7000000
+        self.assertAlmostEqual(resultados[0].este, 500010.0, places=2)
+        self.assertAlmostEqual(resultados[0].norte, 7000000.0, places=2)
+
+        # P2: canto em 90 graus. A interseção das duas paralelas deve cair em E=500010, N=7000090
+        self.assertAlmostEqual(resultados[1].este, 500010.0, places=2)
+        self.assertAlmostEqual(resultados[1].norte, 7000090.0, places=2)
+
+        # P3: final do segmento Leste com offset 10m à direita (Sul, Norte - 10): E=500100, N=7000090
+        self.assertAlmostEqual(resultados[2].este, 500100.0, places=2)
+        self.assertAlmostEqual(resultados[2].norte, 7000090.0, places=2)
+
+        # Todos devem ser do tipo V e conformes com a norma INCRA
+        for r in resultados:
+            self.assertEqual(r.tipo_ponto, "V")
+            self.assertTrue(r.conforme_norma_incra)
+            self.assertLessEqual(r.sigma_planimetrico, 0.50)
+
 
 if __name__ == "__main__":
     unittest.main()

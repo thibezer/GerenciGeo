@@ -16,6 +16,11 @@ export interface PreviewResultadoFaixa {
   anguloIntersecaoGraus: number | null;
 }
 
+export interface PreviewResultadoOffsetPolilinha {
+  vertices: Ponto2D[];
+  segmentos: [Ponto2D, Ponto2D][];
+}
+
 /**
  * Calcula a linha paralela da faixa de domínio e a interseção em tela
  * para renderização vetorial no mapa (Leaflet/Canvas).
@@ -104,6 +109,70 @@ export function gerarGeometriaPreviewPA2Puro(
     intersecao: { este: round3(intE), norte: round3(intN) },
     anguloIntersecaoGraus: round2(anguloGraus),
   };
+}
+
+/**
+ * Calcula a pré-visualização vetorial em tempo real para deslocamento em lote de polilinha (Offset estilo AutoCAD).
+ */
+export function gerarGeometriaPreviewOffsetPolilinha(
+  pontos: { este: number; norte: number }[],
+  distancia: number,
+  lado: LadoOffset
+): PreviewResultadoOffsetPolilinha {
+  if (pontos.length < 2 || distancia <= 0) {
+    return { vertices: [], segmentos: [] };
+  }
+
+  const segmentos: [Ponto2D, Ponto2D][] = [];
+  for (let i = 0; i < pontos.length - 1; i++) {
+    const p1 = pontos[i];
+    const p2 = pontos[i + 1];
+    const de = p2.este - p1.este;
+    const dn = p2.norte - p1.norte;
+    const len = Math.hypot(de, dn);
+    if (len < 1e-4) continue;
+
+    const sinal = lado === 'DIREITA' ? 1 : -1;
+    const offE = sinal * distancia * (dn / len);
+    const offN = -sinal * distancia * (de / len);
+
+    segmentos.push([
+      { este: round3(p1.este + offE), norte: round3(p1.norte + offN) },
+      { este: round3(p2.este + offE), norte: round3(p2.norte + offN) }
+    ]);
+  }
+
+  if (segmentos.length === 0) {
+    return { vertices: [], segmentos: [] };
+  }
+
+  const vertices: Ponto2D[] = [];
+  for (let i = 0; i < pontos.length; i++) {
+    if (i === 0) {
+      vertices.push(segmentos[0][0]);
+    } else if (i === pontos.length - 1) {
+      vertices.push(segmentos[segmentos.length - 1][1]);
+    } else {
+      const seg1 = segmentos[i - 1];
+      const seg2 = segmentos[i];
+      const den = (seg1[0].este - seg1[1].este) * (seg2[0].norte - seg2[1].norte) -
+                  (seg1[0].norte - seg1[1].norte) * (seg2[0].este - seg2[1].este);
+      if (Math.abs(den) < 1e-7) {
+        vertices.push({
+          este: round3((seg1[1].este + seg2[0].este) / 2),
+          norte: round3((seg1[1].norte + seg2[0].norte) / 2)
+        });
+      } else {
+        const k1 = seg1[0].este * seg1[1].norte - seg1[0].norte * seg1[1].este;
+        const k2 = seg2[0].este * seg2[1].norte - seg2[0].norte * seg2[1].este;
+        const intE = (k1 * (seg2[0].este - seg2[1].este) - (seg1[0].este - seg1[1].este) * k2) / den;
+        const intN = (k1 * (seg2[0].norte - seg2[1].norte) - (seg1[0].norte - seg1[1].norte) * k2) / den;
+        vertices.push({ este: round3(intE), norte: round3(intN) });
+      }
+    }
+  }
+
+  return { vertices, segmentos };
 }
 
 function round3(n: number): number {

@@ -44,8 +44,38 @@ export interface RespostaVerticeVirtual {
   sigmaAltitude: number;
   sigmaPlanimetrico: number;
   tipoPonto: 'V';
-  metodo: 'PA1+PA2' | 'PA2';
+  metodo: 'PA1+PA2' | 'PA2' | 'PA1';
   conformeNormaIncra: boolean;
   alerta?: string;
   anguloIntersecaoGraus?: number;
+}
+
+export interface PayloadCalcularOffsetLote {
+  ponto_ids: number[];
+  distancia: number;
+  lado: LadoOffset;
+  prefixo_nome?: string;
+}
+
+export interface RespostaOffsetLote {
+  sucesso: boolean;
+  total: number;
+  resultados: RespostaVerticeVirtual[];
+}
+
+export interface PayloadConfirmarOffsetLote {
+  fuso_utm?: number;
+  confrontante_id?: number | null;
+  vertices: {
+    nome_vertice: string;
+    este: number;
+    norte: number;
+    altitude: number;
+    sigma_este: number;
+    sigma_norte: number;
+    sigma_altitude: number;
+    sigma_planimetrico: number;
+    metodo: string;
+    ordem_caminhamento?: number | null;
+  }[];
 }

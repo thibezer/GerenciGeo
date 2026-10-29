@@ -1409,6 +1409,32 @@ class PayloadInserirVerticeVirtual(BaseModel):
     confrontante_id: Optional[int] = None
 
 
+class PayloadCalcularOffsetLote(BaseModel):
+    ponto_ids: List[int]
+    distancia: float
+    lado: Literal["DIREITA", "ESQUERDA"]
+    prefixo_nome: Optional[str] = "V"
+
+
+class VerticeVirtualLoteItem(BaseModel):
+    nome_vertice: str
+    este: float
+    norte: float
+    altitude: float
+    sigma_este: float
+    sigma_norte: float
+    sigma_altitude: float
+    sigma_planimetrico: float
+    metodo: str = "PA1"
+    ordem_caminhamento: Optional[int] = None
+
+
+class PayloadConfirmarOffsetLote(BaseModel):
+    fuso_utm: Optional[int] = 22
+    confrontante_id: Optional[int] = None
+    vertices: List[VerticeVirtualLoteItem]
+
+
 def _obter_ponto_apoio_db(ponto_id: int):
     from services.processamento.vertices_virtuais import PontoApoio
 
@@ -1653,3 +1679,145 @@ def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: Payl
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao inserir vértice virtual: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao persistir vértice virtual: {str(e)}")
+
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-offset-lote")
+def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCalcularOffsetLote):
+    """
+    Calcula analiticamente o deslocamento (offset estilo CAD) para uma sequência de pontos de apoio,
+    retornando a cadeia de vértices virtuais com cantos interceptados e incertezas propagadas.
+    """
+    from services.processamento.vertices_virtuais import MotorVerticesVirtuais, LadoOffset
+
+    try:
+        if len(payload.ponto_ids) < 2:
+            raise HTTPException(status_code=400, detail="São necessários pelo menos 2 pontos para o deslocamento.")
+
+        pontos_apoio = [_obter_ponto_apoio_db(pid) for pid in payload.ponto_ids]
+        lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
+
+        resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
+            pontos=pontos_apoio,
+            distancia=payload.distancia,
+            lado=lado_enum,
+            prefixo_nome=payload.prefixo_nome or "V",
+        )
+
+        return {
+            "sucesso": True,
+            "total": len(resultados),
+            "resultados": [
+                {
+                    "nome": r.nome,
+                    "este": r.este,
+                    "norte": r.norte,
+                    "altitude": r.altitude,
+                    "sigma_este": r.sigma_este,
+                    "sigma_norte": r.sigma_norte,
+                    "sigma_altitude": r.sigma_altitude,
+                    "sigma_planimetrico": r.sigma_planimetrico,
+                    "tipo_ponto": r.tipo_ponto,
+                    "metodo": r.metodo,
+                    "conforme_norma_incra": r.conforme_norma_incra,
+                    "alerta": r.alerta,
+                    "angulo_intersecao_graus": r.angulo_intersecao_graus,
+                }
+                for r in resultados
+            ]
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro no cálculo de offset em lote: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Falha interna no motor de offset: {str(e)}")
+
+
+@router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar-lote")
+def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadConfirmarOffsetLote):
+    """
+    Insere atomicamente um lote de vértices virtuais no banco de dados,
+    convertendo coordenadas UTM para Geográficas SIRGAS 2000 e ordenando na matrícula.
+    """
+    verificar_levantamento_arquivado(id)
+    if not payload.vertices:
+        raise HTTPException(status_code=400, detail="Nenhum vértice virtual fornecido para inserção.")
+
+    try:
+        fuso = payload.fuso_utm or 22
+        transformer = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
+
+        row_max = execute_query(
+            "SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?",
+            params=(id, matricula_id),
+            fetch_one=True,
+        )
+        ordem_atual = (row_max["max_ord"] if row_max and row_max["max_ord"] is not None else 0)
+
+        inseridos_ids = []
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            for v in payload.vertices:
+                lon_calc, lat_calc = transformer.transform(v.este, v.norte)
+                ordem_atual += 1
+                ordem_final = v.ordem_caminhamento or ordem_atual
+
+                cursor.execute(
+                    """
+                    INSERT INTO pontos (
+                        levantamento_id, matricula_id, nome_vertice, tipo_ponto,
+                        lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
+                        n_corrigido, e_corrigido,
+                        sigma_n, sigma_e, sigma_z, sigma_lat, sigma_lon, sigma_alt,
+                        fuso_utm, metodo_posicionamento,
+                        status_ponto, status_correcao, camada_ciclo_vida,
+                        ordem_caminhamento, confrontante_id
+                    ) VALUES (
+                        ?, ?, ?, 'V',
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?,
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?,
+                        'CORRIGIDO', 'CORRIGIDO', 'PERIMETRO',
+                        ?, ?
+                    )
+                    """,
+                    (
+                        id, matricula_id, v.nome_vertice,
+                        lat_calc, lon_calc, v.altitude, lat_calc, lon_calc, v.altitude,
+                        v.norte, v.este,
+                        v.sigma_norte, v.sigma_este, v.sigma_altitude,
+                        v.sigma_norte, v.sigma_este, v.sigma_altitude,
+                        fuso, v.metodo,
+                        ordem_final, payload.confrontante_id
+                    ),
+                )
+                inseridos_ids.append(cursor.lastrowid)
+            conn.commit()
+
+        sanitizar_ordens_duplicadas(id)
+
+        from services.processamento.historico_campo import HistoricoCampoLogger
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=id,
+            tipo_evento="VERTICE_VIRTUAL_LOTE_CRIADO",
+            descricao=f"Lote de {len(inseridos_ids)} vértices virtuais criado com sucesso via Offset Paralelo.",
+            dados_detalhados={
+                "total_inseridos": len(inseridos_ids),
+                "ids": inseridos_ids,
+                "matricula_id": matricula_id,
+            }
+        )
+
+        return {
+            "sucesso": True,
+            "total_inseridos": len(inseridos_ids),
+            "ids": inseridos_ids,
+            "mensagem": f"{len(inseridos_ids)} vértices virtuais cadastrados com sucesso."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao inserir lote de vértices virtuais: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao persistir vértices virtuais em lote: {str(e)}")

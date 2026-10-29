@@ -14,6 +14,7 @@ export interface MesaTrabalhoContext {
   mapaController: any; // MesaTrabalhoMapa
   canvasInteracao?: any;
   ferramentaCaneta?: any;
+  ferramentaOffsetMapa?: any;
   filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[];
   modoCoordenadas: string;
   etapaAtiva: string;

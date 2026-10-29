@@ -1135,7 +1135,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           if (btnOriginal) {
             btnOriginal.click();
           }
-          colapsarIngestao();
         });
       }
     };

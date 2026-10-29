@@ -82,13 +82,43 @@ $$\sigma_P = \sqrt{\sigma_{E_V}^2 + \sigma_{N_V}^2} \le 0,50\,\text{m (Tolerânc
 }
 ```
 
-### 4.3 Confirmação e Inserção Atômica
+### 4.3 Deslocamento Paralelo em Cadeia (Offset Multi-Vértice / AutoCAD)
+- **Rota de Cálculo**: `POST /levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-offset-lote`
+- **Payload**:
+```json
+{
+  "ponto_ids": [101, 102, 103],
+  "distancia": 15.0,
+  "lado": "DIREITA",
+  "prefixo_nome": "V"
+}
+```
+- **Rota de Confirmação em Lote**: `POST /levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar-lote`
+- Insere atomicamente a cadeia de vértices virtuais com `tipo_ponto = 'V'`, `status_ponto = 'CORRIGIDO'`, `camada_ciclo_vida = 'PERIMETRO'`, conversão automática para SIRGAS 2000 Geográficas (EPSG:4674), sequência em `ordem_caminhamento` e histórico de campo.
+
+### 4.4 Confirmação e Inserção Atômica Individual
 - **Rota**: `POST /levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar`
 - Insere atômico em `pontos` com `tipo_ponto = 'V'`, `status_ponto = 'CORRIGIDO'`, `camada_ciclo_vida = 'PERIMETRO'`, conversão automática para SIRGAS 2000 Geográficas (EPSG:4674) e registro no histórico físico de campo.
 
 ---
 
-## 5. Integração com AutoCAD / TopoCAD2000 (AutoLISP)
+## 5. Interface com Usuário na Mesa de Trabalho (Dupla Abordagem)
+
+O operador conta com duas modalidades complementares para gerar vértices virtuais:
+
+1. **Forma 1: Assistente / Modal Guiado (`modal_vertice_virtual.ts`)**:
+   - Acionado pelo botão **"Vértice Virtual"** no Ribbon (grupos *Edição* e *Topografia*), botão **"Virtual"** na floating toolbar do mapa ou na barra de ações em lote (`btn-batch-offset-v`).
+   - Fornece abas para *Deslocamento em Cadeia (Offset)* e *Faixa Conjugada (PA1 + PA2)* com presets rápidos de distância (5m a 30m), alternância de lado (Direita/Esquerda), customização de prefixo e tabela completa de auditoria das incertezas antes da gravação.
+   - Projeta live preview no mapa Leaflet.
+
+2. **Forma 2: Ferramenta Interativa Direta no Mapa (`ferramenta_offset_mapa.ts`)**:
+   - Acionada pelo botão **"Offset CAD"** na Ribbon, botão **"Offset"** na floating toolbar do mapa ou pelo atalho de teclado `O` (estilo AutoCAD).
+   - Detecta dinamicamente a posição do mouse em relação ao alinhamento selecionado e desenha a *ghost line* em tempo real.
+   - Permite ajustar a distância em um mini-banner flutuante e confirmar com um clique no mapa ou pressionando `Enter`.
+
+---
+
+## 6. Integração com AutoCAD / TopoCAD2000 (AutoLISP)
 
 Macro disponível para o Clipboard Estruturado:
 ```lisp

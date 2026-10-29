@@ -1,5 +1,5 @@
 import { API_BASE } from '../../../config';
-import { initIcons, escapeHtml } from '../../../utils';
+import { initIcons, escapeHtml, showToast } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
@@ -8,6 +8,29 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
   const filaContainer = document.getElementById('triagem-fila-container');
   const btnProcessar = document.getElementById('btn-processar-lote');
 
+  const sincronizarRibbonProcessar = (processando: boolean = false, progressoTexto?: string) => {
+    const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+    if (!mesaRibbon || typeof mesaRibbon.atualizarItem !== 'function') return;
+
+    const count = ctx.filesQueue ? ctx.filesQueue.length : 0;
+    if (processando) {
+      mesaRibbon.atualizarItem('btn-processar-lote', {
+        rotulo: progressoTexto || 'Processando...',
+        disabled: true
+      });
+    } else if (count === 0) {
+      mesaRibbon.atualizarItem('btn-processar-lote', {
+        rotulo: 'Processar Lote',
+        disabled: false
+      });
+    } else {
+      mesaRibbon.atualizarItem('btn-processar-lote', {
+        rotulo: `Processar (${count})`,
+        disabled: false
+      });
+    }
+  };
+
   ctx.renderFilaArquivos = () => {
     const dropzoneEl = document.getElementById('triagem-dropzone');
     const dropzoneIcon = document.getElementById('triagem-dropzone-icon');
@@ -15,7 +38,7 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
     const dropzoneDesc = document.getElementById('triagem-dropzone-desc');
     const chkContainer = document.getElementById('triagem-opcoes-lote');
 
-    if (ctx.filesQueue.length === 0) {
+    if (!ctx.filesQueue || ctx.filesQueue.length === 0) {
       if (dropzoneEl) {
         dropzoneEl.className = 'border-2 border-dashed border-white/10 hover:border-mint-vibrant/40 rounded-xl p-4 text-center cursor-pointer transition-all flex-1 flex flex-col justify-center items-center group relative overflow-hidden min-h-[120px]';
       }
@@ -27,13 +50,14 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
       }
 
       filaContainer?.classList.add('hidden');
-      btnProcessar?.classList.add('hidden');
       const btnProcessarModal = document.getElementById('btn-processar-lote-modal');
       if (btnProcessarModal) btnProcessarModal.classList.add('hidden');
       if (chkContainer) {
         chkContainer.classList.remove('flex');
         chkContainer.classList.add('hidden');
       }
+
+      sincronizarRibbonProcessar(false);
       return;
     }
 
@@ -48,7 +72,6 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
     }
 
     filaContainer?.classList.remove('hidden');
-    btnProcessar?.classList.remove('hidden');
     const btnProcessarModal = document.getElementById('btn-processar-lote-modal');
     if (btnProcessarModal) btnProcessarModal.classList.remove('hidden');
     if (chkContainer) {
@@ -56,16 +79,11 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
       chkContainer.classList.add('flex');
     }
 
-    if (btnProcessar) {
-      (btnProcessar as HTMLButtonElement).disabled = false;
-      btnProcessar.classList.remove('opacity-50', 'cursor-not-allowed');
-      btnProcessar.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Processar Lote em Segundo Plano`;
-    }
     const btnProcessarModalEl = document.getElementById('btn-processar-lote-modal') as HTMLButtonElement | null;
     if (btnProcessarModalEl) {
       btnProcessarModalEl.disabled = false;
       btnProcessarModalEl.classList.remove('opacity-50', 'cursor-not-allowed');
-      btnProcessarModalEl.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Iniciar Processamento`;
+      btnProcessarModalEl.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Iniciar Processamento (${ctx.filesQueue.length})`;
     }
 
     // Base é o tipo B; um M só entra se já for base de rovers (legado de quando M era "Base PPP")
@@ -142,6 +160,8 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
         ctx.renderFilaArquivos();
       });
     });
+
+    sincronizarRibbonProcessar(false);
   };
 
   dropzone?.addEventListener('click', () => fileInput?.click());
@@ -180,21 +200,24 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
   });
 
   btnProcessar?.addEventListener('click', async () => {
-    if (ctx.filesQueue.length === 0) return;
+    // Se a fila estiver vazia, orienta o usuário e abre a tela de triagem
+    if (!ctx.filesQueue || ctx.filesQueue.length === 0) {
+      showToast('Nenhum arquivo na fila. Adicione arquivos na Ingestão para processar.', 'info');
+      ctx.expandirIngestao?.();
+      return;
+    }
 
+    const total = ctx.filesQueue.length;
     const btnProcessarOriginal = btnProcessar as HTMLButtonElement;
     const btnProcessarModalEl = document.getElementById('btn-processar-lote-modal') as HTMLButtonElement | null;
-    const originalHtmlBtn = btnProcessarOriginal.innerHTML;
     const originalHtmlModal = btnProcessarModalEl ? btnProcessarModalEl.innerHTML : '';
 
     btnProcessarOriginal.disabled = true;
-    btnProcessarOriginal.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processando...`;
-
     if (btnProcessarModalEl) {
       btnProcessarModalEl.disabled = true;
-      btnProcessarModalEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processando...`;
     }
-    initIcons();
+
+    sincronizarRibbonProcessar(true, `Iniciando...`);
 
     const chkInverter = document.getElementById('chk-inverter-ne-mesa') as HTMLInputElement | null;
     const inverterNE = chkInverter?.checked ? 'true' : 'false';
@@ -203,8 +226,18 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
     let brutosEnviados = 0;
     let corrigidosProcessados = 0;
     let rtkProcessados = 0;
+    let errosOcorridos = 0;
 
-    for (const item of ctx.filesQueue) {
+    for (let i = 0; i < total; i++) {
+      const item = ctx.filesQueue[i];
+      const progressoTxt = `Processando (${i + 1}/${total})`;
+
+      sincronizarRibbonProcessar(true, progressoTxt);
+      if (btnProcessarModalEl) {
+        btnProcessarModalEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${progressoTxt}...`;
+        initIcons();
+      }
+
       if (item.destination === 'base') {
         const formDataBruto = new FormData();
         formDataBruto.append('categoria', 'Brutos');
@@ -217,15 +250,17 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
           const data = await res.json();
           if (res.ok) {
             brutosEnviados++;
+            basesEnviadas++;
           } else {
-            const errMsg = data.error || data.detail || 'Falha no envio do arquivo bruto.';
-            alert(`Erro no envio da Base ${item.file.name}: ${errMsg}`);
+            errosOcorridos++;
+            const errMsg = data.error || data.detail || 'Falha no envio do arquivo bruto da Base.';
+            showToast(`Erro na Base ${item.file.name}: ${errMsg}`, 'error');
           }
         } catch (errBruto) {
+          errosOcorridos++;
           console.error('Erro ao salvar arquivo bruto da Base no workspace:', errBruto);
-          alert(`Erro ao salvar arquivo bruto da Base ${item.file.name}`);
+          showToast(`Erro ao salvar arquivo bruto da Base ${item.file.name}`, 'error');
         }
-        basesEnviadas++;
       } else if (item.destination === 'rover_estatico_bruto') {
         const formData = new FormData();
         formData.append('categoria', 'Brutos');
@@ -239,12 +274,14 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
           if (res.ok && data.success) {
             brutosEnviados++;
           } else {
+            errosOcorridos++;
             const errMsg = data.error || data.detail || data.message || 'Erro no upload';
-            alert(`Erro no arquivo ${item.file.name}: ${errMsg}`);
+            showToast(`Erro no arquivo ${item.file.name}: ${errMsg}`, 'error');
           }
         } catch (err) {
+          errosOcorridos++;
           console.error('Erro ao enviar arquivo bruto:', err);
-          alert(`Erro na comunicação ao subir ${item.file.name}`);
+          showToast(`Erro na comunicação ao subir ${item.file.name}`, 'error');
         }
       } else if (item.destination === 'rover_estatico_corrigido') {
         const mId = item.matricula_id || ctx.currentMatriculaId;
@@ -261,16 +298,19 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
           });
           const data = await res.json();
           if (!res.ok) {
+            errosOcorridos++;
             const errMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || 'Erro desconhecido');
-            alert(`Erro na importação de ${item.file.name}: ${errMsg}`);
+            showToast(`Erro na importação de ${item.file.name}: ${errMsg}`, 'error');
           } else if (data.error) {
-            alert(`Erro na importação de ${item.file.name}: ${data.error}`);
+            errosOcorridos++;
+            showToast(`Erro na importação de ${item.file.name}: ${data.error}`, 'error');
           } else {
             corrigidosProcessados++;
           }
         } catch (err) {
+          errosOcorridos++;
           console.error('Erro ao importar estático corrigido:', err);
-          alert(`Erro na comunicação ao processar ${item.file.name}`);
+          showToast(`Erro na comunicação ao processar ${item.file.name}`, 'error');
         }
       } else if (item.destination === 'rover_rtk') {
         const mId = item.matricula_id || ctx.currentMatriculaId;
@@ -290,40 +330,58 @@ export function setupIngestaoArquivos(ctx: MesaTrabalhoContext): void {
           });
           const data = await res.json();
           if (!res.ok) {
+            errosOcorridos++;
             const errMsg = typeof data.detail === 'object' ? (data.detail.mensagem || JSON.stringify(data.detail)) : (data.detail || data.error || 'Erro desconhecido');
-            alert(`Erro na importação RTK de ${item.file.name}: ${errMsg}`);
+            showToast(`Erro na importação RTK de ${item.file.name}: ${errMsg}`, 'error');
           } else if (data.error) {
-            alert(`Erro na importação RTK de ${item.file.name}: ${data.error}`);
+            errosOcorridos++;
+            showToast(`Erro na importação RTK de ${item.file.name}: ${data.error}`, 'error');
           } else {
             rtkProcessados++;
           }
         } catch (err) {
+          errosOcorridos++;
           console.error('Erro ao importar RTK:', err);
-          alert(`Erro na comunicação ao processar ${item.file.name}`);
+          showToast(`Erro na comunicação ao processar ${item.file.name}`, 'error');
         }
       }
     }
 
-    let msgAlerta = 'Processamento do lote finalizado com sucesso!\n\n';
-    if (basesEnviadas > 0) msgAlerta += `• ${basesEnviadas} Base(s) enviada(s) ao PPP IBGE.\n`;
-    if (brutosEnviados > 0) msgAlerta += `• ${brutosEnviados} Rover(s) Estático(s) Bruto(s) salvos no Workspace.\n`;
-    if (corrigidosProcessados > 0) msgAlerta += `• ${corrigidosProcessados} Rover(s) Estático(s) Corrigido(s) importados.\n`;
-    if (rtkProcessados > 0) msgAlerta += `• ${rtkProcessados} RTK Rover(s) importado(s) e vinculado(s) à base.\n`;
+    const totalSucesso = basesEnviadas + brutosEnviados + corrigidosProcessados + rtkProcessados;
 
-    alert(msgAlerta);
+    if (totalSucesso > 0 && errosOcorridos === 0) {
+      showToast(`Lote processado com sucesso (${total} arquivo${total > 1 ? 's' : ''})!`, 'success', 4500);
+      ctx.colapsarIngestao?.();
+    } else if (totalSucesso > 0 && errosOcorridos > 0) {
+      showToast(`Processamento concluído: ${totalSucesso} com sucesso, ${errosOcorridos} com erro.`, 'error', 5500);
+    } else if (errosOcorridos > 0) {
+      showToast('Falha ao processar os arquivos do lote.', 'error', 5000);
+    }
 
     if (chkInverter) chkInverter.checked = false;
     ctx.filesQueue = [];
 
     btnProcessarOriginal.disabled = false;
-    btnProcessarOriginal.innerHTML = originalHtmlBtn;
     if (btnProcessarModalEl) {
       btnProcessarModalEl.disabled = false;
-      btnProcessarModalEl.innerHTML = originalHtmlModal;
+      btnProcessarModalEl.innerHTML = originalHtmlModal || `<i data-lucide="play" class="w-4 h-4"></i> Iniciar Processamento`;
     }
+
+    sincronizarRibbonProcessar(false);
     initIcons();
 
     ctx.renderFilaArquivos();
     ctx.loadLevantamentoDetails();
   });
+
+  // Atalho seguro de teclado (Ctrl+Enter ou Cmd+Enter) para processar o lote
+  const handleKeydownAtalho = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (ctx.filesQueue && ctx.filesQueue.length > 0) {
+        e.preventDefault();
+        btnProcessar?.click();
+      }
+    }
+  };
+  document.addEventListener('keydown', handleKeydownAtalho);
 }

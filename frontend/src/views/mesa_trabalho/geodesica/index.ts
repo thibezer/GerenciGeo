@@ -324,22 +324,46 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
     }
     ctx.ferramentaCaneta.alternar();
   });
+
+  // Ferramenta Offset CAD no Mapa (Forma 2)
+  document.getElementById('btn-mapa-offset-flutuante')?.addEventListener('click', async () => {
+    if (!ctx.ferramentaOffsetMapa) {
+      const { FerramentaOffsetMapa } = await import('../ferramenta_offset_mapa');
+      ctx.ferramentaOffsetMapa = new FerramentaOffsetMapa(ctx);
+    }
+    ctx.ferramentaOffsetMapa.alternar();
+  });
+
+  // Assistente de Vértice Virtual (Forma 1)
+  document.getElementById('btn-mapa-vvirtual-flutuante')?.addEventListener('click', async () => {
+    const { abrirModalVerticeVirtual } = await import('../modal_vertice_virtual');
+    abrirModalVerticeVirtual(ctx);
+  });
   initIcons();
 
-  // Atalho 'P' para alternar Caneta
+  // Atalhos de teclado: 'P' para Caneta, 'O' para Offset CAD
   if ((ctx as any)._canetaKeydownListener) {
     window.removeEventListener('keydown', (ctx as any)._canetaKeydownListener);
   }
-  (ctx as any)._canetaKeydownListener = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() !== 'p' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.repeat) return;
-    if (ctx.etapaAtiva !== 'geoprocessamento') return;
+  (ctx as any)._canetaKeydownListener = async (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.repeat) return;
     if (focoEmCampoDeTexto(e)) return;
 
-    e.preventDefault();
-    if (!ctx.ferramentaCaneta) {
-      ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+    const tecla = e.key.toLowerCase();
+    if (tecla === 'p' && ctx.etapaAtiva === 'geoprocessamento') {
+      e.preventDefault();
+      if (!ctx.ferramentaCaneta) {
+        ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
+      }
+      ctx.ferramentaCaneta.alternar();
+    } else if (tecla === 'o') {
+      e.preventDefault();
+      if (!ctx.ferramentaOffsetMapa) {
+        const { FerramentaOffsetMapa } = await import('../ferramenta_offset_mapa');
+        ctx.ferramentaOffsetMapa = new FerramentaOffsetMapa(ctx);
+      }
+      ctx.ferramentaOffsetMapa.alternar();
     }
-    ctx.ferramentaCaneta.alternar();
   };
   window.addEventListener('keydown', (ctx as any)._canetaKeydownListener);
 

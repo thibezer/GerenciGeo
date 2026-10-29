@@ -27,6 +27,16 @@ export function inicializarBarraAcoesLote(
   addListener('btn-batch-cancel-mesa', 'click', limparSelecao);
   addListener('btn-batch-limpar', 'click', limparSelecao);
 
+  // Offset em Lote (Vértices Virtuais)
+  addListener('btn-batch-offset-v', 'click', async () => {
+    if (ctx.selectedPontoIds.length < 2) {
+      showToast('Selecione pelo menos 2 pontos para gerar o deslocamento paralelo.', 'info');
+      return;
+    }
+    const { abrirModalVerticeVirtual } = await import('../modal_vertice_virtual');
+    abrirModalVerticeVirtual(ctx);
+  });
+
   // Excluir em lote
   const handleDelete = () => {
     if (ctx.selectedPontoIds.length > 0) {
