@@ -159,7 +159,10 @@ function extrairParcelas(data: any): ParcelaSigef[] {
   features.forEach((feat, i) => {
     const props = feat?.properties || {};
     if (!props || Object.keys(props).length === 0) return;
-    const uuid = String(feat.id || props.parcela_codigo || props.co_parcela || props.id_parcela || '');
+    // Prioriza expressamente o UUID oficial da parcela (parcela_codigo / co_parcela / id_parcela).
+    // O GeoServer do Geoportal traz feat.id como 'sigef_geo.XXXXXX', que é chave interna do banco e não abre o SIGEF.
+    const rawUuid = props.parcela_codigo || props.co_parcela || props.id_parcela || (feat.id && !String(feat.id).startsWith('sigef_geo.') ? feat.id : '');
+    const uuid = String(rawUuid || '').trim();
     const chave = uuid || `sem-id-${i}`;
     if (vistos.has(chave)) return;
     vistos.add(chave);

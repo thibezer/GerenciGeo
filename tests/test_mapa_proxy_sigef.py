@@ -118,14 +118,17 @@ class TestProxySigef(unittest.TestCase):
             "https://geoportal.incra.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo"
             "&LAYERS=geonode:sigef_geo&QUERY_LAYERS=geonode:sigef_geo&INFO_FORMAT=application/json&X=128&Y=128"
         )
-        fake_geojson = '{"type":"FeatureCollection","features":[{"id":"geo-1","properties":{"nome_area":"Fazenda Geoportal"}}]}'
+        fake_geojson = '{"type":"FeatureCollection","features":[{"id":"sigef_geo.1648120","properties":{"parcela_codigo":"e25c29f7-aafa-48c9-8ce4-8194cf02be85","nome_area":"Fazenda Geoportal"}}]}'
         r = _resposta(fake_geojson, status=200, headers={"Content-Type": "application/json"})
-        r.json = lambda: {"type": "FeatureCollection", "features": [{"id": "geo-1", "properties": {"nome_area": "Fazenda Geoportal"}}]}
+        r.json = lambda: {"type": "FeatureCollection", "features": [{"id": "sigef_geo.1648120", "properties": {"parcela_codigo": "e25c29f7-aafa-48c9-8ce4-8194cf02be85", "nome_area": "Fazenda Geoportal"}}]}
         with patch.object(processamento.requests, "get", return_value=r) as mock_get:
             resp = self._get(url_geoportal)
         self.assertEqual(resp.status_code, 200)
         self.assertIn("INFO_FORMAT=application/json", mock_get.call_args.args[0])
-        self.assertEqual(resp.json()["features"][0]["properties"]["nome_area"], "Fazenda Geoportal")
+        dados = resp.json()
+        self.assertEqual(dados["features"][0]["properties"]["nome_area"], "Fazenda Geoportal")
+        # O id interno do GeoServer ('sigef_geo.XXXX') deve ser normalizado para o UUID oficial do SIGEF ('parcela_codigo')
+        self.assertEqual(dados["features"][0]["id"], "e25c29f7-aafa-48c9-8ce4-8194cf02be85")
 
 
 if __name__ == "__main__":

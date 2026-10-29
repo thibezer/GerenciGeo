@@ -299,7 +299,16 @@ def proxy_sigef(url: str):
             return {"features": features}
 
         try:
-            return response.json()
+            data = response.json()
+            # Se for GeoJSON do GeoServer, normaliza o id da feature para o UUID do SIGEF (parcela_codigo)
+            if isinstance(data, dict) and isinstance(data.get("features"), list):
+                for feat in data["features"]:
+                    if isinstance(feat, dict) and isinstance(feat.get("properties"), dict):
+                        props = feat["properties"]
+                        uuid = props.get("parcela_codigo") or props.get("co_parcela") or props.get("id_parcela")
+                        if uuid:
+                            feat["id"] = str(uuid).strip()
+            return data
         except Exception:
             return {"error": "Resposta não é JSON nem Texto formatado", "raw": text[:500]}
     except Exception as e:

@@ -744,3 +744,7 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - O encoding deve ser tratado como `utf-8` para garantir que nomes de imóveis e proprietários acentuados não sejam corrompidos.
   4. **Atualização no Componente Web `<ui-canvas-cad>`**:
      - No `main.ts` (`aplicarAdaptersCAD`) e na inicialização da Mesa de Trabalho (`mesa_trabalho.ts`), a camada com id `'sigef'` no `LayerManager` deve ser configurada dinamicamente com `dados: { url: 'https://geoportal.incra.gov.br/geoserver/wms', layers: 'geonode:sigef_geo' }`, sobrescrevendo qualquer URL padrão legada do pacote.
+  5. **Normalização do UUID da Parcela (`parcela_codigo` vs `sigef_geo.XXXXX`)**:
+     - As features retornadas pelo GeoServer possuem o campo raiz `feat.id = "sigef_geo.XXXXX"`, que é apenas a chave primária sequencial interna do GeoNode.
+     - O identificador oficial da parcela no SIGEF (utilizado para abrir os detalhes em `https://sigef.incra.gov.br/geo/parcela/detalhe/<uuid>/`, baixar shapefiles e exportar CSVs de limites e vértices) reside exclusivamente em `properties.parcela_codigo` (ou `co_parcela` / `id_parcela`).
+     - Os proxies backend (`routes/processamento.py` e `frontend/public/api.php`) e o extrator de parcelas do frontend (`frontend/src/utils/sigef_consultor.ts`) devem obrigatoriamente priorizar `parcela_codigo` e normalizar `feat.id` para esse UUID, ignorando qualquer prefixo `sigef_geo.` para impedir links corrompidos no popup e erros de importação de confrontantes.

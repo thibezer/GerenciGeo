@@ -1523,9 +1523,20 @@ if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 
         jsonResponse(['features' => $features]);
     }
 
-    // Se já for JSON válido, repassa direto
+    // Se já for JSON válido, garante que 'id' da feature seja o UUID de parcela_codigo do SIGEF
     $jsonDecoded = json_decode($responseUtf8, true);
     if (is_array($jsonDecoded)) {
+        if (isset($jsonDecoded['features']) && is_array($jsonDecoded['features'])) {
+            foreach ($jsonDecoded['features'] as &$feat) {
+                if (isset($feat['properties']) && is_array($feat['properties'])) {
+                    $uuid = $feat['properties']['parcela_codigo'] ?? ($feat['properties']['co_parcela'] ?? ($feat['properties']['id_parcela'] ?? null));
+                    if ($uuid) {
+                        $feat['id'] = (string)$uuid;
+                    }
+                }
+            }
+            unset($feat);
+        }
         jsonResponse($jsonDecoded);
     }
 
