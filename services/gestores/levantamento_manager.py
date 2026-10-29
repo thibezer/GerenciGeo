@@ -780,13 +780,16 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             if nova_camada != pt_antigo.get("camada_ciclo_vida"):
                 campos_update.append("camada_ciclo_vida = ?")
                 valores_update.append(nova_camada)
+
+        ignorar_val = data.get("ignorar_poligono")
+        if ignorar_val is not None and ignorar_val != pt_antigo.get("ignorar_poligono"):
+            reordenar_poligono_reativo = True
                 
         if atualizar_coordenadas:
             lat_val = data.get("lat")
             lon_val = data.get("lon")
             alt_val = data.get("alt") or data.get("alt_corrigido")
             status_val = data.get("status_ponto")
-            ignorar_val = data.get("ignorar_poligono")
 
             if lat_val is not None:
                 campos_update.append("lat_corrigido = ?")
@@ -797,9 +800,6 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             if alt_val is not None:
                 campos_update.append("alt_corrigido = ?")
                 valores_update.append(alt_val)
-                
-            if ignorar_val is not None and ignorar_val != pt_antigo["ignorar_poligono"] and pt_antigo["matricula_id"]:
-                reordenar_poligono_reativo = True
             
             desc_spatial = f"Coordenadas espaciais do vértice {pt_antigo['nome_vertice']} atualizadas com sucesso."
             HistoricoCampoLogger.registrar_evento(
@@ -915,8 +915,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         # F. Lógicas pós-atualização reativas de geoprocessamento
         if reordenar_poligono_reativo:
             try:
-                reordenar_perimetro_matricula(levantamento_id, pt_antigo["matricula_id"])
-                logger.info(f"Divisas da matrícula ID {pt_antigo['matricula_id']} autorregeneradas devido à alteração de ignorar_poligono do ponto ID {pid}.")
+                target_mid = data.get("matricula_id") if "matricula_id" in data else pt_antigo.get("matricula_id")
+                reordenar_perimetro_matricula(levantamento_id, target_mid)
+                logger.info(f"Divisas da matrícula ID {target_mid} autorregeneradas devido à alteração de ignorar_poligono ou tipo_ponto do ponto ID {pid}.")
             except Exception as ex_reorder:
                 logger.warning(f"Falha ao regenerar divisas reativamente: {ex_reorder}")
 

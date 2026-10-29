@@ -39,6 +39,8 @@ export interface MesaTrabalhoContext {
   poligonalHomologadaVisivel?: boolean;
   bancoPontosList: any[];
   pontosVizinhosList: any[];
+  /** Controla se os vértices de vizinhos importados devem ser renderizados no mapa (true por padrão) */
+  exibirVizinhosNoMapa?: boolean;
   travamentoInicio: number;
   travamentoFim: number;
   travamentoInicioPontoId: number | null;

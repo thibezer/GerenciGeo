@@ -25,7 +25,8 @@ const SVGS = {
   fileCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>`,
   shieldCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
   offsetCad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/><path d="M5 18h14"/></svg>`,
-  verticeVirtual: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
+  verticeVirtual: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
+  eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`
 };
 
 export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
@@ -71,12 +72,20 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               rotulo: 'Importar Vizinhos',
               tamanho: 'grande',
               tipo: 'botao',
-              icone: SVGS.download
+              icone: SVGS.uploadCloud
+            },
+            {
+              id: 'btn-toggle-vizinhos-mapa',
+              rotulo: 'Exibir no Mapa',
+              tamanho: 'pequeno',
+              tipo: 'ferramenta',
+              ativo: ctx.exibirVizinhosNoMapa !== false,
+              icone: SVGS.eye
             },
             {
               id: 'btn-limpar-vizinhos',
-              rotulo: 'Limpar Camada',
-              tamanho: 'grande',
+              rotulo: 'Apagar Dados',
+              tamanho: 'pequeno',
               tipo: 'botao',
               icone: SVGS.trash
             }
@@ -390,6 +399,27 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
         import('../modal_vertice_virtual').then(({ abrirModalVerticeVirtual }) => {
           abrirModalVerticeVirtual(ctx);
         });
+        return;
+      }
+
+      if (toolId === 'btn-toggle-vizinhos-mapa') {
+        ctx.exibirVizinhosNoMapa = !(ctx.exibirVizinhosNoMapa !== false);
+        const pts = ctx.exibirVizinhosNoMapa ? (ctx.pontosVizinhosList || []) : [];
+        ctx.mapaController?.plotPontosVizinhos(pts);
+        mesaRibbon.atualizarItem?.('btn-toggle-vizinhos-mapa', {
+          ativo: ctx.exibirVizinhosNoMapa,
+          rotulo: ctx.exibirVizinhosNoMapa ? 'Exibir no Mapa' : 'Oculto no Mapa'
+        });
+        const btnMapaViz = document.getElementById('btn-mapa-toggle-vizinhos');
+        if (btnMapaViz) {
+          btnMapaViz.classList.toggle('ativo', ctx.exibirVizinhosNoMapa);
+          btnMapaViz.classList.toggle('text-cyan-400', ctx.exibirVizinhosNoMapa);
+          btnMapaViz.classList.toggle('opacity-50', !ctx.exibirVizinhosNoMapa);
+        }
+        showToast(
+          ctx.exibirVizinhosNoMapa ? 'Vértices vizinhos visíveis no mapa.' : 'Vértices vizinhos ocultados do mapa.',
+          'info'
+        );
         return;
       }
 

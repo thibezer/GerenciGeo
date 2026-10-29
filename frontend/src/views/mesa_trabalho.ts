@@ -83,6 +83,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       bancoPontosExibido: false,
       bancoPontosList: [],
       pontosVizinhosList: [],
+      exibirVizinhosNoMapa: true,
       travamentoInicio: 0,
       travamentoFim: 0,
       arquivosDesativadosList: [],
@@ -740,7 +741,8 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
       }
       if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
-        ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+        const ptsViz = ctx.exibirVizinhosNoMapa !== false ? ctx.pontosVizinhosList : [];
+        ctx.mapaController.plotPontosVizinhos(ptsViz);
       }
       if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
         ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
@@ -822,6 +824,21 @@ export const mesaTrabalhoRoute: RouteDef = {
               btnIntegrar.classList.remove('hidden');
             } else {
               btnIntegrar.classList.add('hidden');
+            }
+          }
+
+          // Atualiza rótulo e estilo do botão de alternar polígono conforme o lote
+          const btnIgnorarMesa = document.getElementById('btn-batch-ignorar-mesa');
+          const txtIgnorarMesa = document.getElementById('txt-batch-ignorar-mesa');
+          if (btnIgnorarMesa && txtIgnorarMesa) {
+            const selecionados = (ctx.pontosList || []).filter((p: any) => ctx.selectedPontoIds.includes(p.id));
+            const algumNoPoligono = selecionados.some((p: any) => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
+            if (algumNoPoligono) {
+              txtIgnorarMesa.textContent = 'Tirar do Polígono';
+              btnIgnorarMesa.className = 'bg-yellow-500/10 hover:bg-yellow-500 border border-yellow-500/30 hover:border-transparent text-yellow-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer';
+            } else {
+              txtIgnorarMesa.textContent = 'Incluir no Polígono';
+              btnIgnorarMesa.className = 'bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/30 hover:border-transparent text-emerald-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer';
             }
           }
         } else {

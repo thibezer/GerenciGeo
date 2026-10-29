@@ -60,7 +60,9 @@ export function aplicarIma(
   };
 
   pontosVisiveisParaSelecao(ctx).forEach(testar);
-  (ctx.pontosVizinhosList || []).forEach(testar);
+  if (ctx.exibirVizinhosNoMapa !== false) {
+    (ctx.pontosVizinhosList || []).forEach(testar);
+  }
 
   return melhor ?? latlng;
 }

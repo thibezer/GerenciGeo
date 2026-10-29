@@ -122,7 +122,8 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
     }
     if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
-      ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+      const ptsViz = ctx.exibirVizinhosNoMapa !== false ? ctx.pontosVizinhosList : [];
+      ctx.mapaController.plotPontosVizinhos(ptsViz);
     }
     if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
       ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);

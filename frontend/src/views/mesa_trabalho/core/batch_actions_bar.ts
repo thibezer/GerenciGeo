@@ -47,56 +47,66 @@ export function inicializarBarraAcoesLote(
   addListener('btn-batch-deletar', 'click', handleDelete);
 
   // Alternar ignorar/participar no polígono em lote
-  addListener('btn-batch-ignorar', 'click', async () => {
+  const alternarPoligonoLote = async () => {
     if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
       await customAlert('Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).');
       return;
     }
 
     const totalSelecionados = ctx.selectedPontoIds.length;
-    if (totalSelecionados === 0) return;
+    if (totalSelecionados === 0) {
+      showToast('Selecione pelo menos um vértice para alterar a participação no polígono.', 'info');
+      return;
+    }
 
-    const pontosSel = ctx.pontosList.filter(p => ctx.selectedPontoIds.includes(p.id));
+    const pontosSel = (ctx.pontosList || []).filter((p: any) => ctx.selectedPontoIds.includes(p.id));
     if (pontosSel.length === 0) return;
 
-    const temPontoAtivo = pontosSel.some(p => p.ignorar_poligono !== 1);
+    // Se algum estiver ativo no polígono (e não for base), a ação é tirar todos do polígono (1).
+    // Se todos já estiverem fora do polígono, a ação é incluir todos de volta no polígono (0).
+    const temPontoAtivo = pontosSel.some((p: any) => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B');
     const novoEstado = temPontoAtivo ? 1 : 0;
 
-    if (!await customConfirm(`Deseja alterar a participação no polígono de ${totalSelecionados} vértice(s) para: "${novoEstado === 1 ? 'Ignorar' : 'Participar'}"?`)) return;
-
-    showToast('Atualizando vértices em lote...', 'info');
-
     try {
-      const promessas = ctx.selectedPontoIds.map(id =>
-        fetch(`${API_BASE}/pontos/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ignorar_poligono: novoEstado })
-        }).then(async r => {
-          if (r.status === 403) return { error: 'Acesso negado (projeto arquivado).' };
-          if (!r.ok) {
-            const txt = await r.json().catch(() => ({ error: 'Erro desconhecido' }));
-            return { error: txt.detail || txt.error || 'Falha na requisição' };
-          }
-          return r.json().catch(() => ({}));
-        })
-      );
+      const payload = {
+        pontos: pontosSel.map((p: any) => ({
+          id: p.id,
+          ignorar_poligono: novoEstado
+        }))
+      };
 
-      const resultados = await Promise.all(promessas);
-      const erros = resultados.filter(r => r.error).map(r => r.error);
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos/batch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      if (erros.length > 0) {
-        await customAlert(`Ocorreram alguns erros ao tentar atualizar em lote:\n${erros.slice(0, 5).join('\n')}`);
-      } else {
-        showToast(`${totalSelecionados} vértice(s) atualizado(s) com sucesso!`, 'success');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.error || 'Falha ao atualizar vértices no polígono.');
       }
 
+      pontosSel.forEach((p: any) => {
+        p.ignorar_poligono = novoEstado;
+      });
+
       await ctx.loadLevantamentoDetails();
-    } catch (err) {
+      ctx.atualizarDestaqueLinhasTabela?.();
+      ctx.atualizarPainelPropriedades?.();
+
+      const msg = novoEstado === 1
+        ? (totalSelecionados === 1 ? 'Vértice removido do polígono!' : `${totalSelecionados} vértices removidos do polígono!`)
+        : (totalSelecionados === 1 ? 'Vértice incluído no polígono!' : `${totalSelecionados} vértices incluídos no polígono!`);
+      showToast(msg, 'success');
+    } catch (err: any) {
       console.error('Erro ao alternar polígono em lote:', err);
-      showToast('Erro ao tentar atualizar os pontos selecionados em lote.', 'error');
+      showToast(err.message || 'Erro ao tentar atualizar os pontos selecionados no polígono.', 'error');
     }
-  });
+  };
+
+  (ctx as any).alternarPoligonoLote = alternarPoligonoLote;
+  addListener('btn-batch-ignorar', 'click', alternarPoligonoLote);
+  addListener('btn-batch-ignorar-mesa', 'click', alternarPoligonoLote);
 
   // Integrar pontos vizinhos em lote
   addListener('btn-batch-integrate-mesa', 'click', async () => {

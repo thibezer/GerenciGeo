@@ -156,7 +156,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
     }
 
     if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
-      ctx.mapaController.plotPontosVizinhos(ctx.pontosVizinhosList);
+      const ptsViz = ctx.exibirVizinhosNoMapa !== false ? ctx.pontosVizinhosList : [];
+      ctx.mapaController.plotPontosVizinhos(ptsViz);
     }
     if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
       ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
@@ -419,22 +420,42 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         render: (_: any, item: any) => {
           const chk = document.createElement('input');
           chk.type = 'checkbox';
+          chk.setAttribute('data-ponto-id', String(item.id));
+
+          if (item.is_base_fisica || item.tipo_ponto === 'B' || item.tipo === 'B') {
+            chk.disabled = true;
+            chk.checked = false;
+            chk.className = 'chk-ignorar-poligono rounded border-white/5 bg-white/5 opacity-25 cursor-not-allowed w-3.5 h-3.5';
+            chk.title = 'Bases de apoio geodésico não participam do polígono da matrícula.';
+            return chk;
+          }
+
           chk.className = 'chk-ignorar-poligono rounded border-white/10 bg-white/5 text-mint-vibrant focus:ring-mint-vibrant/30 cursor-pointer w-3.5 h-3.5';
           chk.checked = item.ignorar_poligono !== 1;
-          chk.setAttribute('data-ponto-id', String(item.id));
+          chk.title = item.ignorar_poligono === 1 ? 'Vértice fora do polígono (clique para incluir)' : 'Vértice incluído no polígono (clique para retirar)';
+
           chk.addEventListener('change', async (e) => {
             e.stopPropagation();
+            (chk as any)._handled = true;
             const ignorarVal = chk.checked ? 0 : 1;
             try {
-              await fetch(`${API_BASE}/pontos/${item.id}`, {
-                method: 'PUT',
+              const res = await fetch(`${API_BASE}/pontos/${item.id}`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ignorar_poligono: ignorarVal })
               });
-              ctx.loadLevantamentoDetails();
-            } catch (err) {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || errData.error || 'Falha ao alterar participação no polígono');
+              }
+              item.ignorar_poligono = ignorarVal;
+              await ctx.loadLevantamentoDetails();
+              ctx.atualizarPainelPropriedades?.();
+              showToast(ignorarVal === 1 ? 'Vértice removido do polígono.' : 'Vértice incluído no polígono.', 'info');
+            } catch (err: any) {
               console.error('Erro ao alterar participação no polígono:', err);
-              showToast('Erro ao alterar participação no polígono.', 'error');
+              showToast(err.message || 'Erro ao alterar participação no polígono.', 'error');
+              chk.checked = !chk.checked;
             }
           });
           return chk;

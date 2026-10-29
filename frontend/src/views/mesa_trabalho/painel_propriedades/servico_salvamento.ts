@@ -130,7 +130,7 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
       Object.assign(pontoAlvo, data.ponto);
     }
 
-    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined) {
+    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined) {
       // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
       // as listas locais ficariam desatualizadas e o mapa seguiria desenhando o vértice no perímetro antigo.
       // O tipo também muda o perímetro (B fica de fora), os filtros de Bases e as cores do mapa.
@@ -140,7 +140,7 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
     }
 
     ctx.atualizarPolilinhaMapaTemp?.();
-    if (payload.ignorar_poligono !== undefined) {
+    if (false && payload.ignorar_poligono !== undefined) {
       ctx.renderMatriculaDados?.();
     }
   } catch (err) {

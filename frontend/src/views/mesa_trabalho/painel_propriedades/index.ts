@@ -269,9 +269,13 @@ export function atualizarPainelPropriedades(ctx: any): void {
         (e: Event) => {
           const detail = (e as CustomEvent<{ id: string }>).detail;
           if (detail.id === 'acao_ignorar_todos') {
-            document.getElementById('btn-batch-ignorar')?.click();
+            if (typeof ctx.alternarPoligonoLote === 'function') {
+              ctx.alternarPoligonoLote();
+            } else {
+              (document.getElementById('btn-batch-ignorar-mesa') || document.getElementById('btn-batch-ignorar'))?.click();
+            }
           } else if (detail.id === 'acao_excluir_selecionados') {
-            document.getElementById('btn-batch-deletar')?.click();
+            (document.getElementById('btn-batch-delete-mesa') || document.getElementById('btn-batch-deletar'))?.click();
           }
         },
         { signal }

@@ -212,6 +212,14 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
         pontos = pontos_filtrados
         n = len(pontos)
         if n < 3:
+            if matricula_id:
+                try:
+                    with DatabaseManager() as conn_clean:
+                        cursor_clean = conn_clean.cursor()
+                        cursor_clean.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, matricula_id))
+                        conn_clean.commit()
+                except Exception as ex_clean:
+                    logger.warning(f"Falha ao limpar segmentos para matrícula {matricula_id} com menos de 3 pontos: {ex_clean}")
             return {
                 "sucesso": False,
                 "erro": msg_erro

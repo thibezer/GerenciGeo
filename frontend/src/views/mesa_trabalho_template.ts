@@ -112,6 +112,7 @@ export const renderMesaTrabalho = (): string => {
           <button type="button" id="btn-drop-arquivos"></button>
           <button type="button" id="btn-processar-lote"></button>
           <button type="button" id="btn-importar-csv-vizinho"></button>
+          <button type="button" id="btn-toggle-vizinhos-mapa"></button>
           <button type="button" id="btn-limpar-vizinhos"></button>
           <button type="button" id="btn-modo-utm"></button>
           <button type="button" id="btn-modo-geo"></button>
@@ -258,6 +259,10 @@ export const renderMesaTrabalho = (): string => {
                 <button id="btn-mapa-vvirtual-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Assistente de Vértice Virtual (PA1 / PA2)">
                   <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Virtual</span>
+                </button>
+                <button id="btn-mapa-toggle-vizinhos" class="px-2 py-1 text-white/70 hover:text-cyan-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Exibir/Ocultar vértices vizinhos importados no mapa">
+                  <i data-lucide="eye" class="w-3.5 h-3.5 text-cyan-400"></i>
+                  <span>Vizinhos</span>
                 </button>
                <!-- Camadas da etapa Peças de Cartório (visíveis só nela) -->
                <button id="btn-mapa-toggle-confrontantes" class="btn-mapa-cartorio hidden px-2 py-1 rounded transition-all items-center gap-1.5 text-xs font-bold border" type="button" title="Divisas coloridas por confrontante (preto/branco alternado)">
@@ -828,6 +833,10 @@ export const renderMesaTrabalho = (): string => {
             <button id="btn-batch-filter-mesa" class="bg-indigo-500/10 hover:bg-indigo-500 border border-indigo-500/30 hover:border-transparent text-indigo-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer" type="button">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               Filtrar
+            </button>
+            <button id="btn-batch-ignorar-mesa" class="bg-yellow-500/10 hover:bg-yellow-500 border border-yellow-500/30 hover:border-transparent text-yellow-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer" type="button" title="Alternar inclusão no polígono da matrícula">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              <span id="txt-batch-ignorar-mesa">Tirar do Polígono</span>
             </button>
             <button id="btn-batch-integrate-mesa" class="bg-purple-500/10 hover:bg-purple-500 border border-purple-500/30 hover:border-transparent text-purple-300 hover:text-white px-2 py-1 rounded-technical text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer hidden" type="button">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>

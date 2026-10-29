@@ -131,19 +131,30 @@ export function inicializarEventosTabela(ctx: any): void {
       for (const el of path) {
         if (el instanceof HTMLElement && el.classList?.contains('chk-ignorar-poligono')) {
           const chk = el as HTMLInputElement;
+          if ((chk as any)._handled) {
+            (chk as any)._handled = false;
+            return;
+          }
           const pId = parseInt(chk.getAttribute('data-ponto-id') || '0');
           if (!pId) return;
           const ignorarVal = chk.checked ? 0 : 1;
           try {
-            await fetch(`${API_BASE}/pontos/${pId}`, {
+            const res = await fetch(`${API_BASE}/pontos/${pId}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ignorar_poligono: ignorarVal })
             });
-            ctx.loadLevantamentoDetails();
-          } catch (err) {
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.detail || errData.error || 'Falha ao alterar participação no polígono.');
+            }
+            await ctx.loadLevantamentoDetails();
+            ctx.atualizarPainelPropriedades?.();
+            showToast(ignorarVal === 1 ? 'Vértice removido do polígono.' : 'Vértice incluído no polígono.', 'info');
+          } catch (err: any) {
             console.error("Erro ao alterar participação no polígono:", err);
-            showToast("Erro ao alterar participação do ponto no polígono.", "error");
+            showToast(err.message || "Erro ao alterar participação do ponto no polígono.", "error");
+            chk.checked = !chk.checked;
           }
           break;
         }
