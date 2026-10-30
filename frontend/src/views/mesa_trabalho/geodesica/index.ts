@@ -44,7 +44,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        alert('Erro ao gerar ZIP: ' + (err.detail || res.statusText));
+        showToast(err.detail || 'Nenhum arquivo RINEX encontrado para este levantamento.', 'info');
         return;
       }
 
@@ -57,9 +57,10 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(urlObj);
+      showToast('Download do pacote RINEX iniciado com sucesso!', 'success');
     } catch (e: any) {
       if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
-      alert('Erro de comunicação com o servidor: ' + e.message);
+      showToast('Erro de comunicação ao baixar arquivos RINEX: ' + e.message, 'error');
     }
   });
 
@@ -214,6 +215,12 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
 
     ctx.renderMatriculaDados();
     ctx.atualizarPainelPropriedades?.();
+
+    const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+    if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
+      mesaRibbon.atualizarItem('btn-modo-utm', { ativo: ctx.modoCoordenadas === 'utm' });
+      mesaRibbon.atualizarItem('btn-modo-geo', { ativo: ctx.modoCoordenadas === 'geodesico' });
+    }
   });
 
   document.getElementById('btn-modo-utm')?.addEventListener('click', () => {

@@ -21,7 +21,8 @@ import {
   inicializarDragDropGlobal,
   inicializarBarraAcoesLote,
   setupRibbonInteractions,
-  inicializarAtalhosTeclado
+  inicializarAtalhosTeclado,
+  SVGS
 } from './mesa_trabalho/core';
 
 let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
@@ -212,6 +213,16 @@ export const mesaTrabalhoRoute: RouteDef = {
           if (res.ok) {
             const bpData = await res.json();
             ctx.bancoPontosList = Array.isArray(bpData) ? bpData : [];
+            const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+            if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
+              mesaRibbon.atualizarItem('btn-toggle-fonte-pontos', {
+                rotulo: ctx.bancoPontosExibido
+                  ? `Planilha SIGEF (${ctx.bancoPontosList.length} pts)`
+                  : 'Fonte: Campo',
+                icone: ctx.bancoPontosExibido ? SVGS.fileCheck : SVGS.layers,
+                ativo: ctx.bancoPontosExibido
+              });
+            }
           }
         }).catch(err => console.warn('Erro ao pré-carregar banco de pontos homologados:', err));
 
@@ -1211,13 +1222,15 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
 
         if (!ctx.bancoPontosList || ctx.bancoPontosList.length === 0) {
-          alert("Nenhum ponto homologado foi importado da planilha ainda. Envie uma planilha ODS/CSV na aba 'Peças de Cartório' para visualizar os pontos finais do SIGEF.");
+          showToast("Nenhum ponto homologado foi importado da planilha ainda. Envie uma planilha ODS/CSV na aba 'Peças de Cartório' para visualizar os dados do SIGEF.", "info");
           return;
         }
 
         ctx.bancoPontosExibido = true;
+        showToast(`Exibindo pontos homologados da Planilha SIGEF (${ctx.bancoPontosList.length} pts).`, "success");
       } else {
         ctx.bancoPontosExibido = false;
+        showToast("Exibindo medições originais de Campo.", "info");
       }
 
       const btnToggle = document.getElementById('btn-toggle-fonte-pontos');
@@ -1242,9 +1255,11 @@ export const mesaTrabalhoRoute: RouteDef = {
       const mesaRibbon = document.getElementById('mesa-ribbon') as any;
       if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
         mesaRibbon.atualizarItem('btn-toggle-fonte-pontos', {
+          ativo: ctx.bancoPontosExibido,
           rotulo: ctx.bancoPontosExibido
             ? `Planilha SIGEF (${ctx.bancoPontosList.length} pts)`
-            : 'Fonte: Campo'
+            : 'Fonte: Campo',
+          icone: ctx.bancoPontosExibido ? SVGS.fileCheck : SVGS.layers
         });
       }
 

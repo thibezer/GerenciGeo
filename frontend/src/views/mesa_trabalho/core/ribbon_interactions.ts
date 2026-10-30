@@ -4,7 +4,7 @@ import { registerFluentComponents } from '../../../ui/fluent_setup';
 import { showToast } from '../../../utils';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
-const SVGS = {
+export const SVGS = {
   uploadCloud: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>`,
   play: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>`,
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
@@ -26,14 +26,17 @@ const SVGS = {
   shieldCheck: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
   offsetCad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/><path d="M5 18h14"/></svg>`,
   verticeVirtual: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
-  eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`
+  eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  grid: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>`,
+  globe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`
 };
 
 export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
   const modoUtm = ctx.modoCoordenadas !== 'geodesico';
+  const temPlanilha = !!(ctx.bancoPontosList && ctx.bancoPontosList.length > 0);
   const txtFonte = ctx.bancoPontosExibido
     ? `Planilha SIGEF (${ctx.bancoPontosList?.length || 0} pts)`
-    : 'Fonte: Campo';
+    : (temPlanilha ? `Fonte: Campo (${ctx.pontosList?.length || 0} pts)` : 'Fonte: Campo');
 
   return [
     {
@@ -98,31 +101,30 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           itens: [
             {
               id: 'btn-modo-utm',
-              rotulo: 'UTM',
+              rotulo: 'UTM (m)',
+              rotuloAcessivel: 'Modo Coordenadas Planas UTM em metros',
               tamanho: 'pequeno',
               tipo: 'ferramenta',
-              ativo: modoUtm
+              ativo: modoUtm,
+              icone: SVGS.grid
             },
             {
               id: 'btn-modo-geo',
-              rotulo: 'Geo',
+              rotulo: 'Geo (°)',
+              rotuloAcessivel: 'Modo Coordenadas Geodésicas Elipsoidais em graus',
               tamanho: 'pequeno',
               tipo: 'ferramenta',
-              ativo: !modoUtm
-            },
-            {
-              id: 'btn-download-rinex-zip',
-              rotulo: 'RINEX .ZIP',
-              tamanho: 'grande',
-              tipo: 'botao',
-              icone: SVGS.archive
+              ativo: !modoUtm,
+              icone: SVGS.globe
             },
             {
               id: 'btn-toggle-fonte-pontos',
               rotulo: txtFonte,
+              rotuloAcessivel: 'Alternar visualização entre medições de Campo e Planilha SIGEF',
               tamanho: 'grande',
-              tipo: 'botao',
-              icone: SVGS.layers
+              tipo: 'toggle',
+              ativo: ctx.bancoPontosExibido,
+              icone: ctx.bancoPontosExibido ? SVGS.fileCheck : SVGS.layers
             }
           ]
         },
@@ -172,6 +174,14 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               tamanho: 'pequeno',
               tipo: 'botao',
               icone: SVGS.clipboard
+            },
+            {
+              id: 'btn-download-rinex-zip',
+              rotulo: 'Baixar RINEX',
+              rotuloAcessivel: 'Baixar pacote ZIP com todos os arquivos RINEX brutos',
+              tamanho: 'pequeno',
+              tipo: 'botao',
+              icone: SVGS.archive
             }
           ]
         },
@@ -359,8 +369,13 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
           ctx.modoCoordenadas = 'utm';
           mesaRibbon.atualizarItem?.('btn-modo-utm', { ativo: true });
           mesaRibbon.atualizarItem?.('btn-modo-geo', { ativo: false });
+          const lbl = document.getElementById('lbl-titulo-vertices');
+          if (lbl) lbl.innerText = 'Vértices UTM (SIRGAS 22S)';
+          const btn = document.getElementById('btn-toggle-coordenadas');
+          if (btn) { btn.innerText = 'Geodésico'; btn.title = 'Alternar para coordenadas Geodésicas'; }
           ctx.renderMatriculaDados?.();
           ctx.atualizarPainelPropriedades?.();
+          showToast('Coordenadas em projeção UTM (metros) ativadas.', 'info');
         }
         return;
       }
@@ -369,8 +384,13 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
           ctx.modoCoordenadas = 'geodesico';
           mesaRibbon.atualizarItem?.('btn-modo-utm', { ativo: false });
           mesaRibbon.atualizarItem?.('btn-modo-geo', { ativo: true });
+          const lbl = document.getElementById('lbl-titulo-vertices');
+          if (lbl) lbl.innerText = 'Vértices Geodésicos';
+          const btn = document.getElementById('btn-toggle-coordenadas');
+          if (btn) { btn.innerText = 'UTM'; btn.title = 'Alternar para coordenadas UTM'; }
           ctx.renderMatriculaDados?.();
           ctx.atualizarPainelPropriedades?.();
+          showToast('Coordenadas Geodésicas Elipsoidais (SIRGAS 2000) ativadas.', 'info');
         }
         return;
       }
