@@ -496,7 +496,8 @@ class TxtGeodesicParser:
                 "sigma_lat": sigma_lat_prop,
                 "sigma_lon": sigma_lon_prop,
                 "sigma_alt": sigma_alt_prop,
-                "ordem_caminhamento": ordem,
+                "ordem_caminhamento": None if tipo == "B" else ordem,
+                "ignorar_poligono": 1 if tipo == "B" else 0,
                 "n_original": p["n_original"],
                 "e_original": p["e_original"],
                 "alt_original": p["alt_original"],
@@ -513,7 +514,8 @@ class TxtGeodesicParser:
                 "fuso_utm": zona_utm
             }
             pontos_processados.append(ponto_final)
-            ordem += 1
+            if tipo != "B":
+                ordem += 1
 
         return pontos_processados
 
@@ -588,10 +590,21 @@ class TxtGeodesicParser:
                 p["nome_vertice"] = nome_atual
             nomes_vistos.add(nome_atual.upper())
 
-        ordem = pontos[0]["ordem_caminhamento"]
+        # Encontra a ordem inicial do primeiro vértice que não seja base
+        ordem = 1
         for p in pontos:
-            p["ordem_caminhamento"] = ordem
-            ordem += 1
+            if p.get("tipo_ponto") != "B" and p.get("ordem_caminhamento") is not None:
+                ordem = p["ordem_caminhamento"]
+                break
+
+        for p in pontos:
+            if p.get("tipo_ponto") == "B":
+                p["ordem_caminhamento"] = None
+                p["ignorar_poligono"] = 1
+            else:
+                p["ordem_caminhamento"] = ordem
+                p["ignorar_poligono"] = p.get("ignorar_poligono", 0)
+                ordem += 1
         return pontos
 
     def _inserir_pontos(self, cursor, pontos: list) -> list:
@@ -602,8 +615,8 @@ class TxtGeodesicParser:
                 sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento,
                 n_original, e_original, alt_original, lat_corrigido, lon_corrigido, alt_corrigido,
                 sigma_n, sigma_e, sigma_z, status_ponto, ponto_base_id,
-                arquivo_origem, status_correcao, fuso_utm
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                arquivo_origem, status_correcao, fuso_utm, ignorar_poligono
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         for p in pontos:
             nome_base = p.get("nome_original") or p["nome_vertice"]
@@ -637,13 +650,15 @@ class TxtGeodesicParser:
             inserido = False
             while not inserido:
                 try:
+                    ignorar_pol = 1 if p["tipo_ponto"] == "B" else p.get("ignorar_poligono", 0)
                     cursor.execute(query, (
                         p["levantamento_id"], p["matricula_id"], p["nome_vertice"], p.get("nome_original", p["nome_vertice"]), p["tipo_ponto"],
                         p["lat"], p["lon"], p["alt"], p["sigma_lat"], p["sigma_lon"], p["sigma_alt"],
                         p["ordem_caminhamento"], p["n_original"], p["e_original"], p["alt_original"],
                         p["lat_corrigido"], p["lon_corrigido"], p["alt_corrigido"],
                         p["sigma_n"], p["sigma_e"], p["sigma_z"], p["status_ponto"], p["ponto_base_id"],
-                        p["arquivo_origem"], p["status_correcao"], p.get("fuso_utm", 22)
+                        p["arquivo_origem"], p["status_correcao"], p.get("fuso_utm", 22),
+                        ignorar_pol
                     ))
                     ids_inseridos.append(cursor.lastrowid)
                     inserido = True
@@ -682,12 +697,21 @@ class TxtGeodesicParser:
             logger.info("[PARSER] Matrícula não fornecida. Pontos salvos de forma geral sem gerar topologia perimetral.")
             return 0
 
-        if len(ids_pontos) < 2:
-            logger.info("[PARSER] Menos de 2 pontos importados. Topologia perimetral não gerada.")
+        # Filtra apenas pontos que participam do perímetro da matrícula (exclui base 'B' e pontos marcados para ignorar)
+        pontos_perimetro = [
+            (id_pt, p) for id_pt, p in zip(ids_pontos, pontos_processados)
+            if p.get("tipo_ponto") != "B" and p.get("ignorar_poligono", 0) != 1
+        ]
+
+        if len(pontos_perimetro) < 2:
+            logger.info("[PARSER] Menos de 2 pontos de perímetro. Topologia perimetral não gerada.")
             return 0
 
-        # Seleciona método padrão baseado no desvio do primeiro ponto
-        primeiro_pt = pontos_processados[0]
+        ids_perimetro = [item[0] for item in pontos_perimetro]
+        pts_perimetro = [item[1] for item in pontos_perimetro]
+
+        # Seleciona método padrão baseado no desvio do primeiro ponto perimetral
+        primeiro_pt = pts_perimetro[0]
         metodo_padrao = "PG1" if primeiro_pt.get("sigma_lat", 0.0) > 0.0 else "MC1"
         
         query_seg = """
@@ -697,16 +721,16 @@ class TxtGeodesicParser:
             ) VALUES (?, ?, ?, ?, NULL, 'LN1', ?)
         """
         # Divisas intermediárias (Ponto A -> Ponto B)
-        for i in range(len(ids_pontos) - 1):
+        for i in range(len(ids_perimetro) - 1):
             cursor.execute(query_seg, (
                 self.levantamento_id, self.matricula_id, 
-                ids_pontos[i], ids_pontos[i+1], metodo_padrao
+                ids_perimetro[i], ids_perimetro[i+1], metodo_padrao
             ))
             
         # REGRA ESTRITA: Segmento final de fechamento de polígono (Último -> Primeiro)
         cursor.execute(query_seg, (
             self.levantamento_id, self.matricula_id, 
-            ids_pontos[-1], ids_pontos[0], metodo_padrao
+            ids_perimetro[-1], ids_perimetro[0], metodo_padrao
         ))
-        logger.info(f"[PARSER] Topologia perimetral criada com sucesso: {len(ids_pontos)} segmentos gerados.")
-        return len(ids_pontos)
+        logger.info(f"[PARSER] Topologia perimetral criada com sucesso: {len(ids_perimetro)} segmentos gerados (excluindo bases).")
+        return len(ids_perimetro)

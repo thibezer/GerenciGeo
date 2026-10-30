@@ -63,9 +63,9 @@ def salvar_ordem_caminhamento(levantamento_id: int, matricula_id: int, pontos_or
                     (levantamento_id, matricula_id)
                 )
 
-                # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono)
+                # D. Resgata a nova lista de pontos na ordem atualizada (filtrando pontos extras marcados para ignorar no polígono e bases geodésicas)
                 cursor.execute(
-                    "SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
+                    "SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, sigma_lat FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B' AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
                     (levantamento_id, matricula_id)
                 )
                 rows = cursor.fetchall()
