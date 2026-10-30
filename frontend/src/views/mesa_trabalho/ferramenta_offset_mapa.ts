@@ -4,6 +4,7 @@ import { showToast } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset } from '../../types/verticesVirtuais';
 import { gerarGeometriaPreviewOffsetPolilinha } from '../../utils/previewGeometria';
+import { coordenadaPonto, zonaUtmDoLevantamento } from './coordenadas_mapa';
 
 /**
  * Ferramenta Interativa de Deslocamento (Offset) no Mapa - Padrão AutoCAD
@@ -99,11 +100,15 @@ export class FerramentaOffsetMapa {
     const todos = this.ctx.pontosList || [];
     if (this.ctx.selectedPontoIds && this.ctx.selectedPontoIds.length >= 2) {
       return this.ctx.selectedPontoIds
-        .map(id => todos.find(p => p.id === id))
+        .map(id => todos.find(p => String(p.id) === String(id)))
         .filter(Boolean);
     }
-    // Fallback: primeiros pontos da matrícula
-    return todos.filter(p => !p.ignorar_poligono).slice(0, 4);
+    // Fallback: primeiros pontos da matrícula ativa
+    const matId = this.ctx.currentMatriculaId;
+    const pontosMat = matId
+      ? todos.filter(p => String(p.matricula_id) === String(matId) && !p.ignorar_poligono)
+      : todos.filter(p => !p.ignorar_poligono);
+    return pontosMat.slice(0, 4);
   }
 
   private onMouseMove(e: L.LeafletMouseEvent): void {
@@ -112,12 +117,14 @@ export class FerramentaOffsetMapa {
     if (pontos.length < 2) return;
 
     // Detecta de qual lado da linha (P0 -> P1) o mouse está usando produto vetorial 2D
-    const p0 = pontos[0];
-    const p1 = pontos[1];
-    const x0 = p0.lon || p0.lat; // coordenadas para orientação de tela
-    const y0 = p0.lat;
-    const x1 = p1.lon || p1.lat;
-    const y1 = p1.lat;
+    const c0 = coordenadaPonto(pontos[0]);
+    const c1 = coordenadaPonto(pontos[1]);
+    if (!c0 || !c1) return;
+
+    const x0 = c0.lon;
+    const y0 = c0.lat;
+    const x1 = c1.lon;
+    const y1 = c1.lat;
 
     const mx = e.latlng.lng;
     const my = e.latlng.lat;
@@ -155,6 +162,10 @@ export class FerramentaOffsetMapa {
     const pontos = this.obterPontosOrigem();
     if (pontos.length < 2) return;
 
+    const ptRef = pontos[0];
+    const cRef = coordenadaPonto(ptRef);
+    if (!cRef) return;
+
     // Coleta coordenadas UTM ou aproximação métrica
     const ptsMetricos = pontos.map(p => ({
       este: Number(p.e_corrigido || p.e_original || 500000),
@@ -164,9 +175,8 @@ export class FerramentaOffsetMapa {
     const preview = gerarGeometriaPreviewOffsetPolilinha(ptsMetricos, this.distancia, this.ladoDetectado);
     if (preview.vertices.length === 0) return;
 
-    // Projeta de volta para lat/lon em relação aos pontos de origem
+    // Projeta de volta para lat/lon em relação ao ponto de referência verdadeiro
     const latlngs: L.LatLngExpression[] = [];
-    const ptRef = pontos[0];
     const eRef = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
     const nRef = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
 
@@ -174,8 +184,8 @@ export class FerramentaOffsetMapa {
       const dE = v.este - eRef;
       const dN = v.norte - nRef;
       const dLat = dN / 111139.0;
-      const dLon = dE / (111139.0 * Math.cos((ptRef.lat * Math.PI) / 180));
-      const pos: [number, number] = [ptRef.lat + dLat, ptRef.lon + dLon];
+      const dLon = dE / (111139.0 * Math.cos((cRef.lat * Math.PI) / 180));
+      const pos: [number, number] = [cRef.lat + dLat, cRef.lon + dLon];
       latlngs.push(pos);
 
       const marker = L.circleMarker(pos, {
@@ -210,6 +220,10 @@ export class FerramentaOffsetMapa {
 
     const pontos = this.obterPontosOrigem();
     const pontoIds = pontos.map(p => p.id);
+    const fuso = Number(pontos.find(p => p.fuso_utm)?.fuso_utm)
+      || (this.ctx.mapaController?.fusoUtm)
+      || zonaUtmDoLevantamento(this.ctx.pontosList)
+      || 22;
 
     try {
       showToast('Calculando e gerando vértices virtuais...', 'info');
@@ -233,7 +247,7 @@ export class FerramentaOffsetMapa {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fuso_utm: 22,
+          fuso_utm: fuso,
           vertices: dataCalc.resultados.map((r: any) => ({
             nome_vertice: r.nome,
             este: r.este,

@@ -3,6 +3,7 @@ import { API_BASE } from '../../config';
 import { showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset, RespostaVerticeVirtual } from '../../types/verticesVirtuais';
+import { coordenadaPonto } from './coordenadas_mapa';
 
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
@@ -137,20 +138,24 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     previewLayerGroup.clearLayers();
     if (resultados.length === 0) return;
 
-    // Converte UTM para LatLng aproximado baseado nos pontos de apoio ou pela API
+    // Converte UTM para LatLng aproximado baseado nos pontos de apoio verdadeiros
     const latlngs: [number, number][] = [];
-    resultados.forEach(r => {
-      // Procura ponto mais próximo para obter projeção de referência
-      const ptRef = pontosDisponiveis[0];
-      if (ptRef && ptRef.lat && ptRef.lon && (ptRef.e_corrigido || ptRef.e_original)) {
-        const eOrig = Number(ptRef.e_corrigido || ptRef.e_original);
-        const nOrig = Number(ptRef.n_corrigido || ptRef.n_original);
+    const ptRef = (pontosSelecionadosIds.length > 0
+      ? pontosDisponiveis.find(pt => String(pt.id) === String(pontosSelecionadosIds[0]))
+      : null) || pontosDisponiveis[0];
+    const cRef = coordenadaPonto(ptRef);
+
+    if (cRef && ptRef) {
+      const eOrig = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
+      const nOrig = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
+
+      resultados.forEach(r => {
         const dE = r.este - eOrig;
         const dN = r.norte - nOrig;
         // Aproximação métrica local (1 grau lat ~ 111.000m, lon ~ 111.000m * cos(lat))
         const dLat = dN / 111139.0;
-        const dLon = dE / (111139.0 * Math.cos((ptRef.lat * Math.PI) / 180));
-        const pos: [number, number] = [ptRef.lat + dLat, ptRef.lon + dLon];
+        const dLon = dE / (111139.0 * Math.cos((cRef.lat * Math.PI) / 180));
+        const pos: [number, number] = [cRef.lat + dLat, cRef.lon + dLon];
         latlngs.push(pos);
 
         const marker = L.circleMarker(pos, {
@@ -165,8 +170,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
           direction: 'top'
         });
         previewLayerGroup!.addLayer(marker);
-      }
-    });
+      });
+    }
 
     if (latlngs.length >= 2) {
       const line = L.polyline(latlngs, {
