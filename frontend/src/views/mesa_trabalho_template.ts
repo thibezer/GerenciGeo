@@ -815,7 +815,7 @@ export const renderMesaTrabalho = (): string => {
                   <p class="font-bold text-mint-vibrant">Instruções:</p>
                   <p>• O arquivo de Vértices deve conter as colunas CODIGO, SIGMA_X, SIGMA_Y, SIGMA_Z, Z e GEOMETRIA_WKT.</p>
                   <p>• O arquivo de Limites deve conter as colunas DO_VERTICE e CONFRONTANTE_DESC.</p>
-                  <p>• O sistema fará a conversão para coordenadas UTM Zone 22S (EPSG:31982) automaticamente.</p>
+                  <p>• O sistema converte para UTM SIRGAS 2000 no fuso dos vértices e baixa o TXT consolidado (1A).</p>
                </div>
                <div class="flex justify-end gap-3 pt-2">
                   <button type="button" class="btn-secondary text-xs" id="btn-cancelar-sigef">Cancelar</button>

@@ -1,6 +1,6 @@
 import { API_BASE } from '../../../config';
 import { initIcons, showToast } from '../../../utils';
-import { registrarEventosExportacao } from '../exportacao_cad';
+import { registrarEventosExportacao, exportarParaKML } from '../exportacao_cad';
 import { setNuvemSyncContext } from '../nuvem_sync_modal';
 import { FerramentaCanetaSelecao } from '../ferramenta_caneta';
 import { focoEmCampoDeTexto } from '../foco_texto';
@@ -66,8 +66,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
 
   // Exportação KML
   document.getElementById('btn-exportar-kml')?.addEventListener('click', () => {
-    if (!ctx.currentMatriculaId) return;
-    alert(`Arquivo KML Sirgas 2000 gerado e copiado com sucesso para a pasta: \n/Projetos/Propriedade_Thiago/Lev_${ctx.currentLevId}/Exportacoes/`);
+    exportarParaKML(ctx);
   });
 
   // Consolidação de pontos UTM
@@ -91,7 +90,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       } else if (data.error) {
         alert(data.error);
       } else {
-        alert(data.message);
+        showToast(data.message, 'success');
         window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=Exportacoes&nome=PONTOS_CONSOLIDADOS_UTM.csv`, '_blank');
         ctx.loadWorkspaceArquivos();
       }
@@ -274,11 +273,8 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       const formData = new FormData();
       formData.append('file_vertices', inputVert.files[0]);
       formData.append('file_limites', inputLim.files[0]);
-      if (ctx.currentMatriculaId) {
-        formData.append('matricula_id', ctx.currentMatriculaId.toString());
-      }
 
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/unificar-sigef`, {
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/unificar-sigef-confrontantes`, {
         method: 'POST',
         body: formData
       });
@@ -289,7 +285,10 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       } else {
         showToast(data.message || 'Arquivos unificados com sucesso!', 'success');
         document.getElementById('modal-unificar-sigef')?.classList.add('hidden');
-        ctx.loadLevantamentoDetails();
+        if (data.arquivo) {
+          window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=Processados&nome=${encodeURIComponent(data.arquivo)}`, '_blank');
+        }
+        ctx.loadWorkspaceArquivos();
       }
     } catch (err) {
       console.error(err);

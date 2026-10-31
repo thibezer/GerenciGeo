@@ -78,6 +78,14 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               icone: SVGS.uploadCloud
             },
             {
+              id: 'btn-unificar-sigef',
+              rotulo: 'Unificar SIGEF',
+              rotuloAcessivel: 'Unificar CSVs de vértices e limites do SIGEF em um TXT de confrontante (1A)',
+              tamanho: 'pequeno',
+              tipo: 'botao',
+              icone: SVGS.fileText
+            },
+            {
               id: 'btn-toggle-vizinhos-mapa',
               rotulo: 'Exibir no Mapa',
               tamanho: 'pequeno',
@@ -135,45 +143,27 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           itens: [
             {
               id: 'btn-consolidar-pontos-utm',
-              rotulo: 'Exportar Dados',
+              rotulo: 'Planilha SIGEF',
+              rotuloAcessivel: 'Gerar planilha UTM consolidada (sigmas, confrontantes, método e limite) de todo o levantamento',
               tamanho: 'grande',
-              tipo: 'botao',
-              icone: SVGS.upload
-            },
-            {
-              id: 'btn-exportar-kml',
-              rotulo: 'KML',
-              tamanho: 'pequeno',
-              tipo: 'botao',
-              icone: SVGS.mapPin
-            },
-            {
-              id: 'btn-unificar-sigef',
-              rotulo: 'Unificar SIGEF',
-              tamanho: 'pequeno',
               tipo: 'botao',
               icone: SVGS.fileSpreadsheet
             },
             {
               id: 'btn-exportar-tabela-csv',
-              rotulo: 'Exportar CSV',
+              rotulo: 'CSV da Tabela',
+              rotuloAcessivel: 'Baixar CSV dos vértices visíveis na tabela, respeitando filtros e busca',
               tamanho: 'pequeno',
               tipo: 'botao',
               icone: SVGS.download
             },
             {
-              id: 'btn-exportar-cad',
-              rotulo: 'Copiar CAD',
+              id: 'btn-exportar-kml',
+              rotulo: 'KML',
+              rotuloAcessivel: 'Baixar KML (Google Earth) dos vértices visíveis e do perímetro',
               tamanho: 'pequeno',
               tipo: 'botao',
-              icone: SVGS.copy
-            },
-            {
-              id: 'btn-importar-cad',
-              rotulo: 'Importar CAD',
-              tamanho: 'pequeno',
-              tipo: 'botao',
-              icone: SVGS.clipboard
+              icone: SVGS.mapPin
             },
             {
               id: 'btn-download-rinex-zip',
@@ -182,6 +172,29 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               tamanho: 'pequeno',
               tipo: 'botao',
               icone: SVGS.archive
+            }
+          ]
+        },
+        {
+          id: 'grp-autocad',
+          rotulo: 'AutoCAD',
+          prioridade: 4,
+          itens: [
+            {
+              id: 'btn-exportar-cad',
+              rotulo: 'Enviar ao CAD',
+              rotuloAcessivel: 'Copiar vértices visíveis/selecionados para colar no AutoCAD com GCOLA',
+              tamanho: 'pequeno',
+              tipo: 'botao',
+              icone: SVGS.copy
+            },
+            {
+              id: 'btn-importar-cad',
+              rotulo: 'Receber do CAD',
+              rotuloAcessivel: 'Ler vértices copiados no AutoCAD com GCOPIAR e conferir antes de sincronizar',
+              tamanho: 'pequeno',
+              tipo: 'botao',
+              icone: SVGS.clipboard
             }
           ]
         },
