@@ -441,7 +441,8 @@ def importar_confrontante_sigef(lev_id: int, codigo_parcela: str):
 
 def processar_arquivos_sigef(vertices_content: str, limites_content: str) -> str:
     wkt_point_re = re.compile(r"POINT\s*\(\s*([\-\d\.]+)\s+([\-\d\.]+)\s*\)", re.IGNORECASE)
-    transformer_utm = get_transformer("epsg:4674", "epsg:31982", always_xy=True)
+    # Fuso UTM (SIRGAS 2000 Sul) definido pelo primeiro vértice com geometria válida
+    transformer_utm = None
 
     # 1. Parse do arquivo de limites
     limites_reader = csv.reader(io.StringIO(limites_content), delimiter=';')
@@ -522,6 +523,9 @@ def processar_arquivos_sigef(vertices_content: str, limites_content: str) -> str
                     if m:
                         lon = float(m.group(1))
                         lat = float(m.group(2))
+                        if transformer_utm is None:
+                            zona_utm = int((lon + 180) / 6) + 1
+                            transformer_utm = get_transformer("epsg:4674", f"epsg:319{60 + zona_utm}", always_xy=True)
                         e_val, n_val = transformer_utm.transform(lon, lat)
                         x_utm = f"{e_val:.3f}"
                         y_utm = f"{n_val:.3f}"

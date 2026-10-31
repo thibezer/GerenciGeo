@@ -260,6 +260,76 @@ export function exportarParaCSV(ctx: MesaTrabalhoContext): void {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Exportação para KML (Google Earth)
+// ─────────────────────────────────────────────────────────────────
+
+function escaparXML(texto: string | number | null | undefined): string {
+  if (texto === null || texto === undefined) return '';
+  return String(texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Gera e dispara o download de um KML (SIRGAS 2000 ≈ WGS84) com os vértices visíveis
+ * e, quando houver ao menos 3 vértices de perímetro, o polígono do caminhamento.
+ */
+export function exportarParaKML(ctx: MesaTrabalhoContext): void {
+  const pontosExport = filtrarPontosParaExportacao(ctx).filter(p => p.lat && p.lon);
+
+  if (pontosExport.length === 0) {
+    alert("Nenhum vértice com coordenadas geodésicas para exportar!");
+    return;
+  }
+
+  const placemarks = pontosExport.map((p) => {
+    const tipo = p.tipo_ponto || p.tipo || '-';
+    const status = p.status_ponto || p.status_correcao || 'BRUTO';
+    return `    <Placemark>
+      <name>${escaparXML(p.nome_vertice)}</name>
+      <description>Tipo: ${escaparXML(tipo)} | Status: ${escaparXML(status)}</description>
+      <Point><coordinates>${p.lon},${p.lat},${p.alt || p.alt_original || 0}</coordinates></Point>
+    </Placemark>`;
+  });
+
+  const perimetro = pontosExport
+    .filter(p => p.ignorar_poligono !== 1 && p.tipo_ponto !== 'B' && p.tipo !== 'B')
+    .sort((a, b) => (a.ordem_caminhamento || 999999) - (b.ordem_caminhamento || 999999));
+
+  let poligono = '';
+  if (perimetro.length >= 3) {
+    const coords = [...perimetro, perimetro[0]].map(p => `${p.lon},${p.lat},0`).join(' ');
+    poligono = `    <Placemark>
+      <name>Perímetro</name>
+      <Style><LineStyle><color>ff7fffd4</color><width>2</width></LineStyle><PolyStyle><color>337fffd4</color></PolyStyle></Style>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>\n`;
+  }
+
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Levantamento ${escaparXML(ctx.currentLevId)}</name>
+${poligono}${placemarks.join('\n')}
+  </Document>
+</kml>`;
+
+  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `vertices_levantamento_${ctx.currentLevId}.kml`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast(`KML gerado com ${pontosExport.length} vértices.`, "success");
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Registro de Event Listeners (Ponte com a UI)
 // ─────────────────────────────────────────────────────────────────
 
