@@ -1,18 +1,10 @@
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
+import { focoEmCampoDeTexto } from '../foco_texto';
 
 export function inicializarAtalhosTeclado(
   ctx: MesaTrabalhoContext,
   confirmarExclusaoPonto: (pId: number) => Promise<void>
 ): () => void {
-  const isInputFocado = (): boolean => {
-    const activeEl = document.activeElement;
-    if (!activeEl) return false;
-    const tag = activeEl.tagName.toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-    if (activeEl.getAttribute('contenteditable') === 'true') return true;
-    return false;
-  };
-
   const handleKeyDown = (e: KeyboardEvent) => {
     // 1. Tecla F2: Foco imediato na busca de vértices
     if (e.key === 'F2') {
@@ -58,6 +50,9 @@ export function inicializarAtalhosTeclado(
         return;
       }
 
+      // Escape num campo em edição pertence ao campo: não derruba a seleção (o que re-renderiza o painel)
+      if (focoEmCampoDeTexto(e)) return;
+
       // Se não havia modal aberto, limpa seleções ativas de vértices e segmentos
       if (ctx.selectedPontoIds.length > 0 || ctx.selectedVizinhoPontoIds.length > 0 || ctx.selectedSegmentoId !== null) {
         e.preventDefault();
@@ -76,7 +71,8 @@ export function inicializarAtalhosTeclado(
     }
 
     // Se estiver digitando em campos de texto, não dispara atalhos de navegação e exclusão
-    if (isInputFocado()) {
+    // (composedPath atravessa o shadow DOM dos campos de <ui-tabela-propriedades> e afins)
+    if (focoEmCampoDeTexto(e)) {
       return;
     }
 

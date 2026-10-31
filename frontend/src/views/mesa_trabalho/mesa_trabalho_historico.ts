@@ -172,7 +172,8 @@ export class GerenciadorHistoricoMesa {
       if (this.ctx.ferramentaCaneta?.temVerticesPendentes?.()) return;
 
       // Ignora atalhos se o foco estiver num input de texto ou textarea (exceto se for apenas input-ordem-manual com blur)
-      const target = e.target as HTMLElement;
+      // composedPath()[0] é o alvo real mesmo dentro de shadow DOM (e.target seria o hospedeiro ui-*)
+      const target = (e.composedPath?.()[0] ?? e.target) as HTMLElement;
       const isTextInput = target && (
         (target.tagName === 'INPUT' && !target.classList.contains('chk-ponto-ordenador') && !target.classList.contains('chk-ignorar-poligono')) ||
         target.tagName === 'TEXTAREA' ||
