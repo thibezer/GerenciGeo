@@ -130,7 +130,14 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
       Object.assign(pontoAlvo, data.ponto);
     }
 
-    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined) {
+    // Coordenada de uma base dispara no backend a translação em bloco dos rovers vinculados;
+    // sem recarregar, só a base seria atualizada localmente e os rovers ficariam na posição antiga.
+    const alterouCoordenada = ['e_corrigido', 'n_corrigido', 'alt_corrigido', 'lat', 'lon'].some(k => payload[k] !== undefined);
+    const ehBase = pontoAlvo.tipo_ponto === 'B'
+      || (ctx.pontosList ?? []).some((pt: Ponto) => String(pt.ponto_base_id) === String(pontoId));
+
+    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined
+      || (alterouCoordenada && ehBase)) {
       // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
       // as listas locais ficariam desatualizadas e o mapa seguiria desenhando o vértice no perímetro antigo.
       // O tipo também muda o perímetro (B fica de fora), os filtros de Bases e as cores do mapa.

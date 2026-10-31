@@ -145,7 +145,26 @@ export function construirCategoriasVertice(params: ParametrosCategoriasVertice):
           rotulo: 'Status Ponto',
           tipo: 'readonly',
           valor: p.status_correcao || p.status_ponto || 'BRUTO'
-        }
+        },
+        // A coordenada bruta de campo é preservada como referência do deslocamento aplicado aos rovers
+        ...(p.e_original != null && p.n_original != null
+          ? [
+              {
+                id: 'coord_original',
+                rotulo: 'Original (campo)',
+                tipo: 'readonly' as const,
+                valor: `E ${Number(p.e_original).toFixed(3)} · N ${Number(p.n_original).toFixed(3)}`
+              },
+              {
+                id: 'deslocamento',
+                rotulo: 'Deslocamento',
+                tipo: 'readonly' as const,
+                valor: p.delta_3d != null
+                  ? `ΔE ${Number(p.delta_e ?? 0).toFixed(1)} · ΔN ${Number(p.delta_n ?? 0).toFixed(1)} · 3D ${Number(p.delta_3d).toFixed(1)} mm`
+                  : '-'
+              }
+            ]
+          : [])
       ]
     },
     {
