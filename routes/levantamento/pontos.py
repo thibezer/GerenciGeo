@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from utils.transformer_cache import get_transformer
+from services.processamento.utm_corrigido import utm_do_ponto, sincronizar_utm_corrigido, geodesica_de_utm
 
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
@@ -454,22 +455,15 @@ def get_pontos(id: int, camada: Optional[str] = None):
         """
         rows = [dict(r) for r in execute_query(query, params=tuple(params), fetch_all=True)]
         
+        # E/N corrigido sempre derivado da posição verdadeira (lat/lon_corrigido), nunca do cache gravado
         for p in rows:
-            if p.get("e_corrigido") is None or p.get("n_corrigido") is None:
-                lat_c = p.get("lat_corrigido") or p.get("lat")
-                lon_c = p.get("lon_corrigido") or p.get("lon")
-                if lat_c and lon_c:
-                    try:
-                        zona_utm = p.get("fuso_utm") or (int((lon_c + 180) / 6) + 1)
-                        epsg_code = f"319{60 + zona_utm}"
-                        transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
-                        e_corr, n_corr = transformer.transform(lon_c, lat_c)
-                        if p.get("e_corrigido") is None:
-                            p["e_corrigido"] = round(e_corr, 3)
-                        if p.get("n_corrigido") is None:
-                            p["n_corrigido"] = round(n_corr, 3)
-                    except Exception:
-                        pass
+            try:
+                utm = utm_do_ponto(p)
+            except Exception:
+                utm = None
+            if utm:
+                p["e_corrigido"] = round(utm[0], 3)
+                p["n_corrigido"] = round(utm[1], 3)
         return rows
     except Exception as e:
         if isinstance(e, HTTPException): raise e
@@ -1313,6 +1307,7 @@ def sincronizar_cad_clipboard(id: int, payload: PayloadSincronizarCAD):
                         "metodo": metpos
                     })
 
+            sincronizar_utm_corrigido(cursor, ponto_ids=[pp["id"] for pp in pontos_processados])
             conn.commit()
 
         # Reconstrução da poligonal perimetral caso solicitado
@@ -1384,6 +1379,7 @@ class PayloadCalcularComboPA1PA2(BaseModel):
     largura_faixa: float
     lado: Literal["DIREITA", "ESQUERDA"]
     nome_vertice: Optional[str] = "V01"
+    fuso_utm: Optional[int] = None
 
 
 class PayloadCalcularPA2Puro(BaseModel):
@@ -1392,6 +1388,7 @@ class PayloadCalcularPA2Puro(BaseModel):
     alinhamento2_inicio_id: int
     alinhamento2_fim_id: int
     nome_vertice: Optional[str] = "V01"
+    fuso_utm: Optional[int] = None
 
 
 class PayloadInserirVerticeVirtual(BaseModel):
@@ -1414,6 +1411,8 @@ class PayloadCalcularOffsetLote(BaseModel):
     distancia: float
     lado: Literal["DIREITA", "ESQUERDA"]
     prefixo_nome: Optional[str] = "V"
+    fuso_utm: Optional[int] = None
+    fechado: bool = False
 
 
 class VerticeVirtualLoteItem(BaseModel):
@@ -1435,7 +1434,11 @@ class PayloadConfirmarOffsetLote(BaseModel):
     vertices: List[VerticeVirtualLoteItem]
 
 
-def _obter_ponto_apoio_db(ponto_id: int):
+def _obter_ponto_apoio_db(ponto_id: int, fuso: Optional[int] = None):
+    """
+    Ponto de apoio em UTM a partir da posição verdadeira (lat/lon_corrigido quando existe).
+    `fuso` força todos os pontos de um mesmo cálculo na mesma projeção.
+    """
     from services.processamento.vertices_virtuais import PontoApoio
 
     row = execute_query(
@@ -1452,24 +1455,15 @@ def _obter_ponto_apoio_db(ponto_id: int):
         raise HTTPException(status_code=404, detail=f"Ponto de apoio ID {ponto_id} não encontrado.")
 
     p = dict(row)
-    e = p.get("e_corrigido") or p.get("e_original")
-    n = p.get("n_corrigido") or p.get("n_original")
     alt = p.get("alt_corrigido") or p.get("alt") or p.get("alt_original") or 0.0
 
-    if e is None or n is None:
-        lat = p.get("lat_corrigido") or p.get("lat")
-        lon = p.get("lon_corrigido") or p.get("lon")
-        if lat is not None and lon is not None:
-            fuso = p.get("fuso_utm") or (int((lon + 180) / 6) + 1)
-            transformer = get_transformer("epsg:4674", f"epsg:319{60 + fuso}", always_xy=True)
-            e_calc, n_calc = transformer.transform(lon, lat)
-            e = e or e_calc
-            n = n or n_calc
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
-            )
+    utm = utm_do_ponto(p, fuso)
+    if not utm:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
+        )
+    e, n, fuso_usado = utm
 
     s_e = p.get("sigma_e") or p.get("sigma_lon") or 0.02
     s_n = p.get("sigma_n") or p.get("sigma_lat") or 0.02
@@ -1483,7 +1477,23 @@ def _obter_ponto_apoio_db(ponto_id: int):
         sigma_este=float(s_e),
         sigma_norte=float(s_n),
         sigma_altitude=float(s_z),
-    )
+    ), fuso_usado
+
+
+def _latlon_resultado(este: float, norte: float, fuso: int) -> dict:
+    """lat/lon do vértice calculado, para a prévia no mapa não depender de nenhum UTM de referência."""
+    lat, lon = geodesica_de_utm(este, norte, fuso)
+    return {"lat": lat, "lon": lon}
+
+
+def _obter_pontos_apoio_db(ponto_ids: List[int], fuso: Optional[int] = None):
+    """Pontos de apoio todos no mesmo fuso (o informado ou o do primeiro ponto). Retorna (pontos, fuso)."""
+    pontos = []
+    for pid in ponto_ids:
+        ponto, fuso_usado = _obter_ponto_apoio_db(pid, fuso)
+        fuso = fuso or fuso_usado
+        pontos.append(ponto)
+    return pontos, fuso
 
 
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-combo-pa1-pa2")
@@ -1495,10 +1505,10 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais, LadoOffset
 
     try:
-        e1 = _obter_ponto_apoio_db(payload.eixo_inicio_id)
-        e2 = _obter_ponto_apoio_db(payload.eixo_fim_id)
-        d1 = _obter_ponto_apoio_db(payload.divisa_inicio_id)
-        d2 = _obter_ponto_apoio_db(payload.divisa_fim_id)
+        (e1, e2, d1, d2), fuso = _obter_pontos_apoio_db(
+            [payload.eixo_inicio_id, payload.eixo_fim_id, payload.divisa_inicio_id, payload.divisa_fim_id],
+            payload.fuso_utm,
+        )
 
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
@@ -1514,10 +1524,12 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
 
         return {
             "sucesso": True,
+            "fuso_utm": fuso,
             "resultado": {
                 "nome": resultado.nome,
                 "este": resultado.este,
                 "norte": resultado.norte,
+                **_latlon_resultado(resultado.este, resultado.norte, fuso),
                 "altitude": resultado.altitude,
                 "sigma_este": resultado.sigma_este,
                 "sigma_norte": resultado.sigma_norte,
@@ -1547,10 +1559,11 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais
 
     try:
-        r1_p1 = _obter_ponto_apoio_db(payload.alinhamento1_inicio_id)
-        r1_p2 = _obter_ponto_apoio_db(payload.alinhamento1_fim_id)
-        r2_p1 = _obter_ponto_apoio_db(payload.alinhamento2_inicio_id)
-        r2_p2 = _obter_ponto_apoio_db(payload.alinhamento2_fim_id)
+        (r1_p1, r1_p2, r2_p1, r2_p2), fuso = _obter_pontos_apoio_db(
+            [payload.alinhamento1_inicio_id, payload.alinhamento1_fim_id,
+             payload.alinhamento2_inicio_id, payload.alinhamento2_fim_id],
+            payload.fuso_utm,
+        )
 
         resultado = MotorVerticesVirtuais.calcular_pa2_puro(
             alinhamento1_p1=r1_p1,
@@ -1562,10 +1575,12 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
 
         return {
             "sucesso": True,
+            "fuso_utm": fuso,
             "resultado": {
                 "nome": resultado.nome,
                 "este": resultado.este,
                 "norte": resultado.norte,
+                **_latlon_resultado(resultado.este, resultado.norte, fuso),
                 "altitude": resultado.altitude,
                 "sigma_este": resultado.sigma_este,
                 "sigma_norte": resultado.sigma_norte,
@@ -1693,7 +1708,7 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         if len(payload.ponto_ids) < 2:
             raise HTTPException(status_code=400, detail="São necessários pelo menos 2 pontos para o deslocamento.")
 
-        pontos_apoio = [_obter_ponto_apoio_db(pid) for pid in payload.ponto_ids]
+        pontos_apoio, fuso = _obter_pontos_apoio_db(payload.ponto_ids, payload.fuso_utm)
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
         resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
@@ -1701,16 +1716,19 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
             distancia=payload.distancia,
             lado=lado_enum,
             prefixo_nome=payload.prefixo_nome or "V",
+            fechado=payload.fechado,
         )
 
         return {
             "sucesso": True,
+            "fuso_utm": fuso,
             "total": len(resultados),
             "resultados": [
                 {
                     "nome": r.nome,
                     "este": r.este,
                     "norte": r.norte,
+                    **_latlon_resultado(r.este, r.norte, fuso),
                     "altitude": r.altitude,
                     "sigma_este": r.sigma_este,
                     "sigma_norte": r.sigma_norte,

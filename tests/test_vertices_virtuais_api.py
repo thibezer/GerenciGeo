@@ -180,6 +180,47 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
         self.assertEqual(resultados[1]["nome"], "VT-02")
         self.assertAlmostEqual(resultados[0]["este"], 500015.0, places=2)
         self.assertAlmostEqual(resultados[1]["este"], 500015.0, places=2)
+        self.assertEqual(data["fuso_utm"], 22)
+        self.assertIn("lat", resultados[0])
+        self.assertIn("lon", resultados[0])
+
+    def test_endpoint_offset_usa_posicao_corrigida_e_nao_cache_utm(self):
+        """Ponto corrigido depois do cálculo do UTM: o offset parte de lat/lon_corrigido."""
+        from services.processamento.utm_corrigido import geodesica_de_utm
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            # Correção posterior moveu o eixo 5 m para leste; e_corrigido ficou com o valor antigo
+            for pid, norte in ((self.e1_id, 7000000.0), (self.e2_id, 7001000.0)):
+                lat, lon = geodesica_de_utm(500005.0, norte, 22)
+                cursor.execute(
+                    "UPDATE pontos SET lat_corrigido = ?, lon_corrigido = ? WHERE id = ?",
+                    (lat, lon, pid),
+                )
+            conn.commit()
+
+        res = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/calcular-offset-lote",
+            json={"ponto_ids": [self.e1_id, self.e2_id], "distancia": 15.0, "lado": "DIREITA"},
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        for r in res.json()["resultados"]:
+            self.assertAlmostEqual(r["este"], 500020.0, places=2)
+
+    def test_endpoint_offset_poligono_fechado(self):
+        """Com fechado=True o primeiro e o último vértice também são cantos interceptados."""
+        res = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/calcular-offset-lote",
+            json={
+                "ponto_ids": [self.e1_id, self.e2_id, self.d1_id],
+                "distancia": 5.0,
+                "lado": "DIREITA",
+                "fechado": True,
+            },
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        metodos = [r["metodo"] for r in res.json()["resultados"]]
+        self.assertEqual(metodos, ["PA1+PA2"] * 3)
 
     def test_endpoint_confirmar_offset_lote(self):
         """Testa a persistência atômica de lote de vértices virtuais."""

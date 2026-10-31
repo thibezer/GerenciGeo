@@ -317,23 +317,30 @@ class MotorVerticesVirtuais:
         distancia: float,
         lado: LadoOffset,
         prefixo_nome: str = "V",
+        fechado: bool = False,
     ) -> List[ResultadoVerticeVirtual]:
         """
         Calcula o deslocamento paralelo (estilo OFFSET do AutoCAD) para uma cadeia/sequência
         de vértices de apoio, gerando os vértices virtuais correspondentes com interseção
         analítica nos cantos intermediários e propagação estocástica INCRA/SIGEF.
+        Com `fechado`, a cadeia é um polígono: o segmento último -> primeiro também é deslocado
+        e o primeiro/último vértice viram cantos interceptados como os demais.
         """
         if distancia < 0:
             raise ValueError("A distância de offset não pode ser negativa.")
         if len(pontos) < 2:
             raise ValueError("São necessários pelo menos 2 pontos para calcular o deslocamento paralelo.")
+        if fechado and len(pontos) < 3:
+            raise ValueError("São necessários pelo menos 3 pontos para deslocar um polígono fechado.")
 
         num_pts = len(pontos)
-        # 1. Calcula os segmentos deslocados para cada trecho consecutivo
+        # 1. Calcula os segmentos deslocados para cada trecho consecutivo (segmento i: ponto i -> i+1)
+        num_segmentos = num_pts if fechado else num_pts - 1
         segmentos_offset = []
-        for i in range(num_pts - 1):
+        for i in range(num_segmentos):
+            j = (i + 1) % num_pts
             p1 = np.array([pontos[i].este, pontos[i].norte], dtype=float)
-            p2 = np.array([pontos[i + 1].este, pontos[i + 1].norte], dtype=float)
+            p2 = np.array([pontos[j].este, pontos[j].norte], dtype=float)
             off_p1, off_p2 = cls._calcular_offset_pa1(p1, p2, distancia, lado)
             segmentos_offset.append((off_p1, off_p2))
 
@@ -346,18 +353,19 @@ class MotorVerticesVirtuais:
             pt_origem = pontos[i]
             nome_v = f"{prefixo_nome}{sep}{i + 1:02d}"
 
-            if i == 0:
+            if i == 0 and not fechado:
                 # Primeiro vértice: extremidade inicial do primeiro segmento deslocado
                 coord = segmentos_offset[0][0]
                 metodo = "PA1"
                 angulo = 90.0
-            elif i == num_pts - 1:
+            elif i == num_pts - 1 and not fechado:
                 # Último vértice: extremidade final do último segmento deslocado
                 coord = segmentos_offset[-1][1]
                 metodo = "PA1"
                 angulo = 90.0
             else:
-                # Vértice intermediário: interseção analítica dos dois segmentos adjacentes
+                # Canto: interseção analítica dos dois segmentos adjacentes (no polígono, o
+                # segmento anterior ao vértice 0 é o de fechamento)
                 seg_ant = segmentos_offset[i - 1]
                 seg_post = segmentos_offset[i]
                 metodo = "PA1+PA2"

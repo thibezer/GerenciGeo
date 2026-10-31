@@ -21,6 +21,7 @@ from services.processamento.topologia_segmentos import (
     segmentos_antigos_para_dicts,
 )
 from utils.transformer_cache import get_transformer
+from services.processamento.utm_corrigido import sincronizar_utm_corrigido, sincronizar_utm_corrigido_ids
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +246,9 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             (lat_bruto, lon_bruto, pt_antigo["alt_original"] if pt_antigo["alt_original"] is not None else pt_antigo["alt"], ponto_id),
             commit=True
         )
+
+    # As translações acima gravam só lat/lon_corrigido: o E/N corrigido acompanha a nova posição
+    sincronizar_utm_corrigido_ids([ponto_id])
 
 def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
     """
@@ -909,6 +913,9 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
                 if seg_fields:
                     seg_vals.append(seg_id)
                     cursor.execute(f"UPDATE segmentos SET {', '.join(seg_fields)} WHERE id = ?", tuple(seg_vals))
+
+            if atualizar_coordenadas:
+                sincronizar_utm_corrigido(cursor, ponto_ids=[pid])
 
             conn.commit()
 

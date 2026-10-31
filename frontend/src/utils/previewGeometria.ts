@@ -112,25 +112,56 @@ export function gerarGeometriaPreviewPA2Puro(
 }
 
 /**
+ * Plano local tangente (GRS80) centrado em (lat0, lon0): converte lat/lon <-> metros sem passar por UTM,
+ * então a prévia não sofre com convergência meridiana nem depende de coordenadas E/N gravadas.
+ */
+export function criarPlanoLocal(lat0: number, lon0: number) {
+  const a = 6378137.0;
+  const e2 = 0.00669438002290;
+  const phi = (lat0 * Math.PI) / 180;
+  const w = 1 - e2 * Math.sin(phi) ** 2;
+  const raioMeridiano = (a * (1 - e2)) / Math.pow(w, 1.5);
+  const raioPrimeiroVertical = a / Math.sqrt(w);
+  const metrosPorGrauLat = (raioMeridiano * Math.PI) / 180;
+  const metrosPorGrauLon = (raioPrimeiroVertical * Math.cos(phi) * Math.PI) / 180;
+
+  return {
+    paraPlano: (lat: number, lon: number): Ponto2D => ({
+      este: (lon - lon0) * metrosPorGrauLon,
+      norte: (lat - lat0) * metrosPorGrauLat,
+    }),
+    paraGeo: (p: Ponto2D): { lat: number; lon: number } => ({
+      lat: lat0 + p.norte / metrosPorGrauLat,
+      lon: lon0 + p.este / metrosPorGrauLon,
+    }),
+  };
+}
+
+/**
  * Calcula a pré-visualização vetorial em tempo real para deslocamento em lote de polilinha (Offset estilo AutoCAD).
+ * Mesma regra do backend (MotorVerticesVirtuais.calcular_offset_polilinha): com `fechado`, o trecho
+ * último -> primeiro também é deslocado e todos os vértices viram cantos interceptados.
  */
 export function gerarGeometriaPreviewOffsetPolilinha(
   pontos: { este: number; norte: number }[],
   distancia: number,
-  lado: LadoOffset
+  lado: LadoOffset,
+  fechado: boolean = false
 ): PreviewResultadoOffsetPolilinha {
-  if (pontos.length < 2 || distancia <= 0) {
+  if (pontos.length < 2 || distancia <= 0 || (fechado && pontos.length < 3)) {
     return { vertices: [], segmentos: [] };
   }
 
+  const numSegmentos = fechado ? pontos.length : pontos.length - 1;
   const segmentos: [Ponto2D, Ponto2D][] = [];
-  for (let i = 0; i < pontos.length - 1; i++) {
+  for (let i = 0; i < numSegmentos; i++) {
     const p1 = pontos[i];
-    const p2 = pontos[i + 1];
+    const p2 = pontos[(i + 1) % pontos.length];
     const de = p2.este - p1.este;
     const dn = p2.norte - p1.norte;
     const len = Math.hypot(de, dn);
-    if (len < 1e-4) continue;
+    // Trecho nulo desalinharia segmento x vértice (e o backend recusa): sem prévia
+    if (len < 1e-4) return { vertices: [], segmentos: [] };
 
     const sinal = lado === 'DIREITA' ? 1 : -1;
     const offE = sinal * distancia * (dn / len);
@@ -142,18 +173,14 @@ export function gerarGeometriaPreviewOffsetPolilinha(
     ]);
   }
 
-  if (segmentos.length === 0) {
-    return { vertices: [], segmentos: [] };
-  }
-
   const vertices: Ponto2D[] = [];
   for (let i = 0; i < pontos.length; i++) {
-    if (i === 0) {
+    if (i === 0 && !fechado) {
       vertices.push(segmentos[0][0]);
-    } else if (i === pontos.length - 1) {
+    } else if (i === pontos.length - 1 && !fechado) {
       vertices.push(segmentos[segmentos.length - 1][1]);
     } else {
-      const seg1 = segmentos[i - 1];
+      const seg1 = segmentos[(i - 1 + segmentos.length) % segmentos.length];
       const seg2 = segmentos[i];
       const den = (seg1[0].este - seg1[1].este) * (seg2[0].norte - seg2[1].norte) -
                   (seg1[0].norte - seg1[1].norte) * (seg2[0].este - seg2[1].este);

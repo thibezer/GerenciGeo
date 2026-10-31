@@ -1,5 +1,6 @@
 import os
 from utils.transformer_cache import get_transformer
+from services.processamento.utm_corrigido import sincronizar_utm_corrigido
 import subprocess
 from services.processamento.topologia_segmentos import (
     CAMPOS_HERDADOS,
@@ -746,9 +747,10 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
                     "original": {"E": r["e_original"], "N": r["n_original"], "H": r["alt_original"]},
                     "corrigido": {"lat": lat_corr, "lon": lon_corr, "H": alt_corr}
                 })
-                
+
+            sincronizar_utm_corrigido(cursor, ponto_ids=[ponto_id_selecionado] + [r["id"] for r in rovers])
             conn.commit()
-            
+
         desc_auditoria = f"Vínculo Tardio V.L.A.E.G. aplicado com sucesso. {total_atualizados} pontos do arquivo '{arquivo_origem}' foram transladados e amarrados no espaço ECEF 3D à Base '{base_corr['nome_vertice']}'."
         HistoricoCampoLogger.registrar_evento(
             levantamento_id=levantamento_id,
@@ -894,6 +896,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
             UPDATE pontos
             SET matricula_id = ?, lat = ?, lon = ?, alt = ?,
                 lat_corrigido = ?, lon_corrigido = ?, alt_corrigido = ?,
+                n_corrigido = ?, e_corrigido = ?,
                 n_original = ?, e_original = ?, alt_original = ?,
                 sigma_lat = ?, sigma_lon = ?, sigma_alt = ?,
                 sigma_n = ?, sigma_e = ?, sigma_z = ?,
@@ -905,6 +908,7 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
         execute_query(query_upsert_base, params=(
             matricula_id_efetiva, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
             lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+            round(n_corr, 4), round(e_corr, 4),
             n_bruto, e_bruto, alt_bruta,
             sig_base_lat, sig_base_lon, sig_base_alt,
             sig_base_lat, sig_base_lon, sig_base_alt,
@@ -915,17 +919,19 @@ def aplicar_correcao_manual_lote(levantamento_id: int, matricula_id: int, arquiv
             INSERT INTO pontos (
                 levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt,
                 lat_corrigido, lon_corrigido, alt_corrigido,
+                n_corrigido, e_corrigido,
                 n_original, e_original, alt_original,
                 sigma_lat, sigma_lon, sigma_alt,
                 sigma_n, sigma_e, sigma_z,
                 status_ponto, status_correcao, arquivo_origem, ignorar_poligono
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?, 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CORRIGIDO', 'CORRIGIDO', ?, 1)
         """
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute(query_upsert_base, (
                 levantamento_id, matricula_id_efetiva, nome_base, tipo_ponto_base, lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
                 lat_corr_oficial, lon_corr_oficial, alt_corr_oficial,
+                round(n_corr, 4), round(e_corr, 4),
                 n_bruto, e_bruto, alt_bruta,
                 sig_base_lat, sig_base_lon, sig_base_alt,
                 sig_base_lat, sig_base_lon, sig_base_alt,

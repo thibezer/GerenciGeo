@@ -48,6 +48,9 @@ export interface RespostaVerticeVirtual {
   conformeNormaIncra: boolean;
   alerta?: string;
   anguloIntersecaoGraus?: number;
+  /** Posição geodésica do vértice calculado (convertida no fuso do cálculo) */
+  lat?: number;
+  lon?: number;
 }
 
 export interface PayloadCalcularOffsetLote {
@@ -55,10 +58,13 @@ export interface PayloadCalcularOffsetLote {
   distancia: number;
   lado: LadoOffset;
   prefixo_nome?: string;
+  fuso_utm?: number;
+  fechado?: boolean;
 }
 
 export interface RespostaOffsetLote {
   sucesso: boolean;
+  fuso_utm: number;
   total: number;
   resultados: RespostaVerticeVirtual[];
 }

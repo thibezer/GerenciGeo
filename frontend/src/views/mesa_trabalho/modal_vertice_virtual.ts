@@ -3,7 +3,8 @@ import { API_BASE } from '../../config';
 import { showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset, RespostaVerticeVirtual } from '../../types/verticesVirtuais';
-import { coordenadaPonto } from './coordenadas_mapa';
+import { zonaUtmDoLevantamento } from './coordenadas_mapa';
+import { ordenarSequenciaOffset, pontosDoPerimetro } from './offset_sequencia';
 
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
@@ -26,6 +27,8 @@ const normalizarResultado = (r: any): RespostaVerticeVirtual => ({
   conformeNormaIncra: Boolean(r.conforme_norma_incra ?? r.conformeNormaIncra),
   alerta: r.alerta || undefined,
   anguloIntersecaoGraus: r.angulo_intersecao_graus ?? r.anguloIntersecaoGraus ?? undefined,
+  lat: r.lat != null ? Number(r.lat) : undefined,
+  lon: r.lon != null ? Number(r.lon) : undefined,
 });
 
 const paraNumero = (texto: string) => {
@@ -50,7 +53,12 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     return;
   }
 
-  const fusoUtm = Number(pontosDisponiveis.find(p => p.fuso_utm)?.fuso_utm) || 22;
+  // Mesmo fuso no cálculo e na gravação: os E/N devolvidos pelo servidor só valem nele
+  const fusoUtm = Number(pontosDisponiveis.find(p => p.fuso_utm)?.fuso_utm)
+    || ctx.mapaController?.fusoUtm
+    || zonaUtmDoLevantamento(ctx.pontosList)
+    || 22;
+  const perimetro = pontosDoPerimetro(ctx.pontosList || [], matId);
 
   // Camadas de preview no Leaflet
   let previewLayerGroup: L.LayerGroup | null = null;
@@ -70,10 +78,17 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   const container = document.createElement('div');
   container.className = 'w-full max-w-3xl mx-4 bg-[#111113] border border-white/10 rounded-technical shadow-2xl transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col text-white';
 
-  // Pré-seleção: se houver pontos selecionados, usa-os
+  // Pré-seleção: se houver pontos selecionados, usa-os na ordem do caminhamento (não na de seleção)
   const idsIniciais: number[] = (ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
-    ? ctx.selectedPontoIds
+    ? ordenarSequenciaOffset(
+        ctx.selectedPontoIds.map(id => pontosDisponiveis.find(p => String(p.id) === String(id))).filter(Boolean),
+        perimetro
+      ).pontos.map(p => p.id)
     : pontosDisponiveis.slice(0, 4).map(p => p.id);
+  // Perímetro inteiro na sequência: offset de polígono fechado
+  const sequenciaFechada = (ids: number[]) =>
+    perimetro.length >= 3 && ids.length === perimetro.length
+    && perimetro.every(p => ids.some(id => String(id) === String(p.id)));
   const idPadrao = (i: number) => idsIniciais[i] ?? pontosDisponiveis[i % pontosDisponiveis.length].id;
 
   let abaAtiva: Aba = 'offset';
@@ -138,43 +153,30 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     previewLayerGroup.clearLayers();
     if (resultados.length === 0) return;
 
-    // Converte UTM para LatLng aproximado baseado nos pontos de apoio verdadeiros
+    // lat/lon vem do servidor, convertido do E/N no mesmo fuso do cálculo (sem aproximação local)
     const latlngs: [number, number][] = [];
-    const ptRef = (pontosSelecionadosIds.length > 0
-      ? pontosDisponiveis.find(pt => String(pt.id) === String(pontosSelecionadosIds[0]))
-      : null) || pontosDisponiveis[0];
-    const cRef = coordenadaPonto(ptRef);
+    resultados.forEach(r => {
+      if (r.lat == null || r.lon == null) return;
+      const pos: [number, number] = [r.lat, r.lon];
+      latlngs.push(pos);
 
-    if (cRef && ptRef) {
-      const eOrig = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
-      const nOrig = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
-
-      resultados.forEach(r => {
-        const dE = r.este - eOrig;
-        const dN = r.norte - nOrig;
-        // Aproximação métrica local (1 grau lat ~ 111.000m, lon ~ 111.000m * cos(lat))
-        const dLat = dN / 111139.0;
-        const dLon = dE / (111139.0 * Math.cos((cRef.lat * Math.PI) / 180));
-        const pos: [number, number] = [cRef.lat + dLat, cRef.lon + dLon];
-        latlngs.push(pos);
-
-        const marker = L.circleMarker(pos, {
-          radius: 5,
-          color: '#10b981',
-          weight: 2,
-          fillColor: '#059669',
-          fillOpacity: 0.8
-        });
-        marker.bindTooltip(`<b>${escapeHtml(r.nome)} (Virtual)</b><br>E: ${r.este.toFixed(3)} | N: ${r.norte.toFixed(3)}<br>σP: ${(r.sigmaPlanimetrico * 100).toFixed(1)} cm`, {
-          permanent: false,
-          direction: 'top'
-        });
-        previewLayerGroup!.addLayer(marker);
+      const marker = L.circleMarker(pos, {
+        radius: 5,
+        color: '#10b981',
+        weight: 2,
+        fillColor: '#059669',
+        fillOpacity: 0.8
       });
-    }
+      marker.bindTooltip(`<b>${escapeHtml(r.nome)} (Virtual)</b><br>E: ${r.este.toFixed(3)} | N: ${r.norte.toFixed(3)}<br>σP: ${(r.sigmaPlanimetrico * 100).toFixed(1)} cm`, {
+        permanent: false,
+        direction: 'top'
+      });
+      previewLayerGroup!.addLayer(marker);
+    });
 
     if (latlngs.length >= 2) {
-      const line = L.polyline(latlngs, {
+      const fechar = abaAtiva === 'offset' && sequenciaFechada(pontosSelecionadosIds) && latlngs.length >= 3;
+      const line = L.polyline(fechar ? [...latlngs, latlngs[0]] : latlngs, {
         color: '#10b981',
         weight: 3,
         dashArray: '6, 6',
@@ -228,7 +230,9 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       ponto_ids: pontosSelecionadosIds,
       distancia: paraNumero(distanciaTexto),
       lado: ladoOffset,
-      prefixo_nome: prefixoNome || 'V'
+      prefixo_nome: prefixoNome || 'V',
+      fuso_utm: fusoUtm,
+      fechado: sequenciaFechada(pontosSelecionadosIds)
     });
   };
 
@@ -248,7 +252,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       divisa_fim_id: divisaIds[1],
       largura_faixa: paraNumero(larguraTexto),
       lado: ladoFaixa,
-      nome_vertice: nomeVerticeFaixa || 'V-01'
+      nome_vertice: nomeVerticeFaixa || 'V-01',
+      fuso_utm: fusoUtm
     });
   };
 

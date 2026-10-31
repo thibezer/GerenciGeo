@@ -3,8 +3,17 @@ import { API_BASE } from '../../config';
 import { showToast } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset } from '../../types/verticesVirtuais';
-import { gerarGeometriaPreviewOffsetPolilinha } from '../../utils/previewGeometria';
+import { criarPlanoLocal, gerarGeometriaPreviewOffsetPolilinha, type Ponto2D } from '../../utils/previewGeometria';
 import { coordenadaPonto, zonaUtmDoLevantamento } from './coordenadas_mapa';
+import { ordenarSequenciaOffset, pontosDoPerimetro, removerCoincidentes } from './offset_sequencia';
+
+interface GeometriaOffset {
+  pontos: any[];
+  fechado: boolean;
+  plano: ReturnType<typeof criarPlanoLocal>;
+  /** Vértices de origem no plano local, na ordem do caminhamento */
+  pts: Ponto2D[];
+}
 
 /**
  * Ferramenta Interativa de Deslocamento (Offset) no Mapa - Padrão AutoCAD
@@ -50,8 +59,7 @@ export class FerramentaOffsetMapa {
       return;
     }
 
-    const pontos = this.obterPontosOrigem();
-    if (pontos.length < 2) {
+    if (!this.obterGeometria()) {
       showToast('Selecione pelo menos 2 vértices no mapa ou tabela para aplicar o Offset.', 'info');
       return;
     }
@@ -96,41 +104,73 @@ export class FerramentaOffsetMapa {
     this.removerBanner();
   }
 
-  private obterPontosOrigem(): any[] {
+  /** Pontos de origem na ordem do caminhamento (não na ordem em que foram selecionados) */
+  private obterSequencia(): { pontos: any[]; fechado: boolean } {
     const todos = this.ctx.pontosList || [];
     if (this.ctx.selectedPontoIds && this.ctx.selectedPontoIds.length >= 2) {
-      return this.ctx.selectedPontoIds
+      const selecionados = this.ctx.selectedPontoIds
         .map(id => todos.find(p => String(p.id) === String(id)))
         .filter(Boolean);
+      const matId = selecionados[0]?.matricula_id ?? this.ctx.currentMatriculaId;
+      return ordenarSequenciaOffset(selecionados, pontosDoPerimetro(todos, matId));
     }
-    // Fallback: primeiros pontos da matrícula ativa
+    // Fallback: primeiros pontos do perímetro da matrícula ativa
     const matId = this.ctx.currentMatriculaId;
+    const perimetro = pontosDoPerimetro(todos, matId);
+    if (perimetro.length >= 2) return { pontos: perimetro.slice(0, 4), fechado: false };
     const pontosMat = matId
       ? todos.filter(p => String(p.matricula_id) === String(matId) && !p.ignorar_poligono)
       : todos.filter(p => !p.ignorar_poligono);
-    return pontosMat.slice(0, 4);
+    return { pontos: pontosMat.slice(0, 4), fechado: false };
+  }
+
+  /**
+   * Geometria de origem num plano local centrado no 1º vértice, a partir da posição verdadeira de cada
+   * ponto (coordenadaPonto) — a mesma que o mapa desenha e que o backend usa no cálculo.
+   */
+  private obterGeometria(): GeometriaOffset | null {
+    const seq = this.obterSequencia();
+    const c0 = seq.pontos.map(coordenadaPonto).find(Boolean);
+    if (!c0) return null;
+    const plano = criarPlanoLocal(c0.lat, c0.lon);
+    const noPlano = (p: any) => {
+      const c = coordenadaPonto(p);
+      return c ? plano.paraPlano(c.lat, c.lon) : null;
+    };
+
+    let fechado = seq.fechado;
+    const pontos = removerCoincidentes(seq.pontos, noPlano, fechado);
+    if (fechado && pontos.length < 3) fechado = false;
+    if (pontos.length < 2) return null;
+    return { pontos, fechado, plano, pts: pontos.map(p => noPlano(p)!) };
   }
 
   private onMouseMove(e: L.LeafletMouseEvent): void {
     if (!this.ativo) return;
-    const pontos = this.obterPontosOrigem();
-    if (pontos.length < 2) return;
+    const geo = this.obterGeometria();
+    if (!geo) return;
 
-    // Detecta de qual lado da linha (P0 -> P1) o mouse está usando produto vetorial 2D
-    const c0 = coordenadaPonto(pontos[0]);
-    const c1 = coordenadaPonto(pontos[1]);
-    if (!c0 || !c1) return;
-
-    const x0 = c0.lon;
-    const y0 = c0.lat;
-    const x1 = c1.lon;
-    const y1 = c1.lat;
-
-    const mx = e.latlng.lng;
-    const my = e.latlng.lat;
-
-    // Determinante 2D: (x1 - x0)*(my - y0) - (y1 - y0)*(mx - x0)
-    const det = (x1 - x0) * (my - y0) - (y1 - y0) * (mx - x0);
+    // Lado em relação ao trecho mais próximo do cursor (produto vetorial 2D), não só ao 1º trecho:
+    // numa polilinha que dobra, o 1º trecho pode apontar o lado contrário ao que o usuário vê.
+    const m = geo.plano.paraPlano(e.latlng.lat, e.latlng.lng);
+    const n = geo.pts.length;
+    const numSegmentos = geo.fechado ? n : n - 1;
+    let det = 0;
+    let menorDist = Infinity;
+    for (let i = 0; i < numSegmentos; i++) {
+      const a = geo.pts[i];
+      const b = geo.pts[(i + 1) % n];
+      const dx = b.este - a.este;
+      const dy = b.norte - a.norte;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1e-12) continue;
+      const t = Math.max(0, Math.min(1, ((m.este - a.este) * dx + (m.norte - a.norte) * dy) / len2));
+      const dist = Math.hypot(m.este - (a.este + t * dx), m.norte - (a.norte + t * dy));
+      if (dist < menorDist) {
+        menorDist = dist;
+        det = dx * (m.norte - a.norte) - dy * (m.este - a.este);
+      }
+    }
     const novoLado: LadoOffset = det < 0 ? 'DIREITA' : 'ESQUERDA';
 
     if (novoLado !== this.ladoDetectado) {
@@ -159,33 +199,16 @@ export class FerramentaOffsetMapa {
     if (!this.previewLayer || !this.ctx.triagemMap) return;
     this.previewLayer.clearLayers();
 
-    const pontos = this.obterPontosOrigem();
-    if (pontos.length < 2) return;
+    const geo = this.obterGeometria();
+    if (!geo) return;
 
-    const ptRef = pontos[0];
-    const cRef = coordenadaPonto(ptRef);
-    if (!cRef) return;
-
-    // Coleta coordenadas UTM ou aproximação métrica
-    const ptsMetricos = pontos.map(p => ({
-      este: Number(p.e_corrigido || p.e_original || 500000),
-      norte: Number(p.n_corrigido || p.n_original || 7000000)
-    }));
-
-    const preview = gerarGeometriaPreviewOffsetPolilinha(ptsMetricos, this.distancia, this.ladoDetectado);
+    const preview = gerarGeometriaPreviewOffsetPolilinha(geo.pts, this.distancia, this.ladoDetectado, geo.fechado);
     if (preview.vertices.length === 0) return;
 
-    // Projeta de volta para lat/lon em relação ao ponto de referência verdadeiro
     const latlngs: L.LatLngExpression[] = [];
-    const eRef = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
-    const nRef = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
-
     preview.vertices.forEach((v, idx) => {
-      const dE = v.este - eRef;
-      const dN = v.norte - nRef;
-      const dLat = dN / 111139.0;
-      const dLon = dE / (111139.0 * Math.cos((cRef.lat * Math.PI) / 180));
-      const pos: [number, number] = [cRef.lat + dLat, cRef.lon + dLon];
+      const g = geo.plano.paraGeo(v);
+      const pos: [number, number] = [g.lat, g.lon];
       latlngs.push(pos);
 
       const marker = L.circleMarker(pos, {
@@ -203,7 +226,7 @@ export class FerramentaOffsetMapa {
     });
 
     if (latlngs.length >= 2) {
-      const line = L.polyline(latlngs, {
+      const line = L.polyline(geo.fechado ? [...latlngs, latlngs[0]] : latlngs, {
         color: '#10b981',
         weight: 3,
         dashArray: '6, 6',
@@ -211,6 +234,7 @@ export class FerramentaOffsetMapa {
       });
       this.previewLayer.addLayer(line);
     }
+    this.atualizarTextoBanner(geo.fechado);
   }
 
   private async confirmarEGravacao(): Promise<void> {
@@ -218,7 +242,9 @@ export class FerramentaOffsetMapa {
     const matId = this.ctx.currentMatriculaId;
     if (!levId || !matId) return;
 
-    const pontos = this.obterPontosOrigem();
+    const geo = this.obterGeometria();
+    if (!geo) return;
+    const { pontos, fechado } = geo;
     const pontoIds = pontos.map(p => p.id);
     const fuso = Number(pontos.find(p => p.fuso_utm)?.fuso_utm)
       || (this.ctx.mapaController?.fusoUtm)
@@ -236,18 +262,20 @@ export class FerramentaOffsetMapa {
           ponto_ids: pontoIds,
           distancia: this.distancia,
           lado: this.ladoDetectado,
-          prefixo_nome: 'V'
+          prefixo_nome: 'V',
+          fuso_utm: fuso,
+          fechado
         })
       });
       const dataCalc = await resCalc.json();
       if (!resCalc.ok) throw new Error(dataCalc.detail || 'Erro ao calcular offset no servidor.');
 
-      // 2. Persiste atomicamente
+      // 2. Persiste atomicamente, no mesmo fuso em que o servidor calculou os E/N
       const resConf = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas/${matId}/vertices-virtuais/confirmar-lote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fuso_utm: fuso,
+          fuso_utm: Number(dataCalc.fuso_utm) || fuso,
           vertices: dataCalc.resultados.map((r: any) => ({
             nome_vertice: r.nome,
             este: r.este,
@@ -328,11 +356,11 @@ export class FerramentaOffsetMapa {
     });
   }
 
-  private atualizarTextoBanner(): void {
+  private atualizarTextoBanner(fechado: boolean = false): void {
     if (!this.bannerElement) return;
     const txtLado = this.bannerElement.querySelector('#txt-lado-offset');
     if (txtLado) {
-      txtLado.textContent = `Lado: ${this.ladoDetectado}`;
+      txtLado.textContent = `Lado: ${this.ladoDetectado}${fechado ? ' · Polígono fechado' : ''}`;
     }
   }
 

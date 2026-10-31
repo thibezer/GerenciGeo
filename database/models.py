@@ -597,11 +597,12 @@ def create_tables(conn):
             WHERE camada_ciclo_vida IS NULL;
             """)
             
-            # Se n_corrigido / e_corrigido estiverem nulos mas houver n_original / e_original, inicializa-os
+            # Se n_corrigido / e_corrigido estiverem nulos mas houver n_original / e_original, inicializa-os.
+            # Ponto com lat/lon_corrigido fica de fora: o UTM bruto não é a posição dele (utm_corrigido.py).
             cursor.execute("""
             UPDATE pontos 
             SET n_corrigido = n_original, e_corrigido = e_original, alt_corrigido = alt_original
-            WHERE n_corrigido IS NULL AND n_original IS NOT NULL;
+            WHERE n_corrigido IS NULL AND n_original IS NOT NULL AND lat_corrigido IS NULL;
             """)
             logger.info("Ciclo de vida e coordenadas canônicas inicializados com sucesso na tabela pontos.")
         except Exception as ex_ciclo:

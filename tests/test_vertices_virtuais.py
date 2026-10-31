@@ -226,6 +226,39 @@ class TestMotorVerticesVirtuais(unittest.TestCase):
             self.assertTrue(r.conforme_norma_incra)
             self.assertLessEqual(r.sigma_planimetrico, 0.50)
 
+    def test_calcular_offset_polilinha_fechada(self):
+        """Polígono fechado: o trecho de fechamento é deslocado e todos os vértices viram cantos."""
+        # Quadrado de 100 m percorrido no sentido horário: à DIREITA fica o interior
+        quadrado = [
+            PontoApoio("P1", 500000.0, 7000000.0, 500.0, 0.02, 0.02, 0.02),
+            PontoApoio("P2", 500000.0, 7000100.0, 500.0, 0.02, 0.02, 0.02),
+            PontoApoio("P3", 500100.0, 7000100.0, 500.0, 0.02, 0.02, 0.02),
+            PontoApoio("P4", 500100.0, 7000000.0, 500.0, 0.02, 0.02, 0.02),
+        ]
+        resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
+            pontos=quadrado, distancia=10.0, lado=LadoOffset.DIREITA, fechado=True,
+        )
+        esperado = [(500010.0, 7000010.0), (500010.0, 7000090.0), (500090.0, 7000090.0), (500090.0, 7000010.0)]
+        self.assertEqual(len(resultados), 4)
+        for r, (e, n) in zip(resultados, esperado):
+            self.assertAlmostEqual(r.este, e, places=3)
+            self.assertAlmostEqual(r.norte, n, places=3)
+            self.assertEqual(r.metodo, "PA1+PA2")
+
+        # Aberta, a mesma sequência deixa o 1º e o último vértice só perpendiculares
+        abertos = MotorVerticesVirtuais.calcular_offset_polilinha(
+            pontos=quadrado, distancia=10.0, lado=LadoOffset.DIREITA,
+        )
+        self.assertAlmostEqual(abertos[0].norte, 7000000.0, places=3)
+        self.assertAlmostEqual(abertos[-1].este, 500090.0, places=3)
+        self.assertAlmostEqual(abertos[-1].norte, 7000000.0, places=3)
+
+    def test_offset_polilinha_fechada_exige_tres_pontos(self):
+        p1 = PontoApoio("P1", 500000.0, 7000000.0, 500.0, 0.02, 0.02, 0.02)
+        p2 = PontoApoio("P2", 500000.0, 7000100.0, 500.0, 0.02, 0.02, 0.02)
+        with self.assertRaises(ValueError):
+            MotorVerticesVirtuais.calcular_offset_polilinha([p1, p2], 10.0, LadoOffset.DIREITA, fechado=True)
+
 
 if __name__ == "__main__":
     unittest.main()
