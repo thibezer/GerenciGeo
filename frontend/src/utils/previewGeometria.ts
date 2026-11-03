@@ -130,7 +130,8 @@ export function gerarGeometriaPreviewOffsetPolilinha(
     const de = p2.este - p1.este;
     const dn = p2.norte - p1.norte;
     const len = Math.hypot(de, dn);
-    if (len < 1e-4) continue;
+    // Vértices coincidentes: o backend rejeita; evita desalinhar índices vértice/segmento
+    if (!Number.isFinite(len) || len < 1e-4) return { vertices: [], segmentos: [] };
 
     const sinal = lado === 'DIREITA' ? 1 : -1;
     const offE = sinal * distancia * (dn / len);

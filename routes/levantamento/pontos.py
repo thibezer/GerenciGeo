@@ -1709,6 +1709,18 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         if len(payload.ponto_ids) < 2:
             raise HTTPException(status_code=400, detail="São necessários pelo menos 2 pontos para o deslocamento.")
 
+        if payload.distancia <= 0:
+            raise HTTPException(status_code=400, detail="A distância de offset deve ser maior que zero.")
+
+        ids_unicos = list(dict.fromkeys(payload.ponto_ids))
+        marcadores = ",".join("?" for _ in ids_unicos)
+        rows_pertencem = execute_query(
+            f"SELECT id FROM pontos WHERE levantamento_id = ? AND id IN ({marcadores})",
+            params=(id, *ids_unicos),
+        )
+        if len(rows_pertencem or []) != len(ids_unicos):
+            raise HTTPException(status_code=400, detail="Há pontos de apoio que não pertencem a este levantamento.")
+
         pontos_apoio = [_obter_ponto_apoio_db(pid) for pid in payload.ponto_ids]
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 

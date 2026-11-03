@@ -15,6 +15,7 @@ import { coordenadaPonto, zonaUtmDoLevantamento } from './coordenadas_mapa';
 export class FerramentaOffsetMapa {
   private ctx: MesaTrabalhoContext;
   private ativo: boolean = false;
+  private gravando: boolean = false;
   private distancia: number = 15.0;
   private ladoDetectado: LadoOffset = 'DIREITA';
 
@@ -126,7 +127,10 @@ export class FerramentaOffsetMapa {
     const pontosMat = matId
       ? todos.filter(p => String(p.matricula_id) === String(matId) && !p.ignorar_poligono)
       : todos.filter(p => !p.ignorar_poligono);
-    return pontosMat.slice(0, 4);
+    return pontosMat
+      .slice()
+      .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0))
+      .slice(0, 4);
   }
 
   private onMouseMove(e: L.LeafletMouseEvent): void {
@@ -169,6 +173,9 @@ export class FerramentaOffsetMapa {
     if (e.key === 'Escape') {
       this.desativar();
     } else if (e.key === 'Enter') {
+      if (e.repeat) return;
+      // Enter em um botão já dispara o click dele; evita gravação duplicada
+      if ((e.target as HTMLElement | null)?.tagName === 'BUTTON') return;
       this.confirmarEGravacao();
     }
   }
@@ -184,19 +191,25 @@ export class FerramentaOffsetMapa {
     const cRef = coordenadaPonto(ptRef);
     if (!cRef) return;
 
-    // Coleta coordenadas UTM ou aproximação métrica
-    const ptsMetricos = pontos.map(p => ({
-      este: Number(p.e_corrigido || p.e_original || 500000),
-      norte: Number(p.n_corrigido || p.n_original || 7000000)
-    }));
+    // Plano métrico local (m) a partir de lat/lon em relação ao ponto de referência.
+    // Evita usar E/N de colunas possivelmente ausentes/desatualizadas (sem coordenada "chute").
+    const cosRef = Math.cos((cRef.lat * Math.PI) / 180);
+    const ptsMetricos: { este: number; norte: number }[] = [];
+    for (const p of pontos) {
+      const c = coordenadaPonto(p);
+      if (!c) return;
+      ptsMetricos.push({
+        este: (c.lon - cRef.lon) * 111139.0 * cosRef,
+        norte: (c.lat - cRef.lat) * 111139.0
+      });
+    }
 
     const preview = gerarGeometriaPreviewOffsetPolilinha(ptsMetricos, this.distancia, this.ladoDetectado);
     if (preview.vertices.length === 0) return;
 
-    // Projeta de volta para lat/lon em relação ao ponto de referência verdadeiro
     const latlngs: L.LatLngExpression[] = [];
-    const eRef = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
-    const nRef = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
+    const eRef = 0;
+    const nRef = 0;
 
     const startIdx = this.obterProximoIndiceVirtual();
     preview.vertices.forEach((v, idx) => {
@@ -234,12 +247,25 @@ export class FerramentaOffsetMapa {
   }
 
   private async confirmarEGravacao(): Promise<void> {
+    if (this.gravando) return;
     const levId = this.ctx.currentLevId;
     const matId = this.ctx.currentMatriculaId;
-    if (!levId || !matId) return;
+    if (!levId || !matId) {
+      showToast('Selecione uma matrícula ativa para gravar os vértices virtuais.', 'info');
+      return;
+    }
+    if (!(this.distancia > 0)) {
+      showToast('Informe uma distância de offset maior que zero.', 'info');
+      return;
+    }
 
     const pontos = this.obterPontosOrigem();
+    if (pontos.length < 2) {
+      showToast('Selecione pelo menos 2 vértices para aplicar o Offset.', 'info');
+      return;
+    }
     const pontoIds = pontos.map(p => p.id);
+    this.gravando = true;
     const fuso = Number(pontos.find(p => p.fuso_utm)?.fuso_utm)
       || (this.ctx.mapaController?.fusoUtm)
       || zonaUtmDoLevantamento(this.ctx.pontosList)
@@ -261,7 +287,7 @@ export class FerramentaOffsetMapa {
           indice_inicial: startIdx
         })
       });
-      const dataCalc = await resCalc.json();
+      const dataCalc = await resCalc.json().catch(() => ({}));
       if (!resCalc.ok) throw new Error(dataCalc.detail || 'Erro ao calcular offset no servidor.');
 
       // 2. Persiste atomicamente
@@ -283,7 +309,7 @@ export class FerramentaOffsetMapa {
           }))
         })
       });
-      const dataConf = await resConf.json();
+      const dataConf = await resConf.json().catch(() => ({}));
       if (!resConf.ok) throw new Error(dataConf.detail || 'Erro ao persistir vértices virtuais.');
 
       showToast(`Sucesso! ${dataConf.total_inseridos} vértices virtuais criados com offset de ${this.distancia}m.`, 'success');
@@ -293,7 +319,9 @@ export class FerramentaOffsetMapa {
         await this.ctx.loadLevantamentoDetails();
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err?.message || 'Falha ao aplicar o offset.', 'error');
+    } finally {
+      this.gravando = false;
     }
   }
 
