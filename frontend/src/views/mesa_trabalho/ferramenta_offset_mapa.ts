@@ -96,6 +96,24 @@ export class FerramentaOffsetMapa {
     this.removerBanner();
   }
 
+  private obterProximoIndiceVirtual(): number {
+    const todos = this.ctx.pontosList || [];
+    const matId = this.ctx.currentMatriculaId;
+    let maxNum = 0;
+    for (const p of todos) {
+      if (matId && String(p.matricula_id) !== String(matId)) continue;
+      const nome = String(p.nome_vertice || '').trim();
+      const match = nome.match(/^V[-_]?(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+    return maxNum + 1;
+  }
+
   private obterPontosOrigem(): any[] {
     const todos = this.ctx.pontosList || [];
     if (this.ctx.selectedPontoIds && this.ctx.selectedPontoIds.length >= 2) {
@@ -180,6 +198,7 @@ export class FerramentaOffsetMapa {
     const eRef = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
     const nRef = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
 
+    const startIdx = this.obterProximoIndiceVirtual();
     preview.vertices.forEach((v, idx) => {
       const dE = v.este - eRef;
       const dN = v.norte - nRef;
@@ -195,7 +214,8 @@ export class FerramentaOffsetMapa {
         fillColor: '#059669',
         fillOpacity: 0.9
       });
-      marker.bindTooltip(`V-${String(idx + 1).padStart(2, '0')} (${this.distancia}m ${this.ladoDetectado})`, {
+      const numVertice = startIdx + idx;
+      marker.bindTooltip(`V-${String(numVertice).padStart(2, '0')} (${this.distancia}m ${this.ladoDetectado})`, {
         permanent: false,
         direction: 'top'
       });
@@ -228,6 +248,7 @@ export class FerramentaOffsetMapa {
     try {
       showToast('Calculando e gerando vértices virtuais...', 'info');
 
+      const startIdx = this.obterProximoIndiceVirtual();
       // 1. Calcula via backend oficial
       const resCalc = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas/${matId}/vertices-virtuais/calcular-offset-lote`, {
         method: 'POST',
@@ -236,7 +257,8 @@ export class FerramentaOffsetMapa {
           ponto_ids: pontoIds,
           distancia: this.distancia,
           lado: this.ladoDetectado,
-          prefixo_nome: 'V'
+          prefixo_nome: 'V',
+          indice_inicial: startIdx
         })
       });
       const dataCalc = await resCalc.json();

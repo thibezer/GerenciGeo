@@ -767,3 +767,18 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
   3. **Ações em Lote e Estado Visual Reativo**:
      - A barra de ações flutuante da Mesa de Trabalho (`#batch-action-bar-mesa`) deve incluir o botão `#btn-batch-ignorar-mesa`, e a rotina `ctx.atualizarDestaqueLinhasTabela()` deve ajustar dinamicamente seu rótulo e cor ("Tirar do Polígono" quando há pontos ativos selecionados, e "Incluir no Polígono" quando todos os selecionados já estão ignorados).
      - As bases físicas (`tipo_ponto === 'B'`) devem permanecer desabilitadas para inclusão perimetral na coluna de polígono, respeitando a constituição do projeto.
+
+
+## 47. Desambiguação Automática e Prevenção de Violação UNIQUE em Vértices Virtuais (Offset em Lote)
+- **Contexto e Problema**:
+  1. Ao acionar a ferramenta interativa de Deslocamento/Offset Paralelo no mapa ou no modal de vértices virtuais (`POST .../vertices-virtuais/confirmar-lote`), o backend falhava com HTTP 500: `UNIQUE constraint failed: pontos.levantamento_id, pontos.matricula_id, pontos.nome_vertice, pontos.tipo_ponto`.
+  2. O gerador `calcular_offset_polilinha` iniciava sempre com `V-01`, `V-02`... Caso a matrícula já possuísse vértices virtuais previamente cadastrados (ex.: um offset anterior que gerou `V-01` a `V-04`), qualquer novo cálculo de offset recalculava a sequência a partir de `V-01`, provocando colisão direta com a restrição única do SQLite `UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)`.
+  3. No frontend (`ferramenta_offset_mapa.ts` e `modal_vertice_virtual.ts`), o preview no mapa e os campos de entrada sugeriam sempre `V-01` de forma estática, sem consultar o maior sufixo numérico já existente na matrícula ativa.
+- **Regras Obrigatórias**:
+  1. **Detecção Dinâmica do Próximo Índice Disponível**:
+     - No motor (`MotorVerticesVirtuais.gerar_nomes_unicos` e `calcular_offset_polilinha`), a geração de nomes para vértices virtuais deve inspecionar o conjunto `nomes_existentes` e determinar o maior índice numérico correspondente àquele prefixo (ex: se já existem `V-01` a `V-04`, o próximo deve iniciar obrigatoriamente em `V-05`).
+     - A rota `POST /vertices-virtuais/calcular-offset-lote` deve consultar previamente `SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)` e repassar `nomes_existentes` e `indice_inicial` para o motor, garantindo que o retorno já contenha nomes livres de conflito.
+  2. **Blindagem Atômica no Endpoint de Persistência (Defense in Depth)**:
+     - No endpoint `POST /vertices-virtuais/confirmar-lote` e no individual `POST /vertices-virtuais/confirmar`, antes da execução do `INSERT INTO pontos`, o backend deve carregar `nomes_ocupados` da matrícula para `tipo_ponto = 'V'`. Caso qualquer item enviado no payload coincida com um nome já existente ou repetido no mesmo lote, o backend deve invocar `MotorVerticesVirtuais.gerar_nomes_unicos` para desambiguar o identificador de forma transparente, eliminando qualquer risco de HTTP 500 por `UNIQUE constraint failed`.
+  3. **Consciência no Frontend**:
+     - A classe `FerramentaOffsetMapa` e o `modal_vertice_virtual.ts` devem utilizar o método `obterProximoIndiceVirtual()` varrendo `pontosList` / `pontosDisponiveis` para exibir o tooltip correto durante o hover no mapa (ex: `V-05 (15m DIREITA)`) e enviar `indice_inicial` no cálculo de lote.

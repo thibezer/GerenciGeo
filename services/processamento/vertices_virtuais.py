@@ -7,7 +7,8 @@ Padrão INCRA/SIGEF (3ª Edição) - SIRGAS 2000.
 from dataclasses import dataclass
 from enum import Enum
 import math
-from typing import Tuple, Optional, List
+import re
+from typing import Tuple, Optional, List, Set
 import numpy as np
 
 
@@ -311,12 +312,71 @@ class MotorVerticesVirtuais:
         )
 
     @classmethod
+    def gerar_nomes_unicos(
+        cls,
+        prefixo: str,
+        quantidade: int,
+        nomes_existentes: Optional[Set[str]] = None,
+        indice_inicial: int = 1,
+    ) -> List[str]:
+        """
+        Gera uma sequência de identificadores únicos para vértices virtuais
+        evitando rigorosamente colisões com nomes já persistidos no banco.
+        Exemplo: prefixo 'V' -> ['V-01', 'V-02'], ou se já existirem até 04 -> ['V-05', 'V-06'].
+        """
+        raw_prefix = (prefixo or "V").strip().upper()
+        match_full = re.match(r"^([A-Z_]+)[-_]?(\d+)$", raw_prefix)
+        if match_full:
+            base_prefix = match_full.group(1)
+            num_sugerido = int(match_full.group(2))
+            if indice_inicial == 1:
+                indice_inicial = num_sugerido
+        else:
+            base_prefix = raw_prefix.rstrip("-_ ")
+            if not base_prefix:
+                base_prefix = "V"
+
+        sep = "" if (raw_prefix.endswith("-") or raw_prefix.endswith("_")) else "-"
+        ocupados = {str(n).strip().upper() for n in (nomes_existentes or set()) if n}
+
+        max_num = 0
+        padrao = re.compile(rf"^{re.escape(base_prefix)}[-_]?(\d+)$", re.IGNORECASE)
+        for n in ocupados:
+            m = padrao.match(n)
+            if m:
+                try:
+                    num = int(m.group(1))
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+
+        if max_num > 0:
+            proximo = max(indice_inicial, max_num + 1)
+        else:
+            proximo = max(1, indice_inicial)
+
+        nomes_gerados = []
+        for _ in range(quantidade):
+            while True:
+                candidato = f"{base_prefix}{sep}{proximo:02d}"
+                if candidato.upper() not in ocupados:
+                    nomes_gerados.append(candidato)
+                    ocupados.add(candidato.upper())
+                    proximo += 1
+                    break
+                proximo += 1
+        return nomes_gerados
+
+    @classmethod
     def calcular_offset_polilinha(
         cls,
         pontos: List[PontoApoio],
         distancia: float,
         lado: LadoOffset,
         prefixo_nome: str = "V",
+        indice_inicial: int = 1,
+        nomes_existentes: Optional[Set[str]] = None,
     ) -> List[ResultadoVerticeVirtual]:
         """
         Calcula o deslocamento paralelo (estilo OFFSET do AutoCAD) para uma cadeia/sequência
@@ -339,12 +399,16 @@ class MotorVerticesVirtuais:
 
         resultados: List[ResultadoVerticeVirtual] = []
 
-        # Formatação limpa do nome do vértice
-        sep = "" if (prefixo_nome.endswith("-") or prefixo_nome.endswith("_")) else "-"
+        nomes_v = cls.gerar_nomes_unicos(
+            prefixo=prefixo_nome,
+            quantidade=num_pts,
+            nomes_existentes=nomes_existentes,
+            indice_inicial=indice_inicial,
+        )
 
         for i in range(num_pts):
             pt_origem = pontos[i]
-            nome_v = f"{prefixo_nome}{sep}{i + 1:02d}"
+            nome_v = nomes_v[i]
 
             if i == 0:
                 # Primeiro vértice: extremidade inicial do primeiro segmento deslocado

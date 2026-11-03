@@ -1414,6 +1414,7 @@ class PayloadCalcularOffsetLote(BaseModel):
     distancia: float
     lado: Literal["DIREITA", "ESQUERDA"]
     prefixo_nome: Optional[str] = "V"
+    indice_inicial: Optional[int] = None
 
 
 class VerticeVirtualLoteItem(BaseModel):
@@ -1609,6 +1610,21 @@ def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: Payl
             max_ord = row_max["max_ord"] if row_max else None
             ordem = (max_ord + 1) if max_ord is not None else 1
 
+        from services.processamento.vertices_virtuais import MotorVerticesVirtuais
+
+        rows_db = execute_query(
+            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto = 'V'",
+            params=(id, matricula_id),
+        )
+        nomes_ocupados = {r["nome_vertice"].upper() for r in (rows_db or []) if r["nome_vertice"]}
+        nome_final = (payload.nome_vertice or "V-01").strip()
+        if nome_final.upper() in nomes_ocupados:
+            nome_final = MotorVerticesVirtuais.gerar_nomes_unicos(
+                prefixo=nome_final,
+                quantidade=1,
+                nomes_existentes=nomes_ocupados,
+            )[0]
+
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -1632,7 +1648,7 @@ def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: Payl
                 )
                 """,
                 (
-                    id, matricula_id, payload.nome_vertice,
+                    id, matricula_id, nome_final,
                     lat_calc, lon_calc, payload.altitude, lat_calc, lon_calc, payload.altitude,
                     payload.norte, payload.este,
                     payload.sigma_norte, payload.sigma_este, payload.sigma_altitude,
@@ -1650,10 +1666,10 @@ def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: Payl
         HistoricoCampoLogger.registrar_evento(
             levantamento_id=id,
             tipo_evento="VERTICE_VIRTUAL_CRIADO",
-            descricao=f"Vértice Virtual {payload.nome_vertice} ({payload.metodo}) inserido com sucesso em E={payload.este:.3f}, N={payload.norte:.3f}, Alt={payload.altitude:.3f}.",
+            descricao=f"Vértice Virtual {nome_final} ({payload.metodo}) inserido com sucesso em E={payload.este:.3f}, N={payload.norte:.3f}, Alt={payload.altitude:.3f}.",
             dados_detalhados={
                 "ponto_id": novo_id,
-                "nome_vertice": payload.nome_vertice,
+                "nome_vertice": nome_final,
                 "metodo": payload.metodo,
                 "este": payload.este,
                 "norte": payload.norte,
@@ -1665,7 +1681,7 @@ def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: Payl
         return {
             "sucesso": True,
             "id": novo_id,
-            "mensagem": f"Vértice virtual '{payload.nome_vertice}' cadastrado com sucesso.",
+            "mensagem": f"Vértice virtual '{nome_final}' cadastrado com sucesso.",
             "coordenadas": {
                 "este": payload.este,
                 "norte": payload.norte,
@@ -1696,11 +1712,19 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         pontos_apoio = [_obter_ponto_apoio_db(pid) for pid in payload.ponto_ids]
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
+        rows_nomes = execute_query(
+            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
+            params=(id, matricula_id),
+        )
+        nomes_existentes = {r["nome_vertice"] for r in (rows_nomes or []) if r["nome_vertice"]}
+
         resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
             pontos=pontos_apoio,
             distancia=payload.distancia,
             lado=lado_enum,
             prefixo_nome=payload.prefixo_nome or "V",
+            indice_inicial=payload.indice_inicial or 1,
+            nomes_existentes=nomes_existentes,
         )
 
         return {
@@ -1755,6 +1779,14 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
         )
         ordem_atual = (row_max["max_ord"] if row_max and row_max["max_ord"] is not None else 0)
 
+        from services.processamento.vertices_virtuais import MotorVerticesVirtuais
+
+        rows_db = execute_query(
+            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto = 'V'",
+            params=(id, matricula_id),
+        )
+        nomes_ocupados = {r["nome_vertice"].upper() for r in (rows_db or []) if r["nome_vertice"]}
+
         inseridos_ids = []
         with DatabaseManager() as conn:
             cursor = conn.cursor()
@@ -1762,6 +1794,15 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                 lon_calc, lat_calc = transformer.transform(v.este, v.norte)
                 ordem_atual += 1
                 ordem_final = v.ordem_caminhamento or ordem_atual
+
+                nome_final = (v.nome_vertice or "V-01").strip()
+                if nome_final.upper() in nomes_ocupados:
+                    nome_final = MotorVerticesVirtuais.gerar_nomes_unicos(
+                        prefixo=nome_final,
+                        quantidade=1,
+                        nomes_existentes=nomes_ocupados,
+                    )[0]
+                nomes_ocupados.add(nome_final.upper())
 
                 cursor.execute(
                     """
@@ -1784,7 +1825,7 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                     )
                     """,
                     (
-                        id, matricula_id, v.nome_vertice,
+                        id, matricula_id, nome_final,
                         lat_calc, lon_calc, v.altitude, lat_calc, lon_calc, v.altitude,
                         v.norte, v.este,
                         v.sigma_norte, v.sigma_este, v.sigma_altitude,

@@ -90,11 +90,15 @@ $$\sigma_P = \sqrt{\sigma_{E_V}^2 + \sigma_{N_V}^2} \le 0,50\,\text{m (Tolerânc
   "ponto_ids": [101, 102, 103],
   "distancia": 15.0,
   "lado": "DIREITA",
-  "prefixo_nome": "V"
+  "prefixo_nome": "V",
+  "indice_inicial": 1
 }
 ```
+> [!NOTE]
+> O endpoint consulta os vértices existentes da matrícula (`SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ?`) e calcula dinamicamente o próximo índice numérico livre para o prefixo (ex: se já existem `V-01` a `V-04`, os novos vértices calculados iniciam a partir de `V-05`).
 - **Rota de Confirmação em Lote**: `POST /levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar-lote`
 - Insere atomicamente a cadeia de vértices virtuais com `tipo_ponto = 'V'`, `status_ponto = 'CORRIGIDO'`, `camada_ciclo_vida = 'PERIMETRO'`, conversão automática para SIRGAS 2000 Geográficas (EPSG:4674), sequência em `ordem_caminhamento` e histórico de campo.
+- Possui salvaguarda atômica com desambiguação automática via `MotorVerticesVirtuais.gerar_nomes_unicos` para impedir qualquer violação da restrição de integridade `UNIQUE(levantamento_id, matricula_id, nome_vertice, tipo_ponto)`.
 
 ### 4.4 Confirmação e Inserção Atômica Individual
 - **Rota**: `POST /levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/confirmar`

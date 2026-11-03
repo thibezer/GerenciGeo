@@ -85,10 +85,27 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   let prefixoNome = 'V';
   let pontosSelecionadosIds: number[] = [...idsIniciais];
 
+  const obterProximoNumeroVirtual = (prefix: string = 'V'): number => {
+    let maxNum = 0;
+    const cleanPref = (prefix || 'V').trim().toUpperCase().replace(/[-_]$/, '');
+    const regex = new RegExp(`^${cleanPref}[-_]?(\\d+)$`, 'i');
+    for (const p of pontosDisponiveis) {
+      const nome = String(p.nome_vertice || '').trim();
+      const match = nome.match(regex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+    return maxNum + 1;
+  };
+
   // Faixa de domínio (PA1 + PA2)
   let larguraTexto = '15';
   let ladoFaixa: LadoOffset = 'DIREITA';
-  let nomeVerticeFaixa = 'V-01';
+  let nomeVerticeFaixa = `V-${String(obterProximoNumeroVirtual('V')).padStart(2, '0')}`;
   let eixoIds: [number, number] = [idPadrao(0), idPadrao(1)];
   let divisaIds: [number, number] = [idPadrao(2), idPadrao(3)];
 
@@ -105,9 +122,11 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   };
 
   const nomeVirtual = (i: number) => {
-    const prefixo = prefixoNome || 'V';
-    const sep = prefixo.endsWith('-') || prefixo.endsWith('_') ? '' : '-';
-    return `${prefixo}${sep}${String(i + 1).padStart(2, '0')}`;
+    const rawPref = (prefixoNome || 'V').trim().toUpperCase();
+    const sep = rawPref.endsWith('-') || rawPref.endsWith('_') ? '' : '-';
+    const cleanPref = rawPref.replace(/[-_]$/, '');
+    const startIdx = obterProximoNumeroVirtual(cleanPref);
+    return `${cleanPref}${sep}${String(startIdx + i).padStart(2, '0')}`;
   };
 
   const fecharModal = () => {
@@ -224,11 +243,14 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       showToast('Informe uma distância maior que zero.', 'info');
       return;
     }
+    const cleanPref = (prefixoNome || 'V').trim().toUpperCase().replace(/[-_]$/, '');
+    const startIdx = obterProximoNumeroVirtual(cleanPref);
     executarCalculo('offset', 'calcular-offset-lote', {
       ponto_ids: pontosSelecionadosIds,
       distancia: paraNumero(distanciaTexto),
       lado: ladoOffset,
-      prefixo_nome: prefixoNome || 'V'
+      prefixo_nome: prefixoNome || 'V',
+      indice_inicial: startIdx
     });
   };
 

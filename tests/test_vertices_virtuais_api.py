@@ -236,5 +236,109 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
                 self.assertIsNotNone(row[4])
 
 
+    def test_offset_lote_com_nomes_duplicados_e_desambiguacao(self):
+        """
+        Garante que ao calcular ou confirmar vértices virtuais quando já existem
+        pontos com nomes idênticos na mesma matrícula, o sistema desambigua sem lançar
+        erro de constraint UNIQUE.
+        """
+        # 1. Insere primeiro lote com V-01 e V-02
+        payload_1 = {
+            "fuso_utm": 22,
+            "vertices": [
+                {
+                    "nome_vertice": "V-01",
+                    "este": 500010.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.02,
+                    "sigma_norte": 0.02,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.03,
+                    "metodo": "PA1"
+                },
+                {
+                    "nome_vertice": "V-02",
+                    "este": 500020.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.02,
+                    "sigma_norte": 0.02,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.03,
+                    "metodo": "PA1"
+                }
+            ]
+        }
+        res1 = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/confirmar-lote",
+            json=payload_1
+        )
+        self.assertEqual(res1.status_code, 200, res1.text)
+
+        # 2. Testa o cálculo do próximo lote: deve sugerir V-03 e V-04 automaticamente
+        res_calc = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/calcular-offset-lote",
+            json={
+                "ponto_ids": [self.e1_id, self.e2_id],
+                "distancia": 10.0,
+                "lado": "DIREITA",
+                "prefixo_nome": "V"
+            }
+        )
+        self.assertEqual(res_calc.status_code, 200, res_calc.text)
+        data_calc = res_calc.json()
+        self.assertEqual(data_calc["resultados"][0]["nome"], "V-03")
+        self.assertEqual(data_calc["resultados"][1]["nome"], "V-04")
+
+        # 3. Testa confirmar com nomes que colidem propositalmente (ex: cliente reenvia 'V-01')
+        payload_colidente = {
+            "fuso_utm": 22,
+            "vertices": [
+                {
+                    "nome_vertice": "V-01", # Já existe! Deve desambiguar para V-03 ou próximo livre
+                    "este": 500030.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.02,
+                    "sigma_norte": 0.02,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.03,
+                    "metodo": "PA1"
+                },
+                {
+                    "nome_vertice": "V-01", # Duplicado dentro do próprio lote!
+                    "este": 500040.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.02,
+                    "sigma_norte": 0.02,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.03,
+                    "metodo": "PA1"
+                }
+            ]
+        }
+        res2 = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/confirmar-lote",
+            json=payload_colidente
+        )
+        # Não pode dar erro 500 com UNIQUE constraint failed!
+        self.assertEqual(res2.status_code, 200, res2.text)
+        data2 = res2.json()
+        self.assertEqual(data2["total_inseridos"], 2)
+
+        # 4. Verifica no banco que todos têm nomes únicos
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto = 'V'",
+                (self.lev_id, self.mat_id)
+            )
+            nomes = [row[0] for row in cursor.fetchall()]
+            self.assertEqual(len(nomes), 4)
+            self.assertEqual(len(set(nomes)), 4, f"Deveria ter 4 nomes distintos: {nomes}")
+
+
 if __name__ == "__main__":
     unittest.main()
