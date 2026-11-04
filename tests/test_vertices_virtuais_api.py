@@ -224,16 +224,62 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
             cursor = conn.cursor()
             for vid in ids:
                 cursor.execute(
-                    "SELECT tipo_ponto, status_ponto, camada_ciclo_vida, lat, lon FROM pontos WHERE id = ?",
+                    "SELECT tipo_ponto, status_ponto, camada_ciclo_vida, lat, lon, ignorar_poligono FROM pontos WHERE id = ?",
                     (vid,)
                 )
                 row = cursor.fetchone()
                 self.assertIsNotNone(row)
                 self.assertEqual(row[0], "V")
                 self.assertEqual(row[1], "CORRIGIDO")
-                self.assertEqual(row[2], "PERIMETRO")
+                # Rascunho: fora do perímetro até ser promovido
+                self.assertEqual(row[2], "CAMPO")
+                self.assertEqual(row[5], 1)
                 self.assertIsNotNone(row[3])
                 self.assertIsNotNone(row[4])
+
+    def test_promover_rascunho_no_perimetro_apos_ponto(self):
+        """Rascunho entra no perímetro logo após o ponto escolhido; pontos comuns são recusados."""
+        base = f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais"
+        res = client.post(f"{base}/confirmar-lote", json={
+            "fuso_utm": 22,
+            "vertices": [{
+                "nome_vertice": "VT-01", "este": 500015.0, "norte": 7000000.0, "altitude": 500.0,
+                "sigma_este": 0.02, "sigma_norte": 0.02, "sigma_altitude": 0.03,
+                "sigma_planimetrico": 0.03, "metodo": "PA1",
+            }],
+        })
+        self.assertEqual(res.status_code, 200, res.text)
+        vid = res.json()["ids"][0]
+
+        # Ponto comum (não é rascunho virtual) é recusado
+        res_ruim = client.post(f"{base}/promover", json={"ponto_ids": [self.e1_id]})
+        self.assertEqual(res_ruim.status_code, 400, res_ruim.text)
+
+        # Âncora que não está no perímetro (o próprio rascunho) é recusada
+        res_ancora = client.post(f"{base}/promover", json={"ponto_ids": [vid], "apos_ponto_id": vid})
+        self.assertEqual(res_ancora.status_code, 400, res_ancora.text)
+
+        res_ok = client.post(f"{base}/promover", json={"ponto_ids": [vid], "apos_ponto_id": self.e1_id})
+        self.assertEqual(res_ok.status_code, 200, res_ok.text)
+        self.assertEqual(res_ok.json()["total_promovidos"], 1)
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT camada_ciclo_vida, ignorar_poligono, ordem_caminhamento FROM pontos WHERE id = ?", (vid,)
+            )
+            camada, ignorar, ordem_v = cursor.fetchone()
+            cursor.execute("SELECT ordem_caminhamento FROM pontos WHERE id = ?", (self.e1_id,))
+            ordem_e1 = cursor.fetchone()[0]
+            cursor.execute(
+                "SELECT COUNT(*) FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND ignorar_poligono = 0",
+                (self.lev_id, self.mat_id),
+            )
+            total = cursor.fetchone()[0]
+        self.assertEqual(camada, "PERIMETRO")
+        self.assertEqual(ignorar, 0)
+        # Adjacente a E01 na ordem cíclica do perímetro (a regeneração pode girar/inverter o sentido)
+        self.assertIn((ordem_v - ordem_e1) % total, (1, total - 1))
 
 
     def test_offset_lote_com_nomes_duplicados_e_desambiguacao(self):
