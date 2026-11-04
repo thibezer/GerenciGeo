@@ -847,21 +847,23 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     const podeCalcular = linhasValidas && !mesmasLinhas && nomeOk && !calculando;
 
     return `
-      ${secao(`
-        ${tituloEtapa(1, 'Linha 1 (Primeiro alinhamento)', 'Dois pontos conhecidos que definem a primeira reta.')}
-        <div class="pl-[30px]">${renderParPontos('linha1', alinhamento1Ids)}</div>
-      `)}
+      <div class="grid grid-cols-1 sm:grid-cols-[1fr_228px] gap-x-4 gap-y-4 items-center">
+        <div class="space-y-4">
+          ${secao(`
+            ${tituloEtapa(1, 'Linha 1 (Primeiro alinhamento)', 'Dois pontos conhecidos que definem a primeira reta.')}
+            <div class="pl-[30px]">${renderParPontos('linha1', alinhamento1Ids)}</div>
+          `)}
 
-      ${secao(`
-        ${tituloEtapa(2, 'Linha 2 (Segundo alinhamento)', 'Dois pontos conhecidos que definem a reta que cruza a Linha 1.')}
-        <div class="pl-[30px] grid grid-cols-1 sm:grid-cols-[1fr_228px] gap-4 items-start">
-          <div>
-            ${renderParPontos('linha2', alinhamento2Ids)}
-            ${mesmasLinhas ? '<div class="mt-2 text-[11px] text-amber-400">As duas linhas não podem usar os mesmos pontos.</div>' : ''}
-          </div>
-          ${caixaDiagrama(renderDiagramaIntersecao())}
+          ${secao(`
+            ${tituloEtapa(2, 'Linha 2 (Segundo alinhamento)', 'Dois pontos conhecidos que definem a reta que cruza a Linha 1.')}
+            <div class="pl-[30px]">
+              ${renderParPontos('linha2', alinhamento2Ids)}
+              ${mesmasLinhas ? '<div class="mt-2 text-[11px] text-amber-400">As duas linhas não podem usar os mesmos pontos.</div>' : ''}
+            </div>
+          `)}
         </div>
-      `)}
+        ${caixaDiagrama(renderDiagramaIntersecao())}
+      </div>
 
       ${secao(`
         ${tituloEtapa(3, 'Nome do vértice', 'Identificador do vértice gerado no cruzamento das duas linhas.')}
