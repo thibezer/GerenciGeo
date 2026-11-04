@@ -327,6 +327,7 @@ export const renderMesaTrabalho = (): string => {
                   <div class="rl1-separator"></div>
                   <button class="vtx-filter-chip hover:bg-yellow-500/10 hover:text-yellow-400 border-yellow-500/20" id="btn-batch-ignorar" type="button">Alternar Polígono</button>
                   <button class="vtx-filter-chip hover:bg-emerald-500/10 hover:text-emerald-400 border-emerald-500/20 font-bold" id="btn-batch-offset-v" type="button" title="Criar Vértices Virtuais paralelos (Offset CAD)">Offset (V)</button>
+                  <button class="vtx-filter-chip hover:bg-emerald-500/10 hover:text-emerald-400 border-emerald-500/20" id="btn-batch-promover-v" type="button" title="Inserir no perímetro os vértices virtuais em rascunho selecionados">Inserir no perímetro</button>
                   <button class="vtx-filter-chip hover:bg-red-500/10 hover:text-red-400 border-red-500/20 font-bold" id="btn-batch-deletar" type="button">Apagar Pontos</button>
                   <button class="vtx-filter-chip" id="btn-batch-limpar" type="button">Cancelar</button>
                 </div>

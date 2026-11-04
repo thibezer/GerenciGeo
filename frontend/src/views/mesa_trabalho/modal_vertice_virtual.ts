@@ -5,6 +5,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset, RespostaVerticeVirtual } from '../../types/verticesVirtuais';
 import { coordenadaPonto } from './coordenadas_mapa';
 import { avisoContinuidadeAlinhamento } from '../../utils/continuidadeAlinhamento';
+import { ehVerticeVirtualRascunho } from './modal_promover_virtuais';
 
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
@@ -84,7 +85,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   }
 
   // Identifica pontos elegíveis
-  const pontosDisponiveis = (ctx.pontosList || []).filter(p => !p.ignorar_poligono);
+  // Rascunhos virtuais (fora do polígono) continuam disponíveis como apoio para novos cálculos
+  const pontosDisponiveis = (ctx.pontosList || []).filter(p => !p.ignorar_poligono || ehVerticeVirtualRascunho(p));
   if (pontosDisponiveis.length < 2) {
     showToast('São necessários pelo menos 2 pontos cadastrados no levantamento para cálculo virtual.', 'info');
     return;
@@ -876,7 +878,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     const n = previas[abaAtiva].resultados.length;
     const pronto = n > 0 && !salvando;
     const dica = n > 0
-      ? 'Será adicionado ao perímetro da matrícula.'
+      ? 'Entra como rascunho, fora do perímetro. Depois use "Inserir no perímetro".'
       : 'Gere a prévia para habilitar a inserção.';
     return `
       <div class="px-6 py-4 border-t border-white/10 flex items-center justify-between gap-4 shrink-0">

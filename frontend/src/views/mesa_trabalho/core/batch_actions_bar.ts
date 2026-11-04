@@ -37,6 +37,16 @@ export function inicializarBarraAcoesLote(
     abrirModalVerticeVirtual(ctx, 'offset');
   });
 
+  // Inserir vértices virtuais em rascunho no perímetro (posição escolhida)
+  addListener('btn-batch-promover-v', 'click', async () => {
+    if (ctx.currentLevantamento?.status === 'ARQUIVADO') {
+      await customAlert('Este projeto está ARQUIVADO e não pode ser modificado (Modo Somente Leitura).');
+      return;
+    }
+    const { promoverVerticesVirtuais } = await import('../modal_promover_virtuais');
+    await promoverVerticesVirtuais(ctx);
+  });
+
   // Excluir em lote
   const handleDelete = () => {
     if (ctx.selectedPontoIds.length > 0) {

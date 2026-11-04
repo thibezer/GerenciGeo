@@ -3,6 +3,7 @@ import { initIcons, showToast, escapeHtml } from '../../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from '../mesa_trabalho_tabela';
 import { aplicarFiltrosMesa } from '../pontos_visiveis';
 import { pontosParaMapa } from '../coordenadas_mapa';
+import { atualizarCamadaRascunhoVirtual } from '../camada_rascunho_virtual';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 
 export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
@@ -138,6 +139,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
     ctx.mapaController.plotPontos(pontosMapa, (pId: number, ev?: any) => {
       ctx.cliqueVerticeMapa?.(pId, ev?.originalEvent || ev);
     });
+    atualizarCamadaRascunhoVirtual(ctx);
 
     const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
     const effectiveMatId = (matAtiva && matAtiva.matricula_origem_desenho_id) ? matAtiva.matricula_origem_desenho_id : ctx.currentMatriculaId;
