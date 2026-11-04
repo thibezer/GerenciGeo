@@ -561,15 +561,15 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
         n_corr = data.get("n_corrigido")
         e_corr = data.get("e_corrigido")
         alt_corr = data.get("alt_corrigido")
-        fuso_corr = data.get("fuso")
+        fuso_corr = data.get("fuso") or pt_antigo.get("fuso") or (f"{pt_antigo['fuso_utm']}S" if pt_antigo.get("fuso_utm") else None) or "22S"
         
         tipo_atual = data.get("tipo_ponto") or pt_antigo["tipo_ponto"]
         
         eh_base = tipo_atual == 'B' or (tipo_atual == 'M' and base_legada_marco)
 
         # Sincronização e conversão UTM -> Geodésica para qualquer tipo de ponto (B, M, P, V)
-        n_eff = n_corr if n_corr is not None else pt_antigo.get("n_corrigido")
-        e_eff = e_corr if e_corr is not None else pt_antigo.get("e_corrigido")
+        n_eff = n_corr if n_corr is not None else (pt_antigo.get("n_corrigido") if pt_antigo.get("n_corrigido") is not None else pt_antigo.get("n_original"))
+        e_eff = e_corr if e_corr is not None else (pt_antigo.get("e_corrigido") if pt_antigo.get("e_corrigido") is not None else pt_antigo.get("e_original"))
         alt_eff = alt_corr if alt_corr is not None else (
             data.get("alt") if data.get("alt") is not None else (
                 pt_antigo.get("alt_corrigido") or pt_antigo.get("alt_original") or pt_antigo.get("alt") or 0.0

@@ -94,6 +94,12 @@ export function salvarPontoDebounced(
     }
   }
 
+  // Se coordenadas UTM estão sendo enviadas, anexa o fuso da sessão caso não informado
+  if (['e_corrigido', 'n_corrigido', 'alt_corrigido'].some(k => pendingPontoUpdates[k] !== undefined)) {
+    const fusoSalvo = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || p.fuso || '22S';
+    pendingPontoUpdates.fuso = String(fusoSalvo);
+  }
+
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer);
   }
@@ -128,6 +134,13 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
     const data = await res.json();
     if (data.ponto) {
       Object.assign(pontoAlvo, data.ponto);
+      // Atualiza também a referência dentro de ctx.pontosList se aplicável
+      if (Array.isArray(ctx.pontosList)) {
+        const idx = ctx.pontosList.findIndex((pt: Ponto) => String(pt.id) === String(pontoId));
+        if (idx !== -1) {
+          Object.assign(ctx.pontosList[idx], data.ponto);
+        }
+      }
     }
 
     // Coordenada de uma base dispara no backend a translação em bloco dos rovers vinculados;
@@ -136,14 +149,49 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
     const ehBase = pontoAlvo.tipo_ponto === 'B'
       || (ctx.pontosList ?? []).some((pt: Ponto) => String(pt.ponto_base_id) === String(pontoId));
 
-    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined
-      || (alterouCoordenada && ehBase)) {
+    if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined) {
       // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
       // as listas locais ficariam desatualizadas e o mapa seguiria desenhando o vértice no perímetro antigo.
       // O tipo também muda o perímetro (B fica de fora), os filtros de Bases e as cores do mapa.
       await ctx.loadLevantamentoDetails?.();
       ctx.atualizarPainelPropriedades?.();
       return;
+    }
+
+    if (alterouCoordenada && ehBase) {
+      // Coordenada de uma base dispara no backend a translação em bloco dos rovers vinculados.
+      // Sincroniza a lista de pontos, tabela e mapa SILENCIOSAMENTE em background,
+      // NUNCA recarregando o painel de propriedades para não roubar o foco nem cancelar a edição do usuário.
+      try {
+        const resPts = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/pontos`);
+        if (resPts.ok) {
+          const novosPontos = await resPts.json();
+          if (Array.isArray(novosPontos)) {
+            ctx.pontosList = novosPontos;
+            ctx.renderMatriculaDados?.();
+            ctx.atualizarPolilinhaMapaTemp?.();
+            if (ctx.mapaController && typeof ctx.mapaController.plotPontos === 'function') {
+              ctx.mapaController.plotPontos(ctx.pontosList);
+            }
+          }
+        }
+      } catch (errSync) {
+        console.warn('Erro ao sincronizar rovers pós-translação:', errSync);
+      }
+    } else {
+      ctx.atualizarPolilinhaMapaTemp?.();
+    }
+
+    // Atualiza valores derivados visuais no painel sem reconstruir o DOM e sem perder foco
+    const tabelaEl = document.getElementById('ui-props-tree') as any;
+    if (tabelaEl && typeof tabelaEl.definirValor === 'function') {
+      if (data.ponto?.status_ponto) {
+        tabelaEl.definirValor('status_correcao', data.ponto.status_ponto, false);
+      }
+      if (data.ponto?.delta_3d != null) {
+        const descStr = `ΔE ${Number(data.ponto.delta_e ?? 0).toFixed(1)} · ΔN ${Number(data.ponto.delta_n ?? 0).toFixed(1)} · 3D ${Number(data.ponto.delta_3d).toFixed(1)} mm`;
+        tabelaEl.definirValor('deslocamento', descStr, false);
+      }
     }
 
     ctx.atualizarPolilinhaMapaTemp?.();

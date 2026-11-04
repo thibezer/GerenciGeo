@@ -143,11 +143,129 @@ export const LIMITES_SIGEF: LimiteSIGEF[] = [
 
 /**
  * Converte com segurança um valor para number ou null sem corromper valores ausentes em 0.0 (GEO-01).
+ * Suporta formatos numéricos brasileiros (vírgula decimal) e internacionais.
  */
 export function parseNumberOrNull(val: unknown): number | null {
   if (val === undefined || val === null || val === '') return null;
+  if (typeof val === 'number') return Number.isNaN(val) ? null : val;
+  if (typeof val === 'string') {
+    let s = val.trim();
+    if (!s) return null;
+    // Remove espaços internos entre dígitos (ex: "744 213.541" ou "744 213,541")
+    s = s.replace(/(\d)\s+(\d)/g, '$1$2');
+    if (s.includes(',') && s.includes('.')) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+        // Formato BR: "744.213,541" -> "744213.541"
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        // Formato US com vírgula de milhar: "744,213.541" -> "744213.541"
+        s = s.replace(/,/g, '');
+      }
+    } else if (s.includes(',')) {
+      s = s.replace(',', '.');
+    }
+    const num = Number(s);
+    return Number.isNaN(num) ? null : num;
+  }
   const num = Number(val);
   return Number.isNaN(num) ? null : num;
+}
+
+export interface CoordenadasExtraidas {
+  tipo: 'utm' | 'geo';
+  e?: number;
+  n?: number;
+  h?: number;
+  lat?: number;
+  lon?: number;
+}
+
+/**
+ * Analisa e extrai coordenadas a partir de texto colado (clipboard),
+ * suportando pares UTM (Este/Norte/Alt), coordenadas geodésicas (Lat/Lon/Alt),
+ * com ou sem rótulos explícitos (E, N, Lat, Lon) e com vírgula ou ponto decimal.
+ */
+export function extrairCoordenadasTexto(texto: string): CoordenadasExtraidas | null {
+  if (!texto || typeof texto !== 'string') return null;
+  const raw = texto.trim();
+  if (!raw) return null;
+
+  // 1. Regex com rótulos explícitos de UTM (E/Este/X e N/Norte/Y e Alt/H/Z)
+  const padraoE = /(?:^|[\s,;|])(?:E|X|ESTE|LESTE)\s*[:=]?\s*([+-]?\d+(?:[.,]\d+)?)/i;
+  const padraoN = /(?:^|[\s,;|])(?:N|Y|NORTE)\s*[:=]?\s*([+-]?\d+(?:[.,]\d+)?)/i;
+  const padraoH = /(?:^|[\s,;|])(?:H|Z|ALT|ALTITUDE|COTA)\s*[:=]?\s*([+-]?\d+(?:[.,]\d+)?)/i;
+
+  const matchE = raw.match(padraoE);
+  const matchN = raw.match(padraoN);
+  const matchH = raw.match(padraoH);
+
+  if (matchE && matchN) {
+    const e = parseNumberOrNull(matchE[1]);
+    const n = parseNumberOrNull(matchN[1]);
+    const h = matchH ? parseNumberOrNull(matchH[1]) : undefined;
+    if (e != null && n != null) {
+      return { tipo: 'utm', e, n, h: h ?? undefined };
+    }
+  }
+
+  // 2. Regex com rótulos explícitos de Geodésicas (Lat e Lon)
+  const padraoLat = /(?:^|[\s,;|])(?:LAT|LATITUDE)\s*[:=]?\s*([+-]?\d+(?:[.,]\d+)?)/i;
+  const padraoLon = /(?:^|[\s,;|])(?:LON|LONG|LONGITUDE)\s*[:=]?\s*([+-]?\d+(?:[.,]\d+)?)/i;
+
+  const matchLat = raw.match(padraoLat);
+  const matchLon = raw.match(padraoLon);
+
+  if (matchLat && matchLon) {
+    const lat = parseNumberOrNull(matchLat[1]);
+    const lon = parseNumberOrNull(matchLon[1]);
+    const h = matchH ? parseNumberOrNull(matchH[1]) : undefined;
+    if (lat != null && lon != null) {
+      return { tipo: 'geo', lat, lon, h: h ?? undefined };
+    }
+  }
+
+  // 3. Suporte a pares ou trios de números sem rótulo
+  let tokens: string[] = [];
+  if (raw.includes(';') || raw.includes('|')) {
+    tokens = raw.split(/[;|]+/).map(s => s.trim()).filter(Boolean);
+  } else if (raw.includes('\t') || raw.includes('\n')) {
+    tokens = raw.split(/[\t\n]+/).map(s => s.trim()).filter(Boolean);
+  } else if (raw.includes(',') && !raw.match(/\d,\d/)) {
+    // Vírgula atuando apenas como separador entre coordenadas (ex: 744213.541, 7351234.982)
+    tokens = raw.split(',').map(s => s.trim()).filter(Boolean);
+  } else {
+    // Espaços ou separadores gerais
+    tokens = raw.split(/\s+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  if (tokens.length >= 2) {
+    const nums = tokens.map(parseNumberOrNull).filter((n): n is number => n !== null);
+    if (nums.length >= 2) {
+      const [n1, n2, n3] = nums;
+      // Checa se é UTM (Este ~ 100k..950k, Norte ~ 1M..10M)
+      if ((n1 >= 100000 && n1 <= 950000 && n2 >= 1000000 && n2 <= 10000000) ||
+          (n2 >= 100000 && n2 <= 950000 && n1 >= 1000000 && n1 <= 10000000)) {
+        const e = (n1 >= 100000 && n1 <= 950000) ? n1 : n2;
+        const n = (e === n1) ? n2 : n1;
+        const h = (n3 !== undefined && Math.abs(n3) < 10000) ? n3 : undefined;
+        return { tipo: 'utm', e, n, h };
+      }
+
+      // Checa se é Geodésica (Lat -90..90, Lon -180..180)
+      if (Math.abs(n1) <= 90 && Math.abs(n2) <= 180) {
+        let lat = n1;
+        let lon = n2;
+        if (n2 >= -35 && n2 <= 6 && n1 >= -75 && n1 <= -30) {
+          lat = n2;
+          lon = n1;
+        }
+        const h = (n3 !== undefined && Math.abs(n3) < 10000) ? n3 : undefined;
+        return { tipo: 'geo', lat, lon, h };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**

@@ -804,3 +804,22 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - O evento `ui-ponto-selecionado` deve preservar arrays de `selectedIds` maiores que 1, e `cliqueVerticeMapa` deve permitir alternar/acumular vértices com `Ctrl+Click` / `Meta+Click`.
   5. **Abertura Contextual do Modal Virtual**:
      - `abrirModalVerticeVirtual(ctx, 'offset')` deve respeitar a aba de destino ao ser acionado pela barra de ações em lote (`#btn-batch-offset-v`), sem pré-preencher pontos arbitrários da fazenda.
+
+
+---
+
+## 49. Estabilidade do Painel de Propriedades na Edição e Colagem de Coordenadas de Bases
+- **Contexto e Problema**:
+  1. Ao editar um ponto de base (`tipo_ponto = 'B'`) ou marco com rovers vinculados e colar ou digitar as coordenadas corrigidas (Este/Norte/Alt), o painel de propriedades recarregava sozinho (`loadLevantamentoDetails()` e `atualizarPainelPropriedades()`), cancelando a digitação, perdendo o foco e descartando alterações em andamento.
+  2. A causa raiz era que `servico_salvamento.ts` continha a regra `(alterouCoordenada && ehBase)` que, a cada debounce de campo de coordenada, disparava `loadLevantamentoDetails()` e `atualizarPainelPropriedades()`. Como `atualizarPainelPropriedades()` sobrescrevia `tabelaEl.categorias`, todos os inputs da Shadow DOM eram destruídos e recriados enquanto o operador ainda estava digitando ou mudando de campo.
+  3. Além disso, se o operador colasse coordenadas com vírgula decimal (ex: `744213,541`) ou colasse coordenadas compostas (ex: `744213.541, 7351234.982` ou relatórios IBGE PPP), o parser `Number()` retornava `NaN`/`null`, descartando o valor colado.
+- **Regras Obrigatórias**:
+  1. **Proibição de Recarga do Painel de Propriedades em Salvamento de Coordenadas**:
+     - O salvamento debounced de coordenadas de base (`alterouCoordenada && ehBase`) **nunca** deve invocar `loadLevantamentoDetails()` ou `atualizarPainelPropriedades()`.
+     - A translação em bloco dos rovers deve ser sincronizada silenciosamente em background (`fetch /pontos`), atualizando `ctx.pontosList`, a tabela da mesa e o mapa (`ctx.renderMatriculaDados()`, `ctx.atualizarPolilinhaMapaTemp()`), sem mexer no componente `<ui-tabela-propriedades>`.
+     - Campos visuais derivados (ex: `status_correcao`, `deslocamento`) devem ser atualizados via `tabelaEl.definirValor(..., false)` sem desmontar o DOM.
+  2. **Guarda de Foco Ativo no Painel de Propriedades**:
+     - `atualizarPainelPropriedades()` deve verificar se o usuário já está visualizando o mesmo vértice (`ultimoPontoIdCarregado === targetPontoId`) e se algum elemento do painel ou de sua Shadow DOM possui foco ativo (`isFocadoNoPainel(tabelaEl)`). Se sim, deve abortar a reconstrução para preservar a edição do operador.
+  3. **Suporte Robusto a Vírgula Decimal e Colagem de Coordenadas (Smart Paste)**:
+     - `parseNumberOrNull()` deve tratar vírgulas decimais e separadores de milhar (`744.213,541` e `744213,541`).
+     - O painel de propriedades deve interceptar o evento `paste`, identificando automaticamente pares ou trios de coordenadas UTM (`Este`, `Norte`, `Alt`) ou Geodésicas (`Lat`, `Lon`), preenchendo todos os campos simultaneamente e salvando em bloco com feedback amigável via toast.

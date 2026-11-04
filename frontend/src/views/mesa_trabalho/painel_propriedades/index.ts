@@ -10,10 +10,24 @@ import {
   sugerirCodigoSIGEF,
   alternarExcluirPonto
 } from './servico_salvamento';
-import { tratarErroAPI } from '../painel_propriedades_helpers';
+import { tratarErroAPI, extrairCoordenadasTexto } from '../painel_propriedades_helpers';
 import type { Ponto } from '../painel_propriedades_helpers';
+import { showToast } from '../../../utils';
 
 let panelAbortController: AbortController | null = null;
+let ultimoTipoPainel: 'geral' | 'vertice' | 'segmento' | 'multi' | null = null;
+let ultimoPontoIdCarregado: number | string | null = null;
+
+function isFocadoNoPainel(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const active = document.activeElement;
+  if (!active) return false;
+  if (el === active || el.contains(active)) return true;
+  if (el.shadowRoot) {
+    if (el.shadowRoot.activeElement != null || el.shadowRoot.contains(active)) return true;
+  }
+  return false;
+}
 
 function converterBancoPontoParaPonto(bp: any): Ponto {
   const eVal = bp.este != null ? Number(bp.este) : (bp.e_corrigido != null ? Number(bp.e_corrigido) : null);
@@ -66,13 +80,6 @@ export function atualizarPainelPropriedades(ctx: any): void {
   const panelActions = document.getElementById('props-panel-actions');
   if (!panelContent) return;
 
-  // Cancela o ciclo de vida de listeners anteriores evitando clones e vazamento de memória
-  if (panelAbortController) {
-    panelAbortController.abort();
-  }
-  panelAbortController = new AbortController();
-  const signal = panelAbortController.signal;
-
   if (ctx.etapaAtiva === 'cartorio') {
     if (panelActions) panelActions.classList.add('hidden');
     return;
@@ -83,11 +90,29 @@ export function atualizarPainelPropriedades(ctx: any): void {
     const selectedVizinhoPontoIds: number[] = ctx.selectedVizinhoPontoIds ?? [];
     const selectedCount = selectedPontoIds.length;
     const selectedVizinhoCount = selectedVizinhoPontoIds.length;
+    const isSingleVertex = selectedCount === 1 || (selectedCount === 0 && selectedVizinhoCount === 1);
+    const targetPontoId = isSingleVertex ? (selectedCount === 1 ? selectedPontoIds[0] : selectedVizinhoPontoIds[0]) : null;
+
+    let tabelaEl = panelContent.querySelector('ui-tabela-propriedades') as UITabelaPropriedadesElement | null;
+
+    // Se o usuário já está visualizando e editando ativamente este mesmo vértice com foco em um campo,
+    // não reconstrói o painel nem cancela os listeners para evitar perda de foco e descarte de digitação!
+    if (isSingleVertex && targetPontoId != null && ultimoTipoPainel === 'vertice' && String(ultimoPontoIdCarregado) === String(targetPontoId)) {
+      if (isFocadoNoPainel(tabelaEl)) {
+        return;
+      }
+    }
+
+    // Cancela o ciclo de vida de listeners anteriores evitando clones e vazamento de memória
+    if (panelAbortController) {
+      panelAbortController.abort();
+    }
+    panelAbortController = new AbortController();
+    const signal = panelAbortController.signal;
 
     const pontosList: Ponto[] = ctx.pontosList ?? [];
     const pontosVizinhosList: Ponto[] = ctx.pontosVizinhosList ?? [];
 
-    let tabelaEl = panelContent.querySelector('ui-tabela-propriedades') as UITabelaPropriedadesElement | null;
     if (!tabelaEl) {
       panelContent.innerHTML = '';
       panelContent.style.overflow = 'hidden';
@@ -111,6 +136,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
 
     if (ctx.selectedSegmentoId != null && ctx.selectedSegmento != null) {
       // Caso: Segmento / Divisa Selecionado
+      ultimoTipoPainel = 'segmento';
+      ultimoPontoIdCarregado = null;
       const segmento = ctx.selectedSegmento;
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesSegmento(segmento, ctx);
 
@@ -139,6 +166,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (panelActions) panelActions.classList.add('hidden');
     } else if (selectedCount === 0 && selectedVizinhoCount === 0) {
       // Caso 1: Sem Seleção - Propriedades Gerais do Projeto
+      ultimoTipoPainel = 'geral';
+      ultimoPontoIdCarregado = null;
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesGerais(ctx);
 
       tabelaEl.setAttribute('modo-aplicar', 'auto');
@@ -164,10 +193,15 @@ export function atualizarPainelPropriedades(ctx: any): void {
       }
 
       if (!p) {
+        ultimoTipoPainel = null;
+        ultimoPontoIdCarregado = null;
         panelContent.innerHTML = '<div class="p-4 text-white/40 italic">Vértice não encontrado.</div>';
         if (panelActions) panelActions.classList.add('hidden');
         return;
       }
+
+      ultimoTipoPainel = 'vertice';
+      ultimoPontoIdCarregado = p.id;
 
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesVertice(p, ctx);
 
@@ -175,6 +209,51 @@ export function atualizarPainelPropriedades(ctx: any): void {
       tabelaEl.categorias = categorias;
       tabelaEl.tipos = tipos;
       tabelaEl.tipoSelecionado = tipoSelecionadoId;
+
+      // Interceptador inteligente de Paste para coordenadas completas ou compostas
+      tabelaEl.addEventListener(
+        'paste',
+        (e: ClipboardEvent) => {
+          const raw = e.clipboardData?.getData('text');
+          if (!raw) return;
+          const coord = extrairCoordenadasTexto(raw);
+          if (!coord) return;
+
+          e.preventDefault();
+          e.stopImmediatePropagation();
+
+          if (coord.tipo === 'utm') {
+            if (coord.e != null) {
+              tabelaEl?.definirValor('e_corrigido', coord.e, false);
+              salvarPontoDebounced(p!, 'e_corrigido', coord.e, ctx, 200);
+            }
+            if (coord.n != null) {
+              tabelaEl?.definirValor('n_corrigido', coord.n, false);
+              salvarPontoDebounced(p!, 'n_corrigido', coord.n, ctx, 200);
+            }
+            if (coord.h != null) {
+              tabelaEl?.definirValor('alt_corrigido', coord.h, false);
+              salvarPontoDebounced(p!, 'alt_corrigido', coord.h, ctx, 200);
+            }
+            showToast(`Coordenadas UTM aplicadas: E=${coord.e?.toFixed(3)}, N=${coord.n?.toFixed(3)}${coord.h != null ? `, H=${coord.h.toFixed(3)}` : ''}`, 'success');
+          } else if (coord.tipo === 'geo') {
+            if (coord.lat != null) {
+              tabelaEl?.definirValor('lat', coord.lat, false);
+              salvarPontoDebounced(p!, 'lat', coord.lat, ctx, 200);
+            }
+            if (coord.lon != null) {
+              tabelaEl?.definirValor('lon', coord.lon, false);
+              salvarPontoDebounced(p!, 'lon', coord.lon, ctx, 200);
+            }
+            if (coord.h != null) {
+              tabelaEl?.definirValor('alt_corrigido', coord.h, false);
+              salvarPontoDebounced(p!, 'alt_corrigido', coord.h, ctx, 200);
+            }
+            showToast(`Coordenadas Geodésicas aplicadas: Lat=${coord.lat?.toFixed(8)}, Lon=${coord.lon?.toFixed(8)}`, 'success');
+          }
+        },
+        { capture: true, signal }
+      );
 
       tabelaEl.addEventListener(
         'ui-propriedade-alterada',
@@ -218,6 +297,8 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (panelActions) panelActions.classList.add('hidden');
     } else {
       // Caso 3: Múltiplos Vértices Selecionados
+      ultimoTipoPainel = 'multi';
+      ultimoPontoIdCarregado = null;
       const todosPontosSelecionados = selectedPontoIds
         .map((id: number) => {
           let pt = pontosList.find((p: Ponto) => String(p.id) === String(id));
