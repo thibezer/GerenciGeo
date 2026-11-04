@@ -782,3 +782,25 @@ egister) não sejam precipitadamente interceptados pelo status healthcheck com H
      - No endpoint `POST /vertices-virtuais/confirmar-lote` e no individual `POST /vertices-virtuais/confirmar`, antes da execução do `INSERT INTO pontos`, o backend deve carregar `nomes_ocupados` da matrícula para `tipo_ponto = 'V'`. Caso qualquer item enviado no payload coincida com um nome já existente ou repetido no mesmo lote, o backend deve invocar `MotorVerticesVirtuais.gerar_nomes_unicos` para desambiguar o identificador de forma transparente, eliminando qualquer risco de HTTP 500 por `UNIQUE constraint failed`.
   3. **Consciência no Frontend**:
      - A classe `FerramentaOffsetMapa` e o `modal_vertice_virtual.ts` devem utilizar o método `obterProximoIndiceVirtual()` varrendo `pontosList` / `pontosDisponiveis` para exibir o tooltip correto durante o hover no mapa (ex: `V-05 (15m DIREITA)`) e enviar `indice_inicial` no cálculo de lote.
+
+
+---
+
+## 48. Congelamento de Seleção e Eliminação de Fallback Global no Deslocamento Paralelo (Offset CAD)
+- **Contexto e Problema**:
+  1. Ao acionar o Deslocamento Paralelo (Offset) para um trecho específico (ex.: 3 pontos de uma estrada), o sistema gerava vértices virtuais para **todos os pontos da matrícula ativa** (duplicando dezenas de pontos de rio e divisas).
+  2. O método `obterPontosOrigem()` em `FerramentaOffsetMapa` continha um fallback que, se `selectedPontoIds.length < 2`, selecionava silenciosamente todos os pontos da matrícula (`pontosMat`).
+  3. A ferramenta de offset não congelava os pontos no momento da ativação (`ativar()`). Quando o operador clicava no mapa para definir o lado e confirmar, o canvas disparava eventos de desseleção (`selectedPontoIds = []`). Ao invocar `confirmarEGravacao()`, `ctx.selectedPontoIds` estava vazio, caindo no fallback e gravando o offset do perímetro inteiro.
+  4. Além disso, o clique em marcadores do mapa não acumulava seleção com `Ctrl+Click` (sobrescrevia sempre para 1 ponto), e o evento `ui-ponto-selecionado` forçava a redução de seleções em lote para o primeiro ponto.
+- **Regras Obrigatórias**:
+  1. **Congelamento Imutável dos Pontos de Origem (`pontosOrigem`)**:
+     - No método `ativar()` da `FerramentaOffsetMapa`, os vértices selecionados devem ser validados ($\ge 2$) e imediatamente congelados em `this.pontosOrigem = [...pontos]`.
+     - Todos os passos subsequentes (`onMouseMove`, `atualizarPreview`, `confirmarEGravacao`) operam exclusivamente sobre `this.pontosOrigem`, imunes a desseleções do canvas causadas por cliques no mapa.
+  2. **Proibição de Fallback Global**:
+     - É estritamente proibido aplicar fallback para todos os pontos da matrícula no Offset de alinhamento. Se não houver ao menos 2 vértices selecionados, a ferramenta deve bloquear a ativação e orientar o operador via toast.
+  3. **Transparência Visual no Banner**:
+     - O banner flutuante (`#banner-offset-mapa`) deve exibir explicitamente a quantidade e os nomes dos vértices de apoio selecionados (ex.: `3 pts: estrada1 → estrada3`), assegurando conferência imediata antes da gravação.
+  4. **Suporte a Múltiplos Vértices e `Ctrl+Click` no Mapa**:
+     - O evento `ui-ponto-selecionado` deve preservar arrays de `selectedIds` maiores que 1, e `cliqueVerticeMapa` deve permitir alternar/acumular vértices com `Ctrl+Click` / `Meta+Click`.
+  5. **Abertura Contextual do Modal Virtual**:
+     - `abrirModalVerticeVirtual(ctx, 'offset')` deve respeitar a aba de destino ao ser acionado pela barra de ações em lote (`#btn-batch-offset-v`), sem pré-preencher pontos arbitrários da fazenda.
