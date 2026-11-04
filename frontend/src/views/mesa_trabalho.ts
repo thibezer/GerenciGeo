@@ -984,17 +984,28 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     // Todos os caminhos de clique num vértice do mapa (callback do plotPontos, 'ui-ponto-selecionado')
     // passam por aqui, para o "Caminhar Clique" valer em qualquer etapa.
+    // Um clique chega por dois caminhos (callback do marcador e 'ui-ponto-selecionado'): sem dedup,
+    // o Ctrl+Clique alternaria duas vezes (seleciona e desseleciona) e nada mudaria.
+    let ultimoToggleCtrl = { id: 0, instante: 0 };
+
     ctx.cliqueVerticeMapa = (pontoId: number | string, evOrig?: MouseEvent) => {
       if (ctx.modoCliqueSequencialAtivo) {
         ctx.lidarCliqueMarcadorSequencial(pontoId);
       } else {
-        const mouseEv = evOrig || (window.event as MouseEvent);
+        const mouseEv = evOrig || (window.event as MouseEvent | undefined);
         if (mouseEv && (mouseEv.ctrlKey || mouseEv.metaKey)) {
           const numId = Number(pontoId);
+          const agora = Date.now();
+          if (ultimoToggleCtrl.id === numId && agora - ultimoToggleCtrl.instante < 400) return;
+          ultimoToggleCtrl = { id: numId, instante: agora };
+
           if (ctx.selectedPontoIds.includes(numId)) {
             ctx.selectedPontoIds = ctx.selectedPontoIds.filter((id: number) => id !== numId);
+            if (ctx.lastSelectedPontoId === numId) {
+              ctx.lastSelectedPontoId = ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1] ?? null;
+            }
           } else {
-            ctx.selectedPontoIds.push(numId);
+            ctx.selectedPontoIds = [...ctx.selectedPontoIds, numId];
             ctx.lastSelectedPontoId = numId;
           }
           ctx.atualizarDestaqueLinhasTabela();

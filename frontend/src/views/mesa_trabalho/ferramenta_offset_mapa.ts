@@ -299,6 +299,7 @@ export class FerramentaOffsetMapa {
     }
     const pontoIds = pontos.map(p => p.id);
     this.gravando = true;
+    let inserido = false;
     const fuso = Number(pontos.find(p => p.fuso_utm)?.fuso_utm)
       || (this.ctx.mapaController?.fusoUtm)
       || zonaUtmDoLevantamento(this.ctx.pontosList)
@@ -321,7 +322,9 @@ export class FerramentaOffsetMapa {
         })
       });
       const dataCalc = await resCalc.json().catch(() => ({}));
-      if (!resCalc.ok) throw new Error(dataCalc.detail || 'Erro ao calcular offset no servidor.');
+      if (!resCalc.ok) {
+        throw new Error(typeof dataCalc.detail === 'string' ? dataCalc.detail : 'Erro ao calcular offset no servidor.');
+      }
 
       // 2. Persiste atomicamente
       const resConf = await fetch(`${API_BASE}/levantamentos/${levId}/matriculas/${matId}/vertices-virtuais/confirmar-lote`, {
@@ -343,21 +346,33 @@ export class FerramentaOffsetMapa {
         })
       });
       const dataConf = await resConf.json().catch(() => ({}));
-      if (!resConf.ok) throw new Error(dataConf.detail || 'Erro ao persistir vértices virtuais.');
+      if (!resConf.ok) {
+        throw new Error(typeof dataConf.detail === 'string' ? dataConf.detail : 'Erro ao persistir vértices virtuais.');
+      }
 
       const descPts = this.pontosOrigem.length > 0
         ? ` a partir de ${this.pontosOrigem[0].nome_vertice} → ${this.pontosOrigem[this.pontosOrigem.length - 1].nome_vertice}`
         : '';
       showToast(`Sucesso! ${dataConf.total_inseridos} vértices virtuais criados${descPts} com offset de ${this.distancia}m.`, 'success');
-      this.desativar();
-
-      if (typeof this.ctx.loadLevantamentoDetails === 'function') {
-        await this.ctx.loadLevantamentoDetails();
+      if (Array.isArray(dataConf.renomeados) && dataConf.renomeados.length > 0) {
+        const trocas = dataConf.renomeados.map((r: { de: string; para: string }) => `${r.de} → ${r.para}`).join(', ');
+        showToast(`Nome já existente na matrícula, ajustado: ${trocas}`, 'info');
       }
+      inserido = true;
     } catch (err: any) {
       showToast(err?.message || 'Falha ao aplicar o offset.', 'error');
     } finally {
       this.gravando = false;
+    }
+
+    if (!inserido) return;
+    this.desativar();
+    try {
+      if (typeof this.ctx.loadLevantamentoDetails === 'function') {
+        await this.ctx.loadLevantamentoDetails();
+      }
+    } catch {
+      showToast('Vértices inseridos, mas não foi possível atualizar a tela. Recarregue o levantamento.', 'info');
     }
   }
 

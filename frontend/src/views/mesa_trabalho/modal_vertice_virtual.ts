@@ -123,7 +123,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   let distanciaTexto = '15';
   let ladoOffset: LadoOffset = 'DIREITA';
   let prefixoNome = 'V';
-  let pontosSelecionadosIds: number[] = [...idsIniciais];
+  // Mesma regra da ferramenta de offset no mapa: a cadeia segue a ordem de caminhamento, não a de clique
+  const ordemDoPonto = (id: number) =>
+    Number(pontosDisponiveis.find(p => Number(p.id) === id)?.ordem_caminhamento) || 0;
+  let pontosSelecionadosIds: number[] = [...idsIniciais].sort((a, b) => ordemDoPonto(a) - ordemDoPonto(b));
 
   const obterProximoNumeroVirtual = (prefix: string = 'V'): number => {
     let maxNum = 0;
