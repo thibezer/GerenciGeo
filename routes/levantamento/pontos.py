@@ -1441,6 +1441,55 @@ def _obter_ponto_apoio_db(ponto_id: int):
     return pts[0]
 
 
+def _validar_escopo_pontos_apoio(levantamento_id: int, matricula_id: int, ponto_ids: List[int]) -> None:
+    """Garante que matrícula e pontos de apoio pertencem ao levantamento e usam um único fuso UTM."""
+    if matricula_id and matricula_id > 0:
+        row_mat = execute_query(
+            """
+            SELECT m.id FROM matriculas m
+            JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
+            WHERE m.id = ? AND l.id = ?
+            """,
+            params=(matricula_id, levantamento_id),
+            fetch_one=True,
+        )
+        if not row_mat:
+            raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
+
+    ids_unicos = list(dict.fromkeys(ponto_ids))
+    marcadores = ",".join("?" for _ in ids_unicos)
+    rows = execute_query(
+        f"SELECT id, fuso_utm FROM pontos WHERE levantamento_id = ? AND id IN ({marcadores})",
+        params=(levantamento_id, *ids_unicos),
+        fetch_all=True,
+    )
+    if len(rows or []) != len(ids_unicos):
+        raise HTTPException(status_code=400, detail="Há pontos de apoio que não pertencem a este levantamento.")
+
+    fusos = {int(r["fuso_utm"]) for r in rows if r["fuso_utm"]}
+    if len(fusos) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Os pontos de apoio estão em fusos UTM diferentes ({', '.join(str(f) for f in sorted(fusos))}).",
+        )
+
+
+def _nome_virtual_livre(levantamento_id: int, matricula_id: int, nome: Optional[str], default: str = "V01") -> str:
+    """Devolve o nome pedido ou, havendo colisão com algum ponto da matrícula, o próximo livre."""
+    from services.processamento.vertices_virtuais import MotorVerticesVirtuais
+
+    pedido = (nome or default).strip() or default
+    rows = execute_query(
+        "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
+        params=(levantamento_id, matricula_id),
+        fetch_all=True,
+    )
+    ocupados = {str(r["nome_vertice"]).strip().upper() for r in (rows or []) if r["nome_vertice"]}
+    if pedido.upper() not in ocupados:
+        return pedido
+    return MotorVerticesVirtuais.gerar_nomes_unicos(prefixo=pedido, quantidade=1, nomes_existentes=ocupados)[0]
+
+
 def _obter_pontos_apoio_db_lote(ponto_ids: List[int]):
     from services.processamento.vertices_virtuais import PontoApoio
 
@@ -1512,6 +1561,10 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais, LadoOffset
 
     try:
+        _validar_escopo_pontos_apoio(
+            id, matricula_id,
+            [payload.eixo_inicio_id, payload.eixo_fim_id, payload.divisa_inicio_id, payload.divisa_fim_id],
+        )
         e1 = _obter_ponto_apoio_db(payload.eixo_inicio_id)
         e2 = _obter_ponto_apoio_db(payload.eixo_fim_id)
         d1 = _obter_ponto_apoio_db(payload.divisa_inicio_id)
@@ -1526,7 +1579,7 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
             divisa_2=d2,
             largura_faixa=payload.largura_faixa,
             lado=lado_enum,
-            nome_vertice=payload.nome_vertice or "V01",
+            nome_vertice=_nome_virtual_livre(id, matricula_id, payload.nome_vertice),
         )
 
         return {
@@ -1564,6 +1617,13 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais
 
     try:
+        _validar_escopo_pontos_apoio(
+            id, matricula_id,
+            [
+                payload.alinhamento1_inicio_id, payload.alinhamento1_fim_id,
+                payload.alinhamento2_inicio_id, payload.alinhamento2_fim_id,
+            ],
+        )
         r1_p1 = _obter_ponto_apoio_db(payload.alinhamento1_inicio_id)
         r1_p2 = _obter_ponto_apoio_db(payload.alinhamento1_fim_id)
         r2_p1 = _obter_ponto_apoio_db(payload.alinhamento2_inicio_id)
@@ -1574,7 +1634,7 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
             alinhamento1_p2=r1_p2,
             alinhamento2_p1=r2_p1,
             alinhamento2_p2=r2_p2,
-            nome_vertice=payload.nome_vertice or "V01",
+            nome_vertice=_nome_virtual_livre(id, matricula_id, payload.nome_vertice),
         )
 
         return {
@@ -1728,29 +1788,7 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         if payload.distancia <= 0:
             raise HTTPException(status_code=400, detail="A distância de offset deve ser maior que zero.")
 
-        # Validação de escopo: matrícula deve pertencer ao levantamento
-        if matricula_id and matricula_id > 0:
-            row_mat = execute_query(
-                """
-                SELECT m.id FROM matriculas m
-                JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
-                WHERE m.id = ? AND l.id = ?
-                """,
-                params=(matricula_id, id),
-                fetch_one=True,
-            )
-            if not row_mat:
-                raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
-
-        ids_unicos = list(dict.fromkeys(payload.ponto_ids))
-        marcadores = ",".join("?" for _ in ids_unicos)
-        rows_pertencem = execute_query(
-            f"SELECT id FROM pontos WHERE levantamento_id = ? AND id IN ({marcadores})",
-            params=(id, *ids_unicos),
-            fetch_all=True,
-        )
-        if len(rows_pertencem or []) != len(ids_unicos):
-            raise HTTPException(status_code=400, detail="Há pontos de apoio que não pertencem a este levantamento.")
+        _validar_escopo_pontos_apoio(id, matricula_id, payload.ponto_ids)
 
         pontos_apoio = _obter_pontos_apoio_db_lote(payload.ponto_ids)
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
@@ -1852,12 +1890,13 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
         from services.processamento.vertices_virtuais import MotorVerticesVirtuais
 
         rows_db = execute_query(
-            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto = 'V'",
+            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
             params=(id, matricula_id),
         )
-        nomes_ocupados = {r["nome_vertice"].upper() for r in (rows_db or []) if r["nome_vertice"]}
+        nomes_ocupados = {str(r["nome_vertice"]).strip().upper() for r in (rows_db or []) if r["nome_vertice"]}
 
         inseridos_ids = []
+        renomeados = []
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             for v in payload.vertices:
@@ -1865,13 +1904,15 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                 ordem_atual += 1
                 ordem_final = v.ordem_caminhamento or ordem_atual
 
-                nome_final = (v.nome_vertice or "V-01").strip()
+                nome_pedido = (v.nome_vertice or "V-01").strip()
+                nome_final = nome_pedido
                 if nome_final.upper() in nomes_ocupados:
                     nome_final = MotorVerticesVirtuais.gerar_nomes_unicos(
                         prefixo=nome_final,
                         quantidade=1,
                         nomes_existentes=nomes_ocupados,
                     )[0]
+                    renomeados.append({"de": nome_pedido, "para": nome_final})
                 nomes_ocupados.add(nome_final.upper())
 
                 cursor.execute(
@@ -1925,6 +1966,7 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
             "sucesso": True,
             "total_inseridos": len(inseridos_ids),
             "ids": inseridos_ids,
+            "renomeados": renomeados,
             "mensagem": f"{len(inseridos_ids)} vértices virtuais cadastrados com sucesso."
         }
     except HTTPException:

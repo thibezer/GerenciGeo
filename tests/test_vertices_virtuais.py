@@ -109,7 +109,46 @@ class TestMotorVerticesVirtuais(unittest.TestCase):
         # Precisão deve estar dentro do limite do INCRA (<= 0.50m)
         self.assertTrue(resultado.conforme_norma_incra)
         self.assertLessEqual(resultado.sigma_planimetrico, 0.50)
-        self.assertEqual(resultado.alerta, "")
+        # Cálculo dentro da norma, mas a divisa é extrapolada (t=1.75): só o aviso de extrapolação
+        self.assertIn("fora do segmento da divisa", resultado.alerta)
+        self.assertNotIn("excede", resultado.alerta)
+
+    def test_pa2_puro_sem_extrapolacao_nao_gera_alerta(self):
+        """Cruzamento dentro dos dois segmentos não gera alerta."""
+        r = MotorVerticesVirtuais.calcular_pa2_puro(
+            PontoApoio("A1", 0.0, 0.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("A2", 100.0, 100.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("B1", 0.0, 100.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("B2", 100.0, 0.0, 100.0, 0.02, 0.02, 0.03),
+            nome_vertice="V-01",
+        )
+        self.assertEqual(r.alerta, "")
+
+    def test_pa2_puro_extrapolado_gera_alerta(self):
+        """Cruzamento fora dos segmentos medidos avisa sobre extrapolação."""
+        r = MotorVerticesVirtuais.calcular_pa2_puro(
+            PontoApoio("A1", 0.0, 0.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("A2", 10.0, 10.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("B1", 0.0, 100.0, 100.0, 0.02, 0.02, 0.03),
+            PontoApoio("B2", 100.0, 0.0, 100.0, 0.02, 0.02, 0.03),
+            nome_vertice="V-01",
+        )
+        self.assertIn("fora do segmento da Linha 1", r.alerta)
+
+    def test_offset_canto_propaga_incerteza_dos_tres_pontos(self):
+        """Canto de offset usa LPV dos 3 pontos de apoio, não só o σ do ponto central."""
+        pts = [
+            PontoApoio("P1", 0.0, 0.0, 10.0, 0.05, 0.05, 0.03),
+            PontoApoio("P2", 100.0, 0.0, 10.0, 0.05, 0.05, 0.03),
+            PontoApoio("P3", 100.0, 100.0, 10.0, 0.05, 0.05, 0.03),
+        ]
+        res = MotorVerticesVirtuais.calcular_offset_polilinha(pts, 10.0, LadoOffset.ESQUERDA)
+        canto = res[1]
+        self.assertEqual(canto.metodo, "PA1+PA2")
+        simples = math.hypot(0.05, 0.02)
+        self.assertGreater(canto.sigma_este, 0.02)
+        self.assertNotAlmostEqual(canto.sigma_este, simples, places=3)
+        self.assertNotAlmostEqual(canto.sigma_norte, simples, places=3)
 
     def test_pa2_puro_intersecao(self):
         """Valida PA2 puro (cruzamento direto de 2 alinhamentos)."""

@@ -374,5 +374,78 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
         self.assertEqual(res_fuso.status_code, 400)
         self.assertIn("Fuso UTM inválido", res_fuso.json()["detail"])
 
+    def test_calculo_exige_pontos_do_levantamento(self):
+        """PA2 puro e combo recusam pontos/matrícula que não pertencem ao levantamento informado."""
+        base = f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais"
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO levantamentos (propriedade_id, profissional_id, data_inicio, status) VALUES (?, ?, '2026-03-02', 'EM_ANDAMENTO')",
+                (self.prop_id, self.prof_id),
+            )
+            outro_lev = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, e_corrigido, n_corrigido, alt_corrigido, fuso_utm) VALUES (?, ?, 'X01', 'P', 500300.0, 7000300.0, 500.0, 22)",
+                (outro_lev, self.mat_id),
+            )
+            ponto_alheio = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, e_corrigido, n_corrigido, alt_corrigido, fuso_utm) VALUES (?, ?, 'F01', 'P', 400000.0, 7000300.0, 500.0, 21)",
+                (self.lev_id, self.mat_id),
+            )
+            ponto_outro_fuso = cursor.lastrowid
+            conn.commit()
+        try:
+            res = client.post(f"{base}/calcular-pa2-puro", json={
+                "alinhamento1_inicio_id": self.e1_id, "alinhamento1_fim_id": self.e2_id,
+                "alinhamento2_inicio_id": self.d1_id, "alinhamento2_fim_id": ponto_alheio,
+            })
+            self.assertEqual(res.status_code, 400, res.text)
+            self.assertIn("não pertencem", res.json()["detail"])
+
+            res = client.post(f"{base}/calcular-pa2-puro", json={
+                "alinhamento1_inicio_id": self.e1_id, "alinhamento1_fim_id": self.e2_id,
+                "alinhamento2_inicio_id": self.d1_id, "alinhamento2_fim_id": ponto_outro_fuso,
+            })
+            self.assertEqual(res.status_code, 400, res.text)
+            self.assertIn("fusos UTM diferentes", res.json()["detail"])
+
+            res = client.post(f"{base}/calcular-combo-pa1-pa2", json={
+                "eixo_inicio_id": self.e1_id, "eixo_fim_id": self.e2_id,
+                "divisa_inicio_id": self.d1_id, "divisa_fim_id": ponto_alheio,
+                "largura_faixa": 10.0, "lado": "DIREITA",
+            })
+            self.assertEqual(res.status_code, 400, res.text)
+        finally:
+            with DatabaseManager() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM pontos WHERE id IN (?, ?)", (ponto_alheio, ponto_outro_fuso))
+                cursor.execute("DELETE FROM levantamentos WHERE id = ?", (outro_lev,))
+                conn.commit()
+
+    def test_nome_em_colisao_e_ajustado_na_previa_e_informado_na_gravacao(self):
+        """A prévia já devolve o nome livre; a gravação informa renomeios."""
+        base = f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais"
+        res = client.post(f"{base}/calcular-pa2-puro", json={
+            "alinhamento1_inicio_id": self.e1_id, "alinhamento1_fim_id": self.e2_id,
+            "alinhamento2_inicio_id": self.d1_id, "alinhamento2_fim_id": self.d2_id,
+            "nome_vertice": "E01",
+        })
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertNotEqual(res.json()["resultado"]["nome"].upper(), "E01")
+
+        res = client.post(f"{base}/confirmar-lote", json={
+            "fuso_utm": 22,
+            "vertices": [{
+                "nome_vertice": "E01", "este": 500010.0, "norte": 7000000.0, "altitude": 500.0,
+                "sigma_este": 0.02, "sigma_norte": 0.02, "sigma_altitude": 0.03,
+                "sigma_planimetrico": 0.03, "metodo": "PA2",
+            }],
+        })
+        self.assertEqual(res.status_code, 200, res.text)
+        renomeados = res.json()["renomeados"]
+        self.assertEqual(len(renomeados), 1)
+        self.assertEqual(renomeados[0]["de"], "E01")
+
 if __name__ == "__main__":
     unittest.main()

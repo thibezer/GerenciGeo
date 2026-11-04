@@ -56,6 +56,13 @@ class MotorVerticesVirtuais:
     ANGULO_MINIMO_GRAUS = 1.0     # Rejeição de interseções extremamente oblíquas/instáveis
 
     @staticmethod
+    def _alerta_extrapolacao(rotulo: str, t: float) -> str:
+        """Avisa quando o vértice cai fora do segmento medido (altitude e posição extrapoladas)."""
+        if -0.001 <= t <= 1.001:
+            return ""
+        return f"Vértice fora do segmento {rotulo} (t={t:.2f}): posição e altitude extrapoladas."
+
+    @staticmethod
     def _calcular_offset_pa1(
         p1: np.ndarray, p2: np.ndarray, distancia: float, lado: LadoOffset
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -202,9 +209,15 @@ class MotorVerticesVirtuais:
         sigma_alt = float(math.sqrt((1.0 - t)**2 * (divisa_1.sigma_altitude**2) + (t**2) * (divisa_2.sigma_altitude**2)))
 
         conforme = sigma_p <= cls.TOLERANCIA_ARTIFICIAL
-        alerta = "" if conforme else (
-            f"Precisão planimétrica de {sigma_p:.3f} m excede o limite regulamentar do INCRA ({cls.TOLERANCIA_ARTIFICIAL:.2f} m)."
-        )
+        avisos = []
+        if not conforme:
+            avisos.append(
+                f"Precisão planimétrica de {sigma_p:.3f} m excede o limite regulamentar do INCRA ({cls.TOLERANCIA_ARTIFICIAL:.2f} m)."
+            )
+        aviso_t = cls._alerta_extrapolacao("da divisa", t)
+        if aviso_t:
+            avisos.append(aviso_t)
+        alerta = " ".join(avisos)
 
         return ResultadoVerticeVirtual(
             nome=nome_vertice,
@@ -291,9 +304,16 @@ class MotorVerticesVirtuais:
         sigma_alt = math.sqrt(sigma_alt1**2 + sigma_alt2**2) / 2.0
 
         conforme = sigma_p <= cls.TOLERANCIA_ARTIFICIAL
-        alerta = "" if conforme else (
-            f"Precisão planimétrica de {sigma_p:.3f} m excede o limite regulamentar do INCRA ({cls.TOLERANCIA_ARTIFICIAL:.2f} m)."
-        )
+        avisos = []
+        if not conforme:
+            avisos.append(
+                f"Precisão planimétrica de {sigma_p:.3f} m excede o limite regulamentar do INCRA ({cls.TOLERANCIA_ARTIFICIAL:.2f} m)."
+            )
+        for rotulo, t_seg in (("da Linha 1", t1), ("da Linha 2", t2)):
+            aviso_t = cls._alerta_extrapolacao(rotulo, t_seg)
+            if aviso_t:
+                avisos.append(aviso_t)
+        alerta = " ".join(avisos)
 
         return ResultadoVerticeVirtual(
             nome=nome_vertice,
@@ -367,6 +387,29 @@ class MotorVerticesVirtuais:
                     break
                 proximo += 1
         return nomes_gerados
+
+    @classmethod
+    def _sigma_canto_offset(cls, tres: List[PontoApoio], distancia: float, lado: LadoOffset) -> Tuple[float, float]:
+        """σE/σN do canto deslocado entre dois segmentos consecutivos (3 pontos de apoio), por diferenças centrais."""
+
+        def canto(X: np.ndarray) -> np.ndarray:
+            a, b, c = X[0:2], X[2:4], X[4:6]
+            s1 = cls._calcular_offset_pa1(a, b, distancia, lado)
+            s2 = cls._calcular_offset_pa1(b, c, distancia, lado)
+            coords, _, _ = cls._intersecao_retas_2d(s1[0], s1[1], s2[0], s2[1])
+            return coords
+
+        X0 = np.array([v for p in tres for v in (p.este, p.norte)], dtype=float)
+        sigmas = np.array([v for p in tres for v in (p.sigma_este, p.sigma_norte)], dtype=float)
+        h = 1e-5
+        J = np.zeros((2, 6), dtype=float)
+        for k in range(6):
+            fw, bw = X0.copy(), X0.copy()
+            fw[k] += h
+            bw[k] -= h
+            J[:, k] = (canto(fw) - canto(bw)) / (2.0 * h)
+        sigma_y = J @ np.diag(sigmas ** 2) @ J.T
+        return float(np.sqrt(max(0.0, sigma_y[0, 0]))), float(np.sqrt(max(0.0, sigma_y[1, 1])))
 
     @classmethod
     def calcular_offset_polilinha(
@@ -444,10 +487,16 @@ class MotorVerticesVirtuais:
                     # Se forem colineares, muito agudos ou excederem o miter limit, usa a média vetorial dos cantos
                     coord = (seg_ant[1] + seg_post[0]) / 2.0
                     angulo = 180.0
+                    metodo = "PA1"
 
             # Incertezas propagadas a partir do ponto de apoio original com ruído analítico de offset (2 cm)
             sigma_e = float(math.hypot(pt_origem.sigma_este, 0.02))
             sigma_n = float(math.hypot(pt_origem.sigma_norte, 0.02))
+            if 0 < i < num_pts - 1 and not usar_media:
+                # Canto: a posição depende dos 3 pontos de apoio (i-1, i, i+1); propaga por LPV (Jacobiana 2x6)
+                sig_e_c, sig_n_c = cls._sigma_canto_offset(pontos[i - 1:i + 2], distancia, lado)
+                sigma_e = float(math.hypot(sig_e_c, 0.02))
+                sigma_n = float(math.hypot(sig_n_c, 0.02))
             sigma_alt = float(pt_origem.sigma_altitude)
             sigma_p = float(math.hypot(sigma_e, sigma_n))
 
