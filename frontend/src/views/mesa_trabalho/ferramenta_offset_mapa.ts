@@ -18,6 +18,7 @@ export class FerramentaOffsetMapa {
   private gravando: boolean = false;
   private distancia: number = 15.0;
   private ladoDetectado: LadoOffset = 'DIREITA';
+  private pontosOrigem: any[] = [];
 
   private bannerElement: HTMLElement | null = null;
   private previewLayer: L.LayerGroup | null = null;
@@ -53,10 +54,11 @@ export class FerramentaOffsetMapa {
 
     const pontos = this.obterPontosOrigem();
     if (pontos.length < 2) {
-      showToast('Selecione pelo menos 2 vértices no mapa ou tabela para aplicar o Offset.', 'info');
+      showToast('Selecione pelo menos 2 vértices (com Ctrl+Clique na tabela/mapa ou ferramenta Caneta) para aplicar o Deslocamento Paralelo (Offset).', 'info');
       return;
     }
 
+    this.pontosOrigem = [...pontos];
     this.ativo = true;
     this.previewLayer = L.layerGroup().addTo(map);
 
@@ -77,6 +79,7 @@ export class FerramentaOffsetMapa {
   public desativar(): void {
     if (!this.ativo) return;
     this.ativo = false;
+    this.pontosOrigem = [];
 
     const map = this.ctx.triagemMap;
     if (map) {
@@ -116,22 +119,26 @@ export class FerramentaOffsetMapa {
   }
 
   private obterPontosOrigem(): any[] {
+    // Se a ferramenta já está ativa e congelou a seleção, usa ela imutavelmente
+    if (this.pontosOrigem && this.pontosOrigem.length >= 2) {
+      return this.pontosOrigem;
+    }
+
     const todos = this.ctx.pontosList || [];
     if (this.ctx.selectedPontoIds && this.ctx.selectedPontoIds.length >= 2) {
-      // Ordena por ordem de caminhamento para evitar geometrias em zig-zag
-      return this.ctx.selectedPontoIds
+      const matId = this.ctx.currentMatriculaId;
+      // Considera pontos selecionados da matrícula atual (ou do levantamento geral)
+      const pontosSel = this.ctx.selectedPontoIds
         .map(id => todos.find(p => String(p.id) === String(id)))
-        .filter(Boolean)
-        .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0));
+        .filter((p): p is any => Boolean(p) && (!matId || String(p.matricula_id) === String(matId)));
+
+      if (pontosSel.length >= 2) {
+        return pontosSel.sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0));
+      }
     }
-    // Fallback: todos os pontos ativos da matrícula atual na ordem correta
-    const matId = this.ctx.currentMatriculaId;
-    const pontosMat = matId
-      ? todos.filter(p => String(p.matricula_id) === String(matId) && !p.ignorar_poligono)
-      : todos.filter(p => !p.ignorar_poligono);
-    return pontosMat
-      .slice()
-      .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0));
+
+    // NUNCA fazer fallback silencioso para a matrícula inteira: alinhamento deve ser explicitamente selecionado!
+    return [];
   }
 
   private onMouseMove(e: L.LeafletMouseEvent): void {
@@ -185,8 +192,11 @@ export class FerramentaOffsetMapa {
     this.atualizarPreview();
   }
 
-  private onMapClick(_e: L.LeafletMouseEvent): void {
+  private onMapClick(e: L.LeafletMouseEvent): void {
     if (!this.ativo) return;
+    if (e.originalEvent) {
+      e.originalEvent.stopPropagation();
+    }
     // Clique no mapa confirma o lado e grava
     this.confirmarEGravacao();
   }
@@ -335,7 +345,10 @@ export class FerramentaOffsetMapa {
       const dataConf = await resConf.json().catch(() => ({}));
       if (!resConf.ok) throw new Error(dataConf.detail || 'Erro ao persistir vértices virtuais.');
 
-      showToast(`Sucesso! ${dataConf.total_inseridos} vértices virtuais criados com offset de ${this.distancia}m.`, 'success');
+      const descPts = this.pontosOrigem.length > 0
+        ? ` a partir de ${this.pontosOrigem[0].nome_vertice} → ${this.pontosOrigem[this.pontosOrigem.length - 1].nome_vertice}`
+        : '';
+      showToast(`Sucesso! ${dataConf.total_inseridos} vértices virtuais criados${descPts} com offset de ${this.distancia}m.`, 'success');
       this.desativar();
 
       if (typeof this.ctx.loadLevantamentoDetails === 'function') {
@@ -352,6 +365,10 @@ export class FerramentaOffsetMapa {
     const parent = document.getElementById('container-mapa-leaflet-parent');
     if (!parent || this.bannerElement) return;
 
+    const resumoVertices = this.pontosOrigem.length > 0
+      ? `${this.pontosOrigem.length} pts: ${this.pontosOrigem[0].nome_vertice || 'P1'} → ${this.pontosOrigem[this.pontosOrigem.length - 1].nome_vertice || 'Pn'}`
+      : '';
+
     this.bannerElement = document.createElement('div');
     this.bannerElement.id = 'banner-offset-mapa';
     this.bannerElement.className = 'absolute top-3 left-1/2 -translate-x-1/2 bg-[#0c1510]/95 backdrop-blur-md border border-emerald-500/50 shadow-2xl rounded-full px-4 py-1.5 z-[1000] flex items-center gap-3 text-xs text-white select-none animate-in fade-in slide-in-from-top-2 duration-200';
@@ -362,6 +379,10 @@ export class FerramentaOffsetMapa {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           Offset CAD
         </span>
+        ${resumoVertices ? `
+          <span class="text-white/40">|</span>
+          <span class="font-mono text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20" title="Vértices de apoio selecionados">${resumoVertices}</span>
+        ` : ''}
         <span class="text-white/40">|</span>
         <span class="text-white/70">Distância:</span>
         <input id="input-dist-offset-flutuante" type="number" step="1" min="0.5" value="${this.distancia}" class="w-14 bg-white/10 border border-white/20 rounded px-1.5 py-0.5 text-xs text-white text-center font-mono focus:outline-none focus:border-emerald-400" />

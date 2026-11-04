@@ -34,7 +34,7 @@ export function inicializarBarraAcoesLote(
       return;
     }
     const { abrirModalVerticeVirtual } = await import('../modal_vertice_virtual');
-    abrirModalVerticeVirtual(ctx);
+    abrirModalVerticeVirtual(ctx, 'offset');
   });
 
   // Excluir em lote

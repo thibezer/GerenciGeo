@@ -135,8 +135,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
     const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
     const pontosMapa = pontosParaMapa(pontosMat);
-    ctx.mapaController.plotPontos(pontosMapa, (pId: number) => {
-      ctx.cliqueVerticeMapa?.(pId);
+    ctx.mapaController.plotPontos(pontosMapa, (pId: number, ev?: any) => {
+      ctx.cliqueVerticeMapa?.(pId, ev?.originalEvent || ev);
     });
 
     const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));

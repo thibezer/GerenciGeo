@@ -387,9 +387,19 @@ export const mesaTrabalhoRoute: RouteDef = {
         canvasEl.addEventListener('ui-ponto-selecionado', (e: any) => {
           ctx.selectedSegmentoId = null;
           ctx.selectedSegmento = null;
-          const pId = e.detail?.lastSelectedId || (e.detail?.selectedIds && e.detail.selectedIds[0]);
+          const selectedIds = e.detail?.selectedIds;
+          if (Array.isArray(selectedIds) && selectedIds.length > 1) {
+            ctx.selectedPontoIds = selectedIds.map(Number);
+            ctx.lastSelectedPontoId = e.detail?.lastSelectedId ? Number(e.detail.lastSelectedId) : ctx.selectedPontoIds[ctx.selectedPontoIds.length - 1];
+            ctx.atualizarDestaqueLinhasTabela();
+            if (typeof ctx.atualizarPainelPropriedades === 'function') {
+              ctx.atualizarPainelPropriedades();
+            }
+            return;
+          }
+          const pId = e.detail?.lastSelectedId || (selectedIds && selectedIds[0]);
           if (pId) {
-            ctx.cliqueVerticeMapa?.(pId);
+            ctx.cliqueVerticeMapa?.(pId, e.detail?.eventoOriginal);
           }
         });
 
@@ -974,10 +984,25 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     // Todos os caminhos de clique num vértice do mapa (callback do plotPontos, 'ui-ponto-selecionado')
     // passam por aqui, para o "Caminhar Clique" valer em qualquer etapa.
-    ctx.cliqueVerticeMapa = (pontoId: number | string) => {
+    ctx.cliqueVerticeMapa = (pontoId: number | string, evOrig?: MouseEvent) => {
       if (ctx.modoCliqueSequencialAtivo) {
         ctx.lidarCliqueMarcadorSequencial(pontoId);
       } else {
+        const mouseEv = evOrig || (window.event as MouseEvent);
+        if (mouseEv && (mouseEv.ctrlKey || mouseEv.metaKey)) {
+          const numId = Number(pontoId);
+          if (ctx.selectedPontoIds.includes(numId)) {
+            ctx.selectedPontoIds = ctx.selectedPontoIds.filter((id: number) => id !== numId);
+          } else {
+            ctx.selectedPontoIds.push(numId);
+            ctx.lastSelectedPontoId = numId;
+          }
+          ctx.atualizarDestaqueLinhasTabela();
+          if (typeof ctx.atualizarPainelPropriedades === 'function') {
+            ctx.atualizarPainelPropriedades();
+          }
+          return;
+        }
         // Trata vértices empilhados: alterna entre eles e oferece lista de escolha
         selecionarVerticeClicado(ctx, pontoId);
       }

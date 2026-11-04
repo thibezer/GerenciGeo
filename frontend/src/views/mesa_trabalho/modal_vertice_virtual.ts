@@ -33,7 +33,7 @@ const paraNumero = (texto: string) => {
   return Number.isFinite(v) ? v : 0;
 };
 
-export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promise<void> {
+export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInicial: Aba = 'intersecao'): Promise<void> {
   const levId = ctx.currentLevId;
   const matId = ctx.currentMatriculaId;
   const map = ctx.triagemMap;
@@ -73,10 +73,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   // Pré-seleção: se houver pontos selecionados, usa-os
   const idsIniciais: number[] = (ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
     ? ctx.selectedPontoIds
-    : pontosDisponiveis.slice(0, 4).map(p => p.id);
-  const idPadrao = (i: number) => idsIniciais[i] ?? pontosDisponiveis[i % pontosDisponiveis.length].id;
+    : [];
+  const idPadrao = (i: number) => idsIniciais[i] ?? (pontosDisponiveis[i % pontosDisponiveis.length]?.id ?? 0);
 
-  let abaAtiva: Aba = 'intersecao';
+  let abaAtiva: Aba = abaInicial;
 
   // Deslocamento paralelo (cadeia)
   // Valores brutos dos inputs, para não perder o que o usuário está digitando ("1.", "") ao re-renderizar

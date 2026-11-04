@@ -68,7 +68,7 @@ export interface MesaTrabalhoContext {
   carregarConfrontantesAtivosSelect: () => Promise<void>;
   selectPontoFromTabela: (pontoId: number) => void;
   /** Clique num vértice do mapa: numera no "Caminhar Clique" ou seleciona o ponto */
-  cliqueVerticeMapa?: (pontoId: number | string) => void;
+  cliqueVerticeMapa?: (pontoId: number | string, evOrig?: MouseEvent) => void;
   aplicarLargurasSplitters: () => void;
 
   // Funções utilitárias e de reordenação
