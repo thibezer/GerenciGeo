@@ -908,12 +908,16 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       ? (container.querySelector<HTMLElement>('#vv-corpo')?.scrollTop ?? 0)
       : 0;
     container.innerHTML = `
-      <div class="px-6 pt-5 pb-4 flex items-start justify-between gap-4 shrink-0">
-        <div>
+      <div class="px-6 pt-5 pb-4 flex items-center justify-between gap-4 shrink-0">
+        <div class="flex items-center gap-4 flex-wrap">
           <h3 class="text-base font-bold text-white">Criar vértices virtuais</h3>
-          <p class="text-[12px] text-white/50 mt-0.5">Gera vértices tipo <span class="font-mono text-white/70">V</span> calculados a partir de pontos medidos, com incerteza propagada conforme o SIGEF.</p>
+          <div class="inline-flex p-0.5 rounded-lg bg-white/5 border border-white/10 text-xs">
+            ${botaoAba('intersecao', 'Interseção')}
+            ${botaoAba('faixa', 'F. Domínio')}
+            ${botaoAba('offset', 'Deslocamento')}
+          </div>
         </div>
-        <div class="flex items-center gap-1 -mr-1.5 -mt-1">
+        <div class="flex items-center gap-1 -mr-1.5">
           ${map ? `
             <button id="btn-ocultar-modal" type="button" class="flex items-center gap-1 text-[11px] text-white/50 hover:text-white hover:bg-white/5 rounded-md transition-colors px-2 py-1.5" title="Ocultar o modal para ver a prévia no mapa">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -926,12 +930,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       </div>
 
       <div class="px-6 shrink-0">
-        <div class="inline-flex p-0.5 rounded-lg bg-white/5 border border-white/10 text-xs">
-          ${botaoAba('intersecao', 'Interseção de 2 Linhas')}
-          ${botaoAba('faixa', 'Faixa de domínio × divisa')}
-          ${botaoAba('offset', 'Deslocamento paralelo')}
-        </div>
-        <p class="text-[11px] text-white/40 mt-2">
+        <p class="text-[11px] text-white/40">
           ${abaAtiva === 'intersecao'
             ? 'Calcula o vértice virtual exatamente no cruzamento de duas linhas retas definidas por pontos conhecidos (Linha 1: P1→P2 e Linha 2: P3→P4).'
             : abaAtiva === 'offset'
