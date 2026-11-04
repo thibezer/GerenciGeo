@@ -4,6 +4,7 @@ import { showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset, RespostaVerticeVirtual } from '../../types/verticesVirtuais';
 import { coordenadaPonto } from './coordenadas_mapa';
+import { avisoContinuidadeAlinhamento } from '../../utils/continuidadeAlinhamento';
 
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
@@ -600,6 +601,11 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   const renderCadeia = () => {
     const restantes = pontosDisponiveis.filter(p => !pontosSelecionadosIds.includes(p.id));
+    const avisoContinuidade = avisoContinuidadeAlinhamento(
+      pontosSelecionadosIds.map(id => pontosDisponiveis.find(p => Number(p.id) === id)).filter(Boolean) as any[],
+      ctx.pontosList || [],
+      ctx.currentMatriculaId,
+    );
     const chips = pontosSelecionadosIds.map((pid, i) => `
       ${i > 0 ? '<span class="text-white/25 select-none">→</span>' : ''}
       <span class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-md bg-white/[0.06] border border-white/10 font-mono text-[11px] text-white/85">
@@ -622,6 +628,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
         ` : ''}
       </div>
       ${pontosSelecionadosIds.length < 2 ? '<div class="mt-2 text-[11px] text-amber-400">Adicione pelo menos 2 pontos para definir o alinhamento.</div>' : ''}
+      ${avisoContinuidade ? `<div class="mt-2 text-[11px] text-amber-400">⚠ ${escapeHtml(avisoContinuidade)}</div>` : ''}
     `;
   };
 

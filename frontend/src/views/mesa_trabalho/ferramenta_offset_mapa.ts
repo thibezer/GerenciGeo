@@ -5,6 +5,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import type { LadoOffset } from '../../types/verticesVirtuais';
 import { gerarGeometriaPreviewOffsetPolilinha } from '../../utils/previewGeometria';
 import { coordenadaPonto, zonaUtmDoLevantamento } from './coordenadas_mapa';
+import { avisoContinuidadeAlinhamento } from '../../utils/continuidadeAlinhamento';
 
 /**
  * Ferramenta Interativa de Deslocamento (Offset) no Mapa - Padrão AutoCAD
@@ -59,6 +60,11 @@ export class FerramentaOffsetMapa {
     }
 
     this.pontosOrigem = [...pontos];
+
+    // Aviso informativo (não bloqueia): seleção com lacunas no perímetro
+    const aviso = avisoContinuidadeAlinhamento(pontos, this.ctx.pontosList || [], this.ctx.currentMatriculaId);
+    if (aviso) showToast(aviso, 'info', 7000);
+
     this.ativo = true;
     this.previewLayer = L.layerGroup().addTo(map);
 
