@@ -100,6 +100,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     previewLayerGroup = L.layerGroup().addTo(map);
   }
 
+  // Guias das linhas escolhidas (com prolongamento até o cruzamento), visíveis antes de calcular
+  const guiasLayer: L.LayerGroup | null = map ? L.layerGroup().addTo(map) : null;
+  let guiasBounds: L.LatLngBounds | null = null;
+
   const limparPreviewMapa = () => {
     if (previewLayerGroup && map) {
       previewLayerGroup.clearLayers();
@@ -183,7 +187,85 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     overlay.classList.toggle('opacity-100', !oculto);
     botaoRestaurar.classList.toggle('hidden', !oculto);
   };
-  botaoRestaurar.addEventListener('click', () => definirOculto(false));
+  botaoRestaurar.addEventListener('click', () => {
+    if (alvoPick) encerrarPick();
+    else definirOculto(false);
+  });
+
+  // ── Escolha de pontos direto no mapa ────────────────────────────────────────
+  type LinhaId = 'eixo' | 'divisa' | 'linha1' | 'linha2';
+  const ROTULO_LINHA: Record<LinhaId, string> = { eixo: 'Eixo', divisa: 'Divisa', linha1: 'Linha 1', linha2: 'Linha 2' };
+  let alvoPick: LinhaId | null = null;
+  let pickPendente: number | null = null;
+  let ultimoPick = { id: 0, instante: 0 };
+  const cliqueOriginal = ctx.cliqueVerticeMapa;
+
+  const idsDaLinha = (linha: LinhaId): [number, number] =>
+    linha === 'eixo' ? eixoIds : linha === 'divisa' ? divisaIds : linha === 'linha1' ? alinhamento1Ids : alinhamento2Ids;
+
+  const bannerPick = document.createElement('div');
+  bannerPick.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[999999] hidden items-center gap-3 px-4 py-2 rounded-full bg-[#111113] border border-emerald-500/50 text-white text-xs shadow-2xl';
+
+  const atualizarBannerPick = () => {
+    if (!alvoPick) return;
+    const etapa = pickPendente === null ? 'ponto inicial' : 'ponto final';
+    bannerPick.innerHTML = `
+      <span><b class="text-emerald-300">${ROTULO_LINHA[alvoPick]}</b>: clique no <b>${etapa}</b> no mapa${pickPendente !== null ? ` (início: ${escapeHtml(nomePonto(pickPendente))})` : ''}</span>
+      <button type="button" class="px-2 py-0.5 rounded text-white/60 hover:text-white hover:bg-white/10">Cancelar (Esc)</button>
+    `;
+    bannerPick.querySelector('button')?.addEventListener('click', () => encerrarPick());
+  };
+
+  function encerrarPick(): void {
+    alvoPick = null;
+    pickPendente = null;
+    bannerPick.classList.add('hidden');
+    bannerPick.classList.remove('flex');
+    ctx.cliqueVerticeMapa = cliqueOriginal;
+    definirOculto(false);
+    renderConteudo();
+  }
+
+  const aoClicarPontoNoMapa = (idBruto: number | string) => {
+    if (!alvoPick) return;
+    const id = Number(idBruto);
+    // O mesmo clique chega por dois caminhos (callback do marcador e evento do canvas)
+    const agora = Date.now();
+    if (ultimoPick.id === id && agora - ultimoPick.instante < 400) return;
+    ultimoPick = { id, instante: agora };
+
+    if (!pontosDisponiveis.some(p => Number(p.id) === id)) {
+      showToast('Esse ponto não está disponível para o cálculo.', 'info');
+      return;
+    }
+    if (pickPendente === null) {
+      pickPendente = id;
+      atualizarBannerPick();
+      desenharGuias();
+      return;
+    }
+    if (id === pickPendente) {
+      showToast('Escolha um ponto diferente do inicial.', 'info');
+      return;
+    }
+    const par = idsDaLinha(alvoPick);
+    par[0] = pickPendente;
+    par[1] = id;
+    invalidarPrevia();
+    encerrarPick();
+  };
+
+  const iniciarPick = (linha: LinhaId) => {
+    if (!map) return;
+    alvoPick = linha;
+    pickPendente = null;
+    ctx.cliqueVerticeMapa = (id: number | string) => aoClicarPontoNoMapa(id);
+    atualizarBannerPick();
+    bannerPick.classList.remove('hidden');
+    bannerPick.classList.add('flex');
+    definirOculto(true);
+    desenharGuias();
+  };
 
   const nomePonto = (pid: number) => {
     const p = pontosDisponiveis.find(pt => pt.id === pid);
@@ -201,9 +283,16 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   const fecharModal = () => {
     fechado = true;
     botaoRestaurar.remove();
+    bannerPick.remove();
+    if (alvoPick) ctx.cliqueVerticeMapa = cliqueOriginal;
+    alvoPick = null;
     limparPreviewMapa();
     if (previewLayerGroup && map) {
       map.removeLayer(previewLayerGroup);
+    }
+    if (guiasLayer && map) {
+      guiasLayer.clearLayers();
+      map.removeLayer(guiasLayer);
     }
     window.removeEventListener('keydown', onKeyDown);
     overlay.classList.remove('opacity-100');
@@ -223,6 +312,111 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       previa.desatualizada = true;
       limparPreviewMapa();
     }
+  };
+
+  // Desenha as linhas escolhidas e o prolongamento até o cruzamento previsto (plano local em metros: só visual)
+  const desenharGuias = () => {
+    if (!guiasLayer || !map) return;
+    guiasLayer.clearLayers();
+    guiasBounds = null;
+    if (abaAtiva === 'offset') return;
+
+    type XY = { x: number; y: number };
+    const linhasAba: LinhaId[] = abaAtiva === 'intersecao' ? ['linha1', 'linha2'] : ['eixo', 'divisa'];
+    const coords = linhasAba.map(l => idsDaLinha(l).map(id => {
+      const pt = pontosDisponiveis.find(p => Number(p.id) === Number(id));
+      return { id, c: pt ? coordenadaPonto(pt) : null };
+    }));
+    const pendente = pickPendente !== null
+      ? { id: pickPendente, c: coordenadaPonto(pontosDisponiveis.find(p => Number(p.id) === pickPendente)) }
+      : null;
+
+    const todos = coords.flat();
+    const ref = todos.find(t => t.c)?.c;
+    if (!ref) return;
+    const mLat = 111320;
+    const mLon = 111320 * Math.cos(ref.lat * Math.PI / 180);
+    const proj = (c: { lat: number; lon: number }): XY => ({ x: (c.lon - ref.lon) * mLon, y: (c.lat - ref.lat) * mLat });
+    const unproj = (p: XY): [number, number] => [ref.lat + p.y / mLat, ref.lon + p.x / mLon];
+    const marcador = (id: number, c: { lat: number; lon: number }, cor: string) => {
+      const m = L.circleMarker([c.lat, c.lon], { radius: 6, color: cor, weight: 2, fillColor: '#111113', fillOpacity: 0.9 });
+      m.bindTooltip(escapeHtml(nomePonto(id)), { permanent: true, direction: 'top', offset: [0, -6] });
+      guiasLayer.addLayer(m);
+    };
+
+    if (pendente?.c) { marcador(pendente.id, pendente.c, '#10b981'); guiasBounds = L.latLngBounds([[pendente.c.lat, pendente.c.lon]]); }
+
+    // Retas completas (quatro pontos válidos), exceto a que está sendo escolhida no mapa
+    const emEscolha = alvoPick ? linhasAba.indexOf(alvoPick) : -1;
+    const validas = coords.map((par, i) => i !== emEscolha && par[0].c && par[1].c && par[0].id !== par[1].id);
+    const cores = abaAtiva === 'intersecao' ? ['#38bdf8', '#fbbf24'] : ['#e5e7eb', '#fbbf24'];
+
+    const pares: ([XY, XY] | null)[] = coords.map((par, i) => validas[i] ? [proj(par[0].c!), proj(par[1].c!)] : null);
+    // Na faixa de domínio o cruzamento é com a paralela do eixo, não com o eixo em si
+    let retaA = pares[0];
+    if (abaAtiva === 'faixa' && pares[0]) {
+      const [a, b] = pares[0];
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+      const d = paraNumero(larguraTexto) * (ladoFaixa === 'DIREITA' ? 1 : -1);
+      retaA = len > 1e-6 ? [{ x: a.x + d * dy / len, y: a.y - d * dx / len }, { x: b.x + d * dy / len, y: b.y - d * dx / len }] : null;
+    }
+    const retaB = pares[1];
+
+    let ta: number | null = null, tb: number | null = null, cruz: XY | null = null;
+    if (retaA && retaB) {
+      const [a, b] = retaA, [c, e] = retaB;
+      const r = { x: b.x - a.x, y: b.y - a.y }, s = { x: e.x - c.x, y: e.y - c.y };
+      const den = r.x * s.y - r.y * s.x;
+      if (Math.abs(den) > 1e-9) {
+        ta = ((c.x - a.x) * s.y - (c.y - a.y) * s.x) / den;
+        tb = ((c.x - a.x) * r.y - (c.y - a.y) * r.x) / den;
+        cruz = { x: a.x + ta * r.x, y: a.y + ta * r.y };
+      }
+    }
+
+    const desenharReta = (reta: [XY, XY], t: number | null, cor: string, tracejada: boolean) => {
+      const [a, b] = reta;
+      const linha = L.polyline([unproj(a), unproj(b)], { color: cor, weight: 3, opacity: 0.9, dashArray: tracejada ? '8, 6' : undefined });
+      guiasLayer.addLayer(linha);
+      if (cruz && t !== null && (t < 0 || t > 1)) {
+        const extremo = t > 1 ? b : a;
+        guiasLayer.addLayer(L.polyline([unproj(extremo), unproj(cruz)], { color: cor, weight: 2.5, opacity: 0.9, dashArray: '2, 7' }));
+      }
+    };
+
+    const latlngsBounds: [number, number][] = [];
+    coords.forEach((par, i) => {
+      if (i === emEscolha) return;
+      par.forEach(p => { if (p.c) marcador(p.id, p.c, cores[i]); });
+    });
+    if (retaA && retaB) {
+      if (abaAtiva === 'faixa' && pares[0]) desenharReta(pares[0], null, cores[0], false);
+      desenharReta(retaA, ta, abaAtiva === 'faixa' ? '#10b981' : cores[0], abaAtiva === 'faixa');
+      desenharReta(retaB, tb, cores[1], false);
+    } else {
+      if (pares[0]) desenharReta(pares[0], null, cores[0], false);
+      if (pares[1]) desenharReta(pares[1], null, cores[1], false);
+    }
+
+    if (cruz) {
+      const nome = abaAtiva === 'intersecao' ? nomeVerticeIntersecao : nomeVerticeFaixa;
+      const extensoes: string[] = [];
+      const medir = (rotulo: string, t: number | null, reta: [XY, XY]) => {
+        if (t === null || (t >= 0 && t <= 1)) return;
+        const len = Math.hypot(reta[1].x - reta[0].x, reta[1].y - reta[0].y);
+        extensoes.push(`prolonga ${rotulo} em ${(Math.abs(t > 1 ? t - 1 : t) * len).toFixed(1)} m`);
+      };
+      medir(abaAtiva === 'intersecao' ? 'Linha 1' : 'a paralela do eixo', ta, retaA!);
+      medir(abaAtiva === 'intersecao' ? 'Linha 2' : 'a divisa', tb, retaB!);
+      const pos = unproj(cruz);
+      const m = L.circleMarker(pos, { radius: 7, color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 0.25, dashArray: '3, 3' });
+      m.bindTooltip(`<b>${escapeHtml(nome || 'V')}</b> (previsto)${extensoes.length ? `<br>${extensoes.join('<br>')}` : '<br>cruza dentro dos segmentos'}`, { permanent: true, direction: 'right', offset: [8, 0] });
+      guiasLayer.addLayer(m);
+      latlngsBounds.push(pos);
+    }
+
+    todos.forEach(t => { if (t.c) latlngsBounds.push([t.c.lat, t.c.lon]); });
+    if (latlngsBounds.length > 0) guiasBounds = L.latLngBounds(latlngsBounds);
   };
 
   const desenharPreviewNoMapa = (resultados: RespostaVerticeVirtual[]) => {
@@ -647,6 +841,11 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
         <span class="text-white/30">→</span>
         ${select(1)}
       </div>
+      ${map ? `
+        <button type="button" data-linha="${linha}" class="btn-pick-mapa mt-2 flex items-center gap-1.5 text-[11px] text-emerald-300/80 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-md px-2 py-1 -ml-2 transition-colors">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="1" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="23"/><line x1="1" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="23" y2="12"/></svg>
+          Escolher no mapa
+        </button>` : ''}
       ${ids[0] === ids[1] ? '<div class="mt-2 text-[11px] text-amber-400">Escolha dois pontos diferentes.</div>' : ''}
     `;
   };
@@ -952,7 +1151,13 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
     // Eventos
     container.querySelector('#btn-fechar-modal-vvirtual')?.addEventListener('click', fecharModal);
-    container.querySelector('#btn-ocultar-modal')?.addEventListener('click', () => definirOculto(true));
+    container.querySelector('#btn-ocultar-modal')?.addEventListener('click', () => {
+      definirOculto(true);
+      if (map && guiasBounds && guiasBounds.isValid()) map.fitBounds(guiasBounds, { padding: [60, 60], maxZoom: 19 });
+    });
+    container.querySelectorAll<HTMLElement>('.btn-pick-mapa').forEach(btn => {
+      btn.addEventListener('click', () => iniciarPick(btn.dataset.linha as LinhaId));
+    });
     container.querySelector('#btn-cancelar-modal')?.addEventListener('click', fecharModal);
 
     container.querySelectorAll<HTMLElement>('.btn-aba').forEach(btn => {
@@ -1071,6 +1276,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       else calcularFaixaApi();
     });
     container.querySelector('#btn-confirmar-gravar')?.addEventListener('click', confirmarInsercao);
+
+    desenharGuias();
   };
 
   // Re-renderiza a partir de um input de texto sem tirar o cursor do lugar
@@ -1086,7 +1293,9 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
-    if (!botaoRestaurar.classList.contains('hidden')) {
+    if (alvoPick) {
+      encerrarPick();
+    } else if (!botaoRestaurar.classList.contains('hidden')) {
       definirOculto(false);
     } else if (!salvando) {
       fecharModal();
@@ -1099,6 +1308,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   overlay.appendChild(container);
   document.body.appendChild(overlay);
   document.body.appendChild(botaoRestaurar);
+  document.body.appendChild(bannerPick);
 
   renderConteudo();
 
