@@ -118,19 +118,20 @@ export class FerramentaOffsetMapa {
   private obterPontosOrigem(): any[] {
     const todos = this.ctx.pontosList || [];
     if (this.ctx.selectedPontoIds && this.ctx.selectedPontoIds.length >= 2) {
+      // Ordena por ordem de caminhamento para evitar geometrias em zig-zag
       return this.ctx.selectedPontoIds
         .map(id => todos.find(p => String(p.id) === String(id)))
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0));
     }
-    // Fallback: primeiros pontos da matrícula ativa
+    // Fallback: todos os pontos ativos da matrícula atual na ordem correta
     const matId = this.ctx.currentMatriculaId;
     const pontosMat = matId
       ? todos.filter(p => String(p.matricula_id) === String(matId) && !p.ignorar_poligono)
       : todos.filter(p => !p.ignorar_poligono);
     return pontosMat
       .slice()
-      .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0))
-      .slice(0, 4);
+      .sort((a, b) => (Number(a.ordem_caminhamento) || 0) - (Number(b.ordem_caminhamento) || 0));
   }
 
   private onMouseMove(e: L.LeafletMouseEvent): void {
@@ -138,21 +139,43 @@ export class FerramentaOffsetMapa {
     const pontos = this.obterPontosOrigem();
     if (pontos.length < 2) return;
 
-    // Detecta de qual lado da linha (P0 -> P1) o mouse está usando produto vetorial 2D
-    const c0 = coordenadaPonto(pontos[0]);
-    const c1 = coordenadaPonto(pontos[1]);
-    if (!c0 || !c1) return;
-
-    const x0 = c0.lon;
-    const y0 = c0.lat;
-    const x1 = c1.lon;
-    const y1 = c1.lat;
-
     const mx = e.latlng.lng;
     const my = e.latlng.lat;
 
-    // Determinante 2D: (x1 - x0)*(my - y0) - (y1 - y0)*(mx - x0)
-    const det = (x1 - x0) * (my - y0) - (y1 - y0) * (mx - x0);
+    // Identifica o segmento da polilinha mais próximo da posição atual do cursor
+    let segMaisProximo: { x0: number; y0: number; x1: number; y1: number } | null = null;
+    let menorDist2 = Infinity;
+
+    for (let i = 0; i < pontos.length - 1; i++) {
+      const cA = coordenadaPonto(pontos[i]);
+      const cB = coordenadaPonto(pontos[i + 1]);
+      if (!cA || !cB) continue;
+
+      const x0 = cA.lon;
+      const y0 = cA.lat;
+      const x1 = cB.lon;
+      const y1 = cB.lat;
+
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? ((mx - x0) * dx + (my - y0) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const projX = x0 + t * dx;
+      const projY = y0 + t * dy;
+      const dist2 = (mx - projX) * (mx - projX) + (my - projY) * (my - projY);
+
+      if (dist2 < menorDist2) {
+        menorDist2 = dist2;
+        segMaisProximo = { x0, y0, x1, y1 };
+      }
+    }
+
+    if (!segMaisProximo) return;
+
+    // Produto vetorial 2D em relação ao segmento local mais próximo
+    const det = (segMaisProximo.x1 - segMaisProximo.x0) * (my - segMaisProximo.y0) -
+                (segMaisProximo.y1 - segMaisProximo.y0) * (mx - segMaisProximo.x0);
     const novoLado: LadoOffset = det < 0 ? 'DIREITA' : 'ESQUERDA';
 
     if (novoLado !== this.ladoDetectado) {

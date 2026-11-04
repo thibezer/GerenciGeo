@@ -425,13 +425,23 @@ class MotorVerticesVirtuais:
                 seg_ant = segmentos_offset[i - 1]
                 seg_post = segmentos_offset[i]
                 metodo = "PA1+PA2"
+                usar_media = False
                 try:
                     coord, _, angulo = cls._intersecao_retas_2d(
                         seg_ant[0], seg_ant[1],
                         seg_post[0], seg_post[1]
                     )
+                    # Miter limit (CAD): se o canto for excessivamente agudo e a projeção
+                    # exceder 2.5x a distância de offset, corta o pico para evitar invasão de divisa
+                    orig_pt = np.array([pt_origem.este, pt_origem.norte], dtype=float)
+                    dist_canto = float(np.linalg.norm(coord - orig_pt))
+                    if dist_canto > max(2.5 * distancia, 1.0):
+                        usar_media = True
                 except ValueError:
-                    # Se forem colineares ou muito agudos, usa a média vetorial dos pontos de canto
+                    usar_media = True
+
+                if usar_media:
+                    # Se forem colineares, muito agudos ou excederem o miter limit, usa a média vetorial dos cantos
                     coord = (seg_ant[1] + seg_post[0]) / 2.0
                     angulo = 180.0
 

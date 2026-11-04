@@ -340,5 +340,39 @@ class TestVerticesVirtuaisAPI(unittest.TestCase):
             self.assertEqual(len(set(nomes)), 4, f"Deveria ter 4 nomes distintos: {nomes}")
 
 
+    def test_offset_lote_validacoes_seguranca(self):
+        """Garante que fuso inválido ou matrícula que não pertence ao levantamento são rejeitados."""
+        # 1. Matrícula inexistente / de outro levantamento
+        res_mat = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/999999/vertices-virtuais/calcular-offset-lote",
+            json={
+                "ponto_ids": [self.e1_id, self.e2_id],
+                "distancia": 10.0,
+                "lado": "DIREITA"
+            }
+        )
+        self.assertEqual(res_mat.status_code, 404)
+
+        # 2. Fuso UTM fora da faixa brasileira (18 a 25)
+        res_fuso = client.post(
+            f"/levantamentos/{self.lev_id}/matriculas/{self.mat_id}/vertices-virtuais/confirmar-lote",
+            json={
+                "fuso_utm": 99,
+                "vertices": [{
+                    "nome_vertice": "V-01",
+                    "este": 500010.0,
+                    "norte": 7000000.0,
+                    "altitude": 500.0,
+                    "sigma_este": 0.02,
+                    "sigma_norte": 0.02,
+                    "sigma_altitude": 0.03,
+                    "sigma_planimetrico": 0.03,
+                    "metodo": "PA1"
+                }]
+            }
+        )
+        self.assertEqual(res_fuso.status_code, 400)
+        self.assertIn("Fuso UTM inválido", res_fuso.json()["detail"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -1437,54 +1437,70 @@ class PayloadConfirmarOffsetLote(BaseModel):
 
 
 def _obter_ponto_apoio_db(ponto_id: int):
+    pts = _obter_pontos_apoio_db_lote([ponto_id])
+    return pts[0]
+
+
+def _obter_pontos_apoio_db_lote(ponto_ids: List[int]):
     from services.processamento.vertices_virtuais import PontoApoio
 
-    row = execute_query(
-        """
+    if not ponto_ids:
+        return []
+
+    ids_unicos = list(dict.fromkeys(ponto_ids))
+    marcadores = ",".join("?" for _ in ids_unicos)
+    rows = execute_query(
+        f"""
         SELECT id, nome_vertice, lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
                e_corrigido, n_corrigido, e_original, n_original, alt_original,
                sigma_e, sigma_n, sigma_z, sigma_lat, sigma_lon, sigma_alt, fuso_utm
-        FROM pontos WHERE id = ?
+        FROM pontos WHERE id IN ({marcadores})
         """,
-        params=(ponto_id,),
-        fetch_one=True,
+        params=tuple(ids_unicos),
+        fetch_all=True,
     )
-    if not row:
-        raise HTTPException(status_code=404, detail=f"Ponto de apoio ID {ponto_id} não encontrado.")
+    pontos_map = {}
+    for row in (rows or []):
+        p = dict(row)
+        pid = p["id"]
+        e = p.get("e_corrigido") or p.get("e_original")
+        n = p.get("n_corrigido") or p.get("n_original")
+        alt = p.get("alt_corrigido") or p.get("alt") or p.get("alt_original") or 0.0
 
-    p = dict(row)
-    e = p.get("e_corrigido") or p.get("e_original")
-    n = p.get("n_corrigido") or p.get("n_original")
-    alt = p.get("alt_corrigido") or p.get("alt") or p.get("alt_original") or 0.0
+        if e is None or n is None:
+            lat = p.get("lat_corrigido") or p.get("lat")
+            lon = p.get("lon_corrigido") or p.get("lon")
+            if lat is not None and lon is not None:
+                fuso = p.get("fuso_utm") or (int((lon + 180) / 6) + 1)
+                transformer = get_transformer("epsg:4674", f"epsg:319{60 + fuso}", always_xy=True)
+                e_calc, n_calc = transformer.transform(lon, lat)
+                e = e or e_calc
+                n = n or n_calc
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
+                )
 
-    if e is None or n is None:
-        lat = p.get("lat_corrigido") or p.get("lat")
-        lon = p.get("lon_corrigido") or p.get("lon")
-        if lat is not None and lon is not None:
-            fuso = p.get("fuso_utm") or (int((lon + 180) / 6) + 1)
-            transformer = get_transformer("epsg:4674", f"epsg:319{60 + fuso}", always_xy=True)
-            e_calc, n_calc = transformer.transform(lon, lat)
-            e = e or e_calc
-            n = n or n_calc
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
-            )
+        s_e = p.get("sigma_e") or p.get("sigma_lon") or 0.02
+        s_n = p.get("sigma_n") or p.get("sigma_lat") or 0.02
+        s_z = p.get("sigma_z") or p.get("sigma_alt") or 0.03
 
-    s_e = p.get("sigma_e") or p.get("sigma_lon") or 0.02
-    s_n = p.get("sigma_n") or p.get("sigma_lat") or 0.02
-    s_z = p.get("sigma_z") or p.get("sigma_alt") or 0.03
+        pontos_map[pid] = PontoApoio(
+            nome=p.get("nome_vertice") or f"P{p['id']}",
+            este=float(e),
+            norte=float(n),
+            altitude=float(alt),
+            sigma_este=float(s_e),
+            sigma_norte=float(s_n),
+            sigma_altitude=float(s_z),
+        )
 
-    return PontoApoio(
-        nome=p.get("nome_vertice") or f"P{p['id']}",
-        este=float(e),
-        norte=float(n),
-        altitude=float(alt),
-        sigma_este=float(s_e),
-        sigma_norte=float(s_n),
-        sigma_altitude=float(s_z),
-    )
+    for pid in ponto_ids:
+        if pid not in pontos_map:
+            raise HTTPException(status_code=404, detail=f"Ponto de apoio ID {pid} não encontrado.")
+
+    return [pontos_map[pid] for pid in ponto_ids]
 
 
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-combo-pa1-pa2")
@@ -1712,16 +1728,31 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         if payload.distancia <= 0:
             raise HTTPException(status_code=400, detail="A distância de offset deve ser maior que zero.")
 
+        # Validação de escopo: matrícula deve pertencer ao levantamento
+        if matricula_id and matricula_id > 0:
+            row_mat = execute_query(
+                """
+                SELECT m.id FROM matriculas m
+                JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
+                WHERE m.id = ? AND l.id = ?
+                """,
+                params=(matricula_id, id),
+                fetch_one=True,
+            )
+            if not row_mat:
+                raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
+
         ids_unicos = list(dict.fromkeys(payload.ponto_ids))
         marcadores = ",".join("?" for _ in ids_unicos)
         rows_pertencem = execute_query(
             f"SELECT id FROM pontos WHERE levantamento_id = ? AND id IN ({marcadores})",
             params=(id, *ids_unicos),
+            fetch_all=True,
         )
         if len(rows_pertencem or []) != len(ids_unicos):
             raise HTTPException(status_code=400, detail="Há pontos de apoio que não pertencem a este levantamento.")
 
-        pontos_apoio = [_obter_ponto_apoio_db(pid) for pid in payload.ponto_ids]
+        pontos_apoio = _obter_pontos_apoio_db_lote(payload.ponto_ids)
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
         rows_nomes = execute_query(
@@ -1780,8 +1811,35 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
     if not payload.vertices:
         raise HTTPException(status_code=400, detail="Nenhum vértice virtual fornecido para inserção.")
 
+    # Validação de escopo: matrícula deve pertencer ao levantamento
+    if matricula_id and matricula_id > 0:
+        row_mat = execute_query(
+            """
+            SELECT m.id FROM matriculas m
+            JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
+            WHERE m.id = ? AND l.id = ?
+            """,
+            params=(matricula_id, id),
+            fetch_one=True,
+        )
+        if not row_mat:
+            raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
+
+    # Validação do confrontante se fornecido
+    if payload.confrontante_id:
+        row_conf = execute_query(
+            "SELECT id FROM confrontantes WHERE id = ? AND levantamento_id = ?",
+            params=(payload.confrontante_id, id),
+            fetch_one=True,
+        )
+        if not row_conf:
+            raise HTTPException(status_code=400, detail="Confrontante informado não pertence a este levantamento.")
+
+    fuso = payload.fuso_utm or 22
+    if not (18 <= fuso <= 25):
+        raise HTTPException(status_code=400, detail=f"Fuso UTM inválido ({fuso}). Deve situar-se entre 18 e 25.")
+
     try:
-        fuso = payload.fuso_utm or 22
         transformer = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
 
         row_max = execute_query(
@@ -1821,7 +1879,7 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                     INSERT INTO pontos (
                         levantamento_id, matricula_id, nome_vertice, tipo_ponto,
                         lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
-                        n_corrigido, e_corrigido,
+                        n_corrigido, e_corrigido, n_original, e_original, alt_original,
                         sigma_n, sigma_e, sigma_z, sigma_lat, sigma_lon, sigma_alt,
                         fuso_utm, metodo_posicionamento,
                         status_ponto, status_correcao, camada_ciclo_vida,
@@ -1829,7 +1887,7 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                     ) VALUES (
                         ?, ?, ?, 'V',
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?,
+                        ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
                         ?, ?,
                         'CORRIGIDO', 'CORRIGIDO', 'PERIMETRO',
@@ -1839,7 +1897,7 @@ def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadC
                     (
                         id, matricula_id, nome_final,
                         lat_calc, lon_calc, v.altitude, lat_calc, lon_calc, v.altitude,
-                        v.norte, v.este,
+                        v.norte, v.este, v.norte, v.este, v.altitude,
                         v.sigma_norte, v.sigma_este, v.sigma_altitude,
                         v.sigma_norte, v.sigma_este, v.sigma_altitude,
                         fuso, v.metodo,

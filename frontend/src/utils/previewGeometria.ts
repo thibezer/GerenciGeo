@@ -156,18 +156,42 @@ export function gerarGeometriaPreviewOffsetPolilinha(
     } else {
       const seg1 = segmentos[i - 1];
       const seg2 = segmentos[i];
+      const l1 = Math.hypot(seg1[1].este - seg1[0].este, seg1[1].norte - seg1[0].norte);
+      const l2 = Math.hypot(seg2[1].este - seg2[0].este, seg2[1].norte - seg2[0].norte);
       const den = (seg1[0].este - seg1[1].este) * (seg2[0].norte - seg2[1].norte) -
                   (seg1[0].norte - seg1[1].norte) * (seg2[0].este - seg2[1].este);
-      if (Math.abs(den) < 1e-7) {
+
+      let usarMedia = false;
+      let intE = 0;
+      let intN = 0;
+
+      if (Math.abs(den) < 1e-7 || l1 < 1e-4 || l2 < 1e-4) {
+        usarMedia = true;
+      } else {
+        const sinTheta = Math.min(1.0, Math.max(0.0, Math.abs(den) / (l1 * l2)));
+        const anguloGraus = (Math.asin(sinTheta) * 180) / Math.PI;
+        if (anguloGraus < 1.0) {
+          usarMedia = true;
+        } else {
+          const k1 = seg1[0].este * seg1[1].norte - seg1[0].norte * seg1[1].este;
+          const k2 = seg2[0].este * seg2[1].norte - seg2[0].norte * seg2[1].este;
+          intE = (k1 * (seg2[0].este - seg2[1].este) - (seg1[0].este - seg1[1].este) * k2) / den;
+          intN = (k1 * (seg2[0].norte - seg2[1].norte) - (seg1[0].norte - seg1[1].norte) * k2) / den;
+
+          const ptOrig = pontos[i];
+          const distCanto = Math.hypot(intE - ptOrig.este, intN - ptOrig.norte);
+          if (distCanto > Math.max(2.5 * distancia, 1.0)) {
+            usarMedia = true;
+          }
+        }
+      }
+
+      if (usarMedia) {
         vertices.push({
           este: round3((seg1[1].este + seg2[0].este) / 2),
           norte: round3((seg1[1].norte + seg2[0].norte) / 2)
         });
       } else {
-        const k1 = seg1[0].este * seg1[1].norte - seg1[0].norte * seg1[1].este;
-        const k2 = seg2[0].este * seg2[1].norte - seg2[0].norte * seg2[1].este;
-        const intE = (k1 * (seg2[0].este - seg2[1].este) - (seg1[0].este - seg1[1].este) * k2) / den;
-        const intN = (k1 * (seg2[0].norte - seg2[1].norte) - (seg1[0].norte - seg1[1].norte) * k2) / den;
         vertices.push({ este: round3(intE), norte: round3(intN) });
       }
     }

@@ -227,5 +227,21 @@ class TestMotorVerticesVirtuais(unittest.TestCase):
             self.assertLessEqual(r.sigma_planimetrico, 0.50)
 
 
+    def test_offset_polilinha_miter_limit_em_curva_aguda(self):
+        p1 = PontoApoio('P1', 500000.0, 7000000.0, 500.0, 0.02, 0.02, 0.02)
+        p2 = PontoApoio('P2', 500000.0, 7000100.0, 505.0, 0.02, 0.02, 0.02)
+        p3 = PontoApoio('P3', 500010.0, 7000000.0, 510.0, 0.02, 0.02, 0.02)
+
+        distancia = 15.0
+        resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
+            pontos=[p1, p2, p3],
+            distancia=distancia,
+            lado=LadoOffset.DIREITA,
+        )
+
+        canto = resultados[1]
+        dist_do_original = math.hypot(canto.este - p2.este, canto.norte - p2.norte)
+        self.assertLessEqual(dist_do_original, 2.5 * distancia + 1.0)
+
 if __name__ == "__main__":
     unittest.main()

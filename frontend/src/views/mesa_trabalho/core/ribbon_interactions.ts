@@ -597,6 +597,12 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
     cleanups.push(() => btnToggleProps.removeEventListener('click', onTogglePropsClick));
   }
 
+  cleanups.push(() => {
+    try {
+      ctx.ferramentaOffsetMapa?.desativar?.();
+    } catch (_) {}
+  });
+
   return () => {
     cleanups.forEach(c => c());
   };

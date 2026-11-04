@@ -164,9 +164,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       : null) || pontosDisponiveis[0];
     const cRef = coordenadaPonto(ptRef);
 
-    if (cRef && ptRef) {
-      const eOrig = Number(ptRef.e_corrigido || ptRef.e_original || 500000);
-      const nOrig = Number(ptRef.n_corrigido || ptRef.n_original || 7000000);
+    const eOrig = Number(ptRef?.e_corrigido || ptRef?.e_original || 0);
+    const nOrig = Number(ptRef?.n_corrigido || ptRef?.n_original || 0);
+
+    if (cRef && ptRef && eOrig > 0 && nOrig > 0) {
 
       resultados.forEach(r => {
         const dE = r.este - eOrig;
