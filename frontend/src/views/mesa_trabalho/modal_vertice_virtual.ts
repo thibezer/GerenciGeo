@@ -664,13 +664,14 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     }
 
     if (resultados.length === 0) {
+      if (!desatualizada) return '';
       return `
         <div class="flex items-center gap-3 px-4 py-4 rounded-lg border border-dashed ${desatualizada ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-white/10'}">
           <svg class="shrink-0 ${desatualizada ? 'text-amber-400' : 'text-white/30'}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           <div class="text-[11px] leading-snug ${desatualizada ? 'text-amber-200/80' : 'text-white/45'}">
             ${desatualizada
               ? 'Os parâmetros mudaram. Gere a prévia novamente para conferir antes de inserir.'
-              : 'Nenhuma prévia gerada ainda. O resultado também aparece no mapa, em verde (use "Ver mapa" para conferir).'}
+              : ''}
           </div>
         </div>
       `;
@@ -932,10 +933,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       <div class="px-6 shrink-0">
         <p class="text-[11px] text-white/40">
           ${abaAtiva === 'intersecao'
-            ? 'Calcula o vértice virtual exatamente no cruzamento de duas linhas retas definidas por pontos conhecidos (Linha 1: P1→P2 e Linha 2: P3→P4).'
+            ? 'Vértice no cruzamento de duas retas definidas por pontos conhecidos.'
             : abaAtiva === 'offset'
-              ? 'Cria uma linha paralela a uma sequência de pontos, com um vértice para cada ponto.'
-              : 'Cria um único vértice onde o limite da faixa de domínio (paralela ao eixo da via) cruza a divisa do confrontante.'}
+              ? 'Linha paralela a uma sequência de pontos, com um vértice por ponto.'
+              : 'Vértice onde o limite da faixa de domínio cruza a divisa do confrontante.'}
         </p>
       </div>
 
