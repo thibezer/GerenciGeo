@@ -8,7 +8,7 @@ import { coordenadaPonto } from './coordenadas_mapa';
 const PRESETS_DISTANCIA = [5, 10, 15, 20, 25, 30];
 const LIMITE_SIGMA_P_M = 0.5;
 
-type Aba = 'offset' | 'faixa';
+type Aba = 'intersecao' | 'faixa' | 'offset';
 type CampoDistancia = 'distancia' | 'largura';
 
 // A API responde em snake_case; o restante do modal trabalha com o tipo camelCase
@@ -76,7 +76,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     : pontosDisponiveis.slice(0, 4).map(p => p.id);
   const idPadrao = (i: number) => idsIniciais[i] ?? pontosDisponiveis[i % pontosDisponiveis.length].id;
 
-  let abaAtiva: Aba = 'offset';
+  let abaAtiva: Aba = 'intersecao';
 
   // Deslocamento paralelo (cadeia)
   // Valores brutos dos inputs, para não perder o que o usuário está digitando ("1.", "") ao re-renderizar
@@ -102,6 +102,11 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     return maxNum + 1;
   };
 
+  // Interseção pura de 2 alinhamentos (PA2)
+  let nomeVerticeIntersecao = `V-${String(obterProximoNumeroVirtual('V')).padStart(2, '0')}`;
+  let alinhamento1Ids: [number, number] = [idPadrao(0), idPadrao(1)];
+  let alinhamento2Ids: [number, number] = [idPadrao(2), idPadrao(3)];
+
   // Faixa de domínio (PA1 + PA2)
   let larguraTexto = '15';
   let ladoFaixa: LadoOffset = 'DIREITA';
@@ -110,6 +115,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   let divisaIds: [number, number] = [idPadrao(2), idPadrao(3)];
 
   const previas: Record<Aba, { resultados: RespostaVerticeVirtual[]; desatualizada: boolean }> = {
+    intersecao: { resultados: [], desatualizada: false },
     offset: { resultados: [], desatualizada: false },
     faixa: { resultados: [], desatualizada: false },
   };
@@ -193,7 +199,42 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       });
     }
 
-    if (latlngs.length >= 2) {
+    if (abaAtiva === 'intersecao' && resultados.length === 1 && latlngs.length === 1) {
+      const p1 = pontosDisponiveis.find(p => p.id === alinhamento1Ids[0]);
+      const p2 = pontosDisponiveis.find(p => p.id === alinhamento1Ids[1]);
+      const p3 = pontosDisponiveis.find(p => p.id === alinhamento2Ids[0]);
+      const p4 = pontosDisponiveis.find(p => p.id === alinhamento2Ids[1]);
+      const c1 = p1 ? coordenadaPonto(p1) : null;
+      const c2 = p2 ? coordenadaPonto(p2) : null;
+      const c3 = p3 ? coordenadaPonto(p3) : null;
+      const c4 = p4 ? coordenadaPonto(p4) : null;
+      const boundsPts: [number, number][] = [latlngs[0]];
+      if (c1 && c2) {
+        boundsPts.push([c1.lat, c1.lon], [c2.lat, c2.lon]);
+        const line1 = L.polyline([[c1.lat, c1.lon], [c2.lat, c2.lon]], {
+          color: '#38bdf8',
+          weight: 2,
+          dashArray: '5, 5',
+          opacity: 0.85
+        });
+        previewLayerGroup!.addLayer(line1);
+      }
+      if (c3 && c4) {
+        boundsPts.push([c3.lat, c3.lon], [c4.lat, c4.lon]);
+        const line2 = L.polyline([[c3.lat, c3.lon], [c4.lat, c4.lon]], {
+          color: '#fbbf24',
+          weight: 2,
+          dashArray: '5, 5',
+          opacity: 0.85
+        });
+        previewLayerGroup!.addLayer(line2);
+      }
+      if (boundsPts.length > 1) {
+        map.fitBounds(L.latLngBounds(boundsPts), { padding: [50, 50], maxZoom: 18 });
+      } else {
+        map.setView(latlngs[0], Math.max(map.getZoom(), 17));
+      }
+    } else if (latlngs.length >= 2) {
       const line = L.polyline(latlngs, {
         color: '#10b981',
         weight: 3,
@@ -272,6 +313,27 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       largura_faixa: paraNumero(larguraTexto),
       lado: ladoFaixa,
       nome_vertice: nomeVerticeFaixa || 'V-01'
+    });
+  };
+
+  const calcularIntersecaoApi = () => {
+    if (alinhamento1Ids[0] === alinhamento1Ids[1] || alinhamento2Ids[0] === alinhamento2Ids[1]) {
+      showToast('O início e o fim de cada alinhamento precisam ser pontos diferentes.', 'info');
+      return;
+    }
+    if (
+      (alinhamento1Ids[0] === alinhamento2Ids[0] && alinhamento1Ids[1] === alinhamento2Ids[1]) ||
+      (alinhamento1Ids[0] === alinhamento2Ids[1] && alinhamento1Ids[1] === alinhamento2Ids[0])
+    ) {
+      showToast('Os dois alinhamentos não podem ser formados pelos mesmos pontos.', 'info');
+      return;
+    }
+    executarCalculo('intersecao', 'calcular-pa2-puro', {
+      alinhamento1_inicio_id: alinhamento1Ids[0],
+      alinhamento1_fim_id: alinhamento1Ids[1],
+      alinhamento2_inicio_id: alinhamento2Ids[0],
+      alinhamento2_fim_id: alinhamento2Ids[1],
+      nome_vertice: nomeVerticeIntersecao || 'V-01'
     });
   };
 
@@ -469,7 +531,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
   };
 
   // Par de selects início → fim para uma linha definida por dois pontos
-  const renderParPontos = (linha: 'eixo' | 'divisa', ids: [number, number]) => {
+  const renderParPontos = (linha: 'eixo' | 'divisa' | 'linha1' | 'linha2', ids: [number, number]) => {
     const select = (i: 0 | 1) => `
       <select data-linha="${linha}" data-indice="${i}" class="sel-par-ponto w-full bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 cursor-pointer">
         ${pontosDisponiveis.map(p => `<option value="${p.id}" class="bg-[#111113]" ${p.id === ids[i] ? 'selected' : ''}>${escapeHtml(nomePonto(p.id))}</option>`).join('')}
@@ -512,7 +574,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
 
     const conformes = resultados.filter(r => r.conformeNormaIncra).length;
     const todosConformes = conformes === resultados.length;
-    const comAngulo = resultados.some(r => r.anguloIntersecaoGraus !== undefined) && abaAtiva === 'faixa';
+    const comAngulo = resultados.some(r => r.anguloIntersecaoGraus !== undefined) && (abaAtiva === 'faixa' || abaAtiva === 'intersecao');
     const alertas = resultados.filter(r => r.alerta);
     return `
       <div class="border border-white/10 rounded-lg overflow-hidden">
@@ -530,7 +592,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
                 <th class="px-3 py-1.5 font-medium text-right">Este (m)</th>
                 <th class="px-3 py-1.5 font-medium text-right">Norte (m)</th>
                 <th class="px-3 py-1.5 font-medium text-right">Altitude (m)</th>
-                ${comAngulo ? '<th class="px-3 py-1.5 font-medium text-right" title="Ângulo entre o limite da faixa e a divisa">Ângulo</th>' : ''}
+                ${comAngulo ? '<th class="px-3 py-1.5 font-medium text-right" title="Ângulo de interseção entre os alinhamentos">Ângulo</th>' : ''}
                 <th class="px-3 py-1.5 font-medium text-right">σP</th>
                 <th class="px-3 py-1.5 font-medium"></th>
               </tr>
@@ -649,6 +711,57 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     `;
   };
 
+  // Esquema: Linha 1 (azul claro) e Linha 2 (âmbar) se cruzando no vértice V (verde)
+  const renderDiagramaIntersecao = () => {
+    return `
+      <svg viewBox="0 0 228 104" class="w-full h-auto" aria-hidden="true">
+        ${defsSeta}
+        <!-- Linha 1 (azul claro) -->
+        <line x1="20" y1="28" x2="208" y2="76" stroke="#38bdf8" stroke-width="2" marker-end="url(#vv-seta)" />
+        <circle cx="36" cy="32" r="3" fill="#111113" stroke="#38bdf8" stroke-width="1.5" />
+        <circle cx="188" cy="71" r="3" fill="#111113" stroke="#38bdf8" stroke-width="1.5" />
+        <!-- Linha 2 (âmbar) -->
+        <line x1="48" y1="92" x2="180" y2="12" stroke="#f59e0b" stroke-width="2" marker-end="url(#vv-seta)" />
+        <circle cx="62" cy="83" r="3" fill="#111113" stroke="#f59e0b" stroke-width="1.5" />
+        <circle cx="166" cy="20" r="3" fill="#111113" stroke="#f59e0b" stroke-width="1.5" />
+        <!-- Ponto V no cruzamento central -->
+        <circle cx="114" cy="52" r="5" fill="#10b981" stroke="#111113" stroke-width="2" />
+        <text x="122" y="48" ${estiloRotulo} fill="#6ee7b7" font-weight="bold">V</text>
+        <text x="20" y="20" ${estiloRotulo} fill="#38bdf8">Linha 1</text>
+        <text x="176" y="10" ${estiloRotulo} fill="#fbbf24">Linha 2</text>
+      </svg>
+    `;
+  };
+
+  const renderAbaIntersecao = () => {
+    const linhasValidas = alinhamento1Ids[0] !== alinhamento1Ids[1] && alinhamento2Ids[0] !== alinhamento2Ids[1];
+    const podeCalcular = linhasValidas && !calculando;
+
+    return `
+      ${secao(`
+        ${tituloEtapa(1, 'Linha 1 (Primeiro alinhamento)', 'Dois pontos conhecidos que definem a primeira reta.', botaoInverter('btn-inverter-l1', true))}
+        <div class="pl-[30px]">${renderParPontos('linha1', alinhamento1Ids)}</div>
+      `)}
+
+      ${secao(`
+        ${tituloEtapa(2, 'Linha 2 (Segundo alinhamento)', 'Dois pontos conhecidos que definem a reta que cruza a Linha 1.', botaoInverter('btn-inverter-l2', true))}
+        <div class="pl-[30px] grid grid-cols-1 sm:grid-cols-[1fr_228px] gap-4 items-start">
+          <div>${renderParPontos('linha2', alinhamento2Ids)}</div>
+          ${caixaDiagrama(renderDiagramaIntersecao())}
+        </div>
+      `)}
+
+      ${secao(`
+        ${tituloEtapa(3, 'Nome do vértice', 'Identificador do vértice gerado no cruzamento das duas linhas.')}
+        <div class="pl-[30px]">
+          <input id="input-nome-intersecao" type="text" value="${escapeHtml(nomeVerticeIntersecao)}" maxlength="16" class="w-32 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
+        </div>
+      `)}
+
+      ${renderSecaoPrevia(4, podeCalcular)}
+    `;
+  };
+
   const renderRodape = () => {
     const n = previas[abaAtiva].resultados.length;
     const pronto = n > 0 && !salvando;
@@ -690,18 +803,21 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
 
       <div class="px-6 shrink-0">
         <div class="inline-flex p-0.5 rounded-lg bg-white/5 border border-white/10 text-xs">
-          ${botaoAba('offset', 'Deslocamento paralelo')}
+          ${botaoAba('intersecao', 'Interseção de 2 Linhas')}
           ${botaoAba('faixa', 'Faixa de domínio × divisa')}
+          ${botaoAba('offset', 'Deslocamento paralelo')}
         </div>
         <p class="text-[11px] text-white/40 mt-2">
-          ${abaAtiva === 'offset'
-            ? 'Cria uma linha paralela a uma sequência de pontos, com um vértice para cada ponto.'
-            : 'Cria um único vértice onde o limite da faixa de domínio (paralela ao eixo da via) cruza a divisa do confrontante.'}
+          ${abaAtiva === 'intersecao'
+            ? 'Calcula o vértice virtual exatamente no cruzamento de duas linhas retas definidas por pontos conhecidos (Linha 1: P1→P2 e Linha 2: P3→P4).'
+            : abaAtiva === 'offset'
+              ? 'Cria uma linha paralela a uma sequência de pontos, com um vértice para cada ponto.'
+              : 'Cria um único vértice onde o limite da faixa de domínio (paralela ao eixo da via) cruza a divisa do confrontante.'}
         </p>
       </div>
 
       <div class="px-6 py-5 overflow-y-auto space-y-4 flex-1 text-xs">
-        ${abaAtiva === 'offset' ? renderAbaOffset() : renderAbaFaixa()}
+        ${abaAtiva === 'intersecao' ? renderAbaIntersecao() : abaAtiva === 'offset' ? renderAbaOffset() : renderAbaFaixa()}
       </div>
 
       ${renderRodape()}
@@ -752,16 +868,41 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
       renderMantendoFoco('input-prefixo');
     });
 
-    // Faixa de domínio
+    // Seleção de pontos para alinhamentos (Interseção e Faixa)
     container.querySelectorAll<HTMLSelectElement>('.sel-par-ponto').forEach(sel => {
       sel.addEventListener('change', () => {
-        const linha = sel.dataset.linha === 'eixo' ? eixoIds : divisaIds;
-        linha[Number(sel.dataset.indice)] = Number(sel.value);
+        const linha = sel.dataset.linha;
+        let arr: [number, number];
+        if (linha === 'eixo') arr = eixoIds;
+        else if (linha === 'divisa') arr = divisaIds;
+        else if (linha === 'linha1') arr = alinhamento1Ids;
+        else arr = alinhamento2Ids;
+        arr[Number(sel.dataset.indice)] = Number(sel.value);
         invalidarPrevia();
         renderConteudo();
       });
     });
 
+    // Interseção pura (PA2)
+    container.querySelector('#btn-inverter-l1')?.addEventListener('click', () => {
+      alinhamento1Ids = [alinhamento1Ids[1], alinhamento1Ids[0]];
+      invalidarPrevia();
+      renderConteudo();
+    });
+
+    container.querySelector('#btn-inverter-l2')?.addEventListener('click', () => {
+      alinhamento2Ids = [alinhamento2Ids[1], alinhamento2Ids[0]];
+      invalidarPrevia();
+      renderConteudo();
+    });
+
+    container.querySelector('#input-nome-intersecao')?.addEventListener('input', (e) => {
+      nomeVerticeIntersecao = (e.target as HTMLInputElement).value.trim().toUpperCase();
+      invalidarPrevia();
+      renderMantendoFoco('input-nome-intersecao');
+    });
+
+    // Faixa de domínio
     container.querySelector('#btn-inverter-eixo')?.addEventListener('click', () => {
       eixoIds = [eixoIds[1], eixoIds[0]];
       invalidarPrevia();
@@ -809,7 +950,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext): Promis
     });
 
     container.querySelector('#btn-calcular-preview')?.addEventListener('click', () => {
-      if (abaAtiva === 'offset') calcularOffsetApi();
+      if (abaAtiva === 'intersecao') calcularIntersecaoApi();
+      else if (abaAtiva === 'offset') calcularOffsetApi();
       else calcularFaixaApi();
     });
     container.querySelector('#btn-confirmar-gravar')?.addEventListener('click', confirmarInsercao);
