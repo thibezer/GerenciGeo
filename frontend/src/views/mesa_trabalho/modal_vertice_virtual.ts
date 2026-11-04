@@ -28,12 +28,51 @@ const normalizarResultado = (r: any): RespostaVerticeVirtual => ({
   anguloIntersecaoGraus: r.angulo_intersecao_graus ?? r.anguloIntersecaoGraus ?? undefined,
 });
 
+// Aceita "15", "15,5", "15.5" e "1.500,5"; qualquer outra coisa vale 0 (campo inválido)
 const paraNumero = (texto: string) => {
-  const v = parseFloat(texto.replace(',', '.'));
+  let t = texto.trim();
+  if (t.includes(',') && t.includes('.')) t = t.replace(/\./g, '').replace(',', '.');
+  else t = t.replace(',', '.');
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(t)) return 0;
+  const v = parseFloat(t);
   return Number.isFinite(v) ? v : 0;
 };
 
+// Corpo da resposta pode não ser JSON (proxy/500); `detail` do FastAPI pode ser lista (422)
+const lerJson = async (res: Response): Promise<any> => {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+};
+const mensagemErro = (data: any, padrao: string): string =>
+  typeof data?.detail === 'string' && data.detail.trim() ? data.detail : padrao;
+
+// UTM → lat/lon a partir de um ponto de referência próximo (plano local + convergência meridiana)
+const utmParaLatLonLocal = (
+  ref: { lat: number; lon: number; e: number; n: number },
+  fuso: number,
+  e: number,
+  n: number,
+): [number, number] => {
+  const rad = Math.PI / 180;
+  const phi = ref.lat * rad;
+  const metrosPorGrauLat = 111132.92 - 559.82 * Math.cos(2 * phi) + 1.175 * Math.cos(4 * phi);
+  const metrosPorGrauLon = 111412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi);
+  const lon0 = fuso * 6 - 183;
+  const gamma = Math.atan(Math.tan((ref.lon - lon0) * rad) * Math.sin(phi));
+  const dE = e - ref.e;
+  const dN = n - ref.n;
+  // O norte da grade está girado de gamma em relação ao norte verdadeiro
+  const dEv = dE * Math.cos(gamma) + dN * Math.sin(gamma);
+  const dNv = -dE * Math.sin(gamma) + dN * Math.cos(gamma);
+  return [ref.lat + dNv / metrosPorGrauLat, ref.lon + dEv / metrosPorGrauLon];
+};
+
 export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInicial: Aba = 'intersecao'): Promise<void> {
+  if (document.getElementById('vv-overlay')) return; // já aberto
+
   const levId = ctx.currentLevId;
   const matId = ctx.currentMatriculaId;
   const map = ctx.triagemMap;
@@ -65,16 +104,17 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   };
 
   const overlay = document.createElement('div');
+  overlay.id = 'vv-overlay';
   overlay.className = 'fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-200 opacity-0 z-[999999]';
 
   const container = document.createElement('div');
   container.className = 'w-full max-w-3xl mx-4 bg-[#111113] border border-white/10 rounded-technical shadow-2xl transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col text-white';
 
   // Pré-seleção: se houver pontos selecionados, usa-os
-  const idsIniciais: number[] = (ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
+  const idsIniciais: number[] = ((ctx.selectedPontoIds && ctx.selectedPontoIds.length >= 2)
     ? ctx.selectedPontoIds
-    : [];
-  const idPadrao = (i: number) => idsIniciais[i] ?? (pontosDisponiveis[i % pontosDisponiveis.length]?.id ?? 0);
+    : []).map(Number);
+  const idPadrao = (i: number): number => idsIniciais[i] ?? Number(pontosDisponiveis[i % pontosDisponiveis.length]?.id ?? 0);
 
   let abaAtiva: Aba = abaInicial;
 
@@ -121,6 +161,23 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   };
   let calculando = false;
   let salvando = false;
+  let fechado = false;
+  // Incrementa a cada mudança de parâmetro; a resposta de um cálculo só vale se a versão não mudou
+  let versaoParametros = 0;
+
+  // Botão flutuante para devolver o modal depois de "Ver mapa"
+  const botaoRestaurar = document.createElement('button');
+  botaoRestaurar.type = 'button';
+  botaoRestaurar.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[999999] hidden px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-2xl';
+  botaoRestaurar.textContent = 'Voltar aos vértices virtuais';
+
+  const definirOculto = (oculto: boolean) => {
+    overlay.classList.toggle('opacity-0', oculto);
+    overlay.classList.toggle('pointer-events-none', oculto);
+    overlay.classList.toggle('opacity-100', !oculto);
+    botaoRestaurar.classList.toggle('hidden', !oculto);
+  };
+  botaoRestaurar.addEventListener('click', () => definirOculto(false));
 
   const nomePonto = (pid: number) => {
     const p = pontosDisponiveis.find(pt => pt.id === pid);
@@ -136,6 +193,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   };
 
   const fecharModal = () => {
+    fechado = true;
+    botaoRestaurar.remove();
     limparPreviewMapa();
     if (previewLayerGroup && map) {
       map.removeLayer(previewLayerGroup);
@@ -150,7 +209,9 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   // Qualquer mudança de parâmetro torna a prévia da aba atual inválida
   const invalidarPrevia = () => {
+    versaoParametros++;
     const previa = previas[abaAtiva];
+    if (calculando) previa.desatualizada = true;
     if (previa.resultados.length > 0) {
       previa.resultados = [];
       previa.desatualizada = true;
@@ -163,25 +224,29 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     previewLayerGroup.clearLayers();
     if (resultados.length === 0) return;
 
-    // Converte UTM para LatLng aproximado baseado nos pontos de apoio verdadeiros
+    // Converte UTM para LatLng a partir do ponto de apoio DA ABA ATUAL mais próximo do resultado
     const latlngs: [number, number][] = [];
-    const ptRef = (pontosSelecionadosIds.length > 0
-      ? pontosDisponiveis.find(pt => String(pt.id) === String(pontosSelecionadosIds[0]))
-      : null) || pontosDisponiveis[0];
-    const cRef = coordenadaPonto(ptRef);
+    const idsAba = abaAtiva === 'intersecao'
+      ? [...alinhamento1Ids, ...alinhamento2Ids]
+      : abaAtiva === 'faixa' ? [...eixoIds, ...divisaIds] : pontosSelecionadosIds;
+    const candidatos = idsAba
+      .map(id => pontosDisponiveis.find(pt => Number(pt.id) === Number(id)))
+      .map(pt => {
+        const c = coordenadaPonto(pt);
+        const e = Number(pt?.e_corrigido || pt?.e_original || 0);
+        const n = Number(pt?.n_corrigido || pt?.n_original || 0);
+        return c && e > 0 && n > 0 ? { lat: c.lat, lon: c.lon, e, n } : null;
+      })
+      .filter((c): c is { lat: number; lon: number; e: number; n: number } => c !== null);
+    const alvo = resultados[0];
+    const ref = candidatos.sort((a, b) =>
+      Math.hypot(a.e - alvo.este, a.n - alvo.norte) - Math.hypot(b.e - alvo.este, b.n - alvo.norte))[0];
 
-    const eOrig = Number(ptRef?.e_corrigido || ptRef?.e_original || 0);
-    const nOrig = Number(ptRef?.n_corrigido || ptRef?.n_original || 0);
-
-    if (cRef && ptRef && eOrig > 0 && nOrig > 0) {
-
+    if (!ref) {
+      showToast('Prévia indisponível no mapa: os pontos de apoio não têm coordenada UTM. A tabela continua válida.', 'info');
+    } else {
       resultados.forEach(r => {
-        const dE = r.este - eOrig;
-        const dN = r.norte - nOrig;
-        // Aproximação métrica local (1 grau lat ~ 111.000m, lon ~ 111.000m * cos(lat))
-        const dLat = dN / 111139.0;
-        const dLon = dE / (111139.0 * Math.cos((cRef.lat * Math.PI) / 180));
-        const pos: [number, number] = [cRef.lat + dLat, cRef.lon + dLon];
+        const pos = utmParaLatLonLocal(ref, fusoUtm, r.este, r.norte);
         latlngs.push(pos);
 
         const marker = L.circleMarker(pos, {
@@ -250,6 +315,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   const executarCalculo = async (aba: Aba, url: string, corpo: object) => {
     calculando = true;
+    const versao = versaoParametros;
     renderConteudo();
 
     try {
@@ -258,19 +324,27 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(corpo)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Falha no cálculo dos vértices virtuais.');
+      const data = await lerJson(res);
+      if (fechado) return;
+      if (!res.ok) throw new Error(mensagemErro(data, 'Falha no cálculo dos vértices virtuais.'));
 
+      if (versao !== versaoParametros) {
+        // Parâmetros mudaram durante o cálculo: o resultado não corresponde mais ao que está na tela
+        previas[aba].desatualizada = true;
+        return;
+      }
       const brutos = aba === 'offset' ? (data.resultados || []) : (data.resultado ? [data.resultado] : []);
       previas[aba].resultados = brutos.map(normalizarResultado);
       previas[aba].desatualizada = false;
       if (abaAtiva === aba) desenharPreviewNoMapa(previas[aba].resultados);
     } catch (err: any) {
-      showToast(err.message, 'error');
+      if (!fechado) showToast(err.message, 'error');
     } finally {
-      calculando = false;
-      renderConteudo();
-      if (previas[abaAtiva].resultados.length > 0) {
+      if (!fechado) {
+        calculando = false;
+        renderConteudo();
+      }
+      if (!fechado && previas[abaAtiva].resultados.length > 0) {
         container.querySelector('#vv-secao-previa')?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }
@@ -297,6 +371,10 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   };
 
   const calcularFaixaApi = () => {
+    if (!nomeVerticeFaixa.trim()) {
+      showToast('Informe o nome do vértice.', 'info');
+      return;
+    }
     if (eixoIds[0] === eixoIds[1] || divisaIds[0] === divisaIds[1]) {
       showToast('O início e o fim de cada linha precisam ser pontos diferentes.', 'info');
       return;
@@ -312,11 +390,15 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       divisa_fim_id: divisaIds[1],
       largura_faixa: paraNumero(larguraTexto),
       lado: ladoFaixa,
-      nome_vertice: nomeVerticeFaixa || 'V-01'
+      nome_vertice: nomeVerticeFaixa.trim()
     });
   };
 
   const calcularIntersecaoApi = () => {
+    if (!nomeVerticeIntersecao.trim()) {
+      showToast('Informe o nome do vértice.', 'info');
+      return;
+    }
     if (alinhamento1Ids[0] === alinhamento1Ids[1] || alinhamento2Ids[0] === alinhamento2Ids[1]) {
       showToast('O início e o fim de cada alinhamento precisam ser pontos diferentes.', 'info');
       return;
@@ -333,7 +415,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       alinhamento1_fim_id: alinhamento1Ids[1],
       alinhamento2_inicio_id: alinhamento2Ids[0],
       alinhamento2_fim_id: alinhamento2Ids[1],
-      nome_vertice: nomeVerticeIntersecao || 'V-01'
+      nome_vertice: nomeVerticeIntersecao.trim()
     });
   };
 
@@ -344,6 +426,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       return;
     }
     salvando = true;
+    let inserido = false;
     renderConteudo();
 
     try {
@@ -365,18 +448,27 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
           }))
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Erro ao persistir vértices virtuais.');
+      const data = await lerJson(res);
+      if (!res.ok) throw new Error(mensagemErro(data, 'Erro ao persistir vértices virtuais.'));
 
       showToast(data.mensagem || 'Vértices virtuais inseridos no perímetro com sucesso!', 'success');
-      fecharModal();
-      if (typeof ctx.loadLevantamentoDetails === 'function') {
-        await ctx.loadLevantamentoDetails();
+      if (Array.isArray(data.renomeados) && data.renomeados.length > 0) {
+        const trocas = data.renomeados.map((r: { de: string; para: string }) => `${r.de} → ${r.para}`).join(', ');
+        showToast(`Nome já existente na matrícula, ajustado: ${trocas}`, 'info');
       }
+      inserido = true;
     } catch (err: any) {
       showToast(typeof err?.message === 'string' ? err.message : 'Erro ao persistir vértices virtuais.', 'error');
       salvando = false;
       renderConteudo();
+    }
+
+    if (!inserido) return;
+    fecharModal();
+    try {
+      if (typeof ctx.loadLevantamentoDetails === 'function') await ctx.loadLevantamentoDetails();
+    } catch {
+      showToast('Vértices inseridos, mas não foi possível atualizar a tela. Recarregue o levantamento.', 'info');
     }
   };
 
@@ -566,7 +658,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
           <div class="text-[11px] leading-snug ${desatualizada ? 'text-amber-200/80' : 'text-white/45'}">
             ${desatualizada
               ? 'Os parâmetros mudaram. Gere a prévia novamente para conferir antes de inserir.'
-              : 'Nenhuma prévia gerada ainda. O resultado também aparece no mapa, em verde.'}
+              : 'Nenhuma prévia gerada ainda. O resultado também aparece no mapa, em verde (use "Ver mapa" para conferir).'}
           </div>
         </div>
       `;
@@ -678,7 +770,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   const renderAbaFaixa = () => {
     const linhasValidas = eixoIds[0] !== eixoIds[1] && divisaIds[0] !== divisaIds[1];
-    const podeCalcular = linhasValidas && paraNumero(larguraTexto) > 0 && !calculando;
+    const nomeOk = nomeVerticeFaixa.trim() !== '';
+    const podeCalcular = linhasValidas && nomeOk && paraNumero(larguraTexto) > 0 && !calculando;
 
     return `
       ${secao(`
@@ -703,7 +796,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       ${secao(`
         ${tituloEtapa(4, 'Nome do vértice', 'Identificador do vértice criado no cruzamento.')}
         <div class="pl-[30px]">
-          <input id="input-nome-faixa" type="text" value="${escapeHtml(nomeVerticeFaixa)}" maxlength="16" class="w-32 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
+          <input id="input-nome-faixa" type="text" value="${escapeHtml(nomeVerticeFaixa)}" maxlength="16" class="w-32 bg-white/5 border ${nomeOk ? 'border-white/10' : 'border-red-500/50'} rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
         </div>
       `)}
 
@@ -735,18 +828,25 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
 
   const renderAbaIntersecao = () => {
     const linhasValidas = alinhamento1Ids[0] !== alinhamento1Ids[1] && alinhamento2Ids[0] !== alinhamento2Ids[1];
-    const podeCalcular = linhasValidas && !calculando;
+    const mesmasLinhas =
+      (alinhamento1Ids[0] === alinhamento2Ids[0] && alinhamento1Ids[1] === alinhamento2Ids[1]) ||
+      (alinhamento1Ids[0] === alinhamento2Ids[1] && alinhamento1Ids[1] === alinhamento2Ids[0]);
+    const nomeOk = nomeVerticeIntersecao.trim() !== '';
+    const podeCalcular = linhasValidas && !mesmasLinhas && nomeOk && !calculando;
 
     return `
       ${secao(`
-        ${tituloEtapa(1, 'Linha 1 (Primeiro alinhamento)', 'Dois pontos conhecidos que definem a primeira reta.', botaoInverter('btn-inverter-l1', true))}
+        ${tituloEtapa(1, 'Linha 1 (Primeiro alinhamento)', 'Dois pontos conhecidos que definem a primeira reta.')}
         <div class="pl-[30px]">${renderParPontos('linha1', alinhamento1Ids)}</div>
       `)}
 
       ${secao(`
-        ${tituloEtapa(2, 'Linha 2 (Segundo alinhamento)', 'Dois pontos conhecidos que definem a reta que cruza a Linha 1.', botaoInverter('btn-inverter-l2', true))}
+        ${tituloEtapa(2, 'Linha 2 (Segundo alinhamento)', 'Dois pontos conhecidos que definem a reta que cruza a Linha 1.')}
         <div class="pl-[30px] grid grid-cols-1 sm:grid-cols-[1fr_228px] gap-4 items-start">
-          <div>${renderParPontos('linha2', alinhamento2Ids)}</div>
+          <div>
+            ${renderParPontos('linha2', alinhamento2Ids)}
+            ${mesmasLinhas ? '<div class="mt-2 text-[11px] text-amber-400">As duas linhas não podem usar os mesmos pontos.</div>' : ''}
+          </div>
           ${caixaDiagrama(renderDiagramaIntersecao())}
         </div>
       `)}
@@ -754,7 +854,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       ${secao(`
         ${tituloEtapa(3, 'Nome do vértice', 'Identificador do vértice gerado no cruzamento das duas linhas.')}
         <div class="pl-[30px]">
-          <input id="input-nome-intersecao" type="text" value="${escapeHtml(nomeVerticeIntersecao)}" maxlength="16" class="w-32 bg-white/5 border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
+          <input id="input-nome-intersecao" type="text" value="${escapeHtml(nomeVerticeIntersecao)}" maxlength="16" class="w-32 bg-white/5 border ${nomeOk ? 'border-white/10' : 'border-red-500/50'} rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase" />
         </div>
       `)}
 
@@ -789,16 +889,26 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     </button>
   `;
 
-  const renderConteudo = () => {
+  const renderConteudo = (preservarRolagem = true) => {
+    const rolagem = preservarRolagem
+      ? (container.querySelector<HTMLElement>('#vv-corpo')?.scrollTop ?? 0)
+      : 0;
     container.innerHTML = `
       <div class="px-6 pt-5 pb-4 flex items-start justify-between gap-4 shrink-0">
         <div>
           <h3 class="text-base font-bold text-white">Criar vértices virtuais</h3>
           <p class="text-[12px] text-white/50 mt-0.5">Gera vértices tipo <span class="font-mono text-white/70">V</span> calculados a partir de pontos medidos, com incerteza propagada conforme o SIGEF.</p>
         </div>
-        <button id="btn-fechar-modal-vvirtual" type="button" class="text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-colors p-1.5 -mr-1.5 -mt-1" title="Fechar (Esc)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        <div class="flex items-center gap-1 -mr-1.5 -mt-1">
+          ${map ? `
+            <button id="btn-ocultar-modal" type="button" class="flex items-center gap-1 text-[11px] text-white/50 hover:text-white hover:bg-white/5 rounded-md transition-colors px-2 py-1.5" title="Ocultar o modal para ver a prévia no mapa">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Ver mapa
+            </button>` : ''}
+          <button id="btn-fechar-modal-vvirtual" type="button" class="text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-colors p-1.5" title="Fechar (Esc)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="px-6 shrink-0">
@@ -816,15 +926,19 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
         </p>
       </div>
 
-      <div class="px-6 py-5 overflow-y-auto space-y-4 flex-1 text-xs">
+      <div id="vv-corpo" class="px-6 py-5 overflow-y-auto space-y-4 flex-1 text-xs">
         ${abaAtiva === 'intersecao' ? renderAbaIntersecao() : abaAtiva === 'offset' ? renderAbaOffset() : renderAbaFaixa()}
       </div>
 
       ${renderRodape()}
     `;
 
+    const corpo = container.querySelector<HTMLElement>('#vv-corpo');
+    if (corpo) corpo.scrollTop = rolagem;
+
     // Eventos
     container.querySelector('#btn-fechar-modal-vvirtual')?.addEventListener('click', fecharModal);
+    container.querySelector('#btn-ocultar-modal')?.addEventListener('click', () => definirOculto(true));
     container.querySelector('#btn-cancelar-modal')?.addEventListener('click', fecharModal);
 
     container.querySelectorAll<HTMLElement>('.btn-aba').forEach(btn => {
@@ -833,7 +947,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
         if (aba === abaAtiva) return;
         abaAtiva = aba;
         desenharPreviewNoMapa(previas[aba].resultados);
-        renderConteudo();
+        renderConteudo(false);
       });
     });
 
@@ -851,7 +965,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       const valor = (e.target as HTMLSelectElement).value;
       if (!valor) return;
       const ponto = pontosDisponiveis.find(p => String(p.id) === valor);
-      if (ponto) pontosSelecionadosIds = [...pontosSelecionadosIds, ponto.id];
+      if (ponto) pontosSelecionadosIds = [...pontosSelecionadosIds, Number(ponto.id)];
       invalidarPrevia();
       renderConteudo();
     });
@@ -884,20 +998,8 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     });
 
     // Interseção pura (PA2)
-    container.querySelector('#btn-inverter-l1')?.addEventListener('click', () => {
-      alinhamento1Ids = [alinhamento1Ids[1], alinhamento1Ids[0]];
-      invalidarPrevia();
-      renderConteudo();
-    });
-
-    container.querySelector('#btn-inverter-l2')?.addEventListener('click', () => {
-      alinhamento2Ids = [alinhamento2Ids[1], alinhamento2Ids[0]];
-      invalidarPrevia();
-      renderConteudo();
-    });
-
     container.querySelector('#input-nome-intersecao')?.addEventListener('input', (e) => {
-      nomeVerticeIntersecao = (e.target as HTMLInputElement).value.trim().toUpperCase();
+      nomeVerticeIntersecao = (e.target as HTMLInputElement).value.toUpperCase();
       invalidarPrevia();
       renderMantendoFoco('input-nome-intersecao');
     });
@@ -910,7 +1012,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
     });
 
     container.querySelector('#input-nome-faixa')?.addEventListener('input', (e) => {
-      nomeVerticeFaixa = (e.target as HTMLInputElement).value.trim().toUpperCase();
+      nomeVerticeFaixa = (e.target as HTMLInputElement).value.toUpperCase();
       invalidarPrevia();
       renderMantendoFoco('input-nome-faixa');
     });
@@ -969,11 +1071,20 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') fecharModal();
+    if (e.key !== 'Escape') return;
+    if (!botaoRestaurar.classList.contains('hidden')) {
+      definirOculto(false);
+    } else if (!salvando) {
+      fecharModal();
+    }
   };
 
+  container.setAttribute('role', 'dialog');
+  container.setAttribute('aria-modal', 'true');
+  container.setAttribute('aria-label', 'Criar vértices virtuais');
   overlay.appendChild(container);
   document.body.appendChild(overlay);
+  document.body.appendChild(botaoRestaurar);
 
   renderConteudo();
 
