@@ -75,7 +75,39 @@ function converterBancoPontoParaPonto(bp: any): Ponto {
   } as any;
 }
 
+let ultimaAssinatura: string | null = null;
+let rafPendente: number | null = null;
+
+/** Só atribui dados ao componente se mudaram, evitando reconstrução visual do painel. */
+function aplicarDados(
+  el: UITabelaPropriedadesElement,
+  categorias: any,
+  tipos: any,
+  tipoSelecionadoId: any
+): void {
+  let assinatura: string | null = null;
+  try {
+    assinatura = `${ultimoTipoPainel}|${ultimoPontoIdCarregado}|${JSON.stringify([categorias, tipos, tipoSelecionadoId])}`;
+  } catch {
+    assinatura = null;
+  }
+  if (assinatura !== null && assinatura === ultimaAssinatura) return;
+  ultimaAssinatura = assinatura;
+  el.categorias = categorias;
+  el.tipos = tipos;
+  el.tipoSelecionado = tipoSelecionadoId;
+}
+
+/** Agrupa chamadas repetidas no mesmo frame em uma única renderização. */
 export function atualizarPainelPropriedades(ctx: any): void {
+  if (rafPendente != null) return;
+  rafPendente = requestAnimationFrame(() => {
+    rafPendente = null;
+    renderizarPainel(ctx);
+  });
+}
+
+function renderizarPainel(ctx: any): void {
   const panelContent = document.getElementById('props-panel-content');
   const panelActions = document.getElementById('props-panel-actions');
   if (!panelContent) return;
@@ -114,6 +146,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
     const pontosVizinhosList: Ponto[] = ctx.pontosVizinhosList ?? [];
 
     if (!tabelaEl) {
+      ultimaAssinatura = null;
       panelContent.innerHTML = '';
       panelContent.style.overflow = 'hidden';
       panelContent.style.display = 'flex';
@@ -142,9 +175,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesSegmento(segmento, ctx);
 
       tabelaEl.setAttribute('modo-aplicar', 'auto');
-      tabelaEl.categorias = categorias;
-      tabelaEl.tipos = tipos;
-      tabelaEl.tipoSelecionado = tipoSelecionadoId;
+      aplicarDados(tabelaEl, categorias, tipos, tipoSelecionadoId);
 
       tabelaEl.addEventListener(
         'ui-propriedade-alterada',
@@ -171,9 +202,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesGerais(ctx);
 
       tabelaEl.setAttribute('modo-aplicar', 'auto');
-      tabelaEl.categorias = categorias;
-      tabelaEl.tipos = tipos;
-      tabelaEl.tipoSelecionado = tipoSelecionadoId;
+      aplicarDados(tabelaEl, categorias, tipos, tipoSelecionadoId);
 
       if (panelActions) panelActions.classList.add('hidden');
     } else if (selectedCount === 1 || (selectedCount === 0 && selectedVizinhoCount === 1)) {
@@ -195,6 +224,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       if (!p) {
         ultimoTipoPainel = null;
         ultimoPontoIdCarregado = null;
+        ultimaAssinatura = null;
         panelContent.innerHTML = '<div class="p-4 text-white/40 italic">Vértice não encontrado.</div>';
         if (panelActions) panelActions.classList.add('hidden');
         return;
@@ -206,9 +236,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesVertice(p, ctx);
 
       tabelaEl.setAttribute('modo-aplicar', 'auto');
-      tabelaEl.categorias = categorias;
-      tabelaEl.tipos = tipos;
-      tabelaEl.tipoSelecionado = tipoSelecionadoId;
+      aplicarDados(tabelaEl, categorias, tipos, tipoSelecionadoId);
 
       // Interceptador inteligente de Paste para coordenadas completas ou compostas
       tabelaEl.addEventListener(
@@ -320,9 +348,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
       const { categorias, tipos, tipoSelecionadoId } = gerarPropriedadesMulti(pontosMulti, ctx);
 
       tabelaEl.setAttribute('modo-aplicar', 'manual');
-      tabelaEl.categorias = categorias;
-      tabelaEl.tipos = tipos;
-      tabelaEl.tipoSelecionado = tipoSelecionadoId;
+      aplicarDados(tabelaEl, categorias, tipos, tipoSelecionadoId);
 
       tabelaEl.addEventListener(
         'ui-aplicar',
@@ -366,6 +392,7 @@ export function atualizarPainelPropriedades(ctx: any): void {
     }
   } catch (err) {
     console.error('Erro ao atualizar painel de propriedades:', err);
+    ultimaAssinatura = null;
     panelContent.innerHTML = `
       <div class="p-4 text-rose-400 text-xs italic select-none">
         ❌ Erro ao renderizar propriedades: ${tratarErroAPI(err, 'Falha interna ao exibir propriedades')}
