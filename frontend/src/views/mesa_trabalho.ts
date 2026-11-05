@@ -750,9 +750,12 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0;
       ctx.mapaController.clearOverlays(bpAtivo);
-      ctx.mapaController.plotPontos(pontosMat, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
+      ctx.mapaController.plotPontos(bpAtivo ? [] : pontosMat, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
 
-      if (segmentosMat && segmentosMat.length > 0) {
+      if (bpAtivo) {
+        // Fonte Planilha SIGEF: só a poligonal homologada (abaixo), sem pontos/segmentos de Campo
+        ctx.mapaController.plotSegmentos([], []);
+      } else if (segmentosMat && segmentosMat.length > 0) {
         ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
       } else {
         ctx.mapaController.plotPolilinhaTemporaria(pontosMat);

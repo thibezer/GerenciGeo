@@ -112,7 +112,10 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
       ctx.cliqueVerticeMapa?.(pId, ev?.originalEvent || ev);
     });
 
-    if (segmentosMat && segmentosMat.length > 0) {
+    if (bpAtivo) {
+      // Fonte Planilha SIGEF: segmentos/pontos de Campo não entram no mapa
+      ctx.mapaController.plotSegmentos([], pontosMat);
+    } else if (segmentosMat && segmentosMat.length > 0) {
       ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
     } else {
       ctx.mapaController.plotPolilinhaTemporaria(pontosMat);

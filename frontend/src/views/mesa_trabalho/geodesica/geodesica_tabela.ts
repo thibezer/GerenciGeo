@@ -147,7 +147,10 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
       ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
       : (ctx.segmentosList || []);
 
-    if (segmentosMat && segmentosMat.length > 0) {
+    if (bpAtivo) {
+      // Fonte Planilha SIGEF: segmentos/pontos de Campo não entram no mapa
+      ctx.mapaController.plotSegmentos([], pontosMapa);
+    } else if (segmentosMat && segmentosMat.length > 0) {
       ctx.mapaController.plotSegmentos(segmentosMat, pontosParaMapa(ctx.pontosList));
     } else {
       ctx.mapaController.plotPolilinhaTemporaria(pontosMapa);
