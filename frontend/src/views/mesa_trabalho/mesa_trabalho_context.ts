@@ -38,6 +38,8 @@ export interface MesaTrabalhoContext {
   /** Poligonal homologada desenhada no mapa em Peças de Cartório (não troca a fonte da tabela de vértices) */
   poligonalHomologadaVisivel?: boolean;
   bancoPontosList: any[];
+  /** Pontos homologados da tabela `pontos` (/pontos-homologados) — outro formato/ids que bancoPontosList (tabela banco_pontos). Só para a poligonal de Peças de Cartório. */
+  pontosHomologadosList?: any[];
   pontosVizinhosList: any[];
   /** Controla se os vértices de vizinhos importados devem ser renderizados no mapa (true por padrão) */
   exibirVizinhosNoMapa?: boolean;

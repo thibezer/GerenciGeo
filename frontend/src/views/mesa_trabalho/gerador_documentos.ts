@@ -5,7 +5,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { CamadaConfrontantes } from './camada_confrontantes';
 import type { TrechoMapa } from './camada_confrontantes';
 import { criarPassosCartorio } from './passos_cartorio';
-import { bancoPontosDaMatricula } from './pontos_visiveis';
+import { homologadosDaMatricula } from './pontos_visiveis';
 import { configurarSplitterCartorio } from './splitter_cartorio';
 import {
   normalizarEstadoCivil,
@@ -792,7 +792,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       const countTxt = document.getElementById('txt-qtd-homologados');
       
       if (Array.isArray(todosPontos)) {
-        ctx.bancoPontosList = todosPontos;
+        ctx.pontosHomologadosList = todosPontos;
         
         if (countTxt) {
           countTxt.innerText = `${pontosDoProjeto.length} Pontos`;
@@ -800,7 +800,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         
         if (todosPontos.length > 0) {
           ctx.poligonalHomologadaVisivel = true;
-          ctx.mapaController.plotPoligonalHomologada(bancoPontosDaMatricula(ctx));
+          ctx.mapaController.plotPoligonalHomologada(homologadosDaMatricula(ctx));
           
           const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
           const icon = document.getElementById('icon-toggle-mapa-banco');
@@ -1205,7 +1205,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
     if (btnToggleMapa) {
       btnToggleMapa.onclick = () => {
-        if (!ctx.bancoPontosList || ctx.bancoPontosList.length === 0) {
+        if (!ctx.pontosHomologadosList || ctx.pontosHomologadosList.length === 0) {
           alert("Nenhum ponto homologado importado para exibir no mapa.");
           return;
         }
@@ -1215,7 +1215,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const txt = document.getElementById('txt-toggle-mapa-banco');
 
         if (ctx.poligonalHomologadaVisivel) {
-          ctx.mapaController.plotPoligonalHomologada(bancoPontosDaMatricula(ctx));
+          ctx.mapaController.plotPoligonalHomologada(homologadosDaMatricula(ctx));
           if (txt) txt.innerText = "Ocultar Poligonal";
           if (icon) icon.setAttribute('data-lucide', 'eye-off');
           btnToggleMapa.classList.replace('bg-amber-500/10', 'bg-amber-500/20');

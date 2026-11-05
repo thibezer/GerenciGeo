@@ -65,7 +65,15 @@ export function pontosVisiveisParaSelecao(ctx: MesaTrabalhoContext): any[] {
  * reutilizam o desenho de outra (matricula_origem_desenho_id) usam os pontos da matrícula de origem.
  */
 export function bancoPontosDaMatricula(ctx: MesaTrabalhoContext): any[] {
-  const todos: any[] = ctx.bancoPontosList || [];
+  return filtrarPorMatriculaAtiva(ctx, ctx.bancoPontosList || []);
+}
+
+/** Pontos homologados (tabela `pontos`) da matrícula ativa, para a poligonal de Peças de Cartório. */
+export function homologadosDaMatricula(ctx: MesaTrabalhoContext): any[] {
+  return filtrarPorMatriculaAtiva(ctx, ctx.pontosHomologadosList || []);
+}
+
+function filtrarPorMatriculaAtiva(ctx: MesaTrabalhoContext, todos: any[]): any[] {
   if (!ctx.currentMatriculaId) return todos;
   const mat = (ctx.matriculasList || []).find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
   const alvo = (mat && mat.matricula_origem_desenho_id) ? mat.matricula_origem_desenho_id : ctx.currentMatriculaId;
