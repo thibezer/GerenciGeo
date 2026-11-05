@@ -1,7 +1,7 @@
 import { API_BASE } from '../../../config';
 import { initIcons, showToast, escapeHtml } from '../../../utils';
 import { renderAuditoriaTranslacaoHtml, obterCorArquivo } from '../mesa_trabalho_tabela';
-import { aplicarFiltrosMesa } from '../pontos_visiveis';
+import { aplicarFiltrosMesa, bancoPontosDaMatricula } from '../pontos_visiveis';
 import { pontosParaMapa } from '../coordenadas_mapa';
 import { atualizarCamadaRascunhoVirtual } from '../camada_rascunho_virtual';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
@@ -17,8 +17,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
     pontosMat = pontosMat.filter(p => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
   }
 
-  if (ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0) {
-    pontosMat = ctx.bancoPontosList.map((bp: any) => ({
+  const bancoMat = bancoPontosDaMatricula(ctx);
+  if (ctx.bancoPontosExibido && bancoMat.length > 0) {
+    pontosMat = bancoMat.map((bp: any) => ({
       id: bp.id,
       nome_vertice: bp.codigo_completo || bp.nome_vertice || `VRT-${bp.numero || bp.id}`,
       nome_original: bp.nome_original || bp.codigo_completo,
@@ -133,7 +134,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
 
   // Plotagem no Canvas do Mapa
   if (ctx.triagemMap) {
-    const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
+    const bpAtivo = ctx.bancoPontosExibido && bancoMat.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
     const pontosMapa = pontosParaMapa(pontosMat);
     ctx.mapaController.plotPontos(pontosMapa, (pId: number, ev?: any) => {
@@ -157,7 +158,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
     }
 
     if (bpAtivo) {
-      ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+      ctx.mapaController.plotPoligonalHomologada(bancoMat);
     }
 
     if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {

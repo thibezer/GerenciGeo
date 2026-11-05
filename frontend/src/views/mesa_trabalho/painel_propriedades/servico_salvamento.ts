@@ -170,9 +170,6 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
             ctx.pontosList = novosPontos;
             ctx.renderMatriculaDados?.();
             ctx.atualizarPolilinhaMapaTemp?.();
-            if (ctx.mapaController && typeof ctx.mapaController.plotPontos === 'function') {
-              ctx.mapaController.plotPontos(ctx.pontosList);
-            }
           }
         }
       } catch (errSync) {

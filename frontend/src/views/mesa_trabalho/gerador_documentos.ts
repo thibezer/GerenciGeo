@@ -5,6 +5,7 @@ import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { CamadaConfrontantes } from './camada_confrontantes';
 import type { TrechoMapa } from './camada_confrontantes';
 import { criarPassosCartorio } from './passos_cartorio';
+import { bancoPontosDaMatricula } from './pontos_visiveis';
 import { configurarSplitterCartorio } from './splitter_cartorio';
 import {
   normalizarEstadoCivil,
@@ -799,7 +800,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         
         if (todosPontos.length > 0) {
           ctx.poligonalHomologadaVisivel = true;
-          ctx.mapaController.plotPoligonalHomologada(todosPontos);
+          ctx.mapaController.plotPoligonalHomologada(bancoPontosDaMatricula(ctx));
           
           const btnToggleMapa = document.getElementById('btn-toggle-mapa-banco');
           const icon = document.getElementById('icon-toggle-mapa-banco');
@@ -1214,7 +1215,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const txt = document.getElementById('txt-toggle-mapa-banco');
 
         if (ctx.poligonalHomologadaVisivel) {
-          ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+          ctx.mapaController.plotPoligonalHomologada(bancoPontosDaMatricula(ctx));
           if (txt) txt.innerText = "Ocultar Poligonal";
           if (icon) icon.setAttribute('data-lucide', 'eye-off');
           btnToggleMapa.classList.replace('bg-amber-500/10', 'bg-amber-500/20');

@@ -1,4 +1,5 @@
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
+import { bancoPontosDaMatricula } from './pontos_visiveis';
 
 export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
   // Removido o early return para permitir que pontos avulsos ([Sem Matrícula]) sejam carregados
@@ -9,8 +10,9 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
   }
 
-  if (ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0) {
-    pontosMat = ctx.bancoPontosList.map((bp: any) => ({
+  const bancoMat = bancoPontosDaMatricula(ctx);
+  if (ctx.bancoPontosExibido && bancoMat.length > 0) {
+    pontosMat = bancoMat.map((bp: any) => ({
       id: bp.id,
       nome_vertice: bp.codigo_completo || bp.nome_vertice || `VRT-${bp.numero || bp.id}`,
       nome_original: bp.nome_original || bp.codigo_completo,
@@ -106,7 +108,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     : ctx.segmentosList;
 
   if (ctx.triagemMap) {
-    const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList.length > 0;
+    const bpAtivo = ctx.bancoPontosExibido && bancoMat.length > 0;
     ctx.mapaController.clearOverlays(bpAtivo);
     ctx.mapaController.plotPontos(pontosMat, (pId: number, ev?: any) => {
       ctx.cliqueVerticeMapa?.(pId, ev?.originalEvent || ev);
@@ -122,7 +124,7 @@ export const renderTabelaOrganizadorPerimetro = (ctx: MesaTrabalhoContext) => {
     }
 
     if (bpAtivo) {
-      ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+      ctx.mapaController.plotPoligonalHomologada(bancoMat);
     }
     if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
       const ptsViz = ctx.exibirVizinhosNoMapa !== false ? ctx.pontosVizinhosList : [];

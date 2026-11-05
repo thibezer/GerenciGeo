@@ -58,3 +58,16 @@ export function pontosVisiveisParaSelecao(ctx: MesaTrabalhoContext): any[] {
   }
   return aplicarFiltrosMesa(ctx, base.filter(p => !!p));
 }
+
+/**
+ * Pontos homologados (banco SIGEF) da matrícula ativa. `ctx.bancoPontosList` guarda TODAS as matrículas do
+ * levantamento; plotar/listar tudo junto desenha um anel único cruzando as matrículas. Matrículas que
+ * reutilizam o desenho de outra (matricula_origem_desenho_id) usam os pontos da matrícula de origem.
+ */
+export function bancoPontosDaMatricula(ctx: MesaTrabalhoContext): any[] {
+  const todos: any[] = ctx.bancoPontosList || [];
+  if (!ctx.currentMatriculaId) return todos;
+  const mat = (ctx.matriculasList || []).find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
+  const alvo = (mat && mat.matricula_origem_desenho_id) ? mat.matricula_origem_desenho_id : ctx.currentMatriculaId;
+  return todos.filter((bp: any) => String(bp.matricula_id) === String(alvo));
+}

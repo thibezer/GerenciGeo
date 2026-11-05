@@ -88,13 +88,7 @@ export async function enviarPendentesSegmento(ctx: any): Promise<void> {
     }
 
     // Re-plota segmentos no mapa para atualizar cores/estilos
-    if (ctx.mapaController && ctx.pontosList) {
-      const effectiveMatId = ctx.currentMatriculaId;
-      const segmentosMat = effectiveMatId
-        ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
-        : (ctx.segmentosList || []);
-      ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
-    }
+    ctx.atualizarPolilinhaMapaTemp?.();
   } catch (err) {
     console.error('Erro no salvamento do segmento:', err);
     showToast(tratarErroAPI(err, 'Falha ao salvar segmento.'), 'error');

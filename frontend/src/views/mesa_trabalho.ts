@@ -3,6 +3,8 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
+import { bancoPontosDaMatricula } from './mesa_trabalho/pontos_visiveis';
+import { pontosParaMapa } from './mesa_trabalho/coordenadas_mapa';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
 import { selecionarVerticeClicado, instalarAlternanciaPilha } from './mesa_trabalho/seletor_sobrepostos';
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
@@ -748,21 +750,22 @@ export const mesaTrabalhoRoute: RouteDef = {
         ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
         : (ctx.segmentosList || []);
 
-      const bpAtivo = ctx.bancoPontosExibido && ctx.bancoPontosList && ctx.bancoPontosList.length > 0;
+      const bancoMat = bancoPontosDaMatricula(ctx);
+      const bpAtivo = ctx.bancoPontosExibido && bancoMat.length > 0;
       ctx.mapaController.clearOverlays(bpAtivo);
-      ctx.mapaController.plotPontos(bpAtivo ? [] : pontosMat, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
+      ctx.mapaController.plotPontos(bpAtivo ? [] : pontosParaMapa(pontosMat), (pId: number) => ctx.cliqueVerticeMapa?.(pId));
 
       if (bpAtivo) {
         // Fonte Planilha SIGEF: só a poligonal homologada (abaixo), sem pontos/segmentos de Campo
         ctx.mapaController.plotSegmentos([], []);
       } else if (segmentosMat && segmentosMat.length > 0) {
-        ctx.mapaController.plotSegmentos(segmentosMat, ctx.pontosList);
+        ctx.mapaController.plotSegmentos(segmentosMat, pontosParaMapa(ctx.pontosList));
       } else {
-        ctx.mapaController.plotPolilinhaTemporaria(pontosMat);
+        ctx.mapaController.plotPolilinhaTemporaria(pontosParaMapa(pontosMat));
       }
 
       if (bpAtivo) {
-        ctx.mapaController.plotPoligonalHomologada(ctx.bancoPontosList);
+        ctx.mapaController.plotPoligonalHomologada(bancoMat);
       }
       if (ctx.pontosVizinhosList && ctx.pontosVizinhosList.length > 0) {
         const ptsViz = ctx.exibirVizinhosNoMapa !== false ? ctx.pontosVizinhosList : [];
