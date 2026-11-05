@@ -169,12 +169,13 @@ export const renderLinhasLevHtml = (lista: Levantamento[]): string => lista.map(
           <span class="lp-cnt ${l.total_segmentos ? '' : 'is-zero'}" title="Divisas (segmentos)"><i data-lucide="pentagon"></i>${l.total_segmentos || 0}</span>
         </span>
       </td>
-      <td class="lp-col-acoes" style="width:150px">
+      <td class="lp-col-acoes" style="min-width:175px">
         <div class="lp-acoes">
           <button type="button" class="lp-ico-btn btn-auditar-icon" data-id="${l.id}" title="Auditar & Triar" aria-label="Auditar e triar ${nome}" style="color:var(--lp-accent)"><i data-lucide="play"></i></button>
           ${arquivado ? `<button type="button" class="lp-ico-btn btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar" aria-label="Desarquivar ${nome}"><i data-lucide="lock-open"></i></button>` : ''}
           <button type="button" class="lp-ico-btn btn-editar-lev" data-id="${l.id}" title="Editar" aria-label="Editar ${nome}"><i data-lucide="edit"></i></button>
           <button type="button" class="lp-ico-btn btn-compartilhar-lev" data-id="${l.id}" title="Gerar link público" aria-label="Compartilhar ${nome}"><i data-lucide="share-2"></i></button>
+          <button type="button" class="lp-ico-btn is-warning btn-limpar-dados-lev" data-id="${l.id}" title="Zerar / Limpar todos os dados" aria-label="Limpar todos os dados de ${nome}"><i data-lucide="rotate-ccw"></i></button>
           <button type="button" class="lp-ico-btn is-danger btn-excluir-lev" data-id="${l.id}" title="Excluir" aria-label="Excluir ${nome}"><i data-lucide="trash-2"></i></button>
         </div>
       </td>
@@ -211,6 +212,7 @@ export const renderCardsLevHtml = (lista: Levantamento[]): string => lista.map(l
         ${l.status === 'ARQUIVADO' ? `<button type="button" class="lp-ico-btn btn-desarquivar-lev" data-id="${l.id}" title="Desarquivar" aria-label="Desarquivar ${nome}"><i data-lucide="lock-open"></i></button>` : ''}
         <button type="button" class="lp-ico-btn btn-editar-lev" data-id="${l.id}" title="Editar" aria-label="Editar ${nome}"><i data-lucide="edit"></i></button>
         <button type="button" class="lp-ico-btn btn-compartilhar-lev" data-id="${l.id}" title="Gerar link público" aria-label="Compartilhar ${nome}"><i data-lucide="share-2"></i></button>
+        <button type="button" class="lp-ico-btn is-warning btn-limpar-dados-lev" data-id="${l.id}" title="Zerar / Limpar todos os dados" aria-label="Limpar todos os dados de ${nome}"><i data-lucide="rotate-ccw"></i></button>
         <button type="button" class="lp-ico-btn is-danger btn-excluir-lev" data-id="${l.id}" title="Excluir" aria-label="Excluir ${nome}"><i data-lucide="trash-2"></i></button>
       </div>
     </div>`;

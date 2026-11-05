@@ -134,6 +134,7 @@ export const renderMesaTrabalho = (): string => {
           <button type="button" id="btn-calcular-confrontantes"></button>
           <button type="button" id="btn-ativar-reordenacao"></button>
           <button type="button" id="btn-verificar-sigmas"></button>
+          <button type="button" id="btn-limpar-dados-levantamento"></button>
         </div>
       </header>
 

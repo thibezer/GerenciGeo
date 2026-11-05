@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE, PUBLIC_HOST_URL } from '../config';
-import { initIcons, showToast, escapeHtml } from '../utils';
+import { initIcons, showToast, escapeHtml, customConfirm } from '../utils';
 import L from 'leaflet';
 import {
    filtrarLevantamentos,
@@ -425,7 +425,7 @@ export const levantamentosRoute: RouteDef = {
             const target = e.target as HTMLElement;
             const th = target.closest<HTMLElement>('th[data-ordem]');
             if (th) { alternarOrdem(th); return; }
-            const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev, .btn-compartilhar-lev') as HTMLElement;
+            const btn = target.closest('.btn-auditar, .btn-auditar-icon, .btn-auditar-link, .btn-editar-lev, .btn-excluir-lev, .btn-desarquivar-lev, .btn-compartilhar-lev, .btn-limpar-dados-lev') as HTMLElement;
             if (!btn) {
                // Linha inteira abre a mesa de trabalho (mesma ação do botão Auditar)
                const linhaId = parseInt(target.closest<HTMLElement>('tr.lev-list-item')?.getAttribute('data-id') || '0');
@@ -521,6 +521,38 @@ export const levantamentosRoute: RouteDef = {
                   if (containerStatus) containerStatus.classList.remove('hidden');
                   document.getElementById('modal-levantamento')?.classList.remove('hidden');
                })();
+            } else if (btn.classList.contains('btn-limpar-dados-lev')) {
+                (async () => {
+                   const l = levantamentosList.find(x => x.id === id);
+                   const nome = l ? l.nome_propriedade : `#${id}`;
+
+                   const confirmado = await customConfirm(
+                     `ATENÇÃO: Deseja realmente APAGAR TODOS OS DADOS do levantamento "${nome}"?\n\n` +
+                     `• Todos os vértices e pontos (campo, bases, rovers e virtuais) serão apagados definitivamente;\n` +
+                     `• Todas as divisas e segmentos do perímetro serão excluídos;\n` +
+                     `• Todos os confrontantes e anuências vinculados serão excluídos;\n` +
+                     `• Todas as planilhas e pontos SIGEF vinculados serão excluídos;\n` +
+                     `• As pastas de arquivos de processamento e rinex do levantamento serão limpas no disco.\n\n` +
+                     `O levantamento retornará ao seu estado inicial zerado (como se tivesse acabado de ser criado).\n\n` +
+                     `Esta ação é definitiva e não pode ser desfeita. Confirmar limpeza total?`,
+                     'Limpar Todos os Dados'
+                   );
+                   if (!confirmado) return;
+
+                   try {
+                      const res = await fetch(`${API_BASE}/levantamentos/${id}/limpar-dados`, { method: 'POST' });
+                      const resData = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                         showToast(extrairMensagemErro(resData, 'Erro ao limpar dados do levantamento.'), 'error');
+                         return;
+                      }
+                      showToast(resData.message || 'Dados do levantamento limpos com sucesso.', 'success');
+                      loadLevantamentos();
+                   } catch (err) {
+                      console.error('Erro ao limpar dados do levantamento:', err);
+                      showToast('Erro de comunicação com o servidor ao tentar limpar dados.', 'error');
+                   }
+                })();
             } else if (btn.classList.contains('btn-excluir-lev')) {
                (async () => {
                   const l = levantamentosList.find(x => x.id === id);

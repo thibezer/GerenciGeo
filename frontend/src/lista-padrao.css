@@ -112,6 +112,7 @@
 .lp-ico-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--lp-text-2); cursor: pointer; transition: background .12s, color .12s; }
 .lp-ico-btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--lp-accent); }
 .lp-ico-btn.is-danger:hover { background: rgba(248, 113, 113, 0.12); color: var(--lp-danger); }
+.lp-ico-btn.is-warning:hover { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
 .lp-ico-btn:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 0; }
 .lp-ico-btn svg, .lp-ico-btn i { width: 15px; height: 15px; }
 

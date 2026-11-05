@@ -5,6 +5,8 @@ import os
 import io
 import json
 import stat
+import shutil
+from pathlib import Path
 import zipfile
 import logging
 import datetime
@@ -241,6 +243,96 @@ def delete_levantamento(lev_id: int, apagar_arquivos: bool = False):
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao deletar levantamento id={lev_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro interno ao remover levantamento: {str(e)}")
+
+@router.post("/levantamentos/{lev_id}/limpar-dados")
+def limpar_dados_levantamento(lev_id: int):
+    verificar_levantamento_arquivado(lev_id)
+    try:
+        lev_row = execute_query(
+            "SELECT id, pasta_projeto FROM levantamentos WHERE id = ?",
+            params=(lev_id,),
+            fetch_one=True
+        )
+        if not lev_row:
+            raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+
+        pasta_cadastrada = lev_row["pasta_projeto"] if lev_row and "pasta_projeto" in lev_row.keys() else None
+
+        wm = WorkspaceManager()
+        try:
+            pasta_obj = wm.get_levantamento_folder(lev_id)
+        except Exception:
+            pasta_obj = None
+
+        with DatabaseManager() as conn:
+            # 1. Segmentos (divisas perimetrais)
+            conn.execute("DELETE FROM segmentos WHERE levantamento_id = ?", (lev_id,))
+
+            # 2. Anuências e Confrontantes
+            conn.execute("DELETE FROM anuencias_confrontantes WHERE levantamento_id = ?", (lev_id,))
+            conn.execute(
+                "DELETE FROM confrontante_coproprietarios WHERE confrontante_id IN (SELECT id FROM confrontantes WHERE levantamento_id = ?)",
+                (lev_id,)
+            )
+            conn.execute("DELETE FROM confrontantes WHERE levantamento_id = ?", (lev_id,))
+
+            # 3. SIGEF: alterações pendentes e banco de pontos vinculado
+            conn.execute("DELETE FROM alteracoes_sigef WHERE levantamento_id = ?", (lev_id,))
+            conn.execute("DELETE FROM banco_pontos WHERE levantamento_id = ?", (lev_id,))
+
+            # 4. Pontos / Vértices do levantamento (desvincula auto-referências antes)
+            conn.execute("UPDATE pontos SET ponto_base_id = NULL, ponto_origem_id = NULL WHERE levantamento_id = ?", (lev_id,))
+            conn.execute("DELETE FROM pontos WHERE levantamento_id = ?", (lev_id,))
+
+            # 5. Histórico de alterações de campo
+            conn.execute("DELETE FROM historico_alteracoes_campo WHERE levantamento_id = ?", (lev_id,))
+
+            # 6. Histórico Rinex
+            if pasta_cadastrada:
+                conn.execute("DELETE FROM historico_rinex WHERE arquivo_path LIKE ? || '%'", (pasta_cadastrada,))
+            if pasta_obj and str(pasta_obj) != pasta_cadastrada:
+                conn.execute("DELETE FROM historico_rinex WHERE arquivo_path LIKE ? || '%'", (str(pasta_obj),))
+
+            # 7. Reseta status do levantamento para EM_ANDAMENTO
+            conn.execute("UPDATE levantamentos SET status = 'EM_ANDAMENTO' WHERE id = ?", (lev_id,))
+
+            conn.commit()
+
+        # 8. Limpeza do Workspace Físico e recriação em estado novo
+        aviso_pasta = None
+        try:
+            if pasta_cadastrada and pasta_cadastrada != str(pasta_obj):
+                p_cad = Path(pasta_cadastrada)
+                if p_cad.exists():
+                    wm.delete_workspace(lev_id, folder=p_cad)
+
+            if pasta_obj and pasta_obj.exists():
+                wm.delete_workspace(lev_id, folder=pasta_obj)
+
+            # Recria a estrutura vazia de diretórios e gera DADOS_GERAIS.json
+            nova_pasta = wm.create_workspace(lev_id)
+            execute_query("UPDATE levantamentos SET pasta_projeto = ? WHERE id = ?", params=(nova_pasta, lev_id), commit=True)
+            try:
+                ExportacaoService.gerar_documento_cliente_workspace(lev_id)
+            except Exception as e_exp:
+                logging.getLogger(__name__).warning(f"Aviso ao gerar documento DADOS_GERAIS pós-limpeza: {e_exp}")
+        except Exception as e_fs:
+            logging.getLogger(__name__).warning(f"Aviso ao limpar workspace físico do levantamento {lev_id}: {e_fs}")
+            aviso_pasta = str(e_fs)
+
+        resp = {
+            "success": True,
+            "message": "Todos os dados do levantamento foram limpos com sucesso. O levantamento retornou ao seu estado inicial."
+        }
+        if aviso_pasta:
+            resp["aviso_pasta"] = aviso_pasta
+        return resp
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao limpar dados do levantamento id={lev_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro interno ao limpar dados do levantamento: {str(e)}")
+
 
 @router.post("/levantamentos/{lev_id}/documentos")
 async def upload_documento_levantamento(lev_id: int, file: UploadFile = File(...)):

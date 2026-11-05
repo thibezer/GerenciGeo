@@ -1,5 +1,5 @@
 import { API_BASE } from '../../../config';
-import { initIcons, showToast } from '../../../utils';
+import { initIcons, showToast, customConfirm } from '../../../utils';
 import { registrarEventosExportacao, exportarParaKML } from '../exportacao_cad';
 import { setNuvemSyncContext } from '../nuvem_sync_modal';
 import { FerramentaCanetaSelecao } from '../ferramenta_caneta';
@@ -180,6 +180,57 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       if (btnArquivar) {
         btnArquivar.disabled = false;
         btnArquivar.innerHTML = originalHtmlArquivar;
+        initIcons();
+      }
+    }
+  });
+
+  // Zerar / Limpar todos os dados do levantamento (restaura o estado inicial)
+  document.getElementById('btn-limpar-dados-levantamento')?.addEventListener('click', async () => {
+    if (!ctx.currentLevId) return;
+
+    const confirmado = await customConfirm(
+      'ATENÇÃO: Você tem certeza que deseja APAGAR TODOS OS DADOS deste levantamento?\n\n' +
+      '• Todos os vértices e pontos (campo, bases, rovers e virtuais) serão apagados definitivamente;\n' +
+      '• Todas as divisas e segmentos do perímetro serão removidos;\n' +
+      '• Todos os confrontantes e anuências vinculados serão excluídos;\n' +
+      '• Todas as planilhas e pontos SIGEF vinculados serão excluídos;\n' +
+      '• As pastas de arquivos de processamento e rinex do levantamento serão limpas no disco.\n\n' +
+      'O levantamento retornará ao seu estado inicial zerado (como se tivesse acabado de ser criado).\n\n' +
+      'Esta ação é IRREVERSÍVEL. Confirmar limpeza total?',
+      'Limpar Todos os Dados do Levantamento'
+    );
+    if (!confirmado) return;
+
+    const btnZerar = document.getElementById('btn-limpar-dados-levantamento') as HTMLButtonElement | null;
+    let originalHtml = '';
+    if (btnZerar) {
+      originalHtml = btnZerar.innerHTML;
+      btnZerar.disabled = true;
+      btnZerar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Limpando...`;
+      initIcons();
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/limpar-dados`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.detail || data.error || 'Erro ao limpar dados do levantamento.', 'error');
+      } else {
+        showToast(data.message || 'Todos os dados foram apagados com sucesso.', 'success');
+        ctx.selectedPontoIds = [];
+        await ctx.loadLevantamentoDetails();
+        if (ctx.triagemMap) {
+          ctx.mapaController?.clearOverlays?.();
+          ctx.triagemMap.invalidateSize?.();
+        }
+      }
+    } catch (e: any) {
+      showToast('Erro de comunicação ao tentar limpar dados: ' + e.message, 'error');
+    } finally {
+      if (btnZerar) {
+        btnZerar.disabled = false;
+        btnZerar.innerHTML = originalHtml;
         initIcons();
       }
     }

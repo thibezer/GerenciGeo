@@ -2508,6 +2508,58 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
         jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Levantamento criado com sucesso!'], 201);
     }
 
+    // POST /levantamentos/{id}/limpar-dados
+    if ($method === 'POST' && $levId && $action === 'limpar-dados') {
+        $stmtStatus = $pdo->prepare("SELECT status FROM levantamentos WHERE id = ?");
+        $stmtStatus->execute([$levId]);
+        $currLev = $stmtStatus->fetch();
+        if (!$currLev) {
+            jsonResponse(['error' => 'Levantamento não encontrado.'], 404);
+        }
+        if (($currLev['status'] ?? '') === 'ARQUIVADO') {
+            jsonResponse(['error' => 'Levantamento arquivado. Não é permitido alterar dados.'], 403);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            // 1. Segmentos
+            $stmtSeg = $pdo->prepare("SELECT id FROM segmentos WHERE levantamento_id = ?");
+            $stmtSeg->execute([$levId]);
+            foreach ($stmtSeg->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+                excluirComLapide($pdo, 'segmentos', (int)$sid);
+            }
+
+            // 2. Confrontantes
+            $stmtConf = $pdo->prepare("SELECT id FROM confrontantes WHERE levantamento_id = ?");
+            $stmtConf->execute([$levId]);
+            foreach ($stmtConf->fetchAll(PDO::FETCH_COLUMN) as $cid) {
+                excluirComLapide($pdo, 'confrontantes', (int)$cid);
+            }
+
+            // 3. Pontos
+            $stmtPts = $pdo->prepare("SELECT id FROM pontos WHERE levantamento_id = ?");
+            $stmtPts->execute([$levId]);
+            foreach ($stmtPts->fetchAll(PDO::FETCH_COLUMN) as $pid) {
+                excluirComLapide($pdo, 'pontos', (int)$pid);
+            }
+
+            // 4. Reset status
+            $stmtUp = $pdo->prepare("UPDATE levantamentos SET status = 'EM_ANDAMENTO' WHERE id = ?");
+            $stmtUp->execute([$levId]);
+
+            $pdo->commit();
+            touchCloudSyncTimestamp($pdo);
+
+            jsonResponse([
+                'success' => true,
+                'message' => 'Todos os dados do levantamento foram limpos com sucesso.'
+            ]);
+        } catch (\Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(['error' => 'Erro ao limpar dados na nuvem: ' . $e->getMessage()], 500);
+        }
+    }
+
     // DELETE /levantamentos/{id}
     if ($method === 'DELETE' && $levId && !$action) {
         excluirComLapide($pdo, 'levantamentos', (int)$levId);
