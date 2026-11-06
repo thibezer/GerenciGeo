@@ -273,6 +273,22 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
     }
   });
 
+  // Alternância Nome Vértice / Código SIGEF na coluna de nome da tabela
+  document.getElementById('btn-toggle-nome-ponto')?.addEventListener('click', () => {
+    const btn = document.getElementById('btn-toggle-nome-ponto');
+    const sigef = ctx.modoNomePonto !== 'sigef';
+    ctx.modoNomePonto = sigef ? 'sigef' : 'vertice';
+
+    if (btn) {
+      btn.innerText = sigef ? 'Código SIGEF' : 'Nome Vértice';
+      btn.title = sigef ? 'Exibir o nome do vértice' : 'Exibir o Código SIGEF no lugar do nome do vértice';
+      btn.classList.toggle('bg-mint-vibrant/20', sigef);
+      btn.classList.toggle('bg-white/5', !sigef);
+      btn.classList.toggle('border-mint-vibrant/40', sigef);
+    }
+    ctx.renderMatriculaDados();
+  });
+
   document.getElementById('btn-modo-utm')?.addEventListener('click', () => {
     if (ctx.modoCoordenadas !== 'utm') {
       document.getElementById('btn-toggle-coordenadas')?.click();

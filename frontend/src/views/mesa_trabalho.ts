@@ -68,6 +68,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       mapaController: mapaController,
       filesQueue: [],
       modoCoordenadas: 'utm', // AutoCAD UTM Default (Diretriz V2.3)
+      modoNomePonto: 'vertice', // 'vertice' | 'sigef' (coluna de nome da tabela de pontos)
       etapaAtiva: 'geoprocessamento', // 'geoprocessamento' | 'cartorio' | 'auditoria'
       modoReordenarAtivo: false,
 

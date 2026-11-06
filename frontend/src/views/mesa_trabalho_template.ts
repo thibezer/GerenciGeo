@@ -296,6 +296,9 @@ export const renderMesaTrabalho = (): string => {
                   <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-2" id="btn-toggle-coordenadas" type="button" title="Alternar coordenadas (UTM / Geodésicas)">
                     Geodésico
                   </button>
+                  <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-toggle-nome-ponto" type="button" title="Exibir o Código SIGEF no lugar do nome do vértice">
+                    Nome Vértice
+                  </button>
                   <button class="text-[9px] px-2 py-0.5 font-bold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-mint-vibrant/40 rounded transition-all text-mint-vibrant ml-1" id="btn-toggle-ocultar-ignorados" type="button" title="Ocultar vértices fora da poligonal da matrícula">
                     Só Polígono
                   </button>

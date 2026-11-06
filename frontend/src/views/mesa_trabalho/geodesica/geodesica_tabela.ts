@@ -173,6 +173,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
   // Montagem da tabela de dados
   const uiTabela = document.getElementById('ui-tbl-pontos-triagem') as any;
   if (uiTabela) {
+    const modoSigef = ctx.modoNomePonto === 'sigef';
     const pontosProcessados = pontosMat.map(p => {
       const isMarco = p.tipo_ponto === 'M' || p.tipo === 'M';
       const isBaseFisica = p.tipo_ponto === 'B' || p.tipo === 'B';
@@ -208,6 +209,8 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         ...p,
         ordem_num: typeof ordemExibida === 'number' ? ordemExibida : 999999,
         ordem_display: ordemExibida,
+        // Nome exibido na coluna de identificação: código SIGEF (com fallback ao nome do vértice) ou nome do vértice
+        nome_exibido: modoSigef ? (p.codigo_sigef || p.nome_vertice) : p.nome_vertice,
         n_bruto_str: p.n_original ? p.n_original.toFixed(3) : (p.lat ? p.lat.toFixed(8) : '-'),
         e_bruto_str: p.e_original ? p.e_original.toFixed(3) : (p.lon ? p.lon.toFixed(8) : '-'),
         n_corr_str: Number(nCorrNum).toFixed(3),
@@ -254,9 +257,9 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
         }
       },
       {
-        id: 'nome_vertice',
-        rotulo: 'Vértice',
-        largura: 110,
+        id: 'nome_exibido',
+        rotulo: modoSigef ? 'Cód. SIGEF' : 'Vértice',
+        largura: modoSigef ? 130 : 110,
         alinhamento: 'esquerda',
         ordenavel: true,
         render: (_: any, item: any) => {
@@ -265,7 +268,7 @@ export const renderTabelaMesaGeodesica = (ctx: MesaTrabalhoContext): void => {
           div.className = 'flex items-center gap-1.5 w-full';
           div.setAttribute('data-ponto-id', String(item.id));
           div.innerHTML = `
-            <span class="text-xs ${colorClass} truncate">${escapeHtml(item.nome_vertice)}</span>
+            <span class="text-xs ${colorClass} truncate" title="${escapeHtml(item.nome_exibido)}">${escapeHtml(item.nome_exibido)}</span>
             <button class="btn-focar-ponto-mapa p-1 bg-white/5 hover:bg-mint-vibrant/20 text-white hover:text-mint-vibrant rounded transition-colors" data-ponto-id="${item.id}" title="Focar no Mapa" type="button">
               <i data-lucide="crosshair" class="w-3 h-3"></i>
             </button>

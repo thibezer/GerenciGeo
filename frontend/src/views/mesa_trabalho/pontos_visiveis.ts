@@ -29,6 +29,7 @@ export function aplicarFiltrosMesa<T extends Record<string, any>>(ctx: MesaTraba
     const busca = ctx.searchFilterValue;
     lista = lista.filter(p =>
       (p.nome_vertice && p.nome_vertice.toLowerCase().includes(busca)) ||
+      (p.codigo_sigef && String(p.codigo_sigef).toLowerCase().includes(busca)) ||
       (p.tipo_ponto && p.tipo_ponto.toLowerCase().includes(busca)) ||
       (p.tipo && p.tipo.toLowerCase().includes(busca)) ||
       (p.arquivo_origem && p.arquivo_origem.toLowerCase().includes(busca)) ||

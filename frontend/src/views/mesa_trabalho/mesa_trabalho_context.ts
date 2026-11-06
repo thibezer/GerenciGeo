@@ -17,6 +17,8 @@ export interface MesaTrabalhoContext {
   ferramentaOffsetMapa?: any;
   filesQueue: { file: File; destination: string; matricula_id?: number | null; base_escolhida_id?: number | null }[];
   modoCoordenadas: string;
+  /** Nome exibido na coluna de identificação da tabela de pontos: nome do vértice ou código SIGEF. */
+  modoNomePonto: 'vertice' | 'sigef';
   etapaAtiva: string;
   modoReordenarAtivo: boolean;
 
