@@ -186,7 +186,7 @@ _SQL_SEGMENTOS_DETALHADOS = """
     FROM segmentos s
     JOIN pontos pi ON s.ponto_inicio_id = pi.id
     JOIN pontos pf ON s.ponto_fim_id = pf.id
-    WHERE s.matricula_id = ? AND s.confrontante_id IN ({marcas})
+    WHERE s.matricula_id IN ({marcas_mats}) AND s.confrontante_id IN ({marcas_confs})
     ORDER BY s.id ASC
 """
 
@@ -196,14 +196,24 @@ def _ordenar_segmentos(segs: list[dict]) -> list[dict]:
     return segs
 
 
-def obter_segmentos_detalhados_lote(matricula_desenho_id: int, confrontantes_ids: list[int]) -> dict[int, list[dict]]:
-    """Segmentos de vários confrontantes em UMA consulta (coordenadas corrigidas quando existem)."""
+def obter_segmentos_detalhados_lote(
+    matricula_desenho_id: int,
+    confrontantes_ids: list[int],
+    matricula_extra_id: int | None = None,
+) -> dict[int, list[dict]]:
+    """Segmentos de vários confrontantes em UMA consulta (coordenadas corrigidas quando existem).
+    Permite buscar na matrícula do desenho e opcionalmente na matrícula específica (se diferir)."""
     ids = list(confrontantes_ids)
     resultado: dict[int, list[dict]] = {cid: [] for cid in ids}
     if not ids:
         return resultado
-    sql = _SQL_SEGMENTOS_DETALHADOS.format(marcas=",".join("?" * len(ids)))
-    rows = execute_query(sql, params=tuple([matricula_desenho_id] + ids), fetch_all=True)
+    mats = [matricula_desenho_id]
+    if matricula_extra_id and matricula_extra_id not in mats:
+        mats.append(matricula_extra_id)
+    marcas_mats = ",".join("?" * len(mats))
+    marcas_confs = ",".join("?" * len(ids))
+    sql = _SQL_SEGMENTOS_DETALHADOS.format(marcas_mats=marcas_mats, marcas_confs=marcas_confs)
+    rows = execute_query(sql, params=tuple(mats + ids), fetch_all=True)
     for r in rows:
         resultado[r["confrontante_id"]].append(dict(r))
     for cid in ids:
@@ -213,9 +223,8 @@ def obter_segmentos_detalhados_lote(matricula_desenho_id: int, confrontantes_ids
 
 def obter_segmentos_detalhados_confrontante(matricula_id: int, confrontante_id: int) -> list[dict]:
     """Busca e retorna os segmentos de confrontação ordenados com dados topográficos e geométricos completos"""
-    # Se a matrícula tiver desenho compartilhado, resolver para a matrícula base
     target_mat_id = resolver_matricula_desenho(matricula_id)
-    return obter_segmentos_detalhados_lote(target_mat_id, [confrontante_id])[confrontante_id]
+    return obter_segmentos_detalhados_lote(target_mat_id, [confrontante_id], matricula_extra_id=matricula_id)[confrontante_id]
 
 
 def _fmt_coord(valor) -> str:

@@ -21,6 +21,7 @@ from services.documentacao.cartorio.data_fetcher import (
     gerar_tabela_divisas_html,
     obter_dados_comuns,
     obter_segmentos_detalhados_lote,
+    resolver_matricula_desenho,
 )
 from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
 from services.documentacao.cartorio.qualificacao import (
@@ -80,7 +81,7 @@ _SQL_CONFRONTANTES = """
 """
 
 
-def _prefetch_confrontantes(lev_id: int, mat_desenho_id: int, ids: list[int]) -> dict:
+def _prefetch_confrontantes(lev_id: int, mat_desenho_id: int, ids: list[int], matricula_id: int | None = None) -> dict:
     """Carrega, em poucas consultas, confrontante + coproprietários + segmentos de todos os ids."""
     ids = list(dict.fromkeys(ids))
     if not ids:
@@ -95,7 +96,7 @@ def _prefetch_confrontantes(lev_id: int, mat_desenho_id: int, ids: list[int]) ->
     coprops = defaultdict(list)
     for cp in rows_cp or []:
         coprops[cp["confrontante_id"]].append(dict(cp))
-    segs = obter_segmentos_detalhados_lote(mat_desenho_id, ids)
+    segs = obter_segmentos_detalhados_lote(mat_desenho_id, ids, matricula_extra_id=matricula_id)
     return {cid: {"conf": confs.get(cid), "coprops": coprops.get(cid, []), "segs": segs.get(cid, [])} for cid in ids}
 
 
@@ -104,16 +105,41 @@ def _prefetch_confrontantes(lev_id: int, mat_desenho_id: int, ids: list[int]) ->
 def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
     """Pontos válidos (coordenada corrigida quando existir) + poligonal geral da matrícula do desenho.
     Independe do confrontante: o lote calcula uma vez só. None = pontos insuficientes para o croqui."""
+    mat_desenho_id = resolver_matricula_desenho(matricula_id)
+
+    # 1. Busca pontos associados à matrícula ou com matricula_id NULL no levantamento,
+    # ou referenciados pelos segmentos daquela matrícula
     todos_pontos = execute_query(
         """
         SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
         FROM pontos
-        WHERE levantamento_id = ? AND matricula_id = ?
+        WHERE levantamento_id = ?
+          AND (
+              matricula_id = ?
+              OR matricula_id IS NULL
+              OR id IN (
+                  SELECT ponto_inicio_id FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?
+                  UNION
+                  SELECT ponto_fim_id FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?
+              )
+          )
         ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
         """,
-        params=(lev_id, matricula_id),
+        params=(lev_id, mat_desenho_id, lev_id, mat_desenho_id, lev_id, mat_desenho_id),
         fetch_all=True
     )
+    if not todos_pontos:
+        # Fallback amplo: se ainda não achou, pega todos os pontos com coordenadas do levantamento
+        todos_pontos = execute_query(
+            """
+            SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
+            FROM pontos
+            WHERE levantamento_id = ?
+            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
+            """,
+            params=(lev_id,),
+            fetch_all=True
+        )
     if not todos_pontos:
         return None
 
@@ -146,11 +172,12 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
         AND (
             (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
             OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
-                            AND h.matricula_id = s.matricula_id AND h.origem_homologada = 1)
+                            AND (h.matricula_id = s.matricula_id OR h.matricula_id IS NULL)
+                            AND h.origem_homologada = 1)
         )
         ORDER BY s.id ASC
         """,
-        params=(lev_id, matricula_id),
+        params=(lev_id, mat_desenho_id),
         fetch_all=True
     )
     poligono_coords = []
@@ -174,7 +201,7 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
             pts_filtrados = [p for p in pts_filtrados if p.get("origem_homologada") == 1]
         poligono_coords = [[p["_lat"], p["_lon"]] for p in pts_filtrados]
 
-    return {"pts_coords": pts_coords, "poligono_coords": poligono_coords, "zona_utm": zona_utm, "matricula_id": matricula_id}
+    return {"pts_coords": pts_coords, "poligono_coords": poligono_coords, "zona_utm": zona_utm, "matricula_id": mat_desenho_id}
 
 
 def _ordenar_segmentos_encadeados(segs: list[dict]) -> list[tuple]:
@@ -217,11 +244,12 @@ def gerar_anexo_grafico_html(
     """Gera o HTML da Página 2 (Anexo Gráfico) e os dados de coordenadas do Leaflet.
     `contexto` (poligonal da matrícula) e `segmentos` (do confrontante) podem vir pré-carregados pelo lote."""
     try:
+        mat_desenho_id = resolver_matricula_desenho(matricula_id)
         if contexto is None:
-            contexto = _montar_contexto_mapa(lev_id, matricula_id)
+            contexto = _montar_contexto_mapa(lev_id, mat_desenho_id)
         if not contexto:
             return "", {}
-        pts_coords = contexto["pts_coords"]
+        pts_coords = dict(contexto["pts_coords"])
         poligono_coords = contexto["poligono_coords"]
         zona_utm = contexto["zona_utm"]
 
@@ -229,14 +257,18 @@ def gerar_anexo_grafico_html(
             return "", {}
 
         if segmentos is None:
+            mats = [mat_desenho_id]
+            if matricula_id and matricula_id not in mats:
+                mats.append(matricula_id)
+            marcas_mats = ",".join("?" * len(mats))
             segs = [dict(r) for r in execute_query(
-                """
+                f"""
                 SELECT s.id AS seg_id, s.ponto_inicio_id, s.ponto_fim_id
                 FROM segmentos s
-                WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
+                WHERE s.levantamento_id = ? AND s.matricula_id IN ({marcas_mats}) AND s.confrontante_id = ?
                 ORDER BY s.id ASC
                 """,
-                params=(lev_id, matricula_id, confrontante_id),
+                params=tuple([lev_id] + mats + [confrontante_id]),
                 fetch_all=True
             )]
         else:
@@ -247,6 +279,30 @@ def gerar_anexo_grafico_html(
         segs_ordenados = _ordenar_segmentos_encadeados(segs)
         ext_ini_id = segs_ordenados[0][0]
         ext_fim_id = segs_ordenados[-1][1]
+
+        # Garante que as coordenadas dos pontos da lindeira estejam presentes em pts_coords
+        pontos_faltantes = set()
+        for p1, p2 in segs_ordenados:
+            if p1 not in pts_coords:
+                pontos_faltantes.add(p1)
+            if p2 not in pts_coords:
+                pontos_faltantes.add(p2)
+        if pontos_faltantes:
+            marcas = ",".join("?" * len(pontos_faltantes))
+            rows_falt = execute_query(
+                f"""
+                SELECT id, nome_vertice,
+                       COALESCE(lat_corrigido, lat) AS lat,
+                       COALESCE(lon_corrigido, lon) AS lon
+                FROM pontos
+                WHERE id IN ({marcas})
+                """,
+                params=tuple(pontos_faltantes),
+                fetch_all=True
+            )
+            for rf in rows_falt or []:
+                if rf["lat"] is not None and rf["lon"] is not None:
+                    pts_coords[rf["id"]] = (rf["lat"], rf["lon"], rf["nome_vertice"])
 
         lindeira_coords = []
         lindeira_pontos = []
@@ -294,7 +350,7 @@ def gerar_anexo_grafico_html(
     <!-- Container do Mapa Leaflet -->
     <div id="{map_id}" class="w-full h-[580px] border border-slate-300 rounded-xl shadow-sm bg-slate-100 overflow-hidden relative break-inside-avoid">
         <!-- Indicador de Carregamento -->
-        <div id="loader_{map_id}" class="absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
+        <div id="loader_{map_id}" class="no-print print:hidden absolute inset-0 flex items-center justify-center bg-white/70 z-[1000]">
             <div class="flex flex-col items-center gap-2">
                 <svg class="animate-spin h-8 w-8 text-[#0284c7]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -408,7 +464,7 @@ def gerar_declaracao_anuencia_html(
     mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
 
     if precarregado is None:
-        precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, [confrontante_id])
+        precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, [confrontante_id], matricula_id=matricula_id)
     pre = precarregado.get(confrontante_id)
     if not pre or not pre.get("conf"):
         raise NaoEncontrado(f"Confrontante ID {confrontante_id} não encontrado para este levantamento.")
@@ -713,7 +769,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
     # Dados comuns carregados uma vez só (template em cache, poligonal, confrontantes/coproprietários/segmentos).
     template_base = carregar_template("declaracao_anuencia.html")
     contexto_mapa = _montar_contexto_mapa(lev_id, mat_desenho_id)
-    precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, ids)
+    precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, ids, matricula_id=matricula_id)
 
     corpos_paginas = []
     lista_mapas_data = []
