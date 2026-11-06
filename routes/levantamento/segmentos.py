@@ -729,6 +729,12 @@ def get_resumo_confrontantes_matricula(id: int, matricula_id: int):
             LEFT JOIN confrontantes c ON c.id = s.confrontante_id
             LEFT JOIN pessoas pe ON pe.id = c.pessoa_id
             WHERE s.levantamento_id = ? AND s.matricula_id = ?
+              -- Com planilha homologada na matrícula, o caminhamento de Campo não entra (senão cruza o polígono)
+              AND (
+                  (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
+                  OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
+                                  AND h.matricula_id = s.matricula_id AND h.origem_homologada = 1)
+              )
             ORDER BY CASE WHEN pi.ordem_caminhamento IS NULL OR pi.ordem_caminhamento = 0 THEN 999999 ELSE pi.ordem_caminhamento END, s.id
             """,
             params=(id, target_id), fetch_all=True

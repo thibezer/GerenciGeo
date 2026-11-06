@@ -737,7 +737,15 @@ def status_cartorio(id: int):
                 conf_pendentes_nomes.append(c["nome"])
 
         sem_confrontante = execute_query(
-            "SELECT COUNT(*) AS n FROM segmentos WHERE levantamento_id = ? AND confrontante_id IS NULL",
+            """SELECT COUNT(*) AS n FROM segmentos s
+               JOIN pontos pi ON pi.id = s.ponto_inicio_id
+               JOIN pontos pf ON pf.id = s.ponto_fim_id
+               WHERE s.levantamento_id = ? AND s.confrontante_id IS NULL
+               AND (
+                   (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
+                   OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
+                                   AND h.matricula_id = s.matricula_id AND h.origem_homologada = 1)
+               )""",
             params=(id,), fetch_one=True
         )["n"]
 

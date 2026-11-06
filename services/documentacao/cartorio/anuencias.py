@@ -140,7 +140,14 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
         """
         SELECT s.ponto_inicio_id, s.ponto_fim_id
         FROM segmentos s
+        JOIN pontos pi ON pi.id = s.ponto_inicio_id
+        JOIN pontos pf ON pf.id = s.ponto_fim_id
         WHERE s.levantamento_id = ? AND s.matricula_id = ?
+        AND (
+            (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
+            OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
+                            AND h.matricula_id = s.matricula_id AND h.origem_homologada = 1)
+        )
         ORDER BY s.id ASC
         """,
         params=(lev_id, matricula_id),
