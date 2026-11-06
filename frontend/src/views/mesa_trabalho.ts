@@ -752,6 +752,14 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       const bancoMat = bancoPontosDaMatricula(ctx);
       const bpAtivo = ctx.bancoPontosExibido && bancoMat.length > 0;
+
+      // O clearOverlays do kit limpa a seleção do canvas e dispara 'gerencigeo:ponto-selecionado' com lista vazia,
+      // o que zera ctx.selectedPontoIds e faz o painel de propriedades voltar para "Geral" (ex.: após Sugerir Código SIGEF).
+      // O replot é só visual: guarda a seleção atual e a restaura ao final.
+      const selecaoAnterior = [...(ctx.selectedPontoIds ?? [])];
+      const selecaoVizinhosAnterior = [...(ctx.selectedVizinhoPontoIds ?? [])];
+      const ultimoSelecionadoAnterior = ctx.lastSelectedPontoId;
+
       ctx.mapaController.clearOverlays(bpAtivo);
       ctx.mapaController.plotPontos(bpAtivo ? [] : pontosParaMapa(pontosMat), (pId: number) => ctx.cliqueVerticeMapa?.(pId));
 
@@ -773,6 +781,16 @@ export const mesaTrabalhoRoute: RouteDef = {
       }
       if (ctx.confrontantesList && ctx.confrontantesList.length > 0) {
         ctx.mapaController.plotPoligonosVizinhos(ctx.confrontantesList);
+      }
+
+      if (selecaoAnterior.length > 0 || selecaoVizinhosAnterior.length > 0) {
+        ctx.selectedPontoIds = selecaoAnterior;
+        ctx.selectedVizinhoPontoIds = selecaoVizinhosAnterior;
+        ctx.lastSelectedPontoId = ultimoSelecionadoAnterior;
+        if ('pontosSelecionados' in ctx.mapaController) {
+          ctx.mapaController.pontosSelecionados = selecaoAnterior;
+        }
+        ctx.atualizarDestaqueLinhasTabela();
       }
     };
 
