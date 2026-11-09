@@ -179,3 +179,24 @@
 ### Prioridade P3 (Baixa Prioridade / Débito Técnico)
 - [ ] **[Arquitetura]** Corrigir a query de `PropriedadeClienteRepo.get_by_propriedade` em `database/repository.py`.
 - [ ] **[Database]** Planejar descontinuação gradual das colunas duplicadas em `clientes` em favor de `pessoas`.
+
+---
+
+## 5. Módulo de Ingestão e Cadastro Inteligente via IA (`cadastrar-cliente`)
+
+**Data de Implementação:** Novembro de 2026  
+**Componentes Criados:**
+- `scripts/cadastrar_cliente_ia.py` (Script CLI oficial de sanitização, enriquecimento e persistência de clientes via IA)
+- `.agents/skills/cadastrar-cliente/SKILL.md` (Skill de execução no workspace para o agente Antigravity)
+- `~/.gemini/config/skills/cadastrar-cliente/SKILL.md` (Espelho global da skill no ecossistema de desenvolvimento)
+- `tests/test_cadastrar_cliente_ia.py` (Suíte de validação com 6 cenários de teste automatizados)
+
+### 5.1 Arquitetura do Fluxo de Entrada por Imagem / Print
+1. **Inspeção Multimodal (Visão do Gemini):** O usuário envia print, foto ou anexo de RG (tradicional ou CIN com QR Code), CNH (física ou digital), Certidão de Casamento ou Comprovante de Residência.
+2. **Normalização e Extração Estruturada:** O agente extrai nome completo, CPF, RG, órgão expedidor, UF, datas no padrão ISO (`AAAA-MM-DD`), filiação, naturalidade, estado civil, cônjuge e endereço.
+3. **Persistência Atômica e Enriquecimento Inteligente (`cadastrar_cliente_ia.py`):**
+   - **Novo Cliente:** Registra atomicamente a `pessoa` e o `cliente`.
+   - **Cliente Existente:** Detecta duplicidade de CPF e executa merge incremental sem sobrescrever dados válidos com valores nulos.
+   - **Arquivamento Físico de Imagens:** Copia a print/documento para `uploads/documentos_clientes/{cliente_id}/` e vincula o anexo em `cliente_documentos`.
+   - **Salvaguarda Incra/SIGEF:** Caso o cliente seja casado ou em união estável e faltem dados do cônjuge, emite alertas e gera pendência técnica imediata.
+
