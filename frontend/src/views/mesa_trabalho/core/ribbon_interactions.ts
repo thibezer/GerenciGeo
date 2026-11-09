@@ -608,6 +608,7 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
   cleanups.push(() => {
     try {
       ctx.ferramentaOffsetMapa?.desativar?.();
+      ctx.ferramentaDivisaoLotes?.desativar?.();
     } catch (_) {}
   });
 

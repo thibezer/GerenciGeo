@@ -399,6 +399,15 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
   });
 
   // Ferramenta Offset CAD no Mapa (Forma 2)
+    // Ferramenta Divisão de Lotes no Mapa
+  document.getElementById('btn-mapa-divisao-flutuante')?.addEventListener('click', async () => {
+    if (!ctx.ferramentaDivisaoLotes) {
+      const { FerramentaDivisaoLotes } = await import('../ferramenta_divisao_lotes');
+      ctx.ferramentaDivisaoLotes = new FerramentaDivisaoLotes(ctx);
+    }
+    ctx.ferramentaDivisaoLotes.alternar();
+  });
+
   document.getElementById('btn-mapa-offset-flutuante')?.addEventListener('click', async () => {
     if (!ctx.ferramentaOffsetMapa) {
       const { FerramentaOffsetMapa } = await import('../ferramenta_offset_mapa');
@@ -429,6 +438,13 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
       }
       ctx.ferramentaCaneta.alternar();
+    } else if (tecla === 'd') {
+      e.preventDefault();
+      if (!ctx.ferramentaDivisaoLotes) {
+        const { FerramentaDivisaoLotes } = await import('../ferramenta_divisao_lotes');
+        ctx.ferramentaDivisaoLotes = new FerramentaDivisaoLotes(ctx);
+      }
+      ctx.ferramentaDivisaoLotes.alternar();
     } else if (tecla === 'o') {
       e.preventDefault();
       if (!ctx.ferramentaOffsetMapa) {

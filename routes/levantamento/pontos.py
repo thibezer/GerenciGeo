@@ -1436,6 +1436,26 @@ class PayloadConfirmarOffsetLote(BaseModel):
     vertices: List[VerticeVirtualLoteItem]
 
 
+class PayloadSimularDivisaoOffset(BaseModel):
+    ponto_base_1_id: int
+    ponto_base_2_id: int
+    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA'] = 'AREAS_IGUAIS'
+    alvo: Literal['BASE', 'REMANESCENTE'] = 'BASE'
+    area_alvo_m2: Optional[float] = None
+    area_alvo_ha: Optional[float] = None
+
+
+class PayloadExecutarDivisaoOffset(BaseModel):
+    ponto_base_1_id: int
+    ponto_base_2_id: int
+    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA'] = 'AREAS_IGUAIS'
+    alvo: Literal['BASE', 'REMANESCENTE'] = 'BASE'
+    area_alvo_m2: Optional[float] = None
+    area_alvo_ha: Optional[float] = None
+    nome_gleba_a: Optional[str] = None
+    nome_gleba_b: Optional[str] = None
+
+
 def _obter_ponto_apoio_db(ponto_id: int):
     pts = _obter_pontos_apoio_db_lote([ponto_id])
     return pts[0]
@@ -2071,3 +2091,66 @@ def promover_vertices_virtuais_endpoint(id: int, matricula_id: int, payload: Pay
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao promover vértices virtuais: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao inserir vértices virtuais no perímetro: {str(e)}")
+
+
+
+# ── Divisão e Desmembramento de Lotes por Offset Paralelo ─────────────────────
+
+@router.post('/levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/simular')
+def post_simular_divisao_offset(id: int, matricula_id: int, payload: PayloadSimularDivisaoOffset):
+    verificar_levantamento_arquivado(id)
+    area_m2 = payload.area_alvo_m2
+    if area_m2 is None and payload.area_alvo_ha is not None:
+        area_m2 = payload.area_alvo_ha * 10000.0
+    try:
+        from services.processamento.divisao_lotes import simular_divisao_offset
+        return simular_divisao_offset(
+            levantamento_id=id,
+            matricula_id=matricula_id,
+            ponto_base_1_id=payload.ponto_base_1_id,
+            ponto_base_2_id=payload.ponto_base_2_id,
+            modo=payload.modo,
+            alvo=payload.alvo,
+            area_alvo_m2=area_m2
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=422, detail=str(ve))
+    except Exception as e:
+        logging.getLogger(__name__).error(f'Erro na simulacao de divisao de lote: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post('/levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/executar')
+def post_executar_divisao_offset(id: int, matricula_id: int, payload: PayloadExecutarDivisaoOffset):
+    verificar_levantamento_arquivado(id)
+    area_m2 = payload.area_alvo_m2
+    if area_m2 is None and payload.area_alvo_ha is not None:
+        area_m2 = payload.area_alvo_ha * 10000.0
+    try:
+        from services.processamento.divisao_lotes import executar_divisao_offset
+        res = executar_divisao_offset(
+            levantamento_id=id,
+            matricula_id=matricula_id,
+            ponto_base_1_id=payload.ponto_base_1_id,
+            ponto_base_2_id=payload.ponto_base_2_id,
+            modo=payload.modo,
+            alvo=payload.alvo,
+            area_alvo_m2=area_m2,
+            nome_gleba_a=payload.nome_gleba_a,
+            nome_gleba_b=payload.nome_gleba_b
+        )
+
+        from services.processamento.historico_campo import HistoricoCampoLogger
+        HistoricoCampoLogger.registrar_evento(
+            levantamento_id=id,
+            tipo_evento='LOTE_DESMEMBRADO',
+            descricao=f'Desmembramento da matricula {matricula_id} realizado via divisao por offset.',
+            dados_detalhados=res,
+        )
+
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=422, detail=str(ve))
+    except Exception as e:
+        logging.getLogger(__name__).error(f'Erro ao executar desmembramento de lote: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

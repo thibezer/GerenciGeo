@@ -141,3 +141,24 @@ Macro disponível para o Clipboard Estruturado:
   (princ)
 )
 ```
+
+
+---
+
+## 7. Divisão e Desmembramento de Lotes por Offset Paralelo à Reta de Referência
+
+Módulo analítico de alta precisão para partição e desmembramento automático de matrículas baseado em metas de área (Áreas Iguais 50/50 ou Área Alvo em hectares/m²), mantendo a divisa projetada estritamente paralela à divisa de referência escolhida pelo operador.
+
+### 7.1 Rotas de API
+- **Simulação / Preview**: POST /levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/simular
+  - Calcula a distância ótima ^*$, os vértices de corte e polígonos dos dois lotes sem alterar o banco de dados.
+- **Efetivação Atômica**: POST /levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/executar
+  - Realiza o desmembramento atômico:
+    1. Atualiza a matrícula de origem como **Gleba A** com a nova área e sequência de vértices.
+    2. Cria a nova matrícula como **Gleba B** vinculada à propriedade (matricula_origem_desenho_id).
+    3. Insere os novos vértices virtuais (Tipo V) com cotas interpoladas e sigmas INCRA.
+    4. Regenera a cadeia topológica de segmentos preservando confrontantes externos e criando confrontação mútua na divisa comum.
+
+### 7.2 Motor Matemático
+- Implementado em services/processamento/divisao_lotes.py utilizando **Shapely 2.x** com busca binária de convergência de área (tolerância $< 0.0001\text{ m}^2$).
+- Validação automática de concavidade (rejeição de cortes múltiplos descontínuos) e tolerância de snap (\text{ cm}$) para prevenir micro-arestas coincidentes.

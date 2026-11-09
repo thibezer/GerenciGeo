@@ -257,6 +257,10 @@ export const renderMesaTrabalho = (): string => {
                   <i data-lucide="git-commit" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Offset</span>
                 </button>
+                 <button id="btn-mapa-divisao-flutuante" class="px-2 py-1 text-white/70 hover:text-amber-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Divisão de Lotes por Área / Offset (Atalho: D)">
+                   <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-400"></i>
+                   <span>Dividir</span>
+                 </button>
                 <button id="btn-mapa-vvirtual-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Assistente de Vértice Virtual (PA1 / PA2)">
                   <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Virtual</span>
