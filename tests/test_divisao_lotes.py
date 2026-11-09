@@ -7,6 +7,8 @@ from services.processamento.divisao_lotes import (
     calcular_geometria_divisao,
     simular_divisao_offset,
     executar_divisao_offset,
+    obter_ultima_divisao,
+    desfazer_divisao,
 )
 
 
@@ -125,6 +127,7 @@ class TestDivisaoLotesPersistencia(unittest.TestCase):
     def tearDown(self):
         with DatabaseManager() as conn:
             c = conn.cursor()
+            c.execute("DELETE FROM divisao_lotes_snapshots WHERE levantamento_id = ?", (self.lev,))
             c.execute("DELETE FROM segmentos WHERE levantamento_id = ?", (self.lev,))
             c.execute("DELETE FROM pontos WHERE levantamento_id = ?", (self.lev,))
             c.execute("DELETE FROM historico_alteracoes_campo WHERE levantamento_id = ?", (self.lev,))
@@ -187,6 +190,51 @@ class TestDivisaoLotesPersistencia(unittest.TestCase):
             pts, segs = self._pontos(mat_id), self._segmentos(mat_id)
             self.assertGreaterEqual(len(pts), 3)
             self.assertEqual(len(segs), len(pts))
+
+    def _estado(self):
+        pts = execute_query("SELECT id, matricula_id, ordem_caminhamento FROM pontos WHERE levantamento_id = ? ORDER BY id",
+                            params=(self.lev,), fetch_all=True)
+        segs = execute_query("SELECT id, matricula_id, ponto_inicio_id, ponto_fim_id, tipo_limite_sigef FROM segmentos "
+                             "WHERE levantamento_id = ? ORDER BY id", params=(self.lev,), fetch_all=True)
+        mats = execute_query("SELECT id, numero_matricula, area_ha, matricula_origem_desenho_id FROM matriculas "
+                             "WHERE propriedade_id = ? ORDER BY id", params=(self.prop,), fetch_all=True)
+        return [tuple(r) for r in pts], [tuple(r) for r in segs], [tuple(r) for r in mats]
+
+    def test_desfazer_desmembramento_restaura_estado_exato(self):
+        antes = self._estado()
+        res = executar_divisao_offset(self.lev, self.mat_p, self.pids[0], self.pids[1], "AREAS_IGUAIS")
+        self.assertNotEqual(self._estado(), antes)
+        ultima = obter_ultima_divisao(self.lev)
+        self.assertTrue(ultima["pode_desfazer"])
+        self.assertEqual(ultima["snapshot_id"], res["snapshot_id"])
+
+        desfazer_divisao(self.lev, res["snapshot_id"])
+        self.assertEqual(self._estado(), antes)
+        self.assertFalse(obter_ultima_divisao(self.lev)["disponivel"])
+        with self.assertRaises(ValueError):  # não desfaz duas vezes
+            desfazer_divisao(self.lev, res["snapshot_id"])
+
+    def test_desfazer_separacao_restaura_vinculo_de_desenho(self):
+        with DatabaseManager() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE matriculas SET area_ha = ? WHERE id = ?", (self.area_total_m2 * 0.6 / 10000.0, self.mat_p))
+            c.execute(
+                "INSERT INTO matriculas (propriedade_id, numero_matricula, area_ha, matricula_origem_desenho_id) VALUES (?, '901', ?, ?)",
+                (self.prop, self.area_total_m2 * 0.4 / 10000.0, self.mat_p),
+            )
+            mat_d = c.lastrowid
+        antes = self._estado()
+        res = executar_divisao_offset(self.lev, mat_d, self.pids[0], self.pids[1], "SEPARAR_MATRICULAS", matricula_base_id=mat_d)
+        desfazer_divisao(self.lev, res["snapshot_id"])
+        self.assertEqual(self._estado(), antes)
+
+    def test_desfazer_bloqueado_se_algo_mudou_depois(self):
+        res = executar_divisao_offset(self.lev, self.mat_p, self.pids[0], self.pids[1], "AREAS_IGUAIS")
+        execute_query("UPDATE segmentos SET tipo_limite_sigef = 'RIO' WHERE id = (SELECT MIN(id) FROM segmentos WHERE levantamento_id = ?)",
+                      params=(self.lev,), commit=True)
+        self.assertFalse(obter_ultima_divisao(self.lev)["pode_desfazer"])
+        with self.assertRaises(ValueError):
+            desfazer_divisao(self.lev, res["snapshot_id"])
 
     def test_falha_nao_deixa_banco_pela_metade(self):
         with self.assertRaises(ValueError):

@@ -30,6 +30,8 @@ export class FerramentaDivisaoLotes {
   private corpoSimulado: any = null;
   private timerSelecao: number | null = null;
   private chaveSelecao: string = '';
+  private ultimaDivisao: any = null;
+  private onKeyDown = (e: KeyboardEvent) => this.tratarTeclado(e);
 
   private painelElement: HTMLElement | null = null;
   private previewLayer: L.LayerGroup | null = null;
@@ -84,6 +86,8 @@ export class FerramentaDivisaoLotes {
 
     // Acompanha a seleção de vértices enquanto o painel está aberto
     this.timerSelecao = window.setInterval(() => this.sincronizarSelecao(), 400);
+    window.addEventListener('keydown', this.onKeyDown, true);
+    this.carregarUltima();
   }
 
   public desativar(): void {
@@ -98,6 +102,8 @@ export class FerramentaDivisaoLotes {
       window.clearInterval(this.timerSelecao);
       this.timerSelecao = null;
     }
+    window.removeEventListener('keydown', this.onKeyDown, true);
+    this.ultimaDivisao = null;
 
     const map = this.ctx.triagemMap;
     if (map && this.previewLayer) {
@@ -216,6 +222,9 @@ export class FerramentaDivisaoLotes {
         #painel-flutuante-divisao-lotes .dl-mono { font-family:ui-monospace,monospace; color:rgba(255,255,255,.85); }
         #painel-flutuante-divisao-lotes .dl-empty { color:rgba(255,255,255,.45); font-style:italic; text-align:center; padding:6px 0; }
         #painel-flutuante-divisao-lotes .dl-hidden { display:none !important; }
+        #painel-flutuante-divisao-lotes .dl-undo { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-radius:6px; background:rgba(99,102,241,.14); border:1px solid rgba(99,102,241,.4); color:#c7d2fe; }
+        #painel-flutuante-divisao-lotes .dl-undo small { display:block; color:rgba(199,210,254,.7); }
+        #painel-flutuante-divisao-lotes .dl-btn-undo { background:#6366f1; border-color:#6366f1; color:#fff; white-space:nowrap; }
         #painel-flutuante-divisao-lotes .dl-stack { display:flex; flex-direction:column; gap:6px; }
       </style>
 
@@ -225,6 +234,7 @@ export class FerramentaDivisaoLotes {
       </div>
 
       <div class="dl-body">
+        <div id="dl-desfazer" class="dl-hidden"></div>
         <div class="dl-box">
           <div class="dl-label">Reta de referência (base)</div>
           <div id="divisao-status-referencia" class="dl-ref">${this.obterTextoReferencia()}</div>
@@ -576,6 +586,92 @@ export class FerramentaDivisaoLotes {
     `;
   }
 
+  /** Consulta a última divisão desfazível e mostra o aviso com o botão "Desfazer". */
+  private async carregarUltima(): Promise<void> {
+    const levId = this.ctx.currentLevId;
+    if (!levId || !this.ativo) return;
+    try {
+      const res = await fetch(`${API_BASE}/levantamentos/${levId}/divisao-offset/ultima`);
+      const data = await res.json();
+      this.ultimaDivisao = res.ok && data.disponivel ? data : null;
+    } catch (_) {
+      this.ultimaDivisao = null;
+    }
+    this.renderizarDesfazer();
+  }
+
+  private renderizarDesfazer(): void {
+    const box = this.painelElement?.querySelector<HTMLElement>('#dl-desfazer');
+    if (!box) return;
+    const u = this.ultimaDivisao;
+    if (!u) {
+      box.classList.add('dl-hidden');
+      box.innerHTML = '';
+      return;
+    }
+    box.classList.remove('dl-hidden');
+    box.innerHTML = `
+      <div class="dl-undo">
+        <div>
+          <b>Última divisão</b>
+          <small>${u.descricao || ''}</small>
+          ${u.pode_desfazer ? '' : `<small style="color:#fca5a5">${u.motivo || 'Não pode mais ser desfeita.'}</small>`}
+        </div>
+        <button id="btn-desfazer-divisao" type="button" class="dl-btn dl-btn-undo" ${u.pode_desfazer ? '' : 'disabled'} title="Atalho: Ctrl+Z">↶ Desfazer</button>
+      </div>`;
+    box.querySelector('#btn-desfazer-divisao')?.addEventListener('click', () => this.desfazerUltima());
+  }
+
+  private tratarTeclado(e: KeyboardEvent): void {
+    if (!this.ativo || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+    const alvo = e.target as HTMLElement | null;
+    if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+    if (!this.ultimaDivisao?.pode_desfazer) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.desfazerUltima();
+  }
+
+  private async desfazerUltima(): Promise<void> {
+    const u = this.ultimaDivisao;
+    const levId = this.ctx.currentLevId;
+    if (this.executando || !u?.pode_desfazer || !levId) return;
+    if (!window.confirm(`Desfazer a última divisão?\n\n${u.descricao || ''}\n\nO estado anterior das matrículas, vértices e divisas será restaurado.`)) return;
+
+    this.executando = true;
+    try {
+      const res = await fetch(`${API_BASE}/levantamentos/${levId}/divisao-offset/${u.snapshot_id}/desfazer`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Não foi possível desfazer a divisão.');
+      showToast(data.mensagem || 'Divisão desfeita.', 'success', 6000);
+      await this.recarregarAposMudanca();
+    } catch (e: any) {
+      showToast(e.message || 'Falha ao desfazer a divisão.', 'error');
+      this.carregarUltima();
+    } finally {
+      this.executando = false;
+    }
+  }
+
+  /** Recarrega a Mesa e reconstrói o painel (as matrículas do desenho podem ter mudado). */
+  private async recarregarAposMudanca(): Promise<void> {
+    this.ctx.selectedPontoIds = [];
+    if (typeof this.ctx.loadLevantamentoDetails === 'function') {
+      await this.ctx.loadLevantamentoDetails();
+    }
+    if (!this.ativo) return;
+    this.pontosBase = [];
+    this.chaveSelecao = '';
+    this.simulacaoAtual = null;
+    this.corpoSimulado = null;
+    this.previewLayer?.clearLayers();
+    const { grupo } = this.obterGrupo();
+    this.modo = grupo.length === 2 ? 'SEPARAR_MATRICULAS' : 'AREAS_IGUAIS';
+    this.matriculaBaseId = grupo.length === 2 ? Number(this.ctx.currentMatriculaId) : null;
+    this.criarPainelFlutuante();
+    await this.carregarUltima();
+  }
+
   private async confirmarDivisao(): Promise<void> {
     if (this.executando || !this.simulacaoAtual || !this.corpoSimulado) return;
     const levId = this.ctx.currentLevId;
@@ -608,16 +704,8 @@ export class FerramentaDivisaoLotes {
         throw new Error(data.detail || 'Erro ao executar a divisão.');
       }
 
-      showToast(data.mensagem || 'Divisão concluída com sucesso!', 'success', 7000);
-      this.ctx.selectedPontoIds = [];
-      this.desativar();
-
-      // Recarrega os dados da Mesa de Trabalho
-      if (typeof this.ctx.loadLevantamentoDetails === 'function') {
-        await this.ctx.loadLevantamentoDetails();
-      } else {
-        window.location.reload();
-      }
+      showToast((data.mensagem || 'Divisão concluída com sucesso!') + ' Use "Desfazer" (Ctrl+Z) para reverter.', 'success', 8000);
+      await this.recarregarAposMudanca();
     } catch (e: any) {
       if (btn) btn.disabled = false;
       showToast(e.message || 'Falha ao efetivar a divisão.', 'error');

@@ -166,6 +166,11 @@ Módulo analítico de alta precisão para partição e desmembramento automátic
 - Cada matrícula passa a ter perímetro próprio, o vínculo de desenho é removido e número e área registrada permanecem intactos. Divergência > 1% entre a soma das áreas registradas e a área do polígono gera aviso.
 - Perímetros unificados com 3+ matrículas não são suportados (mensagem de erro). Em modo simples, uma matrícula unificada é rejeitada.
 
+**Desfazer:** cada divisão grava, na mesma transação, um retrato do estado anterior (tabela `divisao_lotes_snapshots`).
+- `GET /levantamentos/{id}/divisao-offset/ultima` informa a última divisão não desfeita e se ainda pode ser revertida.
+- `POST /levantamentos/{id}/divisao-offset/{snapshot_id}/desfazer` restaura matrículas, ordem dos vértices e segmentos (com os mesmos ids) e remove a matrícula e os vértices criados.
+- Só é permitido enquanto nada mudou nas matrículas envolvidas (verificação por hash) e na ordem inversa (da mais recente para a mais antiga). Na Mesa: botão "Desfazer" no painel ou Ctrl+Z com a ferramenta aberta.
+
 ### 7.2 Motor Matemático
 - Implementado em services/processamento/divisao_lotes.py utilizando **Shapely 2.x** com busca binária de convergência de área (tolerância $< 0.0001\text{ m}^2$).
 - Validação automática de concavidade (rejeição de cortes múltiplos descontínuos) e tolerância de snap (\text{ cm}$) para prevenir micro-arestas coincidentes.

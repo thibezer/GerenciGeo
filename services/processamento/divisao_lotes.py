@@ -6,7 +6,10 @@ Implementa corte por linha paralela (offset) a partir de uma divisa de referênc
 autorregeneração topológica das matrículas resultantes (Opção A: Gleba A e Gleba B).
 """
 
+import json
 import math
+import hashlib
+import sqlite3
 import logging
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
@@ -468,6 +471,175 @@ def _coord_ponto(pt: Dict[str, Any]) -> Tuple[float, float]:
     )
 
 
+
+# ── Desfazer: retrato do estado anterior ─────────────────────────────────────
+
+def _garantir_tabela_snapshots() -> None:
+    with DatabaseManager() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS divisao_lotes_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                levantamento_id INTEGER NOT NULL,
+                tipo TEXT NOT NULL,
+                descricao TEXT,
+                dados_antes TEXT NOT NULL,
+                dados_depois TEXT NOT NULL,
+                impressao_depois TEXT NOT NULL,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                desfeito INTEGER DEFAULT 0,
+                desfeito_em TIMESTAMP
+            )
+            """
+        )
+
+
+def _placeholders(itens) -> str:
+    return ",".join("?" for _ in itens)
+
+
+def _capturar_estado(cursor, levantamento_id: int, mat_ids: List[int]) -> Dict[str, Any]:
+    """Estado das matrículas, ordem dos pontos e segmentos que a divisão vai alterar."""
+    ph = _placeholders(mat_ids)
+    cursor.execute(
+        f"SELECT id, numero_matricula, area_ha, matricula_origem_desenho_id FROM matriculas WHERE id IN ({ph})",
+        tuple(mat_ids),
+    )
+    matriculas = [dict(r) for r in cursor.fetchall()]
+    cursor.execute(
+        f"SELECT id, matricula_id, ordem_caminhamento FROM pontos WHERE levantamento_id = ? AND matricula_id IN ({ph})",
+        (levantamento_id, *mat_ids),
+    )
+    pontos = [dict(r) for r in cursor.fetchall()]
+    cursor.execute(
+        f"SELECT * FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({ph})",
+        (levantamento_id, *mat_ids),
+    )
+    segmentos = [dict(r) for r in cursor.fetchall()]
+    return {"matriculas": matriculas, "pontos": pontos, "segmentos": segmentos}
+
+
+def _impressao_estado(cursor, levantamento_id: int, mat_ids: List[int]) -> str:
+    """Hash do estado atual das matrículas envolvidas: se mudar, o desfazer não é mais seguro."""
+    ph = _placeholders(mat_ids)
+    cursor.execute(
+        f"SELECT id, numero_matricula, area_ha, matricula_origem_desenho_id FROM matriculas WHERE id IN ({ph}) ORDER BY id",
+        tuple(mat_ids),
+    )
+    mats = [tuple(r) for r in cursor.fetchall()]
+    cursor.execute(
+        "SELECT id, matricula_id, ordem_caminhamento, nome_vertice, e_original, n_original, e_corrigido, n_corrigido, lat, lon "
+        f"FROM pontos WHERE levantamento_id = ? AND matricula_id IN ({ph}) ORDER BY id",
+        (levantamento_id, *mat_ids),
+    )
+    pts = [tuple(r) for r in cursor.fetchall()]
+    cursor.execute(
+        "SELECT matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, anuencia_assinada "
+        f"FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({ph}) ORDER BY matricula_id, ponto_inicio_id, ponto_fim_id",
+        (levantamento_id, *mat_ids),
+    )
+    segs = [tuple(r) for r in cursor.fetchall()]
+    return hashlib.sha256(json.dumps([mats, pts, segs], default=str).encode("utf-8")).hexdigest()
+
+
+def obter_ultima_divisao(levantamento_id: int) -> Dict[str, Any]:
+    """Última divisão ainda não desfeita do levantamento e se ela ainda pode ser revertida."""
+    _garantir_tabela_snapshots()
+    with DatabaseManager() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM divisao_lotes_snapshots WHERE levantamento_id = ? AND desfeito = 0 ORDER BY id DESC LIMIT 1",
+            (levantamento_id,),
+        )
+        snap = cur.fetchone()
+        if not snap:
+            return {"disponivel": False}
+        depois = json.loads(snap["dados_depois"])
+        pode = _impressao_estado(cur, levantamento_id, depois["matriculas"]) == snap["impressao_depois"]
+        return {
+            "disponivel": True,
+            "snapshot_id": snap["id"],
+            "tipo": snap["tipo"],
+            "descricao": snap["descricao"],
+            "criado_em": snap["criado_em"],
+            "pode_desfazer": pode,
+            "motivo": None if pode else "As matrículas, vértices ou divisas envolvidos foram alterados depois da divisão.",
+        }
+
+
+def desfazer_divisao(levantamento_id: int, snapshot_id: int) -> Dict[str, Any]:
+    """Restaura o estado anterior à divisão (somente se nada nas matrículas envolvidas mudou desde então)."""
+    _garantir_tabela_snapshots()
+    try:
+        with DatabaseManager() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM divisao_lotes_snapshots WHERE id = ? AND levantamento_id = ?",
+                (snapshot_id, levantamento_id),
+            )
+            snap = cur.fetchone()
+            if not snap:
+                raise ValueError("Registro de divisão não encontrado para este levantamento.")
+            if snap["desfeito"]:
+                raise ValueError("Esta divisão já foi desfeita.")
+            cur.execute(
+                "SELECT id FROM divisao_lotes_snapshots WHERE levantamento_id = ? AND desfeito = 0 ORDER BY id DESC LIMIT 1",
+                (levantamento_id,),
+            )
+            if cur.fetchone()["id"] != snapshot_id:
+                raise ValueError("Existe uma divisão mais recente. Desfaça primeiro a mais recente.")
+
+            antes = json.loads(snap["dados_antes"])
+            depois = json.loads(snap["dados_depois"])
+            mat_ids = depois["matriculas"]
+            if _impressao_estado(cur, levantamento_id, mat_ids) != snap["impressao_depois"]:
+                raise ValueError(
+                    "Não é possível desfazer: as matrículas, vértices ou divisas envolvidos foram alterados depois da divisão."
+                )
+
+            ph = _placeholders(mat_ids)
+            cur.execute(f"DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({ph})", (levantamento_id, *mat_ids))
+            criados = depois.get("pontos_criados") or []
+            if criados:
+                cur.execute(
+                    f"DELETE FROM pontos WHERE levantamento_id = ? AND id IN ({_placeholders(criados)})",
+                    (levantamento_id, *criados),
+                )
+            for pt in antes["pontos"]:
+                cur.execute(
+                    "UPDATE pontos SET matricula_id = ?, ordem_caminhamento = ? WHERE id = ?",
+                    (pt["matricula_id"], pt["ordem_caminhamento"], pt["id"]),
+                )
+            for m in antes["matriculas"]:
+                cur.execute(
+                    "UPDATE matriculas SET numero_matricula = ?, area_ha = ?, matricula_origem_desenho_id = ? WHERE id = ?",
+                    (m["numero_matricula"], m["area_ha"], m["matricula_origem_desenho_id"], m["id"]),
+                )
+            if depois.get("matricula_criada_id"):
+                cur.execute("DELETE FROM matriculas WHERE id = ?", (depois["matricula_criada_id"],))
+            for sg in antes["segmentos"]:
+                colunas = list(sg.keys())
+                cur.execute(
+                    f"INSERT INTO segmentos ({', '.join(colunas)}) VALUES ({_placeholders(colunas)})",
+                    tuple(sg[c] for c in colunas),
+                )
+            cur.execute(
+                "UPDATE divisao_lotes_snapshots SET desfeito = 1, desfeito_em = CURRENT_TIMESTAMP WHERE id = ?",
+                (snapshot_id,),
+            )
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Não foi possível desfazer: há registros vinculados às matrículas criadas ({e}).")
+
+    try:
+        from services.documentacao.exportacao_service import ExportacaoService
+        ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
+    except Exception as e:
+        logger.warning(f"[DIVISAO_LOTES] Divisão desfeita, mas falhou ao sincronizar o workspace: {e}")
+
+    logger.info(f"[DIVISAO_LOTES] Divisão {snapshot_id} desfeita no levantamento {levantamento_id}.")
+    return {"sucesso": True, "mensagem": "Divisão desfeita. O estado anterior foi restaurado.", "tipo": snap["tipo"]}
+
+
 def executar_divisao_offset(
     levantamento_id: int,
     matricula_id: int,
@@ -532,8 +704,14 @@ def executar_divisao_offset(
 
     metodo_padrao = "PG1" if (pontos_originais[0].get("sigma_lat") or 0.0) > 0.0 else "MC1"
 
+    _garantir_tabela_snapshots()
+    ids_afetados = [matricula_id] if ctx["tipo"] == "SIMPLES" else [ctx["mat_base"]["id"], ctx["mat_fundo"]["id"]]
+    pontos_criados: List[int] = []
+    matricula_criada_id: Optional[int] = None
+
     with DatabaseManager() as conn:  # commit no sucesso, rollback em qualquer exceção
         cursor = conn.cursor()
+        estado_antes = _capturar_estado(cursor, levantamento_id, ids_afetados)
 
         # Segmentos antigos do desenho (herança de confrontante/limite/anuência)
         cursor.execute(
@@ -580,6 +758,7 @@ def executar_divisao_offset(
                 )
             )
             dono_base, dono_rem = matricula_id, cursor.lastrowid
+            matricula_criada_id = dono_rem
             cursor.execute(
                 "UPDATE matriculas SET numero_matricula = ?, area_ha = ? WHERE id = ?",
                 (nome_a, geo_res["lote_base"]["area_ha"], matricula_id)
@@ -618,6 +797,7 @@ def executar_divisao_offset(
                     fuso
                 )
             )
+            pontos_criados.append(cursor.lastrowid)
             return cursor.lastrowid
 
         def _clonar_ponto(pid: int, mat_id: int) -> int:
@@ -630,6 +810,7 @@ def executar_divisao_offset(
                 f"INSERT INTO pontos ({', '.join(colunas)}) VALUES ({', '.join('?' for _ in colunas)})",
                 tuple(dados[c] for c in colunas)
             )
+            pontos_criados.append(cursor.lastrowid)
             return cursor.lastrowid
 
         # 3. Monta o anel de cada lote
@@ -710,6 +891,28 @@ def executar_divisao_offset(
                     *(info[campo] for campo in CAMPOS_HERDADOS)
                 ))
 
+        # Retrato para o "Desfazer" (mesma transação: ou grava tudo, ou nada)
+        ids_depois = [dono_base, dono_rem]
+        descricao_snap = (
+            f"{'Desmembramento' if ctx['tipo'] == 'SIMPLES' else 'Separação de matrículas'}: "
+            f"{nome_resultado_a} / {nome_resultado_b}"
+        )
+        cursor.execute(
+            """
+            INSERT INTO divisao_lotes_snapshots
+                (levantamento_id, tipo, descricao, dados_antes, dados_depois, impressao_depois)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                levantamento_id, ctx["tipo"], descricao_snap,
+                json.dumps(estado_antes, default=str),
+                json.dumps({"matriculas": ids_depois, "pontos_criados": pontos_criados,
+                            "matricula_criada_id": matricula_criada_id}),
+                _impressao_estado(cursor, levantamento_id, ids_depois),
+            ),
+        )
+        snapshot_id = cursor.lastrowid
+
     # Sincroniza o workspace físico (fora da transação; falha aqui não desfaz a divisão)
     try:
         from services.documentacao.exportacao_service import ExportacaoService
@@ -729,6 +932,7 @@ def executar_divisao_offset(
     return {
         "sucesso": True,
         "tipo_operacao": ctx["tipo"],
+        "snapshot_id": snapshot_id,
         "mensagem": mensagem,
         "avisos": _avisos_contexto(ctx, geo_res["area_total_m2"]),
         "distancia_offset_m": geo_res["distancia_offset_m"],

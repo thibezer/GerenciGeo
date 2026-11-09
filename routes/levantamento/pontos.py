@@ -2163,3 +2163,37 @@ def post_executar_divisao_offset(id: int, matricula_id: int, payload: PayloadExe
     except Exception as e:
         logging.getLogger(__name__).error(f'Erro ao executar desmembramento de lote: {e}', exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get('/levantamentos/{id}/divisao-offset/ultima')
+def get_ultima_divisao_offset(id: int):
+    try:
+        from services.processamento.divisao_lotes import obter_ultima_divisao
+        return obter_ultima_divisao(id)
+    except Exception as e:
+        logging.getLogger(__name__).error(f'Erro ao consultar ultima divisao: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post('/levantamentos/{id}/divisao-offset/{snapshot_id}/desfazer')
+def post_desfazer_divisao_offset(id: int, snapshot_id: int):
+    verificar_levantamento_arquivado(id)
+    try:
+        from services.processamento.divisao_lotes import desfazer_divisao
+        res = desfazer_divisao(id, snapshot_id)
+        try:
+            from services.processamento.historico_campo import HistoricoCampoLogger
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=id,
+                tipo_evento='DIVISAO_DESFEITA',
+                descricao=res.get('mensagem') or 'Divisao de lote desfeita.',
+                dados_detalhados={'snapshot_id': snapshot_id, 'tipo': res.get('tipo')},
+            )
+        except Exception as e_log:
+            logging.getLogger(__name__).warning(f'Divisao desfeita, mas o historico falhou: {e_log}')
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=422, detail=str(ve))
+    except Exception as e:
+        logging.getLogger(__name__).error(f'Erro ao desfazer divisao: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
