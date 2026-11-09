@@ -335,7 +335,7 @@ def gerar_anexo_grafico_html(
 
         html = f"""
 <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
-<div class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page">
+<div class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none break-before-page print:break-before-page mx-auto mb-8 print:mb-0">
     <!-- CABEÇALHO DA EMPRESA -->
     <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
         <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>

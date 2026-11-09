@@ -16,6 +16,18 @@
             font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
         }
 
+        .folha-print {
+            max-width: 21cm;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .page {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
         /* ───────────────────────────────────────────────────────────────────
            BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
            ─────────────────────────────────────────────────────────────────── */
@@ -25,6 +37,12 @@
                 /* Margem física 0 de propósito: com margem > 0 o navegador imprime data/título/URL
                    (opção "Cabeçalhos e rodapés" vem ligada por padrão). O respiro de topo/base de TODAS as
                    folhas vem do thead/tfoot da tabela .folha-print, que se repetem em cada página impressa. */
+                margin: 0 !important;
+            }
+
+            .folha-print {
+                max-width: 100% !important;
+                width: 100% !important;
                 margin: 0 !important;
             }
 
@@ -150,11 +168,11 @@
 
     <!-- Tabela-moldura: só serve para repetir os espaçadores de topo/base em cada folha impressa.
          Fica FORA dos marcadores de corpo (o lote monta o HTML por fora; ver anuencias.py). -->
-    <table class="folha-print w-full" style="border-collapse:collapse"><thead><tr><td style="height:0;padding:0"></td></tr></thead><tfoot><tr><td style="height:0;padding:0"></td></tr></tfoot><tbody><tr><td style="padding:0;vertical-align:top">
+    <table class="folha-print w-full max-w-[21cm] mx-auto print:max-w-none" style="border-collapse:collapse"><thead><tr><td style="height:0;padding:0"></td></tr></thead><tfoot><tr><td style="height:0;padding:0"></td></tr></tfoot><tbody><tr><td style="padding:0;vertical-align:top">
     <!-- INICIO CORPO CONSOLIDADO -->
     <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
     <div
-        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col">
+        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col mx-auto mb-8 print:mb-0">
         <div>
             <!-- CABEÇALHO DA EMPRESA -->
             <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
