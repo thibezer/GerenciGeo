@@ -11,12 +11,17 @@ import logging
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 from shapely.geometry import Polygon, LineString, Point, MultiPolygon
+from shapely.geometry.polygon import LinearRing, orient
 from shapely.ops import split
 
 from database.connection import DatabaseManager, execute_query
 from utils.transformer_cache import get_transformer
-from services.gestores.levantamento_manager import salvar_ordem_caminhamento
-from services.gestores.matricula_manager import resolver_campos_matricula
+from services.processamento.topologia_segmentos import (
+    CAMPOS_HERDADOS,
+    COLUNAS_SELECT_SEGMENTOS,
+    montar_info_segmentos,
+    segmentos_antigos_para_dicts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +161,8 @@ def calcular_geometria_divisao(
             area_desejada_base_m2 = area_total_m2 - float(area_alvo_m2)
     else:
         raise ValueError(f"Modo de divisão desconhecido: '{modo}'. Use 'AREAS_IGUAIS' ou 'AREA_DEFINIDA'.")
+    if not 0.0 < area_desejada_base_m2 < area_total_m2:
+        raise ValueError("A área desejada para o lote da base deve estar entre zero e a área total do imóvel.")
 
     # Calcula extensão da bounding box e distância máxima
     min_x, min_y, max_x, max_y = poly.bounds
@@ -224,20 +231,31 @@ def calcular_geometria_divisao(
 
     # Interseção com a borda para extrair os pontos exatos de corte
     inter_ext = cut_line.intersection(poly.exterior)
+    if inter_ext.geom_type == "Point":
+        brutos = [(float(inter_ext.x), float(inter_ext.y))]
+    elif hasattr(inter_ext, "geoms"):
+        brutos = [(float(g.x), float(g.y)) for g in inter_ext.geoms if g.geom_type == "Point"]
+    else:
+        brutos = []
+
+    # Remove duplicidades numéricas e ordena ao longo da linha de corte (projeção em u)
+    brutos.sort(key=lambda pt: float(np.dot(np.array(pt) - cut_center, u)))
     pontos_corte_coords: List[Tuple[float, float]] = []
-    if inter_ext.geom_type == "MultiPoint":
-        pontos_corte_coords = [(float(pt.x), float(pt.y)) for pt in inter_ext.geoms]
-    elif inter_ext.geom_type == "Point":
-        pontos_corte_coords = [(float(inter_ext.x), float(inter_ext.y))]
+    for pt in brutos:
+        if not pontos_corte_coords or math.hypot(pt[0] - pontos_corte_coords[-1][0], pt[1] - pontos_corte_coords[-1][1]) > 1e-6:
+            pontos_corte_coords.append(pt)
+    if len(pontos_corte_coords) != 2:
+        raise ValueError("A linha de corte não intersectou exatamente dois pontos do perímetro. Escolha outra divisa de referência.")
 
-    # Caso a linha corte em exatamente 2 pontos (padrão)
-    if len(pontos_corte_coords) < 2:
-        raise ValueError("A linha de corte não intersectou ambos os lados do perímetro.")
+    # Snap: se o corte cai sobre um vértice existente, reutiliza o vértice (sem criar V duplicado)
+    def _snap_vertice(pt_2d: Tuple[float, float]) -> Tuple[Tuple[float, float], Optional[int], Optional[float]]:
+        for i, c in enumerate(coords_3d):
+            if math.hypot(pt_2d[0] - c[0], pt_2d[1] - c[1]) <= SNAP_TOLERANCIA_METROS:
+                return (c[0], c[1]), pontos[i]["id"], c[2]
+        return pt_2d, None, None
 
-    # Ordena os pontos de corte ao longo da linha de corte (projeção em u)
-    pontos_corte_coords.sort(key=lambda pt: float(np.dot(np.array(pt) - cut_center, u)))
-    p_corte_1 = pontos_corte_coords[0]
-    p_corte_2 = pontos_corte_coords[-1]
+    p_corte_1, snap_id_1, snap_alt_1 = _snap_vertice(pontos_corte_coords[0])
+    p_corte_2, snap_id_2, snap_alt_2 = _snap_vertice(pontos_corte_coords[1])
 
     # Interpolação de altitude para os novos pontos de corte
     def _interpolar_altitude(pt_2d: Tuple[float, float]) -> float:
@@ -256,8 +274,13 @@ def calcular_geometria_divisao(
                 return c_a[2] + t * (c_b[2] - c_a[2])
         return float(np.mean([c[2] for c in coords_3d]))
 
-    alt_corte_1 = _interpolar_altitude(p_corte_1)
-    alt_corte_2 = _interpolar_altitude(p_corte_2)
+    alt_corte_1 = snap_alt_1 if snap_alt_1 is not None else _interpolar_altitude(p_corte_1)
+    alt_corte_2 = snap_alt_2 if snap_alt_2 is not None else _interpolar_altitude(p_corte_2)
+
+    # Preserva o sentido de caminhamento original nos dois novos anéis
+    sentido = 1.0 if LinearRing(poly_coords_2d).is_ccw else -1.0
+    base_poly = orient(base_poly, sentido)
+    rem_poly = orient(rem_poly, sentido)
 
     # Conversão de coordenadas para SIRGAS 2000 lat/lon
     transformer_inv = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
@@ -308,6 +331,7 @@ def calcular_geometria_divisao(
                 "altitude": round(alt_corte_1, 3),
                 "lat": round(float(lat_c1), 8),
                 "lon": round(float(lon_c1), 8),
+                "vertice_existente_id": snap_id_1,
             },
             {
                 "este": round(p_corte_2[0], 3),
@@ -315,9 +339,81 @@ def calcular_geometria_divisao(
                 "altitude": round(alt_corte_2, 3),
                 "lat": round(float(lat_c2), 8),
                 "lon": round(float(lon_c2), 8),
+                "vertice_existente_id": snap_id_2,
             }
         ]
     }
+
+
+def _resolver_contexto(
+    levantamento_id: int,
+    matricula_id: int,
+    modo: str,
+    alvo: str,
+    area_alvo_m2: Optional[float],
+    matricula_base_id: Optional[int],
+) -> Dict[str, Any]:
+    """
+    Define o tipo de operação conforme o desenho da matrícula:
+    - SIMPLES: uma matrícula com perímetro próprio vira duas (Gleba A + nova Gleba B).
+    - SEPARACAO: perímetro unificado (2 matrículas no mesmo polígono, via matricula_origem_desenho_id)
+      é cortado de volta em dois polígonos, um por matrícula, com área igual à área registrada.
+    """
+    row = execute_query(
+        "SELECT id, propriedade_id, numero_matricula, matricula_origem_desenho_id FROM matriculas WHERE id = ?",
+        params=(matricula_id,), fetch_one=True
+    )
+    if not row:
+        raise ValueError(f"Matrícula ID {matricula_id} não encontrada.")
+    desenho_id = row["matricula_origem_desenho_id"] or row["id"]
+    grupo_rows = execute_query(
+        "SELECT id, numero_matricula, area_ha FROM matriculas WHERE id = ? OR matricula_origem_desenho_id = ? ORDER BY id",
+        params=(desenho_id, desenho_id), fetch_all=True
+    )
+    grupo = [dict(g) for g in (grupo_rows or [])]
+
+    if modo == "SEPARAR_MATRICULAS":
+        if len(grupo) != 2:
+            raise ValueError(
+                "A separação exige um perímetro unificado com exatamente 2 matrículas. "
+                f"Este desenho possui {len(grupo)} matrícula(s)."
+            )
+        base_id = matricula_base_id or matricula_id
+        mat_base = next((g for g in grupo if g["id"] == base_id), None)
+        if not mat_base:
+            raise ValueError("A matrícula escolhida para o lote da base não pertence ao perímetro unificado.")
+        mat_fundo = next(g for g in grupo if g["id"] != mat_base["id"])
+        area_reg_m2 = float(mat_base["area_ha"] or 0.0) * 10000.0
+        if area_reg_m2 <= 0:
+            raise ValueError(f"A matrícula {mat_base['numero_matricula']} não possui área registrada para orientar o corte.")
+        return {
+            "tipo": "SEPARACAO", "desenho_id": desenho_id, "propriedade_id": row["propriedade_id"],
+            "mat_base": mat_base, "mat_fundo": mat_fundo,
+            "modo_calc": "AREA_DEFINIDA", "alvo_calc": "BASE", "area_alvo_m2": area_reg_m2,
+            "area_registrada_total_m2": sum(float(g["area_ha"] or 0.0) for g in grupo) * 10000.0,
+        }
+
+    if len(grupo) > 1:
+        raise ValueError(
+            "Esta matrícula faz parte de um perímetro unificado. Use o modo 'Separar matrículas' "
+            "para dividir o polígono entre as matrículas."
+        )
+    return {
+        "tipo": "SIMPLES", "desenho_id": matricula_id, "propriedade_id": row["propriedade_id"],
+        "modo_calc": modo, "alvo_calc": alvo, "area_alvo_m2": area_alvo_m2,
+    }
+
+
+def _avisos_contexto(ctx: Dict[str, Any], area_total_m2: float) -> List[str]:
+    avisos: List[str] = []
+    if ctx["tipo"] == "SEPARACAO":
+        soma = ctx["area_registrada_total_m2"]
+        if soma > 0 and abs(soma - area_total_m2) / area_total_m2 > 0.01:
+            avisos.append(
+                f"A soma das áreas registradas ({soma / 10000.0:.4f} ha) difere da área do polígono "
+                f"({area_total_m2 / 10000.0:.4f} ha) em mais de 1%. O corte segue a área registrada da matrícula da base."
+            )
+    return avisos
 
 
 def simular_divisao_offset(
@@ -327,22 +423,49 @@ def simular_divisao_offset(
     ponto_base_2_id: int,
     modo: str,
     alvo: str = "BASE",
-    area_alvo_m2: Optional[float] = None
+    area_alvo_m2: Optional[float] = None,
+    matricula_base_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Endpoint service: executa a simulação analítica do corte sem persistir dados no banco."""
-    pontos = _obter_pontos_perimetro_matricula(levantamento_id, matricula_id)
+    ctx = _resolver_contexto(levantamento_id, matricula_id, modo, alvo, area_alvo_m2, matricula_base_id)
+    pontos = _obter_pontos_perimetro_matricula(levantamento_id, ctx["desenho_id"])
     resultado = calcular_geometria_divisao(
         pontos=pontos,
         ponto_base_1_id=ponto_base_1_id,
         ponto_base_2_id=ponto_base_2_id,
-        modo=modo,
-        alvo=alvo,
-        area_alvo_m2=area_alvo_m2
+        modo=ctx["modo_calc"],
+        alvo=ctx["alvo_calc"],
+        area_alvo_m2=ctx["area_alvo_m2"],
     )
     # Remove objetos não-serializáveis
     resultado["lote_base"].pop("polygon_geom", None)
     resultado["lote_remanescente"].pop("polygon_geom", None)
+    resultado["tipo_operacao"] = ctx["tipo"]
+    resultado["avisos"] = _avisos_contexto(ctx, resultado["area_total_m2"])
+    if ctx["tipo"] == "SEPARACAO":
+        resultado["lote_base"]["matricula"] = ctx["mat_base"]["numero_matricula"]
+        resultado["lote_remanescente"]["matricula"] = ctx["mat_fundo"]["numero_matricula"]
     return resultado
+
+
+def _nome_matricula_livre(propriedade_id: int, nome: str, ignorar_id: Optional[int] = None) -> str:
+    rows = execute_query(
+        "SELECT id, numero_matricula FROM matriculas WHERE propriedade_id = ?",
+        params=(propriedade_id,), fetch_all=True
+    )
+    ocupados = {str(r["numero_matricula"]).strip().upper() for r in (rows or []) if r["id"] != ignorar_id}
+    final, n = nome, 2
+    while final.upper() in ocupados:
+        final = f"{nome} ({n})"
+        n += 1
+    return final
+
+
+def _coord_ponto(pt: Dict[str, Any]) -> Tuple[float, float]:
+    return (
+        float(pt.get("e_corrigido") or pt.get("e_original") or 0.0),
+        float(pt.get("n_corrigido") or pt.get("n_original") or 0.0),
+    )
 
 
 def executar_divisao_offset(
@@ -354,122 +477,124 @@ def executar_divisao_offset(
     alvo: str = "BASE",
     area_alvo_m2: Optional[float] = None,
     nome_gleba_a: Optional[str] = None,
-    nome_gleba_b: Optional[str] = None
+    nome_gleba_b: Optional[str] = None,
+    matricula_base_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Executa a divisão e desmembramento atômico no banco de dados (Opção A):
-    1. Calcula a geometria e novos vértices de corte.
-    2. Atualiza a matrícula de origem (Lote 1 / Gleba A) com sua nova área e perímetro.
-    3. Cria a nova matrícula derivada (Lote 2 / Gleba B) com sua área e perímetro.
-    4. Insere os novos vértices virtuais (Tipo V) no banco.
-    5. Reconstrói os segmentos perimetrais e preserva os confrontantes.
+    Executa a divisão em uma única transação (tudo ou nada).
+
+    SIMPLES: a matrícula de origem fica com o lote da base (Gleba A, número preservado salvo se
+    `nome_gleba_a` for informado) e uma nova matrícula recebe o remanescente (Gleba B).
+    SEPARACAO: o perímetro unificado é cortado entre as 2 matrículas; cada uma passa a ter desenho
+    próprio (o vínculo matricula_origem_desenho_id é removido) e mantém número e área registrada.
+    Em ambos os casos os segmentos são refeitos herdando confrontante/limite/anuência das divisas antigas.
     """
-    pontos_originais = _obter_pontos_perimetro_matricula(levantamento_id, matricula_id)
+    ctx = _resolver_contexto(levantamento_id, matricula_id, modo, alvo, area_alvo_m2, matricula_base_id)
+    desenho_id = ctx["desenho_id"]
+    prop_id = ctx["propriedade_id"]
+
+    pontos_originais = _obter_pontos_perimetro_matricula(levantamento_id, desenho_id)
     geo_res = calcular_geometria_divisao(
         pontos=pontos_originais,
         ponto_base_1_id=ponto_base_1_id,
         ponto_base_2_id=ponto_base_2_id,
-        modo=modo,
-        alvo=alvo,
-        area_alvo_m2=area_alvo_m2
+        modo=ctx["modo_calc"],
+        alvo=ctx["alvo_calc"],
+        area_alvo_m2=ctx["area_alvo_m2"],
     )
 
     fuso = geo_res["fuso_utm"]
     base_poly = geo_res["lote_base"]["polygon_geom"]
     rem_poly = geo_res["lote_remanescente"]["polygon_geom"]
     cortes = geo_res["pontos_corte"]
+    nomes_pontos = {p["id"]: p["nome_vertice"] for p in pontos_originais}
+    pos_original = {p["id"]: i for i, p in enumerate(pontos_originais)}
 
-    # Consulta dados da matrícula original
-    row_mat = execute_query(
-        "SELECT id, propriedade_id, numero_matricula, denominacao, ccir, itr FROM matriculas WHERE id = ?",
-        params=(matricula_id,),
-        fetch_one=True
-    )
-    if not row_mat:
-        raise ValueError(f"Matrícula ID {matricula_id} não encontrada.")
-
-    prop_id = row_mat["propriedade_id"]
-    num_orig = (row_mat["numero_matricula"] or "").strip()
-    denom_orig = (row_mat["denominacao"] or "").strip()
-
-    # Define os nomes das glebas
-    if not nome_gleba_a:
-        nome_gleba_a = f"{num_orig} - GLEBA A" if num_orig else "GLEBA A"
-    if not nome_gleba_b:
-        nome_gleba_b = f"{num_orig} - GLEBA B" if num_orig else "GLEBA B"
-
-    # Garante que o nome da nova matrícula seja único na propriedade
-    rows_existentes = execute_query(
-        "SELECT numero_matricula FROM matriculas WHERE propriedade_id = ?",
-        params=(prop_id,),
-        fetch_all=True
-    )
-    nomes_matriculas = {str(r["numero_matricula"]).strip().upper() for r in (rows_existentes or [])}
-    sufixo_num = 2
-    nome_final_b = nome_gleba_b
-    while nome_final_b.upper() in nomes_matriculas:
-        nome_final_b = f"{nome_gleba_b} ({sufixo_num})"
-        sufixo_num += 1
-
-    # Nomes para os vértices de corte (V-01, V-02...)
+    # Nomes para os vértices de corte novos (V-01, V-02...), únicos no levantamento
     rows_pts = execute_query(
         "SELECT nome_vertice FROM pontos WHERE levantamento_id = ?",
-        params=(levantamento_id,),
-        fetch_all=True
+        params=(levantamento_id,), fetch_all=True
     )
     nomes_ocupados = {str(r["nome_vertice"]).strip().upper() for r in (rows_pts or [])}
 
-    def _proximo_nome_v():
+    def _proximo_nome_v() -> str:
         num = 1
-        while f"V-{num:02d}".upper() in nomes_ocupados or f"V{num}".upper() in nomes_ocupados:
+        while f"V-{num:02d}" in nomes_ocupados or f"V{num}" in nomes_ocupados:
             num += 1
         nome = f"V-{num:02d}"
-        nomes_ocupados.add(nome.upper())
+        nomes_ocupados.add(nome)
         return nome
 
-    nome_corte_1 = _proximo_nome_v()
-    nome_corte_2 = _proximo_nome_v()
+    nomes_corte = [
+        nomes_pontos.get(c["vertice_existente_id"]) if c.get("vertice_existente_id") else _proximo_nome_v()
+        for c in cortes
+    ]
 
-    # Transação atômica
-    with DatabaseManager() as conn:
+    metodo_padrao = "PG1" if (pontos_originais[0].get("sigma_lat") or 0.0) > 0.0 else "MC1"
+
+    with DatabaseManager() as conn:  # commit no sucesso, rollback em qualquer exceção
         cursor = conn.cursor()
 
-        # 1. Cria a nova matrícula para a Gleba B
+        # Segmentos antigos do desenho (herança de confrontante/limite/anuência)
         cursor.execute(
-            """
-            INSERT INTO matriculas (
-                propriedade_id, numero_matricula, denominacao, ccir, itr,
-                area_ha, matricula_origem_desenho_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                prop_id,
-                nome_final_b,
-                f"Desmembramento de {denom_orig or num_orig}",
-                row_mat["ccir"],
-                row_mat["itr"],
-                geo_res["lote_remanescente"]["area_ha"],
-                matricula_id
-            )
+            f"SELECT {COLUNAS_SELECT_SEGMENTOS} FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?",
+            (levantamento_id, desenho_id)
         )
-        nova_matricula_id = cursor.lastrowid
+        segmentos_antigos = segmentos_antigos_para_dicts(cursor.fetchall())
 
-        # 2. Atualiza a matrícula de origem (Gleba A)
-        cursor.execute(
-            """
-            UPDATE matriculas
-            SET numero_matricula = ?, area_ha = ?
-            WHERE id = ?
-            """,
-            (
-                nome_gleba_a,
-                geo_res["lote_base"]["area_ha"],
-                matricula_id
+        # 1. Define as matrículas donas de cada lote
+        if ctx["tipo"] == "SIMPLES":
+            cursor.execute(
+                "SELECT numero_matricula, denominacao, ccir, itr, cri_comarca, cri_circunscricao, "
+                "livro_registro, folha_registro, georreferenciamento FROM matriculas WHERE id = ?",
+                (matricula_id,)
             )
-        )
+            row_mat = cursor.fetchone()
+            num_orig = (row_mat["numero_matricula"] or "").strip()
+            denom_orig = (row_mat["denominacao"] or "").strip()
 
-        # 3. Insere os pontos de corte virtuais para a Matrícula A (Gleba A)
-        def _inserir_ponto(mat_id: int, nome: str, c: Dict[str, Any]) -> int:
+            if nome_gleba_a and nome_gleba_a.strip():
+                nome_a = nome_gleba_a.strip()
+                if _nome_matricula_livre(prop_id, nome_a, ignorar_id=matricula_id) != nome_a:
+                    raise ValueError(f"Já existe uma matrícula '{nome_a}' nesta propriedade.")
+            else:
+                nome_a = num_orig  # preserva o número oficial da matrícula de origem
+            base_b = (nome_gleba_b or "").strip() or (f"{num_orig} - GLEBA B" if num_orig else "GLEBA B")
+            nome_b = _nome_matricula_livre(prop_id, base_b)
+            if nome_b.upper() == nome_a.upper():
+                nome_b = _nome_matricula_livre(prop_id, f"{base_b} (2)")
+
+            # Nova matrícula com desenho PRÓPRIO (matricula_origem_desenho_id = NULL)
+            cursor.execute(
+                """
+                INSERT INTO matriculas (
+                    propriedade_id, numero_matricula, denominacao, ccir, itr, area_ha,
+                    cri_comarca, cri_circunscricao, livro_registro, folha_registro, georreferenciamento
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    prop_id, nome_b, f"Desmembramento de {denom_orig or num_orig}".strip(),
+                    row_mat["ccir"], row_mat["itr"], geo_res["lote_remanescente"]["area_ha"],
+                    row_mat["cri_comarca"], row_mat["cri_circunscricao"],
+                    row_mat["livro_registro"], row_mat["folha_registro"], row_mat["georreferenciamento"],
+                )
+            )
+            dono_base, dono_rem = matricula_id, cursor.lastrowid
+            cursor.execute(
+                "UPDATE matriculas SET numero_matricula = ?, area_ha = ? WHERE id = ?",
+                (nome_a, geo_res["lote_base"]["area_ha"], matricula_id)
+            )
+            nome_resultado_a, nome_resultado_b = nome_a, nome_b
+        else:
+            dono_base, dono_rem = ctx["mat_base"]["id"], ctx["mat_fundo"]["id"]
+            # A matrícula derivada deixa de usar o desenho da outra
+            derivada_id = dono_rem if dono_base == desenho_id else dono_base
+            cursor.execute("UPDATE matriculas SET matricula_origem_desenho_id = NULL WHERE id = ?", (derivada_id,))
+            nome_resultado_a = ctx["mat_base"]["numero_matricula"]
+            nome_resultado_b = ctx["mat_fundo"]["numero_matricula"]
+
+        # 2. Helpers de gravação de pontos
+        def _inserir_vertice_corte(mat_id: int, nome: str, c: Dict[str, Any]) -> int:
             cursor.execute(
                 """
                 INSERT INTO pontos (
@@ -495,107 +620,131 @@ def executar_divisao_offset(
             )
             return cursor.lastrowid
 
-        p1_mat_a_id = _inserir_ponto(matricula_id, nome_corte_1, cortes[0])
-        p2_mat_a_id = _inserir_ponto(matricula_id, nome_corte_2, cortes[1])
+        def _clonar_ponto(pid: int, mat_id: int) -> int:
+            cursor.execute("SELECT * FROM pontos WHERE id = ?", (pid,))
+            dados = dict(cursor.fetchone())
+            dados.pop("id", None)
+            dados["matricula_id"] = mat_id
+            colunas = list(dados.keys())
+            cursor.execute(
+                f"INSERT INTO pontos ({', '.join(colunas)}) VALUES ({', '.join('?' for _ in colunas)})",
+                tuple(dados[c] for c in colunas)
+            )
+            return cursor.lastrowid
 
-        # Insere também os pontos de corte para a Matrícula B (Gleba B)
-        p1_mat_b_id = _inserir_ponto(nova_matricula_id, nome_corte_1, cortes[0])
-        p2_mat_b_id = _inserir_ponto(nova_matricula_id, nome_corte_2, cortes[1])
-
-        # 4. Associa os vértices aos seus respectivos anéis perimetrais
-        # Identifica quais pontos originais caem no polígono do Lote 1 e no Lote 2
-        coords_orig_map = []
-        for p in pontos_originais:
-            e = float(p.get("e_corrigido") or p.get("e_original"))
-            n_val = float(p.get("n_corrigido") or p.get("n_original"))
-            coords_orig_map.append({"id": p["id"], "este": e, "norte": n_val})
-
-        # Função para ordenar os pontos em um anel poligonal do Shapely
-        def _montar_anel_ordenado(poly_target: Polygon, id_corte_1: int, id_corte_2: int) -> List[int]:
-            coords_poly = list(poly_target.exterior.coords)[:-1]  # remove o fechamento duplicado
-            anel_ids = []
-
+        # 3. Monta o anel de cada lote
+        def _montar_anel(poly_target: Polygon, dono: int):
+            coords_poly = list(poly_target.exterior.coords)[:-1]
+            ids: List[int] = []
+            remap: Dict[int, int] = {}   # id original -> clone usado neste anel
+            movidos: List[int] = []
             for ce, cn in coords_poly:
-                # Verifica se coincide com o corte 1
-                if math.hypot(ce - cortes[0]["este"], cn - cortes[0]["norte"]) < 0.05:
-                    anel_ids.append(id_corte_1)
-                    continue
-                # Verifica se coincide com o corte 2
-                if math.hypot(ce - cortes[1]["este"], cn - cortes[1]["norte"]) < 0.05:
-                    anel_ids.append(id_corte_2)
-                    continue
+                pid: Optional[int] = None
+                for k, c in enumerate(cortes):
+                    if math.hypot(ce - c["este"], cn - c["norte"]) < 0.01:
+                        exist = c.get("vertice_existente_id")
+                        if exist:
+                            if dono == desenho_id:
+                                pid = exist
+                            else:
+                                pid = _clonar_ponto(exist, dono)
+                                remap[exist] = pid
+                        else:
+                            pid = _inserir_vertice_corte(dono, nomes_corte[k], c)
+                        break
+                if pid is None:
+                    prox = min(pontos_originais, key=lambda pt: math.hypot(ce - _coord_ponto(pt)[0], cn - _coord_ponto(pt)[1]))
+                    ex, ny = _coord_ponto(prox)
+                    if math.hypot(ce - ex, cn - ny) < 0.01:
+                        pid = prox["id"]
+                        if dono != desenho_id:
+                            movidos.append(pid)
+                if pid is not None and (not ids or ids[-1] != pid):
+                    ids.append(pid)
+            if len(ids) > 1 and ids[0] == ids[-1]:
+                ids.pop()
+            # Começa no vértice que vinha primeiro no caminhamento original
+            inverso = {v: k for k, v in remap.items()}
+            candidatos = [(pos_original[inverso.get(i, i)], idx) for idx, i in enumerate(ids) if inverso.get(i, i) in pos_original]
+            if candidatos:
+                ini = min(candidatos)[1]
+                ids = ids[ini:] + ids[:ini]
+            return ids, remap, movidos
 
-                # Procura ponto original mais próximo
-                p_mais_prox = min(
-                    coords_orig_map,
-                    key=lambda pt: math.hypot(ce - pt["este"], cn - pt["norte"])
+        aneis: Dict[str, List[int]] = {}
+        segs_novos: Dict[str, list] = {}
+        for chave, poly_target, dono in (("base", base_poly, dono_base), ("rem", rem_poly, dono_rem)):
+            ids, remap, movidos = _montar_anel(poly_target, dono)
+            if len(ids) < 3:
+                raise ValueError("Falha ao montar o perímetro de um dos lotes (menos de 3 vértices).")
+
+            if movidos:
+                cursor.execute(
+                    f"UPDATE pontos SET matricula_id = ? WHERE levantamento_id = ? AND id IN ({','.join('?' for _ in movidos)})",
+                    (dono, levantamento_id, *movidos)
                 )
-                if math.hypot(ce - p_mais_prox["este"], cn - p_mais_prox["norte"]) < 0.10:
-                    anel_ids.append(p_mais_prox["id"])
+            for ordem_idx, pid in enumerate(ids, start=1):
+                cursor.execute("UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?", (ordem_idx, pid))
 
-            return anel_ids
+            # Herda metadados das divisas antigas (aplicando o mapa de clones deste anel)
+            antigos = [
+                {**sg, "ponto_inicio_id": remap.get(sg["ponto_inicio_id"], sg["ponto_inicio_id"]),
+                 "ponto_fim_id": remap.get(sg["ponto_fim_id"], sg["ponto_fim_id"])}
+                for sg in segmentos_antigos
+            ] if remap else segmentos_antigos
+            aneis[chave] = ids
+            segs_novos[chave] = montar_info_segmentos(antigos, ids, metodo_padrao)
 
-        anel_lote_a = _montar_anel_ordenado(base_poly, p1_mat_a_id, p2_mat_a_id)
-        anel_lote_b = _montar_anel_ordenado(rem_poly, p1_mat_b_id, p2_mat_b_id)
+        query_seg = f"""
+            INSERT INTO segmentos (
+                levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id,
+                {", ".join(CAMPOS_HERDADOS)}
+            ) VALUES (?, ?, ?, ?, {", ".join("?" for _ in CAMPOS_HERDADOS)})
+        """
+        cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, desenho_id))
+        for chave, dono in (("base", dono_base), ("rem", dono_rem)):
+            cursor.execute("DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id = ?", (levantamento_id, dono))
+            for pt_ini, pt_fim, info in segs_novos[chave]:
+                cursor.execute(query_seg, (
+                    levantamento_id, dono, pt_ini, pt_fim,
+                    *(info[campo] for campo in CAMPOS_HERDADOS)
+                ))
 
-        # Mover os pontos originais que pertencem ao Lote 2 para a nova_matricula_id
-        ids_exclusivos_lote_b = [pid for pid in anel_lote_b if pid not in (p1_mat_b_id, p2_mat_b_id)]
-        if ids_exclusivos_lote_b:
-            cursor.execute(
-                f"UPDATE pontos SET matricula_id = ? WHERE id IN ({','.join('?' for _ in ids_exclusivos_lote_b)})",
-                (nova_matricula_id, *ids_exclusivos_lote_b)
-            )
-
-        # Configurar ordem perimetral de caminhamento nos pontos da Matrícula A
-        for ordem_idx, pid in enumerate(anel_lote_a, start=1):
-            cursor.execute(
-                "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                (ordem_idx, pid)
-            )
-
-        # Configurar ordem perimetral de caminhamento nos pontos da Matrícula B
-        for ordem_idx, pid in enumerate(anel_lote_b, start=1):
-            cursor.execute(
-                "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                (ordem_idx, pid)
-            )
-
-        conn.commit()
-
-    # 5. Autorregeneração topológica das divisas para ambas as matrículas
-    salvar_ordem_caminhamento(
-        levantamento_id,
-        matricula_id,
-        [{"id": pid, "ordem": idx} for idx, pid in enumerate(anel_lote_a, start=1)]
-    )
-    salvar_ordem_caminhamento(
-        levantamento_id,
-        nova_matricula_id,
-        [{"id": pid, "ordem": idx} for idx, pid in enumerate(anel_lote_b, start=1)]
-    )
+    # Sincroniza o workspace físico (fora da transação; falha aqui não desfaz a divisão)
+    try:
+        from services.documentacao.exportacao_service import ExportacaoService
+        ExportacaoService.gerar_documento_cliente_workspace(levantamento_id)
+    except Exception as e:
+        logger.warning(f"[DIVISAO_LOTES] Divisão salva, mas falhou ao sincronizar o workspace: {e}")
 
     logger.info(
-        f"[DIVISAO_LOTES] Desmembramento concluído com sucesso. "
-        f"Matrícula {matricula_id} ({nome_gleba_a}) e Nova Matrícula {nova_matricula_id} ({nome_final_b})."
+        f"[DIVISAO_LOTES] {ctx['tipo']} concluída: matrículas {dono_base} ({nome_resultado_a}) e {dono_rem} ({nome_resultado_b})."
     )
+
+    if ctx["tipo"] == "SIMPLES":
+        mensagem = f"Desmembramento realizado! Matrícula '{nome_resultado_a}' (Gleba A) e nova matrícula '{nome_resultado_b}' (Gleba B)."
+    else:
+        mensagem = f"Perímetro separado! Matrículas '{nome_resultado_a}' e '{nome_resultado_b}' agora possuem desenho próprio."
 
     return {
         "sucesso": True,
-        "mensagem": f"Desmembramento realizado com sucesso! Geradas as glebas '{nome_gleba_a}' e '{nome_final_b}'.",
+        "tipo_operacao": ctx["tipo"],
+        "mensagem": mensagem,
+        "avisos": _avisos_contexto(ctx, geo_res["area_total_m2"]),
         "distancia_offset_m": geo_res["distancia_offset_m"],
         "gleba_a": {
-            "matricula_id": matricula_id,
-            "numero_matricula": nome_gleba_a,
+            "matricula_id": dono_base,
+            "numero_matricula": nome_resultado_a,
             "area_ha": geo_res["lote_base"]["area_ha"],
             "area_m2": geo_res["lote_base"]["area_m2"],
-            "total_vertices": len(anel_lote_a),
+            "total_vertices": len(aneis["base"]),
         },
         "gleba_b": {
-            "matricula_id": nova_matricula_id,
-            "numero_matricula": nome_final_b,
+            "matricula_id": dono_rem,
+            "numero_matricula": nome_resultado_b,
             "area_ha": geo_res["lote_remanescente"]["area_ha"],
             "area_m2": geo_res["lote_remanescente"]["area_m2"],
-            "total_vertices": len(anel_lote_b),
+            "total_vertices": len(aneis["rem"]),
         },
-        "vertices_divisao": [nome_corte_1, nome_corte_2],
+        "vertices_divisao": nomes_corte,
     }

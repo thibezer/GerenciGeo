@@ -398,8 +398,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
     ctx.ferramentaCaneta.alternar();
   });
 
-  // Ferramenta Offset CAD no Mapa (Forma 2)
-    // Ferramenta Divisão de Lotes no Mapa
+  // Ferramenta Divisão de Lotes no Mapa
   document.getElementById('btn-mapa-divisao-flutuante')?.addEventListener('click', async () => {
     if (!ctx.ferramentaDivisaoLotes) {
       const { FerramentaDivisaoLotes } = await import('../ferramenta_divisao_lotes');
@@ -408,6 +407,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
     ctx.ferramentaDivisaoLotes.alternar();
   });
 
+  // Ferramenta Offset CAD no Mapa (Forma 2)
   document.getElementById('btn-mapa-offset-flutuante')?.addEventListener('click', async () => {
     if (!ctx.ferramentaOffsetMapa) {
       const { FerramentaOffsetMapa } = await import('../ferramenta_offset_mapa');

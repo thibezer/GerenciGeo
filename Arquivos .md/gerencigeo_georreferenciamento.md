@@ -151,13 +151,20 @@ Módulo analítico de alta precisão para partição e desmembramento automátic
 
 ### 7.1 Rotas de API
 - **Simulação / Preview**: POST /levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/simular
-  - Calcula a distância ótima ^*$, os vértices de corte e polígonos dos dois lotes sem alterar o banco de dados.
-- **Efetivação Atômica**: POST /levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/executar
-  - Realiza o desmembramento atômico:
-    1. Atualiza a matrícula de origem como **Gleba A** com a nova área e sequência de vértices.
-    2. Cria a nova matrícula como **Gleba B** vinculada à propriedade (matricula_origem_desenho_id).
-    3. Insere os novos vértices virtuais (Tipo V) com cotas interpoladas e sigmas INCRA.
-    4. Regenera a cadeia topológica de segmentos preservando confrontantes externos e criando confrontação mútua na divisa comum.
+  - Calcula a distância ótima, os vértices de corte e os polígonos dos dois lotes sem alterar o banco.
+- **Efetivação (transação única, tudo ou nada)**: POST /levantamentos/{id}/matriculas/{matricula_id}/divisao-offset/executar
+- Modos: `AREAS_IGUAIS`, `AREA_DEFINIDA` e `SEPARAR_MATRICULAS` (campo opcional `matricula_base_id`).
+
+**Cenário 1 – uma matrícula vira duas (AREAS_IGUAIS / AREA_DEFINIDA):**
+1. A matrícula de origem fica com o lote da base (Gleba A); o número oficial é preservado (só muda se `nome_gleba_a` for informado) e a área é atualizada.
+2. Cria a Gleba B com desenho PRÓPRIO (`matricula_origem_desenho_id` = NULL) e copia CCIR, ITR, comarca, circunscrição, livro, folha e georreferenciamento.
+3. Insere os vértices de corte (Tipo V). Se o corte cai a menos de 2 cm de um vértice existente, ele é reutilizado (clonado na outra gleba) em vez de criar V duplicado.
+4. Refaz os segmentos de ambas as glebas herdando confrontante, tipo de limite, método e anuência das divisas antigas. A nova divisa de corte nasce sem confrontante (preencher manualmente).
+
+**Cenário 2 – perímetro unificado com 2 matrículas (SEPARAR_MATRICULAS):**
+- Aplica-se quando duas matrículas compartilham um desenho (`matricula_origem_desenho_id`). O corte usa a **área registrada** (`area_ha`) da matrícula escolhida como base; a outra recebe o restante.
+- Cada matrícula passa a ter perímetro próprio, o vínculo de desenho é removido e número e área registrada permanecem intactos. Divergência > 1% entre a soma das áreas registradas e a área do polígono gera aviso.
+- Perímetros unificados com 3+ matrículas não são suportados (mensagem de erro). Em modo simples, uma matrícula unificada é rejeitada.
 
 ### 7.2 Motor Matemático
 - Implementado em services/processamento/divisao_lotes.py utilizando **Shapely 2.x** com busca binária de convergência de área (tolerância $< 0.0001\text{ m}^2$).

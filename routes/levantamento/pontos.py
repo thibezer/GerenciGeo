@@ -1439,21 +1439,23 @@ class PayloadConfirmarOffsetLote(BaseModel):
 class PayloadSimularDivisaoOffset(BaseModel):
     ponto_base_1_id: int
     ponto_base_2_id: int
-    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA'] = 'AREAS_IGUAIS'
+    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA', 'SEPARAR_MATRICULAS'] = 'AREAS_IGUAIS'
     alvo: Literal['BASE', 'REMANESCENTE'] = 'BASE'
     area_alvo_m2: Optional[float] = None
     area_alvo_ha: Optional[float] = None
+    matricula_base_id: Optional[int] = None
 
 
 class PayloadExecutarDivisaoOffset(BaseModel):
     ponto_base_1_id: int
     ponto_base_2_id: int
-    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA'] = 'AREAS_IGUAIS'
+    modo: Literal['AREAS_IGUAIS', 'AREA_DEFINIDA', 'SEPARAR_MATRICULAS'] = 'AREAS_IGUAIS'
     alvo: Literal['BASE', 'REMANESCENTE'] = 'BASE'
     area_alvo_m2: Optional[float] = None
     area_alvo_ha: Optional[float] = None
     nome_gleba_a: Optional[str] = None
     nome_gleba_b: Optional[str] = None
+    matricula_base_id: Optional[int] = None
 
 
 def _obter_ponto_apoio_db(ponto_id: int):
@@ -2111,7 +2113,8 @@ def post_simular_divisao_offset(id: int, matricula_id: int, payload: PayloadSimu
             ponto_base_2_id=payload.ponto_base_2_id,
             modo=payload.modo,
             alvo=payload.alvo,
-            area_alvo_m2=area_m2
+            area_alvo_m2=area_m2,
+            matricula_base_id=payload.matricula_base_id
         )
     except ValueError as ve:
         raise HTTPException(status_code=422, detail=str(ve))
@@ -2137,16 +2140,22 @@ def post_executar_divisao_offset(id: int, matricula_id: int, payload: PayloadExe
             alvo=payload.alvo,
             area_alvo_m2=area_m2,
             nome_gleba_a=payload.nome_gleba_a,
-            nome_gleba_b=payload.nome_gleba_b
+            nome_gleba_b=payload.nome_gleba_b,
+            matricula_base_id=payload.matricula_base_id
         )
 
-        from services.processamento.historico_campo import HistoricoCampoLogger
-        HistoricoCampoLogger.registrar_evento(
-            levantamento_id=id,
-            tipo_evento='LOTE_DESMEMBRADO',
-            descricao=f'Desmembramento da matricula {matricula_id} realizado via divisao por offset.',
-            dados_detalhados=res,
-        )
+        # A divisão já foi gravada: falha no log de auditoria não pode virar erro para o usuário
+        try:
+            from services.processamento.historico_campo import HistoricoCampoLogger
+            tipo_evento = 'MATRICULAS_SEPARADAS' if res.get('tipo_operacao') == 'SEPARACAO' else 'LOTE_DESMEMBRADO'
+            HistoricoCampoLogger.registrar_evento(
+                levantamento_id=id,
+                tipo_evento=tipo_evento,
+                descricao=res.get('mensagem') or f'Divisao da matricula {matricula_id} por offset.',
+                dados_detalhados=res,
+            )
+        except Exception as e_log:
+            logging.getLogger(__name__).warning(f'Divisao salva, mas o historico falhou: {e_log}')
 
         return res
     except ValueError as ve:
