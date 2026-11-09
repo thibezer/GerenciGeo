@@ -155,7 +155,6 @@ export class FerramentaDivisaoLotes {
 
     const painel = document.createElement('div');
     painel.id = 'painel-flutuante-divisao-lotes';
-    painel.className = 'absolute top-16 left-4 z-[500] w-[360px] max-h-[calc(100%-5rem)] overflow-y-auto bg-[#0c1510]/95 backdrop-blur-md border border-white/10 rounded-technical shadow-2xl p-4 text-white text-xs font-sans animate-in slide-in-from-left duration-200';
 
     const opcoesMatriculaBase = grupo
       .map(m => `<option value="${m.id}" ${Number(m.id) === this.matriculaBaseId ? 'selected' : ''}>${m.numero_matricula} (${Number(m.area_ha || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ha)</option>`)
@@ -163,97 +162,119 @@ export class FerramentaDivisaoLotes {
 
     const blocoModo = !unificado
       ? `
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition">
-            <input type="radio" name="modo-divisao" value="AREAS_IGUAIS" ${this.modo === 'AREAS_IGUAIS' ? 'checked' : ''} class="text-amber-500 focus:ring-0">
-            <span class="font-bold">Áreas Iguais (50%)</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition">
-            <input type="radio" name="modo-divisao" value="AREA_DEFINIDA" ${this.modo === 'AREA_DEFINIDA' ? 'checked' : ''} class="text-amber-500 focus:ring-0">
-            <span class="font-bold">Área Definida</span>
-          </label>
+        <div class="dl-row">
+          <label class="dl-radio"><input type="radio" name="modo-divisao" value="AREAS_IGUAIS" ${this.modo === 'AREAS_IGUAIS' ? 'checked' : ''}><span>Áreas iguais (50%)</span></label>
+          <label class="dl-radio"><input type="radio" name="modo-divisao" value="AREA_DEFINIDA" ${this.modo === 'AREA_DEFINIDA' ? 'checked' : ''}><span>Área definida</span></label>
         </div>`
       : separavel
         ? `
-        <div class="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 leading-snug">
-          Perímetro unificado com 2 matrículas. O corte separa o polígono usando a <strong>área registrada</strong> da matrícula escolhida abaixo.
-        </div>
-        <div class="flex items-center justify-between text-[11px]">
-          <span class="text-white/60">Matrícula do lote da base:</span>
-          <select id="select-matricula-base" class="bg-black/60 border border-white/20 rounded px-1.5 py-0.5 text-white text-[11px] focus:outline-none">${opcoesMatriculaBase}</select>
+        <div class="dl-aviso dl-aviso-amber">Perímetro unificado com 2 matrículas. O corte usa a <b>área registrada</b> da matrícula escolhida.</div>
+        <div class="dl-row dl-between">
+          <span class="dl-muted">Matrícula da base:</span>
+          <select id="select-matricula-base" class="dl-input dl-auto">${opcoesMatriculaBase}</select>
         </div>`
-        : `
-        <div class="p-2 rounded bg-red-500/10 border border-red-500/30 text-red-300 leading-snug">
-          Este perímetro unificado possui ${grupo.length} matrículas. A separação automática suporta exatamente 2.
-        </div>`;
+        : `<div class="dl-aviso dl-aviso-red">Este perímetro unificado possui ${grupo.length} matrículas. A separação automática suporta exatamente 2.</div>`;
 
     painel.innerHTML = `
-      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
-        <div class="flex items-center gap-2">
-          <i data-lucide="scissors" class="w-4 h-4 text-amber-400"></i>
-          <span class="font-bold text-sm tracking-wide text-white">${unificado ? 'Separar Matrículas do Perímetro' : 'Divisão de Lotes por Offset'}</span>
+      <style>
+        #painel-flutuante-divisao-lotes * { box-sizing: border-box; }
+        #painel-flutuante-divisao-lotes .dl-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); }
+        #painel-flutuante-divisao-lotes .dl-title { font-weight:700; font-size:13px; color:#fff; }
+        #painel-flutuante-divisao-lotes .dl-close { background:transparent; border:0; color:rgba(255,255,255,.55); font-size:16px; cursor:pointer; padding:2px 6px; line-height:1; width:auto; height:auto; }
+        #painel-flutuante-divisao-lotes .dl-close:hover { color:#fff; }
+        #painel-flutuante-divisao-lotes .dl-body { padding:10px 12px; overflow-y:auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
+        #painel-flutuante-divisao-lotes .dl-foot { display:flex; gap:8px; padding:10px 12px; border-top:1px solid rgba(255,255,255,.12); }
+        #painel-flutuante-divisao-lotes .dl-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.5); margin-bottom:4px; font-family:ui-monospace,monospace; }
+        #painel-flutuante-divisao-lotes .dl-box { background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.08); border-radius:6px; padding:8px; }
+        #painel-flutuante-divisao-lotes .dl-ref { color:#fbbf24; font-weight:600; }
+        #painel-flutuante-divisao-lotes .dl-row { display:flex; gap:8px; align-items:center; }
+        #painel-flutuante-divisao-lotes .dl-between { justify-content:space-between; }
+        #painel-flutuante-divisao-lotes .dl-radio { flex:1; display:flex; align-items:center; gap:6px; padding:7px 8px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:6px; cursor:pointer; font-weight:600; }
+        #painel-flutuante-divisao-lotes .dl-radio input { accent-color:#f59e0b; margin:0; }
+        #painel-flutuante-divisao-lotes .dl-muted { color:rgba(255,255,255,.6); }
+        #painel-flutuante-divisao-lotes .dl-input { width:100%; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.22); border-radius:6px; color:#fff; padding:6px 8px; font-size:12px; }
+        #painel-flutuante-divisao-lotes .dl-input:focus { outline:none; border-color:#fbbf24; }
+        #painel-flutuante-divisao-lotes .dl-auto { width:auto; }
+        #painel-flutuante-divisao-lotes .dl-btn { border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:rgba(255,255,255,.8); border-radius:6px; padding:6px 12px; font-weight:700; font-size:12px; cursor:pointer; width:auto; height:auto; }
+        #painel-flutuante-divisao-lotes .dl-btn:hover { background:rgba(255,255,255,.16); }
+        #painel-flutuante-divisao-lotes .dl-btn-amber { background:rgba(245,158,11,.2); border-color:rgba(245,158,11,.4); color:#fbbf24; }
+        #painel-flutuante-divisao-lotes .dl-btn-on { background:#f59e0b; border-color:#f59e0b; color:#000; }
+        #painel-flutuante-divisao-lotes .dl-btn-ok { flex:1; background:#059669; border-color:#059669; color:#fff; padding:9px 12px; }
+        #painel-flutuante-divisao-lotes .dl-btn-ok:hover:not(:disabled) { background:#10b981; }
+        #painel-flutuante-divisao-lotes .dl-btn:disabled { opacity:.4; cursor:not-allowed; }
+        #painel-flutuante-divisao-lotes .dl-units { display:flex; gap:2px; }
+        #painel-flutuante-divisao-lotes .dl-units .dl-btn { padding:3px 10px; }
+        #painel-flutuante-divisao-lotes .dl-aviso { padding:8px; border-radius:6px; line-height:1.35; }
+        #painel-flutuante-divisao-lotes .dl-aviso-amber { background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); color:#fcd34d; }
+        #painel-flutuante-divisao-lotes .dl-aviso-red { background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35); color:#fca5a5; }
+        #painel-flutuante-divisao-lotes .dl-card { background:rgba(0,0,0,.35); border-left:3px solid; border-radius:6px; padding:7px 8px; margin-bottom:6px; }
+        #painel-flutuante-divisao-lotes .dl-card-a { border-color:#10b981; }
+        #painel-flutuante-divisao-lotes .dl-card-b { border-color:#3b82f6; }
+        #painel-flutuante-divisao-lotes .dl-card-t { display:flex; justify-content:space-between; font-weight:700; }
+        #painel-flutuante-divisao-lotes .dl-card-a .dl-card-t { color:#34d399; }
+        #painel-flutuante-divisao-lotes .dl-card-b .dl-card-t { color:#60a5fa; }
+        #painel-flutuante-divisao-lotes .dl-mono { font-family:ui-monospace,monospace; color:rgba(255,255,255,.85); }
+        #painel-flutuante-divisao-lotes .dl-empty { color:rgba(255,255,255,.45); font-style:italic; text-align:center; padding:6px 0; }
+        #painel-flutuante-divisao-lotes .dl-hidden { display:none !important; }
+        #painel-flutuante-divisao-lotes .dl-stack { display:flex; flex-direction:column; gap:6px; }
+      </style>
+
+      <div class="dl-head">
+        <span class="dl-title">✂ ${unificado ? 'Separar Matrículas do Perímetro' : 'Divisão de Lotes por Offset'}</span>
+        <button id="btn-fechar-divisao" type="button" class="dl-close" title="Fechar">✕</button>
+      </div>
+
+      <div class="dl-body">
+        <div class="dl-box">
+          <div class="dl-label">Reta de referência (base)</div>
+          <div id="divisao-status-referencia" class="dl-ref">${this.obterTextoReferencia()}</div>
         </div>
-        <button id="btn-fechar-divisao" class="text-white/40 hover:text-white p-1 rounded transition-colors" title="Fechar">✕</button>
-      </div>
 
-      <!-- Referência de Base -->
-      <div class="bg-black/40 border border-white/5 rounded p-2.5 mb-3">
-        <div class="text-[10px] uppercase font-mono tracking-wider text-white/50 mb-1">Reta de Referência (Base)</div>
-        <div id="divisao-status-referencia" class="font-semibold text-amber-400">
-          ${this.obterTextoReferencia()}
+        <div>
+          <div class="dl-label">${unificado ? 'Separação' : 'Critério de divisão'}</div>
+          <div class="dl-stack">${blocoModo}</div>
         </div>
-      </div>
 
-      <!-- Modo de Divisão -->
-      <div class="space-y-3 mb-3">
-        <div class="text-[10px] uppercase font-mono tracking-wider text-white/50">${unificado ? 'Separação' : 'Critério de Divisão'}</div>
-        ${blocoModo}
-      </div>
-
-      <!-- Opções de Área Definida -->
-      <div id="container-area-definida" class="${this.modo === 'AREA_DEFINIDA' ? '' : 'hidden'} space-y-2 mb-3 bg-white/5 border border-white/5 p-2.5 rounded">
-        <div class="flex items-center justify-between">
-          <span class="text-[11px] text-white/70">Área Alvo:</span>
-          <div class="flex items-center gap-1 bg-black/40 p-0.5 rounded border border-white/10 text-[10px]">
-            <button id="btn-unidade-ha" type="button" class="px-2 py-0.5 rounded font-bold transition ${this.unidade === 'HA' ? 'bg-amber-500 text-black' : 'text-white/60'}">ha</button>
-            <button id="btn-unidade-m2" type="button" class="px-2 py-0.5 rounded font-bold transition ${this.unidade === 'M2' ? 'bg-amber-500 text-black' : 'text-white/60'}">m²</button>
+        <div id="container-area-definida" class="dl-box dl-stack ${this.modo === 'AREA_DEFINIDA' ? '' : 'dl-hidden'}">
+          <div class="dl-row dl-between">
+            <span class="dl-muted">Área alvo:</span>
+            <div class="dl-units">
+              <button id="btn-unidade-ha" type="button" class="dl-btn ${this.unidade === 'HA' ? 'dl-btn-on' : ''}">ha</button>
+              <button id="btn-unidade-m2" type="button" class="dl-btn ${this.unidade === 'M2' ? 'dl-btn-on' : ''}">m²</button>
+            </div>
+          </div>
+          <div class="dl-row">
+            <input id="input-valor-area" type="number" step="any" min="0" placeholder="Ex: 5.0" class="dl-input" value="${this.valorArea > 0 ? this.valorArea : ''}">
+            <button id="btn-recalcular-area" type="button" class="dl-btn dl-btn-amber">Calcular</button>
+          </div>
+          <div class="dl-row dl-between">
+            <span class="dl-muted">Atribuir área ao:</span>
+            <select id="select-alvo-lote" class="dl-input dl-auto">
+              <option value="BASE" ${this.alvo === 'BASE' ? 'selected' : ''}>Lote da base</option>
+              <option value="REMANESCENTE" ${this.alvo === 'REMANESCENTE' ? 'selected' : ''}>Lote do fundo</option>
+            </select>
           </div>
         </div>
-        <div class="flex gap-2">
-          <input id="input-valor-area" type="number" step="any" min="0" placeholder="Ex: 5.0" class="flex-1 bg-black/60 border border-white/20 rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none" value="${this.valorArea > 0 ? this.valorArea : ''}">
-          <button id="btn-recalcular-area" type="button" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded font-bold text-xs transition">Calcular</button>
-        </div>
-        <div class="flex items-center justify-between text-[11px] pt-1 border-t border-white/5">
-          <span class="text-white/60">Atribuir área ao:</span>
-          <select id="select-alvo-lote" class="bg-black/60 border border-white/20 rounded px-1.5 py-0.5 text-white text-[11px] focus:outline-none">
-            <option value="BASE" ${this.alvo === 'BASE' ? 'selected' : ''}>Lote da Base</option>
-            <option value="REMANESCENTE" ${this.alvo === 'REMANESCENTE' ? 'selected' : ''}>Lote do Fundo</option>
-          </select>
-        </div>
-      </div>
 
-      <!-- Nomes opcionais (apenas desmembramento simples) -->
-      <div id="container-nomes-glebas" class="${unificado ? 'hidden' : ''} space-y-1.5 mb-3">
-        <div class="text-[10px] uppercase font-mono tracking-wider text-white/50">Nomes (opcional)</div>
-        <input id="input-nome-gleba-a" type="text" placeholder="Gleba A: manter número atual" class="w-full bg-black/60 border border-white/20 rounded px-2.5 py-1.5 text-white text-xs focus:border-amber-400 focus:outline-none">
-        <input id="input-nome-gleba-b" type="text" placeholder="Gleba B: nº da matrícula - GLEBA B" class="w-full bg-black/60 border border-white/20 rounded px-2.5 py-1.5 text-white text-xs focus:border-amber-400 focus:outline-none">
-      </div>
+        <div id="container-nomes-glebas" class="${unificado ? 'dl-hidden' : ''}">
+          <div class="dl-label">Nomes (opcional)</div>
+          <div class="dl-stack">
+            <input id="input-nome-gleba-a" type="text" placeholder="Gleba A: manter número atual" class="dl-input">
+            <input id="input-nome-gleba-b" type="text" placeholder="Gleba B: nº da matrícula - GLEBA B" class="dl-input">
+          </div>
+        </div>
 
-      <!-- Resumo da Divisão Calculada -->
-      <div id="resultado-divisao-preview" class="space-y-2 mb-4">
-        <div class="text-[10px] uppercase font-mono tracking-wider text-white/50">Pré-visualização do Corte</div>
-        <div id="cards-resumo-lotes" class="space-y-1.5 text-[11px]">
-          <div class="text-white/40 italic text-center py-2">Selecione 2 vértices da base para simular.</div>
+        <div>
+          <div class="dl-label">Pré-visualização do corte</div>
+          <div id="cards-resumo-lotes">
+            <div class="dl-empty">Selecione 2 vértices da base para simular.</div>
+          </div>
         </div>
       </div>
 
-      <!-- Ações -->
-      <div class="flex items-center gap-2 pt-2 border-t border-white/10">
-        <button id="btn-cancelar-divisao" type="button" class="w-1/3 py-2 bg-white/5 hover:bg-white/10 rounded font-bold text-white/70 transition">Cancelar</button>
-        <button id="btn-confirmar-divisao" type="button" class="w-2/3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold shadow-lg transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-          <i data-lucide="check" class="w-3.5 h-3.5"></i>
-          <span>${unificado ? 'Separar Matrículas' : 'Desmembrar Lote'}</span>
-        </button>
+      <div class="dl-foot">
+        <button id="btn-cancelar-divisao" type="button" class="dl-btn">Cancelar</button>
+        <button id="btn-confirmar-divisao" type="button" class="dl-btn dl-btn-ok" disabled>${unificado ? 'Separar matrículas' : 'Desmembrar lote'}</button>
       </div>
     `;
 
@@ -263,11 +284,13 @@ export class FerramentaDivisaoLotes {
       top: '64px',
       left: '12px',
       zIndex: '1000',
-      width: '340px',
+      width: '320px',
       maxHeight: 'calc(100% - 84px)',
-      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
       boxSizing: 'border-box',
-      padding: '14px',
+      padding: '0',
       background: 'rgba(12, 21, 16, 0.96)',
       border: '1px solid rgba(255, 255, 255, 0.12)',
       borderRadius: '8px',
@@ -300,7 +323,7 @@ export class FerramentaDivisaoLotes {
       r.addEventListener('change', () => {
         this.modo = r.value as ModoDivisao;
         const containerDef = painel.querySelector('#container-area-definida');
-        containerDef?.classList.toggle('hidden', this.modo !== 'AREA_DEFINIDA');
+        containerDef?.classList.toggle('dl-hidden', this.modo !== 'AREA_DEFINIDA');
         this.reSimular();
       });
     });
@@ -317,8 +340,8 @@ export class FerramentaDivisaoLotes {
     const btnM2 = painel.querySelector<HTMLElement>('#btn-unidade-m2');
     const marcarUnidade = (u: 'HA' | 'M2') => {
       this.unidade = u;
-      if (btnHa) btnHa.className = `px-2 py-0.5 rounded font-bold transition ${u === 'HA' ? 'bg-amber-500 text-black' : 'text-white/60'}`;
-      if (btnM2) btnM2.className = `px-2 py-0.5 rounded font-bold transition ${u === 'M2' ? 'bg-amber-500 text-black' : 'text-white/60'}`;
+      btnHa?.classList.toggle('dl-btn-on', u === 'HA');
+      btnM2?.classList.toggle('dl-btn-on', u === 'M2');
       this.reSimular();
     };
     btnHa?.addEventListener('click', () => marcarUnidade('HA'));
@@ -372,7 +395,7 @@ export class FerramentaDivisaoLotes {
     const btn = this.painelElement?.querySelector<HTMLButtonElement>('#btn-confirmar-divisao');
     if (btn) btn.disabled = true;
     const cards = this.painelElement?.querySelector('#cards-resumo-lotes');
-    if (cards) cards.innerHTML = `<div class="text-white/40 italic text-center py-2">${mensagem}</div>`;
+    if (cards) cards.innerHTML = `<div class="dl-empty">${mensagem}</div>`;
   }
 
   private obterTextoReferencia(): string {
@@ -540,27 +563,16 @@ export class FerramentaDivisaoLotes {
     const avisos: string[] = Array.isArray(data.avisos) ? data.avisos : [];
 
     container.innerHTML = `
-      <div class="bg-black/40 border-l-2 border-emerald-500 p-2 rounded">
-        <div class="font-bold text-emerald-400 flex justify-between">
-          <span>${rotuloA}:</span>
-          <span>${data.lote_base.percentual}%</span>
-        </div>
-        <div class="text-white/80 font-mono">${data.lote_base.area_ha} ha (${data.lote_base.area_m2.toLocaleString('pt-BR')} m²)</div>
+      <div class="dl-card dl-card-a">
+        <div class="dl-card-t"><span>${rotuloA}</span><span>${data.lote_base.percentual}%</span></div>
+        <div class="dl-mono">${data.lote_base.area_ha} ha (${data.lote_base.area_m2.toLocaleString('pt-BR')} m²)</div>
       </div>
-
-      <div class="bg-black/40 border-l-2 border-blue-500 p-2 rounded">
-        <div class="font-bold text-blue-400 flex justify-between">
-          <span>${rotuloB}:</span>
-          <span>${data.lote_remanescente.percentual}%</span>
-        </div>
-        <div class="text-white/80 font-mono">${data.lote_remanescente.area_ha} ha (${data.lote_remanescente.area_m2.toLocaleString('pt-BR')} m²)</div>
+      <div class="dl-card dl-card-b">
+        <div class="dl-card-t"><span>${rotuloB}</span><span>${data.lote_remanescente.percentual}%</span></div>
+        <div class="dl-mono">${data.lote_remanescente.area_ha} ha (${data.lote_remanescente.area_m2.toLocaleString('pt-BR')} m²)</div>
       </div>
-
-      ${avisos.map(a => `<div class="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 leading-snug">${a}</div>`).join('')}
-
-      <div class="text-[10px] text-white/50 text-right font-mono pt-1">
-        Afastamento Paralelo: <strong>${data.distancia_offset_m} m</strong>
-      </div>
+      ${avisos.map(a => `<div class="dl-aviso dl-aviso-amber" style="margin-bottom:6px">${a}</div>`).join('')}
+      <div class="dl-mono" style="text-align:right;font-size:11px;opacity:.7">Afastamento paralelo: <b>${data.distancia_offset_m} m</b></div>
     `;
   }
 
