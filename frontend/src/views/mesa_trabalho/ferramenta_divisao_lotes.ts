@@ -257,8 +257,31 @@ export class FerramentaDivisaoLotes {
       </div>
     `;
 
-    const container = this.ctx.triagemMap?.getContainer()?.parentElement || document.body;
+    // Estilo essencial inline: o painel não pode depender de classes utilitárias geradas em build
+    Object.assign(painel.style, {
+      position: 'absolute',
+      top: '64px',
+      left: '12px',
+      zIndex: '1000',
+      width: '340px',
+      maxHeight: 'calc(100% - 84px)',
+      overflowY: 'auto',
+      boxSizing: 'border-box',
+      padding: '14px',
+      background: 'rgba(12, 21, 16, 0.96)',
+      border: '1px solid rgba(255, 255, 255, 0.12)',
+      borderRadius: '8px',
+      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+      color: '#fff',
+      fontSize: '12px',
+      lineHeight: '1.35',
+    } as Partial<CSSStyleDeclaration>);
+
+    // Dentro do contêiner do mapa (referência do posicionamento), sem repassar cliques/scroll ao Leaflet
+    const container = this.ctx.triagemMap?.getContainer() || document.body;
     container.appendChild(painel);
+    L.DomEvent.disableClickPropagation(painel);
+    L.DomEvent.disableScrollPropagation(painel);
     this.painelElement = painel;
 
     this.vincularEventosPainel();
