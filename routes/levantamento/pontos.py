@@ -21,12 +21,19 @@ from services.gestores.levantamento_manager import (
     analisar_duplicatas_e_sobreposicoes,
     vincular_ponto_matricula,
 )
-from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
+from routes.deps import verificar_levantamento_arquivado
 from services.gestores.matricula_manager import (
-    resolver_campos_matricula,
-    COLUNAS_MATRICULA,
-    listar_matriculas_derivadas,
-    validar_origem_desenho,
+    MatriculaErro,
+    atualizar_matricula,
+    criar_matricula,
+    definir_caminho_pdf,
+    excluir_matricula,
+    listar_historico,
+    listar_levantamentos_ativos,
+    listar_matriculas_do_levantamento,
+    obter_caminho_pdf,
+    obter_propriedade_e_numero,
+    vincular_desenho,
 )
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
@@ -161,250 +168,112 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
         logger.error(f"[SANITIZACAO_ORDEM] Erro ao sanitizar ordens do levantamento {levantamento_id}: {e}")
 
 # ── Rotas de Matrículas do Levantamento ────────────────────────────────────────
+# A persistência e as regras ficam em services/gestores/matricula_manager.py; aqui só HTTP.
+
+def _regerar_documentos_ativos(propriedade_id: int) -> None:
+    for lev_id in listar_levantamentos_ativos(propriedade_id):
+        ExportacaoService.gerar_documento_cliente_workspace(lev_id)
+
+
+def _http_erro(e: Exception) -> HTTPException:
+    if isinstance(e, MatriculaErro):
+        return HTTPException(status_code=e.status, detail=e.mensagem)
+    return HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/levantamentos/{id}/matriculas")
 def get_matriculas_do_levantamento(id: int):
     try:
-        query = """
-            SELECT m.* 
-            FROM matriculas m
-            JOIN propriedades p ON m.propriedade_id = p.id
-            JOIN levantamentos l ON l.propriedade_id = p.id
-            WHERE l.id = ?
-        """
-        return [dict(r) for r in execute_query(query, params=(id,), fetch_all=True)]
+        return listar_matriculas_do_levantamento(id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e)
 
 @router.post("/levantamentos/{id}/matriculas")
 def create_matricula(id: int, m: MatriculaCreate):
     verificar_levantamento_arquivado(id)
     try:
-        row = execute_query("SELECT propriedade_id FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
-        if not row:
-            raise HTTPException(status_code=404, detail="Levantamento não encontrado")
-        propriedade_id = row['propriedade_id']
-
-        campos = resolver_campos_matricula(m.model_dump(exclude_unset=True))
-        erro_vinculo = validar_origem_desenho(None, campos["matricula_origem_desenho_id"], propriedade_id)
-        if erro_vinculo:
-            raise HTTPException(status_code=400, detail=erro_vinculo)
-        colunas = ", ".join(COLUNAS_MATRICULA)
-        marcadores = ", ".join("?" for _ in COLUNAS_MATRICULA)
-        execute_query(
-            f"INSERT INTO matriculas (propriedade_id, {colunas}) VALUES (?, {marcadores})",
-            params=(propriedade_id, *(campos[c] for c in COLUNAS_MATRICULA)),
-            commit=True
-        )
-        
-        query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
-        ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-        for at in ativos:
-            ExportacaoService.gerar_documento_cliente_workspace(at['id'])
-            
+        propriedade_id = criar_matricula(id, m.model_dump(exclude_unset=True))
+        _regerar_documentos_ativos(propriedade_id)
         return {"message": "Matrícula adicionada com sucesso"}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e)
 
 @router.put("/matriculas/{mid}")
 def update_matricula(mid: int, m: MatriculaCreate):
     try:
-        antigo = execute_query("SELECT * FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if not antigo:
-            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
-        propriedade_id = antigo["propriedade_id"]
-        
-        rows_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(propriedade_id,), fetch_all=True)
-        if rows_lev:
-            raise HTTPException(status_code=403, detail="Operação bloqueada: A matrícula pertence a um levantamento arquivado (Tranca Read-Only ativa).")
-            
-        # Atualização parcial: campos ausentes do payload mantêm o valor gravado
-        # (ex.: o vínculo de desenho compartilhado não é perdido ao editar pela tela de Propriedades)
-        campos = resolver_campos_matricula(m.model_dump(exclude_unset=True), dict(antigo))
-        if campos["matricula_origem_desenho_id"] == mid:
-            campos["matricula_origem_desenho_id"] = None
-        if campos["matricula_origem_desenho_id"] != antigo["matricula_origem_desenho_id"]:
-            erro_vinculo = validar_origem_desenho(mid, campos["matricula_origem_desenho_id"])
-            if erro_vinculo:
-                raise HTTPException(status_code=400, detail=erro_vinculo)
-
-        colunas = ", ".join(f"{c} = ?" for c in COLUNAS_MATRICULA)
-        execute_query(
-            f"UPDATE matriculas SET {colunas} WHERE id = ?",
-            params=(*(campos[c] for c in COLUNAS_MATRICULA), mid),
-            commit=True
-        )
-
-        campos_monitorados = [
-            ("numero_matricula", campos["numero_matricula"], str),
-            ("ccir", campos["ccir"], str),
-            ("itr", campos["itr"], str),
-            ("area_ha", campos["area_ha"], float),
-            ("valor_itr", campos["valor_itr"], float),
-            ("denominacao", campos["denominacao"], str),
-            ("georreferenciamento", campos["georreferenciamento"], str),
-            ("matricula_origem_desenho_id", campos["matricula_origem_desenho_id"], int)
-        ]
-
-        logs_historico = []
-        for campo, novo_valor, tipo in campos_monitorados:
-            val_antigo = antigo[campo]
-            # String vazia e nulo são equivalentes para o histórico
-            if isinstance(val_antigo, str) and not val_antigo.strip():
-                val_antigo = None
-            if val_antigo is not None:
-                if tipo == float:
-                    val_antigo_cmp = float(val_antigo)
-                elif tipo == int:
-                    val_antigo_cmp = int(val_antigo)
-                else:
-                    val_antigo_cmp = str(val_antigo).strip()
-            else:
-                val_antigo_cmp = None
-                
-            if novo_valor is not None:
-                if tipo == float:
-                    novo_valor_cmp = float(novo_valor)
-                elif tipo == int:
-                    novo_valor_cmp = int(novo_valor)
-                else:
-                    novo_valor_cmp = str(novo_valor).strip()
-            else:
-                novo_valor_cmp = None
-                
-            if val_antigo_cmp != novo_valor_cmp:
-                logs_historico.append((mid, campo, str(val_antigo) if val_antigo is not None else None, str(novo_valor) if novo_valor is not None else None))
-
-        if logs_historico:
-            with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                cursor.executemany("INSERT INTO matricula_historico_logs (id_matricula, campo_alterado, valor_antigo, valor_novo) VALUES (?, ?, ?, ?)", logs_historico)
-                conn.commit()
-
-        query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
-        ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-        for at in ativos:
-            ExportacaoService.gerar_documento_cliente_workspace(at['id'])
-            
+        propriedade_id = atualizar_matricula(mid, m.model_dump(exclude_unset=True))
+        _regerar_documentos_ativos(propriedade_id)
         return {"message": "Matrícula atualizada e sincronizada com sucesso"}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e)
 
 @router.post("/matriculas/{mid}/vincular-desenho")
 def vincular_desenho_matricula(mid: int, payload: dict):
     try:
-        row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if not row:
-            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
-        verificar_propriedade_arquivada(row["propriedade_id"])
-
-        origem_id = payload.get("matricula_origem_desenho_id")
-        if origem_id is not None:
-            try:
-                origem_id = int(origem_id)
-            except (TypeError, ValueError):
-                raise HTTPException(status_code=400, detail="Matrícula de origem do desenho inválida.")
-            if origem_id == mid:
-                origem_id = None  # Apontar para si mesma equivale a desvincular
-        erro_vinculo = validar_origem_desenho(mid, origem_id)
-        if erro_vinculo:
-            raise HTTPException(status_code=400, detail=erro_vinculo)
-        execute_query("UPDATE matriculas SET matricula_origem_desenho_id = ? WHERE id = ?", params=(origem_id, mid), commit=True)
+        _, origem_id = vincular_desenho(mid, payload.get("matricula_origem_desenho_id"))
         return {"message": "Vínculo de desenho territorial atualizado com sucesso", "matricula_id": mid, "matricula_origem_desenho_id": origem_id}
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e)
 
 @router.delete("/matriculas/{mid}")
 def delete_matricula(mid: int):
     try:
-        row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if row:
-            propriedade_id = row['propriedade_id']
-            
-            rows_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(propriedade_id,), fetch_all=True)
-            if rows_lev:
-                raise HTTPException(status_code=403, detail="Operação bloqueada: A matrícula pertence a um levantamento arquivado (Tranca Read-Only ativa).")
-
-            # Matrículas que usam este desenho ficariam apontando para uma matrícula inexistente
-            derivadas = listar_matriculas_derivadas(mid)
-            if derivadas:
-                numeros = ", ".join(str(d["numero_matricula"]) for d in derivadas)
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Não é possível excluir: esta matrícula é origem do desenho de outra(s) matrícula(s) ({numeros}). Desvincule-as antes."
-                )
-
-            execute_query("DELETE FROM matriculas WHERE id = ?", params=(mid,), commit=True)
-            
-            query_ativos = "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'EM_ANDAMENTO'"
-            ativos = execute_query(query_ativos, params=(propriedade_id,), fetch_all=True)
-            for at in ativos:
-                ExportacaoService.gerar_documento_cliente_workspace(at['id'])
-                
+        propriedade_id = excluir_matricula(mid)
+        if propriedade_id is not None:
+            _regerar_documentos_ativos(propriedade_id)
         return {"message": "Matrícula removida"}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e)
 
 @router.post("/matriculas/{mid}/upload-pdf")
 async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
     try:
-        row = execute_query("SELECT propriedade_id, numero_matricula FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        row = obter_propriedade_e_numero(mid)
         if not row:
             raise HTTPException(status_code=404, detail="Matrícula não encontrada")
-        
+
         prop_id = row["propriedade_id"]
         from config import EXPORT_BASE_FOLDER
         prop_folder = os.path.join(EXPORT_BASE_FOLDER, "Propriedades", f"Prop_{prop_id}")
         os.makedirs(prop_folder, exist_ok=True)
-        
+
         ext = os.path.splitext(file.filename)[1]
         if not ext:
             ext = ".pdf"
-        
+
         filename = f"Matricula_{mid}_Certidao{ext}"
         filepath = os.path.join(prop_folder, filename)
-        
+
         with open(filepath, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
-            
-        execute_query("UPDATE matriculas SET caminho_arquivo_pdf = ? WHERE id = ?", params=(filepath, mid), commit=True)
+
+        definir_caminho_pdf(mid, filepath)
         return {"message": "PDF da matrícula anexado com sucesso", "caminho": filepath}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e) if not isinstance(e, HTTPException) else e
 
 @router.get("/matriculas/{mid}/download-pdf")
 def download_matricula_pdf(mid: int, download: bool = False):
     try:
-        row = execute_query("SELECT caminho_arquivo_pdf FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if not row or not row["caminho_arquivo_pdf"]:
+        path = obter_caminho_pdf(mid)
+        if not path:
             raise HTTPException(status_code=404, detail="PDF da matrícula não encontrado")
-        
-        path = row["caminho_arquivo_pdf"]
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
-            
+
         disposition = "attachment" if download else "inline"
         return FileResponse(path, filename=os.path.basename(path), content_disposition_type=disposition)
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _http_erro(e) if not isinstance(e, HTTPException) else e
 
 @router.delete("/matriculas/{mid}/pdf")
 def delete_matricula_pdf(mid: int):
     try:
-        row = execute_query("SELECT caminho_arquivo_pdf FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
-        if row and row["caminho_arquivo_pdf"]:
-            path = row["caminho_arquivo_pdf"]
-            if os.path.exists(path):
-                os.remove(path)
-        execute_query("UPDATE matriculas SET caminho_arquivo_pdf = NULL WHERE id = ?", params=(mid,), commit=True)
+        path = obter_caminho_pdf(mid)
+        if path and os.path.exists(path):
+            os.remove(path)
+        definir_caminho_pdf(mid, None)
         return {"message": "PDF da matrícula excluído com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -412,13 +281,9 @@ def delete_matricula_pdf(mid: int):
 @router.get("/matriculas/{mid}/historico")
 def get_matricula_historico(mid: int):
     try:
-        query = "SELECT campo_alterado, valor_antigo, valor_novo, data_alteracao FROM matricula_historico_logs WHERE id_matricula = ? ORDER BY data_alteracao DESC"
-        logs = [dict(r) for r in execute_query(query, params=(mid,), fetch_all=True)]
-        return logs
+        return listar_historico(mid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# ── Rotas de Pontos ────────────────────────────────────────────────────────────
 
 @router.get("/levantamentos/{id}/pontos")
 def get_pontos(id: int, camada: Optional[str] = None):
