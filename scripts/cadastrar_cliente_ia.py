@@ -143,15 +143,13 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
     try:
         nome_arquivo = os.path.basename(caminho_imagem)
         ext = os.path.splitext(nome_arquivo)[1].lower() or ".png"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
         
         # Tipo de documento
         tipo_doc = dados.get("tipo_documento")
         if not tipo_doc:
             if dados.get("cnh_numero"):
                 tipo_doc = "CNH"
-            elif dados.get("certidao_casamento_matricula") or dados.get("cartorio_casamento"):
-                tipo_doc = "CERTIDAO_CASAMENTO"
             else:
                 tipo_doc = "RG"
 
