@@ -105,6 +105,43 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
     }
   });
 
+  // Exportação da Planilha Eletrônica SIGEF (.ods)
+  document.getElementById('btn-exportar-planilha-sigef')?.addEventListener('click', async () => {
+    if (!ctx.currentLevId) return;
+
+    const btn = document.getElementById('btn-exportar-planilha-sigef') as HTMLButtonElement | null;
+    let originalHtml = '';
+    if (btn) {
+      originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Gerando...`;
+      initIcons();
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/exportar-planilha-sigef`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        alert(`Erro ao gerar planilha SIGEF: ${data.detail || data.error || 'Falha desconhecida'}`);
+      } else {
+        showToast(data.message, 'success');
+        if (Array.isArray(data.avisos) && data.avisos.length) {
+          alert('Planilha gerada, mas revise antes de enviar ao SIGEF:\n\n- ' + data.avisos.join('\n- '));
+        }
+        window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivos/download?categoria=Exportacoes&nome=PLANILHA_SIGEF.ods`, '_blank');
+        ctx.loadWorkspaceArquivos();
+      }
+    } catch (e) {
+      alert('Erro ao gerar planilha SIGEF.');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        initIcons();
+      }
+    }
+  });
+
   // Vincula o contexto da mesa ativa ao modal global da Nuvem Hostinger
   setNuvemSyncContext(ctx);
 

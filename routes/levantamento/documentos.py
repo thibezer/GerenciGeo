@@ -838,6 +838,22 @@ def endpoint_consolidar_pontos(id: int):
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/levantamentos/{id}/exportar-planilha-sigef")
+def endpoint_exportar_planilha_sigef(id: int):
+    verificar_levantamento_arquivado(id)
+    try:
+        caminho, avisos = ExportacaoService.gerar_planilha_sigef(id)
+        return {
+            "success": True,
+            "message": "Planilha SIGEF (.ods) gerada com sucesso!",
+            "arquivo": "PLANILHA_SIGEF.ods",
+            "caminho_completo": caminho,
+            "avisos": avisos,
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.delete("/levantamentos/{lev_id}/arquivos/deletar")
 def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
     verificar_levantamento_arquivado(lev_id)

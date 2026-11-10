@@ -143,12 +143,20 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           prioridade: 4,
           itens: [
             {
-              id: 'btn-consolidar-pontos-utm',
+              id: 'btn-exportar-planilha-sigef',
               rotulo: 'Planilha SIGEF',
-              rotuloAcessivel: 'Gerar planilha UTM consolidada (sigmas, confrontantes, método e limite) de todo o levantamento',
+              rotuloAcessivel: 'Gerar a planilha eletrônica SIGEF (.ods) com identificação e tabela de perímetro por matrícula',
               tamanho: 'grande',
               tipo: 'botao',
               icone: SVGS.fileSpreadsheet
+            },
+            {
+              id: 'btn-consolidar-pontos-utm',
+              rotulo: 'CSV UTM',
+              rotuloAcessivel: 'Gerar CSV UTM consolidado (sigmas, confrontantes, método e limite) de todo o levantamento',
+              tamanho: 'pequeno',
+              tipo: 'botao',
+              icone: SVGS.download
             },
             {
               id: 'btn-exportar-tabela-csv',

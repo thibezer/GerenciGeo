@@ -122,6 +122,7 @@ export const renderMesaTrabalho = (): string => {
             <i id="icon-fonte-pontos"></i>
           </button>
           <button type="button" id="btn-consolidar-pontos-utm"></button>
+          <button type="button" id="btn-exportar-planilha-sigef"></button>
           <button type="button" id="btn-exportar-kml"></button>
           <button type="button" id="btn-unificar-sigef"></button>
           <button type="button" id="btn-exportar-tabela-csv"></button>

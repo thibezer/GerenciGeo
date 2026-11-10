@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 from utils.transformer_cache import get_transformer
 from database.connection import execute_query
@@ -157,18 +158,14 @@ class ExportacaoService:
             return ""
 
     @staticmethod
-    def consolidar_pontos_levantamento(levantamento_id: int) -> str:
+    def _coletar_linhas_perimetro(levantamento_id: int, incluir_apoio: bool = True) -> tuple:
         """
-        Lê os pontos e segmentos do banco de dados, resolve o fuso UTM,
-        computa os sigmas e confrontantes, e grava o arquivo PONTOS_CONSOLIDADOS_UTM.csv
-        na pasta /Exportacoes do levantamento.
+        Lê pontos e segmentos do banco, converte para UTM (fuso do primeiro ponto válido) e
+        devolve (linhas, zona_utm). Cada linha é um dict com o vértice, coordenadas planas, sigmas (m),
+        método de posicionamento, tipo de limite, confrontante, CNS e matrícula do confrontante.
         """
-        import math
-        from utils.transformer_cache import get_transformer
-
-        # 1. Recupera todos os pontos cadastrados do levantamento ordenados
         query_pontos = """
-            SELECT p.id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
+            SELECT p.id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt,
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.sigma_e, p.sigma_n, p.sigma_z,
                    p.ordem_caminhamento, p.matricula_id, p.confrontante_id,
                    p.metodo_posicionamento,
@@ -178,17 +175,18 @@ class ExportacaoService:
             FROM pontos p
             LEFT JOIN confrontantes c ON p.confrontante_id = c.id
             LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
-            WHERE p.levantamento_id = ? 
+            WHERE p.levantamento_id = ?
               AND (p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)
               AND (p.origem_homologada IS NULL OR p.origem_homologada = 0)
               AND (p.ignorar_poligono IS NULL OR p.ignorar_poligono = 0)
             ORDER BY CASE WHEN p.matricula_id IS NULL THEN 1 ELSE 0 END ASC, p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
         """
         pontos = [dict(r) for r in execute_query(query_pontos, params=(levantamento_id,), fetch_all=True)]
+        if not incluir_apoio:
+            pontos = [p for p in pontos if p["tipo_ponto"] != "B"]
         if not pontos:
             raise ValueError("Nenhum ponto geodésico localizado no banco de dados para este levantamento.")
 
-        # 2. Recupera todos os segmentos de divisa
         query_segmentos = """
             SELECT s.ponto_inicio_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
                    COALESCE(c.nome, pe.nome, '') as nome_confrontante,
@@ -201,47 +199,22 @@ class ExportacaoService:
         """
         segmentos = {s["ponto_inicio_id"]: dict(s) for s in execute_query(query_segmentos, params=(levantamento_id,), fetch_all=True)}
 
-        # 3. Determina o fuso UTM baseado no primeiro ponto válido
         ponto_base = next((p for p in pontos if p["lon"] and p["lon"] != 0.0), pontos[0])
-        lon0 = ponto_base["lon"]
-        zona_utm = int((lon0 + 180) / 6) + 1
-        epsg_utm = f"319{60 + zona_utm}"  # Família SIRGAS 2000 UTM Sul
+        zona_utm = int((ponto_base["lon"] + 180) / 6) + 1
+        transformer = get_transformer("epsg:4674", f"epsg:{31960 + zona_utm}", always_xy=True)
 
-        # Instancia o conversor geodésico -> plano UTM
-        transformer = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
-
-        wm = WorkspaceManager()
-        folder = wm.get_levantamento_folder(levantamento_id)
-        wm.create_workspace(levantamento_id)
-        caminho_exportacao = folder / "Exportacoes" / "PONTOS_CONSOLIDADOS_UTM.csv"
-
-        linhas_arquivo = []
-        # Cabeçalho padronizado (Novo Padrão PT-BR Excel)
-        linhas_arquivo.append("*VERTICE;ESTE=X;NORTE=Y;ALTIT=Z;CONFRONTANTE;SIGMA X;SIGMA Y;SIGMA Z;MET POS;TIP LIM;CNS;MATR")
-
+        linhas = []
         for p in pontos:
-            # Conversão de latitude/longitude corrigidas para coordenadas planas UTM
             e_utm, n_utm = transformer.transform(p["lon"], p["lat"])
-            
-            # Mapeia informações do segmento correspondente (onde o ponto é vértice de partida)
             seg = segmentos.get(p["id"])
-            confrontante = ""
-            met_pos = ""
-            tip_lim = ""
-            cns = ""
-            matr = ""
-
             if seg:
-                if seg["nome_confrontante"]:
-                    confrontante = seg["nome_confrontante"].upper()
-                else:
-                    confrontante = p.get("pt_nome_confrontante", "").upper()
+                confrontante = seg["nome_confrontante"] or p.get("pt_nome_confrontante", "")
                 met_pos = p.get("metodo_posicionamento") or seg.get("metodo_posicionamento_sigef") or ""
                 tip_lim = seg.get("tipo_limite_sigef") or ""
                 cns = seg.get("cns_confrontante") or p.get("pt_cns_confrontante") or ""
                 matr = seg.get("matricula_imovel") or p.get("pt_matricula_imovel") or ""
             else:
-                confrontante = p.get("pt_nome_confrontante", "").upper()
+                confrontante = p.get("pt_nome_confrontante", "")
                 met_pos = p.get("metodo_posicionamento") or ""
                 tip_lim = ""
                 cns = p.get("pt_cns_confrontante") or ""
@@ -249,34 +222,176 @@ class ExportacaoService:
                 if p["tipo_ponto"] == "B":
                     confrontante = "APOIO BASE PPP"
 
-            # Sanitização simples para evitar vírgulas internas no CSV
-            confrontante_limpo = confrontante.replace(",", " ")
-            cns_limpo = cns.replace(",", " ")
-            matr_limpa = matr.replace(",", " ")
+            def _sig(principal, fallback):
+                v = p.get(principal)
+                if v is None:
+                    v = p.get(fallback)
+                return v or 0.0
 
-            # Fallbacks para sigmas em metros (Easting = X, Northing = Y)
-            sigma_e = p.get("sigma_e") if p.get("sigma_e") is not None else p.get("sigma_lon", 0.0)
-            sigma_n = p.get("sigma_n") if p.get("sigma_n") is not None else p.get("sigma_lat", 0.0)
-            sigma_z = p.get("sigma_z") if p.get("sigma_z") is not None else p.get("sigma_alt", 0.0)
+            linhas.append({
+                "vertice": p["nome_vertice"], "matricula_id": p["matricula_id"], "tipo_ponto": p["tipo_ponto"],
+                "e": e_utm, "n": n_utm, "z": p["alt"] or 0.0,
+                "sigma_e": _sig("sigma_e", "sigma_lon"), "sigma_n": _sig("sigma_n", "sigma_lat"),
+                "sigma_z": _sig("sigma_z", "sigma_alt"),
+                "confrontante": confrontante, "met_pos": met_pos, "tip_lim": tip_lim, "cns": cns, "matr": matr,
+            })
+        return linhas, zona_utm
 
-            # Linha formatada no novo padrão CSV (Ponto e vírgula como separador e vírgula como decimal para o Excel PT-BR)
-            e_utm_str = f"{e_utm:.3f}".replace('.', ',')
-            n_utm_str = f"{n_utm:.3f}".replace('.', ',')
-            alt_str = f"{p['alt']:.3f}".replace('.', ',')
-            sigma_e_str = f"{sigma_e:.3f}".replace('.', ',')
-            sigma_n_str = f"{sigma_n:.3f}".replace('.', ',')
-            sigma_z_str = f"{sigma_z:.3f}".replace('.', ',')
-            
+    @staticmethod
+    def consolidar_pontos_levantamento(levantamento_id: int) -> str:
+        """Grava PONTOS_CONSOLIDADOS_UTM.csv (pt-BR/Excel) na pasta /Exportacoes do levantamento."""
+        linhas, _ = ExportacaoService._coletar_linhas_perimetro(levantamento_id)
+
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(levantamento_id)
+        wm.create_workspace(levantamento_id)
+        caminho_exportacao = folder / "Exportacoes" / "PONTOS_CONSOLIDADOS_UTM.csv"
+
+        def f3(v: float) -> str:
+            return f"{v:.3f}".replace('.', ',')
+
+        linhas_arquivo = ["*VERTICE;ESTE=X;NORTE=Y;ALTIT=Z;CONFRONTANTE;SIGMA X;SIGMA Y;SIGMA Z;MET POS;TIP LIM;CNS;MATR"]
+        for l in linhas:
             linhas_arquivo.append(
-                f"{p['nome_vertice']};{e_utm_str};{n_utm_str};{alt_str};"
-                f"{confrontante_limpo};{sigma_e_str};{sigma_n_str};"
-                f"{sigma_z_str};{met_pos};{tip_lim};{cns_limpo};{matr_limpa}"
+                f"{l['vertice']};{f3(l['e'])};{f3(l['n'])};{f3(l['z'])};"
+                f"{l['confrontante'].upper().replace(',', ' ')};{f3(l['sigma_e'])};{f3(l['sigma_n'])};"
+                f"{f3(l['sigma_z'])};{l['met_pos']};{l['tip_lim']};{l['cns'].replace(',', ' ')};{l['matr'].replace(',', ' ')}"
             )
 
-        # Gravação física do arquivo unificado
         with open(caminho_exportacao, "w", encoding="utf-8") as f:
             f.write("\n".join(linhas_arquivo))
-            
-        tracer.trace_file_usage("WRITE", str(caminho_exportacao), "ExportacaoService.consolidar_pontos_levantamento")
 
+        tracer.trace_file_usage("WRITE", str(caminho_exportacao), "ExportacaoService.consolidar_pontos_levantamento")
         return str(caminho_exportacao)
+
+    @staticmethod
+    def gerar_planilha_sigef(levantamento_id: int) -> tuple:
+        """
+        Gera a Planilha Eletrônica SIGEF (.ods) em /Exportacoes: aba `identificacao` + uma aba
+        `perimetro_N` por matrícula (parte da parcela). Retorna (caminho, avisos).
+        """
+        from odf.opendocument import OpenDocumentSpreadsheet
+        from odf.table import Table, TableRow, TableCell
+        from odf.text import P
+
+        avisos: list = []
+        linhas, zona_utm = ExportacaoService._coletar_linhas_perimetro(levantamento_id, incluir_apoio=False)
+        meridiano_central = zona_utm * 6 - 183
+
+        lev = execute_query(
+            """SELECT l.propriedade_id, pr.nome_propriedade, pr.codigo_ccir, pr.municipio, pr.uf
+               FROM levantamentos l JOIN propriedades pr ON l.propriedade_id = pr.id WHERE l.id = ?""",
+            params=(levantamento_id,), fetch_one=True)
+        if not lev:
+            raise ValueError("Levantamento ou propriedade não encontrados.")
+        lev = dict(lev)
+        mats = {m["id"]: dict(m) for m in execute_query(
+            "SELECT id, numero_matricula, denominacao, cri_circunscricao FROM matriculas WHERE propriedade_id = ? ORDER BY id",
+            params=(lev["propriedade_id"],), fetch_all=True)}
+        detentor = execute_query(
+            """SELECT p.nome, p.cpf_cnpj, p.tipo_pessoa, p.razao_social
+               FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id JOIN pessoas p ON c.pessoa_id = p.id
+               WHERE pc.propriedade_id = ? ORDER BY pc.percentual_participacao DESC, pc.id ASC LIMIT 1""",
+            params=(lev["propriedade_id"],), fetch_one=True)
+        detentor = dict(detentor) if detentor else {}
+
+        # Agrupa por matrícula preservando a ordem (sem matrícula -> grupo único)
+        grupos: dict = {}
+        for l in linhas:
+            grupos.setdefault(l["matricula_id"], []).append(l)
+
+        def dec(v, casas=2) -> str:
+            return f"{v:.{casas}f}".replace(".", ",")
+
+        doc = OpenDocumentSpreadsheet()
+
+        def nova_linha(tabela, valores):
+            tr = TableRow()
+            for v in valores:
+                if isinstance(v, tuple):  # (valor_float, texto) -> célula numérica
+                    tc = TableCell(valuetype="float", value=v[0])
+                    tc.addElement(P(text=v[1]))
+                else:
+                    tc = TableCell(valuetype="string")
+                    tc.addElement(P(text="" if v is None else str(v)))
+                tr.addElement(tc)
+            tabela.addElement(tr)
+
+        # --- Aba identificacao ---
+        ident = Table(name="identificacao")
+        juridica = (detentor.get("tipo_pessoa") or "").upper() in ("PJ", "JURIDICA", "JURÍDICA")
+        nome_det = (detentor.get("razao_social") if juridica else None) or detentor.get("nome") or ""
+        doc_det = re.sub(r"\D", "", detentor.get("cpf_cnpj") or "")
+        if not detentor:
+            avisos.append("Nenhum cliente vinculado à propriedade: preencha o detentor na planilha.")
+        mat_ref = next((mats[k] for k in grupos if k in mats), next(iter(mats.values()), {}))
+        cns_imovel = (mat_ref.get("cri_circunscricao") or "").strip()
+        if not lev.get("codigo_ccir"):
+            avisos.append("Propriedade sem código do imóvel (SNCR/CCIR).")
+        if not cns_imovel:
+            avisos.append("Matrícula sem CNS do cartório (cri_circunscricao).")
+        num_mat = (mat_ref.get("numero_matricula") or "").strip()
+        denom = mat_ref.get("denominacao") or lev.get("nome_propriedade") or "Parcela 1"
+        municipio_uf = f"{lev.get('municipio') or ''}-{lev.get('uf') or ''}"
+
+        for linha in (
+            ["Identificação do Serviço de Georreferenciamento", "Contrato com Administração Pública"],
+            ["Natureza do serviço:", "Particular"],
+            [],
+            ["Identificação do Detentor"],
+            ["Tipo pessoa:", "Jurídica" if juridica else "Física"],
+            ["Nome:", nome_det],
+            ["CNPJ:" if juridica else "CPF:", doc_det],
+            [],
+            ["Identificação da Área"],
+            ["Denominação:", denom],
+            ["Situação:", "Imóvel Registrado"],
+            ["Natureza da Área:", "Particular"],
+            ["Código do Imóvel(SNCR/INCRA):", lev.get("codigo_ccir") or ""],
+            ["Código do cartório (CNS):", cns_imovel],
+            ["Matrícula:", (float(num_mat), num_mat) if num_mat.isdigit() else num_mat],
+            ["Município(s):"],
+            [municipio_uf, municipio_uf],
+        ):
+            nova_linha(ident, linha)
+        doc.spreadsheet.addElement(ident)
+
+        incompletos: list = []
+        # --- Abas perimetro_N ---
+        for idx, (mid, vertices) in enumerate(grupos.items(), start=1):
+            aba = Table(name=f"perimetro_{idx}")
+            parte = (mats.get(mid) or {}).get("denominacao") or f"Parte {idx}"
+            for linha in (
+                ["Tabela de Perímetro", "UTM"],
+                [],
+                ["Denominação:", parte],
+                ["Parcela número:", "001"],
+                ["Lado:", "Externo"],
+                [],
+                ["Sistema de referência SIRGAS2000"],
+                [],
+                ["Tipo de Coordenada:", "UTM", "Meridiano Central (°):", str(meridiano_central), "Hemisfério:", "Sul"],
+                ["", "", "", "", "", "", "", "", "", "Confrontante"],
+                ["Vértice", "E/Long", "Sigma long", "N/Lat", "Sigma lat", "h", "Sigma h",
+                 "Método Posicionamento", "Tipo Limite", "CNS", "Matrícula", "Descritivo"],
+            ):
+                nova_linha(aba, linha)
+            for v in vertices:
+                if not v["met_pos"] or not v["tip_lim"]:
+                    incompletos.append(v["vertice"])
+                nova_linha(aba, [
+                    v["vertice"], dec(v["e"]), dec(v["sigma_e"]), dec(v["n"]), dec(v["sigma_n"]),
+                    dec(v["z"]), dec(v["sigma_z"]), v["met_pos"], v["tip_lim"], v["cns"], v["matr"], v["confrontante"],
+                ])
+            doc.spreadsheet.addElement(aba)
+
+        if incompletos:
+            avisos.append(f"{len(incompletos)} vértice(s) sem método de posicionamento ou tipo de limite (ex.: {', '.join(incompletos[:3])}).")
+
+        wm = WorkspaceManager()
+        folder = wm.get_levantamento_folder(levantamento_id)
+        wm.create_workspace(levantamento_id)
+        caminho = folder / "Exportacoes" / "PLANILHA_SIGEF.ods"
+        doc.save(str(caminho))
+        tracer.trace_file_usage("WRITE", str(caminho), "ExportacaoService.gerar_planilha_sigef")
+        return str(caminho), avisos
