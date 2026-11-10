@@ -177,11 +177,16 @@ export const propriedadesRoute: RouteDef = {
                       </div>
                       <div>
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Município *</label>
-                         <input type="text" name="municipio" required class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
+                         <input type="text" name="municipio" required list="lista-municipios-cartorios" autocomplete="off" class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
+                         <datalist id="lista-municipios-cartorios"></datalist>
                       </div>
                       <div>
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">UF *</label>
                          <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase font-mono" placeholder="PR">
+                      </div>
+                      <div class="col-span-2 sm:col-span-4">
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Cartório de Registro do Município</label>
+                         <input type="text" name="cartorio_municipio" class="glass-input w-full text-xs h-8" placeholder="Ex: Cartório de Registro de Imóveis de Umuarama (preenche sozinho nas próximas vezes)">
                       </div>
                       <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CAR</label>
@@ -472,6 +477,57 @@ export const propriedadesRoute: RouteDef = {
       const t = e.target as HTMLInputElement;
       t.value = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
     });
+
+    // --- LISTA DE MUNICÍPIOS E CARTÓRIOS ---
+    type MunicipioCartorio = { municipio: string; uf: string; cartorio?: string | null };
+    let municipiosCartorios: MunicipioCartorio[] = [];
+    const inputMunicipio = formProp?.querySelector('[name="municipio"]') as HTMLInputElement;
+    const inputCartorioMun = formProp?.querySelector('[name="cartorio_municipio"]') as HTMLInputElement;
+    const datalistMunicipios = document.getElementById('lista-municipios-cartorios') as HTMLDataListElement;
+
+    const acharMunicipioCartorio = (municipio: string, uf?: string): MunicipioCartorio | undefined => {
+      const alvo = municipio.trim().toLowerCase();
+      if (!alvo) return undefined;
+      const ufNorm = (uf || '').trim().toUpperCase();
+      return municipiosCartorios.find(m => m.municipio.toLowerCase() === alvo && (!ufNorm || m.uf === ufNorm))
+        || municipiosCartorios.find(m => m.municipio.toLowerCase() === alvo);
+    };
+
+    const carregarMunicipiosCartorios = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/municipios-cartorios`);
+        if (!res.ok) return;
+        municipiosCartorios = await res.json();
+        if (datalistMunicipios) {
+          datalistMunicipios.innerHTML = municipiosCartorios.map(m =>
+            `<option value="${escapeHtml(m.municipio)}" label="${escapeHtml(`${m.uf}${m.cartorio ? ' — ' + m.cartorio : ''}`)}">${escapeHtml(m.uf)}${m.cartorio ? ' — ' + escapeHtml(m.cartorio) : ''}</option>`
+          ).join('');
+        }
+      } catch { /* lista é apenas conveniência */ }
+    };
+
+    inputMunicipio?.addEventListener('input', () => {
+      const m = acharMunicipioCartorio(inputMunicipio.value, inputUF?.value);
+      if (!m) return;
+      if (inputUF && !inputUF.value) inputUF.value = m.uf;
+      if (inputCartorioMun && m.cartorio) inputCartorioMun.value = m.cartorio;
+    });
+
+    const salvarCartorioMunicipio = async (municipio: string, uf: string, cartorio: string) => {
+      if (!municipio.trim() || uf.trim().length !== 2) return;
+      const atual = acharMunicipioCartorio(municipio, uf)?.cartorio || '';
+      if (atual.trim() === cartorio.trim()) return;
+      try {
+        await fetch(`${API_BASE}/municipios-cartorios`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ municipio: municipio.trim(), uf: uf.trim(), cartorio: cartorio.trim() })
+        });
+        await carregarMunicipiosCartorios();
+      } catch { /* não bloqueia o salvamento da propriedade */ }
+    };
+
+    carregarMunicipiosCartorios();
 
     // --- MASCARAS DA MATRÍCULA ---
     const inputMatCCIR = document.getElementById('input-new-mat-ccir') as HTMLInputElement;
@@ -1106,6 +1162,7 @@ export const propriedadesRoute: RouteDef = {
           setFormVal('codigo_ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '');
           setFormVal('municipio', p.municipio);
           setFormVal('uf', p.uf);
+          setFormVal('cartorio_municipio', acharMunicipioCartorio(p.municipio || '', p.uf)?.cartorio || '');
 
           if (badgeProp) badgeProp.innerText = String((p.clientes || []).length);
           if (badgeMat) badgeMat.innerText = String(p.total_matriculas || 0);
@@ -1697,7 +1754,9 @@ export const propriedadesRoute: RouteDef = {
     formProp?.addEventListener('submit', async (e) => {
        e.preventDefault();
        const formData = new FormData(e.target as HTMLFormElement);
-       const payload = Object.fromEntries(formData.entries());
+       const payload: Record<string, any> = Object.fromEntries(formData.entries());
+       const cartorioMunicipio = String(payload.cartorio_municipio || '');
+       delete payload.cartorio_municipio;
 
        const submitBtn = document.getElementById('btn-submit-prop') as HTMLButtonElement;
        if (submitBtn) {
@@ -1719,6 +1778,7 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) {
              customAlert(data.error);
           } else {
+             await salvarCartorioMunicipio(String(payload.municipio || ''), String(payload.uf || ''), cartorioMunicipio);
              const idFinal = propriedadeSelecionadaId || data.id;
              showToast(propriedadeSelecionadaId ? "Propriedade atualizada com sucesso." : "Propriedade cadastrada com sucesso.", "success");
              

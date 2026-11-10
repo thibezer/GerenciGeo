@@ -125,6 +125,16 @@ def create_tables(conn):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS municipio_cartorios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            municipio TEXT NOT NULL COLLATE NOCASE,
+            uf TEXT NOT NULL,
+            cartorio TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (municipio, uf)
+        );
+        """,
+        """
         CREATE TABLE IF NOT EXISTS propriedade_clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             propriedade_id INTEGER NOT NULL,

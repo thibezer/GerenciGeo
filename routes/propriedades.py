@@ -103,6 +103,57 @@ def get_propriedades():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class MunicipioCartorioSet(BaseModel):
+    municipio: str
+    uf: str
+    cartorio: Optional[str] = None
+
+
+@router.get("/municipios-cartorios")
+def listar_municipios_cartorios():
+    """Municípios já usados nas propriedades (ou com cartório salvo) e o cartório de cada um."""
+    try:
+        linhas = execute_query("""
+            SELECT municipio, uf, MAX(cartorio) AS cartorio FROM (
+                SELECT TRIM(p.municipio) AS municipio, UPPER(TRIM(p.uf)) AS uf, mc.cartorio AS cartorio
+                FROM propriedades p
+                LEFT JOIN municipio_cartorios mc
+                  ON LOWER(mc.municipio) = LOWER(TRIM(p.municipio)) AND mc.uf = UPPER(TRIM(p.uf))
+                WHERE TRIM(COALESCE(p.municipio, '')) <> ''
+                UNION
+                SELECT municipio, uf, cartorio FROM municipio_cartorios
+            )
+            GROUP BY LOWER(municipio), uf
+            ORDER BY municipio COLLATE NOCASE
+        """, fetch_all=True) or []
+        return [dict(r) for r in linhas]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/municipios-cartorios")
+def salvar_municipio_cartorio(d: MunicipioCartorioSet):
+    municipio = (d.municipio or "").strip()
+    uf = (d.uf or "").strip().upper()
+    cartorio = (d.cartorio or "").strip()
+    if not municipio or len(uf) != 2:
+        raise HTTPException(status_code=400, detail="Município e UF (2 letras) são obrigatórios.")
+    try:
+        if not cartorio:
+            execute_query(
+                "DELETE FROM municipio_cartorios WHERE LOWER(municipio) = LOWER(?) AND uf = ?",
+                params=(municipio, uf), commit=True
+            )
+        else:
+            execute_query("""
+                INSERT INTO municipio_cartorios (municipio, uf, cartorio) VALUES (?, ?, ?)
+                ON CONFLICT(municipio, uf) DO UPDATE SET cartorio = excluded.cartorio, updated_at = CURRENT_TIMESTAMP
+            """, params=(municipio, uf, cartorio), commit=True)
+        return {"message": "Cartório do município salvo."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/propriedades")
 def create_propriedade(p: PropriedadeCreate):
     if len(p.uf) != 2:
