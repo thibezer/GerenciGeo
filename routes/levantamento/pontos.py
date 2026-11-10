@@ -689,6 +689,8 @@ class PontoPatchPayload(BaseModel):
     status_ponto: Optional[str] = None
     ignorar_poligono: Optional[int] = None
     ordem_caminhamento: Optional[int] = None
+    confrontante: Optional[ConfrontanteUpdateBatch] = None
+    segmento: Optional[SegmentoUpdateBatch] = None
 
 class PontoVincularMatriculaPayload(BaseModel):
     ponto_id: int

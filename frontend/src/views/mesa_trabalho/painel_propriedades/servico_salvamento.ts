@@ -81,10 +81,17 @@ export function salvarPontoDebounced(
     case 'confrontante_matricula':
     case 'confrontante_cartorio': {
       if (!pendingPontoUpdates.confrontante) {
+        // Parte do confrontante já vinculado (id + valores atuais) para atualizá-lo em vez de duplicar
+        const seg = (ctx.segmentosList ?? []).find((s: any) => String(s.ponto_inicio_id) === String(p.id));
+        const confId = (p as any).confrontante_id || seg?.confrontante_id || null;
+        const atual = confId
+          ? (ctx.confrontantesList ?? []).find((c: any) => String(c.id) === String(confId))
+          : null;
         pendingPontoUpdates.confrontante = {
-          nome: p.confrontante_nome || '',
-          matricula_imovel: p.confrontante_matricula || '',
-          cns_confrontante: p.confrontante_cartorio || ''
+          ...(atual ? { id: atual.id } : {}),
+          nome: atual?.nome ?? p.confrontante_nome ?? '',
+          matricula_imovel: atual?.matricula_imovel ?? p.confrontante_matricula ?? '',
+          cns_confrontante: atual?.cns_confrontante ?? p.confrontante_cartorio ?? ''
         };
       }
       if (propId === 'confrontante_nome') pendingPontoUpdates.confrontante.nome = String(novoValor ?? '').trim();
@@ -148,6 +155,11 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
     const alterouCoordenada = ['e_corrigido', 'n_corrigido', 'alt_corrigido', 'lat', 'lon'].some(k => payload[k] !== undefined);
     const ehBase = pontoAlvo.tipo_ponto === 'B'
       || (ctx.pontosList ?? []).some((pt: Ponto) => String(pt.ponto_base_id) === String(pontoId));
+
+    if (payload.confrontante !== undefined) {
+      // Atualiza confrontantes/segmentos locais (sem reconstruir o painel) para a edição não "sumir" ao reabrir o ponto
+      await ctx.loadLevantamentoDetails?.();
+    }
 
     if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined) {
       // Trocar a matrícula faz o backend apagar e recriar as divisas e reordenar as duas matrículas;
