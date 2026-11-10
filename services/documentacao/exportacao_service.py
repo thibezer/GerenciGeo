@@ -166,7 +166,7 @@ class ExportacaoService:
         método de posicionamento, tipo de limite, confrontante, CNS e matrícula do confrontante.
         """
         query_pontos = """
-            SELECT p.id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt,
+            SELECT p.id, p.nome_vertice, p.codigo_sigef, p.tipo_ponto, p.lat, p.lon, p.alt,
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.sigma_e, p.sigma_n, p.sigma_z,
                    p.ordem_caminhamento, p.matricula_id, p.confrontante_id,
                    p.metodo_posicionamento,
@@ -230,7 +230,7 @@ class ExportacaoService:
                 return v or 0.0
 
             linhas.append({
-                "vertice": p["nome_vertice"], "matricula_id": p["matricula_id"], "tipo_ponto": p["tipo_ponto"],
+                "vertice": (p.get("codigo_sigef") or "").strip() or p["nome_vertice"], "matricula_id": p["matricula_id"], "tipo_ponto": p["tipo_ponto"],
                 "e": e_utm, "n": n_utm, "z": p["alt"] or 0.0,
                 "sigma_e": _sig("sigma_e", "sigma_lon"), "sigma_n": _sig("sigma_n", "sigma_lat"),
                 "sigma_z": _sig("sigma_z", "sigma_alt"),
