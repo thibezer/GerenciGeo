@@ -202,7 +202,10 @@ class ExportacaoService:
 
         ponto_base = next((p for p in pontos if p["lon"] and p["lon"] != 0.0), pontos[0])
         zona_utm = int((ponto_base["lon"] + 180) / 6) + 1
-        transformer = get_transformer("epsg:4674", f"epsg:{31960 + zona_utm}", always_xy=True)
+        hemisferio_norte = (ponto_base["lat"] or 0.0) >= 0
+        # SIRGAS 2000 UTM: zonas Sul = 31960+zona (18S..25S); zonas Norte = 31954+zona (11N..22N)
+        epsg_utm = (31954 if hemisferio_norte else 31960) + zona_utm
+        transformer = get_transformer("epsg:4674", f"epsg:{epsg_utm}", always_xy=True)
 
         linhas = []
         for p in pontos:
@@ -231,7 +234,8 @@ class ExportacaoService:
 
             linhas.append({
                 "vertice": (p.get("codigo_sigef") or "").strip() or p["nome_vertice"], "matricula_id": p["matricula_id"], "tipo_ponto": p["tipo_ponto"],
-                "e": e_utm, "n": n_utm, "z": p["alt"] or 0.0,
+                "e": e_utm, "n": n_utm, "z": p["alt"] or 0.0, "norte": hemisferio_norte,
+                "zona": int((p["lon"] + 180) / 6) + 1,
                 "sigma_e": _sig("sigma_e", "sigma_lon"), "sigma_n": _sig("sigma_n", "sigma_lat"),
                 "sigma_z": _sig("sigma_z", "sigma_alt"),
                 "confrontante": confrontante, "met_pos": met_pos, "tip_lim": tip_lim, "cns": cns, "matr": matr,
@@ -274,6 +278,9 @@ class ExportacaoService:
         avisos: list = []
         linhas, zona_utm = ExportacaoService._coletar_linhas_perimetro(levantamento_id, incluir_apoio=False)
         meridiano_central = zona_utm * 6 - 183
+        hemisferio = "Norte" if linhas[0]["norte"] else "Sul"
+        if len({l["zona"] for l in linhas}) > 1:
+            avisos.append("O levantamento cruza mais de um fuso UTM: todas as coordenadas foram convertidas para o fuso do primeiro ponto.")
 
         lev = execute_query(
             """SELECT l.propriedade_id, pr.nome_propriedade, pr.codigo_ccir, pr.municipio, pr.uf
@@ -335,9 +342,9 @@ class ExportacaoService:
                 ])
             partes.append({
                 "denominacao": (mats.get(mid) or {}).get("denominacao") or f"Parte {idx}",
-                "parcela": "001",
+                "parcela": f"{idx:03d}",
                 "meridiano_central": meridiano_central,
-                "hemisferio": "Sul",
+                "hemisferio": hemisferio,
                 "vertices": linhas_v,
             })
         if incompletos:

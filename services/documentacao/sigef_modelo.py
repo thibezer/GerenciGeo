@@ -242,7 +242,7 @@ def preencher_modelo_sigef(destino: str, ident: dict, partes: list, modelo: Opti
             ancora = clone
 
         _preencher_identificacao(tabelas["identificacao"], ident)
-        for n, (tabela, parte) in enumerate(zip([base] + clones, partes), start=1):
+        for tabela, parte in zip([base] + clones, partes):
             _preencher_perimetro(tabela, parte)
 
         conteudo = ET.tostring(raiz, xml_declaration=True, encoding="UTF-8", standalone=True)
