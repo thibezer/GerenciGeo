@@ -377,9 +377,32 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
       mesaRibbon.abaAtiva = ctx.etapaAtiva;
     }
 
+    // Colapso automático de grupos: o componente usa `width: max-content` em .ui-ribbon__grupos,
+    // então scrollWidth nunca excede clientWidth e nada colapsa. Forçamos largura do contêiner
+    // e repetimos o ajuste (o componente colapsa só 1 grupo por chamada).
+    const ribbonInterno = mesaRibbon as unknown as HTMLElement & { ajustarColapsoGrupos?: () => void };
+    const aplicarColapsoResponsivo = (): void => {
+      const raiz = mesaRibbon.shadowRoot;
+      if (!raiz) return;
+      if (!raiz.getElementById('mesa-ribbon-fix-overflow')) {
+        const estilo = document.createElement('style');
+        estilo.id = 'mesa-ribbon-fix-overflow';
+        estilo.textContent = '.ui-ribbon__grupos{width:auto !important;}';
+        raiz.appendChild(estilo);
+      }
+      for (let i = 0; i < 12 && typeof ribbonInterno.ajustarColapsoGrupos === 'function'; i++) {
+        ribbonInterno.ajustarColapsoGrupos();
+      }
+    };
+    requestAnimationFrame(aplicarColapsoResponsivo);
+    const roRibbon = new ResizeObserver(() => requestAnimationFrame(aplicarColapsoResponsivo));
+    roRibbon.observe(mesaRibbon);
+    cleanups.push(() => roRibbon.disconnect());
+
     // Ouvinte para troca de abas via clique no <ui-ribbon>
     const onAbaChange = (e: any) => {
       const tabTarget = e.detail?.id;
+      requestAnimationFrame(() => requestAnimationFrame(aplicarColapsoResponsivo));
       if (tabTarget && ctx && typeof ctx.alternarEtapa === 'function' && ctx.etapaAtiva !== tabTarget) {
         ctx.alternarEtapa(tabTarget);
       }
