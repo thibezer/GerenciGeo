@@ -6,6 +6,7 @@ from utils.transformer_cache import get_transformer
 from database.connection import execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from utils.logger import tracer
+from services.documentacao.sigef_modelo import preencher_modelo_sigef
 
 class ExportacaoService:
     
@@ -270,10 +271,6 @@ class ExportacaoService:
         Gera a Planilha Eletrônica SIGEF (.ods) em /Exportacoes: aba `identificacao` + uma aba
         `perimetro_N` por matrícula (parte da parcela). Retorna (caminho, avisos).
         """
-        from odf.opendocument import OpenDocumentSpreadsheet
-        from odf.table import Table, TableRow, TableCell
-        from odf.text import P
-
         avisos: list = []
         linhas, zona_utm = ExportacaoService._coletar_linhas_perimetro(levantamento_id, incluir_apoio=False)
         meridiano_central = zona_utm * 6 - 183
@@ -303,25 +300,8 @@ class ExportacaoService:
         def dec(v, casas=2) -> str:
             return f"{v:.{casas}f}".replace(".", ",")
 
-        doc = OpenDocumentSpreadsheet()
-
-        def nova_linha(tabela, valores):
-            tr = TableRow()
-            for v in valores:
-                if isinstance(v, tuple):  # (valor_float, texto) -> célula numérica
-                    tc = TableCell(valuetype="float", value=v[0])
-                    tc.addElement(P(text=v[1]))
-                else:
-                    tc = TableCell(valuetype="string")
-                    tc.addElement(P(text="" if v is None else str(v)))
-                tr.addElement(tc)
-            tabela.addElement(tr)
-
-        # --- Aba identificacao ---
-        ident = Table(name="identificacao")
+        # --- Identificação ---
         juridica = (detentor.get("tipo_pessoa") or "").upper() in ("PJ", "JURIDICA", "JURÍDICA")
-        nome_det = (detentor.get("razao_social") if juridica else None) or detentor.get("nome") or ""
-        doc_det = re.sub(r"\D", "", detentor.get("cpf_cnpj") or "")
         if not detentor:
             avisos.append("Nenhum cliente vinculado à propriedade: preencha o detentor na planilha.")
         mat_ref = next((mats[k] for k in grupos if k in mats), next(iter(mats.values()), {}))
@@ -330,61 +310,36 @@ class ExportacaoService:
             avisos.append("Propriedade sem código do imóvel (SNCR/CCIR).")
         if not cns_imovel:
             avisos.append("Matrícula sem CNS do cartório (cri_circunscricao).")
-        num_mat = (mat_ref.get("numero_matricula") or "").strip()
-        denom = mat_ref.get("denominacao") or lev.get("nome_propriedade") or "Parcela 1"
-        municipio_uf = f"{lev.get('municipio') or ''}-{lev.get('uf') or ''}"
+        ident = {
+            "juridica": juridica,
+            "nome": (detentor.get("razao_social") if juridica else None) or detentor.get("nome") or "",
+            "documento": detentor.get("cpf_cnpj") or "",
+            "denominacao": mat_ref.get("denominacao") or lev.get("nome_propriedade") or "Parcela 1",
+            "sncr": lev.get("codigo_ccir") or "",
+            "cns": cns_imovel,
+            "matricula": (mat_ref.get("numero_matricula") or "").strip(),
+            "municipio_uf": f"{lev.get('municipio') or ''}-{lev.get('uf') or ''}",
+        }
 
-        for linha in (
-            ["Identificação do Serviço de Georreferenciamento", "Contrato com Administração Pública"],
-            ["Natureza do serviço:", "Particular"],
-            [],
-            ["Identificação do Detentor"],
-            ["Tipo pessoa:", "Jurídica" if juridica else "Física"],
-            ["Nome:", nome_det],
-            ["CNPJ:" if juridica else "CPF:", doc_det],
-            [],
-            ["Identificação da Área"],
-            ["Denominação:", denom],
-            ["Situação:", "Imóvel Registrado"],
-            ["Natureza da Área:", "Particular"],
-            ["Código do Imóvel(SNCR/INCRA):", lev.get("codigo_ccir") or ""],
-            ["Código do cartório (CNS):", cns_imovel],
-            ["Matrícula:", (float(num_mat), num_mat) if num_mat.isdigit() else num_mat],
-            ["Município(s):"],
-            [municipio_uf, municipio_uf],
-        ):
-            nova_linha(ident, linha)
-        doc.spreadsheet.addElement(ident)
-
+        # --- Perímetros (uma parte por matrícula) ---
         incompletos: list = []
-        # --- Abas perimetro_N ---
+        partes = []
         for idx, (mid, vertices) in enumerate(grupos.items(), start=1):
-            aba = Table(name=f"perimetro_{idx}")
-            parte = (mats.get(mid) or {}).get("denominacao") or f"Parte {idx}"
-            for linha in (
-                ["Tabela de Perímetro", "UTM"],
-                [],
-                ["Denominação:", parte],
-                ["Parcela número:", "001"],
-                ["Lado:", "Externo"],
-                [],
-                ["Sistema de referência SIRGAS2000"],
-                [],
-                ["Tipo de Coordenada:", "UTM", "Meridiano Central (°):", str(meridiano_central), "Hemisfério:", "Sul"],
-                ["", "", "", "", "", "", "", "", "", "Confrontante"],
-                ["Vértice", "E/Long", "Sigma long", "N/Lat", "Sigma lat", "h", "Sigma h",
-                 "Método Posicionamento", "Tipo Limite", "CNS", "Matrícula", "Descritivo"],
-            ):
-                nova_linha(aba, linha)
+            linhas_v = []
             for v in vertices:
                 if not v["met_pos"] or not v["tip_lim"]:
                     incompletos.append(v["vertice"])
-                nova_linha(aba, [
+                linhas_v.append([
                     v["vertice"], dec(v["e"]), dec(v["sigma_e"]), dec(v["n"]), dec(v["sigma_n"]),
                     dec(v["z"]), dec(v["sigma_z"]), v["met_pos"], v["tip_lim"], v["cns"], v["matr"], v["confrontante"],
                 ])
-            doc.spreadsheet.addElement(aba)
-
+            partes.append({
+                "denominacao": (mats.get(mid) or {}).get("denominacao") or f"Parte {idx}",
+                "parcela": "001",
+                "meridiano_central": meridiano_central,
+                "hemisferio": "Sul",
+                "vertices": linhas_v,
+            })
         if incompletos:
             avisos.append(f"{len(incompletos)} vértice(s) sem método de posicionamento ou tipo de limite (ex.: {', '.join(incompletos[:3])}).")
 
@@ -392,6 +347,6 @@ class ExportacaoService:
         folder = wm.get_levantamento_folder(levantamento_id)
         wm.create_workspace(levantamento_id)
         caminho = folder / "Exportacoes" / "PLANILHA_SIGEF.ods"
-        doc.save(str(caminho))
+        preencher_modelo_sigef(str(caminho), ident, partes)
         tracer.trace_file_usage("WRITE", str(caminho), "ExportacaoService.gerar_planilha_sigef")
         return str(caminho), avisos
