@@ -157,8 +157,24 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
       || (ctx.pontosList ?? []).some((pt: Ponto) => String(pt.ponto_base_id) === String(pontoId));
 
     if (payload.confrontante !== undefined) {
-      // Atualiza confrontantes/segmentos locais (sem reconstruir o painel) para a edição não "sumir" ao reabrir o ponto
-      await ctx.loadLevantamentoDetails?.();
+      // Atualiza só confrontantes/segmentos locais, sem redesenhar painel/mapa/tabela,
+      // para a edição não "sumir" ao reabrir o ponto.
+      try {
+        const [resSeg, resConf] = await Promise.all([
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/segmentos`),
+          fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`)
+        ]);
+        if (resSeg.ok) {
+          const segs = await resSeg.json();
+          if (Array.isArray(segs)) ctx.segmentosList = segs;
+        }
+        if (resConf.ok) {
+          const confs = await resConf.json();
+          if (Array.isArray(confs)) ctx.confrontantesList = confs;
+        }
+      } catch (errSync) {
+        console.warn('Erro ao sincronizar confrontantes:', errSync);
+      }
     }
 
     if (payload.matricula_id !== undefined || payload.tipo_ponto !== undefined || payload.ignorar_poligono !== undefined) {
