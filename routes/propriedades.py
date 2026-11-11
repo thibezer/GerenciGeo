@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
+from database.municipios_pr import sem_acento, validar_normalizar_cns
 from services.gestores.cliente_manager import vincular_cliente_propriedade, validar_composicao_proprietarios
 from services.gestores.matricula_manager import resolver_campos_matricula, validar_origem_desenho, COLUNAS_MATRICULA
 from config import EXPORT_BASE_FOLDER
@@ -25,6 +26,8 @@ class PropriedadeCreate(BaseModel):
     codigo_ccir: Optional[str] = None
     municipio: str
     uf: str
+    cns_ri: Optional[str] = None
+    oficio_ri: Optional[str] = None
 
 class PropriedadeUpdate(BaseModel):
     nome_propriedade: Optional[str] = None
@@ -32,6 +35,8 @@ class PropriedadeUpdate(BaseModel):
     codigo_ccir: Optional[str] = None
     municipio: Optional[str] = None
     uf: Optional[str] = None
+    cns_ri: Optional[str] = None
+    oficio_ri: Optional[str] = None
 
 class PropriedadeClienteCreate(BaseModel):
     cliente_id: int
@@ -106,27 +111,176 @@ def get_propriedades():
 class MunicipioCartorioSet(BaseModel):
     municipio: str
     uf: str
+    cns: Optional[str] = None
+    oficio: Optional[str] = None
     cartorio: Optional[str] = None
+
+
+def _normalizar_cns_ou_400(valor: Optional[str]) -> Optional[str]:
+    try:
+        return validar_normalizar_cns(valor)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+def _vincular_ri_municipio_conn(cursor, municipio: str, uf: str, cns: Optional[str], oficio: Optional[str], cartorio_legado: str = "") -> tuple[Optional[str], str]:
+    """Registra cartório (CNS único) e o vínculo N:M com o município/UF na transação atual."""
+    mun = (municipio or "").strip()
+    uf_norm = (uf or "").strip().upper()
+    oficio_clean = (oficio or "").strip()
+    cns_norm = _normalizar_cns_ou_400(cns)
+    if not mun or len(uf_norm) != 2:
+        return None, oficio_clean
+
+    if cns_norm:
+        cursor.execute("""
+            INSERT INTO cartorios_ri (cns, oficio, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(cns) DO UPDATE SET
+                oficio = CASE WHEN TRIM(excluded.oficio) <> '' THEN excluded.oficio ELSE cartorios_ri.oficio END,
+                updated_at = CURRENT_TIMESTAMP
+        """, (cns_norm, oficio_clean))
+        cursor.execute("SELECT oficio FROM cartorios_ri WHERE cns = ?", (cns_norm,))
+        row_ri = cursor.fetchone()
+        oficio_final = (row_ri["oficio"] if row_ri else "") or oficio_clean
+        label_cartorio = f"{oficio_final} - CNS {cns_norm}".strip(" -") if oficio_final else f"CNS {cns_norm}"
+
+        # Atualiza vínculo existente por chave normalizada (sem acento/caixa) ou insere novo vínculo N:M
+        chave_alvo = (sem_acento(mun), uf_norm)
+        cursor.execute(
+            "SELECT id, municipio FROM municipio_cartorios WHERE uf = ? AND cns = ?",
+            (uf_norm, cns_norm),
+        )
+        existente_id = None
+        for row_mc in cursor.fetchall() or []:
+            if (sem_acento(row_mc["municipio"]), uf_norm) == chave_alvo:
+                existente_id = row_mc["id"]
+                break
+
+        if existente_id:
+            cursor.execute(
+                "UPDATE municipio_cartorios SET oficio = ?, cartorio = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (oficio_final, label_cartorio, existente_id),
+            )
+        else:
+            cursor.execute("""
+                INSERT INTO municipio_cartorios (municipio, uf, cns, oficio, cartorio, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(municipio, uf, cns) DO UPDATE SET
+                    oficio = excluded.oficio,
+                    cartorio = excluded.cartorio,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (mun, uf_norm, cns_norm, oficio_final, label_cartorio))
+
+        cursor.execute(
+            "DELETE FROM municipio_cartorios WHERE LOWER(municipio) = LOWER(?) AND uf = ? AND cns = ''",
+            (mun, uf_norm),
+        )
+        return cns_norm, oficio_final
+
+    legado = (cartorio_legado or "").strip()
+    if legado:
+        cursor.execute("""
+            INSERT INTO municipio_cartorios (municipio, uf, cns, oficio, cartorio, updated_at)
+            VALUES (?, ?, '', ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(municipio, uf, cns) DO UPDATE SET
+                oficio = excluded.oficio,
+                cartorio = excluded.cartorio,
+                updated_at = CURRENT_TIMESTAMP
+        """, (mun, uf_norm, oficio_clean, legado))
+    return None, oficio_clean
 
 
 @router.get("/municipios-cartorios")
 def listar_municipios_cartorios():
-    """Municípios já usados nas propriedades (ou com cartório salvo) e o cartório de cada um."""
+    """
+    Retorna todos os municípios cadastrados/PR com a lista de cartórios (RIs: CNS + Ofício).
+    Suporta relação N:M (vários cartórios por município e o mesmo CNS atendendo vários municípios).
+    """
     try:
-        linhas = execute_query("""
-            SELECT municipio, uf, MAX(cartorio) AS cartorio FROM (
-                SELECT TRIM(p.municipio) AS municipio, UPPER(TRIM(p.uf)) AS uf, mc.cartorio AS cartorio
-                FROM propriedades p
-                LEFT JOIN municipio_cartorios mc
-                  ON LOWER(mc.municipio) = LOWER(TRIM(p.municipio)) AND mc.uf = UPPER(TRIM(p.uf))
-                WHERE TRIM(COALESCE(p.municipio, '')) <> ''
-                UNION
-                SELECT municipio, uf, cartorio FROM municipio_cartorios
-            )
-            GROUP BY LOWER(municipio), uf
-            ORDER BY municipio COLLATE NOCASE
+        rows_mun = execute_query(
+            "SELECT nome AS municipio, UPPER(TRIM(uf)) AS uf FROM municipios WHERE TRIM(COALESCE(nome, '')) <> ''",
+            fetch_all=True,
+        ) or []
+        rows_mc = execute_query("""
+            SELECT TRIM(mc.municipio) AS municipio, UPPER(TRIM(mc.uf)) AS uf,
+                   TRIM(COALESCE(mc.cns, '')) AS cns,
+                   COALESCE(NULLIF(TRIM(cr.oficio), ''), TRIM(COALESCE(mc.oficio, ''))) AS oficio,
+                   TRIM(COALESCE(mc.cartorio, '')) AS cartorio
+            FROM municipio_cartorios mc
+            LEFT JOIN cartorios_ri cr ON cr.cns = mc.cns
+            WHERE TRIM(COALESCE(mc.municipio, '')) <> ''
         """, fetch_all=True) or []
-        return [dict(r) for r in linhas]
+        rows_props = execute_query("""
+            SELECT TRIM(p.municipio) AS municipio, UPPER(TRIM(p.uf)) AS uf,
+                   TRIM(COALESCE(p.cns_ri, '')) AS cns_ri,
+                   COALESCE(NULLIF(TRIM(cr.oficio), ''), TRIM(COALESCE(p.oficio_ri, ''))) AS oficio_ri
+            FROM propriedades p
+            LEFT JOIN cartorios_ri cr ON cr.cns = p.cns_ri
+            WHERE TRIM(COALESCE(p.municipio, '')) <> ''
+        """, fetch_all=True) or []
+
+        mapa: dict[tuple[str, str], dict] = {}
+
+        def _garantir_entrada(nome: str, uf: str, preferir_nome: bool = False) -> dict:
+            nome_limpo = (nome or "").strip()
+            uf_limpa = (uf or "").strip().upper()
+            chave = (sem_acento(nome_limpo), uf_limpa)
+            if chave not in mapa:
+                mapa[chave] = {
+                    "municipio": nome_limpo,
+                    "uf": uf_limpa,
+                    "_ris_por_cns": {},
+                    "_cartorio_legado": "",
+                }
+            elif preferir_nome and nome_limpo:
+                mapa[chave]["municipio"] = nome_limpo
+            return mapa[chave]
+
+        for r in rows_mun:
+            _garantir_entrada(r["municipio"], r["uf"], preferir_nome=True)
+
+        for r in rows_mc:
+            item = _garantir_entrada(r["municipio"], r["uf"])
+            cns = (r["cns"] or "").strip()
+            oficio = (r["oficio"] or "").strip()
+            if cns:
+                atual = item["_ris_por_cns"].get(cns)
+                if not atual or (oficio and not atual["oficio"]):
+                    item["_ris_por_cns"][cns] = {"cns": cns, "oficio": oficio}
+            elif r["cartorio"]:
+                item["_cartorio_legado"] = r["cartorio"]
+
+        for r in rows_props:
+            item = _garantir_entrada(r["municipio"], r["uf"])
+            cns = (r["cns_ri"] or "").strip()
+            oficio = (r["oficio_ri"] or "").strip()
+            if cns:
+                atual = item["_ris_por_cns"].get(cns)
+                if not atual or (oficio and not atual["oficio"]):
+                    item["_ris_por_cns"][cns] = {"cns": cns, "oficio": oficio}
+
+        resultado = []
+        for item in sorted(mapa.values(), key=lambda x: (sem_acento(x["municipio"]), x["uf"])):
+            ris = sorted(
+                item["_ris_por_cns"].values(),
+                key=lambda x: (sem_acento(x["oficio"]), x["cns"]),
+            )
+            if len(ris) == 1:
+                r0 = ris[0]
+                resumo = f"{r0['oficio']} · CNS {r0['cns']}" if r0["oficio"] else f"CNS {r0['cns']}"
+            elif len(ris) > 1:
+                resumo = f"{len(ris)} RIs ({', '.join(r['cns'] for r in ris)})"
+            else:
+                resumo = item["_cartorio_legado"] or None
+
+            resultado.append({
+                "municipio": item["municipio"],
+                "uf": item["uf"],
+                "ris": ris,
+                "cartorio": resumo,
+            })
+        return resultado
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -135,39 +289,92 @@ def listar_municipios_cartorios():
 def salvar_municipio_cartorio(d: MunicipioCartorioSet):
     municipio = (d.municipio or "").strip()
     uf = (d.uf or "").strip().upper()
-    cartorio = (d.cartorio or "").strip()
     if not municipio or len(uf) != 2:
         raise HTTPException(status_code=400, detail="Município e UF (2 letras) são obrigatórios.")
     try:
-        if not cartorio:
-            execute_query(
-                "DELETE FROM municipio_cartorios WHERE LOWER(municipio) = LOWER(?) AND uf = ?",
-                params=(municipio, uf), commit=True
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cns_norm, oficio_final = _vincular_ri_municipio_conn(
+                cursor,
+                municipio=municipio,
+                uf=uf,
+                cns=d.cns,
+                oficio=d.oficio,
+                cartorio_legado=d.cartorio or "",
             )
-        else:
-            execute_query("""
-                INSERT INTO municipio_cartorios (municipio, uf, cartorio) VALUES (?, ?, ?)
-                ON CONFLICT(municipio, uf) DO UPDATE SET cartorio = excluded.cartorio, updated_at = CURRENT_TIMESTAMP
-            """, params=(municipio, uf, cartorio), commit=True)
-        return {"message": "Cartório do município salvo."}
+            conn.commit()
+        return {
+            "message": "Cartório/RI do município salvo.",
+            "cns": cns_norm,
+            "oficio": oficio_final,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/municipios-cartorios")
+def desvincular_municipio_cartorio(
+    municipio: str = Query(...),
+    uf: str = Query(...),
+    cns: Optional[str] = Query(None),
+):
+    mun = (municipio or "").strip()
+    uf_norm = (uf or "").strip().upper()
+    cns_norm = _normalizar_cns_ou_400(cns) if cns else ""
+    if not mun or len(uf_norm) != 2:
+        raise HTTPException(status_code=400, detail="Município e UF válidos são obrigatórios.")
+    try:
+        chave_alvo = (sem_acento(mun), uf_norm)
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            if cns_norm:
+                cursor.execute(
+                    "SELECT id, municipio FROM municipio_cartorios WHERE uf = ? AND cns = ?",
+                    (uf_norm, cns_norm),
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, municipio FROM municipio_cartorios WHERE uf = ?",
+                    (uf_norm,),
+                )
+            ids_remover = [
+                row["id"]
+                for row in (cursor.fetchall() or [])
+                if (sem_acento(row["municipio"]), uf_norm) == chave_alvo
+            ]
+            if ids_remover:
+                placeholders = ", ".join("?" for _ in ids_remover)
+                cursor.execute(f"DELETE FROM municipio_cartorios WHERE id IN ({placeholders})", tuple(ids_remover))
+            conn.commit()
+        return {"message": "Vínculo de RI removido do município."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/propriedades")
 def create_propriedade(p: PropriedadeCreate):
-    if len(p.uf) != 2:
+    uf_norm = (p.uf or "").strip().upper()
+    if len(uf_norm) != 2:
         raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
+    cns_ri = _normalizar_cns_ou_400(p.cns_ri)
+    oficio_ri = (p.oficio_ri or "").strip() or None
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
+            if cns_ri:
+                cns_ri, oficio_final = _vincular_ri_municipio_conn(cursor, p.municipio, uf_norm, cns_ri, oficio_ri)
+                oficio_ri = oficio_final or None
             cursor.execute("""
-                INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, municipio, uf)
-                VALUES (?, ?, ?, ?, ?)
-            """, (p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf.upper()))
+                INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, municipio, uf, cns_ri, oficio_ri)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio.strip(), uf_norm, cns_ri, oficio_ri))
             prop_id = cursor.lastrowid
             conn.commit()
         return {"id": prop_id, "message": "Propriedade cadastrada com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -177,24 +384,43 @@ def update_propriedade(prop_id: int, p: PropriedadeUpdate):
     # Atualização parcial: só os campos enviados são alterados
     dados = p.model_dump(exclude_unset=True)
     if "uf" in dados:
-        if not dados["uf"] or len(dados["uf"]) != 2:
+        if not dados["uf"] or len(dados["uf"].strip()) != 2:
             raise HTTPException(status_code=400, detail="UF deve conter exatamente 2 caracteres")
-        dados["uf"] = dados["uf"].upper()
+        dados["uf"] = dados["uf"].strip().upper()
+    if "cns_ri" in dados:
+        dados["cns_ri"] = _normalizar_cns_ou_400(dados["cns_ri"])
+    if "oficio_ri" in dados:
+        dados["oficio_ri"] = (dados["oficio_ri"] or "").strip() or None
     for obrigatorio in ("nome_propriedade", "municipio"):
         if obrigatorio in dados and not (dados[obrigatorio] or "").strip():
             raise HTTPException(status_code=400, detail=f"O campo {obrigatorio} é obrigatório.")
-    if not execute_query("SELECT id FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True):
+    atual = execute_query("SELECT id, municipio, uf, cns_ri, oficio_ri FROM propriedades WHERE id = ?", params=(prop_id,), fetch_one=True)
+    if not atual:
         raise HTTPException(status_code=404, detail="Propriedade não localizada.")
     if not dados:
         return {"message": "Nenhuma alteração enviada"}
     try:
-        colunas = ", ".join(f"{campo} = ?" for campo in dados)
-        execute_query(
-            f"UPDATE propriedades SET {colunas} WHERE id = ?",
-            params=(*dados.values(), prop_id),
-            commit=True
-        )
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cns_eff = dados.get("cns_ri") if "cns_ri" in dados else atual["cns_ri"]
+            if cns_eff:
+                mun_eff = dados.get("municipio") or atual["municipio"]
+                uf_eff = dados.get("uf") or atual["uf"]
+                of_eff = dados.get("oficio_ri") if "oficio_ri" in dados else atual["oficio_ri"]
+                cns_norm, of_final = _vincular_ri_municipio_conn(cursor, mun_eff, uf_eff, cns_eff, of_eff)
+                if "cns_ri" in dados:
+                    dados["cns_ri"] = cns_norm
+                if of_final and not dados.get("oficio_ri"):
+                    dados["oficio_ri"] = of_final
+            colunas = ", ".join(f"{campo} = ?" for campo in dados)
+            cursor.execute(
+                f"UPDATE propriedades SET {colunas} WHERE id = ?",
+                (*dados.values(), prop_id),
+            )
+            conn.commit()
         return {"message": "Propriedade atualizada com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

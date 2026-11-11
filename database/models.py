@@ -1,4 +1,5 @@
 import logging
+from database.municipios_pr import MUNICIPIOS_PARANA
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,17 @@ def create_tables(conn):
             caminho_arquivo_ccir TEXT,
             municipio TEXT NOT NULL,
             uf TEXT NOT NULL CHECK(length(uf) = 2),
+            cns_ri TEXT,
+            oficio_ri TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cartorios_ri (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cns TEXT NOT NULL UNIQUE,
+            oficio TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """,
         """
@@ -129,9 +140,11 @@ def create_tables(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             municipio TEXT NOT NULL COLLATE NOCASE,
             uf TEXT NOT NULL,
-            cartorio TEXT NOT NULL,
+            cns TEXT NOT NULL DEFAULT '',
+            oficio TEXT NOT NULL DEFAULT '',
+            cartorio TEXT NOT NULL DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (municipio, uf)
+            UNIQUE (municipio, uf, cns)
         );
         """,
         """
@@ -696,6 +709,61 @@ def create_tables(conn):
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_levantamentos_codigo_comp ON levantamentos (codigo_compartilhamento) WHERE codigo_compartilhamento IS NOT NULL")
         except Exception as ex_idx:
             logger.warning(f"Aviso ao criar índice único em codigo_compartilhamento: {ex_idx}")
+
+        # Migração dinâmica para a tabela propriedades
+        colunas_propriedades = [
+            ("cns_ri", "TEXT"),
+            ("oficio_ri", "TEXT"),
+        ]
+        cursor.execute("PRAGMA table_info(propriedades)")
+        colunas_prop_existentes = {row[1] for row in cursor.fetchall()}
+        for col, tipo in colunas_propriedades:
+            if col not in colunas_prop_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE propriedades ADD COLUMN {col} {tipo}")
+                    logger.info(f"Coluna migrada com sucesso em propriedades: {col}")
+                except Exception as ex_mig:
+                    logger.warning(f"Aviso de migração automática para coluna {col} em propriedades: {ex_mig}")
+
+        # Migração da tabela municipio_cartorios v1 (1:1 por municipio/uf) para N:M (municipio, uf, cns)
+        try:
+            cursor.execute("PRAGMA table_info(municipio_cartorios)")
+            cols_mc = {row[1] for row in cursor.fetchall()}
+            if cols_mc and "cns" not in cols_mc:
+                cursor.execute("ALTER TABLE municipio_cartorios RENAME TO municipio_cartorios_legacy")
+                cursor.execute("""
+                    CREATE TABLE municipio_cartorios (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        municipio TEXT NOT NULL COLLATE NOCASE,
+                        uf TEXT NOT NULL,
+                        cns TEXT NOT NULL DEFAULT '',
+                        oficio TEXT NOT NULL DEFAULT '',
+                        cartorio TEXT NOT NULL DEFAULT '',
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (municipio, uf, cns)
+                    )
+                """)
+                cursor.execute("""
+                    INSERT OR IGNORE INTO municipio_cartorios (municipio, uf, cns, oficio, cartorio, updated_at)
+                    SELECT TRIM(municipio), UPPER(TRIM(uf)), '', COALESCE(cartorio, ''), COALESCE(cartorio, ''), updated_at
+                    FROM municipio_cartorios_legacy
+                """)
+                cursor.execute("DROP TABLE municipio_cartorios_legacy")
+                logger.info("Tabela municipio_cartorios migrada para suporte a múltiplos RIs por município.")
+        except Exception as ex_mc:
+            logger.warning(f"Aviso na migração de municipio_cartorios: {ex_mc}")
+
+        # Seed idempotente dos 399 municípios oficiais do Paraná
+        try:
+            cursor.execute("SELECT COUNT(*) FROM municipios WHERE uf = 'PR'")
+            qtd_pr = (cursor.fetchone() or [0])[0]
+            if qtd_pr < len(MUNICIPIOS_PARANA):
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO municipios (nome, uf) VALUES (?, 'PR')",
+                    [(nome,) for nome in MUNICIPIOS_PARANA],
+                )
+        except Exception as ex_mun:
+            logger.warning(f"Aviso no seed dos municípios do Paraná: {ex_mun}")
 
         # Migração dinâmica para a tabela clientes
         colunas_clientes = [

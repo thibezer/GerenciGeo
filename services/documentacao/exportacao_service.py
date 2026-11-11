@@ -283,7 +283,7 @@ class ExportacaoService:
             avisos.append("O levantamento cruza mais de um fuso UTM: todas as coordenadas foram convertidas para o fuso do primeiro ponto.")
 
         lev = execute_query(
-            """SELECT l.propriedade_id, pr.nome_propriedade, pr.codigo_ccir, pr.municipio, pr.uf
+            """SELECT l.propriedade_id, pr.nome_propriedade, pr.codigo_ccir, pr.municipio, pr.uf, pr.cns_ri
                FROM levantamentos l JOIN propriedades pr ON l.propriedade_id = pr.id WHERE l.id = ?""",
             params=(levantamento_id,), fetch_one=True)
         if not lev:
@@ -312,7 +312,7 @@ class ExportacaoService:
         if not detentor:
             avisos.append("Nenhum cliente vinculado à propriedade: preencha o detentor na planilha.")
         mat_ref = next((mats[k] for k in grupos if k in mats), next(iter(mats.values()), {}))
-        cns_imovel = (mat_ref.get("cri_circunscricao") or "").strip()
+        cns_imovel = (mat_ref.get("cri_circunscricao") or "").strip() or (lev.get("cns_ri") or "").strip()
         if not lev.get("codigo_ccir"):
             avisos.append("Propriedade sem código do imóvel (SNCR/CCIR).")
         if not cns_imovel:

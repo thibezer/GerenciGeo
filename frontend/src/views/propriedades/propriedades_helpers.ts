@@ -16,6 +16,8 @@ export interface Propriedade {
   codigo_ccir?: string | null;
   municipio?: string | null;
   uf?: string | null;
+  cns_ri?: string | null;
+  oficio_ri?: string | null;
   created_at?: string | null;
   total_matriculas?: number | null;
   total_levantamentos?: number | null;
@@ -72,11 +74,14 @@ export const filtrarPropriedades = <T extends Propriedade>(lista: T[], termo: st
   const tDigitos = t.replace(/\D/g, '');
   return lista.filter(p => {
     const texto = semAcento([
-      p.nome_propriedade, p.municipio, p.uf, p.codigo_car,
+      p.nome_propriedade, p.municipio, p.uf, p.codigo_car, p.oficio_ri, p.cns_ri,
       (p.clientes || []).map(c => c.nome_completo).join(' ')
     ].map(v => v || '').join('|'));
     if (texto.includes(t)) return true;
-    return tDigitos.length >= 3 && (p.codigo_ccir || '').replace(/\D/g, '').includes(tDigitos);
+    return tDigitos.length >= 3 && (
+      (p.codigo_ccir || '').replace(/\D/g, '').includes(tDigitos)
+      || (p.cns_ri || '').replace(/\D/g, '').includes(tDigitos)
+    );
   });
 };
 

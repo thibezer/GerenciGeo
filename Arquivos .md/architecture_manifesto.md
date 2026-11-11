@@ -105,11 +105,39 @@ CREATE TABLE IF NOT EXISTS propriedades (
     nome_propriedade TEXT NOT NULL,
     municipio TEXT NOT NULL,
     uf TEXT NOT NULL,
+    cns_ri TEXT, -- CNS do Registro de Imóveis da propriedade (XX.XXX-X)
+    oficio_ri TEXT, -- Ofício do Registro de Imóveis (ex: 1º Ofício, Ofício Único)
     codigo_car TEXT, -- Registro CAR [100]
     codigo_ccir TEXT, -- Código INCRA/CCIR [100]
     caminho_arquivo_car TEXT, -- Armazenamento seguro de PDFs [103]
     caminho_arquivo_ccir TEXT,
     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5.1 municipios, cartorios_ri e municipio_cartorios (Catálogo PR 399 municípios + vínculo N:M com RIs)
+CREATE TABLE IF NOT EXISTS municipios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    uf TEXT NOT NULL,
+    UNIQUE(nome, uf)
+);
+
+CREATE TABLE IF NOT EXISTS cartorios_ri (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cns TEXT NOT NULL UNIQUE, -- XX.XXX-X
+    oficio TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS municipio_cartorios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    municipio TEXT NOT NULL COLLATE NOCASE,
+    uf TEXT NOT NULL,
+    cns TEXT NOT NULL DEFAULT '',
+    oficio TEXT NOT NULL DEFAULT '',
+    cartorio TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (municipio, uf, cns)
 );
 
 -- 6. propriedade_clientes (Associação M:N de Coproprietários / Condomínios)

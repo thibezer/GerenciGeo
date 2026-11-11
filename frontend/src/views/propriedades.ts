@@ -1,6 +1,6 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
-import { initIcons, formatarCAR, formatarCCIR, showToast, customAlert, customConfirm, escapeHtml, formatarDataHoraUtc } from '../utils';
+import { initIcons, formatarCAR, formatarCCIR, formatarCNS, showToast, customAlert, customConfirm, escapeHtml, formatarDataHoraUtc } from '../utils';
 import { renderBotoesPaginacaoHtml } from '../utils/lista_padrao';
 import {
   filtrarPropriedades,
@@ -10,6 +10,16 @@ import {
   renderLinhasPropHtml
 } from './propriedades/propriedades_helpers';
 import type { SegmentoProp, CampoOrdemProp, DirecaoOrdem } from './propriedades/propriedades_helpers';
+import {
+  mesclarCatalogoMunicipios,
+  acharMunicipioCatalogo,
+  mapearCnsParaMunicipios,
+  formatarRotuloMunicipioDatalist,
+  normalizarCns,
+  cnsEhCompleto,
+  semAcentoTexto
+} from './propriedades/municipios_ri_helpers';
+import type { MunicipioCartorioItem, CnsCobertura } from './propriedades/municipios_ri_helpers';
 
 
 let clickOutsideHandlerClientes: ((e: MouseEvent) => void) | null = null;
@@ -184,10 +194,22 @@ export const propriedadesRoute: RouteDef = {
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">UF *</label>
                          <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase font-mono" placeholder="PR">
                       </div>
-                      <div class="col-span-2 sm:col-span-4">
-                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Cartório de Registro do Município</label>
-                         <input type="text" name="cartorio_municipio" class="glass-input w-full text-xs h-8" placeholder="Ex: Cartório de Registro de Imóveis de Umuarama (preenche sozinho nas próximas vezes)">
+                      <div class="col-span-2 sm:col-span-2">
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Ofício do RI (Cartório)</label>
+                         <input type="text" name="oficio_ri" list="lista-oficios-ri" autocomplete="off" class="glass-input w-full text-xs h-8" placeholder="Ex: 1º Ofício, 2º Ofício, Único">
+                         <datalist id="lista-oficios-ri">
+                            <option value="1º Ofício"></option>
+                            <option value="2º Ofício"></option>
+                            <option value="3º Ofício"></option>
+                            <option value="Ofício Único"></option>
+                         </datalist>
                       </div>
+                      <div class="col-span-2 sm:col-span-2">
+                         <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">CNS do RI (XX.XXX-X)</label>
+                         <input type="text" name="cns_ri" list="lista-cns-ri" inputmode="numeric" maxlength="8" autocomplete="off" class="glass-input w-full text-xs h-8 font-mono text-amber-300" placeholder="00.000-0">
+                         <datalist id="lista-cns-ri"></datalist>
+                      </div>
+                      <div id="ri-municipio-sugestoes" class="col-span-2 sm:col-span-4 hidden text-[10px] space-y-1.5"></div>
                       <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CAR</label>
                          <input type="text" name="codigo_car" class="glass-input w-full text-xs h-8 font-mono text-mint-vibrant" placeholder="PR-4128104-58A2...">
@@ -473,60 +495,254 @@ export const propriedadesRoute: RouteDef = {
       t.value = formatarCCIR(t.value);
     });
 
+    let ufAutoPreenchida = false;
+    let riAutoPreenchido = false;
+    let oficioAutoPorCns = false;
+
     inputUF?.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
       t.value = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+      ufAutoPreenchida = false;
+      atualizarSugestoesRiNoModal();
     });
 
-    // --- LISTA DE MUNICÍPIOS E CARTÓRIOS ---
-    type MunicipioCartorio = { municipio: string; uf: string; cartorio?: string | null };
-    let municipiosCartorios: MunicipioCartorio[] = [];
+    // --- LISTA DE MUNICÍPIOS E RIs (CNS XX.XXX-X + OFÍCIO, N:M) ---
+    let municipiosCartorios: MunicipioCartorioItem[] = mesclarCatalogoMunicipios([]);
+    let cnsCoberturaMap: Map<string, CnsCobertura> = mapearCnsParaMunicipios(municipiosCartorios);
     const inputMunicipio = formProp?.querySelector('[name="municipio"]') as HTMLInputElement;
-    const inputCartorioMun = formProp?.querySelector('[name="cartorio_municipio"]') as HTMLInputElement;
+    const inputOficioRi = formProp?.querySelector('[name="oficio_ri"]') as HTMLInputElement;
+    const inputCnsRi = formProp?.querySelector('[name="cns_ri"]') as HTMLInputElement;
     const datalistMunicipios = document.getElementById('lista-municipios-cartorios') as HTMLDataListElement;
+    const datalistCns = document.getElementById('lista-cns-ri') as HTMLDataListElement;
+    const containerSugestoesRi = document.getElementById('ri-municipio-sugestoes') as HTMLElement;
 
-    const acharMunicipioCartorio = (municipio: string, uf?: string): MunicipioCartorio | undefined => {
-      const alvo = municipio.trim().toLowerCase();
-      if (!alvo) return undefined;
-      const ufNorm = (uf || '').trim().toUpperCase();
-      return municipiosCartorios.find(m => m.municipio.toLowerCase() === alvo && (!ufNorm || m.uf === ufNorm))
-        || municipiosCartorios.find(m => m.municipio.toLowerCase() === alvo);
+    const acharMunicipioCartorio = (municipio: string, uf?: string): MunicipioCartorioItem | undefined =>
+      acharMunicipioCatalogo(municipiosCartorios, municipio, uf);
+
+    const renderDatalistsCatalogo = () => {
+      if (datalistMunicipios) {
+        datalistMunicipios.innerHTML = municipiosCartorios.map(m => {
+          const lbl = formatarRotuloMunicipioDatalist(m);
+          return `<option value="${escapeHtml(m.municipio)}" label="${escapeHtml(lbl)}">${escapeHtml(lbl)}</option>`;
+        }).join('');
+      }
+      if (datalistCns) {
+        const opcoesCns = Array.from(cnsCoberturaMap.values())
+          .sort((a, b) => a.cns.localeCompare(b.cns))
+          .map(cob => {
+            const desc = `${cob.oficio || 'RI'} — Atende: ${cob.municipios.join(', ')}`;
+            return `<option value="${escapeHtml(cob.cns)}" label="${escapeHtml(desc)}">${escapeHtml(desc)}</option>`;
+          });
+        datalistCns.innerHTML = opcoesCns.join('');
+      }
+    };
+
+    const atualizarSugestoesRiNoModal = () => {
+      if (!containerSugestoesRi) return;
+      const munVal = (inputMunicipio?.value || '').trim();
+      const ufVal = (inputUF?.value || '').trim().toUpperCase();
+      const munItem = acharMunicipioCartorio(munVal, ufVal);
+      const cnsDigitado = normalizarCns(inputCnsRi?.value || '');
+      const partes: string[] = [];
+
+      if (munItem && munItem.ris.length > 0) {
+        const chipsHtml = munItem.ris.map(ri => {
+          const ativo = cnsDigitado && ri.cns === cnsDigitado;
+          const cls = ativo
+            ? 'bg-mint-vibrant/20 border-mint-vibrant/60 text-mint-vibrant'
+            : 'bg-white/[0.04] border-white/10 text-white/80 hover:border-mint-vibrant/40 hover:text-white';
+          return `
+            <span class="inline-flex items-center rounded border text-[10px] transition-colors ${cls}">
+              <button type="button" class="px-2 py-0.5 flex items-center gap-1.5 cursor-pointer btn-selecionar-ri-chip"
+                data-cns="${escapeHtml(ri.cns)}" data-oficio="${escapeHtml(ri.oficio || '')}"
+                title="Selecionar este RI para a propriedade">
+                <span class="font-semibold">${escapeHtml(ri.oficio || 'RI')}</span>
+                <span class="font-mono text-amber-300/90">${escapeHtml(ri.cns)}</span>
+              </button>
+              <button type="button" class="pr-1.5 pl-0.5 py-0.5 text-white/35 hover:text-red-400 cursor-pointer btn-desvincular-ri-chip"
+                data-cns="${escapeHtml(ri.cns)}" data-mun="${escapeHtml(munItem.municipio)}" data-uf="${escapeHtml(munItem.uf)}"
+                title="Remover vínculo deste CNS com ${escapeHtml(munItem.municipio)}">×</button>
+            </span>`;
+        }).join('');
+        partes.push(`
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[9px] uppercase tracking-wider text-white/40 font-bold">RIs em ${escapeHtml(munItem.municipio)}/${escapeHtml(munItem.uf)}:</span>
+            ${chipsHtml}
+            <button type="button" id="btn-novo-ri-municipio" class="px-2 py-0.5 rounded border border-dashed border-white/15 text-[10px] text-white/60 hover:text-white hover:border-white/30 cursor-pointer">+ Outro RI</button>
+          </div>
+        `);
+      } else if (munItem?.cartorio) {
+        partes.push(`
+          <div class="text-[10px] text-white/50">
+            Registro legado: <span class="text-white/75">${escapeHtml(munItem.cartorio)}</span> — informe Ofício e CNS (XX.XXX-X).
+          </div>
+        `);
+      }
+
+      if (cnsDigitado) {
+        const cob = cnsCoberturaMap.get(cnsDigitado);
+        if (cob) {
+          const munChaveAtual = munItem ? semAcentoTexto(`${munItem.municipio}/${munItem.uf}`) : semAcentoTexto(`${munVal}/${ufVal}`);
+          const outras = cob.municipios.filter(x => semAcentoTexto(x) !== munChaveAtual);
+          if (outras.length > 0) {
+            const aindaNaoVinculado = !munItem?.ris.some(r => r.cns === cnsDigitado);
+            partes.push(`
+              <div class="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-amber-200/90 flex items-center gap-1.5">
+                <span class="font-mono font-bold">${escapeHtml(cnsDigitado)}</span>
+                <span>(${escapeHtml(cob.oficio || 'RI')}) atende também: <strong>${escapeHtml(outras.join(', '))}</strong>${aindaNaoVinculado && munVal ? ' · será vinculado a este município ao salvar' : ''}</span>
+              </div>
+            `);
+          }
+        }
+      }
+
+      if (partes.length > 0) {
+        containerSugestoesRi.innerHTML = partes.join('');
+        containerSugestoesRi.classList.remove('hidden');
+      } else {
+        containerSugestoesRi.innerHTML = '';
+        containerSugestoesRi.classList.add('hidden');
+      }
     };
 
     const carregarMunicipiosCartorios = async () => {
       try {
         const res = await fetch(`${API_BASE}/municipios-cartorios`);
         if (!res.ok) return;
-        municipiosCartorios = await res.json();
-        if (datalistMunicipios) {
-          datalistMunicipios.innerHTML = municipiosCartorios.map(m =>
-            `<option value="${escapeHtml(m.municipio)}" label="${escapeHtml(`${m.uf}${m.cartorio ? ' — ' + m.cartorio : ''}`)}">${escapeHtml(m.uf)}${m.cartorio ? ' — ' + escapeHtml(m.cartorio) : ''}</option>`
-          ).join('');
+        const remoto = await res.json();
+        municipiosCartorios = mesclarCatalogoMunicipios(Array.isArray(remoto) ? remoto : []);
+        cnsCoberturaMap = mapearCnsParaMunicipios(municipiosCartorios);
+        renderDatalistsCatalogo();
+        const modalAberto = !document.getElementById('modal-propriedade')?.classList.contains('hidden');
+        if (modalAberto) {
+          if (inputMunicipio?.value && inputCnsRi && !inputCnsRi.value.trim() && inputOficioRi && !inputOficioRi.value.trim()) {
+            const m = acharMunicipioCartorio(inputMunicipio.value, inputUF?.value);
+            if (m && m.ris.length === 1) {
+              inputOficioRi.value = m.ris[0].oficio;
+              inputCnsRi.value = m.ris[0].cns;
+              riAutoPreenchido = true;
+            }
+          }
+          atualizarSugestoesRiNoModal();
         }
-      } catch { /* lista é apenas conveniência */ }
+      } catch { /* fallback local com os 399 municípios do PR segue ativo */ }
     };
+
+    containerSugestoesRi?.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      const btnSel = target.closest('.btn-selecionar-ri-chip') as HTMLElement | null;
+      if (btnSel) {
+        if (inputOficioRi) inputOficioRi.value = btnSel.dataset.oficio || '';
+        if (inputCnsRi) inputCnsRi.value = btnSel.dataset.cns || '';
+        riAutoPreenchido = false;
+        oficioAutoPorCns = false;
+        atualizarSugestoesRiNoModal();
+        return;
+      }
+      const btnNovo = target.closest('#btn-novo-ri-municipio');
+      if (btnNovo) {
+        if (inputOficioRi) inputOficioRi.value = '';
+        if (inputCnsRi) inputCnsRi.value = '';
+        riAutoPreenchido = false;
+        oficioAutoPorCns = false;
+        atualizarSugestoesRiNoModal();
+        inputOficioRi?.focus();
+        return;
+      }
+      const btnUnlink = target.closest('.btn-desvincular-ri-chip') as HTMLElement | null;
+      if (btnUnlink) {
+        const cns = btnUnlink.dataset.cns || '';
+        const mun = btnUnlink.dataset.mun || '';
+        const uf = btnUnlink.dataset.uf || '';
+        if (!cns || !mun || !uf) return;
+        if (!(await customConfirm(`Desvincular o CNS ${cns} do município ${mun}/${uf}?`))) return;
+        try {
+          const qs = new URLSearchParams({ municipio: mun, uf, cns }).toString();
+          const res = await fetch(`${API_BASE}/municipios-cartorios?${qs}`, { method: 'DELETE' });
+          if (res.ok) {
+            if (normalizarCns(inputCnsRi?.value || '') === cns) {
+              if (inputCnsRi) inputCnsRi.value = '';
+              if (inputOficioRi && riAutoPreenchido) inputOficioRi.value = '';
+            }
+            await carregarMunicipiosCartorios();
+            atualizarSugestoesRiNoModal();
+            showToast('Vínculo de RI removido do município.', 'success');
+          }
+        } catch {
+          showToast('Erro de conexão ao desvincular RI.', 'error');
+        }
+      }
+    });
 
     inputMunicipio?.addEventListener('input', () => {
       const m = acharMunicipioCartorio(inputMunicipio.value, inputUF?.value);
-      if (!m) return;
-      if (inputUF && !inputUF.value) inputUF.value = m.uf;
-      if (inputCartorioMun && m.cartorio) inputCartorioMun.value = m.cartorio;
+      if (!m) {
+        if (riAutoPreenchido) {
+          if (inputOficioRi) inputOficioRi.value = '';
+          if (inputCnsRi) inputCnsRi.value = '';
+          riAutoPreenchido = false;
+          oficioAutoPorCns = false;
+        }
+        atualizarSugestoesRiNoModal();
+        return;
+      }
+      if (inputUF && (!inputUF.value.trim() || ufAutoPreenchida)) {
+        inputUF.value = m.uf;
+        ufAutoPreenchida = true;
+      }
+      const camposVazios = !inputCnsRi?.value.trim() && !inputOficioRi?.value.trim();
+      if (m.ris.length === 1 && (camposVazios || riAutoPreenchido)) {
+        if (inputOficioRi) inputOficioRi.value = m.ris[0].oficio;
+        if (inputCnsRi) inputCnsRi.value = m.ris[0].cns;
+        riAutoPreenchido = true;
+        oficioAutoPorCns = false;
+      } else if (m.ris.length !== 1 && riAutoPreenchido) {
+        if (inputOficioRi) inputOficioRi.value = '';
+        if (inputCnsRi) inputCnsRi.value = '';
+        riAutoPreenchido = false;
+        oficioAutoPorCns = false;
+      }
+      atualizarSugestoesRiNoModal();
     });
 
-    const salvarCartorioMunicipio = async (municipio: string, uf: string, cartorio: string) => {
-      if (!municipio.trim() || uf.trim().length !== 2) return;
-      const atual = acharMunicipioCartorio(municipio, uf)?.cartorio || '';
-      if (atual.trim() === cartorio.trim()) return;
+    inputOficioRi?.addEventListener('input', () => {
+      riAutoPreenchido = false;
+      oficioAutoPorCns = false;
+    });
+
+    inputCnsRi?.addEventListener('input', (e) => {
+      const t = e.target as HTMLInputElement;
+      t.value = formatarCNS(t.value);
+      riAutoPreenchido = false;
+      if (cnsEhCompleto(t.value)) {
+        const cob = cnsCoberturaMap.get(t.value);
+        if (cob?.oficio && inputOficioRi && (!inputOficioRi.value.trim() || oficioAutoPorCns)) {
+          inputOficioRi.value = cob.oficio;
+          oficioAutoPorCns = true;
+        }
+      }
+      atualizarSugestoesRiNoModal();
+    });
+
+    const salvarCartorioMunicipio = async (municipio: string, uf: string, oficio: string, cns: string) => {
+      const cnsNorm = normalizarCns(cns);
+      if (!municipio.trim() || uf.trim().length !== 2 || !cnsNorm) return;
       try {
         await fetch(`${API_BASE}/municipios-cartorios`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ municipio: municipio.trim(), uf: uf.trim(), cartorio: cartorio.trim() })
+          body: JSON.stringify({
+            municipio: municipio.trim(),
+            uf: uf.trim().toUpperCase(),
+            oficio: oficio.trim(),
+            cns: cnsNorm
+          })
         });
         await carregarMunicipiosCartorios();
       } catch { /* não bloqueia o salvamento da propriedade */ }
     };
 
+    renderDatalistsCatalogo();
     carregarMunicipiosCartorios();
 
     // --- MASCARAS DA MATRÍCULA ---
@@ -1122,6 +1338,10 @@ export const propriedadesRoute: RouteDef = {
        if (id === null) {
           // Novo Cadastro
           formProp?.reset();
+          ufAutoPreenchida = false;
+          riAutoPreenchido = false;
+          oficioAutoPorCns = false;
+          atualizarSugestoesRiNoModal();
           if (modalTitulo) modalTitulo.innerText = "Nova Propriedade";
           if (modalSubtitulo) modalSubtitulo.innerText = "Preencha os dados cadastrais do imóvel rural";
           if (submitBtn) submitBtn.innerText = "Cadastrar Propriedade";
@@ -1162,7 +1382,25 @@ export const propriedadesRoute: RouteDef = {
           setFormVal('codigo_ccir', p.codigo_ccir ? formatarCCIR(p.codigo_ccir) : '');
           setFormVal('municipio', p.municipio);
           setFormVal('uf', p.uf);
-          setFormVal('cartorio_municipio', acharMunicipioCartorio(p.municipio || '', p.uf)?.cartorio || '');
+          ufAutoPreenchida = false;
+          oficioAutoPorCns = false;
+          const cnsSalvo = p.cns_ri ? formatarCNS(p.cns_ri) : '';
+          const oficioSalvo = (p.oficio_ri || '').trim();
+          const munCat = acharMunicipioCartorio(p.municipio || '', p.uf);
+          if (cnsSalvo || oficioSalvo) {
+             setFormVal('oficio_ri', oficioSalvo);
+             setFormVal('cns_ri', cnsSalvo);
+             riAutoPreenchido = false;
+          } else if (munCat && munCat.ris.length === 1) {
+             setFormVal('oficio_ri', munCat.ris[0].oficio);
+             setFormVal('cns_ri', munCat.ris[0].cns);
+             riAutoPreenchido = true;
+          } else {
+             setFormVal('oficio_ri', '');
+             setFormVal('cns_ri', '');
+             riAutoPreenchido = false;
+          }
+          atualizarSugestoesRiNoModal();
 
           if (badgeProp) badgeProp.innerText = String((p.clientes || []).length);
           if (badgeMat) badgeMat.innerText = String(p.total_matriculas || 0);
@@ -1755,8 +1993,17 @@ export const propriedadesRoute: RouteDef = {
        e.preventDefault();
        const formData = new FormData(e.target as HTMLFormElement);
        const payload: Record<string, any> = Object.fromEntries(formData.entries());
-       const cartorioMunicipio = String(payload.cartorio_municipio || '');
-       delete payload.cartorio_municipio;
+       const cnsBruto = String(payload.cns_ri || '');
+       const digitosCns = cnsBruto.replace(/\D/g, '');
+       if (digitosCns.length > 0 && digitosCns.length !== 6) {
+          showToast("O código CNS do RI deve ter 6 dígitos no formato XX.XXX-X.", "error");
+          inputCnsRi?.focus();
+          return;
+       }
+       const cnsRi = digitosCns.length === 6 ? formatarCNS(digitosCns) : '';
+       const oficioRi = String(payload.oficio_ri || '').trim();
+       payload.cns_ri = cnsRi || null;
+       payload.oficio_ri = oficioRi || null;
 
        const submitBtn = document.getElementById('btn-submit-prop') as HTMLButtonElement;
        if (submitBtn) {
@@ -1778,7 +2025,9 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) {
              customAlert(data.error);
           } else {
-             await salvarCartorioMunicipio(String(payload.municipio || ''), String(payload.uf || ''), cartorioMunicipio);
+             if (cnsRi) {
+                await salvarCartorioMunicipio(String(payload.municipio || ''), String(payload.uf || ''), oficioRi, cnsRi);
+             }
              const idFinal = propriedadeSelecionadaId || data.id;
              showToast(propriedadeSelecionadaId ? "Propriedade atualizada com sucesso." : "Propriedade cadastrada com sucesso.", "success");
              

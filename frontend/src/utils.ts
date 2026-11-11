@@ -26,6 +26,13 @@ export const formatarCCIR = (v: string): string => {
    return d;
 };
 
+export const formatarCNS = (v: string): string => {
+   const d = (v || '').replace(/\D/g, '').slice(0, 6);
+   if (d.length <= 2) return d;
+   if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+   return `${d.slice(0, 2)}.${d.slice(2, 5)}-${d.slice(5)}`;
+};
+
 /**
  * Formata coordenada UTM para exibição na tabela
  * Ex: 7412345.123 → "7.412.345,123"

@@ -221,8 +221,29 @@ function ensureSchema(PDO $pdo): void {
             municipio VARCHAR(100),
             comarca VARCHAR(100),
             uf VARCHAR(10) DEFAULT 'SP',
+            cns_ri VARCHAR(16) NULL,
+            oficio_ri VARCHAR(100) NULL,
             area_total_ha DECIMAL(12,4) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS cartorios_ri (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cns VARCHAR(16) NOT NULL,
+            oficio VARCHAR(100) NOT NULL DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_cartorios_ri_cns (cns)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS municipio_cartorios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            municipio VARCHAR(150) NOT NULL,
+            uf VARCHAR(10) NOT NULL,
+            cns VARCHAR(16) NOT NULL DEFAULT '',
+            oficio VARCHAR(100) NOT NULL DEFAULT '',
+            cartorio VARCHAR(255) NOT NULL DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_municipio_uf_cns (municipio, uf, cns)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
         "CREATE TABLE IF NOT EXISTS propriedade_proprietarios (
@@ -461,9 +482,13 @@ function ensureSchema(PDO $pdo): void {
     // Garante colunas de compatibilidade se tabelas antigas existiam no MySQL
     addColumnSafe($pdo, 'propriedades', 'nome', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'propriedades', 'nome_propriedade', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'propriedades', 'codigo_car', 'VARCHAR(100) NULL');
+    addColumnSafe($pdo, 'propriedades', 'codigo_ccir', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'propriedades', 'municipio', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'propriedades', 'comarca', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'propriedades', 'uf', 'VARCHAR(10) DEFAULT "SP"');
+    addColumnSafe($pdo, 'propriedades', 'cns_ri', 'VARCHAR(16) NULL');
+    addColumnSafe($pdo, 'propriedades', 'oficio_ri', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'propriedades', 'area_total_ha', 'DECIMAL(12,4) DEFAULT 0');
     addColumnSafe($pdo, 'propriedades', 'caminho_arquivo_car', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'propriedades', 'caminho_arquivo_ccir', 'VARCHAR(255) NULL');
@@ -2080,6 +2105,187 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
     }
 }
 
+// 2. ROTAS DE MUNICÍPIOS E RIs (CNS XX.XXX-X + OFÍCIO, N:M)
+function ggSemAcentoLower(?string $texto): string {
+    $t = trim((string)($texto ?? ''));
+    if ($t === '') return '';
+    static $mapa = [
+        'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a','Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a','Ä'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','É'=>'e','È'=>'e','Ê'=>'e','Ë'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i','Í'=>'i','Ì'=>'i','Î'=>'i','Ï'=>'i',
+        'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o','ö'=>'o','Ó'=>'o','Ò'=>'o','Õ'=>'o','Ô'=>'o','Ö'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u','Ú'=>'u','Ù'=>'u','Û'=>'u','Ü'=>'u',
+        'ç'=>'c','Ç'=>'c','ñ'=>'n','Ñ'=>'n'
+    ];
+    return strtolower(strtr($t, $mapa));
+}
+
+function ggValidarNormalizarCns(?string $valor): ?string {
+    $bruto = trim((string)($valor ?? ''));
+    if ($bruto === '') return null;
+    $digitos = preg_replace('/\D/', '', $bruto);
+    if ($digitos === '') return null;
+    if (strlen($digitos) !== 6) {
+        jsonResponse(['error' => 'O código CNS do RI deve conter 6 dígitos no formato XX.XXX-X.'], 400);
+    }
+    return substr($digitos, 0, 2) . '.' . substr($digitos, 2, 3) . '-' . substr($digitos, 5, 1);
+}
+
+function ggVincularRiMunicipio(PDO $pdo, string $municipio, string $uf, ?string $cns, ?string $oficio, string $cartorioLegado = ''): array {
+    $mun = trim($municipio);
+    $ufNorm = strtoupper(trim($uf));
+    $oficioClean = trim((string)($oficio ?? ''));
+    $cnsNorm = ggValidarNormalizarCns($cns);
+    if ($mun === '' || strlen($ufNorm) !== 2) return [null, $oficioClean];
+
+    if ($cnsNorm !== null) {
+        $stRi = $pdo->prepare("INSERT INTO cartorios_ri (cns, oficio) VALUES (?, ?) ON DUPLICATE KEY UPDATE oficio = IF(TRIM(VALUES(oficio)) <> '', VALUES(oficio), oficio)");
+        $stRi->execute([$cnsNorm, $oficioClean]);
+        $stSelRi = $pdo->prepare("SELECT oficio FROM cartorios_ri WHERE cns = ? LIMIT 1");
+        $stSelRi->execute([$cnsNorm]);
+        $ofFinal = trim((string)($stSelRi->fetchColumn() ?: '')) ?: $oficioClean;
+        $label = $ofFinal !== '' ? "{$ofFinal} - CNS {$cnsNorm}" : "CNS {$cnsNorm}";
+
+        $chaveAlvo = ggSemAcentoLower($mun);
+        $stBusca = $pdo->prepare("SELECT id, municipio FROM municipio_cartorios WHERE uf = ? AND cns = ?");
+        $stBusca->execute([$ufNorm, $cnsNorm]);
+        $existenteId = null;
+        foreach ($stBusca->fetchAll() as $rowMc) {
+            if (ggSemAcentoLower($rowMc['municipio'] ?? '') === $chaveAlvo) {
+                $existenteId = (int)$rowMc['id'];
+                break;
+            }
+        }
+        if ($existenteId) {
+            $pdo->prepare("UPDATE municipio_cartorios SET oficio = ?, cartorio = ? WHERE id = ?")
+                ->execute([$ofFinal, $label, $existenteId]);
+        } else {
+            $pdo->prepare("INSERT INTO municipio_cartorios (municipio, uf, cns, oficio, cartorio) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE oficio = VALUES(oficio), cartorio = VALUES(cartorio)")
+                ->execute([$mun, $ufNorm, $cnsNorm, $ofFinal, $label]);
+        }
+        $pdo->prepare("DELETE FROM municipio_cartorios WHERE LOWER(municipio) = LOWER(?) AND uf = ? AND cns = ''")
+            ->execute([$mun, $ufNorm]);
+        return [$cnsNorm, $ofFinal];
+    }
+
+    $legado = trim($cartorioLegado);
+    if ($legado !== '') {
+        $pdo->prepare("INSERT INTO municipio_cartorios (municipio, uf, cns, oficio, cartorio) VALUES (?, ?, '', ?, ?) ON DUPLICATE KEY UPDATE oficio = VALUES(oficio), cartorio = VALUES(cartorio)")
+            ->execute([$mun, $ufNorm, $oficioClean, $legado]);
+    }
+    return [null, $oficioClean];
+}
+
+if ($route === '/municipios-cartorios') {
+    if ($method === 'GET') {
+        $rowsMc = $pdo->query("
+            SELECT TRIM(mc.municipio) AS municipio, UPPER(TRIM(mc.uf)) AS uf,
+                   TRIM(COALESCE(mc.cns, '')) AS cns,
+                   COALESCE(NULLIF(TRIM(cr.oficio), ''), TRIM(COALESCE(mc.oficio, ''))) AS oficio,
+                   TRIM(COALESCE(mc.cartorio, '')) AS cartorio
+            FROM municipio_cartorios mc
+            LEFT JOIN cartorios_ri cr ON cr.cns = mc.cns
+            WHERE TRIM(COALESCE(mc.municipio, '')) <> ''
+        ")->fetchAll();
+        $rowsProps = $pdo->query("
+            SELECT TRIM(p.municipio) AS municipio, UPPER(TRIM(p.uf)) AS uf,
+                   TRIM(COALESCE(p.cns_ri, '')) AS cns_ri,
+                   COALESCE(NULLIF(TRIM(cr.oficio), ''), TRIM(COALESCE(p.oficio_ri, ''))) AS oficio_ri
+            FROM propriedades p
+            LEFT JOIN cartorios_ri cr ON cr.cns = p.cns_ri
+            WHERE TRIM(COALESCE(p.municipio, '')) <> ''
+        ")->fetchAll();
+
+        $mapa = [];
+        $garantir = function(string $mun, string $uf) use (&$mapa) {
+            $k = ggSemAcentoLower($mun) . '|' . strtoupper(trim($uf));
+            if (!isset($mapa[$k])) {
+                $mapa[$k] = ['municipio' => trim($mun), 'uf' => strtoupper(trim($uf)), 'ris' => [], 'cartorio' => ''];
+            }
+            return $k;
+        };
+
+        foreach ($rowsMc as $r) {
+            $k = $garantir((string)$r['municipio'], (string)$r['uf']);
+            $cns = trim((string)$r['cns']);
+            $of = trim((string)$r['oficio']);
+            if ($cns !== '') {
+                if (!isset($mapa[$k]['ris'][$cns]) || ($of !== '' && $mapa[$k]['ris'][$cns]['oficio'] === '')) {
+                    $mapa[$k]['ris'][$cns] = ['cns' => $cns, 'oficio' => $of];
+                }
+            } elseif (!empty($r['cartorio'])) {
+                $mapa[$k]['cartorio'] = $r['cartorio'];
+            }
+        }
+        foreach ($rowsProps as $r) {
+            $k = $garantir((string)$r['municipio'], (string)$r['uf']);
+            $cns = trim((string)$r['cns_ri']);
+            $of = trim((string)$r['oficio_ri']);
+            if ($cns !== '') {
+                if (!isset($mapa[$k]['ris'][$cns]) || ($of !== '' && $mapa[$k]['ris'][$cns]['oficio'] === '')) {
+                    $mapa[$k]['ris'][$cns] = ['cns' => $cns, 'oficio' => $of];
+                }
+            }
+        }
+
+        $saida = [];
+        foreach ($mapa as $entry) {
+            $ris = array_values($entry['ris']);
+            usort($ris, function($a, $b) {
+                $cmp = strcmp(ggSemAcentoLower($a['oficio']), ggSemAcentoLower($b['oficio']));
+                return $cmp !== 0 ? $cmp : strcmp($a['cns'], $b['cns']);
+            });
+            $resumo = $entry['cartorio'] !== '' ? $entry['cartorio'] : null;
+            if (count($ris) === 1) {
+                $r0 = $ris[0];
+                $resumo = $r0['oficio'] !== '' ? "{$r0['oficio']} · CNS {$r0['cns']}" : "CNS {$r0['cns']}";
+            } elseif (count($ris) > 1) {
+                $resumo = count($ris) . ' RIs (' . implode(', ', array_column($ris, 'cns')) . ')';
+            }
+            $saida[] = ['municipio' => $entry['municipio'], 'uf' => $entry['uf'], 'ris' => $ris, 'cartorio' => $resumo];
+        }
+        usort($saida, fn($a, $b) => strcmp(ggSemAcentoLower($a['municipio']), ggSemAcentoLower($b['municipio'])) ?: strcmp($a['uf'], $b['uf']));
+        jsonResponse($saida);
+    }
+
+    if ($method === 'PUT') {
+        $input = getJsonInput();
+        $mun = trim((string)($input['municipio'] ?? ''));
+        $uf = strtoupper(trim((string)($input['uf'] ?? '')));
+        if ($mun === '' || strlen($uf) !== 2) {
+            jsonResponse(['error' => 'Município e UF (2 letras) são obrigatórios.'], 400);
+        }
+        [$cnsNorm, $ofFinal] = ggVincularRiMunicipio($pdo, $mun, $uf, $input['cns'] ?? null, $input['oficio'] ?? null, (string)($input['cartorio'] ?? ''));
+        jsonResponse(['message' => 'Cartório/RI do município salvo.', 'cns' => $cnsNorm, 'oficio' => $ofFinal]);
+    }
+
+    if ($method === 'DELETE') {
+        $mun = trim((string)($_GET['municipio'] ?? ''));
+        $uf = strtoupper(trim((string)($_GET['uf'] ?? '')));
+        $cns = isset($_GET['cns']) && trim((string)$_GET['cns']) !== '' ? ggValidarNormalizarCns((string)$_GET['cns']) : '';
+        if ($mun === '' || strlen($uf) !== 2) {
+            jsonResponse(['error' => 'Município e UF válidos são obrigatórios.'], 400);
+        }
+        $chave = ggSemAcentoLower($mun);
+        if ($cns !== '') {
+            $st = $pdo->prepare("SELECT id, municipio FROM municipio_cartorios WHERE uf = ? AND cns = ?");
+            $st->execute([$uf, $cns]);
+        } else {
+            $st = $pdo->prepare("SELECT id, municipio FROM municipio_cartorios WHERE uf = ?");
+            $st->execute([$uf]);
+        }
+        $ids = [];
+        foreach ($st->fetchAll() as $row) {
+            if (ggSemAcentoLower($row['municipio'] ?? '') === $chave) $ids[] = (int)$row['id'];
+        }
+        if ($ids) {
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $pdo->prepare("DELETE FROM municipio_cartorios WHERE id IN ({$ph})")->execute($ids);
+        }
+        jsonResponse(['message' => 'Vínculo de RI removido do município.']);
+    }
+}
+
 // 2. ROTAS DE PROPRIEDADES
 if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)?$#', $route, $matches)) {
     $propId = isset($matches[1]) && $matches[1] !== '' ? (int)$matches[1] : null;
@@ -2322,14 +2528,26 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
         $input = getJsonInput();
         $nome = trim($input['nome'] ?? ($input['nome_propriedade'] ?? ''));
         if (empty($nome)) jsonResponse(['error' => 'Nome do imóvel é obrigatório.'], 400);
+        $mun = trim((string)($input['municipio'] ?? ''));
+        $uf = strtoupper(trim((string)($input['uf'] ?? 'SP')));
+        $cnsRi = ggValidarNormalizarCns($input['cns_ri'] ?? null);
+        $oficioRi = trim((string)($input['oficio_ri'] ?? '')) ?: null;
+        if ($cnsRi !== null && $mun !== '' && strlen($uf) === 2) {
+            [$cnsRi, $ofFinal] = ggVincularRiMunicipio($pdo, $mun, $uf, $cnsRi, $oficioRi);
+            $oficioRi = $ofFinal !== '' ? $ofFinal : $oficioRi;
+        }
 
-        $stmt = $pdo->prepare("INSERT INTO propriedades (nome, nome_propriedade, municipio, comarca, uf, area_total_ha) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO propriedades (nome, nome_propriedade, codigo_car, codigo_ccir, municipio, comarca, uf, cns_ri, oficio_ri, area_total_ha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $nome,
             $nome,
-            $input['municipio'] ?? null,
+            trim((string)($input['codigo_car'] ?? '')) ?: null,
+            trim((string)($input['codigo_ccir'] ?? '')) ?: null,
+            $mun ?: null,
             $input['comarca'] ?? null,
-            $input['uf'] ?? 'SP',
+            $uf ?: 'SP',
+            $cnsRi,
+            $oficioRi,
             (float)($input['area_total_ha'] ?? 0)
         ]);
         jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Propriedade criada com sucesso!'], 201);
@@ -2338,15 +2556,40 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
     // PUT /propriedades/{id}
     if ($method === 'PUT' && $propId) {
         $input = getJsonInput();
-        $nome = $input['nome'] ?? ($input['nome_propriedade'] ?? null);
-        $stmt = $pdo->prepare("UPDATE propriedades SET nome = COALESCE(?, nome), nome_propriedade = COALESCE(?, nome_propriedade), municipio = COALESCE(?, municipio), comarca = COALESCE(?, comarca), uf = COALESCE(?, uf), area_total_ha = COALESCE(?, area_total_ha) WHERE id = ?");
+        $stAtual = $pdo->prepare("SELECT * FROM propriedades WHERE id = ? LIMIT 1");
+        $stAtual->execute([$propId]);
+        $atual = $stAtual->fetch();
+        if (!$atual) jsonResponse(['error' => 'Propriedade não localizada.'], 404);
+
+        $nome = array_key_exists('nome', $input) || array_key_exists('nome_propriedade', $input)
+            ? trim((string)($input['nome'] ?? ($input['nome_propriedade'] ?? '')))
+            : $atual['nome_propriedade'];
+        $car = array_key_exists('codigo_car', $input) ? (trim((string)$input['codigo_car']) ?: null) : $atual['codigo_car'];
+        $ccir = array_key_exists('codigo_ccir', $input) ? (trim((string)$input['codigo_ccir']) ?: null) : $atual['codigo_ccir'];
+        $mun = array_key_exists('municipio', $input) ? trim((string)$input['municipio']) : $atual['municipio'];
+        $comarca = array_key_exists('comarca', $input) ? ($input['comarca'] ?: null) : $atual['comarca'];
+        $uf = array_key_exists('uf', $input) ? strtoupper(trim((string)$input['uf'])) : $atual['uf'];
+        $cnsRi = array_key_exists('cns_ri', $input) ? ggValidarNormalizarCns($input['cns_ri']) : ($atual['cns_ri'] ?? null);
+        $oficioRi = array_key_exists('oficio_ri', $input) ? (trim((string)$input['oficio_ri']) ?: null) : ($atual['oficio_ri'] ?? null);
+        $areaTotal = array_key_exists('area_total_ha', $input) ? (float)$input['area_total_ha'] : (float)($atual['area_total_ha'] ?? 0);
+
+        if ($cnsRi !== null && !empty($mun) && strlen((string)$uf) === 2) {
+            [$cnsRi, $ofFinal] = ggVincularRiMunicipio($pdo, (string)$mun, (string)$uf, $cnsRi, $oficioRi);
+            if ($ofFinal !== '' && empty($oficioRi)) $oficioRi = $ofFinal;
+        }
+
+        $stmt = $pdo->prepare("UPDATE propriedades SET nome = ?, nome_propriedade = ?, codigo_car = ?, codigo_ccir = ?, municipio = ?, comarca = ?, uf = ?, cns_ri = ?, oficio_ri = ?, area_total_ha = ? WHERE id = ?");
         $stmt->execute([
             $nome,
             $nome,
-            $input['municipio'] ?? null,
-            $input['comarca'] ?? null,
-            $input['uf'] ?? null,
-            isset($input['area_total_ha']) ? (float)$input['area_total_ha'] : null,
+            $car,
+            $ccir,
+            $mun,
+            $comarca,
+            $uf,
+            $cnsRi,
+            $oficioRi,
+            $areaTotal,
             $propId
         ]);
         jsonResponse(['id' => $propId, 'message' => 'Propriedade atualizada com sucesso!']);
