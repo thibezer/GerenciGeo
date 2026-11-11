@@ -67,10 +67,18 @@ def recompilar_frontend(git_output, forcar_build=False):
                     dist_mtime = max(dist_mtime, os.path.getmtime(p))
             
             src_mtime = 0
-            for root, _, files in os.walk(src_dir):
-                for f in files:
-                    p = os.path.join(root, f)
-                    src_mtime = max(src_mtime, os.path.getmtime(p))
+            pastas_fonte = [
+                src_dir,
+                os.path.join(os.path.dirname(frontend_dir), "..", "UI_Componentes", "src"),
+                os.path.join(frontend_dir, "UI_Componentes", "src"),
+            ]
+            for pasta in pastas_fonte:
+                if not os.path.exists(pasta):
+                    continue
+                for root, _, files in os.walk(pasta):
+                    for f in files:
+                        p = os.path.join(root, f)
+                        src_mtime = max(src_mtime, os.path.getmtime(p))
             
             if src_mtime > dist_mtime:
                 print("[!] Codigo fonte do frontend e mais recente que o dist atual. Recompilando...")

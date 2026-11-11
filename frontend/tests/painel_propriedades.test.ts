@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gerarPropriedadesMulti } from '../src/views/mesa_trabalho/painel_propriedades/adaptador_multi';
 import { construirCategoriasVertice } from '../src/views/mesa_trabalho/painel_propriedades/adaptador_vertice_categorias';
+import { gerarPropriedadesGerais } from '../src/views/mesa_trabalho/painel_propriedades/adaptador_geral';
+import { gerarPropriedadesSegmento } from '../src/views/mesa_trabalho/painel_propriedades/adaptador_segmento';
+import { chaveStoragePainel } from '../src/views/mesa_trabalho/painel_propriedades/tipos';
 
 const ctx = {
   segmentosList: [],
@@ -69,4 +72,21 @@ test('Vértice: ponto somente leitura mostra o rótulo do tipo', () => {
   const tipo = prop(categorias, 'tipo_ponto');
   assert.equal(tipo.tipo, 'readonly');
   assert.equal(tipo.valor, 'Base [B]');
+});
+
+test('Memória de categorias: cada modo tem storage-key distinta e IDs únicos dentro do modo', () => {
+  const chaves = (['geral', 'vertice', 'segmento', 'multi'] as const).map(chaveStoragePainel);
+  assert.equal(new Set(chaves).size, 4);
+
+  const catSets = [
+    gerarPropriedadesGerais(ctx).categorias,
+    construirCategoriasVertice(paramsVertice({ id: 1, tipo_ponto: 'M' })),
+    gerarPropriedadesSegmento({ id: 10, ponto_inicio_id: 1, ponto_fim_id: 2 }, ctx).categorias,
+    gerarPropriedadesMulti([{ id: 1, tipo_ponto: 'P' } as any], ctx).categorias
+  ];
+
+  for (const cats of catSets) {
+    const ids = cats.map((c: any) => c.id);
+    assert.equal(new Set(ids).size, ids.length, 'IDs de categoria precisam ser únicos para a memória do kit');
+  }
 });

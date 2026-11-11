@@ -14,7 +14,8 @@ export function gerarPropriedadesGerais(ctx: any): {
   const pontosAtivosCount = pontosList.filter((p: Ponto) => p.ignorar_poligono !== 1).length;
   const confrontantesCount = confrontantesList.length;
 
-  const fusoAtual = localStorage.getItem(`utm_zone_${ctx.currentLevId}`) || '22S';
+  const fusoAtual =
+    (typeof localStorage !== 'undefined' ? localStorage.getItem(`utm_zone_${ctx.currentLevId}`) : null) || '22S';
 
   const categorias: CategoriaPropriedades[] = [
     {

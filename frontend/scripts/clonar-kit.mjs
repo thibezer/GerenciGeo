@@ -7,14 +7,25 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const candidatos = [
+const externos = [
   resolve(raiz, '../../UI_Componentes/src/index.ts'),
-  resolve(raiz, '../UI_Componentes/src/index.ts'),
-  resolve(raiz, 'UI_Componentes/src/index.ts')
+  resolve(raiz, '../UI_Componentes/src/index.ts')
 ];
+const cloneLocal = resolve(raiz, 'UI_Componentes');
 
-if (candidatos.some((p) => existsSync(p))) {
-  console.log('[clonar-kit] ui-components-kit já disponível, nada a fazer.');
+if (externos.some((p) => existsSync(p))) {
+  console.log('[clonar-kit] ui-components-kit local já disponível, nada a fazer.');
+  process.exit(0);
+}
+
+if (existsSync(resolve(cloneLocal, 'src/index.ts'))) {
+  if (existsSync(resolve(cloneLocal, '.git'))) {
+    try {
+      execFileSync('git', ['-C', cloneLocal, 'pull', '--ff-only'], { stdio: 'inherit' });
+    } catch {
+      console.warn('[clonar-kit] Aviso: não foi possível atualizar frontend/UI_Componentes; usando cópia local.');
+    }
+  }
   process.exit(0);
 }
 

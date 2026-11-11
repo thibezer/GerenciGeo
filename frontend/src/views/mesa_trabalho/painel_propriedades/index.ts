@@ -1,4 +1,9 @@
-import type { UITabelaPropriedadesElement, UIPropertyChangeDetail } from './tipos';
+import { chaveStoragePainel } from './tipos';
+import type {
+  TipoPainelPropriedades,
+  UITabelaPropriedadesElement,
+  UIPropertyChangeDetail
+} from './tipos';
 import { gerarPropriedadesGerais } from './adaptador_geral';
 import { gerarPropriedadesVertice } from './adaptador_vertice';
 import { gerarPropriedadesMulti } from './adaptador_multi';
@@ -15,7 +20,7 @@ import type { Ponto } from '../painel_propriedades_helpers';
 import { showToast } from '../../../utils';
 
 let panelAbortController: AbortController | null = null;
-let ultimoTipoPainel: 'geral' | 'vertice' | 'segmento' | 'multi' | null = null;
+let ultimoTipoPainel: TipoPainelPropriedades | null = null;
 let ultimoPontoIdCarregado: number | string | null = null;
 
 function isFocadoNoPainel(el: HTMLElement | null): boolean {
@@ -93,6 +98,13 @@ function aplicarDados(
   }
   if (assinatura !== null && assinatura === ultimaAssinatura) return;
   ultimaAssinatura = assinatura;
+  // Cada modo (geral, vértice, segmento, lote) guarda suas próprias categorias abertas
+  if (ultimoTipoPainel) {
+    const chaveStorage = chaveStoragePainel(ultimoTipoPainel);
+    if (el.getAttribute('storage-key') !== chaveStorage) {
+      el.setAttribute('storage-key', chaveStorage);
+    }
+  }
   el.categorias = categorias;
   el.tipos = tipos;
   el.tipoSelecionado = tipoSelecionadoId;

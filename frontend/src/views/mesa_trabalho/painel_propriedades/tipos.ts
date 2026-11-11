@@ -41,7 +41,25 @@ export interface CategoriaPropriedades {
   id: string;
   titulo: string;
   aberto?: boolean;
+  aberta?: boolean;
   propriedades: ItemPropriedade[];
+}
+
+export type TipoPainelPropriedades = 'geral' | 'vertice' | 'segmento' | 'multi';
+
+export function chaveStoragePainel(tipo: TipoPainelPropriedades): string {
+  return `ui-props-tree-${tipo}`;
+}
+
+export interface DefinirEstadoCategoriasOpcoes {
+  persistir?: boolean;
+  emitirEvento?: boolean;
+}
+
+export interface UICategoriasEstadoDetail {
+  estado: Record<string, boolean>;
+  abertas: string[];
+  fechadas: string[];
 }
 
 export interface SeletorTipoItem {
@@ -65,6 +83,8 @@ export interface UITabelaPropriedadesElement extends HTMLElement {
   tipoSelecionado: string;
   valores: Record<string, any>;
   isDirty: boolean;
+  persistir: boolean;
+  storageKey: string | null;
   obterValor(propId: string): any;
   definirValor(propId: string, novoValor: any, emitirEvento?: boolean): void;
   aplicar(): void;
@@ -72,4 +92,9 @@ export interface UITabelaPropriedadesElement extends HTMLElement {
   expandirTudo(): void;
   colapsarTudo(): void;
   toggleCategoria(idCategoria: string): void;
+  obterChaveStorageAtual(): string;
+  obterEstadoCategorias(): Record<string, boolean>;
+  definirEstadoCategorias(estado: Record<string, boolean>, opcoes?: DefinirEstadoCategoriasOpcoes): void;
+  limparEstadoCategorias(): void;
+  limparLembranca(): void;
 }
