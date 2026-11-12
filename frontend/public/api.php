@@ -1580,6 +1580,9 @@ if (isset($_GET['codigo']) && $method === 'GET') {
             require_once __DIR__ . '/api_publico.php';
             $pin = trim((string)($_SERVER['HTTP_X_SHARE_PIN'] ?? ''));
             $res = obterLevantamentoPublico(getDb(), $codigo, $pin);
+            // Dados do cliente: nunca em cache de navegador/proxy nem em buscadores
+            header('Cache-Control: no-store, max-age=0');
+            header('X-Robots-Tag: noindex, nofollow');
             jsonResponse($res['body'], $res['status']);
         } catch (Throwable $e) {
             error_log('[levantamento-publico] ' . $e->getMessage());
@@ -2663,9 +2666,15 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // POST /levantamentos/{id}/compartilhar
     if ($method === 'POST' && $levId && $action === 'compartilhar') {
-        $codigo = substr(bin2hex(random_bytes(6)), 0, 8);
-        $stmt = $pdo->prepare("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?");
-        $stmt->execute([$codigo, $levId]);
+        // Reaproveita o código existente: o hash do PIN depende dele, trocar o código travaria o link
+        $stmt = $pdo->prepare("SELECT codigo_compartilhamento FROM levantamentos WHERE id = ?");
+        $stmt->execute([$levId]);
+        $codigo = (string)($stmt->fetchColumn() ?: '');
+        if ($codigo === '') {
+            $codigo = bin2hex(random_bytes(8));
+            $stmt = $pdo->prepare("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?");
+            $stmt->execute([$codigo, $levId]);
+        }
         jsonResponse(['codigo' => $codigo, 'message' => 'Link gerado na nuvem!']);
     }
 

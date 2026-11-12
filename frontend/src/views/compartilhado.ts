@@ -12,14 +12,15 @@ const setupTabs = () => {
     
     tabBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const targetId = (e.target as HTMLElement).getAttribute('data-target');
+            const alvo = e.currentTarget as HTMLElement;
+            const targetId = alvo.getAttribute('data-target');
             
             tabBtns.forEach(b => {
                 b.classList.remove('border-mint-vibrant', 'text-mint-vibrant');
                 b.classList.add('border-transparent', 'text-white/40');
             });
-            (e.target as HTMLElement).classList.remove('border-transparent', 'text-white/40');
-            (e.target as HTMLElement).classList.add('border-mint-vibrant', 'text-mint-vibrant');
+            alvo.classList.remove('border-transparent', 'text-white/40');
+            alvo.classList.add('border-mint-vibrant', 'text-mint-vibrant');
             
             tabPanes.forEach(pane => pane.classList.add('hidden'));
             document.getElementById(targetId || '')?.classList.remove('hidden');
@@ -179,10 +180,10 @@ const renderPropriedadesPonto = (ponto: any) => {
     
     const tipoInfo = tipoMap[ponto.tipo || ponto.tipo_ponto] || { label: ponto.tipo || 'Vértice', bg: 'bg-white/10 text-white border-white/20' };
 
-    const norteTxt = ponto.norte != null ? formatUTM(ponto.norte) : (ponto.lat != null ? ponto.lat.toFixed(6) : '—');
-    const esteTxt = ponto.este != null ? formatUTM(ponto.este) : (ponto.lon != null ? ponto.lon.toFixed(6) : '—');
-    const latTxt = ponto.lat != null ? ponto.lat.toFixed(6) : '—';
-    const lonTxt = ponto.lon != null ? ponto.lon.toFixed(6) : '—';
+    const norteTxt = ponto.norte != null ? formatUTM(Number(ponto.norte)) : (ponto.lat != null ? Number(ponto.lat).toFixed(6) : '—');
+    const esteTxt = ponto.este != null ? formatUTM(Number(ponto.este)) : (ponto.lon != null ? Number(ponto.lon).toFixed(6) : '—');
+    const latTxt = ponto.lat != null ? Number(ponto.lat).toFixed(6) : '—';
+    const lonTxt = ponto.lon != null ? Number(ponto.lon).toFixed(6) : '—';
     const altTxt = ponto.altitude != null ? `${Number(ponto.altitude).toFixed(3)} m` : '—';
 
     container.innerHTML = `
@@ -273,6 +274,23 @@ const renderPropriedadesPonto = (ponto: any) => {
  * Renderiza as tabelas do painel inferior
  */
 const renderTabelas = () => {
+    renderTabelasBase();
+    aplicarFiltroBusca();
+};
+
+/** Esconde as linhas que não casam com o texto digitado (reaplicado a cada re-render das tabelas). */
+const aplicarFiltroBusca = () => {
+    const input = document.getElementById('input-busca-ponto-publico') as HTMLInputElement | null;
+    const term = (input?.value || '').trim().toLowerCase();
+    document.getElementById('btn-limpar-busca-publico')?.classList.toggle('hidden', term.length === 0);
+    ['tbody-organizador-publico', 'tbody-todos-pontos-publico'].forEach(id => {
+        document.getElementById(id)?.querySelectorAll('tr').forEach(row => {
+            (row as HTMLElement).style.display = (row.textContent || '').toLowerCase().includes(term) ? '' : 'none';
+        });
+    });
+};
+
+const renderTabelasBase = () => {
     const tbodyOrg = document.getElementById('tbody-organizador-publico');
     const tbodyAll = document.getElementById('tbody-todos-pontos-publico');
     if (!tbodyOrg || !tbodyAll || !currentPublicData) return;
@@ -284,8 +302,8 @@ const renderTabelas = () => {
     if (txtCount) txtCount.innerText = `${pontos.length} vértices`;
     
     tbodyAll.innerHTML = pontos.map((p: any) => {
-        const norte = p.norte != null ? formatUTM(p.norte) : (p.lat != null ? p.lat.toFixed(6) : '—');
-        const este = p.este != null ? formatUTM(p.este) : (p.lon != null ? p.lon.toFixed(6) : '—');
+        const norte = p.norte != null ? formatUTM(Number(p.norte)) : (p.lat != null ? Number(p.lat).toFixed(6) : '—');
+        const este = p.este != null ? formatUTM(Number(p.este)) : (p.lon != null ? Number(p.lon).toFixed(6) : '—');
         const isSelected = p.id === currentSelectedPointId;
         const rowClass = isSelected 
             ? 'bg-mint-vibrant/20 border-l-4 border-mint-vibrant text-white font-bold' 
@@ -301,8 +319,8 @@ const renderTabelas = () => {
         </tr>`;
     }).join('');
     
-    const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
-    
+    const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento != null && Number(p.ordem_caminhamento) !== 0).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
+
     if (orgPontos.length === 0) {
         tbodyOrg.innerHTML = '<tr><td colspan="6" class="text-center p-6 text-white/40 italic">O caminhamento não possui sequência de ordem salva.</td></tr>';
         return;
@@ -315,8 +333,8 @@ const renderTabelas = () => {
         const p = orgPontos[i];
         const pNext = orgPontos[(i + 1) % orgPontos.length];
         const distance = dist(p, pNext);
-        const norte = p.norte != null ? formatUTM(p.norte) : (p.lat != null ? p.lat.toFixed(6) : '—');
-        const este = p.este != null ? formatUTM(p.este) : (p.lon != null ? p.lon.toFixed(6) : '—');
+        const norte = p.norte != null ? formatUTM(Number(p.norte)) : (p.lat != null ? Number(p.lat).toFixed(6) : '—');
+        const este = p.este != null ? formatUTM(Number(p.este)) : (p.lon != null ? Number(p.lon).toFixed(6) : '—');
         const isSelected = p.id === currentSelectedPointId;
 
         const rowClass = isSelected 
@@ -388,28 +406,7 @@ const setupLocalizadorPontos = () => {
     const btnClear = document.getElementById('btn-limpar-busca-publico');
     if (!inputSearch) return;
 
-    const filtrarPontos = () => {
-        const term = inputSearch.value.trim().toLowerCase();
-        if (btnClear) {
-            btnClear.classList.toggle('hidden', term.length === 0);
-        }
-
-        const tbodyOrg = document.getElementById('tbody-organizador-publico');
-        const tbodyAll = document.getElementById('tbody-todos-pontos-publico');
-        
-        [tbodyOrg, tbodyAll].forEach(tbody => {
-            if (!tbody) return;
-            const rows = tbody.querySelectorAll('tr');
-            rows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                if (text.includes(term)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    };
+    const filtrarPontos = aplicarFiltroBusca;
 
     inputSearch.addEventListener('input', filtrarPontos);
     
@@ -469,9 +466,13 @@ const exportarPontosCSV = () => {
         const lat = p.lat != null ? Number(p.lat).toFixed(6).replace('.', ',') : '';
         const lon = p.lon != null ? Number(p.lon).toFixed(6).replace('.', ',') : '';
         const alt = p.altitude != null ? Number(p.altitude).toFixed(3).replace('.', ',') : '';
-        const conf = (p.nome_confrontante || '').replace(/;/g, ',');
+        const txt = (v: any) => {
+            let t = String(v ?? '');
+            if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; // evita que o Excel execute texto como fórmula
+            return '"' + t.replace(/"/g, '""') + '"';
+        };
 
-        csvContent += `${ord};"${vertice}";"${tipo}";${norte};${este};${lat};${lon};${alt};"${conf}"\n`;
+        csvContent += `${ord};${txt(vertice)};${txt(tipo)};${norte};${este};${lat};${lon};${alt};${txt(p.nome_confrontante)}\r\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -499,10 +500,13 @@ const plotMapData = () => {
     mapController.clearOverlays();
     mapController.plotPontos(pontos, (id: number) => (window as any).selecionarPontoPublico(id));
     
-    if (segmentos && segmentos.length > 0) {
+    // Segmentos referenciam vértices por id; com planilha de cartório os ids mudam, então só vale o que casa
+    const idsPontos = new Set(pontos.map((p: any) => Number(p.id)));
+    segmentos = segmentos.filter((sg: any) => idsPontos.has(Number(sg.ponto_inicio_id)) && idsPontos.has(Number(sg.ponto_fim_id)));
+    if (segmentos.length > 0) {
         mapController.plotSegmentos(segmentos, pontos);
     } else {
-        const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento !== null).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
+        const orgPontos = pontos.filter((p: any) => p.ordem_caminhamento != null && Number(p.ordem_caminhamento) !== 0).sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
         mapController.plotPolilinhaTemporaria(orgPontos.length > 0 ? orgPontos : pontos);
     }
     
@@ -629,6 +633,8 @@ const carregarLevantamento = async (codigo: string, pin = '') => {
         if (res.status === 401) {
             try { sessionStorage.removeItem(PIN_STORAGE_PREFIX + codigo); } catch { /* sem storage */ }
             mostrarFormularioPin(codigo, pin ? 'PIN incorreto. Tente novamente.' : '');
+        } else if (res.status === 429) {
+            mostrarEstado('timer', 'Muitas tentativas', corpo.error || corpo.detail || 'Aguarde alguns minutos e tente novamente.');
         } else if (res.status === 410) {
             mostrarEstado('clock', 'Link expirado', 'Este link não está mais disponível. Peça um novo link ao responsável técnico.');
         } else if (res.status === 404) {

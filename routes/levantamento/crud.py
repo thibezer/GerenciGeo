@@ -12,7 +12,7 @@ import logging
 import datetime
 from collections import defaultdict
 from typing import Literal, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form, Header
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form, Header, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -470,11 +470,32 @@ def get_arquivos_levantamento(lev_id: int):
         raise HTTPException(status_code=500, detail="Erro interno ao listar arquivos do levantamento.")
 
 # Campos com caminhos/nomes de arquivos locais: nunca vão para o link público
-CAMPOS_PRIVADOS_PUBLICO = ("caminho_arquivo_pdf", "arquivo_rinex", "arquivo_resultado_ppp", "arquivo_origem",
-                           "dados_vizinho_json", "pasta_projeto", "compartilhamento_pin_hash")
+# (além de qualquer coluna caminho_*, arquivo_*, pasta_*, planilha_*). Espelho de pubLimpar() em api_publico.php.
+CAMPOS_PRIVADOS_PUBLICO = ("dados_vizinho_json", "compartilhamento_pin_hash", "cliente_id", "profissional_id")
+PREFIXOS_PRIVADOS_PUBLICO = ("caminho_", "arquivo_", "pasta_", "planilha_")
 
 def _sem_campos_privados(registro: dict) -> dict:
-    return {k: v for k, v in registro.items() if k not in CAMPOS_PRIVADOS_PUBLICO}
+    return {k: v for k, v in registro.items()
+            if k not in CAMPOS_PRIVADOS_PUBLICO and not str(k).startswith(PREFIXOS_PRIVADOS_PUBLICO)}
+
+
+def _expirou(expira: Optional[str]) -> bool:
+    """True se a data de validade (ISO 8601) já passou. Data ilegível ou sem fuso não bloqueia nem derruba a rota."""
+    if not expira:
+        return False
+    try:
+        dt = datetime.datetime.fromisoformat(expira)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt < datetime.datetime.now(datetime.timezone.utc)
+    except ValueError:
+        return False
+
+
+# Freio contra força bruta no PIN: 5 erros em 15 min por link+IP (espelho de pubPinBloqueado() no PHP)
+_PIN_MAX_ERROS = 5
+_PIN_JANELA_S = 900
+_pin_erros: dict = {}
 
 
 def _hash_pin_compartilhamento(codigo: str, pin: str) -> str:
@@ -492,12 +513,7 @@ class CompartilharPayload(BaseModel):
 
 def _status_compartilhamento(row) -> dict:
     expira = row["compartilhamento_expira_em"]
-    expirado = False
-    if expira:
-        try:
-            expirado = datetime.datetime.fromisoformat(expira) < datetime.datetime.now(datetime.timezone.utc)
-        except ValueError:
-            expirado = False
+    expirado = _expirou(expira)
     return {
         "ativo": bool(row["codigo_compartilhamento"]),
         "codigo": row["codigo_compartilhamento"],
@@ -588,26 +604,33 @@ def gerar_link_compartilhamento(lev_id: int, dados: Optional[CompartilharPayload
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 @router.get("/levantamentos/publico/{codigo}")
-def get_levantamento_publico(codigo: str, x_share_pin: Optional[str] = Header(None)):
+def get_levantamento_publico(codigo: str, request: Request, response: Response, x_share_pin: Optional[str] = Header(None)):
     """Link público: aplica revogação, validade e PIN antes de devolver os dados (espelho de api_publico.php)."""
     acesso = execute_query(
         "SELECT compartilhamento_expira_em, compartilhamento_pin_hash FROM levantamentos WHERE codigo_compartilhamento = ?",
         params=(codigo,), fetch_one=True)
     if not acesso:
         raise HTTPException(status_code=404, detail="Link inválido ou revogado.")
-    if acesso["compartilhamento_expira_em"]:
-        try:
-            if datetime.datetime.fromisoformat(acesso["compartilhamento_expira_em"]) < datetime.datetime.now(datetime.timezone.utc):
-                raise HTTPException(status_code=410, detail="Este link expirou. Solicite um novo ao responsável técnico.")
-        except ValueError:
-            pass
+    if _expirou(acesso["compartilhamento_expira_em"]):
+        raise HTTPException(status_code=410, detail="Este link expirou. Solicite um novo ao responsável técnico.")
     if acesso["compartilhamento_pin_hash"]:
         import hmac
+        import time
         pin = (x_share_pin or "").strip()
         if not pin:
             raise HTTPException(status_code=401, detail="Este link é protegido por PIN.")
+        chave = (codigo, request.client.host if request.client else "")
+        erros, ate = _pin_erros.get(chave, (0, 0.0))
+        if ate < time.time():
+            erros = 0
+        if erros >= _PIN_MAX_ERROS:
+            raise HTTPException(status_code=429, detail="Muitas tentativas com PIN incorreto. Aguarde 15 minutos e tente novamente.")
         if not hmac.compare_digest(acesso["compartilhamento_pin_hash"], _hash_pin_compartilhamento(codigo, pin)):
+            _pin_erros[chave] = (erros + 1, time.time() + _PIN_JANELA_S)
             raise HTTPException(status_code=401, detail="PIN incorreto.")
+        _pin_erros.pop(chave, None)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return _montar_payload_publico(codigo)
 
 
@@ -687,7 +710,7 @@ def _montar_payload_publico(codigo: str) -> dict:
 
         # Busca segmentos
         query_seg = "SELECT * FROM segmentos WHERE levantamento_id = ?"
-        lev_obj['segmentos'] = [dict(r) for r in execute_query(query_seg, params=(lev_id,), fetch_all=True)]
+        lev_obj['segmentos'] = [_sem_campos_privados(dict(r)) for r in execute_query(query_seg, params=(lev_id,), fetch_all=True)]
 
         return lev_obj
     except HTTPException:
