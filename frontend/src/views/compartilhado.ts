@@ -134,13 +134,13 @@ const renderResumoImovel = () => {
                 </div>
                 ${matriculas.length ? `<div><span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">Matrícula(s)</span><span class="text-white font-mono">${escapeHtml(matriculas.join(', '))}</span></div>` : ''}
                 ${d.codigo_car ? `<div><span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">CAR</span><span class="text-white/90 font-mono text-[11px] break-all">${escapeHtml(d.codigo_car)}</span></div>` : ''}
+                ${confrontantes.length ? `
+                <div class="border-t border-white/10 pt-2">
+                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">Confrontantes</span>
+                    <ul class="space-y-1 text-white/90">${confrontantes.map(c => `<li class="flex gap-1.5"><span class="text-mint-vibrant">•</span><span>${escapeHtml(c)}</span></li>`).join('')}</ul>
+                </div>` : ''}
             </div>
-            ${confrontantes.length ? `
-            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
-                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">Confrontantes</span>
-                <ul class="space-y-1 text-white/90">${confrontantes.map(c => `<li class="flex gap-1.5"><span class="text-mint-vibrant">•</span><span>${escapeHtml(c)}</span></li>`).join('')}</ul>
-            </div>` : ''}
-            <p class="text-[11px] text-white/40 leading-relaxed flex gap-2 items-start">
+            <p class="text-[11px] text-white/50 leading-relaxed flex gap-2 items-start">
                 <i data-lucide="crosshair" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
                 <span>Toque em um vértice no mapa para ver suas coordenadas. A área é calculada a partir dos vértices e pode diferir da área registrada em matrícula.</span>
             </p>
@@ -189,81 +189,56 @@ const renderPropriedadesPonto = (ponto: any) => {
 
     container.innerHTML = `
         <div class="space-y-4">
-            <!-- TÍTULO E NAVEGAÇÃO ENTRE VÉRTICES -->
-            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
-                <button onclick="window.voltarResumoPublico()" class="mb-2 text-[11px] text-mint-vibrant hover:underline flex items-center gap-1 cursor-pointer">
-                    <i data-lucide="chevron-left" class="w-3 h-3"></i> Voltar ao resumo
+            <!-- UMA ÚNICA CAIXA: identificação, navegação, coordenadas e confrontante -->
+            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-3">
+                <button onclick="window.voltarResumoPublico()" class="text-[12px] text-mint-vibrant hover:underline flex items-center gap-1 cursor-pointer" aria-label="Voltar ao resumo do imóvel">
+                    <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Voltar ao resumo
                 </button>
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50">Identificação</span>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${tipoInfo.bg}">${tipoInfo.label}</span>
-                </div>
-                <h4 class="font-mono text-base font-bold text-mint-vibrant tracking-tight flex items-center justify-between">
-                    <span>${escapeHtml(ponto.nome_vertice) || `Ponto ${ponto.id}`}</span>
-                    ${ponto.ordem_caminhamento ? `<span class="text-xs text-white/40 font-sans font-normal">Ord #${ponto.ordem_caminhamento}</span>` : ''}
-                </h4>
-                
-                <!-- BOTÕES DE NAVEGAÇÃO DE VÉRTICES -->
-                <div class="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-white/5">
-                    <button onclick="window.selecionarPontoPublico(${prevPonto?.id})" class="flex-1 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[11px] text-white/80 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer">
-                        <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
-                        <span>Anterior</span>
-                    </button>
-                    <button onclick="window.selecionarPontoPublico(${nextPonto?.id})" class="flex-1 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[11px] text-white/80 hover:text-white flex items-center justify-center gap-1 transition-all cursor-pointer">
-                        <span>Próximo</span>
-                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>
-            </div>
 
-            <!-- COORDENADAS UTM (PROJETADA) -->
-            <div class="bg-black/40 border border-white/10 rounded-lg p-3 space-y-2">
-                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 flex items-center gap-1">
-                   <i data-lucide="layers" class="w-3 h-3 text-mint-vibrant"></i>
-                   Projeção UTM (Metros)
-                </span>
-                <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                    <div class="bg-white/[0.02] p-2 rounded border border-white/5">
-                        <span class="text-[10px] text-white/40 block">Norte (Y):</span>
-                        <span class="font-mono text-white font-bold text-xs">${norteTxt}</span>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[11px] uppercase font-bold tracking-wider text-white/50">Vértice</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${tipoInfo.bg}">${tipoInfo.label}</span>
                     </div>
-                    <div class="bg-white/[0.02] p-2 rounded border border-white/5">
-                        <span class="text-[10px] text-white/40 block">Este (X):</span>
-                        <span class="font-mono text-white font-bold text-xs">${esteTxt}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- COORDENADAS GEOGRÁFICAS (SIRGAS 2000) -->
-            <div class="bg-black/40 border border-white/10 rounded-lg p-3 space-y-2">
-                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 flex items-center gap-1">
-                   <i data-lucide="globe" class="w-3 h-3 text-blue-400"></i>
-                   Geográficas (Graus)
-                </span>
-                <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                    <div class="bg-white/[0.02] p-2 rounded border border-white/5">
-                        <span class="text-[10px] text-white/40 block">Latitude:</span>
-                        <span class="font-mono text-white text-xs">${latTxt}</span>
-                    </div>
-                    <div class="bg-white/[0.02] p-2 rounded border border-white/5">
-                        <span class="text-[10px] text-white/40 block">Longitude:</span>
-                        <span class="font-mono text-white text-xs">${lonTxt}</span>
+                    <h4 class="font-mono text-base font-bold text-mint-vibrant tracking-tight flex items-center justify-between gap-2">
+                        <span class="break-all">${escapeHtml(ponto.nome_vertice) || `Ponto ${ponto.id}`}</span>
+                        ${ponto.ordem_caminhamento ? `<span class="text-xs text-white/50 font-sans font-normal shrink-0">Ordem ${ponto.ordem_caminhamento}</span>` : ''}
+                    </h4>
+                    <div class="flex items-center justify-between gap-2 mt-2">
+                        <button onclick="window.selecionarPontoPublico(${prevPonto?.id})" aria-label="Vértice anterior" class="flex-1 px-2 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[12px] text-white/80 hover:text-white flex items-center justify-center gap-1 cursor-pointer">
+                            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i><span>Anterior</span>
+                        </button>
+                        <button onclick="window.selecionarPontoPublico(${nextPonto?.id})" aria-label="Próximo vértice" class="flex-1 px-2 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[12px] text-white/80 hover:text-white flex items-center justify-center gap-1 cursor-pointer">
+                            <span>Próximo</span><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <!-- ALTITUDE E CONFRONTANTE -->
-            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
-                <div class="flex items-center justify-between border-b border-white/5 pb-2">
-                    <span class="text-white/40 text-[11px]">Altitude Ortométrica:</span>
+                <div class="border-t border-white/10 pt-3">
+                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">Coordenadas em metros (UTM)</span>
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div><span class="text-[11px] text-white/50 block">Norte</span><span class="font-mono text-white font-bold">${norteTxt}</span></div>
+                        <div><span class="text-[11px] text-white/50 block">Este</span><span class="font-mono text-white font-bold">${esteTxt}</span></div>
+                    </div>
+                </div>
+
+                <div class="border-t border-white/10 pt-3">
+                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">Coordenadas em graus</span>
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div><span class="text-[11px] text-white/50 block">Latitude</span><span class="font-mono text-white">${latTxt}</span></div>
+                        <div><span class="text-[11px] text-white/50 block">Longitude</span><span class="font-mono text-white">${lonTxt}</span></div>
+                    </div>
+                </div>
+
+                <div class="border-t border-white/10 pt-3 flex items-center justify-between gap-2">
+                    <span class="text-white/50 text-[11px] uppercase font-bold tracking-wider">Altitude</span>
                     <span class="font-mono text-mint-vibrant font-bold text-xs">${altTxt}</span>
                 </div>
+
                 ${ponto.nome_confrontante ? `
-                <div class="pt-1">
-                    <span class="text-white/40 text-[10px] uppercase font-bold block mb-1">Confrontante Oficial:</span>
-                    <div class="text-white bg-white/5 border border-white/10 px-2.5 py-1.5 rounded text-xs leading-snug">
-                        ${escapeHtml(ponto.nome_confrontante)}
-                    </div>
+                <div class="border-t border-white/10 pt-3">
+                    <span class="text-white/50 text-[11px] uppercase font-bold tracking-wider block mb-1">Confrontante</span>
+                    <div class="text-white text-xs leading-snug">${escapeHtml(ponto.nome_confrontante)}</div>
                 </div>` : ''}
             </div>
         </div>
@@ -456,7 +431,7 @@ const exportarPontosCSV = () => {
 
     // UTF-8 BOM para garantir acentuação no Microsoft Excel
     let csvContent = "\uFEFF";
-    csvContent += "Ordem;Vértice;Tipo;Norte (Y);Este (X);Latitude;Longitude;Altitude (m);Confrontante\n";
+    csvContent += "Ordem;Vértice;Tipo;Norte;Este;Latitude;Longitude;Altitude (m);Confrontante\n";
 
     pontos.forEach((p: any) => {
         const ord = p.ordem_caminhamento != null ? p.ordem_caminhamento : '';

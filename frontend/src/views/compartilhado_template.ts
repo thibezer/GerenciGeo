@@ -91,12 +91,12 @@ export const renderCompartilhado = (): string => {
                   <table class="w-full text-left text-xs border-collapse">
                     <thead class="bg-black/80 backdrop-blur sticky top-0 z-10">
                       <tr class="text-[11px] text-white/60 uppercase border-b border-white/10 tracking-wider">
-                        <th class="px-3 py-2 font-bold w-12 text-center">Ord</th>
+                        <th class="px-3 py-2 font-bold w-12 text-center">Ordem</th>
                         <th class="px-3 py-2 font-bold w-32">Vértice</th>
-                        <th class="px-3 py-2 font-bold w-36">Norte (Y)</th>
-                        <th class="px-3 py-2 font-bold w-36">Este (X)</th>
+                        <th class="px-3 py-2 font-bold w-36">Norte</th>
+                        <th class="px-3 py-2 font-bold w-36">Este</th>
                         <th class="px-3 py-2 font-bold">Confrontante</th>
-                        <th class="px-3 py-2 font-bold w-28 text-center">Dist (m)</th>
+                        <th class="px-3 py-2 font-bold w-28 text-center">Até o próximo (m)</th>
                       </tr>
                     </thead>
                     <tbody id="tbody-organizador-publico" class="divide-y divide-white/5 text-white/80"></tbody>
@@ -108,8 +108,8 @@ export const renderCompartilhado = (): string => {
                       <tr class="text-[11px] text-white/60 uppercase border-b border-white/10 tracking-wider">
                         <th class="px-3 py-2 font-bold w-32">Vértice</th>
                         <th class="px-3 py-2 font-bold w-20 text-center">Tipo</th>
-                        <th class="px-3 py-2 font-bold w-36">Norte (Y)</th>
-                        <th class="px-3 py-2 font-bold w-36">Este (X)</th>
+                        <th class="px-3 py-2 font-bold w-36">Norte</th>
+                        <th class="px-3 py-2 font-bold w-36">Este</th>
                         <th class="px-3 py-2 font-bold w-28 text-center">Altitude (m)</th>
                       </tr>
                     </thead>
