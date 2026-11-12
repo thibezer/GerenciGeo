@@ -365,6 +365,12 @@ const highlightPointOnCanvas = (p: any) => {
     }
     renderTabelas();
 
+    // No celular as tabelas ocupam a tela toda: ao escolher um vértice, volta ao mapa
+    if (window.matchMedia('(max-width: 767px)').matches) {
+        document.getElementById('btn-fechar-tabelas')?.click();
+        return;
+    }
+
     // Rola suavemente a linha da tabela para visibilidade
     setTimeout(() => {
         const rowOrg = document.getElementById(`row-ponto-org-${id}`);
@@ -641,13 +647,15 @@ const carregarLevantamento = async (codigo: string, pin = '') => {
 const setupAlternarTabelas = () => {
     const btn = document.getElementById('btn-alternar-tabelas');
     const area = document.getElementById('area-tabelas-publico');
-    btn?.addEventListener('click', () => {
+    const definir = (aberta: boolean) => {
         if (!area) return;
-        const aberta = area.classList.toggle('hidden') === false;
+        area.classList.toggle('hidden', !aberta);
         area.classList.toggle('flex', aberta);
-        btn.classList.toggle('border-mint-vibrant', aberta);
+        btn?.classList.toggle('border-mint-vibrant', aberta);
         setTimeout(() => mapController?.invalidateSize?.(), 50);
-    });
+    };
+    btn?.addEventListener('click', () => definir(area?.classList.contains('hidden') ?? false));
+    document.getElementById('btn-fechar-tabelas')?.addEventListener('click', () => definir(false));
 };
 
 export const compartilhadoRoute: RouteDef = {
