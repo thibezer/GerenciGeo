@@ -70,7 +70,7 @@ function obterLevantamentoPublico(PDO $pdo, string $codigo, string $pin): array
 
     // Proprietários: só o nome e o percentual
     $stmt = $pdo->prepare(
-        "SELECT pe.nome AS nome_completo, pp.percentual_participacao
+        "SELECT pe.nome AS nome_completo, pp.proporcao AS percentual_participacao
            FROM propriedade_proprietarios pp
            JOIN clientes c ON c.id = pp.cliente_id
            JOIN pessoas pe ON pe.id = c.pessoa_id
