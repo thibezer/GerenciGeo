@@ -112,31 +112,32 @@ const renderResumoImovel = () => {
     const proprietarios = (d.clientes || []).map((c: any) => escapeHtml(c.nome_completo)).join('<br>') || 'Não informado';
     const matriculas = (d.matriculas || []).map((m: any) => m.numero_matricula || m.numero).filter(Boolean);
 
-    const cartao = (rotulo: string, valor: string) => `
-        <div class="bg-white/[0.03] border border-white/10 rounded-lg p-2.5">
-            <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">${rotulo}</span>
-            <span class="text-sm font-bold text-white">${valor}</span>
+    // Uma única caixa: células separadas por linhas finas (gap-px sobre fundo de borda), não quatro caixas soltas
+    const celula = (rotulo: string, valor: string) => `
+        <div class="bg-[#0c120f] p-2.5 min-w-0">
+            <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">${rotulo}</span>
+            <span class="text-sm font-bold text-white break-words">${valor}</span>
         </div>`;
 
     container.innerHTML = `
-        <div class="space-y-3 animate-in fade-in duration-200">
-            <div class="grid grid-cols-2 gap-2">
-                ${cartao('Área aproximada', areaHa != null ? `${fmt(areaHa, 4)} ha` : '—')}
-                ${cartao('Perímetro', comprimento > 0 ? `${fmt(comprimento)} m` : '—')}
-                ${cartao('Vértices', String(totalVertices))}
-                ${cartao('Município', escapeHtml(`${d.municipio || 'N/I'}/${d.uf || ''}`))}
+        <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-px bg-white/10 border border-white/10 rounded-lg overflow-hidden">
+                ${celula('Área aproximada', areaHa != null ? `${fmt(areaHa, 4)} ha` : '—')}
+                ${celula('Perímetro', comprimento > 0 ? `${fmt(comprimento)} m` : '—')}
+                ${celula('Vértices', String(totalVertices))}
+                ${celula('Município', escapeHtml(`${d.municipio || 'N/I'}/${d.uf || ''}`))}
             </div>
             <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
                 <div>
-                    <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">Proprietário(s)</span>
+                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">Proprietário(s)</span>
                     <span class="text-white">${proprietarios}</span>
                 </div>
-                ${matriculas.length ? `<div><span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">Matrícula(s)</span><span class="text-white font-mono">${escapeHtml(matriculas.join(', '))}</span></div>` : ''}
-                ${d.codigo_car ? `<div><span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">CAR</span><span class="text-white/90 font-mono text-[11px] break-all">${escapeHtml(d.codigo_car)}</span></div>` : ''}
+                ${matriculas.length ? `<div><span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">Matrícula(s)</span><span class="text-white font-mono">${escapeHtml(matriculas.join(', '))}</span></div>` : ''}
+                ${d.codigo_car ? `<div><span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block">CAR</span><span class="text-white/90 font-mono text-[11px] break-all">${escapeHtml(d.codigo_car)}</span></div>` : ''}
             </div>
             ${confrontantes.length ? `
             <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
-                <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block mb-1.5">Confrontantes</span>
+                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">Confrontantes</span>
                 <ul class="space-y-1 text-white/90">${confrontantes.map(c => `<li class="flex gap-1.5"><span class="text-mint-vibrant">•</span><span>${escapeHtml(c)}</span></li>`).join('')}</ul>
             </div>` : ''}
             <p class="text-[11px] text-white/40 leading-relaxed flex gap-2 items-start">
@@ -187,14 +188,14 @@ const renderPropriedadesPonto = (ponto: any) => {
     const altTxt = ponto.altitude != null ? `${Number(ponto.altitude).toFixed(3)} m` : '—';
 
     container.innerHTML = `
-        <div class="space-y-4 animate-in fade-in duration-200">
+        <div class="space-y-4">
             <!-- TÍTULO E NAVEGAÇÃO ENTRE VÉRTICES -->
             <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
                 <button onclick="window.voltarResumoPublico()" class="mb-2 text-[11px] text-mint-vibrant hover:underline flex items-center gap-1 cursor-pointer">
                     <i data-lucide="chevron-left" class="w-3 h-3"></i> Voltar ao resumo
                 </button>
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] uppercase font-bold tracking-wider text-white/40">Identificação</span>
+                    <span class="text-[11px] uppercase font-bold tracking-wider text-white/50">Identificação</span>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${tipoInfo.bg}">${tipoInfo.label}</span>
                 </div>
                 <h4 class="font-mono text-base font-bold text-mint-vibrant tracking-tight flex items-center justify-between">
@@ -217,7 +218,7 @@ const renderPropriedadesPonto = (ponto: any) => {
 
             <!-- COORDENADAS UTM (PROJETADA) -->
             <div class="bg-black/40 border border-white/10 rounded-lg p-3 space-y-2">
-                <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1">
+                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 flex items-center gap-1">
                    <i data-lucide="layers" class="w-3 h-3 text-mint-vibrant"></i>
                    Projeção UTM (Metros)
                 </span>
@@ -235,7 +236,7 @@ const renderPropriedadesPonto = (ponto: any) => {
 
             <!-- COORDENADAS GEOGRÁFICAS (SIRGAS 2000) -->
             <div class="bg-black/40 border border-white/10 rounded-lg p-3 space-y-2">
-                <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1">
+                <span class="text-[11px] uppercase font-bold tracking-wider text-white/50 flex items-center gap-1">
                    <i data-lucide="globe" class="w-3 h-3 text-blue-400"></i>
                    Geográficas (Graus)
                 </span>

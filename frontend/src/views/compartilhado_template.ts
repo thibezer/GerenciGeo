@@ -40,7 +40,7 @@ export const renderCompartilhado = (): string => {
             <i data-lucide="list" class="w-3.5 h-3.5"></i>
             <span class="hidden sm:inline">Tabela de vértices</span><span class="sm:hidden">Vértices</span>
           </button>
-          <button id="btn-exportar-csv-publico" title="Baixar planilha de vértices em CSV"
+          <button id="btn-exportar-csv-publico" title="Baixar planilha de vértices em CSV" aria-label="Baixar planilha de vértices em CSV"
                   class="px-2.5 py-1.5 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant border border-mint-vibrant/30 rounded text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
             <i data-lucide="download" class="w-3.5 h-3.5"></i>
             <span class="hidden sm:inline">Baixar CSV</span>
@@ -90,7 +90,7 @@ export const renderCompartilhado = (): string => {
                 <div id="tab-content-organizador" class="absolute inset-0 overflow-auto tab-pane-publico">
                   <table class="w-full text-left text-xs border-collapse">
                     <thead class="bg-black/80 backdrop-blur sticky top-0 z-10">
-                      <tr class="text-[10px] text-white/50 uppercase border-b border-white/10 tracking-wider">
+                      <tr class="text-[11px] text-white/60 uppercase border-b border-white/10 tracking-wider">
                         <th class="px-3 py-2 font-bold w-12 text-center">Ord</th>
                         <th class="px-3 py-2 font-bold w-32">Vértice</th>
                         <th class="px-3 py-2 font-bold w-36">Norte (Y)</th>
@@ -105,7 +105,7 @@ export const renderCompartilhado = (): string => {
                 <div id="tab-content-todos-pontos" class="absolute inset-0 overflow-auto hidden tab-pane-publico">
                   <table class="w-full text-left text-xs border-collapse">
                     <thead class="bg-black/80 backdrop-blur sticky top-0 z-10">
-                      <tr class="text-[10px] text-white/50 uppercase border-b border-white/10 tracking-wider">
+                      <tr class="text-[11px] text-white/60 uppercase border-b border-white/10 tracking-wider">
                         <th class="px-3 py-2 font-bold w-32">Vértice</th>
                         <th class="px-3 py-2 font-bold w-20 text-center">Tipo</th>
                         <th class="px-3 py-2 font-bold w-36">Norte (Y)</th>
