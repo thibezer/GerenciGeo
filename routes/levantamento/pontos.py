@@ -22,6 +22,17 @@ from services.gestores.levantamento_manager import (
     vincular_ponto_matricula,
 )
 from routes.deps import verificar_levantamento_arquivado
+from services.gestores.vertices_virtuais_manager import (
+    VerticeVirtualErro,
+    inserir_lote_vertices_virtuais,
+    inserir_vertice_virtual,
+    nome_virtual_livre,
+    nomes_existentes_para_offset,
+    obter_ponto_apoio_db,
+    obter_pontos_apoio_db_lote,
+    promover_vertices_virtuais,
+    validar_escopo_pontos_apoio,
+)
 from services.gestores.pontos_manager import (
     PontoErro,
     criar_ponto,
@@ -1158,122 +1169,6 @@ class PayloadExecutarDivisaoOffset(BaseModel):
     matricula_base_id: Optional[int] = None
 
 
-def _obter_ponto_apoio_db(ponto_id: int):
-    pts = _obter_pontos_apoio_db_lote([ponto_id])
-    return pts[0]
-
-
-def _validar_escopo_pontos_apoio(levantamento_id: int, matricula_id: int, ponto_ids: List[int]) -> None:
-    """Garante que matrícula e pontos de apoio pertencem ao levantamento e usam um único fuso UTM."""
-    if matricula_id and matricula_id > 0:
-        row_mat = execute_query(
-            """
-            SELECT m.id FROM matriculas m
-            JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
-            WHERE m.id = ? AND l.id = ?
-            """,
-            params=(matricula_id, levantamento_id),
-            fetch_one=True,
-        )
-        if not row_mat:
-            raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
-
-    ids_unicos = list(dict.fromkeys(ponto_ids))
-    marcadores = ",".join("?" for _ in ids_unicos)
-    rows = execute_query(
-        f"SELECT id, fuso_utm FROM pontos WHERE levantamento_id = ? AND id IN ({marcadores})",
-        params=(levantamento_id, *ids_unicos),
-        fetch_all=True,
-    )
-    if len(rows or []) != len(ids_unicos):
-        raise HTTPException(status_code=400, detail="Há pontos de apoio que não pertencem a este levantamento.")
-
-    fusos = {int(r["fuso_utm"]) for r in rows if r["fuso_utm"]}
-    if len(fusos) > 1:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Os pontos de apoio estão em fusos UTM diferentes ({', '.join(str(f) for f in sorted(fusos))}).",
-        )
-
-
-def _nome_virtual_livre(levantamento_id: int, matricula_id: int, nome: Optional[str], default: str = "V01") -> str:
-    """Devolve o nome pedido ou, havendo colisão com algum ponto da matrícula, o próximo livre."""
-    from services.processamento.vertices_virtuais import MotorVerticesVirtuais
-
-    pedido = (nome or default).strip() or default
-    rows = execute_query(
-        "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
-        params=(levantamento_id, matricula_id),
-        fetch_all=True,
-    )
-    ocupados = {str(r["nome_vertice"]).strip().upper() for r in (rows or []) if r["nome_vertice"]}
-    if pedido.upper() not in ocupados:
-        return pedido
-    return MotorVerticesVirtuais.gerar_nomes_unicos(prefixo=pedido, quantidade=1, nomes_existentes=ocupados)[0]
-
-
-def _obter_pontos_apoio_db_lote(ponto_ids: List[int]):
-    from services.processamento.vertices_virtuais import PontoApoio
-
-    if not ponto_ids:
-        return []
-
-    ids_unicos = list(dict.fromkeys(ponto_ids))
-    marcadores = ",".join("?" for _ in ids_unicos)
-    rows = execute_query(
-        f"""
-        SELECT id, nome_vertice, lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
-               e_corrigido, n_corrigido, e_original, n_original, alt_original,
-               sigma_e, sigma_n, sigma_z, sigma_lat, sigma_lon, sigma_alt, fuso_utm
-        FROM pontos WHERE id IN ({marcadores})
-        """,
-        params=tuple(ids_unicos),
-        fetch_all=True,
-    )
-    pontos_map = {}
-    for row in (rows or []):
-        p = dict(row)
-        pid = p["id"]
-        e = p.get("e_corrigido") or p.get("e_original")
-        n = p.get("n_corrigido") or p.get("n_original")
-        alt = p.get("alt_corrigido") or p.get("alt") or p.get("alt_original") or 0.0
-
-        if e is None or n is None:
-            lat = p.get("lat_corrigido") or p.get("lat")
-            lon = p.get("lon_corrigido") or p.get("lon")
-            if lat is not None and lon is not None:
-                fuso = p.get("fuso_utm") or (int((lon + 180) / 6) + 1)
-                transformer = get_transformer("epsg:4674", f"epsg:319{60 + fuso}", always_xy=True)
-                e_calc, n_calc = transformer.transform(lon, lat)
-                e = e or e_calc
-                n = n or n_calc
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Vértice '{p.get('nome_vertice')}' não possui coordenadas UTM ou geográficas válidas."
-                )
-
-        s_e = p.get("sigma_e") or p.get("sigma_lon") or 0.02
-        s_n = p.get("sigma_n") or p.get("sigma_lat") or 0.02
-        s_z = p.get("sigma_z") or p.get("sigma_alt") or 0.03
-
-        pontos_map[pid] = PontoApoio(
-            nome=p.get("nome_vertice") or f"P{p['id']}",
-            este=float(e),
-            norte=float(n),
-            altitude=float(alt),
-            sigma_este=float(s_e),
-            sigma_norte=float(s_n),
-            sigma_altitude=float(s_z),
-        )
-
-    for pid in ponto_ids:
-        if pid not in pontos_map:
-            raise HTTPException(status_code=404, detail=f"Ponto de apoio ID {pid} não encontrado.")
-
-    return [pontos_map[pid] for pid in ponto_ids]
-
-
 @router.post("/levantamentos/{id}/matriculas/{matricula_id}/vertices-virtuais/calcular-combo-pa1-pa2")
 def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: PayloadCalcularComboPA1PA2):
     """
@@ -1283,14 +1178,14 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais, LadoOffset
 
     try:
-        _validar_escopo_pontos_apoio(
+        validar_escopo_pontos_apoio(
             id, matricula_id,
             [payload.eixo_inicio_id, payload.eixo_fim_id, payload.divisa_inicio_id, payload.divisa_fim_id],
         )
-        e1 = _obter_ponto_apoio_db(payload.eixo_inicio_id)
-        e2 = _obter_ponto_apoio_db(payload.eixo_fim_id)
-        d1 = _obter_ponto_apoio_db(payload.divisa_inicio_id)
-        d2 = _obter_ponto_apoio_db(payload.divisa_fim_id)
+        e1 = obter_ponto_apoio_db(payload.eixo_inicio_id)
+        e2 = obter_ponto_apoio_db(payload.eixo_fim_id)
+        d1 = obter_ponto_apoio_db(payload.divisa_inicio_id)
+        d2 = obter_ponto_apoio_db(payload.divisa_fim_id)
 
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
@@ -1301,7 +1196,7 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
             divisa_2=d2,
             largura_faixa=payload.largura_faixa,
             lado=lado_enum,
-            nome_vertice=_nome_virtual_livre(id, matricula_id, payload.nome_vertice),
+            nome_vertice=nome_virtual_livre(id, matricula_id, payload.nome_vertice),
         )
 
         return {
@@ -1326,6 +1221,8 @@ def calcular_combo_pa1_pa2_endpoint(id: int, matricula_id: int, payload: Payload
         raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
+    except VerticeVirtualErro as ve_erro:
+        raise HTTPException(status_code=ve_erro.status, detail=ve_erro.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro no cálculo do combo PA1+PA2: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Falha interna no motor de cálculo: {str(e)}")
@@ -1339,24 +1236,24 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
     from services.processamento.vertices_virtuais import MotorVerticesVirtuais
 
     try:
-        _validar_escopo_pontos_apoio(
+        validar_escopo_pontos_apoio(
             id, matricula_id,
             [
                 payload.alinhamento1_inicio_id, payload.alinhamento1_fim_id,
                 payload.alinhamento2_inicio_id, payload.alinhamento2_fim_id,
             ],
         )
-        r1_p1 = _obter_ponto_apoio_db(payload.alinhamento1_inicio_id)
-        r1_p2 = _obter_ponto_apoio_db(payload.alinhamento1_fim_id)
-        r2_p1 = _obter_ponto_apoio_db(payload.alinhamento2_inicio_id)
-        r2_p2 = _obter_ponto_apoio_db(payload.alinhamento2_fim_id)
+        r1_p1 = obter_ponto_apoio_db(payload.alinhamento1_inicio_id)
+        r1_p2 = obter_ponto_apoio_db(payload.alinhamento1_fim_id)
+        r2_p1 = obter_ponto_apoio_db(payload.alinhamento2_inicio_id)
+        r2_p2 = obter_ponto_apoio_db(payload.alinhamento2_fim_id)
 
         resultado = MotorVerticesVirtuais.calcular_pa2_puro(
             alinhamento1_p1=r1_p1,
             alinhamento1_p2=r1_p2,
             alinhamento2_p1=r2_p1,
             alinhamento2_p2=r2_p2,
-            nome_vertice=_nome_virtual_livre(id, matricula_id, payload.nome_vertice),
+            nome_vertice=nome_virtual_livre(id, matricula_id, payload.nome_vertice),
         )
 
         return {
@@ -1381,6 +1278,8 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
         raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
+    except VerticeVirtualErro as ve_erro:
+        raise HTTPException(status_code=ve_erro.status, detail=ve_erro.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro no cálculo do PA2 puro: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Falha interna no motor de cálculo: {str(e)}")
@@ -1390,100 +1289,25 @@ def calcular_pa2_puro_endpoint(id: int, matricula_id: int, payload: PayloadCalcu
 def confirmar_vertice_virtual_endpoint(id: int, matricula_id: int, payload: PayloadInserirVerticeVirtual):
     """
     Insere o vértice virtual calculado atomicamente no banco de dados, convertendo coordenadas
-    UTM para Geográficas SIRGAS 2000 e atualizando a ordem de caminhamento da matrícula.
+    UTM para Geográficas SIRGAS 2000 (regras em vertices_virtuais_manager).
     """
     verificar_levantamento_arquivado(id)
     try:
-        fuso = payload.fuso_utm or 22
-        transformer = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
-        lon_calc, lat_calc = transformer.transform(payload.este, payload.norte)
-
-        # Rascunho: o vértice nasce fora do polígono (CAMPO, ignorar_poligono=1) e sem ordem própria.
-        # Entra no perímetro só pela ação "promover" (posição escolhida pelo usuário).
-        ordem = None
-
-        from services.processamento.vertices_virtuais import MotorVerticesVirtuais
-
-        rows_db = execute_query(
-            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto = 'V'",
-            params=(id, matricula_id),
-        )
-        nomes_ocupados = {r["nome_vertice"].upper() for r in (rows_db or []) if r["nome_vertice"]}
-        nome_final = (payload.nome_vertice or "V-01").strip()
-        if nome_final.upper() in nomes_ocupados:
-            nome_final = MotorVerticesVirtuais.gerar_nomes_unicos(
-                prefixo=nome_final,
-                quantidade=1,
-                nomes_existentes=nomes_ocupados,
-            )[0]
-
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO pontos (
-                    levantamento_id, matricula_id, nome_vertice, tipo_ponto,
-                    lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
-                    n_corrigido, e_corrigido,
-                    sigma_n, sigma_e, sigma_z, sigma_lat, sigma_lon, sigma_alt,
-                    fuso_utm, metodo_posicionamento,
-                    status_ponto, status_correcao, camada_ciclo_vida, ignorar_poligono,
-                    ordem_caminhamento, confrontante_id
-                ) VALUES (
-                    ?, ?, ?, 'V',
-                    ?, ?, ?, ?, ?, ?,
-                    ?, ?,
-                    ?, ?, ?, ?, ?, ?,
-                    ?, ?,
-                    'CORRIGIDO', 'CORRIGIDO', 'CAMPO', 1,
-                    ?, ?
-                )
-                """,
-                (
-                    id, matricula_id, nome_final,
-                    lat_calc, lon_calc, payload.altitude, lat_calc, lon_calc, payload.altitude,
-                    payload.norte, payload.este,
-                    payload.sigma_norte, payload.sigma_este, payload.sigma_altitude,
-                    payload.sigma_norte, payload.sigma_este, payload.sigma_altitude,
-                    fuso, payload.metodo,
-                    ordem, payload.confrontante_id
-                ),
-            )
-            novo_id = cursor.lastrowid
-            conn.commit()
-
-        sanitizar_ordens_duplicadas(id)
-
-        from services.processamento.historico_campo import HistoricoCampoLogger
-        HistoricoCampoLogger.registrar_evento(
-            levantamento_id=id,
-            tipo_evento="VERTICE_VIRTUAL_CRIADO",
-            descricao=f"Vértice Virtual {nome_final} ({payload.metodo}) inserido com sucesso em E={payload.este:.3f}, N={payload.norte:.3f}, Alt={payload.altitude:.3f}.",
-            dados_detalhados={
-                "ponto_id": novo_id,
-                "nome_vertice": nome_final,
-                "metodo": payload.metodo,
-                "este": payload.este,
-                "norte": payload.norte,
-                "altitude": payload.altitude,
-                "sigma_planimetrico": payload.sigma_planimetrico,
-            }
-        )
-
+        r = inserir_vertice_virtual(id, matricula_id, payload.model_dump())
         return {
             "sucesso": True,
-            "id": novo_id,
-            "mensagem": f"Vértice virtual '{nome_final}' cadastrado com sucesso.",
+            "id": r["id"],
+            "mensagem": f"Vértice virtual '{r['nome']}' cadastrado com sucesso.",
             "coordenadas": {
                 "este": payload.este,
                 "norte": payload.norte,
                 "altitude": payload.altitude,
-                "lat": lat_calc,
-                "lon": lon_calc,
+                "lat": r["lat"],
+                "lon": r["lon"],
             }
         }
-    except HTTPException:
-        raise
+    except VerticeVirtualErro as ve:
+        raise HTTPException(status_code=ve.status, detail=ve.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao inserir vértice virtual: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao persistir vértice virtual: {str(e)}")
@@ -1504,16 +1328,12 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         if payload.distancia <= 0:
             raise HTTPException(status_code=400, detail="A distância de offset deve ser maior que zero.")
 
-        _validar_escopo_pontos_apoio(id, matricula_id, payload.ponto_ids)
+        validar_escopo_pontos_apoio(id, matricula_id, payload.ponto_ids)
 
-        pontos_apoio = _obter_pontos_apoio_db_lote(payload.ponto_ids)
+        pontos_apoio = obter_pontos_apoio_db_lote(payload.ponto_ids)
         lado_enum = LadoOffset.DIREITA if payload.lado == "DIREITA" else LadoOffset.ESQUERDA
 
-        rows_nomes = execute_query(
-            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
-            params=(id, matricula_id),
-        )
-        nomes_existentes = {r["nome_vertice"] for r in (rows_nomes or []) if r["nome_vertice"]}
+        nomes_existentes = nomes_existentes_para_offset(id, matricula_id)
 
         resultados = MotorVerticesVirtuais.calcular_offset_polilinha(
             pontos=pontos_apoio,
@@ -1550,6 +1370,8 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
         raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
+    except VerticeVirtualErro as ve_erro:
+        raise HTTPException(status_code=ve_erro.status, detail=ve_erro.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro no cálculo de offset em lote: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Falha interna no motor de offset: {str(e)}")
@@ -1559,126 +1381,23 @@ def calcular_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadCa
 def confirmar_offset_lote_endpoint(id: int, matricula_id: int, payload: PayloadConfirmarOffsetLote):
     """
     Insere atomicamente um lote de vértices virtuais no banco de dados,
-    convertendo coordenadas UTM para Geográficas SIRGAS 2000 e ordenando na matrícula.
+    convertendo coordenadas UTM para Geográficas SIRGAS 2000 (rascunho, fora do perímetro).
     """
     verificar_levantamento_arquivado(id)
-    if not payload.vertices:
-        raise HTTPException(status_code=400, detail="Nenhum vértice virtual fornecido para inserção.")
-
-    # Validação de escopo: matrícula deve pertencer ao levantamento
-    if matricula_id and matricula_id > 0:
-        row_mat = execute_query(
-            """
-            SELECT m.id FROM matriculas m
-            JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
-            WHERE m.id = ? AND l.id = ?
-            """,
-            params=(matricula_id, id),
-            fetch_one=True,
-        )
-        if not row_mat:
-            raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
-
-    # Validação do confrontante se fornecido
-    if payload.confrontante_id:
-        row_conf = execute_query(
-            "SELECT id FROM confrontantes WHERE id = ? AND levantamento_id = ?",
-            params=(payload.confrontante_id, id),
-            fetch_one=True,
-        )
-        if not row_conf:
-            raise HTTPException(status_code=400, detail="Confrontante informado não pertence a este levantamento.")
-
-    fuso = payload.fuso_utm or 22
-    if not (18 <= fuso <= 25):
-        raise HTTPException(status_code=400, detail=f"Fuso UTM inválido ({fuso}). Deve situar-se entre 18 e 25.")
-
     try:
-        transformer = get_transformer(f"epsg:319{60 + fuso}", "epsg:4674", always_xy=True)
-
-        from services.processamento.vertices_virtuais import MotorVerticesVirtuais
-
-        rows_db = execute_query(
-            "SELECT nome_vertice FROM pontos WHERE levantamento_id = ? AND (matricula_id = ? OR matricula_id IS NULL)",
-            params=(id, matricula_id),
+        r = inserir_lote_vertices_virtuais(
+            id, matricula_id, payload.fuso_utm, payload.confrontante_id,
+            [v.model_dump() for v in payload.vertices],
         )
-        nomes_ocupados = {str(r["nome_vertice"]).strip().upper() for r in (rows_db or []) if r["nome_vertice"]}
-
-        inseridos_ids = []
-        renomeados = []
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            for v in payload.vertices:
-                lon_calc, lat_calc = transformer.transform(v.este, v.norte)
-                ordem_final = None  # rascunho: sem ordem de caminhamento
-
-                nome_pedido = (v.nome_vertice or "V-01").strip()
-                nome_final = nome_pedido
-                if nome_final.upper() in nomes_ocupados:
-                    nome_final = MotorVerticesVirtuais.gerar_nomes_unicos(
-                        prefixo=nome_final,
-                        quantidade=1,
-                        nomes_existentes=nomes_ocupados,
-                    )[0]
-                    renomeados.append({"de": nome_pedido, "para": nome_final})
-                nomes_ocupados.add(nome_final.upper())
-
-                cursor.execute(
-                    """
-                    INSERT INTO pontos (
-                        levantamento_id, matricula_id, nome_vertice, tipo_ponto,
-                        lat, lon, alt, lat_corrigido, lon_corrigido, alt_corrigido,
-                        n_corrigido, e_corrigido, n_original, e_original, alt_original,
-                        sigma_n, sigma_e, sigma_z, sigma_lat, sigma_lon, sigma_alt,
-                        fuso_utm, metodo_posicionamento,
-                        status_ponto, status_correcao, camada_ciclo_vida, ignorar_poligono,
-                        ordem_caminhamento, confrontante_id
-                    ) VALUES (
-                        ?, ?, ?, 'V',
-                        ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?,
-                        ?, ?,
-                        'CORRIGIDO', 'CORRIGIDO', 'CAMPO', 1,
-                        ?, ?
-                    )
-                    """,
-                    (
-                        id, matricula_id, nome_final,
-                        lat_calc, lon_calc, v.altitude, lat_calc, lon_calc, v.altitude,
-                        v.norte, v.este, v.norte, v.este, v.altitude,
-                        v.sigma_norte, v.sigma_este, v.sigma_altitude,
-                        v.sigma_norte, v.sigma_este, v.sigma_altitude,
-                        fuso, v.metodo,
-                        ordem_final, payload.confrontante_id
-                    ),
-                )
-                inseridos_ids.append(cursor.lastrowid)
-            conn.commit()
-
-        sanitizar_ordens_duplicadas(id)
-
-        from services.processamento.historico_campo import HistoricoCampoLogger
-        HistoricoCampoLogger.registrar_evento(
-            levantamento_id=id,
-            tipo_evento="VERTICE_VIRTUAL_LOTE_CRIADO",
-            descricao=f"Lote de {len(inseridos_ids)} vértices virtuais criado como rascunho (fora do perímetro).",
-            dados_detalhados={
-                "total_inseridos": len(inseridos_ids),
-                "ids": inseridos_ids,
-                "matricula_id": matricula_id,
-            }
-        )
-
         return {
             "sucesso": True,
-            "total_inseridos": len(inseridos_ids),
-            "ids": inseridos_ids,
-            "renomeados": renomeados,
-            "mensagem": f"{len(inseridos_ids)} vértice(s) virtual(is) criado(s) como rascunho, fora do perímetro."
+            "total_inseridos": len(r["ids"]),
+            "ids": r["ids"],
+            "renomeados": r["renomeados"],
+            "mensagem": f"{len(r['ids'])} vértice(s) virtual(is) criado(s) como rascunho, fora do perímetro."
         }
-    except HTTPException:
-        raise
+    except VerticeVirtualErro as ve:
+        raise HTTPException(status_code=ve.status, detail=ve.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao inserir lote de vértices virtuais: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao persistir vértices virtuais em lote: {str(e)}")
@@ -1696,100 +1415,16 @@ def promover_vertices_virtuais_endpoint(id: int, matricula_id: int, payload: Pay
     logo após o ponto indicado, e regenera as divisas.
     """
     verificar_levantamento_arquivado(id)
-    if not payload.ponto_ids:
-        raise HTTPException(status_code=400, detail="Nenhum vértice virtual informado para inserir no perímetro.")
-    ids_promover = list(dict.fromkeys(payload.ponto_ids))
-
-    row_mat = execute_query(
-        """
-        SELECT m.id FROM matriculas m
-        JOIN levantamentos l ON m.propriedade_id = l.propriedade_id
-        WHERE m.id = ? AND l.id = ?
-        """,
-        params=(matricula_id, id),
-        fetch_one=True,
-    )
-    if not row_mat:
-        raise HTTPException(status_code=404, detail="Matrícula informada não pertence a este levantamento.")
-
     try:
-        rows = execute_query(
-            """
-            SELECT id, nome_vertice, tipo_ponto, matricula_id, ignorar_poligono
-            FROM pontos
-            WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B'
-            ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
-            """,
-            params=(id, matricula_id),
-            fetch_all=True,
-        )
-        todos = [dict(r) for r in (rows or [])]
-        por_id = {p["id"]: p for p in todos}
-
-        for pid in ids_promover:
-            p = por_id.get(pid)
-            if p is None:
-                raise HTTPException(status_code=400, detail=f"Ponto {pid} não pertence a esta matrícula.")
-            if p["tipo_ponto"] != "V" or p["ignorar_poligono"] != 1:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"O ponto '{p['nome_vertice']}' não é um vértice virtual em rascunho.",
-                )
-
-        restantes = [p for p in todos if p["id"] not in set(ids_promover)]
-        no_perimetro = [p for p in restantes if p["ignorar_poligono"] != 1]
-
-        if payload.apos_ponto_id is not None:
-            if payload.apos_ponto_id not in {p["id"] for p in no_perimetro}:
-                raise HTTPException(status_code=400, detail="O ponto de referência não está no perímetro desta matrícula.")
-            ancora = payload.apos_ponto_id
-        else:
-            ancora = no_perimetro[-1]["id"] if no_perimetro else None
-
-        novos = [por_id[pid] for pid in ids_promover]
-        nova_lista: list = []
-        if ancora is None:
-            nova_lista = novos + restantes
-        else:
-            for p in restantes:
-                nova_lista.append(p)
-                if p["id"] == ancora:
-                    nova_lista.extend(novos)
-
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.executemany(
-                "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                [(i, p["id"]) for i, p in enumerate(nova_lista, start=1)],
-            )
-            cursor.executemany(
-                "UPDATE pontos SET ignorar_poligono = 0, camada_ciclo_vida = 'PERIMETRO' WHERE id = ?",
-                [(pid,) for pid in ids_promover],
-            )
-            conn.commit()
-
-        try:
-            from services.processamento.geoprocessamento import reordenar_perimetro_matricula
-            reordenar_perimetro_matricula(id, matricula_id)
-        except Exception as ex_reorder:
-            logging.getLogger(__name__).warning(f"Falha ao regenerar divisas após promoção: {ex_reorder}")
-
-        from services.processamento.historico_campo import HistoricoCampoLogger
-        HistoricoCampoLogger.registrar_evento(
-            levantamento_id=id,
-            tipo_evento="VERTICE_VIRTUAL_PROMOVIDO",
-            descricao=f"{len(ids_promover)} vértice(s) virtual(is) inserido(s) no perímetro da matrícula {matricula_id}.",
-            dados_detalhados={"ids": ids_promover, "apos_ponto_id": payload.apos_ponto_id, "matricula_id": matricula_id},
-        )
-
+        ids_promover = promover_vertices_virtuais(id, matricula_id, payload.ponto_ids, payload.apos_ponto_id)
         return {
             "sucesso": True,
             "total_promovidos": len(ids_promover),
             "ids": ids_promover,
             "mensagem": f"{len(ids_promover)} vértice(s) virtual(is) inserido(s) no perímetro.",
         }
-    except HTTPException:
-        raise
+    except VerticeVirtualErro as ve:
+        raise HTTPException(status_code=ve.status, detail=ve.mensagem)
     except Exception as e:
         logging.getLogger(__name__).error(f"Erro ao promover vértices virtuais: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao inserir vértices virtuais no perímetro: {str(e)}")
