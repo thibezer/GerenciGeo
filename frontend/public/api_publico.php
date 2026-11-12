@@ -113,6 +113,10 @@ function obterLevantamentoPublico(PDO $pdo, string $codigo, string $pin): array
         foreach ($stmt->fetchAll() as $r) {
             $r = pubLimpar($r);
             $r['tipo'] = $r['tipo_ponto'] ?? ($r['tipo'] ?? null);
+            // O cliente vê o nome oficial do SIGEF (ex.: XRXR-V-0176), não o apelido de campo (ex.: V-06)
+            if (!empty($r['codigo_sigef'])) {
+                $r['nome_vertice'] = $r['codigo_sigef'];
+            }
             if (($r['lat'] === null || $r['lon'] === null) && isset($r['lat_corrigido'], $r['lon_corrigido'])) {
                 $r['lat'] = $r['lat_corrigido'];
                 $r['lon'] = $r['lon_corrigido'];

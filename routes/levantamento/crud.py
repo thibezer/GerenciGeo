@@ -678,7 +678,12 @@ def _montar_payload_publico(codigo: str) -> dict:
                   AND (ignorar_poligono IS NULL OR ignorar_poligono = 0)
                 ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
             """
-            lev_obj['pontos'] = [_sem_campos_privados(dict(r)) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
+            pontos_campo = [_sem_campos_privados(dict(r)) for r in execute_query(query_pts, params=(lev_id,), fetch_all=True)]
+            # O cliente vê o nome oficial do SIGEF (ex.: XRXR-V-0176), não o apelido de campo (ex.: V-06)
+            for p in pontos_campo:
+                if p.get('codigo_sigef'):
+                    p['nome_vertice'] = p['codigo_sigef']
+            lev_obj['pontos'] = pontos_campo
 
         # Busca segmentos
         query_seg = "SELECT * FROM segmentos WHERE levantamento_id = ?"

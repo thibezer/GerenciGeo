@@ -28,6 +28,7 @@ class TestCompartilhamentoAcesso(unittest.TestCase):
     def tearDown(self):
         with DatabaseManager() as conn:
             cur = conn.cursor()
+            cur.execute("DELETE FROM pontos WHERE levantamento_id = ?", (self.lev_id,))
             cur.execute("DELETE FROM levantamentos WHERE id = ?", (self.lev_id,))
             cur.execute("DELETE FROM propriedades WHERE id = ?", (self.prop_id,))
             cur.execute("DELETE FROM profissionais WHERE id = ?", (self.prof_id,))
@@ -45,6 +46,17 @@ class TestCompartilhamentoAcesso(unittest.TestCase):
         corpo = r.json()
         self.assertEqual(corpo["nome_propriedade"], "Fazenda Link")
         self.assertNotIn("compartilhamento_pin_hash", corpo)
+
+    def test_publico_usa_nome_sigef_quando_existe(self):
+        execute_query(
+            "INSERT INTO pontos (levantamento_id, nome_vertice, codigo_sigef, tipo_ponto, ordem_caminhamento) VALUES (?, 'V-06', 'XRXR-V-0176', 'V', 1)",
+            params=(self.lev_id,), commit=True)
+        execute_query(
+            "INSERT INTO pontos (levantamento_id, nome_vertice, tipo_ponto, ordem_caminhamento) VALUES (?, 'rio100', 'V', 2)",
+            params=(self.lev_id,), commit=True)
+        codigo = self._gerar({"validade_dias": 0}).json()["codigo"]
+        nomes = [p["nome_vertice"] for p in client.get(f"/api/levantamentos/publico/{codigo}").json()["pontos"]]
+        self.assertEqual(nomes, ["XRXR-V-0176", "rio100"])
 
     def test_pin_exigido_e_validado(self):
         codigo = self._gerar({"validade_dias": 7, "pin": "1234"}).json()["codigo"]

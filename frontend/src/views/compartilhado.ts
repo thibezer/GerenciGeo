@@ -539,6 +539,27 @@ const updateUI = () => {
 
 const PIN_STORAGE_PREFIX = 'gg_pub_pin_';
 
+/**
+ * O mapa é o mesmo componente da mesa de trabalho. Para o cliente, esconde o que ele não sabe usar:
+ * painel de camadas, snap, limpar seleção e a barra de coordenadas. Fica só o botão de enquadrar.
+ */
+const CSS_MAPA_PUBLICO = `
+  #qgis-layer-panel, #btn-toggle-layers, #btn-toggle-snap, #btn-clear-selection, #cad-coordenadas-hud { display: none !important; }
+`;
+const limparMapaPublico = (tentativas = 0) => {
+    const el = document.getElementById('map-container');
+    const sr = el?.shadowRoot;
+    if (!sr) {
+        if (tentativas < 100) setTimeout(() => limparMapaPublico(tentativas + 1), 50);
+        return;
+    }
+    if (sr.getElementById('estilo-mapa-publico')) return;
+    const estilo = document.createElement('style');
+    estilo.id = 'estilo-mapa-publico';
+    estilo.textContent = CSS_MAPA_PUBLICO;
+    sr.appendChild(estilo);
+};
+
 /** Tela cheia para PIN, link expirado, link inválido ou erro de conexão. */
 const mostrarEstado = (icone: string, titulo: string, texto: string, extraHtml = '') => {
     const caixa = document.getElementById('pub-estado');
@@ -645,6 +666,7 @@ export const compartilhadoRoute: RouteDef = {
     initIcons();
 
     mapController = document.getElementById('map-container') as any;
+    limparMapaPublico();
     carregarLevantamento(codigo);
   }
 };
