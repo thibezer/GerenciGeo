@@ -1778,6 +1778,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                       Coproprietário #${idx + 1}
                    </span>
                    <span class="text-[10px] text-white/40">Condômino da matrícula lindeira</span>
+                   <label class="flex items-center gap-1.5 ml-2 text-[11px] text-white/80 cursor-pointer">
+                      <input type="checkbox" class="chk-coprop-assina accent-emerald-400 w-3.5 h-3.5" data-idx="${idx}" ${cp.assina === false || cp.assina === 0 ? '' : 'checked'}>
+                      Assina
+                   </label>
                 </div>
                 <button type="button" class="btn-remover-coprop text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded transition-all cursor-pointer" data-idx="${idx}" title="Remover coproprietário">
                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -1941,6 +1945,13 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         input.addEventListener('ui-selecionar', handler);
       });
 
+      containerCoproprietarios.querySelectorAll('.chk-coprop-assina').forEach(chk => {
+        chk.addEventListener('change', () => {
+          const i = Number(chk.getAttribute('data-idx'));
+          if (coproprietariosAtuais[i]) coproprietariosAtuais[i].assina = (chk as HTMLInputElement).checked;
+        });
+      });
+
       containerCoproprietarios.querySelectorAll('.input-coprop-cpf').forEach(input => {
         const idx = Number(input.getAttribute('data-idx'));
         const statusEl = containerCoproprietarios.querySelector(`.status-coprop-cpf[data-idx="${idx}"]`) as HTMLElement;
@@ -2013,7 +2024,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           genero_conjuge: 'F',
           nacionalidade_conjuge: 'brasileiro(a)',
           profissao_conjuge: '',
-          endereco_completo: ''
+          endereco_completo: '',
+          assina: true
         });
         renderizarCardsCoproprietarios();
         setTimeout(() => {
@@ -2053,6 +2065,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       (document.getElementById('input-conf-lote') as any).value = '';
       (document.getElementById('input-conf-matricula-imovel') as any).value = '';
 
+      preencherRepresentante(null);
+      const chkTitNovo = document.getElementById('chk-titular-assina') as HTMLInputElement | null;
+      if (chkTitNovo) chkTitNovo.checked = true;
       configurarMaquinadeEstadosCivil(containerForm);
       aplicarTipoPessoa();
       coproprietariosAtuais = [];
@@ -2125,6 +2140,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('input-conf-matricula-imovel') as any).value = selectedConf.matricula_imovel || '';
             
             configurarMaquinadeEstadosCivil(containerForm);
+            preencherRepresentante(selectedConf.representante);
+            const chkTit = document.getElementById('chk-titular-assina') as HTMLInputElement | null;
+            if (chkTit) chkTit.checked = selectedConf.titular_assina !== 0;
             coproprietariosAtuais = (selectedConf.coproprietarios && Array.isArray(selectedConf.coproprietarios)) 
               ? JSON.parse(JSON.stringify(selectedConf.coproprietarios)) 
               : [];
@@ -2152,6 +2170,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
       ['conf-genero', 'input-conf-nacionalidade', 'input-conf-profissao', 'conf-estado-civil', 'conf-regime-bens'].forEach(ocultar);
       const boxConjuge = document.getElementById('box-conjuge');
+      document.getElementById('box-representante')?.classList.toggle('hidden', !pj);
       if (pj) {
         boxConjuge?.classList.add('hidden');
       } else {
@@ -2164,6 +2183,33 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       const inputNome = document.getElementById('input-conf-nome') as any;
       if (inputNome && 'placeholder' in inputNome) inputNome.placeholder = pj ? 'Razão social' : 'Nome completo do titular confrontante';
     };
+
+    const campoRep = (id: string) => document.getElementById(id) as any;
+    const CAMPOS_REP: [string, string][] = [
+      ['input-rep-cpf', 'cpf_cnpj'], ['input-rep-nome', 'nome'], ['input-rep-rg', 'rg'], ['input-rep-genero', 'genero'],
+      ['input-rep-nacionalidade', 'nacionalidade'], ['input-rep-profissao', 'profissao'],
+      ['input-rep-estado-civil', 'estado_civil'], ['input-rep-endereco', 'endereco_completo']
+    ];
+    /** Só envia representante quando o titular é PJ e o nome foi preenchido. */
+    function lerRepresentante(): Record<string, string> | null {
+      const pj = (inputCpf?.value || '').replace(/\D/g, '').length > 11;
+      if (!pj) return null;
+      const rep: Record<string, string> = {};
+      CAMPOS_REP.forEach(([id, chave]) => { rep[chave] = (campoRep(id)?.value || '').trim(); });
+      return rep.nome ? rep : null;
+    }
+    const preencherRepresentante = (rep: any) => {
+      CAMPOS_REP.forEach(([id, chave]) => {
+        const el = campoRep(id);
+        if (!el) return;
+        const padrao = chave === 'genero' ? 'M' : chave === 'nacionalidade' ? 'brasileiro(a)' : chave === 'estado_civil' ? 'solteiro' : '';
+        el.value = chave === 'cpf_cnpj' && rep?.[chave] ? formatarCpfCnpjDinamico(rep[chave]) : (rep?.[chave] || padrao);
+      });
+    };
+    campoRep('input-rep-cpf')?.addEventListener('input', () => {
+      const el = campoRep('input-rep-cpf');
+      el.value = formatarCpfCnpjDinamico(el.value);
+    });
 
     const buscarPreenchimentoCpf = async (cpfVal: string) => {
       if (!cpfVal) return;
@@ -2272,6 +2318,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         lote: (document.getElementById('input-conf-lote') as any)?.value?.trim() || null,
         matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as any)?.value?.trim() || null,
         tipo_relacao: null,
+        titular_assina: (document.getElementById('chk-titular-assina') as HTMLInputElement | null)?.checked !== false,
+        representante: lerRepresentante(),
         coproprietarios: coproprietariosAtuais
           .map(cp => ({
             nome: (cp.nome || '').trim(),
@@ -2288,7 +2336,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             genero_conjuge: cp.genero_conjuge || 'F',
             nacionalidade_conjuge: (cp.nacionalidade_conjuge || '').trim() || 'brasileiro(a)',
             profissao_conjuge: (cp.profissao_conjuge || '').trim() || null,
-            endereco_completo: (cp.endereco_completo || '').trim() || null
+            endereco_completo: (cp.endereco_completo || '').trim() || null,
+            assina: !(cp.assina === false || cp.assina === 0)
           }))
           .filter(cp => cp.nome.length > 0)
       };

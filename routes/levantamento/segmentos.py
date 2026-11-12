@@ -51,6 +51,7 @@ class CoproprietarioCreate(BaseModel):
     genero_conjuge: Optional[str] = 'F'
     nacionalidade_conjuge: Optional[str] = 'brasileiro(a)'
     profissao_conjuge: Optional[str] = None
+    assina: Optional[bool] = True
 
 class ConfrontanteCreate(BaseModel):
     nome: str
@@ -75,6 +76,8 @@ class ConfrontanteCreate(BaseModel):
     codigo_incra_imovel: Optional[str] = None
     lote: Optional[str] = None
     coproprietarios: Optional[List[CoproprietarioCreate]] = []
+    representante: Optional[dict] = None
+    titular_assina: Optional[bool] = True
 
 def salvar_coproprietarios_transacao(cursor, confrontante_id: int, coproprietarios: list):
     cursor.execute("DELETE FROM confrontante_coproprietarios WHERE confrontante_id = ?", (confrontante_id,))
@@ -125,14 +128,15 @@ def salvar_coproprietarios_transacao(cursor, confrontante_id: int, coproprietari
             INSERT INTO confrontante_coproprietarios (
                 confrontante_id, pessoa_id, nome, cpf_cnpj, rg, genero, nacionalidade, profissao,
                 estado_civil, regime_bens, endereco_completo, nome_conjuge, cpf_conjuge, rg_conjuge,
-                genero_conjuge, nacionalidade_conjuge, profissao_conjuge
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                genero_conjuge, nacionalidade_conjuge, profissao_conjuge, assina
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (confrontante_id, pessoa_cp_id, nome_cp, cpf_cp_norm, cp_dict.get("rg"),
               cp_dict.get("genero") or 'M', cp_dict.get("nacionalidade") or 'brasileiro(a)',
               cp_dict.get("profissao"), cp_dict.get("estado_civil"), cp_dict.get("regime_bens"),
               cp_dict.get("endereco_completo"), cp_dict.get("nome_conjuge"), cp_dict.get("cpf_conjuge"),
               cp_dict.get("rg_conjuge"), cp_dict.get("genero_conjuge") or 'F',
-              cp_dict.get("nacionalidade_conjuge") or 'brasileiro(a)', cp_dict.get("profissao_conjuge")))
+              cp_dict.get("nacionalidade_conjuge") or 'brasileiro(a)', cp_dict.get("profissao_conjuge"),
+              0 if cp_dict.get("assina") is False else 1))
               
         cp_dict["pessoa_id"] = pessoa_cp_id
         lista_json.append(cp_dict)
@@ -250,7 +254,8 @@ def get_confrontantes(id: int):
                    p.profissao_conjuge AS profissao_conjuge,
                    c.matricula_imovel, c.lote, c.cns_confrontante, c.caminho_matricula_pdf,
                    c.nome_propriedade, c.codigo_incra_imovel, c.poligono_wkt,
-                   c.confrontacoes_json, c.created_at
+                   c.confrontacoes_json, c.created_at,
+                   c.representante_json, COALESCE(c.titular_assina, 1) AS titular_assina
             FROM confrontantes c
             LEFT JOIN pessoas p ON c.pessoa_id = p.id
             WHERE c.levantamento_id = ?
@@ -264,6 +269,10 @@ def get_confrontantes(id: int):
                 params=(cid,), fetch_all=True
             )
             conf["coproprietarios"] = [dict(cp) for cp in rows_cp]
+            try:
+                conf["representante"] = json.loads(conf.pop("representante_json") or "null")
+            except (TypeError, ValueError):
+                conf["representante"] = None
         return confrontantes
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -323,6 +332,11 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
                   c.nome_propriedade, c.codigo_incra_imovel, c.lote))
             confrontante_id = cursor.lastrowid
+            cursor.execute(
+                "UPDATE confrontantes SET representante_json = ?, titular_assina = ? WHERE id = ?",
+                (json.dumps(c.representante, ensure_ascii=False) if c.representante else None,
+                 0 if c.titular_assina is False else 1, confrontante_id)
+            )
             
             if c.coproprietarios:
                 salvar_coproprietarios_transacao(cursor, confrontante_id, c.coproprietarios)
@@ -454,12 +468,16 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                     cns_confrontante = COALESCE(?, cns_confrontante),
                     nome_propriedade = COALESCE(?, nome_propriedade),
                     codigo_incra_imovel = COALESCE(?, codigo_incra_imovel),
-                    lote = ?
+                    lote = ?,
+                    representante_json = ?,
+                    titular_assina = ?
                 WHERE id = ?
             """, (pessoa_id, c.nome, cpf_cnpj_norm, c.rg, c.nacionalidade or 'brasileiro(a)',
                   c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
-                  c.nome_propriedade, c.codigo_incra_imovel, c.lote, cid))
+                  c.nome_propriedade, c.codigo_incra_imovel, c.lote,
+                  json.dumps(c.representante, ensure_ascii=False) if c.representante else None,
+                  0 if c.titular_assina is False else 1, cid))
             
             if c.coproprietarios is not None:
                 salvar_coproprietarios_transacao(cursor, cid, c.coproprietarios)

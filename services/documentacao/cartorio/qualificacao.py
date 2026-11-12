@@ -158,6 +158,8 @@ def qualificar_pessoa(
     regime_obrigatorio: bool = False,
     destaque_docs: bool = False,
     domicilio_padrao=None,
+    representante: dict | None = None,
+    sem_conjuge: bool = False,
 ) -> tuple[Html, dict]:
     """Qualificação civil completa (pessoa física, casal ou pessoa jurídica).
 
@@ -176,9 +178,17 @@ def qualificar_pessoa(
 
     # Pessoa jurídica (CNPJ): sem RG, estado civil ou cônjuge.
     if eh_cnpj(p["cpf_cnpj"]):
+        if representante and valor_preenchido(representante.get("nome")):
+            qualif_rep, _ = qualificar_pessoa(
+                representante, rotulo_erro="O representante legal", destaque_docs=destaque_docs,
+                domicilio_padrao=domicilio_padrao, sem_conjuge=True,
+            )
+            qualif_rep = Html(f"{qualif_rep}, na qualidade de representante legal")
+        else:
+            qualif_rep = f"{'_' * 35}, {'_' * 25} (nome e qualificação do representante legal)"
         texto = (
             f"{nome_s}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {cpf}, com sede em {dom}, "
-            f"neste ato representada por {'_' * 35}, {'_' * 25} (nome e qualificação do representante legal)"
+            f"neste ato representada por {qualif_rep}"
         )
         info = {"pj": True, "casal": False, "uniao": False, "genero": "F", "genero_conjuge": None, "nome_conjuge": ""}
         return Html(texto), info
@@ -188,7 +198,7 @@ def qualificar_pessoa(
     prof = valor_ou_lacuna(p["profissao"], 20)
     cat = categoria_estado_civil(p["estado_civil"])
 
-    if not tem_conjuge(p):
+    if sem_conjuge or not tem_conjuge(p):
         est = esc(rotulo_estado_civil(p["estado_civil"], g)) or LACUNA_ESTADO_CIVIL
         if not est:
             est = LACUNA_ESTADO_CIVIL

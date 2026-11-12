@@ -806,7 +806,10 @@ def create_tables(conn):
             ("coproprietarios_json", "TEXT"),
             # Quem criou o registro: 'sigef' (importação de vizinho), 'manual' (formulário), 'auto' (criado ao
             # editar vértice/CAD) ou NULL (legado). Só 'sigef' é removido em massa ao limpar os vizinhos.
-            ("origem", "TEXT")
+            ("origem", "TEXT"),
+            # Representante legal (PJ) em JSON e se o titular assina a anuência (1 = sim)
+            ("representante_json", "TEXT"),
+            ("titular_assina", "INTEGER DEFAULT 1")
         ]
         cursor.execute("PRAGMA table_info(confrontantes)")
         colunas_confrontantes_existentes = {row[1] for row in cursor.fetchall()}
@@ -817,6 +820,14 @@ def create_tables(conn):
                     logger.info(f"Coluna migrada com sucesso em confrontantes: {col}")
                 except Exception as ex_mig:
                     logger.warning(f"Aviso de migração automática para coluna {col} em confrontantes: {ex_mig}")
+
+        # Migração: escolha de quem assina a anuência entre os coproprietários
+        cursor.execute("PRAGMA table_info(confrontante_coproprietarios)")
+        if "assina" not in {row[1] for row in cursor.fetchall()}:
+            try:
+                cursor.execute("ALTER TABLE confrontante_coproprietarios ADD COLUMN assina INTEGER DEFAULT 1")
+            except Exception as ex_mig:
+                logger.warning(f"Aviso de migração para coluna assina em confrontante_coproprietarios: {ex_mig}")
 
         # Migração dinâmica para a tabela matriculas
         colunas_matriculas = [

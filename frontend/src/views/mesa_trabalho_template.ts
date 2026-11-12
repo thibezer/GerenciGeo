@@ -589,6 +589,32 @@ export const renderMesaTrabalho = (): string => {
                             </div>
                          </div>
                          
+                         <!-- Bloco 4.0: Representante legal (somente pessoa jurídica / CNPJ) -->
+                         <div class="p-4 bg-white/[0.02] border border-white/10 rounded-technical space-y-3 hidden" id="box-representante">
+                            <div class="flex items-center gap-2 border-b border-white/5 pb-2">
+                               <i data-lucide="user-check" class="w-3.5 h-3.5 text-mint-vibrant"></i>
+                               <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Representante Legal da Empresa (assina a anuência)</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+                               <div class="col-span-1"><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF</label>
+                                  <ui-campo-texto type="text" id="input-rep-cpf" class="w-full" placeholder="000.000.000-00"></ui-campo-texto></div>
+                               <div class="col-span-1 sm:col-span-2 lg:col-span-2"><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome Completo</label>
+                                  <ui-campo-texto type="text" id="input-rep-nome" class="w-full" placeholder="Nome do representante"></ui-campo-texto></div>
+                               <div class="col-span-1"><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG / Órgão</label>
+                                  <ui-campo-texto type="text" id="input-rep-rg" class="w-full" placeholder="RG"></ui-campo-texto></div>
+                               <div class=""><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                                  <ui-lista-flutuante id="input-rep-genero" class="w-full"><option value="M">Homem</option><option value="F">Mulher</option></ui-lista-flutuante></div>
+                               <div class=""><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                                  <ui-campo-texto type="text" id="input-rep-nacionalidade" class="w-full" value="brasileiro(a)"></ui-campo-texto></div>
+                               <div class=""><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão</label>
+                                  <ui-campo-texto type="text" id="input-rep-profissao" class="w-full" placeholder="Profissão"></ui-campo-texto></div>
+                               <div class=""><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
+                                  <ui-lista-flutuante id="input-rep-estado-civil" class="w-full"><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="uniao_estavel">União Estável</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></ui-lista-flutuante></div>
+                               <div class="col-span-1 sm:col-span-2 lg:col-span-4"><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço do Representante</label>
+                                  <ui-campo-texto type="text" id="input-rep-endereco" class="w-full" placeholder="Deixe em branco para usar o endereço da empresa"></ui-campo-texto></div>
+                            </div>
+                         </div>
+
                          <!-- Bloco 4.1: Condomínio / Coproprietários do Imóvel Confrontante (Opcional) -->
                          <div class="p-4 bg-white/[0.02] border border-white/10 rounded-technical space-y-3" id="box-coproprietarios">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
@@ -607,6 +633,11 @@ export const renderMesaTrabalho = (): string => {
                                </button>
                             </div>
                             
+                            <label class="flex items-center gap-2 px-3 py-2 rounded-technical bg-mint-vibrant/5 border border-mint-vibrant/20 text-[11px] text-white/80 cursor-pointer">
+                               <input type="checkbox" id="chk-titular-assina" class="accent-emerald-400 w-4 h-4" checked>
+                               <span><strong>Titular acima assina</strong> a anuência <span class="text-white/40">(desmarque se o cartório aceitar apenas outro condômino)</span></span>
+                            </label>
+
                             <!-- Lista dinâmica de Coproprietários -->
                             <div id="lista-coproprietarios-container" class="space-y-3">
                                <!-- Preenchido dinamicamente via JS -->
