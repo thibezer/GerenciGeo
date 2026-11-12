@@ -225,6 +225,14 @@ def _aviso_modelo_uf(uf) -> Html:
     )
 
 
+def _alerta_tela(texto: str) -> str:
+    """Alerta visível só na tela (não imprime) para o profissional revisar antes de emitir."""
+    return (
+        '<div class="no-print print:hidden w-full max-w-[21cm] mb-4 p-3 rounded-lg border-2 border-red-400 bg-red-50 '
+        f'text-red-800 text-xs font-bold" role="alert">{esc(texto)}</div>'
+    )
+
+
 def _carregar_contexto_fronteira(lev_id: int, matricula_id: int, campos_prof: str) -> tuple[dict, dict, dict]:
     row_lev = execute_query(
         f"""
@@ -360,7 +368,11 @@ class BorderAreaReportGenerator:
         template = carregar_template("laudo_fronteira.html")
         return renderizar_template(template, {
             "nome_lote": nome_lote,
-            "aviso_modelo_html": _aviso_modelo_uf(prop_data.get("uf")),
+            "aviso_modelo_html": Html(str(_aviso_modelo_uf(prop_data.get("uf"))) + (
+                _alerta_tela(
+                    f"Atenção: a distância calculada ({dist_km:.3f} km) é superior a 150 km, limite da faixa de fronteira (Lei 6.634/1979). "
+                    "O texto do laudo atesta enquadramento INTEGRAL na faixa: revise antes de emitir."
+                ) if dist_km > 150 else "")),
             "nome_prof": nome_prof,
             "nac_prof": nac_prof,
             "formacao_prof": formacao_prof,
@@ -473,7 +485,11 @@ class BorderAreaReportGenerator:
         template = carregar_template("requerimento_ratificacao.html")
         return renderizar_template(template, {
             "nome_lote": nome_lote,
-            "aviso_modelo_html": _aviso_modelo_uf(prop_data.get("uf")),
+            "aviso_modelo_html": Html(str(_aviso_modelo_uf(prop_data.get("uf"))) + (
+                _alerta_tela(
+                    "Atenção: imóvel com área superior a 2.500 ha. Pela Lei 13.178/2015 (art. 2º) e art. 188, § 1º, da CF, "
+                    "a ratificação depende de aprovação do Congresso Nacional: revise o requerimento antes de protocolar."
+                ) if (mat_data.get("area_ha") or 0.0) > 2500.0 else "")),
             "comarca_exibicao": comarca_exibicao,
             "estado_nome": (nome_estado(prop_data.get("uf")) or "UF NÃO INFORMADA").upper(),
             "texto_requerimento": Html(texto_requerimento),

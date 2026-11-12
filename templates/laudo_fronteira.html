@@ -84,7 +84,8 @@
     </div>
  
     <!-- Página Principal (A4) -->
-    <div class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
+    {aviso_modelo_html}
+            <div class="page bg-white text-slate-800 p-12 md:p-16 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl flex flex-col justify-between print:rounded-none print:border-none print:shadow-none">
         
         <div>
             <!-- Cabeçalho Principal -->
@@ -125,7 +126,7 @@
                 <!-- Análise Espacial Geodésica e Enquadramento Legal (Sessão 4) -->
                 <div>
                     <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">4. Parecer e Atestado de Enquadramento Legal</h3>
-                    <p class="text-slate-700">ATESTO para os devidos fins de ratificação dos registros imobiliários na faixa de fronteira de que trata a Lei Federal 13.178/2015, na forma do art. 656-BV, VI, do Código de Normas da Corregedoria Geral da Justiça do Estado do Paraná o referido imóvel encontra-se a uma distância de <strong class="text-slate-900 font-mono">{dist_km} km</strong> do limite da fronteira do território brasileiro, posicionado <strong>INTEGRALMENTE dentro da área denominada FAIXA DE FRONTEIRA</strong>, considerada com uma extensão de 150 km (cento e cinquenta quilômetros) paralela à linha divisória terrestre do território nacional, conforme Lei Federal 6.634 de 02 de maio de 1979, demonstrado em requerimento anexado a este, fazendo-se obrigatório o processo de ratificação do registro imobiliário perante os órgãos de Defesa Nacional.</p>
+                    <p class="text-slate-700">ATESTO para os devidos fins de ratificação dos registros imobiliários na faixa de fronteira de que trata a Lei Federal 13.178/2015, na forma do art. 656-BV, VI, do Código de Normas da Corregedoria Geral da Justiça do Estado do Paraná o referido imóvel encontra-se a uma distância de <strong class="text-slate-900 font-mono">{dist_km} km</strong> do limite da fronteira do território brasileiro, posicionado <strong>INTEGRALMENTE dentro da área denominada FAIXA DE FRONTEIRA</strong>, considerada com uma extensão de 150 km (cento e cinquenta quilômetros) paralela à linha divisória terrestre do território nacional, conforme Lei Federal 6.634 de 02 de maio de 1979, demonstrado em requerimento anexado a este, fazendo-se obrigatório o processo de ratificação do registro imobiliário perante o Serviço de Registro de Imóveis competente.</p>
                     
                     <p class="text-slate-700 mt-2">Sob TRT N° <strong class="text-slate-900">{numero_trt}</strong>, devidamente quitada, registrada em <strong class="text-slate-900">{data_trt_formatada}</strong>.</p>
                     
