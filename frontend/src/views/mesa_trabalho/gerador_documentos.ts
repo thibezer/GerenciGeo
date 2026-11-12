@@ -2054,6 +2054,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       (document.getElementById('input-conf-matricula-imovel') as any).value = '';
 
       configurarMaquinadeEstadosCivil(containerForm);
+      aplicarTipoPessoa();
       coproprietariosAtuais = [];
       renderizarCardsCoproprietarios();
       renderizarStatusAnexoMatricula(null);
@@ -2130,6 +2131,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             renderizarCardsCoproprietarios();
             renderizarStatusAnexoMatricula(selectedConf);
             initIcons();
+            aplicarTipoPessoa();
             ajustarVisibilidadeFormulario(containerForm);
           }
         } catch (err) {
@@ -2138,6 +2140,30 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         }
       });
     }
+
+    /** CNPJ (14 dígitos) = pessoa jurídica: oculta campos de pessoa física e ajusta rótulos. */
+    const aplicarTipoPessoa = () => {
+      if (!containerForm) return;
+      const digitos = (inputCpf?.value || '').replace(/\D/g, '');
+      const pj = digitos.length > 11;
+      const ocultar = (id: string) => {
+        const wrapper = document.getElementById(id)?.parentElement;
+        wrapper?.classList.toggle('hidden', pj);
+      };
+      ['conf-genero', 'input-conf-nacionalidade', 'input-conf-profissao', 'conf-estado-civil', 'conf-regime-bens'].forEach(ocultar);
+      const boxConjuge = document.getElementById('box-conjuge');
+      if (pj) {
+        boxConjuge?.classList.add('hidden');
+      } else {
+        configurarMaquinadeEstadosCivil(containerForm);
+      }
+      const labelRg = document.getElementById('input-conf-rg')?.parentElement?.querySelector('label');
+      if (labelRg) labelRg.textContent = pj ? 'Inscrição Estadual' : 'RG / Inscrição Estadual';
+      const inputRg = document.getElementById('input-conf-rg') as any;
+      if (inputRg && 'placeholder' in inputRg) inputRg.placeholder = pj ? 'Inscrição Estadual (opcional)' : 'RG ou I.E.';
+      const inputNome = document.getElementById('input-conf-nome') as any;
+      if (inputNome && 'placeholder' in inputNome) inputNome.placeholder = pj ? 'Razão social' : 'Nome completo do titular confrontante';
+    };
 
     const buscarPreenchimentoCpf = async (cpfVal: string) => {
       if (!cpfVal) return;
@@ -2179,6 +2205,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               configurarMaquinadeEstadosCivil(containerForm);
             }
             
+            aplicarTipoPessoa();
             showToast("✨ Dados de qualificação carregados automaticamente pelo CPF/CNPJ!", "success");
           }
         }
@@ -2192,6 +2219,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     if (inputCpf) {
       inputCpf.addEventListener('input', () => {
         inputCpf.value = formatarCpfCnpjDinamico(inputCpf.value);
+        aplicarTipoPessoa();
         const limpo = inputCpf.value.replace(/\D/g, '');
         if (limpo.length === 11 || limpo.length === 14) {
           buscarPreenchimentoCpf(inputCpf.value);
