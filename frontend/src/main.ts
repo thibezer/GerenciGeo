@@ -6,6 +6,7 @@ import '@thibezer/ui-components-kit/tools';
 import * as uiKit from 'ui-components-kit';
 import { aplicarPatchesUI } from './utils/ui_adapters';
 import { instalarFetchAutenticado } from './utils/fetch_autenticado';
+import { iniciarAvisoAtualizacao } from './utils/aviso_atualizacao';
 
 // Garante o padrão dos componentes e da aplicação em modo noturno (dark mode) na web
 if (typeof document !== 'undefined') {
@@ -510,6 +511,8 @@ const initApp = () => {
     }
   }
 };
+
+iniciarAvisoAtualizacao();
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);

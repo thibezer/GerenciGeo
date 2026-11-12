@@ -7,6 +7,7 @@ from routes.processamento import router as processamento_router
 from routes.levantamento import router as levantamento_router
 from routes.auth import router as auth_router
 from routes.nuvem import router as nuvem_router
+from routes.atualizacao import router as atualizacao_router
 
 router = APIRouter()
 router.include_router(auth_router)
@@ -17,3 +18,4 @@ router.include_router(ccir_router)
 router.include_router(processamento_router)
 router.include_router(levantamento_router)
 router.include_router(nuvem_router)
+router.include_router(atualizacao_router)
