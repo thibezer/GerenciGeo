@@ -415,7 +415,9 @@ A poligonal do perímetro da matrícula é gerada de forma puramente determinís
 *   **Fórmula do Inverso Elipsoidal (pyproj.Geod):** Utiliza o elipsoide GRS80 para calcular a menor distância elipsoidal rigorosa a partir de cada coordenada geométrica até a divisa internacional (Brasil-Paraguai) na coordenada de divisa fixa:
     $$\text{Latitude Fixo: } -24.0671222 \quad \text{e} \quad \text{Longitude Fixo: } -54.2868778$$ [104]
     Elege a menor distância absoluta em quilômetros com 3 casas decimais [104].
-*   **Fallback Determinístico de Banco:** Se não houver Shapefile, varre todos os pontos com estado `CORRIGIDO` dos levantamentos ativos daquela propriedade no banco de dados SQLite, calculando a menor distância de cada ponto até a coordenada fixa [104].
+*   **Fallback Determinístico de Banco:** Se não houver Shapefile utilizável, varre os pontos de **qualquer tipo** (B, M, V, etc.) dos levantamentos da propriedade, usando a coordenada corrigida quando existir, e elege o ponto **mais próximo** da coordenada fixa (independente de tipo/status).
+*   **Upload Seguro (revisão):** `POST /propriedades/{id}/upload-shapefile-fronteira` valida nome/extensão (`.zip`/`.shp`), limita a 100 MB, grava em pasta temporária, extrai com `extrair_zip_seguro`, valida que há `.shp` legível com vértices e só então troca os arquivos antigos de forma atômica (`trocar_arquivos_atomicamente`, com rollback). Erros de dado retornam HTTP 422; o shapefile anterior nunca é perdido por um upload inválido.
+*   **Múltiplos `.shp` e `.prj`:** a pasta é medida por inteiro (menor distância entre todos os `.shp`). A zona UTM é lida do `.prj`; sem `.prj` assume UTM 22S (EPSG:31982) com aviso em log.
 
 ### 6.2 Parsing Nativo de Relatórios ODS SIGEF / INCRA
 *   **Extrator XML In-Memory:** Abre o arquivo `.ods` utilizando o pacote nativo `zipfile` para extrair e decodificar o arquivo estruturado interno `content.xml` em UTF-8 [66].

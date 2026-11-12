@@ -52,12 +52,31 @@ _CACHE_SHAPEFILE: dict = {}
 _CACHE_SHAPEFILE_MAX = 64
 
 
+def _transformador_para_sirgas(shp_path: Path):
+    """Transformador das coordenadas do shapefile para SIRGAS 2000 (EPSG:4674).
+    Usa o .prj do próprio arquivo quando existir (zonas UTM 21S/22S/23S etc.); sem .prj assume UTM 22S (EPSG:31982)."""
+    prj = Path(shp_path).with_suffix(".prj")
+    if prj.is_file():
+        try:
+            from pyproj import CRS
+            crs = CRS.from_wkt(prj.read_text(encoding="utf-8", errors="ignore"))
+            if crs.is_projected:
+                return get_transformer(crs.to_wkt(), "epsg:4674", always_xy=True)
+        except Exception as e:
+            logger.warning(f"[FRONTEIRA] .prj de {Path(shp_path).name} ilegível ({e}); assumindo UTM 22S.")
+    else:
+        logger.warning(f"[FRONTEIRA] {Path(shp_path).name} sem .prj: assumindo UTM 22S (EPSG:31982) para coordenadas projetadas.")
+    return get_transformer("epsg:31982", "epsg:4674", always_xy=True)
+
+
 def medir_shapefile(shp_path: Path) -> tuple[float, float, float] | None:
     """Menor distância (km) do shapefile à fronteira e o ponto mais próximo. None se não houver pontos.
     Levanta exceção se o arquivo não puder ser lido (quem chama decide: validar upload x cair para o banco)."""
     shp_path = Path(shp_path)
     st = shp_path.stat()
-    chave = (str(shp_path), st.st_mtime_ns, st.st_size)
+    prj = shp_path.with_suffix(".prj")
+    prj_mtime = prj.stat().st_mtime_ns if prj.is_file() else 0
+    chave = (str(shp_path), st.st_mtime_ns, st.st_size, prj_mtime)
     if chave in _CACHE_SHAPEFILE:
         return _CACHE_SHAPEFILE[chave]
 
@@ -65,8 +84,7 @@ def medir_shapefile(shp_path: Path) -> tuple[float, float, float] | None:
         menor_dist = float('inf')
         ponto_mais_proximo = (0.0, 0.0)
 
-        # Instancia transformador UTM Zone 22S (EPSG:31982) -> SIRGAS 2000 (EPSG:4674)
-        transformer = get_transformer("epsg:31982", "epsg:4674", always_xy=True)
+        transformer = _transformador_para_sirgas(shp_path)
         geod = Geod(ellps="GRS80")
         pontos_lidos = 0
 
@@ -98,117 +116,97 @@ def _pasta_shapefile(propriedade_id: int, matricula_id: int = None) -> Path:
     base = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{propriedade_id}" / "Shapefile_Fronteira"
     if matricula_id:
         pasta_mat = base / f"Matricula_{matricula_id}"
-        if pasta_mat.is_dir() and any(pasta_mat.glob("*.zip")) or (pasta_mat.is_dir() and any(pasta_mat.glob("*.shp"))):
+        if pasta_mat.is_dir() and (any(pasta_mat.glob("*.zip")) or any(pasta_mat.glob("*.shp"))):
             return pasta_mat
     return base
+
+
+def _medir_pasta_shapefile(folder_shp: Path) -> tuple[float, float, float] | None:
+    """Menor distância entre TODOS os .shp da pasta (extrai .zip ainda não extraídos). None se não houver pontos."""
+    if not folder_shp.is_dir():
+        return None
+    for z in folder_shp.glob("*.zip"):
+        # Só extrai se o zip trouxer .shp que ainda não está na pasta (evita reextrair a cada consulta).
+        try:
+            import zipfile
+            with zipfile.ZipFile(z) as zf:
+                nomes = {Path(n.replace("\\", "/")).name.lower() for n in zf.namelist() if n.lower().endswith(".shp")}
+            existentes = {p.name.lower() for p in folder_shp.glob("*.shp")}
+            if nomes - existentes:
+                extrair_zip_seguro(z, folder_shp)
+                logger.info(f"[FRONTEIRA] Shapefile zip {z.name} extraído com sucesso na pasta.")
+        except Exception as ze:
+            logger.error(f"[FRONTEIRA] Erro ao extrair zip {z.name}: {ze}")
+
+    melhor = None
+    for shp_path in sorted(folder_shp.glob("*.shp")):
+        try:
+            r = medir_shapefile(shp_path)
+        except Exception as se:
+            logger.error(f"[FRONTEIRA] Erro ao processar Shapefile {shp_path.name}: {se}")
+            continue
+        if r is not None and (melhor is None or r[0] < melhor[0]):
+            melhor = r
+    return melhor
 
 
 def calcular_menor_distancia_fronteira(propriedade_id: int, matricula_id: int = None) -> tuple[float, float, float]:
     """
     Retorna (distancia_km, lat_ponto, lon_ponto) representando o ponto do imóvel mais próximo da fronteira.
 
-    1. Procura na pasta física de Shapefile da propriedade (específica da matrícula ou geral).
-       Se encontrar um .zip, descompacta (extração segura: só arquivos de shapefile, com limites).
-       Lê os arquivos .shp usando pyshp.
-       Detecta se as coordenadas estão em UTM e converte se necessário para SIRGAS 2000 (EPSG:4674).
-    2. Se não houver Shapefile, busca base geodésica M no banco associada a levantamentos da propriedade.
+    1. Procura na pasta física de Shapefile da propriedade (específica da matrícula ou geral); mede todos os .shp
+       (extração segura de .zip) e usa o ponto mais próximo da fronteira. Coordenadas UTM são convertidas para
+       SIRGAS 2000 (EPSG:4674) usando o .prj (ou UTM 22S na ausência dele).
+    2. Se não houver Shapefile utilizável, usa os pontos do banco da propriedade, de QUALQUER tipo
+       (coordenada corrigida quando existir), escolhendo o mais próximo da fronteira.
     3. Se não houver nada, levanta ErroDocumento (422).
+    Cálculo sempre via pyproj.Geod(ellps="GRS80") (regra 8 do gemini.md).
     """
-    folder_shp = _pasta_shapefile(propriedade_id, matricula_id)
+    resultado = _medir_pasta_shapefile(_pasta_shapefile(propriedade_id, matricula_id))
+    if resultado is not None:
+        logger.info(f"[FRONTEIRA] Menor distância a partir do Shapefile: {resultado[0]:.3f} km")
+        return resultado
 
-    # Se a pasta existe, processa arquivos contidos nela
-    if folder_shp.exists():
-        # Se houver zip e nenhum shp, extrai primeiro
-        zips = list(folder_shp.glob("*.zip"))
-        shps = list(folder_shp.glob("*.shp"))
-
-        if zips and not shps:
-            for z in zips:
-                try:
-                    extrair_zip_seguro(z, folder_shp)
-                    logger.info(f"[FRONTEIRA] Shapefile zip {z.name} extraído com sucesso na pasta.")
-                except Exception as ze:
-                    logger.error(f"[FRONTEIRA] Erro ao extrair zip {z.name}: {ze}")
-            shps = list(folder_shp.glob("*.shp"))
-
-        if shps:
-            shp_path = shps[0]
-            logger.info(f"[FRONTEIRA] Lendo Shapefile: {shp_path}")
-            try:
-                resultado = medir_shapefile(shp_path)
-                if resultado is not None:
-                    logger.info(f"[FRONTEIRA] Menor distância a partir do Shapefile: {resultado[0]:.3f} km")
-                    return resultado
-            except Exception as se:
-                logger.error(f"[FRONTEIRA] Erro ao processar Shapefile {shp_path.name}: {se}")
-
-    # Caso não tenha Shapefile ou tenha ocorrido erro, busca pontos geodésicos no banco.
-    # REGRA 8 gemini.md: A distância deve ser calculada a partir da base do levantamento
-    # (ponto tipo 'B' ativo, prioritariamente CORRIGIDO) usando pyproj.Geod(ellps="GRS80").
-    # 'M' é marco de divisa, não base: sem base cadastrada, cai no fallback de todos os pontos.
-    params_m = [propriedade_id]
-    query_base_m = """
-        SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
+    rows = execute_query(
+        """
+        SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice
         FROM pontos p
         JOIN levantamentos l ON p.levantamento_id = l.id
-        WHERE l.propriedade_id = ? AND p.tipo_ponto = 'B'
-          AND p.lat IS NOT NULL AND p.lon IS NOT NULL
-          AND p.lat != 0.0 AND p.lon != 0.0
-    """
-    if matricula_id:
-        query_base_m += " ORDER BY (p.matricula_id = ?) DESC, l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
-        params_m.append(matricula_id)
-    else:
-        query_base_m += " ORDER BY l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
+        WHERE l.propriedade_id = ?
+          AND ((p.lat IS NOT NULL AND p.lon IS NOT NULL AND p.lat != 0.0 AND p.lon != 0.0)
+               OR (p.lat_corrigido IS NOT NULL AND p.lon_corrigido IS NOT NULL
+                   AND p.lat_corrigido != 0.0 AND p.lon_corrigido != 0.0))
+        """,
+        params=(propriedade_id,),
+        fetch_all=True,
+    )
 
-    rows = execute_query(query_base_m, params=tuple(params_m), fetch_all=True)
+    geod = Geod(ellps="GRS80")
+    menor_dist = float('inf')
+    coord_referencia = (0.0, 0.0)
+    for row in rows or []:
+        pt = dict(row)
+        lat = pt["lat_corrigido"] if pt["lat_corrigido"] else pt["lat"]
+        lon = pt["lon_corrigido"] if pt["lon_corrigido"] else pt["lon"]
+        if not lat or not lon:
+            continue
+        try:
+            _, _, dist_m = geod.inv(float(lon), float(lat), BORDER_LON, BORDER_LAT)
+        except Exception as e_geod:
+            logger.warning(f"[FRONTEIRA] Erro ao calcular distância geodésica para ponto '{pt.get('nome_vertice')}': {e_geod}")
+            continue
+        dist_k = dist_m / 1000.0
+        if dist_k < menor_dist:
+            menor_dist = dist_k
+            coord_referencia = (float(lat), float(lon))
 
-    # Se não houver pontos tipo 'B', fallback para qualquer ponto do levantamento com coordenadas válidas
-    if not rows:
-        logger.warning("[FRONTEIRA] Nenhum ponto tipo 'B' (base) encontrado. Usando fallback com todos os pontos válidos.")
-        params_fb = [propriedade_id]
-        query_fallback = """
-            SELECT p.lat, p.lon, p.lat_corrigido, p.lon_corrigido, p.nome_vertice, p.tipo_ponto, p.matricula_id, l.status
-            FROM pontos p
-            JOIN levantamentos l ON p.levantamento_id = l.id
-            WHERE l.propriedade_id = ?
-              AND p.lat IS NOT NULL AND p.lon IS NOT NULL
-              AND p.lat != 0.0 AND p.lon != 0.0
-        """
-        if matricula_id:
-            query_fallback += " ORDER BY (p.matricula_id = ?) DESC, l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
-            params_fb.append(matricula_id)
-        else:
-            query_fallback += " ORDER BY l.status = 'EM_ANDAMENTO' DESC, (p.status_ponto = 'CORRIGIDO') DESC, p.id ASC"
-        rows = execute_query(query_fallback, params=tuple(params_fb), fetch_all=True)
-
-    if rows:
-        geod = Geod(ellps="GRS80")
-        menor_dist = float('inf')
-        coord_referencia = (0.0, 0.0)
-
-        for row in rows:
-            base = dict(row)
-            lat = base["lat_corrigido"] if base["lat_corrigido"] is not None else base["lat"]
-            lon = base["lon_corrigido"] if base["lon_corrigido"] is not None else base["lon"]
-            if lat and lon:
-                try:
-                    _, _, dist_m = geod.inv(float(lon), float(lat), BORDER_LON, BORDER_LAT)
-                    dist_k = dist_m / 1000.0
-                    if dist_k < menor_dist:
-                        menor_dist = dist_k
-                        coord_referencia = (lat, lon)
-                except Exception as e_geod:
-                    logger.warning(f"[FRONTEIRA] Erro ao calcular distância geodésica para ponto '{base.get('nome_vertice')}': {e_geod}")
-                    continue
-
-        if menor_dist != float('inf'):
-            logger.info(f"[FRONTEIRA] Calculada menor distância a partir dos pontos do Banco: {menor_dist:.3f} km")
-            return menor_dist, coord_referencia[0], coord_referencia[1]
+    if menor_dist != float('inf'):
+        logger.info(f"[FRONTEIRA] Menor distância a partir dos pontos do Banco: {menor_dist:.3f} km")
+        return menor_dist, coord_referencia[0], coord_referencia[1]
 
     raise ErroDocumento(
         "A propriedade selecionada não possui arquivos Shapefile enviados nem pontos geodésicos "
-        "no banco de dados. Por favor, envie o Shapefile da área ou cadastre a base (tipo B) para calcular a distância."
+        "no banco de dados. Por favor, envie o Shapefile da área ou cadastre pontos para calcular a distância."
     )
 
 

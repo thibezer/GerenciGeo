@@ -81,32 +81,56 @@ class PayloadAtualizarDadosFronteira(BaseModel):
 
 @router.post("/propriedades/{prop_id}/upload-shapefile-fronteira")
 async def upload_shapefile_fronteira(prop_id: int, matricula_id: Optional[int] = Query(None), file: UploadFile = File(...)):
+    import shutil
+    import tempfile
+    from services.documentacao.erros import ErroDocumento
+    from services.documentacao.fronteira_arquivos import (
+        MAX_UPLOAD_BYTES, extrair_zip_seguro, nome_arquivo_seguro,
+        trocar_arquivos_atomicamente, validar_extensao_upload,
+    )
+    from services.documentacao.report_generator import calcular_menor_distancia_fronteira, medir_shapefile
+
     verificar_propriedade_arquivada(prop_id)
+    log = logging.getLogger(__name__)
+    base = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira"
+    dest_dir = base / f"Matricula_{matricula_id}" if matricula_id else base
+    base.mkdir(parents=True, exist_ok=True)
+    tmp_dir = Path(tempfile.mkdtemp(prefix=".tmp_upload_", dir=str(base)))
     try:
-        if matricula_id:
-            dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira" / f"Matricula_{matricula_id}"
-        else:
-            dest_dir = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira"
-            
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Purgar arquivos antigos da pasta de Shapefile
-        for f in dest_dir.glob("*"):
-            if f.is_file():
-                try:
-                    f.unlink()
-                except Exception as ue:
-                    logging.getLogger(__name__).warning(f"Não foi possível excluir {f.name}: {ue}")
-                
-        safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
-        dest_path = dest_dir / safe_filename
-        
-        with open(dest_path, "wb") as buffer:
-            buffer.write(await file.read())
-            
-        from services.documentacao.report_generator import calcular_menor_distancia_fronteira
+        # 1) Valida nome/extensão e grava o upload em pasta temporária respeitando o limite de tamanho.
+        nome = nome_arquivo_seguro(file.filename)
+        ext = validar_extensao_upload(nome)
+        tmp_arquivo = tmp_dir / nome
+        total = 0
+        with open(tmp_arquivo, "wb") as buffer:
+            while True:
+                bloco = await file.read(1024 * 1024)
+                if not bloco:
+                    break
+                total += len(bloco)
+                if total > MAX_UPLOAD_BYTES:
+                    raise ErroDocumento("Arquivo grande demais (limite de 100 MB).")
+                buffer.write(bloco)
+
+        # 2) Extrai (zip) e valida que o shapefile é legível e tem pontos, ANTES de tocar nos arquivos atuais.
+        if ext == ".zip":
+            extrair_zip_seguro(tmp_arquivo, tmp_dir)
+            tmp_arquivo.unlink()
+        shps = sorted(tmp_dir.glob("*.shp"))
+        if not shps:
+            raise ErroDocumento("O arquivo enviado não contém nenhum .shp (shapefile).")
+        for shp in shps:
+            try:
+                medido = medir_shapefile(shp)
+            except Exception as e:
+                raise ErroDocumento(f"Shapefile '{shp.name}' inválido ou corrompido: {e}")
+            if medido is None:
+                raise ErroDocumento(f"Shapefile '{shp.name}' não contém pontos/vértices.")
+
+        # 3) Só agora substitui os arquivos antigos (troca atômica com rollback).
+        trocar_arquivos_atomicamente(dest_dir, tmp_dir)
+
         dist_km, lat, lon = calcular_menor_distancia_fronteira(prop_id, matricula_id)
-        
         return {
             "sucesso": True,
             "distancia_fronteira_km": round(dist_km, 3),
@@ -114,9 +138,13 @@ async def upload_shapefile_fronteira(prop_id: int, matricula_id: Optional[int] =
             "lon": lon,
             "mensagem": f"Shapefile processado com sucesso! Distância de isolamento: {dist_km:.3f} km."
         }
+    except ErroDocumento as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logging.getLogger(__name__).error(f"Erro ao processar shapefile de fronteira: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"Erro ao processar shapefile de fronteira: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao processar o shapefile de fronteira.")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/laudo-fronteira-html", response_class=HTMLResponse)
 def get_laudo_fronteira_html(id: int, matricula_id: int, numero_trt: str, data_trt: Optional[str] = ""):
@@ -179,7 +207,8 @@ def get_dados_fronteira(prop_id: int):
         matriculas_list = []
         for m in matriculas:
             m_dict = dict(m)
-            folder_shp = Path(EXPORT_BASE_FOLDER) / "Propriedades" / f"Prop_{prop_id}" / "Shapefile_Fronteira" / f"Matricula_{m_dict['id']}"
+            from services.documentacao.report_generator import _pasta_shapefile
+            folder_shp = _pasta_shapefile(prop_id, m_dict['id'])
             has_shp = folder_shp.exists() and (list(folder_shp.glob("*.shp")) or list(folder_shp.glob("*.zip")))
             m_dict["has_shapefile"] = bool(has_shp)
             
