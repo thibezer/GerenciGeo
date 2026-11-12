@@ -22,6 +22,13 @@ from services.gestores.levantamento_manager import (
     vincular_ponto_matricula,
 )
 from routes.deps import verificar_levantamento_arquivado
+from services.gestores.pontos_manager import (
+    PontoErro,
+    criar_ponto,
+    excluir_ponto,
+    listar_pontos,
+    sanitizar_ordens_duplicadas,
+)
 from services.gestores.matricula_manager import (
     MatriculaErro,
     atualizar_matricula,
@@ -88,84 +95,6 @@ class PayloadSalvarOrdem(BaseModel):
     pontos_ordem: List[ItemOrdemPonto]
 
 # ── Funções Auxiliares ──────────────────────────────────────────────────────────
-
-def sanitizar_ordens_duplicadas(levantamento_id: int):
-    """
-    Garante de forma robusta e determinística que não existam ordens de caminhamento duplicadas
-    dentro do mesmo levantamento (divididas por matrícula) ou em pontos sem matrícula associada.
-    Bases do tipo 'B' são mantidas com ordem NULL de forma rigorosa.
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-
-            # 1. Sanitizar pontos de cada matrícula do levantamento
-            cursor.execute(
-                "SELECT DISTINCT matricula_id FROM pontos WHERE levantamento_id = ? AND matricula_id IS NOT NULL",
-                (levantamento_id,)
-            )
-            matriculas = [r["matricula_id"] for r in cursor.fetchall()]
-
-            for mid in matriculas:
-                # Seleciona todos os pontos dessa matrícula, ignorando o tipo 'B'
-                cursor.execute(
-                    """
-                    SELECT id, ordem_caminhamento, tipo_ponto
-                    FROM pontos
-                    WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B'
-                    ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
-                    """,
-                    (levantamento_id, mid)
-                )
-                rows = cursor.fetchall()
-                
-                ordens = [r["ordem_caminhamento"] for r in rows if r["ordem_caminhamento"] is not None]
-                tem_duplicidade = len(ordens) != len(set(ordens))
-                tem_nulo = any(r["ordem_caminhamento"] is None for r in rows)
-
-                if tem_duplicidade or tem_nulo:
-                    logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, matricula={mid}")
-                    update_data = []
-                    nova_ordem = 1
-                    for r in rows:
-                        update_data.append((nova_ordem, r["id"]))
-                        nova_ordem += 1
-                    cursor.executemany(
-                        "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                        update_data
-                    )
-
-            # 2. Sanitizar pontos órfãos (matricula_id IS NULL), ignorando tipo 'B'
-            cursor.execute(
-                """
-                SELECT id, ordem_caminhamento, tipo_ponto
-                FROM pontos
-                WHERE levantamento_id = ? AND matricula_id IS NULL AND tipo_ponto != 'B'
-                ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
-                """,
-                (levantamento_id,)
-            )
-            rows_orfaos = cursor.fetchall()
-            ordens_orfaos = [r["ordem_caminhamento"] for r in rows_orfaos if r["ordem_caminhamento"] is not None]
-            tem_dup_orf = len(ordens_orfaos) != len(set(ordens_orfaos))
-            tem_nul_orf = any(r["ordem_caminhamento"] is None for r in rows_orfaos)
-
-            if tem_dup_orf or tem_nul_orf:
-                logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, pontos orfaos")
-                update_data = []
-                nova_ordem = 1
-                for r in rows_orfaos:
-                    update_data.append((nova_ordem, r["id"]))
-                    nova_ordem += 1
-                cursor.executemany(
-                    "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
-                    update_data
-                )
-                
-            conn.commit()
-    except Exception as e:
-        logger.error(f"[SANITIZACAO_ORDEM] Erro ao sanitizar ordens do levantamento {levantamento_id}: {e}")
 
 # ── Rotas de Matrículas do Levantamento ────────────────────────────────────────
 # A persistência e as regras ficam em services/gestores/matricula_manager.py; aqui só HTTP.
@@ -288,56 +217,10 @@ def get_matricula_historico(mid: int):
 @router.get("/levantamentos/{id}/pontos")
 def get_pontos(id: int, camada: Optional[str] = None):
     try:
-        # Autocorreção de ordens duplicadas: nunca altera um levantamento ARQUIVADO (tranca read-only)
-        if not camada or camada.upper() in ("CAMPO", "PERIMETRO"):
-            row_status = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
-            if row_status and row_status["status"] != "ARQUIVADO":
-                sanitizar_ordens_duplicadas(id)
-
-        filtros = ["p.levantamento_id = ?"]
-        params = [id]
-
-        if camada:
-            camada_upper = camada.upper()
-            if camada_upper == "TODOS":
-                pass
-            elif camada_upper in ("CAMPO", "PERIMETRO", "HOMOLOGADO", "VIZINHO"):
-                filtros.append("p.camada_ciclo_vida = ?")
-                params.append(camada_upper)
-            else:
-                raise HTTPException(status_code=400, detail=f"Camada inválida: '{camada}'. Opções: CAMPO, PERIMETRO, HOMOLOGADO, VIZINHO, TODOS")
-        else:
-            filtros.append("(p.ponto_vizinho IS NULL OR p.ponto_vizinho = 0)")
-
-        where_clause = " AND ".join(filtros)
-        query = f"""
-            SELECT p.*, m.numero_matricula 
-            FROM pontos p
-            LEFT JOIN matriculas m ON p.matricula_id = m.id
-            WHERE {where_clause}
-            ORDER BY CASE WHEN p.matricula_id IS NULL THEN 1 ELSE 0 END ASC, p.matricula_id ASC, CASE WHEN p.ordem_caminhamento IS NULL OR p.ordem_caminhamento = 0 THEN 999999 ELSE p.ordem_caminhamento END ASC, p.id ASC
-        """
-        rows = [dict(r) for r in execute_query(query, params=tuple(params), fetch_all=True)]
-        
-        for p in rows:
-            if p.get("e_corrigido") is None or p.get("n_corrigido") is None:
-                lat_c = p.get("lat_corrigido") or p.get("lat")
-                lon_c = p.get("lon_corrigido") or p.get("lon")
-                if lat_c and lon_c:
-                    try:
-                        zona_utm = p.get("fuso_utm") or (int((lon_c + 180) / 6) + 1)
-                        epsg_code = f"319{60 + zona_utm}"
-                        transformer = get_transformer("epsg:4674", f"epsg:{epsg_code}", always_xy=True)
-                        e_corr, n_corr = transformer.transform(lon_c, lat_c)
-                        if p.get("e_corrigido") is None:
-                            p["e_corrigido"] = round(e_corr, 3)
-                        if p.get("n_corrigido") is None:
-                            p["n_corrigido"] = round(n_corr, 3)
-                    except Exception:
-                        pass
-        return rows
+        return listar_pontos(id, camada)
+    except PontoErro as e:
+        raise HTTPException(status_code=e.status, detail=e.mensagem)
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
         logging.getLogger(__name__).error(f"Erro ao buscar pontos: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro interno de banco de dados: {str(e)}")
 
@@ -345,69 +228,19 @@ def get_pontos(id: int, camada: Optional[str] = None):
 def create_ponto(id: int, p: PontoCreate):
     verificar_levantamento_arquivado(id)
     try:
-        ordem = p.ordem_caminhamento
-        if not ordem and p.tipo_ponto != 'B':
-            if p.matricula_id:
-                row_max = execute_query("SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ? AND matricula_id = ?", params=(id, p.matricula_id), fetch_one=True)
-            else:
-                row_max = execute_query("SELECT MAX(ordem_caminhamento) as max_ord FROM pontos WHERE levantamento_id = ?", params=(id,), fetch_one=True)
-            max_ord = row_max["max_ord"] if row_max else None
-            ordem = (max_ord + 1) if max_ord is not None else 1
-
-        status_final = "CORRIGIDO" if p.tipo_ponto == 'V' else p.status_ponto
-
-        query = """
-            INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, sigma_lat, sigma_lon, sigma_alt, ordem_caminhamento, status_ponto, status_correcao, ponto_base_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        execute_query(query, params=(
-            id, p.matricula_id, p.nome_vertice, p.tipo_ponto, p.lat, p.lon, p.alt, 
-            p.sigma_lat, p.sigma_lon, p.sigma_alt, ordem, status_final, status_final, p.ponto_base_id
-        ), commit=True)
-        
-        sanitizar_ordens_duplicadas(id)
+        criar_ponto(id, p.model_dump())
         return {"message": "Ponto cadastrado com sucesso"}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/pontos/{pid}")
 def delete_ponto(pid: int):
     try:
-        row = execute_query("SELECT levantamento_id, nome_vertice, tipo_ponto, lat, lon, alt, ponto_vizinho FROM pontos WHERE id = ?", params=(pid,), fetch_one=True)
-        if row:
-            p_data = dict(row)
-            if p_data.get("ponto_vizinho") == 1:
-                raise HTTPException(status_code=403, detail="Pontos de confrontantes/vizinhos são imutáveis e não podem ser excluídos individualmente.")
-            verificar_levantamento_arquivado(p_data["levantamento_id"])
-            
-            check_base_uso = execute_query("SELECT COUNT(*) as count FROM pontos WHERE ponto_base_id = ?", params=(pid,), fetch_one=True)
-            eh_base_apoio = check_base_uso and check_base_uso["count"] > 0
-            
-            if p_data["tipo_ponto"] == "B" or eh_base_apoio:
-                from services.processamento.geoprocessamento import reverter_rovers_para_bruto
-                reverter_rovers_para_bruto(p_data["levantamento_id"], pid)
-            
-            execute_query("DELETE FROM pontos WHERE id = ?", params=(pid,), commit=True)
-            
-            from services.processamento.historico_campo import HistoricoCampoLogger
-            desc = f"Vértice {p_data['nome_vertice']} do Tipo '{p_data['tipo_ponto']}' foi excluído definitivamente pelo usuário."
-            HistoricoCampoLogger.registrar_evento(
-                levantamento_id=p_data["levantamento_id"],
-                tipo_evento="EXCLUSAO_PONTO",
-                descricao=desc,
-                dados_detalhados={
-                    "ponto_id": pid,
-                    "nome_vertice": p_data["nome_vertice"],
-                    "tipo_ponto": p_data["tipo_ponto"],
-                    "coordenadas_ultimo_estado": {"lat": p_data["lat"], "lon": p_data["lon"], "alt": p_data["alt"]}
-                }
-            )
-            return {"message": "Ponto removido com sucesso"}
-        else:
-            raise HTTPException(status_code=404, detail="Ponto não encontrado")
+        excluir_ponto(pid)
+        return {"message": "Ponto removido com sucesso"}
+    except PontoErro as e:
+        raise HTTPException(status_code=e.status, detail=e.mensagem)
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── Importação de TXT/RTK ──────────────────────────────────────────────────────
