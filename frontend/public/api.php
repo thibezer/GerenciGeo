@@ -20,7 +20,7 @@ set_exception_handler(function (Throwable $e) {
 // 1. Headers CORS & Resposta Preflight
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-GerenciGeo-Key');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-GerenciGeo-Key, X-Share-Pin');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -637,6 +637,9 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'confrontantes', 'cpf_conjuge', 'VARCHAR(32) NULL');
     addColumnSafe($pdo, 'confrontantes', 'rg_conjuge', 'VARCHAR(32) NULL');
     addColumnSafe($pdo, 'confrontantes', 'genero', 'VARCHAR(10) NULL');
+
+    addColumnSafe($pdo, 'levantamentos', 'compartilhamento_expira_em', 'VARCHAR(40) NULL');
+    addColumnSafe($pdo, 'levantamentos', 'compartilhamento_pin_hash', 'VARCHAR(128) NULL');
 
     addColumnSafe($pdo, 'users', 'api_token', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'users', 'token_created_at', 'DATETIME NULL');
@@ -1573,30 +1576,14 @@ if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 
 if (isset($_GET['codigo']) && $method === 'GET') {
     $codigo = preg_replace('/[^a-zA-Z0-9]/', '', (string)$_GET['codigo']);
     if (!empty($codigo)) {
-        $pdo = getDb();
-        $stmt = $pdo->prepare("SELECT * FROM levantamentos WHERE codigo_compartilhamento = ?");
-        $stmt->execute([$codigo]);
-        $lev = $stmt->fetch();
-        if ($lev) {
-            $stmtPts = $pdo->prepare("SELECT *, COALESCE(lat, lat_corrigido) as lat, COALESCE(lon, lon_corrigido) as lon, COALESCE(alt, altitude) as alt FROM pontos WHERE levantamento_id = ? ORDER BY ordem_caminhamento ASC");
-            $stmtPts->execute([$lev['id']]);
-            $pontos = $stmtPts->fetchAll();
-
-            $stmtSegs = $pdo->prepare("SELECT * FROM segmentos WHERE levantamento_id = ?");
-            $stmtSegs->execute([$lev['id']]);
-            $segmentos = $stmtSegs->fetchAll();
-
-            jsonResponse([
-                'levantamento' => $lev,
-                'pontos' => $pontos,
-                'segmentos' => $segmentos
-            ]);
-        }
-        $filePath = $storageDir . '/' . $codigo . '.json';
-        if (file_exists($filePath)) {
-            header('Content-Type: application/json; charset=utf-8');
-            readfile($filePath);
-            exit;
+        try {
+            require_once __DIR__ . '/api_publico.php';
+            $pin = trim((string)($_SERVER['HTTP_X_SHARE_PIN'] ?? ''));
+            $res = obterLevantamentoPublico(getDb(), $codigo, $pin);
+            jsonResponse($res['body'], $res['status']);
+        } catch (Throwable $e) {
+            error_log('[levantamento-publico] ' . $e->getMessage());
+            jsonResponse(['error' => 'Erro ao carregar o levantamento compartilhado.'], 500);
         }
     }
     jsonResponse(['error' => 'Levantamento não localizado ou código inválido.'], 404);

@@ -45,6 +45,113 @@ const setupResizers = () => {
   }
 };
 
+/** Distância em metros entre dois pontos: UTM quando houver, senão haversine em lat/lon. */
+const distanciaMetros = (p1: any, p2: any): number => {
+    if (p1.este && p1.norte && p2.este && p2.norte) {
+        return Math.hypot(p2.este - p1.este, p2.norte - p1.norte);
+    }
+    if (!p1.lat || !p1.lon || !p2.lat || !p2.lon) return 0;
+    const R = 6371e3;
+    const f1 = p1.lat * Math.PI / 180;
+    const f2 = p2.lat * Math.PI / 180;
+    const df = (p2.lat - p1.lat) * Math.PI / 180;
+    const dl = (p2.lon - p1.lon) * Math.PI / 180;
+    const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/** Vértices do perímetro na ordem de caminhamento (ou na ordem recebida, se não houver sequência salva). */
+const pontosDoPerimetro = (): any[] => {
+    const pontos = currentPublicData?.pontos || [];
+    const ordenados = pontos
+        .filter((p: any) => p.ordem_caminhamento !== null && p.ordem_caminhamento !== undefined && p.ordem_caminhamento !== 0)
+        .sort((a: any, b: any) => a.ordem_caminhamento - b.ordem_caminhamento);
+    return ordenados.length > 0 ? ordenados : pontos;
+};
+
+/** Perímetro (m) e área aproximada (ha, fórmula do cadarço em UTM) a partir dos vértices exibidos. */
+const calcularResumo = () => {
+    const perimetro = pontosDoPerimetro();
+    let comprimento = 0;
+    for (let i = 0; i < perimetro.length; i++) {
+        comprimento += distanciaMetros(perimetro[i], perimetro[(i + 1) % perimetro.length]);
+    }
+    let areaHa: number | null = null;
+    const utm = perimetro.filter((p: any) => p.este != null && p.norte != null);
+    if (utm.length >= 3 && utm.length === perimetro.length) {
+        let soma = 0;
+        for (let i = 0; i < utm.length; i++) {
+            const a = utm[i];
+            const b = utm[(i + 1) % utm.length];
+            soma += a.este * b.norte - b.este * a.norte;
+        }
+        areaHa = Math.abs(soma) / 2 / 10000;
+    }
+    return { comprimento, areaHa, totalVertices: (currentPublicData?.pontos || []).length };
+};
+
+const setTituloPainel = (icone: string, texto: string) => {
+    const t = document.getElementById('titulo-painel-lateral');
+    if (t) t.innerHTML = `<i data-lucide="${icone}" class="w-4 h-4 text-mint-vibrant"></i>${escapeHtml(texto)}`;
+};
+
+/** Painel lateral padrão: dados do imóvel em linguagem simples, sem precisar clicar em nada. */
+const renderResumoImovel = () => {
+    const container = document.getElementById('container-props-ponto');
+    if (!container || !currentPublicData) return;
+    setTituloPainel('info', 'Resumo do imóvel');
+
+    const d = currentPublicData;
+    const { comprimento, areaHa, totalVertices } = calcularResumo();
+    const fmt = (n: number, c = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c });
+
+    const confrontantes: string[] = Array.from(new Set<string>(
+        (d.pontos || []).map((p: any) => String(p.nome_confrontante || '').trim()).filter((s: string) => s.length > 0)
+    ));
+    const proprietarios = (d.clientes || []).map((c: any) => escapeHtml(c.nome_completo)).join('<br>') || 'Não informado';
+    const matriculas = (d.matriculas || []).map((m: any) => m.numero_matricula || m.numero).filter(Boolean);
+
+    const cartao = (rotulo: string, valor: string) => `
+        <div class="bg-white/[0.03] border border-white/10 rounded-lg p-2.5">
+            <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">${rotulo}</span>
+            <span class="text-sm font-bold text-white">${valor}</span>
+        </div>`;
+
+    container.innerHTML = `
+        <div class="space-y-3 animate-in fade-in duration-200">
+            <div class="grid grid-cols-2 gap-2">
+                ${cartao('Área aproximada', areaHa != null ? `${fmt(areaHa, 4)} ha` : '—')}
+                ${cartao('Perímetro', comprimento > 0 ? `${fmt(comprimento)} m` : '—')}
+                ${cartao('Vértices', String(totalVertices))}
+                ${cartao('Município', escapeHtml(`${d.municipio || 'N/I'}/${d.uf || ''}`))}
+            </div>
+            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3 space-y-2">
+                <div>
+                    <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">Proprietário(s)</span>
+                    <span class="text-white">${proprietarios}</span>
+                </div>
+                ${matriculas.length ? `<div><span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">Matrícula(s)</span><span class="text-white font-mono">${escapeHtml(matriculas.join(', '))}</span></div>` : ''}
+                ${d.codigo_car ? `<div><span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block">CAR</span><span class="text-white/90 font-mono text-[11px] break-all">${escapeHtml(d.codigo_car)}</span></div>` : ''}
+            </div>
+            ${confrontantes.length ? `
+            <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-white/40 block mb-1.5">Confrontantes</span>
+                <ul class="space-y-1 text-white/90">${confrontantes.map(c => `<li class="flex gap-1.5"><span class="text-mint-vibrant">•</span><span>${escapeHtml(c)}</span></li>`).join('')}</ul>
+            </div>` : ''}
+            <p class="text-[11px] text-white/40 leading-relaxed flex gap-2 items-start">
+                <i data-lucide="crosshair" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
+                <span>Toque em um vértice no mapa para ver suas coordenadas. A área é calculada a partir dos vértices e pode diferir da área registrada em matrícula.</span>
+            </p>
+        </div>`;
+    initIcons();
+};
+
+(window as any).voltarResumoPublico = () => {
+    currentSelectedPointId = null;
+    renderResumoImovel();
+    renderTabelas();
+};
+
 /**
  * Renderiza o painel lateral com detalhes completos do ponto selecionado e botões de navegação
  */
@@ -53,17 +160,11 @@ const renderPropriedadesPonto = (ponto: any) => {
     if (!container) return;
     
     if (!ponto) {
-        container.innerHTML = `
-            <div class="flex flex-col items-center justify-center text-center text-white/30 italic py-12 px-4 gap-3">
-                <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/20">
-                    <i data-lucide="crosshair" class="w-6 h-6"></i>
-                </div>
-                <span>Clique em um vértice no mapa ou na tabela abaixo para inspecionar as coordenadas.</span>
-            </div>`;
-        initIcons();
+        renderResumoImovel();
         return;
     }
-    
+    setTituloPainel('crosshair', 'Vértice selecionado');
+
     const pontos = currentPublicData?.pontos || [];
     const currentIndex = pontos.findIndex((x: any) => x.id === ponto.id);
     const prevPonto = currentIndex > 0 ? pontos[currentIndex - 1] : pontos[pontos.length - 1];
@@ -88,8 +189,11 @@ const renderPropriedadesPonto = (ponto: any) => {
         <div class="space-y-4 animate-in fade-in duration-200">
             <!-- TÍTULO E NAVEGAÇÃO ENTRE VÉRTICES -->
             <div class="bg-white/[0.03] border border-white/10 rounded-lg p-3">
+                <button onclick="window.voltarResumoPublico()" class="mb-2 text-[11px] text-mint-vibrant hover:underline flex items-center gap-1 cursor-pointer">
+                    <i data-lucide="chevron-left" class="w-3 h-3"></i> Voltar ao resumo
+                </button>
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] uppercase font-bold tracking-wider text-white/40">Vértice Selecionado</span>
+                    <span class="text-[10px] uppercase font-bold tracking-wider text-white/40">Identificação</span>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${tipoInfo.bg}">${tipoInfo.label}</span>
                 </div>
                 <h4 class="font-mono text-base font-bold text-mint-vibrant tracking-tight flex items-center justify-between">
@@ -177,7 +281,7 @@ const renderTabelas = () => {
     
     // Atualiza contador de pontos
     const txtCount = document.getElementById('badge-total-vertices');
-    if (txtCount) txtCount.innerText = `${pontos.length} Vértices`;
+    if (txtCount) txtCount.innerText = `${pontos.length} vértices`;
     
     tbodyAll.innerHTML = pontos.map((p: any) => {
         const norte = p.norte != null ? formatUTM(p.norte) : (p.lat != null ? p.lat.toFixed(6) : '—');
@@ -204,23 +308,8 @@ const renderTabelas = () => {
         return;
     }
     
-    const dist = (p1: any, p2: any) => {
-        if (p1.este && p1.norte && p2.este && p2.norte) {
-            const dx = p2.este - p1.este;
-            const dy = p2.norte - p1.norte;
-            return Math.sqrt(dx * dx + dy * dy);
-        }
-        if (!p1.lat || !p1.lon || !p2.lat || !p2.lon) return 0;
-        const R = 6371e3;
-        const f1 = p1.lat * Math.PI/180;
-        const f2 = p2.lat * Math.PI/180;
-        const df = (p2.lat-p1.lat) * Math.PI/180;
-        const dl = (p2.lon-p1.lon) * Math.PI/180;
-        const a = Math.sin(df/2) * Math.sin(df/2) + Math.cos(f1) * Math.cos(f2) * Math.sin(dl/2) * Math.sin(dl/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    };
-    
+    const dist = distanciaMetros;
+
     let orgHtml = '';
     for (let i = 0; i < orgPontos.length; i++) {
         const p = orgPontos[i];
@@ -426,8 +515,9 @@ const updateUI = () => {
     if (!currentPublicData) return;
     
     const pNome = document.getElementById('txt-nome-propriedade-publico');
-    if (pNome) pNome.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4 shrink-0 text-mint-vibrant"></i><span class="truncate">${escapeHtml(currentPublicData.nome_propriedade) || `Levantamento #${currentPublicData.id}`}</span>`;
-    
+    if (pNome) pNome.innerText = currentPublicData.nome_propriedade || `Levantamento #${currentPublicData.id}`;
+    document.title = `${currentPublicData.nome_propriedade || 'Imóvel'} — GerenciGeo`;
+
     const pCli = document.getElementById('txt-nome-cliente-publico');
     if (pCli) {
         const proprietarios = currentPublicData.clientes && currentPublicData.clientes.length
@@ -435,19 +525,109 @@ const updateUI = () => {
           : 'Não informado';
         pCli.innerText = proprietarios;
     }
-    
-    const pCar = document.getElementById('txt-codigo-car-publico');
-    if (pCar) pCar.innerText = currentPublicData.codigo_car || 'N/I';
-    
+
     const pMun = document.getElementById('txt-municipio-publico');
     if (pMun) pMun.innerText = `${currentPublicData.municipio || 'N/I'}/${currentPublicData.uf || 'N/I'}`;
-    
+
     renderTabelas();
+    renderResumoImovel();
     plotMapData();
     cleanPublicMapLayers();
     initIcons();
 };
 
+
+const PIN_STORAGE_PREFIX = 'gg_pub_pin_';
+
+/** Tela cheia para PIN, link expirado, link inválido ou erro de conexão. */
+const mostrarEstado = (icone: string, titulo: string, texto: string, extraHtml = '') => {
+    const caixa = document.getElementById('pub-estado');
+    const conteudo = document.getElementById('pub-estado-conteudo');
+    if (!caixa || !conteudo) return;
+    conteudo.innerHTML = `
+        <div class="w-14 h-14 mx-auto rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-mint-vibrant">
+            <i data-lucide="${icone}" class="w-7 h-7"></i>
+        </div>
+        <h2 class="text-lg font-bold text-white">${escapeHtml(titulo)}</h2>
+        <p class="text-sm text-white/60 leading-relaxed">${escapeHtml(texto)}</p>
+        ${extraHtml}`;
+    caixa.classList.remove('hidden');
+    initIcons();
+};
+
+const esconderEstado = () => document.getElementById('pub-estado')?.classList.add('hidden');
+
+const mostrarFormularioPin = (codigo: string, erro = '') => {
+    mostrarEstado('lock', 'Link protegido', 'Digite o PIN que o responsável técnico enviou junto com o link.', `
+        <form id="form-pin-publico" class="space-y-3">
+            <input id="input-pin-publico" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="PIN"
+                   class="w-full text-center tracking-[0.4em] text-lg bg-black/40 border border-white/15 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-mint-vibrant" />
+            ${erro ? `<p class="text-xs text-rose-400">${escapeHtml(erro)}</p>` : ''}
+            <button type="submit" class="w-full py-2.5 bg-mint-vibrant text-black font-bold rounded-lg text-sm cursor-pointer">Abrir mapa</button>
+        </form>`);
+    const form = document.getElementById('form-pin-publico') as HTMLFormElement | null;
+    const input = document.getElementById('input-pin-publico') as HTMLInputElement | null;
+    input?.focus();
+    form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const pin = (input?.value || '').trim();
+        if (pin) carregarLevantamento(codigo, pin);
+    });
+};
+
+const carregarLevantamento = async (codigo: string, pin = '') => {
+    const isLocal = window.location.origin.includes('localhost') ||
+                    window.location.origin.includes('127.0.0.1') ||
+                    window.location.origin.includes('[::1]');
+    const fetchUrl = isLocal
+      ? `${API_BASE}/levantamentos/publico/${encodeURIComponent(codigo)}`
+      : `${window.location.origin}/api.php?codigo=${encodeURIComponent(codigo)}`;
+
+    let pinSalvo = pin;
+    if (!pinSalvo) {
+        try { pinSalvo = sessionStorage.getItem(PIN_STORAGE_PREFIX + codigo) || ''; } catch { /* sem storage */ }
+    }
+
+    try {
+        const res = await fetch(fetchUrl, { headers: pinSalvo ? { 'X-Share-Pin': pinSalvo } : {} });
+        if (res.ok) {
+            if (pinSalvo) { try { sessionStorage.setItem(PIN_STORAGE_PREFIX + codigo, pinSalvo); } catch { /* sem storage */ } }
+            currentPublicData = await res.json();
+            esconderEstado();
+            updateUI();
+            requestAnimationFrame(() => mapController?.invalidateSize?.());
+            return;
+        }
+        const corpo: any = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+            try { sessionStorage.removeItem(PIN_STORAGE_PREFIX + codigo); } catch { /* sem storage */ }
+            mostrarFormularioPin(codigo, pin ? 'PIN incorreto. Tente novamente.' : '');
+        } else if (res.status === 410) {
+            mostrarEstado('clock', 'Link expirado', 'Este link não está mais disponível. Peça um novo link ao responsável técnico.');
+        } else if (res.status === 404) {
+            mostrarEstado('alert-circle', 'Link indisponível', 'Este link é inválido ou foi desativado. Confira com o responsável técnico.');
+        } else {
+            mostrarEstado('alert-triangle', 'Não foi possível abrir', corpo.error || corpo.detail || 'Erro ao carregar o projeto. Tente novamente em instantes.',
+                `<button onclick="location.reload()" class="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm cursor-pointer">Tentar novamente</button>`);
+        }
+    } catch {
+        mostrarEstado('alert-triangle', 'Sem conexão', 'Verifique sua internet e tente novamente.',
+            `<button onclick="location.reload()" class="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm cursor-pointer">Tentar novamente</button>`);
+    }
+};
+
+/** Mostra/oculta as tabelas; por padrão o cliente vê só o mapa e o resumo. */
+const setupAlternarTabelas = () => {
+    const btn = document.getElementById('btn-alternar-tabelas');
+    const area = document.getElementById('area-tabelas-publico');
+    btn?.addEventListener('click', () => {
+        if (!area) return;
+        const aberta = area.classList.toggle('hidden') === false;
+        area.classList.toggle('flex', aberta);
+        btn.classList.toggle('border-mint-vibrant', aberta);
+        setTimeout(() => mapController?.invalidateSize?.(), 50);
+    });
+};
 
 export const compartilhadoRoute: RouteDef = {
   render: () => renderCompartilhado(),
@@ -457,33 +637,14 @@ export const compartilhadoRoute: RouteDef = {
        window.location.hash = '#dashboard';
        return;
     }
-    
+
     setupTabs();
     setupResizers();
     setupLocalizadorPontos();
+    setupAlternarTabelas();
+    initIcons();
 
     mapController = document.getElementById('map-container') as any;
-
-    const isLocal = window.location.origin.includes('localhost') || 
-                    window.location.origin.includes('127.0.0.1') || 
-                    window.location.origin.includes('[::1]');
-
-    const fetchUrl = isLocal 
-      ? `${API_BASE}/levantamentos/publico/${codigo}`
-      : `${window.location.origin}/api.php?codigo=${codigo}`;
-
-    fetch(fetchUrl)
-      .then(res => {
-          if (!res.ok) throw new Error("Link inválido ou projeto não localizado na nuvem.");
-          return res.json();
-      })
-      .then(data => {
-          currentPublicData = data;
-          updateUI();
-          initIcons();
-      })
-      .catch(err => {
-          showToast(err.message || "Erro ao carregar projeto compartilhado.", "error");
-      });
+    carregarLevantamento(codigo);
   }
 };

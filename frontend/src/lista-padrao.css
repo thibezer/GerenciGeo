@@ -113,6 +113,9 @@
 .lp-ico-btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--lp-accent); }
 .lp-ico-btn.is-danger:hover { background: rgba(248, 113, 113, 0.12); color: var(--lp-danger); }
 .lp-ico-btn.is-warning:hover { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.lp-btn-link-cliente { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--lp-accent) 40%, transparent); background: color-mix(in srgb, var(--lp-accent) 10%, transparent); color: var(--lp-accent); font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; opacity: 1; }
+.lp-btn-link-cliente:hover { background: color-mix(in srgb, var(--lp-accent) 20%, transparent); }
+.lp-btn-link-cliente svg, .lp-btn-link-cliente i { width: 13px; height: 13px; }
 .lp-ico-btn:focus-visible { outline: 2px solid var(--lp-accent); outline-offset: 0; }
 .lp-ico-btn svg, .lp-ico-btn i { width: 15px; height: 15px; }
 

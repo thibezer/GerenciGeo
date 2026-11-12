@@ -1,7 +1,8 @@
 import type { RouteDef } from '../types';
-import { API_BASE, PUBLIC_HOST_URL } from '../config';
+import { API_BASE } from '../config';
 import { initIcons, showToast, escapeHtml, customConfirm } from '../utils';
 import L from 'leaflet';
+import { abrirModalCompartilhar } from './levantamentos/modal_compartilhar';
 import {
    filtrarLevantamentos,
    filtrarPorSegmento,
@@ -439,26 +440,8 @@ export const levantamentosRoute: RouteDef = {
                localStorage.setItem('active_levantamento_id', id.toString());
                window.location.hash = '#mesa_trabalho';
             } else if (btn.classList.contains('btn-compartilhar-lev')) {
-               (async () => {
-                  try {
-                     const res = await fetch(`${API_BASE}/levantamentos/${id}/compartilhar`, { method: 'POST' });
-                     const data = await res.json();
-                     if (res.ok) {
-                        const link = `${PUBLIC_HOST_URL}#compartilhado/${data.codigo}`;
-                        try {
-                           await navigator.clipboard.writeText(link);
-                           showToast("Link público copiado para a área de transferência!", "success");
-                        } catch(e) {
-                           prompt("Copie o link público abaixo:", link);
-                        }
-                     } else {
-                        showToast(data.detail || "Erro ao gerar link de compartilhamento", "error");
-                     }
-                  } catch(e) {
-                     console.error("Erro comunicação:", e);
-                     showToast("Erro na comunicação com o servidor", "error");
-                  }
-               })();
+               const lev = levantamentosList.find((l: any) => l.id === id);
+               abrirModalCompartilhar(id, lev?.nome || `Levantamento #${id}`);
             } else if (btn.classList.contains('btn-desarquivar-lev')) {
                (async () => {
                   const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");

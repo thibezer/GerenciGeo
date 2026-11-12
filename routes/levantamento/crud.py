@@ -12,7 +12,7 @@ import logging
 import datetime
 from collections import defaultdict
 from typing import Literal, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form, Header
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -470,17 +470,80 @@ def get_arquivos_levantamento(lev_id: int):
         raise HTTPException(status_code=500, detail="Erro interno ao listar arquivos do levantamento.")
 
 # Campos com caminhos/nomes de arquivos locais: nunca vão para o link público
-CAMPOS_PRIVADOS_PUBLICO = ("caminho_arquivo_pdf", "arquivo_rinex", "arquivo_resultado_ppp", "arquivo_origem")
+CAMPOS_PRIVADOS_PUBLICO = ("caminho_arquivo_pdf", "arquivo_rinex", "arquivo_resultado_ppp", "arquivo_origem",
+                           "dados_vizinho_json", "pasta_projeto", "compartilhamento_pin_hash")
 
 def _sem_campos_privados(registro: dict) -> dict:
     return {k: v for k, v in registro.items() if k not in CAMPOS_PRIVADOS_PUBLICO}
 
+
+def _hash_pin_compartilhamento(codigo: str, pin: str) -> str:
+    """sha256(codigo:pin). Espelho de pubHashPin() em frontend/public/api_publico.php."""
+    import hashlib
+    return hashlib.sha256(f"{codigo}:{pin}".encode("utf-8")).hexdigest()
+
+
+class CompartilharPayload(BaseModel):
+    # None = mantém o que já está configurado; 0 = sem validade
+    validade_dias: Optional[int] = None
+    # None = mantém; "" = remove a proteção; 4 a 8 dígitos = define novo PIN
+    pin: Optional[str] = None
+
+
+def _status_compartilhamento(row) -> dict:
+    expira = row["compartilhamento_expira_em"]
+    expirado = False
+    if expira:
+        try:
+            expirado = datetime.datetime.fromisoformat(expira) < datetime.datetime.now(datetime.timezone.utc)
+        except ValueError:
+            expirado = False
+    return {
+        "ativo": bool(row["codigo_compartilhamento"]),
+        "codigo": row["codigo_compartilhamento"],
+        "expira_em": expira,
+        "expirado": expirado,
+        "protegido_por_pin": bool(row["compartilhamento_pin_hash"]),
+    }
+
+
+@router.get("/levantamentos/{lev_id}/compartilhar")
+def status_link_compartilhamento(lev_id: int):
+    row = execute_query(
+        "SELECT codigo_compartilhamento, compartilhamento_expira_em, compartilhamento_pin_hash FROM levantamentos WHERE id = ?",
+        params=(lev_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+    return _status_compartilhamento(row)
+
+
+@router.delete("/levantamentos/{lev_id}/compartilhar")
+def revogar_link_compartilhamento(lev_id: int):
+    """Revoga o link: o código deixa de existir e a página pública passa a responder 'link inválido'."""
+    row = execute_query("SELECT id FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+    execute_query(
+        "UPDATE levantamentos SET codigo_compartilhamento = NULL, compartilhamento_expira_em = NULL, compartilhamento_pin_hash = NULL WHERE id = ?",
+        params=(lev_id,), commit=True)
+    return {"message": "Link revogado."}
+
+
 @router.post("/levantamentos/{lev_id}/compartilhar")
-def gerar_link_compartilhamento(lev_id: int):
+def gerar_link_compartilhamento(lev_id: int, dados: Optional[CompartilharPayload] = None):
     try:
-        row = execute_query("SELECT codigo_compartilhamento FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_all=True)
+        row = execute_query(
+            "SELECT codigo_compartilhamento, compartilhamento_expira_em, compartilhamento_pin_hash FROM levantamentos WHERE id = ?",
+            params=(lev_id,), fetch_all=True)
         if not row:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
+
+        dados = dados or CompartilharPayload()
+        pin = (dados.pin or "").strip() if dados.pin is not None else None
+        if pin and not (pin.isdigit() and 4 <= len(pin) <= 8):
+            raise HTTPException(status_code=400, detail="O PIN deve ter de 4 a 8 dígitos numéricos.")
+        if dados.validade_dias is not None and not (0 <= dados.validade_dias <= 365):
+            raise HTTPException(status_code=400, detail="A validade deve ficar entre 0 (sem validade) e 365 dias.")
 
         codigo = row[0]['codigo_compartilhamento']
         if not codigo:
@@ -488,8 +551,18 @@ def gerar_link_compartilhamento(lev_id: int):
             codigo = secrets.token_hex(8)  # 16 caracteres hex (64 bits): inviável de adivinhar por força bruta
             execute_query("UPDATE levantamentos SET codigo_compartilhamento = ? WHERE id = ?", params=(codigo, lev_id), commit=True)
 
+        if dados.validade_dias is not None:
+            expira = None
+            if dados.validade_dias > 0:
+                expira = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=dados.validade_dias)).isoformat(timespec="seconds")
+            execute_query("UPDATE levantamentos SET compartilhamento_expira_em = ? WHERE id = ?", params=(expira, lev_id), commit=True)
+
+        if pin is not None:
+            pin_hash = _hash_pin_compartilhamento(codigo, pin) if pin else None
+            execute_query("UPDATE levantamentos SET compartilhamento_pin_hash = ? WHERE id = ?", params=(pin_hash, lev_id), commit=True)
+
         # 1. Gera o payload com dados anonimizados
-        payload = get_levantamento_publico(codigo)
+        payload = _montar_payload_publico(codigo)
 
         # 2. Transmite o payload para o endpoint api.php na Hostinger
         try:
@@ -515,7 +588,30 @@ def gerar_link_compartilhamento(lev_id: int):
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 @router.get("/levantamentos/publico/{codigo}")
-def get_levantamento_publico(codigo: str):
+def get_levantamento_publico(codigo: str, x_share_pin: Optional[str] = Header(None)):
+    """Link público: aplica revogação, validade e PIN antes de devolver os dados (espelho de api_publico.php)."""
+    acesso = execute_query(
+        "SELECT compartilhamento_expira_em, compartilhamento_pin_hash FROM levantamentos WHERE codigo_compartilhamento = ?",
+        params=(codigo,), fetch_one=True)
+    if not acesso:
+        raise HTTPException(status_code=404, detail="Link inválido ou revogado.")
+    if acesso["compartilhamento_expira_em"]:
+        try:
+            if datetime.datetime.fromisoformat(acesso["compartilhamento_expira_em"]) < datetime.datetime.now(datetime.timezone.utc):
+                raise HTTPException(status_code=410, detail="Este link expirou. Solicite um novo ao responsável técnico.")
+        except ValueError:
+            pass
+    if acesso["compartilhamento_pin_hash"]:
+        import hmac
+        pin = (x_share_pin or "").strip()
+        if not pin:
+            raise HTTPException(status_code=401, detail="Este link é protegido por PIN.")
+        if not hmac.compare_digest(acesso["compartilhamento_pin_hash"], _hash_pin_compartilhamento(codigo, pin)):
+            raise HTTPException(status_code=401, detail="PIN incorreto.")
+    return _montar_payload_publico(codigo)
+
+
+def _montar_payload_publico(codigo: str) -> dict:
     try:
         # Busca o levantamento
         query_lev = """

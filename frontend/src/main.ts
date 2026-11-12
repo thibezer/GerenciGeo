@@ -191,7 +191,8 @@ let navegacaoAtual = 0;
 const navigate = async (route: string, param: string | null = null) => {
   const minhaNavegacao = ++navegacaoAtual;
   // Autenticação: se deslogado e tentando acessar rota interna, redireciona para login
-  if (!AuthService.isAuthenticated() && route !== 'login') {
+  // 'compartilhado' é o link público do cliente: abre sem login
+  if (!AuthService.isAuthenticated() && route !== 'login' && route !== 'compartilhado') {
     window.location.hash = '#login';
     return;
   }

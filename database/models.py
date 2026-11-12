@@ -693,7 +693,9 @@ def create_tables(conn):
         colunas_levantamentos = [
             ("numero_trt", "TEXT"),
             ("data_trt", "TEXT"),
-            ("codigo_compartilhamento", "TEXT")
+            ("codigo_compartilhamento", "TEXT"),
+            ("compartilhamento_expira_em", "TEXT"),
+            ("compartilhamento_pin_hash", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(levantamentos)")
         colunas_levantamentos_existentes = {row[1] for row in cursor.fetchall()}
