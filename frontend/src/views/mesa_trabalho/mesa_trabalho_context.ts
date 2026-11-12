@@ -98,4 +98,6 @@ export interface MesaTrabalhoContext {
   expandirIngestao?: () => void;
   colapsarIngestao?: () => void;
   atualizarPainelPropriedades?: () => void;
+  /** Área calculada pelos vértices da matrícula ativa (null enquanto não carregada ou sem vértices suficientes) */
+  areaMedida?: import('./area_medida').AreaMedida | null;
 }

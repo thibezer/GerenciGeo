@@ -98,6 +98,11 @@ export const renderMesaTrabalho = (): string => {
           </span>
           <div class="rl2-sep"></div>
           <span class="rl2-meta-item">
+            <span class="rl2-meta-label">Área medida:</span>
+            <span class="rl2-meta-value font-mono" id="txt-area-medida">—</span>
+          </span>
+          <div class="rl2-sep"></div>
+          <span class="rl2-meta-item">
             <span class="rl2-meta-label">TRT:</span>
             <span class="rl2-meta-value font-mono" id="txt-numero-trt">—</span>
           </span>

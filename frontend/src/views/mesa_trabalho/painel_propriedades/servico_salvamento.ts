@@ -5,6 +5,7 @@ import {
   tratarErroAPI
 } from '../painel_propriedades_helpers';
 import type { Ponto } from '../painel_propriedades_helpers';
+import { atualizarAreaMedida } from '../area_medida';
 
 export {
   salvarSegmentoDebounced,
@@ -198,6 +199,7 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
             ctx.pontosList = novosPontos;
             ctx.renderMatriculaDados?.();
             ctx.atualizarPolilinhaMapaTemp?.();
+            void atualizarAreaMedida(ctx);
           }
         }
       } catch (errSync) {

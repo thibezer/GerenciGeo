@@ -6,6 +6,7 @@ import { renderMesaTrabalho } from './mesa_trabalho_template';
 import { bancoPontosDaMatricula } from './mesa_trabalho/pontos_visiveis';
 import { pontosParaMapa } from './mesa_trabalho/coordenadas_mapa';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
+import { atualizarAreaMedida } from './mesa_trabalho/area_medida';
 import { selecionarVerticeClicado, instalarAlternanciaPilha } from './mesa_trabalho/seletor_sobrepostos';
 import { inicializarEventosTabela } from './mesa_trabalho/tabela_dados';
 import type { MesaTrabalhoContext } from './mesa_trabalho/mesa_trabalho_context';
@@ -309,6 +310,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.renderFilaArquivos();
         ctx.loadWorkspaceArquivos();
         ctx.alternarEtapa(ctx.etapaAtiva);
+        void atualizarAreaMedida(ctx);
         
         // Centralização inicial do mapa nos pontos da propriedade (Apenas na 1ª abertura do levantamento)
         const precisaCentralizarInicial = ctx.lastFittedLevId !== ctx.currentLevId;
@@ -588,6 +590,8 @@ export const mesaTrabalhoRoute: RouteDef = {
 
       ctx.renderMatriculaDados();
       ctx.carregarConfrontantesAtivosSelect();
+      ctx.areaMedida = null;
+      void atualizarAreaMedida(ctx);
       if (ctx.etapaAtiva === 'documentos') {
         ctx.carregarHomologacaoDados(ctx.currentProfissionalId ?? 0);
       }

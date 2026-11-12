@@ -1,5 +1,7 @@
 import type { CategoriaPropriedades, SeletorTipoItem } from './tipos';
 import type { Ponto, Confrontante } from '../painel_propriedades_helpers';
+import { formatarHa, textoDiferencaArea } from '../area_medida';
+import type { AreaMedida } from '../area_medida';
 
 export function gerarPropriedadesGerais(ctx: any): {
   categorias: CategoriaPropriedades[];
@@ -10,6 +12,7 @@ export function gerarPropriedadesGerais(ctx: any): {
   const pontosList: Ponto[] = ctx.pontosList ?? [];
   const confrontantesList: Confrontante[] = ctx.confrontantesList ?? [];
 
+  const areaMedida: AreaMedida | null = ctx.areaMedida ?? null;
   const matObj = matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
   const pontosAtivosCount = pontosList.filter((p: Ponto) => p.ignorar_poligono !== 1).length;
   const confrontantesCount = confrontantesList.length;
@@ -62,10 +65,35 @@ export function gerarPropriedadesGerais(ctx: any): {
         },
         {
           id: 'mat_area',
-          rotulo: 'Área',
+          rotulo: 'Área (matrícula)',
           tipo: 'readonly',
           unidade: 'ha',
           valor: matObj ? String(matObj.area_ha || matObj.area || '0') : '-'
+        },
+        {
+          id: 'mat_area_medida',
+          rotulo: 'Área medida',
+          tipo: 'readonly',
+          unidade: 'ha',
+          valor: areaMedida ? formatarHa(areaMedida.area_ha) : '-',
+          dica: areaMedida?.autointersecta
+            ? 'A poligonal se autointersecta: a área pode estar incorreta.'
+            : 'Calculada pelos vértices ativos da matrícula (fora bases e vértices ignorados).'
+        },
+        {
+          id: 'mat_area_diferenca',
+          rotulo: 'Diferença',
+          tipo: 'readonly',
+          valor: areaMedida && areaMedida.area_declarada_ha > 0 ? textoDiferencaArea(areaMedida) : '-'
+        },
+        {
+          id: 'mat_perimetro',
+          rotulo: 'Perímetro medido',
+          tipo: 'readonly',
+          unidade: 'm',
+          valor: areaMedida
+            ? areaMedida.perimetro_m.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '-'
         },
         {
           id: 'mat_vertices',

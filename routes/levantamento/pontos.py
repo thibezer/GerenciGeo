@@ -668,7 +668,7 @@ def auditar_perimetro_matricula(mid: int):
     mat = dict(mat_row)
     
     pontos_rows = execute_query(
-        "SELECT id, nome_vertice, lat, lon, alt, ordem_caminhamento FROM pontos WHERE matricula_id = ? ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
+        "SELECT id, nome_vertice, lat, lon, alt, ordem_caminhamento FROM pontos WHERE matricula_id = ? AND (ignorar_poligono IS NULL OR ignorar_poligono = 0) AND (tipo_ponto IS NULL OR tipo_ponto != 'B') ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC",
         params=(mid,), fetch_all=True
     )
     if not pontos_rows:
