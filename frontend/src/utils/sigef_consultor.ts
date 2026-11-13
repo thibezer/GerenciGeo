@@ -178,6 +178,16 @@ const CAIXA_ESTILO = 'background:#0f1712; color:#ffffff; padding:12px 14px; marg
 
 const nomeDaParcela = (p: ParcelaSigef) => String(p.props.nome_area || p.props.nome_imovel || 'Imóvel Sem Nome');
 
+function formatarAreaSigef(raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const num = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return num.toLocaleString('pt-BR', {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
+}
+
 /** HTML do popup para a parcela `indice`, com seletor de abas quando há mais de uma. */
 function htmlParcelas(parcelas: ParcelaSigef[], indice: number, options: SigefConsultaOptions): string {
   const { uuid, props } = parcelas[indice];
@@ -186,6 +196,7 @@ function htmlParcelas(parcelas: ParcelaSigef[], indice: number, options: SigefCo
   const downloadUrl = seguro ? `https://sigef.incra.gov.br/geo/exportar/parcela/shp/${seguro}/` : '';
   const sigefConsultarUrl = seguro ? `https://sigef.incra.gov.br/geo/parcela/detalhe/${seguro}/` : `https://sigef.incra.gov.br/consultar/parcelas`;
   const statusFormatado = props.situacao_informada || props.status || 'Certificada';
+  const areaFormatada = formatarAreaSigef(props.area_hectares ?? props.area_ha ?? props.area);
 
   const abas = parcelas.length > 1 ? `
     <div role="tablist" aria-label="Parcelas sobrepostas neste ponto" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;">
@@ -214,6 +225,7 @@ function htmlParcelas(parcelas: ParcelaSigef[], indice: number, options: SigefCo
       </div>
       <div style="font-weight:700; font-size:12px; margin-bottom:4px; color:#ffffff; word-break:break-word;">${escapeHtml(nomeImovel)}</div>
       <div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Cód: <span style="font-family:var(--geo-font-mono, monospace); color:#00f5a0;">${escapeHtml(props.codigo_imovel || 'N/A')}</span></div>
+      ${areaFormatada ? `<div style="font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:2px;">Área: <strong style="font-family:var(--geo-font-mono, monospace); color:#ffffff;">${escapeHtml(areaFormatada)} ha</strong></div>` : ''}
       <div style="display:flex; gap:12px; font-size:11px; color:rgba(255, 255, 255, 0.7); margin-bottom:6px;">
         <span>Mat: <strong style="color:#ffffff;">${escapeHtml(props.registro_matricula || props.matricula || 'Consulte o SIGEF')}</strong></span>
         ${props.data_submissao ? `<span>${escapeHtml(props.data_submissao)}</span>` : ''}
