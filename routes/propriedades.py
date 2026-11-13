@@ -50,6 +50,7 @@ class MatriculaCreate(BaseModel):
     codigo_itr: Optional[str] = None
     area_ha: Optional[float] = None
     area_registrada_ha: Optional[float] = None
+    area_sigef_ha: Optional[float] = None
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None
     denominacao_gleba: Optional[str] = None

@@ -167,6 +167,7 @@ def create_tables(conn):
             ccir TEXT,
             itr TEXT,
             area_ha REAL,
+            area_sigef_ha REAL,
             cri_comarca TEXT,
             cri_circunscricao TEXT,
             livro_registro TEXT,
@@ -842,7 +843,8 @@ def create_tables(conn):
             ("denominacao", "TEXT"),
             ("georreferenciamento", "TEXT"),
             ("caminho_arquivo_pdf", "TEXT"),
-            ("matricula_origem_desenho_id", "INTEGER")
+            ("matricula_origem_desenho_id", "INTEGER"),
+            ("area_sigef_ha", "REAL")
         ]
         cursor.execute("PRAGMA table_info(matriculas)")
         colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}

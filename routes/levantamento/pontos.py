@@ -83,6 +83,7 @@ class MatriculaCreate(BaseModel):
     codigo_itr: Optional[str] = None
     area_ha: Optional[float] = None
     area_registrada_ha: Optional[float] = None
+    area_sigef_ha: Optional[float] = None
     valor_itr: Optional[float] = None
     denominacao: Optional[str] = None
     denominacao_gleba: Optional[str] = None
@@ -678,6 +679,7 @@ def auditar_perimetro_matricula(mid: int):
     
     from services.processamento.sigef_validator import SigefValidator
     res_auditoria = SigefValidator.auditar_poligonal_matricula(pontos, area_declarada_ha=mat.get("area_ha") or 0.0)
+    res_auditoria["area_sigef_ha"] = mat.get("area_sigef_ha")
     return res_auditoria
 
 

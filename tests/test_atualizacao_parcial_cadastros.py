@@ -205,6 +205,23 @@ class TestAtualizacaoParcialCadastros(unittest.TestCase):
         historico = self.client.get(f"/matriculas/{mat['id']}/historico").json()
         self.assertEqual([h["campo_alterado"] for h in historico], ["numero_matricula"])
 
+    def test_area_sigef_ha_criacao_edicao_parcial_e_limpeza(self):
+        pid = self._criar_propriedade()
+        mat = self._criar_matricula(pid, "400", area_sigef_ha=10.1234)
+        self.assertEqual(mat["area_sigef_ha"], 10.1234)
+
+        # Atualização parcial sem area_sigef_ha preserva o valor
+        res = self.client.put(f"/matriculas/{mat['id']}", json={"numero_matricula": "400-A"})
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(_uma("SELECT area_sigef_ha FROM matriculas WHERE id = ?", (mat["id"],))["area_sigef_ha"], 10.1234)
+
+        # Atualização com None limpa o campo e registra histórico
+        res = self.client.put(f"/matriculas/{mat['id']}", json={"numero_matricula": "400-A", "area_sigef_ha": None})
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertIsNone(_uma("SELECT area_sigef_ha FROM matriculas WHERE id = ?", (mat["id"],))["area_sigef_ha"])
+        historico = self.client.get(f"/matriculas/{mat['id']}/historico").json()
+        self.assertIn("area_sigef_ha", [h["campo_alterado"] for h in historico])
+
 
 if __name__ == "__main__":
     unittest.main()

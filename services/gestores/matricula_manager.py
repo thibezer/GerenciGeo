@@ -14,7 +14,7 @@ _ALIASES_MATRICULA = {
     "matricula_origem_desenho_id": ("matricula_origem_desenho_id",),
 }
 
-COLUNAS_MATRICULA = (*_ALIASES_MATRICULA.keys(), "area_ha")
+COLUNAS_MATRICULA = (*_ALIASES_MATRICULA.keys(), "area_ha", "area_sigef_ha")
 
 
 def _vazio(valor) -> bool:
@@ -53,6 +53,13 @@ def resolver_campos_matricula(enviados: dict, atual: dict | None = None) -> dict
         resolvidos["area_ha"] = enviados.get("area_ha") or 0.0
     else:
         resolvidos["area_ha"] = atual.get("area_ha")
+
+    # Área exata vinda do SIGEF (opcional)
+    if "area_sigef_ha" in enviados:
+        val_sigef = enviados.get("area_sigef_ha")
+        resolvidos["area_sigef_ha"] = float(val_sigef) if not _vazio(val_sigef) else None
+    else:
+        resolvidos["area_sigef_ha"] = atual.get("area_sigef_ha")
 
     return resolvidos
 
@@ -116,7 +123,7 @@ _MSG_ARQUIVADO = "Operação bloqueada: A matrícula pertence a um levantamento 
 _MSG_PROP_ARQUIVADA = "Operação Bloqueada: Existe um levantamento ARQUIVADO vinculado a esta propriedade."
 _CAMPOS_MONITORADOS = (
     ("numero_matricula", str), ("ccir", str), ("itr", str), ("area_ha", float),
-    ("valor_itr", float), ("denominacao", str), ("georreferenciamento", str),
+    ("area_sigef_ha", float), ("valor_itr", float), ("denominacao", str), ("georreferenciamento", str),
     ("matricula_origem_desenho_id", int),
 )
 

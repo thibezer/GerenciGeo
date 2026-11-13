@@ -71,6 +71,16 @@ export function gerarPropriedadesGerais(ctx: any): {
           valor: matObj ? String(matObj.area_ha || matObj.area || '0') : '-'
         },
         {
+          id: 'mat_area_sigef',
+          rotulo: 'Área SIGEF',
+          tipo: 'readonly',
+          unidade: 'ha',
+          valor: matObj?.area_sigef_ha != null && matObj.area_sigef_ha !== ''
+            ? formatarHa(Number(matObj.area_sigef_ha))
+            : '-',
+          dica: 'Área exata certificada/calculada no SIGEF (cadastrada na matrícula).'
+        },
+        {
           id: 'mat_area_medida',
           rotulo: 'Área medida',
           tipo: 'readonly',

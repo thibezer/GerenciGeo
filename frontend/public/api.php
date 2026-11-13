@@ -496,6 +496,7 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'matriculas', 'numero', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'matriculas', 'numero_matricula', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'matriculas', 'area_ha', 'DECIMAL(12,4) DEFAULT 0');
+    addColumnSafe($pdo, 'matriculas', 'area_sigef_ha', 'DECIMAL(12,4) NULL');
     addColumnSafe($pdo, 'matriculas', 'perimetro_m', 'DECIMAL(12,4) DEFAULT 0');
     addColumnSafe($pdo, 'matriculas', 'ccir', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'itr', 'VARCHAR(50) NULL');
@@ -2294,7 +2295,8 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
         $input = getJsonInput();
         $numero = trim($input['numero'] ?? ($input['numero_matricula'] ?? ''));
         $area = (float)($input['area_registrada_ha'] ?? ($input['area_ha'] ?? 0));
-        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, perimetro_m, ccir, itr, denominacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $areaSigef = isset($input['area_sigef_ha']) && $input['area_sigef_ha'] !== '' ? (float)$input['area_sigef_ha'] : null;
+        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, area_sigef_ha, perimetro_m, ccir, itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $propId,
             $numero,
@@ -2303,10 +2305,12 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
             $input['folha'] ?? null,
             $input['cartorio'] ?? null,
             $area,
+            $areaSigef,
             (float)($input['perimetro_m'] ?? 0),
             $input['codigo_ccir'] ?? ($input['ccir'] ?? null),
             $input['codigo_itr'] ?? ($input['itr'] ?? null),
-            $input['denominacao_gleba'] ?? ($input['denominacao'] ?? null)
+            $input['denominacao_gleba'] ?? ($input['denominacao'] ?? null),
+            $input['georreferenciamento'] ?? null
         ]);
         jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Matrícula criada com sucesso!'], 201);
     }
@@ -2607,7 +2611,9 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
     if ($method === 'PUT' && !$action) {
         $input = getJsonInput();
         $num = $input['numero'] ?? ($input['numero_matricula'] ?? null);
-        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), numero_matricula = COALESCE(?, numero_matricula), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), denominacao = COALESCE(?, denominacao) WHERE id = ?");
+        $temAreaSigef = array_key_exists('area_sigef_ha', $input);
+        $areaSigefVal = $temAreaSigef && $input['area_sigef_ha'] !== null && $input['area_sigef_ha'] !== '' ? (float)$input['area_sigef_ha'] : null;
+        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), numero_matricula = COALESCE(?, numero_matricula), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), area_sigef_ha = CASE WHEN ? THEN ? ELSE area_sigef_ha END, perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), denominacao = COALESCE(?, denominacao), georreferenciamento = COALESCE(?, georreferenciamento) WHERE id = ?");
         $stmt->execute([
             $num,
             $num,
@@ -2615,10 +2621,13 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
             $input['folha'] ?? null,
             $input['cartorio'] ?? null,
             isset($input['area_ha']) ? (float)$input['area_ha'] : (isset($input['area_registrada_ha']) ? (float)$input['area_registrada_ha'] : null),
+            $temAreaSigef ? 1 : 0,
+            $areaSigefVal,
             isset($input['perimetro_m']) ? (float)$input['perimetro_m'] : null,
             $input['ccir'] ?? ($input['codigo_ccir'] ?? null),
             $input['itr'] ?? ($input['codigo_itr'] ?? null),
             $input['denominacao'] ?? ($input['denominacao_gleba'] ?? null),
+            $input['georreferenciamento'] ?? null,
             $matId
         ]);
         jsonResponse(['id' => $matId, 'message' => 'Matrícula atualizada!']);

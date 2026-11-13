@@ -386,6 +386,10 @@ export const propriedadesRoute: RouteDef = {
                             <input type="text" id="input-new-mat-area" required placeholder="Ex: 45,1234" class="glass-input w-full text-xs h-8 font-mono">
                          </div>
                          <div>
+                            <label class="block text-[9px] text-white/40 uppercase font-bold mb-1" title="Área exata certificada/calculada no SIGEF (opcional)">Área SIGEF (Ha)</label>
+                            <input type="text" id="input-new-mat-area-sigef" placeholder="Ex: 45,1289" class="glass-input w-full text-xs h-8 font-mono">
+                         </div>
+                         <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código CCIR</label>
                             <input type="text" id="input-new-mat-ccir" placeholder="950.082..." class="glass-input w-full text-xs h-8 font-mono">
                          </div>
@@ -750,6 +754,7 @@ export const propriedadesRoute: RouteDef = {
     const inputMatITR = document.getElementById('input-new-mat-itr') as HTMLInputElement;
     const inputMatSIGEF = document.getElementById('input-new-mat-georreferenciamento') as HTMLInputElement;
     const inputMatArea = document.getElementById('input-new-mat-area') as HTMLInputElement;
+    const inputMatAreaSigef = document.getElementById('input-new-mat-area-sigef') as HTMLInputElement;
 
     const aplicarMascaraCCIRMat = (val: string): string => {
        const d = val.replace(/\D/g, '').slice(0, 13);
@@ -778,7 +783,7 @@ export const propriedadesRoute: RouteDef = {
     };
 
     // Formata o input decimal de área substituindo ponto por vírgula em tempo real
-    inputMatArea?.addEventListener('input', (e) => {
+    const aplicarMascaraAreaDecimal = (e: Event) => {
        const t = e.target as HTMLInputElement;
        // Permite apenas números, um ponto ou uma vírgula
        let val = t.value.replace(/[^\d.,]/g, '');
@@ -788,7 +793,9 @@ export const propriedadesRoute: RouteDef = {
           val = val.slice(0, -1);
        }
        t.value = val;
-    });
+    };
+    inputMatArea?.addEventListener('input', aplicarMascaraAreaDecimal);
+    inputMatAreaSigef?.addEventListener('input', aplicarMascaraAreaDecimal);
 
     inputMatCCIR?.addEventListener('input', (e) => {
        const t = e.target as HTMLInputElement;
@@ -1678,7 +1685,10 @@ export const propriedadesRoute: RouteDef = {
                       <span class="block text-[9px] text-white/40">${escapeHtml(m.denominacao) || 'Lote sem nome'}</span>
                       ${desenhoHtml}
                    </td>
-                   <td class="px-3 py-1.5 text-right font-mono text-white/90 font-medium">${areaFormatada} ha</td>
+                   <td class="px-3 py-1.5 text-right font-mono text-white/90 font-medium">
+                      <span class="block">${areaFormatada} ha</span>
+                      ${m.area_sigef_ha != null && m.area_sigef_ha !== '' ? `<span class="block text-[9px] text-mint-vibrant" title="Área exata vinda do SIGEF">SIGEF: ${Number(m.area_sigef_ha).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha</span>` : ''}
+                   </td>
                    <td class="px-3 py-1.5 text-white/60 leading-tight">
                       <span class="block">CCIR: ${displayCcir}</span>
                       <span class="block">ITR/NIRF: ${escapeHtml(m.itr) || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
@@ -1811,6 +1821,7 @@ export const propriedadesRoute: RouteDef = {
        (document.getElementById('input-new-mat-numero') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-denominacao') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-area') as HTMLInputElement).value = '';
+       (document.getElementById('input-new-mat-area-sigef') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = '';
        (document.getElementById('input-new-mat-valor-itr') as HTMLInputElement).value = '';
@@ -1843,6 +1854,7 @@ export const propriedadesRoute: RouteDef = {
        
        // Área formatada com vírgula para manter compatibilidade visual
        (document.getElementById('input-new-mat-area') as HTMLInputElement).value = (m.area_ha || '').toString().replace('.', ',');
+       (document.getElementById('input-new-mat-area-sigef') as HTMLInputElement).value = m.area_sigef_ha != null && m.area_sigef_ha !== '' ? m.area_sigef_ha.toString().replace('.', ',') : '';
        
        (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value = m.ccir ? aplicarMascaraCCIRMat(m.ccir) : '';
        (document.getElementById('input-new-mat-itr') as HTMLInputElement).value = m.itr ? aplicarMascaraITRMat(m.itr) : '';
@@ -1895,6 +1907,8 @@ export const propriedadesRoute: RouteDef = {
 
        const area_raw = (document.getElementById('input-new-mat-area') as HTMLInputElement).value.trim();
        const area_ha = paraNumero(area_raw);
+       const area_sigef_raw = (document.getElementById('input-new-mat-area-sigef') as HTMLInputElement).value.trim();
+       const area_sigef_ha = area_sigef_raw ? paraNumero(area_sigef_raw) : null;
        
        const ccir = (document.getElementById('input-new-mat-ccir') as HTMLInputElement).value.trim();
        const itr = (document.getElementById('input-new-mat-itr') as HTMLInputElement).value.trim();
@@ -1912,6 +1926,10 @@ export const propriedadesRoute: RouteDef = {
           customAlert(`Preencha: ${faltando.join(', ')}.`);
           return;
        }
+       if (area_sigef_ha !== null && (isNaN(area_sigef_ha) || area_sigef_ha < 0)) {
+          customAlert('Área SIGEF (Ha) inválida.');
+          return;
+       }
        if (valor_itr !== null && isNaN(valor_itr)) {
           customAlert('Valor do ITR inválido.');
           return;
@@ -1924,7 +1942,7 @@ export const propriedadesRoute: RouteDef = {
           const res = await fetch(url, {
              method: method,
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id })
+             body: JSON.stringify({ numero_matricula, ccir, itr, area_ha, area_sigef_ha, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id })
           });
           const data = await lerRespostaApi(res);
           if (data.error) {
