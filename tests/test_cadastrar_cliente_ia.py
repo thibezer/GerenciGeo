@@ -22,8 +22,25 @@ class TestCadastrarClienteIA(unittest.TestCase):
         self.assertEqual(normalizar_data("01/01/2000"), "2000-01-01")
         self.assertEqual(normalizar_data("5/7/1990"), "1990-07-05")
         self.assertEqual(normalizar_data("1980-05-15"), "1980-05-15")
+        self.assertEqual(normalizar_data("15 de março de 1985"), "1985-03-15")
+        self.assertEqual(normalizar_data("2 de Abril de 2010"), "2010-04-02")
         self.assertIsNone(normalizar_data(None))
         self.assertIsNone(normalizar_data(""))
+
+    def test_normalizar_dados_nao_forca_sexo_ou_metadados_vazios(self):
+        raw = {
+            "cpf_cnpj": "52998224725",
+            "endereco_completo": "Rua das Flores, 100",
+            "cep": "87500000",
+            "cnh_numero": None,
+            "rg_ie": ""
+        }
+        norm = normalizar_dados_cliente(raw)
+        self.assertNotIn("sexo", norm)
+        self.assertNotIn("metadados", norm)
+        self.assertNotIn("cnh_numero", norm)
+        self.assertNotIn("rg_ie", norm)
+        self.assertEqual(norm["cep"], "87500-000")
 
     def test_normalizar_dados_cliente(self):
         raw = {
@@ -154,6 +171,111 @@ class TestCadastrarClienteIA(unittest.TestCase):
         data = json.loads(p.stdout)
         self.assertTrue(data["sucesso"])
         self.assertEqual(data["nome"], "Cliente Teste Via CLI")
+
+    def test_enriquecimento_preserva_dados_e_sobrescrita_explicita(self):
+        cpf_teste = "11144477735"
+        row_antigo = execute_query(
+            "SELECT c.id FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE p.cpf_cnpj = ?",
+            params=(cpf_teste,),
+            fetch_one=True
+        )
+        if row_antigo:
+            execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+
+        # 1. Cadastra cliente mulher com RG e filiação
+        res1 = processar_cadastro_ia({
+            "nome_completo": "Maria da Silva",
+            "cpf_cnpj": cpf_teste,
+            "sexo": "F",
+            "rg_ie": "11.222.333-4",
+            "filiacao_mae": "Ana da Silva"
+        })
+        self.assertTrue(res1["sucesso"])
+        cli_id = res1["cliente_id"]
+
+        # 2. Enriquecimento com comprovante de endereço (sem sexo, com nome abreviado e rg_ie null)
+        res2 = processar_cadastro_ia({
+            "nome_completo": "Maria S.",
+            "cpf_cnpj": cpf_teste,
+            "rg_ie": None,
+            "endereco_completo": "Linha São José, s/n",
+            "cidade": "Iporã",
+            "estado": "PR",
+            "cep": "87560000"
+        })
+        self.assertTrue(res2["sucesso"])
+        self.assertEqual(res2["acao"], "ATUALIZADO")
+
+        row = execute_query("""
+            SELECT p.nome, p.genero, p.rg, p.endereco_completo, c.cidade, c.cep
+            FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?
+        """, params=(cli_id,), fetch_one=True)
+        self.assertEqual(row["nome"], "Maria da Silva")
+        self.assertEqual(row["genero"], "F")
+        self.assertEqual(row["rg"], "11.222.333-4")
+        self.assertEqual(row["endereco_completo"], "Linha São José, s/n")
+        self.assertEqual(row["cep"], "87560-000")
+
+        # Metadado filiacao_mae preservado
+        meta = execute_query(
+            "SELECT valor FROM cliente_metadados WHERE id_cliente = ? AND chave = 'filiacao_mae'",
+            params=(cli_id,),
+            fetch_one=True
+        )
+        self.assertIsNotNone(meta)
+        self.assertEqual(meta["valor"], "Ana da Silva")
+
+        # 3. Atualização com sobrescrever=True altera endereço existente
+        res3 = processar_cadastro_ia({
+            "cpf_cnpj": cpf_teste,
+            "endereco_completo": "Av. Brasil, 500"
+        }, sobrescrever=True)
+        self.assertTrue(res3["sucesso"])
+        row_upd = execute_query(
+            "SELECT p.endereco_completo FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?",
+            params=(cli_id,),
+            fetch_one=True
+        )
+        self.assertEqual(row_upd["endereco_completo"], "Av. Brasil, 500")
+
+    def test_cadastro_pj_e_multiplos_anexos(self):
+        cnpj_teste = "11222333000181"
+        row_antigo = execute_query(
+            "SELECT c.id FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE p.cpf_cnpj = ?",
+            params=(cnpj_teste,),
+            fetch_one=True
+        )
+        if row_antigo:
+            execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t1, \
+             tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as t2:
+            t1.write(b"img1")
+            t2.write(b"pdf2")
+            p1, p2 = t1.name, t2.name
+
+        try:
+            res = processar_cadastro_ia({
+                "cnpj": cnpj_teste,
+                "razao_social": "Agropecuária Modelo Ltda",
+                "nome_fantasia": "Fazenda Modelo",
+                "data_abertura": "10/03/2015",
+                "cidade": "Umuarama",
+                "estado": "PR"
+            }, caminho_imagem=[p1, p2])
+
+            self.assertTrue(res["sucesso"], f"Falha PJ: {res}")
+            self.assertEqual(res["acao"], "CRIADO")
+            self.assertEqual(len(res["documentos_anexos"]), 2)
+            self.assertEqual(res["documentos_anexos"][0]["tipo"], "CARTAO_CNPJ")
+
+            for doc in res["documentos_anexos"]:
+                if os.path.exists(doc["caminho"]):
+                    os.remove(doc["caminho"])
+        finally:
+            for p_tmp in (p1, p2):
+                if os.path.exists(p_tmp):
+                    os.remove(p_tmp)
 
 
 if __name__ == "__main__":

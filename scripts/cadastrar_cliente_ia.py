@@ -13,8 +13,9 @@ import json
 import shutil
 import logging
 import argparse
+import re
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 
 # Adiciona raiz do projeto ao sys.path para garantir imports corretos
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -35,13 +36,19 @@ from services.gestores.cliente_manager import (
 logger = logging.getLogger("cadastrar_cliente_ia")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+_MESES_PT = {
+    "janeiro": "01", "fevereiro": "02", "março": "03", "marco": "03",
+    "abril": "04", "maio": "05", "junho": "06",
+    "julho": "07", "agosto": "08", "setembro": "09",
+    "outubro": "10", "novembro": "11", "dezembro": "12",
+}
+
 
 def normalizar_data(valor: Optional[str]) -> Optional[str]:
-    """Converte datas em formatos variados (DD/MM/AAAA, DD-MM-AAAA) para o padrão ISO AAAA-MM-DD."""
+    """Converte datas em formatos variados (DD/MM/AAAA, DD de mês de AAAA) para ISO AAAA-MM-DD."""
     if not valor or not str(valor).strip():
         return None
     val = str(valor).strip()
-    import re
     # Caso já seja AAAA-MM-DD
     if re.match(r"^\d{4}-\d{2}-\d{2}$", val):
         return val
@@ -50,26 +57,62 @@ def normalizar_data(valor: Optional[str]) -> Optional[str]:
     if m:
         dia, mes, ano = m.group(1).zfill(2), m.group(2).zfill(2), m.group(3)
         return f"{ano}-{mes}-{dia}"
+    # Caso seja "15 de março de 1985"
+    m_ext = re.match(r"^(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})$", val.lower())
+    if m_ext:
+        mes_num = _MESES_PT.get(m_ext.group(2))
+        if mes_num:
+            return f"{m_ext.group(3)}-{mes_num}-{m_ext.group(1).zfill(2)}"
     return val
 
 
-def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
-    """Sanitiza e padroniza campos de clientes para garantir conformidade com o banco."""
-    dados_limpos = dict(dados)
+def _normalizar_genero(valor: Any) -> Optional[str]:
+    """Normaliza gênero/sexo para 'M' ou 'F', retornando None se ausente."""
+    if valor is None or not str(valor).strip():
+        return None
+    s = str(valor).upper().strip()
+    if s.startswith("F") or "FEMIN" in s or "MULHER" in s:
+        return "F"
+    if s.startswith("M") or "MASC" in s or "HOMEM" in s:
+        return "M"
+    return None
 
-    # Nome completo
-    nome = dados_limpos.get("nome_completo") or dados_limpos.get("nome")
+
+def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitiza e padroniza campos de clientes, omitindo valores vazios para preservar dados em updates."""
+    # Remove chaves None ou strings vazias para não sobrescrever dados existentes em atualizações
+    dados_limpos: Dict[str, Any] = {}
+    for k, v in dados.items():
+        if v is None:
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        dados_limpos[k] = v
+
+    # Tipo de pessoa (PF / PJ)
+    if dados_limpos.get("tipo_pessoa"):
+        dados_limpos["tipo_pessoa"] = str(dados_limpos["tipo_pessoa"]).strip().upper()
+
+    # Razão Social / Nome Fantasia (PJ)
+    if dados_limpos.get("razao_social"):
+        dados_limpos["razao_social"] = str(dados_limpos["razao_social"]).strip()
+    if dados_limpos.get("nome_fantasia"):
+        dados_limpos["nome_fantasia"] = str(dados_limpos["nome_fantasia"]).strip()
+
+    # Nome completo (ou razão social como fallback para PJ)
+    nome = dados_limpos.get("nome_completo") or dados_limpos.get("nome") or dados_limpos.get("razao_social")
     if nome:
         nome_str = str(nome).strip()
-        # Se estiver tudo em maiúsculas ou minúsculas com mais de 1 palavra, pode preservar ou capitalizar
         dados_limpos["nome_completo"] = nome_str
         dados_limpos["nome"] = nome_str
 
     # CPF / CNPJ
-    if "cpf_cnpj" in dados_limpos and dados_limpos["cpf_cnpj"]:
-        dados_limpos["cpf_cnpj"] = limpar_documento(dados_limpos["cpf_cnpj"])
-    if "cpf" in dados_limpos and dados_limpos["cpf"]:
-        dados_limpos["cpf_cnpj"] = limpar_documento(dados_limpos["cpf"])
+    doc_raw = dados_limpos.get("cpf_cnpj") or dados_limpos.get("cnpj") or dados_limpos.get("cpf")
+    if doc_raw:
+        doc_limpo = limpar_documento(doc_raw)
+        dados_limpos["cpf_cnpj"] = doc_limpo
+        if len(doc_limpo) == 14 and not dados_limpos.get("tipo_pessoa"):
+            dados_limpos["tipo_pessoa"] = "PJ"
 
     # RG / Órgão / UF
     if dados_limpos.get("rg_ie") or dados_limpos.get("rg"):
@@ -81,62 +124,105 @@ def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
         dados_limpos["rg_uf"] = str(dados_limpos["rg_uf"]).strip().upper()
 
     # CNH
+    if dados_limpos.get("cnh_numero"):
+        dados_limpos["cnh_numero"] = re.sub(r"\D", "", str(dados_limpos["cnh_numero"])) or str(dados_limpos["cnh_numero"]).strip()
     if dados_limpos.get("cnh_categoria"):
         dados_limpos["cnh_categoria"] = str(dados_limpos["cnh_categoria"]).strip().upper()
     if dados_limpos.get("cnh_validade"):
         dados_limpos["cnh_validade"] = normalizar_data(dados_limpos["cnh_validade"])
+    if dados_limpos.get("cnh_orgao_uf"):
+        dados_limpos["cnh_orgao_uf"] = str(dados_limpos["cnh_orgao_uf"]).strip().upper()
 
     # Datas
     if dados_limpos.get("data_nascimento_fundacao"):
         dados_limpos["data_nascimento_fundacao"] = normalizar_data(dados_limpos["data_nascimento_fundacao"])
     elif dados_limpos.get("data_nascimento"):
         dados_limpos["data_nascimento_fundacao"] = normalizar_data(dados_limpos["data_nascimento"])
+    elif dados_limpos.get("data_abertura"):
+        dados_limpos["data_nascimento_fundacao"] = normalizar_data(dados_limpos["data_abertura"])
 
     if dados_limpos.get("data_casamento"):
         dados_limpos["data_casamento"] = normalizar_data(dados_limpos["data_casamento"])
 
-    # Sexo / Gênero
-    sexo = str(dados_limpos.get("sexo") or dados_limpos.get("genero") or "M").upper().strip()
-    dados_limpos["sexo"] = "F" if sexo.startswith("F") or "FEMIN" in sexo else "M"
+    # Sexo / Gênero (só define se informado no payload)
+    sexo_norm = _normalizar_genero(dados_limpos.get("sexo") or dados_limpos.get("genero"))
+    if sexo_norm:
+        dados_limpos["sexo"] = sexo_norm
+    else:
+        dados_limpos.pop("sexo", None)
 
-    # CPF Cônjuge
+    # Dados do Cônjuge
     if dados_limpos.get("cpf_conjuge"):
         dados_limpos["cpf_conjuge"] = limpar_documento(dados_limpos["cpf_conjuge"])
+    if dados_limpos.get("rg_orgao_conjuge"):
+        dados_limpos["rg_orgao_conjuge"] = str(dados_limpos["rg_orgao_conjuge"]).strip().upper()
+    if dados_limpos.get("rg_uf_conjuge"):
+        dados_limpos["rg_uf_conjuge"] = str(dados_limpos["rg_uf_conjuge"]).strip().upper()
+    gen_conj = _normalizar_genero(dados_limpos.get("genero_conjuge"))
+    if gen_conj:
+        dados_limpos["genero_conjuge"] = gen_conj
+    else:
+        dados_limpos.pop("genero_conjuge", None)
+
+    # Endereço / UF / CEP
+    if dados_limpos.get("estado"):
+        dados_limpos["estado"] = str(dados_limpos["estado"]).strip().upper()
+    if dados_limpos.get("cep"):
+        cep_dig = re.sub(r"\D", "", str(dados_limpos["cep"]))
+        if len(cep_dig) == 8:
+            dados_limpos["cep"] = f"{cep_dig[:5]}-{cep_dig[5:]}"
 
     # Estado Civil padronizado
-    est_civil = str(dados_limpos.get("estado_civil") or "").strip().lower()
-    if "casad" in est_civil:
-        dados_limpos["estado_civil"] = "Casado(a)"
-    elif "solteir" in est_civil:
-        dados_limpos["estado_civil"] = "Solteiro(a)"
-    elif "divorci" in est_civil:
-        dados_limpos["estado_civil"] = "Divorciado(a)"
-    elif "viuv" in est_civil or "viúv" in est_civil:
-        dados_limpos["estado_civil"] = "Viúvo(a)"
-    elif "uni" in est_civil and "est" in est_civil:
-        dados_limpos["estado_civil"] = "União Estável"
-    elif est_civil:
-        dados_limpos["estado_civil"] = est_civil.capitalize()
+    if dados_limpos.get("estado_civil"):
+        est_civil = str(dados_limpos["estado_civil"]).strip().lower()
+        if "casad" in est_civil:
+            dados_limpos["estado_civil"] = "Casado(a)"
+        elif "solteir" in est_civil:
+            dados_limpos["estado_civil"] = "Solteiro(a)"
+        elif "divorci" in est_civil:
+            dados_limpos["estado_civil"] = "Divorciado(a)"
+        elif "viuv" in est_civil or "viúv" in est_civil:
+            dados_limpos["estado_civil"] = "Viúvo(a)"
+        elif "uni" in est_civil and "est" in est_civil:
+            dados_limpos["estado_civil"] = "União Estável"
+        else:
+            dados_limpos["estado_civil"] = est_civil.capitalize()
 
-    # Nacionalidade padrão se ausente
-    if not dados_limpos.get("nacionalidade"):
-        dados_limpos["nacionalidade"] = "Brasileira"
-
-    # Metadados de Filiação (se fornecidos)
-    metadados = dados_limpos.get("metadados") or {}
+    # Metadados de Filiação (só inclui 'metadados' se houver conteúdo real)
+    metadados_in = dados_limpos.get("metadados")
+    metadados = dict(metadados_in) if isinstance(metadados_in, dict) else {}
     if dados_limpos.get("filiacao_mae"):
         metadados["filiacao_mae"] = str(dados_limpos["filiacao_mae"]).strip()
     if dados_limpos.get("filiacao_pai"):
         metadados["filiacao_pai"] = str(dados_limpos["filiacao_pai"]).strip()
     if dados_limpos.get("filiacao") and not dados_limpos.get("filiacao_mae"):
         metadados["filiacao"] = str(dados_limpos["filiacao"]).strip()
-    dados_limpos["metadados"] = metadados
+    if metadados:
+        dados_limpos["metadados"] = metadados
+    else:
+        dados_limpos.pop("metadados", None)
 
     return dados_limpos
 
 
+def _inferir_tipo_documento(dados: Dict[str, Any]) -> str:
+    """Infere o tipo de documento mais adequado a partir dos campos extraídos."""
+    if dados.get("tipo_documento"):
+        return str(dados["tipo_documento"]).strip().upper()
+    if dados.get("cnh_numero"):
+        return "CNH"
+    if dados.get("certidao_casamento_matricula") or dados.get("cartorio_casamento") or dados.get("data_casamento"):
+        return "CERTIDAO_CASAMENTO"
+    cpf_cnpj = str(dados.get("cpf_cnpj") or "")
+    if dados.get("tipo_pessoa") == "PJ" or dados.get("razao_social") or len(cpf_cnpj) == 14:
+        return "CARTAO_CNPJ"
+    if dados.get("endereco_completo") and not dados.get("rg_ie") and not dados.get("cnh_numero"):
+        return "COMPROVANTE_RESIDENCIA"
+    return "RG"
+
+
 def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Copia a imagem/print para a pasta oficial de documentos do cliente e registra na base."""
+    """Copia a imagem/PDF para a pasta oficial de documentos do cliente e registra na base."""
     if not caminho_imagem or not os.path.exists(caminho_imagem):
         return None
 
@@ -144,20 +230,15 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         nome_arquivo = os.path.basename(caminho_imagem)
         ext = os.path.splitext(nome_arquivo)[1].lower() or ".png"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
-        
-        # Tipo de documento
-        tipo_doc = dados.get("tipo_documento")
-        if not tipo_doc:
-            if dados.get("cnh_numero"):
-                tipo_doc = "CNH"
-            else:
-                tipo_doc = "RG"
+
+        tipo_doc = _inferir_tipo_documento(dados)
 
         numero_doc = (
             dados.get("rg_ie")
             or dados.get("cnh_numero")
             or dados.get("certidao_casamento_matricula")
             or dados.get("cpf_cnpj")
+            or dados.get("cep")
             or "DOCUMENTO"
         )
 
@@ -170,11 +251,15 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         shutil.copy2(caminho_imagem, caminho_final)
         tamanho = os.path.getsize(caminho_final)
 
+        orgao_emissor = dados.get("rg_orgao") or dados.get("cnh_orgao_uf") or dados.get("cartorio_casamento")
+        if not orgao_emissor and tipo_doc == "RG":
+            orgao_emissor = "SSP"
+
         doc_payload = {
             "tipo_documento": tipo_doc,
             "numero": numero_doc,
-            "orgao_emissor": dados.get("rg_orgao") or dados.get("cnh_orgao_uf") or "SSP",
-            "uf_emissor": dados.get("rg_uf") or "PR",
+            "orgao_emissor": orgao_emissor,
+            "uf_emissor": dados.get("rg_uf") or dados.get("estado"),
             "categoria_cnh": dados.get("cnh_categoria"),
             "data_validade": dados.get("cnh_validade"),
             "observacoes": "Documento importado automaticamente via IA Assistente (Visão Multimodal).",
@@ -186,7 +271,7 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         res_doc = salvar_documento_cliente(cliente_id, doc_payload)
         if "error" in res_doc:
             logger.warning(f"Aviso ao registrar documento na tabela: {res_doc['error']}")
-            return {"caminho": caminho_final, "arquivo": novo_nome, "aviso": res_doc["error"]}
+            return {"tipo": tipo_doc, "caminho": caminho_final, "arquivo": novo_nome, "aviso": res_doc["error"]}
 
         return {
             "tipo": tipo_doc,
@@ -200,11 +285,78 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         return None
 
 
-def processar_cadastro_ia(dados_brutos: Dict[str, Any], caminho_imagem: Optional[str] = None) -> Dict[str, Any]:
+def _filtrar_enriquecimento(cliente_id: int, dados: Dict[str, Any], sobrescrever: bool) -> Dict[str, Any]:
+    """
+    Em atualizações, preserva dados pré-existentes válidos no banco quando sobrescrever=False,
+    e faz merge de metadados para não apagar chaves já gravadas.
+    """
+    dados_filtrados = dict(dados)
+
+    # Merge de metadados existentes
+    if "metadados" in dados_filtrados and isinstance(dados_filtrados["metadados"], dict):
+        rows_meta = execute_query(
+            "SELECT chave, valor FROM cliente_metadados WHERE id_cliente = ?",
+            params=(cliente_id,),
+            fetch_all=True
+        ) or []
+        meta_atual = {r["chave"]: r["valor"] for r in rows_meta}
+        for k, v in dados_filtrados["metadados"].items():
+            if sobrescrever or not meta_atual.get(k):
+                meta_atual[k] = v
+        dados_filtrados["metadados"] = meta_atual
+
+    if sobrescrever:
+        return dados_filtrados
+
+    row_atual = execute_query("""
+        SELECT p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.genero as sexo,
+               p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+               p.endereco_completo, p.endereco_sem_numero, p.numero_endereco, p.bairro,
+               p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge,
+               p.nacionalidade_conjuge, p.profissao_conjuge, p.rg_orgao_conjuge, p.rg_uf_conjuge,
+               p.data_casamento, p.cartorio_casamento, p.livro_casamento, p.folha_casamento, p.termo_casamento,
+               p.tipo_pessoa, p.razao_social, p.nome_fantasia, p.inscricao_estadual, p.inscricao_municipal,
+               p.cnh_numero, p.cnh_categoria, p.cnh_validade, p.cnh_orgao_uf,
+               p.rg_orgao, p.rg_uf, p.naturalidade, p.certidao_casamento_matricula,
+               c.data_nascimento_fundacao, c.email, c.telefone, c.cidade, c.estado, c.cep
+        FROM clientes c
+        JOIN pessoas p ON c.pessoa_id = p.id
+        WHERE c.id = ?
+    """, params=(cliente_id,), fetch_one=True)
+
+    if not row_atual:
+        return dados_filtrados
+
+    atual = dict(row_atual)
+    resultado = {}
+    for k, v in dados_filtrados.items():
+        if k in ("metadados", "cpf_cnpj", "tipo_documento", "caminho_imagem", "imagem_path", "caminhos_imagens"):
+            resultado[k] = v
+            continue
+        if k == "nome":
+            continue
+        valor_atual = atual.get(k)
+        # Só preenche se o campo atual no banco estiver vazio/nulo
+        if valor_atual is None or (isinstance(valor_atual, str) and not valor_atual.strip()):
+            resultado[k] = v
+
+    # Garante nome_completo válido exigido por atualizar_cliente
+    if "nome_completo" not in resultado and atual.get("nome_completo"):
+        resultado["nome_completo"] = atual["nome_completo"]
+
+    return resultado
+
+
+def processar_cadastro_ia(
+    dados_brutos: Dict[str, Any],
+    caminho_imagem: Optional[Union[str, List[str]]] = None,
+    sobrescrever: bool = False
+) -> Dict[str, Any]:
     """
     Processa os dados extraídos de documento de identidade via IA e cadastra ou atualiza
     o cliente atomicamente no banco SQLite do GerenciGeo.
     """
+    sobrescrever = bool(sobrescrever or dados_brutos.get("sobrescrever"))
     dados = normalizar_dados_cliente(dados_brutos)
     nome = dados.get("nome_completo")
     cpf_cnpj = dados.get("cpf_cnpj")
@@ -218,7 +370,7 @@ def processar_cadastro_ia(dados_brutos: Dict[str, Any], caminho_imagem: Optional
     acao = "CRIADO"
     campos_atualizados = []
 
-    # 1. Verifica se já existe cliente cadastrado com esse CPF
+    # 1. Verifica se já existe cliente cadastrado com esse CPF/CNPJ
     if cpf_cnpj:
         row_cli = execute_query("""
             SELECT c.id as cliente_id, p.id as pessoa_id, p.nome, p.cpf_cnpj
@@ -241,50 +393,60 @@ def processar_cadastro_ia(dados_brutos: Dict[str, Any], caminho_imagem: Optional
 
     # 2. Executa Cadastro Novo ou Atualização Enriquecida
     if acao == "ATUALIZADO" and cliente_id:
-        res_update = atualizar_cliente(cliente_id, dados)
+        dados_update = _filtrar_enriquecimento(cliente_id, dados, sobrescrever=sobrescrever)
+        res_update = atualizar_cliente(cliente_id, dados_update)
         if "error" in res_update:
             return {"sucesso": False, "erro": res_update["error"]}
-        
-        # Também atualiza campos específicos na tabela pessoas para dados recém-extraídos
-        campos_update_pessoas = []
-        valores_update_pessoas = []
-        for campo_p in ["rg", "rg_orgao", "rg_uf", "cnh_numero", "cnh_categoria", "cnh_validade", "cnh_orgao_uf", "naturalidade", "estado_civil", "regime_bens", "nome_conjuge", "cpf_conjuge", "certidao_casamento_matricula", "data_casamento", "cartorio_casamento", "livro_casamento", "folha_casamento", "termo_casamento"]:
-            val = dados.get(campo_p) or dados.get("rg_ie" if campo_p == "rg" else "")
-            if val is not None and str(val).strip():
-                campos_update_pessoas.append(f"{campo_p} = COALESCE(?, {campo_p})")
-                valores_update_pessoas.append(str(val).strip())
-                campos_atualizados.append(campo_p)
-                
-        if campos_update_pessoas:
-            valores_update_pessoas.append(pessoa_id)
-            sql_p = f"UPDATE pessoas SET {', '.join(campos_update_pessoas)} WHERE id = ?"
-            execute_query(sql_p, params=tuple(valores_update_pessoas), commit=True)
-
+        campos_atualizados = [k for k in dados_update.keys() if k not in ("nome_completo", "cpf_cnpj")]
+        nome = dados_update.get("nome_completo") or nome
     else:
-        # Se for cliente novo (ou pessoa já existente sem registro em clientes)
+        # Nacionalidade padrão em novos cadastros PF
+        if dados.get("tipo_pessoa") != "PJ" and not dados.get("nacionalidade"):
+            dados["nacionalidade"] = "Brasileira"
         res_create = cadastrar_cliente(dados)
         if "error" in res_create:
             return {"sucesso": False, "erro": res_create["error"]}
         cliente_id = res_create.get("id")
         pessoa_id = res_create.get("pessoa_id")
         acao = "CRIADO"
-        campos_atualizados = [k for k, v in dados.items() if v]
+        campos_atualizados = [k for k, v in dados.items() if v is not None]
 
-    # 3. Anexa documento se a imagem foi fornecida
-    caminho_doc = caminho_imagem or dados.get("caminho_imagem") or dados.get("imagem_path")
-    doc_info = None
-    if caminho_doc:
-        doc_info = anexar_arquivo_documento(cliente_id, caminho_doc, dados)
+    # 3. Anexa documento(s) se imagem(ns)/PDF(s) fornecidos
+    caminhos_lista: List[str] = []
+    if isinstance(caminho_imagem, list):
+        caminhos_lista.extend([c for c in caminho_imagem if c])
+    elif isinstance(caminho_imagem, str) and caminho_imagem:
+        caminhos_lista.append(caminho_imagem)
+
+    for extra_key in ("caminho_imagem", "imagem_path"):
+        if dados.get(extra_key):
+            caminhos_lista.append(dados[extra_key])
+    if isinstance(dados.get("caminhos_imagens"), list):
+        caminhos_lista.extend([c for c in dados["caminhos_imagens"] if c])
+
+    docs_anexos = []
+    for c_doc in dict.fromkeys(caminhos_lista):
+        info = anexar_arquivo_documento(cliente_id, c_doc, dados)
+        if info:
+            docs_anexos.append(info)
+    doc_info = docs_anexos[0] if docs_anexos else None
 
     # 4. Verificação de Pendência de Cônjuge para Georreferenciamento
     alerta_conjuge = None
     try:
         manager = ClienteManager()
         manager.verificar_dados_conjuge(cliente_id)
-        
-        est_civil = str(dados.get("estado_civil") or "").lower()
+
+        row_conj = execute_query(
+            "SELECT p.estado_civil, p.nome_conjuge, p.cpf_conjuge FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?",
+            params=(cliente_id,),
+            fetch_one=True
+        )
+        est_civil = str((row_conj["estado_civil"] if row_conj else None) or dados.get("estado_civil") or "").lower()
+        nome_conj = (row_conj["nome_conjuge"] if row_conj else None) or dados.get("nome_conjuge")
+        cpf_conj = (row_conj["cpf_conjuge"] if row_conj else None) or dados.get("cpf_conjuge")
         if any(x in est_civil for x in ["casado", "uniao", "união"]):
-            if not dados.get("cpf_conjuge") or not dados.get("nome_conjuge"):
+            if not cpf_conj or not nome_conj:
                 alerta_conjuge = (
                     "⚠️ Cliente qualificado como casado(a) / união estável, mas dados do cônjuge "
                     "(Nome e CPF) estão incompletos. Uma pendência técnica de georreferenciamento foi aberta."
@@ -306,8 +468,9 @@ def processar_cadastro_ia(dados_brutos: Dict[str, Any], caminho_imagem: Optional
         "pessoa_id": pessoa_id,
         "nome": nome,
         "cpf_cnpj": cpf_cnpj,
-        "campos_salvos": [c for c in dados.keys() if dados.get(c) is not None],
+        "campos_salvos": campos_atualizados,
         "documento_anexo": doc_info,
+        "documentos_anexos": docs_anexos,
         "alerta_conjuge": alerta_conjuge,
         "mensagem": msg
     }
@@ -317,7 +480,8 @@ def main():
     parser = argparse.ArgumentParser(description="Cadastro de Clientes via IA e OCR Multimodal - GerenciGeo")
     parser.add_argument("--json", type=str, help="Payload JSON contendo os dados extraídos do documento.")
     parser.add_argument("--file", type=str, help="Caminho para arquivo .json contendo os dados.")
-    parser.add_argument("--image", type=str, help="Caminho do print/foto do documento para arquivamento.")
+    parser.add_argument("--image", action="append", help="Caminho do print/foto/PDF do documento (pode ser repetido para múltiplos anexos).")
+    parser.add_argument("--sobrescrever", action="store_true", help="Permite sobrescrever campos já preenchidos em clientes existentes.")
 
     args = parser.parse_args()
 
@@ -351,7 +515,11 @@ def main():
         }, ensure_ascii=False))
         sys.exit(1)
 
-    resultado = processar_cadastro_ia(payload_dict, caminho_imagem=args.image)
+    resultado = processar_cadastro_ia(
+        payload_dict,
+        caminho_imagem=args.image,
+        sobrescrever=args.sobrescrever
+    )
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
 
 
