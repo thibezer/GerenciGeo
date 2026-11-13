@@ -55,6 +55,29 @@ export const aplicarMascaraCep = (value: string): string => {
   return value.replace(/\D/g, '').replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 };
 
+/**
+ * Ajusta a nacionalidade padrão ("Brasileiro" ou "Brasileira") conforme o gênero ('M' | 'F').
+ * Preserva valores customizados (ex: "Paraguaia", "Italiano") caso o usuário tenha digitado outra nacionalidade.
+ */
+export const resolverNacionalidadePorGenero = (
+  genero?: string | null,
+  nacionalidadeAtual?: string | null
+): string => {
+  const atual = (nacionalidadeAtual || '').trim();
+  const atualLower = atual.toLowerCase();
+  const ehPadraoBrasileiro =
+    atual === '' ||
+    atualLower === 'brasileiro' ||
+    atualLower === 'brasileira' ||
+    atualLower === 'brasileiro(a)';
+
+  if (!ehPadraoBrasileiro) {
+    return atual;
+  }
+
+  return genero === 'F' ? 'Brasileira' : 'Brasileiro';
+};
+
 export const gerarLinkWhatsApp = (telefone?: string | null): string | null => {
   if (!telefone) return null;
   const nums = telefone.replace(/\D/g, '');

@@ -13,7 +13,8 @@ import {
   filtrarPorSegmento,
   contarSegmentos,
   ordenarClientes,
-  renderLinhasTabelaHtml
+  renderLinhasTabelaHtml,
+  resolverNacionalidadePorGenero
 } from '../src/views/clientes/clientes_helpers';
 import type { Cliente } from '../src/types';
 
@@ -155,4 +156,15 @@ test('linhas da tabela escapam nome e marcam a seleção', () => {
   assert.ok(html.includes('&lt;img'));
   assert.ok(html.includes('is-sel'));
   assert.ok(html.includes('data-id="7"'));
+});
+
+test('resolverNacionalidadePorGenero ajusta Brasileiro/Brasileira e preserva customizada', () => {
+  assert.equal(resolverNacionalidadePorGenero('M', ''), 'Brasileiro');
+  assert.equal(resolverNacionalidadePorGenero('F', ''), 'Brasileira');
+  assert.equal(resolverNacionalidadePorGenero('M', 'Brasileiro(a)'), 'Brasileiro');
+  assert.equal(resolverNacionalidadePorGenero('F', 'Brasileiro(a)'), 'Brasileira');
+  assert.equal(resolverNacionalidadePorGenero('F', 'Brasileiro'), 'Brasileira');
+  assert.equal(resolverNacionalidadePorGenero('M', 'Brasileira'), 'Brasileiro');
+  assert.equal(resolverNacionalidadePorGenero('F', 'Paraguaia'), 'Paraguaia');
+  assert.equal(resolverNacionalidadePorGenero('M', 'Italiano'), 'Italiano');
 });

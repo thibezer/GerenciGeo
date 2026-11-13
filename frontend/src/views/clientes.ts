@@ -29,6 +29,7 @@ import {
   aplicarMascaraCpfCnpj,
   aplicarMascaraTelefone,
   aplicarMascaraCep,
+  resolverNacionalidadePorGenero,
   ehPessoaJuridica,
   filtrarClientes,
   filtrarPorSegmento,
@@ -262,12 +263,53 @@ export const clientesRoute: RouteDef = {
     selectEstadoCivil?.addEventListener('change', toggleConjuge);
     selectEstadoCivil?.addEventListener('ui-selecionar', toggleConjuge);
 
+    // Atualizar nacionalidade padrão ("Brasileiro" / "Brasileira") conforme o sexo selecionado
+    const selectSexo = form?.querySelector<UISelectElement>('[name="sexo"]') || null;
+    const inputNacionalidade = form?.querySelector<HTMLInputElement>('[name="nacionalidade"]') || null;
+    const selectGeneroConjuge = form?.querySelector<UISelectElement>('[name="genero_conjuge"]') || null;
+    const inputNacionalidadeConjuge = form?.querySelector<HTMLInputElement>('[name="nacionalidade_conjuge"]') || null;
+
+    const atualizarNacionalidadePorSelect = (
+      selectEl: UISelectElement | null,
+      inputEl: HTMLInputElement | null,
+      padraoGenero: 'M' | 'F',
+      e?: Event
+    ) => {
+      if (!selectEl || !inputEl) return;
+      const customEvent = e as CustomEvent<{ id?: string }> | undefined;
+      const genero = customEvent?.detail?.id || selectEl.value || padraoGenero;
+      const novaNacionalidade = resolverNacionalidadePorGenero(genero, inputEl.value);
+      inputEl.value = novaNacionalidade;
+      if ('setAttribute' in inputEl) inputEl.setAttribute('value', novaNacionalidade);
+    };
+
+    selectSexo?.addEventListener('change', (e) => atualizarNacionalidadePorSelect(selectSexo, inputNacionalidade, 'M', e));
+    selectSexo?.addEventListener('ui-selecionar', (e) => atualizarNacionalidadePorSelect(selectSexo, inputNacionalidade, 'M', e));
+    selectGeneroConjuge?.addEventListener('change', (e) => atualizarNacionalidadePorSelect(selectGeneroConjuge, inputNacionalidadeConjuge, 'F', e));
+    selectGeneroConjuge?.addEventListener('ui-selecionar', (e) => atualizarNacionalidadePorSelect(selectGeneroConjuge, inputNacionalidadeConjuge, 'F', e));
+
     // Botões de abertura/fechamento de modais
     document.getElementById('btn-abrir-modal-cliente')?.addEventListener('click', () => {
       clienteSelecionadoId = null;
       if (form) {
         form.reset();
         setTipoPessoa('PF');
+        if (selectSexo) {
+          selectSexo.value = 'M';
+          if ('setAttribute' in selectSexo) selectSexo.setAttribute('value', 'M');
+        }
+        if (inputNacionalidade) {
+          inputNacionalidade.value = 'Brasileiro';
+          if ('setAttribute' in inputNacionalidade) inputNacionalidade.setAttribute('value', 'Brasileiro');
+        }
+        if (selectGeneroConjuge) {
+          selectGeneroConjuge.value = 'F';
+          if ('setAttribute' in selectGeneroConjuge) selectGeneroConjuge.setAttribute('value', 'F');
+        }
+        if (inputNacionalidadeConjuge) {
+          inputNacionalidadeConjuge.value = 'Brasileira';
+          if ('setAttribute' in inputNacionalidadeConjuge) inputNacionalidadeConjuge.setAttribute('value', 'Brasileira');
+        }
         if (selectEstado) {
           selectEstado.value = 'PR';
           if ('setAttribute' in selectEstado) selectEstado.setAttribute('value', 'PR');
@@ -829,15 +871,17 @@ export const clientesRoute: RouteDef = {
       setFormVal('cnh_orgao_uf', cli.cnh_orgao_uf);
       setFormVal('data_nascimento_fundacao', cli.data_nascimento_fundacao || '');
       setFormVal('estado_civil', cli.estado_civil);
-      setFormVal('sexo', cli.sexo || 'M');
-      setFormVal('nacionalidade', cli.nacionalidade);
+      const sexoCliente = cli.sexo || 'M';
+      setFormVal('sexo', sexoCliente);
+      setFormVal('nacionalidade', resolverNacionalidadePorGenero(sexoCliente, cli.nacionalidade));
       setFormVal('nome_conjuge', cli.nome_conjuge);
-      setFormVal('genero_conjuge', cli.genero_conjuge);
+      const generoConjuge = cli.genero_conjuge || 'F';
+      setFormVal('genero_conjuge', generoConjuge);
       setFormVal('cpf_conjuge', aplicarMascaraCpfCnpj(cli.cpf_conjuge || ''));
       setFormVal('rg_conjuge', cli.rg_conjuge);
       setFormVal('rg_orgao_conjuge', cli.rg_orgao_conjuge);
       setFormVal('rg_uf_conjuge', cli.rg_uf_conjuge);
-      setFormVal('nacionalidade_conjuge', cli.nacionalidade_conjuge);
+      setFormVal('nacionalidade_conjuge', resolverNacionalidadePorGenero(generoConjuge, cli.nacionalidade_conjuge));
       setFormVal('profissao_conjuge', cli.profissao_conjuge);
       setFormVal('regime_bens', cli.regime_bens);
       setFormVal('certidao_casamento_matricula', cli.certidao_casamento_matricula);
