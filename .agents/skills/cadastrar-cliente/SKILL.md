@@ -65,12 +65,13 @@ Identifique visualmente o(s) modelo(s) enviado(s). Se houver múltiplos arquivos
    - `nome_fantasia`.
    - `inscricao_estadual`, `inscricao_municipal`.
    - `data_nascimento_fundacao`: Data de abertura da empresa (`AAAA-MM-DD`).
+   - `representante_legal_cpf`: CPF do sócio-administrador (se constar no Contrato Social, o script vincula `representante_legal_id` automaticamente caso já esteja cadastrado).
    - `endereco_completo`, `numero_endereco`, `bairro`, `cidade`, `estado`, `cep`.
    - `email`, `telefone`.
 
 5. **Comprovante de Residência**:
    - `tipo_documento`: `"COMPROVANTE_RESIDENCIA"`.
-   - `nome_completo` e `cpf_cnpj` (se constarem no comprovante, para localizar o cliente).
+   - `nome_completo` e `cpf_cnpj` (se constarem no comprovante; se não houver CPF, o script tenta localizar o cliente pelo nome exato).
    - `endereco_completo`: Logradouro, Avenida, Linha Rural ou Fazenda.
    - `numero_endereco`: Número (ou `endereco_sem_numero: true` se `S/N` ou rural sem número).
    - `bairro`: Bairro, Distrito ou Localidade Rural.
@@ -120,10 +121,12 @@ python scripts/cadastrar_cliente_ia.py --json '<PAYLOAD_JSON>'
   python scripts/cadastrar_cliente_ia.py --json '<PAYLOAD_JSON>' --image "frente.jpg" --image "verso.jpg"
   ```
 
-**Regras de Enriquecimento e Sobrescrita**:
-- **Cliente Novo**: Cadastra atomicamente a pessoa e o registro de cliente.
-- **Cliente Existente (Padrão — Enriquecimento Seguro)**: Se o CPF/CNPJ já existir no banco, o script **preenche apenas os campos que estavam vazios/nulos** e faz merge de metadados (como filiação), **sem sobrescrever** dados pré-existentes válidos.
+**Regras de Enriquecimento, Simulação e Sobrescrita**:
+- **Cliente Novo**: Cadastra atomicamente a pessoa e o registro de cliente (textos 100% em CAIXA ALTA vindos de OCR são convertidos automaticamente para *Title Case* preservando preposições e siglas como `LTDA`/`PR`).
+- **Cliente Existente (Padrão — Enriquecimento Seguro)**: Localiza por CPF/CNPJ (ou por nome exato único quando o documento não tiver CPF). Preenche **apenas os campos que estavam vazios/nulos** e faz merge de metadados, **sem sobrescrever** dados pré-existentes válidos.
+- **Prevenção de Duplicidade**: Anexos idênticos (mesmo conteúdo/hash) não são duplicados na pasta do cliente.
 - **Correção/Substituição Explícita (`--sobrescrever`)**: Use `--sobrescrever` **somente** quando o usuário pedir explicitamente para atualizar/substituir um dado já cadastrado (ex.: *"atualize o endereço dele para esse novo"*).
+- **Pré-visualização (`--dry-run`)**: Use `--dry-run` quando o documento estiver duvidoso/borrado e você quiser conferir o payload normalizado antes de gravar no banco.
 - **Alerta de Cônjuge para Georreferenciamento**: Se o cliente for `Casado(a)` ou `União Estável` e faltarem Nome ou CPF do cônjuge, o sistema abre pendência técnica automática para fins de INCRA/SIGEF.
 - **Integração com Matrículas**: Caso o usuário também peça para lançar uma matrícula em seguida (skill `cadastrar-matricula`), os clientes cadastrados aqui já estarão disponíveis para vínculo automático por CPF.
 

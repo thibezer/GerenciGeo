@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import shutil
+import hashlib
 import logging
 import argparse
 import re
@@ -78,6 +79,45 @@ def _normalizar_genero(valor: Any) -> Optional[str]:
     return None
 
 
+_PREPOSICOES_PT = {
+    "da", "de", "do", "das", "dos", "e", "em", "na", "no", "nas", "nos",
+    "a", "o", "as", "os", "para", "por", "com"
+}
+
+_SIGLAS_PRESERVAR = {
+    "LTDA", "ME", "EPP", "EIRELI", "S/A", "S.A.", "SA", "CIA",
+    "CPF", "CNPJ", "RG", "CNH", "INCRA", "SIGEF", "BR", "PR", "SP",
+    "SC", "RS", "MS", "MT", "MG", "RJ", "BA", "GO", "TO", "PA", "RO",
+    "AC", "AM", "RR", "AP", "MA", "PI", "CE", "RN", "PB", "PE", "AL",
+    "SE", "ES", "DF"
+}
+
+
+def _capitalizar_texto_ocr(valor: Any) -> Any:
+    """Converte strings inteiramente em CAIXA ALTA (padrão OCR) para Title Case legível."""
+    if not isinstance(valor, str):
+        return valor
+    texto = valor.strip()
+    if not texto or not texto.isupper():
+        return texto
+
+    tokens = texto.split(" ")
+    resultado = []
+    for idx, tok in enumerate(tokens):
+        if not tok:
+            continue
+        tok_limpo = tok.strip(",.;:-()/")
+        if tok_limpo in _SIGLAS_PRESERVAR or re.match(r"^[IVXLCDM]+$", tok_limpo):
+            resultado.append(tok)
+        elif tok_limpo in ("S/N", "S.N."):
+            resultado.append("s/n")
+        elif idx > 0 and tok.lower() in _PREPOSICOES_PT:
+            resultado.append(tok.lower())
+        else:
+            resultado.append(tok.capitalize())
+    return " ".join(resultado)
+
+
 def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
     """Sanitiza e padroniza campos de clientes, omitindo valores vazios para preservar dados em updates."""
     # Remove chaves None ou strings vazias para não sobrescrever dados existentes em atualizações
@@ -88,6 +128,16 @@ def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, str) and not v.strip():
             continue
         dados_limpos[k] = v
+
+    # Capitalização inteligente para campos em CAIXA ALTA vindos de OCR
+    for campo_txt in (
+        "nome_completo", "nome", "razao_social", "nome_fantasia",
+        "nome_conjuge", "filiacao_mae", "filiacao_pai", "filiacao",
+        "cidade", "bairro", "naturalidade", "endereco_completo",
+        "cartorio_casamento", "profissao", "profissao_conjuge"
+    ):
+        if dados_limpos.get(campo_txt):
+            dados_limpos[campo_txt] = _capitalizar_texto_ocr(dados_limpos[campo_txt])
 
     # Tipo de pessoa (PF / PJ)
     if dados_limpos.get("tipo_pessoa"):
@@ -221,6 +271,15 @@ def _inferir_tipo_documento(dados: Dict[str, Any]) -> str:
     return "RG"
 
 
+def _hash_arquivo(caminho: str) -> str:
+    """Calcula SHA-256 de um arquivo em blocos para detectar anexos duplicados."""
+    h = hashlib.sha256()
+    with open(caminho, "rb") as f:
+        for bloco in iter(lambda: f.read(65536), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
 def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Copia a imagem/PDF para a pasta oficial de documentos do cliente e registra na base."""
     if not caminho_imagem or not os.path.exists(caminho_imagem):
@@ -245,6 +304,20 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         # Destino
         destino_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
         os.makedirs(destino_dir, exist_ok=True)
+
+        # Evita duplicação caso o mesmo arquivo já tenha sido anexado para este cliente
+        hash_novo = _hash_arquivo(caminho_imagem)
+        for arq_existente in os.listdir(destino_dir):
+            caminho_ex = os.path.join(destino_dir, arq_existente)
+            if os.path.isfile(caminho_ex) and _hash_arquivo(caminho_ex) == hash_novo:
+                return {
+                    "tipo": tipo_doc,
+                    "numero": numero_doc,
+                    "caminho": caminho_ex,
+                    "arquivo": arq_existente,
+                    "tamanho_bytes": os.path.getsize(caminho_ex),
+                    "duplicado": True
+                }
 
         novo_nome = f"{tipo_doc}_{timestamp}{ext}"
         caminho_final = os.path.join(destino_dir, novo_nome)
@@ -350,13 +423,15 @@ def _filtrar_enriquecimento(cliente_id: int, dados: Dict[str, Any], sobrescrever
 def processar_cadastro_ia(
     dados_brutos: Dict[str, Any],
     caminho_imagem: Optional[Union[str, List[str]]] = None,
-    sobrescrever: bool = False
+    sobrescrever: bool = False,
+    dry_run: bool = False
 ) -> Dict[str, Any]:
     """
     Processa os dados extraídos de documento de identidade via IA e cadastra ou atualiza
     o cliente atomicamente no banco SQLite do GerenciGeo.
     """
     sobrescrever = bool(sobrescrever or dados_brutos.get("sobrescrever"))
+    dry_run = bool(dry_run or dados_brutos.get("dry_run"))
     dados = normalizar_dados_cliente(dados_brutos)
     nome = dados.get("nome_completo")
     cpf_cnpj = dados.get("cpf_cnpj")
@@ -365,12 +440,25 @@ def processar_cadastro_ia(
     if cpf_cnpj and not validar_cpf_cnpj(cpf_cnpj):
         return {"sucesso": False, "erro": f"CPF/CNPJ inválido detectado: {cpf_cnpj}"}
 
+    # Vínculo automático de Representante Legal para PJ via CPF
+    rep_cpf = dados.pop("representante_legal_cpf", None)
+    if rep_cpf and not dados.get("representante_legal_id"):
+        rep_cpf_limpo = limpar_documento(rep_cpf)
+        if rep_cpf_limpo:
+            row_rep = execute_query(
+                "SELECT id FROM pessoas WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?",
+                params=(rep_cpf_limpo,),
+                fetch_one=True
+            )
+            if row_rep:
+                dados["representante_legal_id"] = row_rep["id"]
+
     cliente_id = None
     pessoa_id = None
     acao = "CRIADO"
     campos_atualizados = []
 
-    # 1. Verifica se já existe cliente cadastrado com esse CPF/CNPJ
+    # 1. Verifica se já existe cliente cadastrado com esse CPF/CNPJ (ou por nome exato se sem CPF)
     if cpf_cnpj:
         row_cli = execute_query("""
             SELECT c.id as cliente_id, p.id as pessoa_id, p.nome, p.cpf_cnpj
@@ -387,29 +475,85 @@ def processar_cadastro_ia(
                 dados["nome_completo"] = nome
                 dados["nome"] = nome
             acao = "ATUALIZADO"
+    elif nome:
+        matches = execute_query("""
+            SELECT c.id as cliente_id, p.id as pessoa_id, p.nome, p.cpf_cnpj
+            FROM pessoas p
+            JOIN clientes c ON c.pessoa_id = p.id
+            WHERE LOWER(TRIM(p.nome)) = LOWER(TRIM(?))
+        """, params=(nome,), fetch_all=True) or []
+
+        if len(matches) == 1:
+            row_cli = matches[0]
+            cliente_id = row_cli["cliente_id"]
+            pessoa_id = row_cli["pessoa_id"]
+            cpf_cnpj = row_cli["cpf_cnpj"]
+            if cpf_cnpj:
+                dados["cpf_cnpj"] = cpf_cnpj
+            acao = "ATUALIZADO"
+        elif len(matches) > 1:
+            return {
+                "sucesso": False,
+                "erro": "Múltiplos clientes encontrados com esse nome. Informe o CPF/CNPJ para identificar corretamente.",
+                "candidatos": [
+                    {"cliente_id": m["cliente_id"], "nome": m["nome"], "cpf_cnpj": m["cpf_cnpj"]}
+                    for m in matches
+                ]
+            }
+        else:
+            return {
+                "sucesso": False,
+                "erro": "CPF/CNPJ é obrigatório para cadastrar um novo cliente (nenhum cliente existente encontrado com esse nome)."
+            }
 
     if not nome:
         return {"sucesso": False, "erro": "Nome completo não identificado no documento ou no cadastro existente."}
 
-    # 2. Executa Cadastro Novo ou Atualização Enriquecida
+    # 2. Prepara payload final e executa (ou simula em dry_run)
     if acao == "ATUALIZADO" and cliente_id:
         dados_update = _filtrar_enriquecimento(cliente_id, dados, sobrescrever=sobrescrever)
+        campos_atualizados = [k for k in dados_update.keys() if k not in ("nome_completo", "cpf_cnpj")]
+        nome = dados_update.get("nome_completo") or nome
+        if dry_run:
+            return {
+                "sucesso": True,
+                "dry_run": True,
+                "acao": "ATUALIZADO",
+                "cliente_id": cliente_id,
+                "pessoa_id": pessoa_id,
+                "nome": nome,
+                "cpf_cnpj": cpf_cnpj,
+                "campos_salvos": campos_atualizados,
+                "dados_preparados": dados_update,
+                "mensagem": f"[DRY-RUN] Cliente '{nome}' (ID: {cliente_id}) seria atualizado."
+            }
         res_update = atualizar_cliente(cliente_id, dados_update)
         if "error" in res_update:
             return {"sucesso": False, "erro": res_update["error"]}
-        campos_atualizados = [k for k in dados_update.keys() if k not in ("nome_completo", "cpf_cnpj")]
-        nome = dados_update.get("nome_completo") or nome
     else:
         # Nacionalidade padrão em novos cadastros PF
         if dados.get("tipo_pessoa") != "PJ" and not dados.get("nacionalidade"):
             dados["nacionalidade"] = "Brasileira"
+        campos_atualizados = [k for k, v in dados.items() if v is not None]
+        if dry_run:
+            return {
+                "sucesso": True,
+                "dry_run": True,
+                "acao": "CRIADO",
+                "cliente_id": None,
+                "pessoa_id": None,
+                "nome": nome,
+                "cpf_cnpj": cpf_cnpj,
+                "campos_salvos": campos_atualizados,
+                "dados_preparados": dados,
+                "mensagem": f"[DRY-RUN] Novo cliente '{nome}' seria cadastrado."
+            }
         res_create = cadastrar_cliente(dados)
         if "error" in res_create:
             return {"sucesso": False, "erro": res_create["error"]}
         cliente_id = res_create.get("id")
         pessoa_id = res_create.get("pessoa_id")
         acao = "CRIADO"
-        campos_atualizados = [k for k, v in dados.items() if v is not None]
 
     # 3. Anexa documento(s) se imagem(ns)/PDF(s) fornecidos
     caminhos_lista: List[str] = []
@@ -482,6 +626,7 @@ def main():
     parser.add_argument("--file", type=str, help="Caminho para arquivo .json contendo os dados.")
     parser.add_argument("--image", action="append", help="Caminho do print/foto/PDF do documento (pode ser repetido para múltiplos anexos).")
     parser.add_argument("--sobrescrever", action="store_true", help="Permite sobrescrever campos já preenchidos em clientes existentes.")
+    parser.add_argument("--dry-run", action="store_true", help="Simula a operação e exibe os dados preparados sem gravar no banco.")
 
     args = parser.parse_args()
 
@@ -518,7 +663,8 @@ def main():
     resultado = processar_cadastro_ia(
         payload_dict,
         caminho_imagem=args.image,
-        sobrescrever=args.sobrescrever
+        sobrescrever=args.sobrescrever,
+        dry_run=args.dry_run
     )
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
 

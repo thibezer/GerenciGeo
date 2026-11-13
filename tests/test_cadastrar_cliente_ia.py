@@ -77,6 +77,7 @@ class TestCadastrarClienteIA(unittest.TestCase):
         )
         if row_antigo:
             execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+        execute_query("DELETE FROM pessoas WHERE cpf_cnpj = ?", params=(cpf_teste,), commit=True)
 
         payload_novo = {
             "nome_completo": "Cliente Teste IA Automatizado",
@@ -181,6 +182,7 @@ class TestCadastrarClienteIA(unittest.TestCase):
         )
         if row_antigo:
             execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+        execute_query("DELETE FROM pessoas WHERE cpf_cnpj = ?", params=(cpf_teste,), commit=True)
 
         # 1. Cadastra cliente mulher com RG e filiação
         res1 = processar_cadastro_ia({
@@ -247,6 +249,7 @@ class TestCadastrarClienteIA(unittest.TestCase):
         )
         if row_antigo:
             execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+        execute_query("DELETE FROM pessoas WHERE cpf_cnpj = ?", params=(cnpj_teste,), commit=True)
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t1, \
              tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as t2:
@@ -276,6 +279,103 @@ class TestCadastrarClienteIA(unittest.TestCase):
             for p_tmp in (p1, p2):
                 if os.path.exists(p_tmp):
                     os.remove(p_tmp)
+
+    def test_capitalizacao_ocr_caixa_alta(self):
+        norm = normalizar_dados_cliente({
+            "nome_completo": "JOAO DA SILVA SAURO",
+            "razao_social": "AGROPECUARIA MODELO LTDA",
+            "naturalidade": "CAMPO MOURAO - PR",
+            "endereco_completo": "ESTRADA DA GLEBA, S/N"
+        })
+        self.assertEqual(norm["nome_completo"], "Joao da Silva Sauro")
+        self.assertEqual(norm["razao_social"], "Agropecuaria Modelo LTDA")
+        self.assertEqual(norm["naturalidade"], "Campo Mourao - PR")
+        self.assertEqual(norm["endereco_completo"], "Estrada da Gleba, s/n")
+
+    def test_busca_por_nome_sem_cpf_e_dry_run(self):
+        cpf_teste = "39053344705"
+        row_antigo = execute_query(
+            "SELECT c.id FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE p.cpf_cnpj = ?",
+            params=(cpf_teste,),
+            fetch_one=True
+        )
+        if row_antigo:
+            execute_query("DELETE FROM clientes WHERE id = ?", params=(row_antigo["id"],), commit=True)
+        execute_query("DELETE FROM pessoas WHERE cpf_cnpj = ?", params=(cpf_teste,), commit=True)
+
+        res1 = processar_cadastro_ia({
+            "nome_completo": "Carlos Eduardo Ferreira",
+            "cpf_cnpj": cpf_teste
+        })
+        self.assertTrue(res1["sucesso"])
+        cli_id = res1["cliente_id"]
+
+        # Dry-run sem CPF localiza por nome e não grava endereço
+        res_dry = processar_cadastro_ia({
+            "nome_completo": "CARLOS EDUARDO FERREIRA",
+            "endereco_completo": "RUA DAS PALMEIRAS, 200"
+        }, dry_run=True)
+        self.assertTrue(res_dry["sucesso"])
+        self.assertTrue(res_dry["dry_run"])
+        self.assertEqual(res_dry["acao"], "ATUALIZADO")
+        self.assertEqual(res_dry["cliente_id"], cli_id)
+
+        row_check = execute_query(
+            "SELECT p.endereco_completo FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?",
+            params=(cli_id,),
+            fetch_one=True
+        )
+        self.assertIsNone(row_check["endereco_completo"])
+
+        # Atualização real sem CPF por nome único
+        res2 = processar_cadastro_ia({
+            "nome_completo": "carlos eduardo ferreira",
+            "endereco_completo": "Rua das Palmeiras, 200"
+        })
+        self.assertTrue(res2["sucesso"])
+        self.assertEqual(res2["acao"], "ATUALIZADO")
+
+    def test_anexo_duplicado_e_representante_legal_pj(self):
+        cpf_rep = "52998224725"
+        cnpj_pj = "11222333000181"
+
+        # Garante representante cadastrado
+        res_rep = processar_cadastro_ia({
+            "nome_completo": "Representante Legal Teste",
+            "cpf_cnpj": cpf_rep
+        })
+        self.assertTrue(res_rep["sucesso"])
+        rep_pessoa_id = res_rep["pessoa_id"]
+
+        # Cadastra/atualiza PJ vinculando representante_legal_cpf
+        res_pj = processar_cadastro_ia({
+            "cnpj": cnpj_pj,
+            "razao_social": "Agropecuária Modelo Ltda",
+            "representante_legal_cpf": cpf_rep
+        }, sobrescrever=True)
+        self.assertTrue(res_pj["sucesso"])
+        row_pj = execute_query(
+            "SELECT p.representante_legal_id FROM clientes c JOIN pessoas p ON c.pessoa_id = p.id WHERE c.id = ?",
+            params=(res_pj["cliente_id"],),
+            fetch_one=True
+        )
+        self.assertEqual(row_pj["representante_legal_id"], rep_pessoa_id)
+
+        # Testa anexo duplicado (mesmo conteúdo)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(b"conteudo-identico-para-teste-dedup")
+            tmp_path = tmp.name
+
+        try:
+            r_a1 = processar_cadastro_ia({"cpf_cnpj": cnpj_pj}, caminho_imagem=tmp_path)
+            r_a2 = processar_cadastro_ia({"cpf_cnpj": cnpj_pj}, caminho_imagem=tmp_path)
+            self.assertFalse(r_a1["documento_anexo"].get("duplicado", False))
+            self.assertTrue(r_a2["documento_anexo"].get("duplicado", False))
+            if os.path.exists(r_a1["documento_anexo"]["caminho"]):
+                os.remove(r_a1["documento_anexo"]["caminho"])
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
 
 if __name__ == "__main__":
