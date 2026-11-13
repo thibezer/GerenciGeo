@@ -16,6 +16,12 @@ import {
   renderLinhasTabelaHtml,
   resolverNacionalidadePorGenero
 } from '../src/views/clientes/clientes_helpers';
+import {
+  formatarTitleCasePtBr,
+  formatarSiglaMaiuscula,
+  formatarEmailCliente,
+  aplicarFormatacaoCamposTexto
+} from '../src/views/clientes/formatador_texto_cliente';
 import type { Cliente } from '../src/types';
 
 const cli = (extra: Partial<Cliente>): Cliente => ({ id: 1, nome_completo: 'Sem Nome', cpf_cnpj: '', ...extra } as Cliente);
@@ -167,4 +173,37 @@ test('resolverNacionalidadePorGenero ajusta Brasileiro/Brasileira e preserva cus
   assert.equal(resolverNacionalidadePorGenero('M', 'Brasileira'), 'Brasileiro');
   assert.equal(resolverNacionalidadePorGenero('F', 'Paraguaia'), 'Paraguaia');
   assert.equal(resolverNacionalidadePorGenero('M', 'Italiano'), 'Italiano');
+});
+
+test('formatarTitleCasePtBr capitaliza nomes preservando conectivos, siglas e UFs', () => {
+  assert.equal(formatarTitleCasePtBr('  thiago   bezerra da silva '), 'Thiago Bezerra da Silva');
+  assert.equal(formatarTitleCasePtBr('da costa e silva'), 'Da Costa e Silva');
+  assert.equal(formatarTitleCasePtBr('rua das araucárias'), 'Rua das Araucárias');
+  assert.equal(formatarTitleCasePtBr('cascavel - pr'), 'Cascavel - PR');
+  assert.equal(formatarTitleCasePtBr('agropecuária nova esperança ltda'), 'Agropecuária Nova Esperança LTDA');
+  assert.equal(formatarTitleCasePtBr('fazenda vale verde s/a'), 'Fazenda Vale Verde S/A');
+  assert.equal(formatarTitleCasePtBr("maria d'ávila dos santos"), "Maria d'Ávila dos Santos");
+});
+
+test('aplicarFormatacaoCamposTexto formata campos corretos e preserva senha_gov', () => {
+  const resultado = aplicarFormatacaoCamposTexto({
+    nome_completo: 'joão da silva',
+    rg_orgao: 'ssp',
+    rg_uf: 'pr',
+    cnh_orgao_uf: 'detran/pr',
+    email: '  JOAO@Email.COM ',
+    senha_gov: 'MinhaSenha@123',
+    cidade: 'toledo',
+    bairro: 'gleba do piquiri'
+  });
+  assert.equal(resultado.nome_completo, 'João da Silva');
+  assert.equal(resultado.rg_orgao, 'SSP');
+  assert.equal(resultado.rg_uf, 'PR');
+  assert.equal(resultado.cnh_orgao_uf, 'DETRAN/PR');
+  assert.equal(resultado.email, 'joao@email.com');
+  assert.equal(resultado.senha_gov, 'MinhaSenha@123');
+  assert.equal(resultado.cidade, 'Toledo');
+  assert.equal(resultado.bairro, 'Gleba do Piquiri');
+  assert.equal(formatarSiglaMaiuscula(' ab '), 'AB');
+  assert.equal(formatarEmailCliente(' Teste@Exemplo.BR '), 'teste@exemplo.br');
 });

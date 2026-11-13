@@ -50,6 +50,10 @@ import {
   renderPropriedadesVinculadasHtml
 } from './clientes/clientes_helpers';
 import type { SegmentoCliente, CampoOrdenacaoCliente, DirecaoOrdenacao } from './clientes/clientes_helpers';
+import {
+  vincularFormatadoresFormularioCliente,
+  aplicarFormatacaoCamposTexto
+} from './clientes/formatador_texto_cliente';
 
 interface UIModalElement extends HTMLElement {
   abrir?: () => void;
@@ -190,6 +194,8 @@ export const clientesRoute: RouteDef = {
     handleInputMask(inputCnpjPj, aplicarMascaraCpfCnpj);
     handleInputMask(inputCpfConjuge, aplicarMascaraCpfCnpj);
     handleInputMask(inputTelefone, aplicarMascaraTelefone);
+
+    if (form) vincularFormatadoresFormularioCliente(form);
 
     // Carga de Cidades do IBGE
     const carregarCidadesPorEstado = async (uf: string) => {
@@ -1367,7 +1373,9 @@ export const clientesRoute: RouteDef = {
     form?.addEventListener('submit', async (e: Event) => {
       e.preventDefault();
       const formData = new FormData(e.target as HTMLFormElement);
-      const rawPayload = Object.fromEntries(formData.entries()) as Record<string, string>;
+      const rawPayload = aplicarFormatacaoCamposTexto(
+        Object.fromEntries(formData.entries()) as Record<string, string>
+      );
 
       const tipoPessoa = (rawPayload.tipo_pessoa as 'PF' | 'PJ') || 'PF';
       const isPj = tipoPessoa === 'PJ';
