@@ -2065,7 +2065,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       (document.getElementById('input-conf-lote') as any).value = '';
       (document.getElementById('input-conf-matricula-imovel') as any).value = '';
 
-      preencherRepresentante(null);
+      preencherRepresentantes(null);
       const chkTitNovo = document.getElementById('chk-titular-assina') as HTMLInputElement | null;
       if (chkTitNovo) chkTitNovo.checked = true;
       configurarMaquinadeEstadosCivil(containerForm);
@@ -2140,7 +2140,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             (document.getElementById('input-conf-matricula-imovel') as any).value = selectedConf.matricula_imovel || '';
             
             configurarMaquinadeEstadosCivil(containerForm);
-            preencherRepresentante(selectedConf.representante);
+            preencherRepresentantes(selectedConf.representantes ?? selectedConf.representante);
             const chkTit = document.getElementById('chk-titular-assina') as HTMLInputElement | null;
             if (chkTit) chkTit.checked = selectedConf.titular_assina !== 0;
             coproprietariosAtuais = (selectedConf.coproprietarios && Array.isArray(selectedConf.coproprietarios)) 
@@ -2184,31 +2184,89 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (inputNome && 'placeholder' in inputNome) inputNome.placeholder = pj ? 'Razão social' : 'Nome completo do titular confrontante';
     };
 
-    const campoRep = (id: string) => document.getElementById(id) as any;
-    const CAMPOS_REP: [string, string][] = [
-      ['input-rep-cpf', 'cpf_cnpj'], ['input-rep-nome', 'nome'], ['input-rep-rg', 'rg'], ['input-rep-genero', 'genero'],
-      ['input-rep-nacionalidade', 'nacionalidade'], ['input-rep-profissao', 'profissao'],
-      ['input-rep-estado-civil', 'estado_civil'], ['input-rep-endereco', 'endereco_completo']
-    ];
-    /** Só envia representante quando o titular é PJ e o nome foi preenchido. */
-    function lerRepresentante(): Record<string, string> | null {
-      const pj = (inputCpf?.value || '').replace(/\D/g, '').length > 11;
-      if (!pj) return null;
-      const rep: Record<string, string> = {};
-      CAMPOS_REP.forEach(([id, chave]) => { rep[chave] = (campoRep(id)?.value || '').trim(); });
-      return rep.nome ? rep : null;
-    }
-    const preencherRepresentante = (rep: any) => {
-      CAMPOS_REP.forEach(([id, chave]) => {
-        const el = campoRep(id);
-        if (!el) return;
-        const padrao = chave === 'genero' ? 'M' : chave === 'nacionalidade' ? 'brasileiro(a)' : chave === 'estado_civil' ? 'solteiro' : '';
-        el.value = chave === 'cpf_cnpj' && rep?.[chave] ? formatarCpfCnpjDinamico(rep[chave]) : (rep?.[chave] || padrao);
+    const listaRepresentantes = document.getElementById('lista-representantes');
+    let representantesAtuais: Record<string, string>[] = [];
+    const repVazio = (): Record<string, string> => ({ genero: 'M', nacionalidade: 'brasileiro(a)', estado_civil: 'solteiro' });
+
+    const renderizarRepresentantes = () => {
+      if (!listaRepresentantes) return;
+      const opt = (v: string, t: string, atual: string) => `<option value="${v}" ${atual === v ? 'selected' : ''}>${t}</option>`;
+      listaRepresentantes.innerHTML = representantesAtuais.map((r, idx) => {
+        const campo = (rotulo: string, f: string, ph: string, cls = 'col-span-1') => `
+          <div class="${cls}"><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">${rotulo}</label>
+            <ui-campo-texto type="text" class="w-full" data-field="${f}" data-idx="${idx}" placeholder="${ph}" value="${escapeHtml(r[f] || '')}"></ui-campo-texto></div>`;
+        return `
+          <div class="card-representante p-3 bg-white/[0.015] border border-white/10 rounded-technical space-y-3" data-idx="${idx}">
+            <div class="flex items-center justify-between border-b border-white/5 pb-2">
+              <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/5 border border-white/10 text-mint-vibrant">Representante #${idx + 1}</span>
+              <button type="button" class="btn-remover-rep text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded transition-all cursor-pointer" data-idx="${idx}" title="Remover representante">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+              ${campo('CPF', 'cpf_cnpj', '000.000.000-00')}
+              ${campo('Nome Completo', 'nome', 'Nome do representante', 'col-span-1 sm:col-span-2 lg:col-span-2')}
+              ${campo('RG / Órgão', 'rg', 'RG')}
+              <div><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                <ui-lista-flutuante class="w-full" data-field="genero" data-idx="${idx}">${opt('M', 'Homem', r.genero || 'M')}${opt('F', 'Mulher', r.genero || 'M')}</ui-lista-flutuante></div>
+              ${campo('Nacionalidade', 'nacionalidade', 'brasileiro(a)', '')}
+              ${campo('Profissão', 'profissao', 'Profissão', '')}
+              <div><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
+                <ui-lista-flutuante class="w-full" data-field="estado_civil" data-idx="${idx}">${[['solteiro', 'Solteiro(a)'], ['casado', 'Casado(a)'], ['uniao_estavel', 'União Estável'], ['divorciado', 'Divorciado(a)'], ['viuvo', 'Viúvo(a)']].map(([v, t]) => opt(v, t, r.estado_civil || 'solteiro')).join('')}</ui-lista-flutuante></div>
+              ${campo('Endereço do Representante', 'endereco_completo', 'Deixe em branco para usar o endereço da empresa', 'col-span-1 sm:col-span-2 lg:col-span-4')}
+            </div>
+          </div>`;
+      }).join('');
+
+      listaRepresentantes.querySelectorAll('.btn-remover-rep').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = Number((e.currentTarget as HTMLElement).dataset.idx);
+          representantesAtuais.splice(idx, 1);
+          if (representantesAtuais.length === 0) representantesAtuais.push(repVazio());
+          renderizarRepresentantes();
+        });
       });
+      listaRepresentantes.querySelectorAll('[data-field]').forEach(input => {
+        const handler = (e: any) => {
+          const idx = Number(input.getAttribute('data-idx'));
+          const field = input.getAttribute('data-field');
+          if (!field || !representantesAtuais[idx]) return;
+          let valor = e.target.value;
+          if (field === 'cpf_cnpj' && e.type === 'input') {
+            const fmt = formatarCpfCnpjDinamico(valor);
+            if (fmt !== valor) { e.target.value = fmt; valor = fmt; }
+          }
+          representantesAtuais[idx][field] = valor;
+        };
+        input.addEventListener('input', handler);
+        input.addEventListener('change', handler);
+        input.addEventListener('ui-selecionar', handler);
+      });
+      initIcons();
     };
-    campoRep('input-rep-cpf')?.addEventListener('input', () => {
-      const el = campoRep('input-rep-cpf');
-      el.value = formatarCpfCnpjDinamico(el.value);
+
+    /** Só envia representantes quando o titular é PJ; descarta os sem nome. */
+    function lerRepresentantes(): Record<string, string>[] {
+      const pj = (inputCpf?.value || '').replace(/\D/g, '').length > 11;
+      if (!pj) return [];
+      return representantesAtuais
+        .map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, (v || '').trim()])) as Record<string, string>)
+        .filter(r => r.nome);
+    }
+    /** Aceita lista (novo) ou objeto único (legado). Mantém ao menos um cartão para preencher. */
+    const preencherRepresentantes = (reps: any) => {
+      const lista = Array.isArray(reps) ? reps : (reps ? [reps] : []);
+      representantesAtuais = lista.map((r: any) => ({
+        ...repVazio(),
+        ...r,
+        cpf_cnpj: r?.cpf_cnpj ? formatarCpfCnpjDinamico(r.cpf_cnpj) : '',
+      }));
+      if (representantesAtuais.length === 0) representantesAtuais.push(repVazio());
+      renderizarRepresentantes();
+    };
+    document.getElementById('btn-add-representante')?.addEventListener('click', () => {
+      representantesAtuais.push(repVazio());
+      renderizarRepresentantes();
     });
 
     const buscarPreenchimentoCpf = async (cpfVal: string) => {
@@ -2319,7 +2377,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         matricula_imovel: (document.getElementById('input-conf-matricula-imovel') as any)?.value?.trim() || null,
         tipo_relacao: null,
         titular_assina: (document.getElementById('chk-titular-assina') as HTMLInputElement | null)?.checked !== false,
-        representante: lerRepresentante(),
+        representantes: lerRepresentantes(),
         coproprietarios: coproprietariosAtuais
           .map(cp => ({
             nome: (cp.nome || '').trim(),

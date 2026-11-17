@@ -19,6 +19,7 @@ from services.gestores.anuencia_status import (
     sincronizar_assinatura,
     status_efetivo,
 )
+from services.documentacao.cartorio.qualificacao import normalizar_representantes
 from utils.geodesia_parser import (
     extract_codigo_parts,
     parse_num_robust,
@@ -76,8 +77,15 @@ class ConfrontanteCreate(BaseModel):
     codigo_incra_imovel: Optional[str] = None
     lote: Optional[str] = None
     coproprietarios: Optional[List[CoproprietarioCreate]] = []
-    representante: Optional[dict] = None
+    representante: Optional[dict] = None  # legado (um só); use `representantes`
+    representantes: Optional[List[dict]] = None
     titular_assina: Optional[bool] = True
+
+def _representantes_json(c) -> Optional[str]:
+    """Serializa os representantes legais (lista; aceita o campo legado `representante`) ou None se vazio."""
+    reps = normalizar_representantes(c.representantes if c.representantes is not None else c.representante)
+    return json.dumps(reps, ensure_ascii=False) if reps else None
+
 
 def salvar_coproprietarios_transacao(cursor, confrontante_id: int, coproprietarios: list):
     cursor.execute("DELETE FROM confrontante_coproprietarios WHERE confrontante_id = ?", (confrontante_id,))
@@ -269,10 +277,9 @@ def get_confrontantes(id: int):
                 params=(cid,), fetch_all=True
             )
             conf["coproprietarios"] = [dict(cp) for cp in rows_cp]
-            try:
-                conf["representante"] = json.loads(conf.pop("representante_json") or "null")
-            except (TypeError, ValueError):
-                conf["representante"] = None
+            reps = normalizar_representantes(conf.pop("representante_json", None))
+            conf["representantes"] = reps
+            conf["representante"] = reps[0] if reps else None
         return confrontantes
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -334,8 +341,7 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
             confrontante_id = cursor.lastrowid
             cursor.execute(
                 "UPDATE confrontantes SET representante_json = ?, titular_assina = ? WHERE id = ?",
-                (json.dumps(c.representante, ensure_ascii=False) if c.representante else None,
-                 0 if c.titular_assina is False else 1, confrontante_id)
+                (_representantes_json(c), 0 if c.titular_assina is False else 1, confrontante_id)
             )
             
             if c.coproprietarios:
@@ -476,7 +482,7 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
                   c.profissao, c.estado_civil, c.regime_bens, c.endereco_completo, c.nome_conjuge,
                   c.cpf_conjuge, c.rg_conjuge, c.tipo_relacao, c.matricula_imovel, c.cns_confrontante,
                   c.nome_propriedade, c.codigo_incra_imovel, c.lote,
-                  json.dumps(c.representante, ensure_ascii=False) if c.representante else None,
+                  _representantes_json(c),
                   0 if c.titular_assina is False else 1, cid))
             
             if c.coproprietarios is not None:

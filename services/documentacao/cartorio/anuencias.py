@@ -34,6 +34,7 @@ from services.documentacao.cartorio.qualificacao import (
     genero_plural,
     legenda_conjuge_requerente,
     legenda_requerente,
+    normalizar_representantes,
     qualificar_pessoa,
     rotulo_doc,
     tem_conjuge,
@@ -513,12 +514,9 @@ def gerar_declaracao_anuencia_html(
     c_lote_raw = valor_preenchido(conf.get("lote"))
 
     # Qualificação do confrontante principal e dos coproprietários
-    try:
-        representante = json.loads(conf.get("representante_json") or "null")
-    except (TypeError, ValueError):
-        representante = None
+    representantes = normalizar_representantes(conf.get("representante_json"))
     qualif_conf, info_conf = qualificar_pessoa(
-        conf, rotulo_erro="O confrontante", regime_obrigatorio=True, representante=representante
+        conf, rotulo_erro="O confrontante", regime_obrigatorio=True, representante=representantes
     )
     qualificacoes = [qualif_conf] if titular_assina else []
     infos = [info_conf] if titular_assina else []
@@ -563,18 +561,18 @@ def gerar_declaracao_anuencia_html(
 
     # 2. Assinatura do Confrontante Anuente Principal
     if titular_assina:
-        nome_assina = c_nome_raw
-        if info_conf["pj"]:
-            rotulo_conf_principal = "Confrontante Anuente (representante legal)"
-            nome_rep = valor_preenchido((representante or {}).get("nome"))
-            if nome_rep:
-                nome_assina = nome_rep
-                rotulo_conf_principal = f"Representante Legal de {c_nome_raw}" if c_nome_raw else "Representante Legal"
-        elif coproprietarios_todos:
-            rotulo_conf_principal = "Confrontante Anuente (Condômino)"
+        if info_conf["pj"] and representantes:
+            for rep in representantes:
+                rotulo_rep = f"Representante Legal de {c_nome_raw}" if c_nome_raw else "Representante Legal"
+                bloco_assinaturas += assinatura_div(valor_preenchido(rep.get("nome")), rotulo_rep, **estilo_ass)
         else:
-            rotulo_conf_principal = "Confrontante Anuente"
-        bloco_assinaturas += assinatura_div(nome_assina, rotulo_conf_principal, **estilo_ass)
+            if info_conf["pj"]:
+                rotulo_conf_principal = "Confrontante Anuente (representante legal)"
+            elif coproprietarios_todos:
+                rotulo_conf_principal = "Confrontante Anuente (Condômino)"
+            else:
+                rotulo_conf_principal = "Confrontante Anuente"
+            bloco_assinaturas += assinatura_div(c_nome_raw, rotulo_conf_principal, **estilo_ass)
         if info_conf["casal"]:
             bloco_assinaturas += assinatura_div(info_conf["nome_conjuge"], "Cônjuge do Confrontante Anuente", **estilo_ass)
 

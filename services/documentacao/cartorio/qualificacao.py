@@ -9,6 +9,8 @@ Regras:
   "Comunhão Parcial" ou "None".
 - Todo valor vindo do cadastro passa por `esc()`; o retorno é `Html` (já seguro).
 """
+import json
+
 from services.documentacao.erros import ErroDocumento
 from services.documentacao.cartorio.utils import (
     Html,
@@ -151,6 +153,20 @@ def _clausula_docs(ref: str, g: str | None, rg: str, cpf: str) -> str:
     return f"{ref} {inscrito} no CPF sob o nº {cpf}"
 
 
+def normalizar_representantes(valor) -> list[dict]:
+    """Aceita None, um dict (formato antigo), uma lista de dicts ou o JSON de ambos; devolve só os com nome."""
+    if isinstance(valor, (str, bytes)):
+        try:
+            valor = json.loads(valor or "null")
+        except (TypeError, ValueError):
+            return []
+    if isinstance(valor, dict):
+        valor = [valor]
+    if not isinstance(valor, list):
+        return []
+    return [r for r in valor if isinstance(r, dict) and valor_preenchido(r.get("nome"))]
+
+
 def qualificar_pessoa(
     d: dict,
     *,
@@ -158,7 +174,7 @@ def qualificar_pessoa(
     regime_obrigatorio: bool = False,
     destaque_docs: bool = False,
     domicilio_padrao=None,
-    representante: dict | None = None,
+    representante: dict | list | None = None,
     sem_conjuge: bool = False,
 ) -> tuple[Html, dict]:
     """Qualificação civil completa (pessoa física, casal ou pessoa jurídica).
@@ -178,12 +194,17 @@ def qualificar_pessoa(
 
     # Pessoa jurídica (CNPJ): sem RG, estado civil ou cônjuge.
     if eh_cnpj(p["cpf_cnpj"]):
-        if representante and valor_preenchido(representante.get("nome")):
-            qualif_rep, _ = qualificar_pessoa(
-                representante, rotulo_erro="O representante legal", destaque_docs=destaque_docs,
-                domicilio_padrao=domicilio_padrao, sem_conjuge=True,
-            )
-            qualif_rep = Html(f"{qualif_rep}, na qualidade de representante legal")
+        reps = normalizar_representantes(representante)
+        if reps:
+            quals = [
+                qualificar_pessoa(
+                    r, rotulo_erro="O representante legal", destaque_docs=destaque_docs,
+                    domicilio_padrao=domicilio_padrao or p["endereco_completo"], sem_conjuge=True,
+                )[0]
+                for r in reps
+            ]
+            juntas = quals[0] if len(quals) == 1 else Html("; ".join(quals[:-1]) + f"; e {quals[-1]}")
+            qualif_rep = Html(f"{juntas}, na qualidade de {'representantes legais' if len(quals) > 1 else 'representante legal'}")
         else:
             qualif_rep = f"{'_' * 35}, {'_' * 25} (nome e qualificação do representante legal)"
         texto = (
