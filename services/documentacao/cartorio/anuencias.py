@@ -871,7 +871,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
 
 def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontante_id: int) -> dict:
     """Retorna os dados geométricos e cadastrais para a pré-visualização interativa do trecho da divisa a ser anuído."""
-    from services.documentacao.cartorio.utils import calcular_azimute_e_distancia
+    from services.documentacao.cartorio.utils import calcular_azimute_e_distancia, calcular_distancia_sgl
     from pyproj import Geod
 
     dados = obter_dados_comuns(lev_id, matricula_id)
@@ -907,8 +907,10 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
         """
         SELECT s.id, s.ponto_inicio_id, s.ponto_fim_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
                pi.nome_vertice as ini_nome, COALESCE(pi.lat_corrigido, pi.lat) as ini_lat, COALESCE(pi.lon_corrigido, pi.lon) as ini_lon,
+               COALESCE(pi.alt_corrigido, pi.alt) as ini_alt,
                pi.ordem_caminhamento as ini_ordem,
-               pf.nome_vertice as fim_nome, COALESCE(pf.lat_corrigido, pf.lat) as fim_lat, COALESCE(pf.lon_corrigido, pf.lon) as fim_lon
+               pf.nome_vertice as fim_nome, COALESCE(pf.lat_corrigido, pf.lat) as fim_lat, COALESCE(pf.lon_corrigido, pf.lon) as fim_lon,
+               COALESCE(pf.alt_corrigido, pf.alt) as fim_alt
         FROM segmentos s
         JOIN pontos pi ON s.ponto_inicio_id = pi.id
         JOIN pontos pf ON s.ponto_fim_id = pf.id
@@ -957,7 +959,6 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
         ext_fim_nome = segs_ordenados[-1]["fim_nome"]
 
         pts_vistos = set()
-        geod = Geod(ellps="GRS80")
 
         for s in segs_ordenados:
             p_ini_id = s["ponto_inicio_id"]
@@ -970,10 +971,12 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
             if lat1 is not None and lon1 is not None and lat2 is not None and lon2 is not None:
                 lindeira_coords.append([[lat1, lon1], [lat2, lon2]])
 
-                # Distância geodésica em metros
-                _, _, dist_m = geod.inv(lon1, lat1, lon2, lat2)
+                # Distância SGL em metros (padrão SIGEF considerando altitude)
+                dist_m = calcular_distancia_sgl(lat1, lon1, lat2, lon2, s.get("ini_alt"), s.get("fim_alt"))
                 extensao_total += dist_m
-                azimute_str, dist_str = calcular_azimute_e_distancia(lat1, lon1, lat2, lon2)
+                azimute_str, dist_str = calcular_azimute_e_distancia(
+                    lat1, lon1, lat2, lon2, s.get("ini_alt"), s.get("fim_alt")
+                )
 
                 segmentos_detalhados.append({
                     "id": s["id"],

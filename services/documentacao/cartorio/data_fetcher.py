@@ -1,7 +1,7 @@
 import math
 from database.connection import execute_query
 from services.documentacao.erros import NaoEncontrado
-from services.documentacao.cartorio.utils import Html, calcular_azimute_e_distancia, esc, formatar_numero_br
+from services.documentacao.cartorio.utils import Html, calcular_azimute_e_distancia, esc, formatar_coord_gms, formatar_numero_br
 
 # Proprietários vinculados a uma propriedade. O gênero vem SEMPRE de pessoas.genero (NULL = não informado);
 # `sexo` é mantido como alias para código legado, mas deixou de ler clientes.sexo (que tinha default 'M').
@@ -184,8 +184,10 @@ def resolver_matricula_desenho(matricula_id: int) -> int:
 _SQL_SEGMENTOS_DETALHADOS = """
     SELECT s.id AS seg_id, s.confrontante_id, s.ponto_inicio_id, s.ponto_fim_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
            pi.nome_vertice as ini_nome, COALESCE(pi.lat_corrigido, pi.lat) as ini_lat, COALESCE(pi.lon_corrigido, pi.lon) as ini_lon,
+           COALESCE(pi.alt_corrigido, pi.alt) as ini_alt,
            pi.ordem_caminhamento as ini_ordem,
-           pf.nome_vertice as fim_nome, COALESCE(pf.lat_corrigido, pf.lat) as fim_lat, COALESCE(pf.lon_corrigido, pf.lon) as fim_lon
+           pf.nome_vertice as fim_nome, COALESCE(pf.lat_corrigido, pf.lat) as fim_lat, COALESCE(pf.lon_corrigido, pf.lon) as fim_lon,
+           COALESCE(pf.alt_corrigido, pf.alt) as fim_alt
     FROM segmentos s
     JOIN pontos pi ON s.ponto_inicio_id = pi.id
     JOIN pontos pf ON s.ponto_fim_id = pf.id
@@ -231,7 +233,7 @@ def obter_segmentos_detalhados_confrontante(matricula_id: int, confrontante_id: 
 
 
 def _fmt_coord(valor) -> str:
-    return f"{valor:.7f}°" if valor is not None else "-"
+    return formatar_coord_gms(valor)
 
 
 def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int, segmentos: list[dict] | None = None) -> str:
@@ -247,11 +249,14 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int, segmentos
         lat_f = _fmt_coord(s["ini_lat"])
         lon_f = _fmt_coord(s["ini_lon"])
 
-        # Calcular Azimute e Distância
+        # Calcular Azimute e Distância (padrão SIGEF: SGL com altitude)
         if None in (s["ini_lat"], s["ini_lon"], s["fim_lat"], s["fim_lon"]):
             azimute_f, dist_f = "-", "-"
         else:
-            azimute_f, dist_f = calcular_azimute_e_distancia(s["ini_lat"], s["ini_lon"], s["fim_lat"], s["fim_lon"])
+            azimute_f, dist_f = calcular_azimute_e_distancia(
+                s["ini_lat"], s["ini_lon"], s["fim_lat"], s["fim_lon"],
+                s.get("ini_alt"), s.get("fim_alt"),
+            )
 
         linhas_html += f"""
         <tr class="border-b border-slate-200 text-[11px] text-slate-700 font-mono">

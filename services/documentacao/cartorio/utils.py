@@ -210,8 +210,61 @@ def extenso_parcelas(n) -> str:
 
 # ── Cadastro: CPF/CNPJ, RG, regime de bens ───────────────────────────────────────
 
-def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon) -> tuple[str, str]:
-    """Calcula o azimute e a distância entre dois pontos geodésicos.
+def formatar_coord_gms(valor) -> str:
+    """Formata coordenada geográfica (graus decimais) no padrão GMS do SIGEF (ex: -23°58'49,371")."""
+    if valor is None:
+        return "-"
+    try:
+        num = float(valor)
+    except (TypeError, ValueError):
+        return "-"
+
+    sinal = "-" if num < 0 else ""
+    abs_val = abs(num)
+    graus = int(abs_val)
+    min_dec = (abs_val - graus) * 60.0
+    minutos = int(min_dec)
+    segundos = (min_dec - minutos) * 60.0
+
+    # Proteção contra arredondamento de segundos para 60,000"
+    if round(segundos, 3) >= 60.0:
+        segundos = 0.0
+        minutos += 1
+        if minutos >= 60:
+            minutos = 0
+            graus += 1
+
+    seg_str = f"{segundos:06.3f}".replace(".", ",")
+    return f"{sinal}{graus}°{minutos:02d}'{seg_str}\""
+
+
+def calcular_distancia_sgl(ini_lat, ini_lon, fim_lat, fim_lon, ini_alt=None, fim_alt=None) -> float:
+    """Calcula a distância horizontal no Sistema Geodésico Local (SGL) GRS80/SIRGAS 2000.
+
+    Considera a altitude média dos vértices para reduzir/elevar a distância elipsoidal
+    ao nível médio do terreno, em conformidade com o padrão do Memorial Descritivo do SIGEF.
+    """
+    import math
+
+    geod = Geod(ellps="GRS80")
+    _, _, dist_elip = geod.inv(ini_lon, ini_lat, fim_lon, fim_lat)
+
+    alts = [float(a) for a in (ini_alt, fim_alt) if a is not None]
+    if not alts:
+        return dist_elip
+
+    h_med = sum(alts) / len(alts)
+    # Raio médio gaussiano do elipsoide GRS80 na latitude média do segmento
+    a = 6378137.0
+    e2 = 0.006694380022900787
+    phi = math.radians((float(ini_lat) + float(fim_lat)) / 2.0)
+    sin_phi2 = math.sin(phi) ** 2
+    r_gauss = (a * math.sqrt(1.0 - e2)) / (1.0 - e2 * sin_phi2)
+    return dist_elip * (1.0 + h_med / r_gauss)
+
+
+def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon, ini_alt=None, fim_alt=None) -> tuple[str, str]:
+    """Calcula o azimute geodésico (GG°MM') e a distância SGL (em metros) no padrão SIGEF.
 
     Parameters
     ----------
@@ -219,37 +272,29 @@ def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon) -> tuple[st
         Latitude e longitude do ponto inicial.
     fim_lat, fim_lon: float
         Latitude e longitude do ponto final.
+    ini_alt, fim_alt: float, optional
+        Altitude elipsoidal/ortométrica dos pontos inicial e final (em metros).
     Returns
     -------
     tuple[str, str]
-        Azimute formatado e distância em metros como string.
+        Azimute formatado no padrão SIGEF (GG°MM') e distância em metros (ex: 1893,79 m).
     """
     try:
-        # Usar pyproj.Geod com elipsoide GRS80 (SIRGAS 2000) para cálculo geodésico rigoroso 2D (elipsoidal)
-        # Isso remove as distorções do fator de escala UTM (k) e bate perfeitamente com os cálculos do SIGEF.
         geod = Geod(ellps="GRS80")
-        az_ida, _, distancia = geod.inv(ini_lon, ini_lat, fim_lon, fim_lat)
+        az_ida, _, _ = geod.inv(ini_lon, ini_lat, fim_lon, fim_lat)
+        distancia = calcular_distancia_sgl(ini_lat, ini_lon, fim_lat, fim_lon, ini_alt, fim_alt)
 
-        distancia_str = f"{distancia:.2f} m"
+        distancia_str = f"{distancia:.2f}".replace(".", ",") + " m"
 
-        # Ajusta azimute para a faixa 0-360
+        # Ajusta azimute para a faixa 0-360 e formata no padrão SIGEF (GG°MM', truncado em minutos)
         az_deg = az_ida % 360.0
-
-        # Formatar azimute no padrão GMS (Graus, Minutos e Segundos)
         graus = int(az_deg)
-        minutos_dec = (az_deg - graus) * 60.0
-        minutos = int(minutos_dec)
-        segundos = (minutos_dec - minutos) * 60.0
+        minutos = int((az_deg - graus) * 60.0)
+        if minutos >= 60:
+            minutos = 0
+            graus = (graus + 1) % 360
 
-        # Proteção clássica para arredondamento de segundos
-        if segundos >= 59.5:
-            segundos = 0.0
-            minutos += 1
-            if minutos >= 60:
-                minutos = 0
-                graus = (graus + 1) % 360
-
-        azimute_str = f"{graus}°{minutos:02d}'{segundos:02.0f}\""
+        azimute_str = f"{graus}°{minutos:02d}'"
 
         return azimute_str, distancia_str
     except Exception as e:
