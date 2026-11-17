@@ -165,6 +165,9 @@ def criar_matricula(levantamento_id: int, dados: dict) -> int:
     if not row:
         raise MatriculaErro(404, "Levantamento não encontrado")
     propriedade_id = row["propriedade_id"]
+    # Outro levantamento arquivado da mesma propriedade também trava a criação
+    if _tem_levantamento_arquivado(propriedade_id):
+        raise MatriculaErro(403, _MSG_PROP_ARQUIVADA)
 
     campos = resolver_campos_matricula(dados)
     erro_vinculo = validar_origem_desenho(None, campos["matricula_origem_desenho_id"], propriedade_id)

@@ -758,13 +758,30 @@ def _arquivar_levantamento(id: int) -> dict:
     wm = WorkspaceManager()
     snap_path = ExportacaoService.gerar_snapshot_arquivamento(id)
 
-    execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
-    wm.travar_workspace_inteiro_readonly(id)
+    # Disco primeiro: o status só vira ARQUIVADO se a tranca física ficou completa (senão desfaz e aborta)
+    falhas = wm.travar_workspace_inteiro_readonly(id)
+    try:
+        if falhas:
+            raise RuntimeError(f"{len(falhas)} arquivo(s) não puderam ser travados como Somente Leitura (ex.: {falhas[0]})")
+        execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
+    except Exception as e:
+        wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
+        logging.getLogger(__name__).error(f"Arquivamento do levantamento {id} abortado: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Arquivamento abortado, nada foi travado: {e}")
 
     return {
         "message": "Levantamento arquivado com sucesso. Tranca de Segurança Read-Only ativada em banco e em disco.",
         "snapshot_fechamento": snap_path
     }
+
+def _outro_levantamento_arquivado(id: int) -> bool:
+    """Se outro levantamento da mesma propriedade está ARQUIVADO (a pasta da propriedade deve continuar travada)."""
+    row = execute_query(
+        """SELECT 1 FROM levantamentos o JOIN levantamentos l ON l.propriedade_id = o.propriedade_id
+           WHERE l.id = ? AND o.id != ? AND o.status = 'ARQUIVADO'""",
+        params=(id, id), fetch_one=True
+    )
+    return bool(row)
 
 @router.post("/levantamentos/{id}/desarquivar")
 def desarquivar_levantamento(id: int, payload: DesarquivarPayload):
@@ -780,10 +797,11 @@ def desarquivar_levantamento(id: int, payload: DesarquivarPayload):
     )
     
     execute_query("UPDATE levantamentos SET status = 'EM_ANDAMENTO' WHERE id = ?", params=(id,), commit=True)
-    
+
+    # A pasta da propriedade só destrava se nenhum outro levantamento dela continuar arquivado
     wm = WorkspaceManager()
-    wm.destravar_workspace_inteiro(id)
-    
+    wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
+
     return {"message": "Levantamento desarquivado com sucesso. Permissão de escrita restabelecida."}
 
 @router.get("/levantamentos/{id}/historico-campo")

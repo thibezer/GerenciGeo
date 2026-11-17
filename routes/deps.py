@@ -50,70 +50,82 @@ async def verificar_tranca_read_only(request: HTTPConnection):
     if "/desarquivar" in request.url.path or request.url.path.endswith("/compartilhar"):
         return
 
-    levantamento_id = None
+    try:
+        levantamento_id = _resolver_levantamento_da_requisicao(request)
+        if levantamento_id is None:
+            return
+        row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(levantamento_id,), fetch_one=True)
+        arquivado = bool(row) and dict(row).get("status") == "ARQUIVADO"
+    except Exception as e:
+        # Falha fechada: sem conseguir verificar a tranca, a escrita não passa
+        logging.getLogger(__name__).error(f"Erro crítico ao verificar tranca read-only em {request.url.path}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Não foi possível verificar a Tranca de Segurança Read-Only. Operação de escrita não executada."
+        )
 
-    # 1. Tenta extrair levantamento_id ou lev_id do Path Params
+    if arquivado:
+        registrar_tentativa_violacao(levantamento_id, request.url.path, request.scope["method"])
+        raise HTTPException(
+            status_code=403,
+            detail="Operação Bloqueada: O Levantamento correspondente está ARQUIVADO (Tranca de Segurança Read-Only ativa)."
+        )
+
+
+# Entidades endereçadas pelo próprio id no caminho (/pontos/{id}/...) e a coluna que leva ao levantamento
+_ENTIDADES_DO_LEVANTAMENTO = ("pontos", "segmentos", "confrontantes")
+
+
+def _id_apos_segmento(partes: list[str], nome: str):
+    """Id numérico logo após o segmento `nome` (ex.: /matriculas/12/pdf -> 12), inclusive em sub-rotas."""
+    for i in range(len(partes) - 1):
+        if partes[i] == nome and partes[i + 1].isdigit():
+            return int(partes[i + 1])
+    return None
+
+
+def levantamento_arquivado_da_propriedade(prop_id: int):
+    """Id de um levantamento ARQUIVADO da propriedade (que trava a propriedade inteira), ou None."""
+    row = execute_query(
+        "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'",
+        params=(prop_id,), fetch_one=True
+    )
+    return row["id"] if row else None
+
+
+def _resolver_levantamento_da_requisicao(request: HTTPConnection):
+    """Levantamento que a requisição de escrita afeta, ou None se ela não toca um levantamento/propriedade."""
     path_params = request.path_params
-    if "id" in path_params and "levantamentos" in request.url.path:
-        levantamento_id = path_params["id"]
+    caminho = request.url.path
+
+    # 1. Id do levantamento direto no path
+    bruto = None
+    if "id" in path_params and "levantamentos" in caminho:
+        bruto = path_params["id"]
     elif "lev_id" in path_params:
-        levantamento_id = path_params["lev_id"]
+        bruto = path_params["lev_id"]
+    if bruto is not None and str(bruto).isdigit():
+        return int(bruto)
 
-    # 2. Se for rotas de pontos, segmentos, matriculas ou confrontantes sem levantamento_id direto no path:
-    if not levantamento_id:
-        path_str = request.url.path
-        partes = path_str.split("/")
+    # 2. Rotas da propriedade: qualquer levantamento arquivado trava a propriedade
+    if "prop_id" in path_params and str(path_params["prop_id"]).isdigit():
+        return levantamento_arquivado_da_propriedade(int(path_params["prop_id"]))
 
-        # /pontos/{pid}
-        if "/pontos/" in path_str and len(partes) >= 3:
-            entidade_id = partes[-1]
-            if entidade_id.isdigit():
-                row = execute_query("SELECT levantamento_id FROM pontos WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
-                if row: levantamento_id = row["levantamento_id"]
+    # 3. Entidades filhas, inclusive sub-rotas (/confrontantes/{cid}/upload-matricula)
+    partes = caminho.split("/")
+    for tabela in _ENTIDADES_DO_LEVANTAMENTO:
+        entidade_id = _id_apos_segmento(partes, tabela)
+        if entidade_id is not None:
+            row = execute_query(f"SELECT levantamento_id FROM {tabela} WHERE id = ?", params=(entidade_id,), fetch_one=True)
+            return row["levantamento_id"] if row else None
 
-        # /segmentos/{sid}
-        elif "/segmentos/" in path_str and len(partes) >= 3:
-            entidade_id = partes[-1]
-            if entidade_id.isdigit():
-                row = execute_query("SELECT levantamento_id FROM segmentos WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
-                if row: levantamento_id = row["levantamento_id"]
+    # 4. Matrículas pertencem à propriedade (/matriculas/{mid}/upload-pdf, /matriculas/{mid}/pdf...)
+    mid = _id_apos_segmento(partes, "matriculas")
+    if mid is not None:
+        row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(mid,), fetch_one=True)
+        return levantamento_arquivado_da_propriedade(row["propriedade_id"]) if row else None
 
-        # /confrontantes/{cid}
-        elif "/confrontantes/" in path_str and len(partes) >= 3:
-            entidade_id = partes[-1]
-            if entidade_id.isdigit():
-                row = execute_query("SELECT levantamento_id FROM confrontantes WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
-                if row: levantamento_id = row["levantamento_id"]
-
-        # /matriculas/{mid}
-        elif "/matriculas/" in path_str and len(partes) >= 3:
-            entidade_id = partes[-1]
-            if entidade_id.isdigit():
-                row = execute_query("SELECT propriedade_id FROM matriculas WHERE id = ?", params=(int(entidade_id),), fetch_one=True)
-                if row:
-                    prop_id = row["propriedade_id"]
-                    row_lev = execute_query("SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'", params=(prop_id,), fetch_one=True)
-                    if row_lev:
-                        levantamento_id = row_lev["id"]
-
-    if levantamento_id and str(levantamento_id).isdigit():
-        try:
-            row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(int(levantamento_id),), fetch_one=True)
-            if row and dict(row).get("status") == "ARQUIVADO":
-                registrar_tentativa_violacao(int(levantamento_id), request.url.path, request.scope["method"])
-                raise HTTPException(
-                    status_code=403,
-                    detail="Operação Bloqueada: O Levantamento correspondente está ARQUIVADO (Tranca de Segurança Read-Only ativa)."
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            # Loga o erro mas NÃO engole: falha na verificação deve ser tratada
-            # de forma conservadora para não deixar escrita indevida passar.
-            logging.getLogger(__name__).error(
-                f"Erro crítico ao verificar tranca read-only para levantamento_id={levantamento_id}: {e}",
-                exc_info=True
-            )
+    return None
 
 
 def verificar_levantamento_arquivado(levantamento_id: int):
@@ -128,12 +140,7 @@ def verificar_levantamento_arquivado(levantamento_id: int):
 
 def verificar_propriedade_arquivada(prop_id: int):
     """Verifica se algum levantamento da propriedade está arquivado"""
-    row = execute_query(
-        "SELECT id FROM levantamentos WHERE propriedade_id = ? AND status = 'ARQUIVADO'",
-        params=(prop_id,),
-        fetch_one=True
-    )
-    if row:
+    if levantamento_arquivado_da_propriedade(prop_id):
         raise HTTPException(
             status_code=403,
             detail="Operação Bloqueada: Existe um levantamento ARQUIVADO vinculado a esta propriedade."

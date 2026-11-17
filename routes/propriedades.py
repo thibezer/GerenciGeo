@@ -570,6 +570,7 @@ def get_matriculas_da_propriedade(prop_id: int):
 
 @router.post("/propriedades/{prop_id}/matriculas")
 def create_matricula_na_propriedade(prop_id: int, m: MatriculaCreate):
+    verificar_propriedade_arquivada(prop_id)
     try:
         exists = execute_query("SELECT id FROM matriculas WHERE propriedade_id = ? AND numero_matricula = ?", params=(prop_id, m.numero_matricula), fetch_one=True)
         if exists:

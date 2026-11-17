@@ -159,33 +159,54 @@ class WorkspaceManager:
         else:
             shutil.rmtree(folder, onerror=_forcar_remocao)
 
-    def travar_workspace_inteiro_readonly(self, levantamento_id: int):
-        """Trava todos os arquivos da pasta do levantamento como Read-Only no Windows"""
-        folder = self.get_levantamento_folder(levantamento_id)
-        if folder.exists():
-            import stat
-            for root, dirs, files in os.walk(folder):
-                for f in files:
-                    path_f = Path(root) / f
-                    try:
-                        permissao = os.stat(path_f).st_mode
-                        os.chmod(path_f, permissao & ~stat.S_IWRITE)
-                    except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao travar arquivo {path_f}: {e}")
+    def get_propriedade_folder(self, propriedade_id: int) -> Path:
+        """Pasta dos arquivos da propriedade (CAR, CCIR, certidões de matrícula, shapefile de fronteira)."""
+        return self.base_folder / "Propriedades" / f"Prop_{propriedade_id}"
 
-    def destravar_workspace_inteiro(self, levantamento_id: int):
-        """Restabelece permissão de escrita em todos os arquivos da pasta do levantamento no Windows"""
-        folder = self.get_levantamento_folder(levantamento_id)
-        if folder.exists():
-            import stat
-            for root, dirs, files in os.walk(folder):
-                for f in files:
-                    path_f = Path(root) / f
-                    try:
-                        permissao = os.stat(path_f).st_mode
-                        os.chmod(path_f, permissao | stat.S_IWRITE)
-                    except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao destravar arquivo {path_f}: {e}")
+    def _propriedade_do_levantamento(self, levantamento_id: int):
+        row = execute_query("SELECT propriedade_id FROM levantamentos WHERE id = ?", params=(levantamento_id,), fetch_one=True)
+        return row["propriedade_id"] if row else None
+
+    @staticmethod
+    def _alterar_escrita(folder: Path, permitir: bool, ignorar_subpasta: str = None) -> list[str]:
+        """Liga/desliga a escrita de todos os arquivos da pasta. Retorna os caminhos que falharam."""
+        import stat
+        import logging
+        falhas = []
+        if not folder.exists():
+            return falhas
+        for root, _dirs, files in os.walk(folder):
+            if ignorar_subpasta and ignorar_subpasta in Path(root).relative_to(folder).parts:
+                continue
+            for f in files:
+                path_f = Path(root) / f
+                try:
+                    permissao = os.stat(path_f).st_mode
+                    os.chmod(path_f, (permissao | stat.S_IWRITE) if permitir else (permissao & ~stat.S_IWRITE))
+                except Exception as e:
+                    logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao {'destravar' if permitir else 'travar'} arquivo {path_f}: {e}")
+                    falhas.append(str(path_f))
+        return falhas
+
+    def travar_workspace_inteiro_readonly(self, levantamento_id: int) -> list[str]:
+        """
+        Trava como Read-Only os arquivos da pasta do levantamento e da pasta da propriedade
+        (o arquivamento trava a propriedade inteira). Retorna os arquivos que não puderam ser travados.
+        """
+        falhas = self._alterar_escrita(self.get_levantamento_folder(levantamento_id), permitir=False)
+        prop_id = self._propriedade_do_levantamento(levantamento_id)
+        if prop_id is not None:
+            falhas += self._alterar_escrita(self.get_propriedade_folder(prop_id), permitir=False)
+        return falhas
+
+    def destravar_workspace_inteiro(self, levantamento_id: int, incluir_propriedade: bool = True) -> list[str]:
+        """
+        Restabelece a escrita na pasta do levantamento, mantendo os Brutos blindados (são Read-Only desde a importação).
+        `incluir_propriedade=False` mantém a pasta da propriedade travada (ainda há outro levantamento arquivado).
+        """
+        falhas = self._alterar_escrita(self.get_levantamento_folder(levantamento_id), permitir=True, ignorar_subpasta="Brutos")
+        prop_id = self._propriedade_do_levantamento(levantamento_id)
+        if incluir_propriedade and prop_id is not None:
+            falhas += self._alterar_escrita(self.get_propriedade_folder(prop_id), permitir=True)
+        return falhas
 
