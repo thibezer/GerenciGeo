@@ -269,6 +269,44 @@ export const clientesRoute: RouteDef = {
     selectEstadoCivil?.addEventListener('change', toggleConjuge);
     selectEstadoCivil?.addEventListener('ui-selecionar', toggleConjuge);
 
+    // Toggle CIN (Carteira de Identidade Nacional): copia e sincroniza o CPF para o campo RG
+    const digitos = (v?: string | null) => (v || '').replace(/\D/g, '');
+    const ehCinPorValores = (rg?: string | null, cpf?: string | null) => {
+      const r = digitos(rg);
+      const c = digitos(cpf);
+      return r.length === 11 && c.length === 11 && r === c;
+    };
+    const vincularToggleCin = (checkboxId: string, inputCpf: HTMLInputElement | null, rgName: string) => {
+      const chk = document.getElementById(checkboxId) as HTMLInputElement | null;
+      const inputRg = form?.querySelector<HTMLInputElement>(`[name="${rgName}"]`) || null;
+      if (!chk || !inputRg) return;
+
+      const aplicarCpfNoRg = () => {
+        const cpfFmt = aplicarMascaraCpfCnpj(inputCpf?.value || '');
+        inputRg.value = cpfFmt;
+        if ('setAttribute' in inputRg) inputRg.setAttribute('value', cpfFmt);
+      };
+
+      chk.addEventListener('change', () => {
+        if (chk.checked) {
+          aplicarCpfNoRg();
+        }
+      });
+
+      inputCpf?.addEventListener('input', () => {
+        if (chk.checked) aplicarCpfNoRg();
+      });
+
+      inputRg.addEventListener('input', () => {
+        if (chk.checked && !ehCinPorValores(inputRg.value, inputCpf?.value)) {
+          chk.checked = false;
+        }
+      });
+    };
+
+    vincularToggleCin('chk-cin-titular', inputCpfCnpj, 'rg_ie');
+    vincularToggleCin('chk-cin-conjuge', inputCpfConjuge, 'rg_conjuge');
+
     // Atualizar nacionalidade padrão ("Brasileiro" / "Brasileira") conforme o sexo selecionado
     const selectSexo = form?.querySelector<UISelectElement>('[name="sexo"]') || null;
     const inputNacionalidade = form?.querySelector<HTMLInputElement>('[name="nacionalidade"]') || null;
@@ -323,6 +361,10 @@ export const clientesRoute: RouteDef = {
         carregarCidadesPorEstado('PR');
         popularSelectRepresentante(null);
         toggleConjuge();
+        const chkCinTitular = document.getElementById('chk-cin-titular') as HTMLInputElement | null;
+        const chkCinConjuge = document.getElementById('chk-cin-conjuge') as HTMLInputElement | null;
+        if (chkCinTitular) chkCinTitular.checked = false;
+        if (chkCinConjuge) chkCinConjuge.checked = false;
         const hintSenha = document.getElementById('label-senhagov-hint');
         if (hintSenha) hintSenha.innerText = 'segura';
       }
@@ -917,6 +959,10 @@ export const clientesRoute: RouteDef = {
       }
 
       toggleConjuge();
+      const chkCinTitular = document.getElementById('chk-cin-titular') as HTMLInputElement | null;
+      const chkCinConjuge = document.getElementById('chk-cin-conjuge') as HTMLInputElement | null;
+      if (chkCinTitular) chkCinTitular.checked = !isPj && ehCinPorValores(cli.rg_ie, cli.cpf_cnpj);
+      if (chkCinConjuge) chkCinConjuge.checked = ehCinPorValores(cli.rg_conjuge, cli.cpf_conjuge);
       if (modalCadastro) modalCadastro.setAttribute('titulo', 'Editar Cliente');
       fecharModalDetalhes();
       abrirModalCadastro();

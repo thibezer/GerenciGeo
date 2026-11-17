@@ -180,7 +180,13 @@ export const renderClientesTemplate = (): string => `
                 <!-- Linha RG: Número + Órgão + UF -->
                 <div class="grid grid-cols-12 gap-2.5 items-end">
                    <div class="col-span-12 sm:col-span-4">
-                      <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">RG (Número)</label>
+                      <div class="flex items-center justify-between mb-1 gap-2">
+                         <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70">RG (Número)</label>
+                         <label class="inline-flex items-center gap-1 cursor-pointer select-none text-[10px] font-semibold text-mint-vibrant/90 hover:text-mint-vibrant" title="Carteira de Identidade Nacional: usa o CPF como número do documento">
+                            <input type="checkbox" id="chk-cin-titular" class="accent-mint-vibrant w-3 h-3 rounded cursor-pointer">
+                            <span>CIN (usar CPF)</span>
+                         </label>
+                      </div>
                       <ui-campo-texto name="rg_ie" placeholder="Nº do RG"></ui-campo-texto>
                    </div>
                    <div class="col-span-6 sm:col-span-2">
@@ -285,7 +291,13 @@ export const renderClientesTemplate = (): string => `
                 <div>
                    <div class="grid grid-cols-5 gap-1.5 items-end">
                       <div class="col-span-3">
-                         <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">RG Cônjuge</label>
+                         <div class="flex items-center justify-between mb-1 gap-1">
+                            <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70">RG Cônjuge</label>
+                            <label class="inline-flex items-center gap-1 cursor-pointer select-none text-[10px] font-semibold text-mint-vibrant/90 hover:text-mint-vibrant" title="Carteira de Identidade Nacional: usa o CPF do cônjuge">
+                               <input type="checkbox" id="chk-cin-conjuge" class="accent-mint-vibrant w-3 h-3 rounded cursor-pointer">
+                               <span>CIN</span>
+                            </label>
+                         </div>
                          <ui-campo-texto name="rg_conjuge" placeholder="Nº RG"></ui-campo-texto>
                       </div>
                       <div>
