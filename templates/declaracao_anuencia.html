@@ -1,250 +1,192 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+<!-- Documento encaixado na moldura templates/_base_documento.html (ver o comentário de lá).
+     O lote (anuencias.py) depende dos marcadores BARRA_ACOES_* (na moldura) e INICIO/FIM CORPO CONSOLIDADO. -->
+<!-- @titulo -->Declaração de Anuência do Confrontante - {c_nome}<!-- @/titulo -->
+<!-- @barra_titulo -->Declaração de Anuência do Confrontante<!-- @/barra_titulo -->
+<!-- @barra_subtitulo -->Termo Consolidado de Respeito de Divisas<!-- @/barra_subtitulo -->
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Declaração de Anuência do Confrontante - {c_nome}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+<!-- @head -->
+<!-- Leaflet (croqui da divisa na página 2) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+    /* Anuência: várias folhas por documento (e por lote). Sobrescreve o blueprint base. */
+    .folha-print {
+        max-width: 21cm;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+    }
 
-        body {
-            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+    .page {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    @media print {
+        @page {
+            size: A4;
+            /* Margem física 0 de propósito: com margem > 0 o navegador imprime data/título/URL
+               (opção "Cabeçalhos e rodapés" vem ligada por padrão). O respiro de topo/base de TODAS as
+               folhas vem do thead/tfoot da tabela .folha-print, que se repetem em cada página impressa. */
+            margin: 0 !important;
         }
 
         .folha-print {
-            max-width: 21cm;
-            width: 100%;
-            margin-left: auto;
-            margin-right: auto;
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
         }
+
+        .folha-print > thead > tr > td { height: 1.4cm !important; }
+        .folha-print > tfoot > tr > td { height: 1.6cm !important; }
+        .folha-print > tbody > tr { break-inside: auto !important; page-break-inside: auto !important; }
 
         .page {
-            margin-left: auto;
-            margin-right: auto;
+            padding: 0 1.6cm !important;
+            page-break-after: always !important;
+            break-after: page !important;
         }
 
-        /* ───────────────────────────────────────────────────────────────────
-           BLUEPRINT DE IMPRESSÃO UNIVERSAL (GERENCIGEO PREMIUM)
-           ─────────────────────────────────────────────────────────────────── */
-        @media print {
-            @page {
-                size: A4;
-                /* Margem física 0 de propósito: com margem > 0 o navegador imprime data/título/URL
-                   (opção "Cabeçalhos e rodapés" vem ligada por padrão). O respiro de topo/base de TODAS as
-                   folhas vem do thead/tfoot da tabela .folha-print, que se repetem em cada página impressa. */
-                margin: 0 !important;
-            }
-
-            .folha-print {
-                max-width: 100% !important;
-                width: 100% !important;
-                margin: 0 !important;
-            }
-
-            .folha-print > thead > tr > td { height: 1.4cm !important; }
-            .folha-print > tfoot > tr > td { height: 1.6cm !important; }
-            .folha-print > tbody > tr { break-inside: auto !important; page-break-inside: auto !important; }
-
-            .no-print {
-                display: none !important;
-            }
-
-            body {
-                background-color: white !important;
-                padding: 0 !important;
-                color: #0f172a !important;
-            }
-
-            .page {
-                box-shadow: none !important;
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 1.6cm !important;
-                max-width: 100% !important;
-                width: 100% !important;
-                min-height: 0 !important;
-                box-sizing: border-box !important;
-                display: block !important;
-                page-break-after: always !important;
-                break-after: page !important;
-            }
-
-            .page:last-child {
-                page-break-after: avoid !important;
-                break-after: avoid !important;
-            }
-
-            p,
-            li,
-            tr,
-            .break-inside-avoid {
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-                webkit-column-break-inside: avoid !important;
-            }
-
-            ol,
-            ul {
-                break-inside: auto !important;
-            }
-
-            p,
-            li {
-                orphans: 3 !important;
-                widows: 3 !important;
-            }
-
-            .fecho-anuencia,
-            .bloco-assinaturas-fechamento,
-            .bloco-assinaturas-fechamento > div > div > div {
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }
-
-            .bloco-assinaturas-fechamento {
-                margin-top: 1.2cm !important;
-                padding-top: 0 !important;
-            }
-
-            /* Estilos específicos de impressão para Leaflet */
-            .leaflet-tile-container img {
-                mix-blend-mode: normal !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            .leaflet-container {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
+        .page:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
         }
 
-        /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
-        .custom-tooltip {
-            background-color: rgba(15, 23, 42, 0.9) !important;
-            border: 1px solid #0284c7 !important;
-            border-radius: 4px !important;
-            color: #ffffff !important;
-            font-family: monospace !important;
-            font-size: 8px !important;
-            font-weight: bold !important;
-            padding: 2px 6px !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        p,
+        li,
+        tr,
+        .break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
         }
-        .custom-tooltip::before {
-            border-top-color: rgba(15, 23, 42, 0.9) !important;
+
+        p,
+        li {
+            orphans: 3 !important;
+            widows: 3 !important;
         }
-    </style>
-</head>
 
-<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
-    <!-- BARRA_ACOES_INICIO -->
-    <div
-        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex justify-between items-center rounded-xl border border-white/10 shadow-lg">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                </svg>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold text-white uppercase tracking-wider">Declaração de Anuência do Confrontante
-                </h4>
-                <p class="text-[10px] text-white/40 mt-0.5">Termo Consolidado de Respeito de Divisas</p>
-            </div>
-        </div>
-        <button onclick="window.print()"
-            class="no-print print:hidden px-5 py-2 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all text-xs uppercase tracking-wider cursor-pointer">
-            Imprimir Documento
-        </button>
-    </div>
-    <!-- BARRA_ACOES_FIM -->
+        .fecho-anuencia,
+        .bloco-assinaturas-fechamento,
+        .bloco-assinaturas-fechamento > div > div > div {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
 
-    <!-- Tabela-moldura: só serve para repetir os espaçadores de topo/base em cada folha impressa.
-         Fica FORA dos marcadores de corpo (o lote monta o HTML por fora; ver anuencias.py). -->
-    <table class="folha-print w-full max-w-[21cm] mx-auto print:max-w-none" style="border-collapse:collapse"><thead><tr><td style="height:0;padding:0"></td></tr></thead><tfoot><tr><td style="height:0;padding:0"></td></tr></tfoot><tbody><tr><td style="padding:0;vertical-align:top">
-    <!-- INICIO CORPO CONSOLIDADO -->
-    <!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
-    <div
-        class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col mx-auto mb-8 print:mb-0">
-        <div>
-            <!-- CABEÇALHO DA EMPRESA -->
-            <div class="flex flex-col items-center pb-1 mb-1.5 text-center border-b border-slate-100">
-                <div class="text-2xl font-extrabold text-[#0c1510] tracking-wider uppercase mb-0.5">COMPLETA</div>
-                <div class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Agrimensura e Projetos
-                    Agropecuários LTDA</div>
-            </div>
+        .bloco-assinaturas-fechamento {
+            margin-top: 1.2cm !important;
+            padding-top: 0 !important;
+        }
 
-            <!-- TÍTULO JURÍDICO -->
-            <div class="text-center mb-2">
-                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
-                    ANUÊNCIA DE LIMITES</h2>
-            </div>
+        /* Estilos específicos de impressão para Leaflet */
+        .leaflet-tile-container img {
+            mix-blend-mode: normal !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
 
-            <!-- CORPO DO TEXTO DA ANUÊNCIA -->
-            <div class="space-y-2.5 text-xs text-justify leading-relaxed text-slate-700">
-                <p>{qualificacao_confrontante}, na qualidade de {suf_proprietario} e/ou {suf_possuidor} {suf_legitimo} da área
-                    confrontante {imovel_confrontante}, e assumindo integralmente
-                    as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
-                    condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
-                        Federal nº 6.015 de 1973</strong>), <strong>{texto_declara}</strong> não existir nenhuma disputa,
-                    litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
-                    vizinho denominado <strong>{nome_lote}</strong>, de propriedade de
-                    <strong>{proprietarios_str}</strong>, {objeto_matricula_html} do
-                    Serviço de Registro de Imóveis da Comarca de {comarca}.
-                </p>
+        .leaflet-container {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
 
-                <p>{texto_declarante} atesta{suf_m} que a linha de divisa comum entre as propriedades corresponde ao
-                    caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico Brasileiro (SIRGAS 2000):</p>
+    /* Ajuste do tooltip do Leaflet para ficar discreto e limpo */
+    .custom-tooltip {
+        background-color: rgba(15, 23, 42, 0.9) !important;
+        border: 1px solid #0284c7 !important;
+        border-radius: 4px !important;
+        color: #ffffff !important;
+        font-family: monospace !important;
+        font-size: 8px !important;
+        font-weight: bold !important;
+        padding: 2px 6px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
 
-                <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
-                {tabela_divisas_html}
+    .custom-tooltip::before {
+        border-top-color: rgba(15, 23, 42, 0.9) !important;
+    }
+</style>
+<!-- @/head -->
 
-                <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
-                {clausula_unificacao}
+<!-- @corpo -->
+<!-- Tabela-moldura: só serve para repetir os espaçadores de topo/base em cada folha impressa.
+     Fica FORA dos marcadores de corpo (o lote monta o HTML por fora; ver anuencias.py). -->
+<table class="folha-print w-full max-w-[21cm] mx-auto print:max-w-none" style="border-collapse:collapse"><thead><tr><td style="height:0;padding:0"></td></tr></thead><tfoot><tr><td style="height:0;padding:0"></td></tr></tfoot><tbody><tr><td style="padding:0;vertical-align:top">
+<!-- INICIO CORPO CONSOLIDADO -->
+<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->
+<div
+    class="page bg-white text-slate-800 pt-6 pb-6 px-12 max-w-[21cm] min-h-[29.7cm] w-full shadow-2xl border border-slate-200 rounded-xl print:rounded-none print:border-none print:shadow-none flex flex-col mx-auto mb-8 print:mb-0">
+    <div>
+        <!-- CABEÇALHO DA EMPRESA -->
+        <!--incluir:cabecalho_empresa-->
 
-            </div>
+        <!-- TÍTULO JURÍDICO -->
+        <div class="text-center mb-2">
+            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">DECLARAÇÃO DE RECONHECIMENTO E
+                ANUÊNCIA DE LIMITES</h2>
         </div>
 
-        <!-- FECHO: cláusula final + data + assinaturas formam um bloco único. Se não couber no fim da página,
-             o bloco inteiro vai junto para a próxima, então as assinaturas nunca ficam sozinhas numa folha. -->
-        <div class="fecho-anuencia break-inside-avoid w-full mt-2.5">
-            <div class="text-xs text-justify leading-relaxed text-slate-700">
-                <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
-                <p>{texto_declaramos_ainda} que o profissional responsável técnico
-                    <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
-                    <strong>{registro_profissional}</strong>, credenciado pelo INCRA sob o código
-                    <strong>{credencial_incra}</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
-                    Técnica - ART/TRT nº <strong>{final_trt}</strong>, indicou com precisão todas as
-                    demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
-                    gráficas. {texto_concordam} integralmente com essa demarcação, expressa na planta e
-                    no memorial descritivo em anexo, e {texto_reconhecem} esta descrição como o limite comum entre
-                    as suas propriedades, assinando em plena concordância.
-                </p>
-            </div>
+        <!-- CORPO DO TEXTO DA ANUÊNCIA -->
+        <div class="space-y-2.5 text-xs text-justify leading-relaxed text-slate-700">
+            <p>{qualificacao_confrontante}, na qualidade de {suf_proprietario} e/ou {suf_possuidor} {suf_legitimo} da área
+                confrontante {imovel_confrontante}, e assumindo integralmente
+                as responsabilidades da declaração a seguir (inclusive na condição de representante legal dos demais
+                condôminos, se houver, em estrita conformidade com o <strong>parágrafo 10º do artigo 213 da Lei
+                    Federal nº 6.015 de 1973</strong>), <strong>{texto_declara}</strong> não existir nenhuma disputa,
+                litígio ou discordância sobre os limites comuns existentes entre o seu imóvel e o imóvel rural
+                vizinho denominado <strong>{nome_lote}</strong>, de propriedade de
+                <strong>{proprietarios_str}</strong>, {objeto_matricula_html} do
+                Serviço de Registro de Imóveis da Comarca de {comarca}.
+            </p>
 
-            <div class="bloco-assinaturas-fechamento w-full mt-8 pt-2">
-                <p class="text-xs font-medium text-slate-900 text-left">{municipio}/{uf}, {data_extenso}.</p>
-                <div class="pt-3">
-                    {bloco_assinaturas}
-                </div>
-            </div>
+            <p>{texto_declarante} atesta{suf_m} que a linha de divisa comum entre as propriedades corresponde ao
+                caminhamento topográfico detalhado na tabela técnica abaixo, geo-codificado sob o Sistema Geodésico Brasileiro (SIRGAS 2000):</p>
+
+            <!-- INJEÇÃO DA TABELA DE CONFRONTAÇÃO (MESA GEODÉSICA) -->
+            {tabela_divisas_html}
+
+            <!-- CLÁUSULA DE UNIFICAÇÃO / GLEBA CONJUNTA -->
+            {clausula_unificacao}
+
         </div>
     </div>
 
-    <!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
-    {mapa_divisa_leaflet}
-    <!-- FIM CORPO CONSOLIDADO -->
-    </td></tr></tbody></table>
+    <!-- FECHO: cláusula final + data + assinaturas formam um bloco único. Se não couber no fim da página,
+         o bloco inteiro vai junto para a próxima, então as assinaturas nunca ficam sozinhas numa folha. -->
+    <div class="fecho-anuencia break-inside-avoid w-full mt-2.5">
+        <div class="text-xs text-justify leading-relaxed text-slate-700">
+            <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
+            <p>{texto_declaramos_ainda} que o profissional responsável técnico
+                <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
+                <strong>{registro_profissional}</strong>, credenciado pelo INCRA sob o código
+                <strong>{credencial_incra}</strong>, com a devida emissão da Anotação/Termo de Responsabilidade
+                Técnica - ART/TRT nº <strong>{final_trt}</strong>, indicou com precisão todas as
+                demarcações do limite entre as propriedades lindeiras, tanto no campo como nas suas representações
+                gráficas. {texto_concordam} integralmente com essa demarcação, expressa na planta e
+                no memorial descritivo em anexo, e {texto_reconhecem} esta descrição como o limite comum entre
+                as suas propriedades, assinando em plena concordância.
+            </p>
+        </div>
 
-    <!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
-    {script_inicializacao_mapas}
-</body>
+        <div class="bloco-assinaturas-fechamento w-full mt-8 pt-2">
+            <p class="text-xs font-medium text-slate-900 text-left">{municipio}/{uf}, {data_extenso}.</p>
+            <div class="pt-3">
+                {bloco_assinaturas}
+            </div>
+        </div>
+    </div>
+</div>
 
-</html>
+<!-- ANEXO GRÁFICO - CROQUI DE LIMITES DE CONFRONTAÇÃO (PÁGINA 2) -->
+{mapa_divisa_leaflet}
+<!-- FIM CORPO CONSOLIDADO -->
+</td></tr></tbody></table>
+<!-- @/corpo -->
+
+<!-- @scripts -->
+<!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->
+{script_inicializacao_mapas}
+<!-- @/scripts -->

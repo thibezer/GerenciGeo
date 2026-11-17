@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<!--
+    MOLDURA ÚNICA DOS DOCUMENTOS IMPRESSOS (A4).
+    Os templates de documento NÃO são páginas completas: trazem só seções marcadas e são encaixados aqui
+    por `carregar_template()` (services/documentacao/cartorio/utils.py). Cada seção do template fica entre
+    os comentários "@nome" e "@/nome":
+        titulo           obrigatória: título da aba do navegador
+        barra_titulo     obrigatória: título da barra de impressão
+        barra_subtitulo  opcional: linha abaixo do título da barra
+        head             opcional: CSS/JS extras (entra DEPOIS do CSS base, então pode sobrescrevê-lo)
+        corpo            obrigatória: folha(s) do documento
+        scripts          opcional: scripts no fim do body
+    Dentro do corpo, o comentário "incluir:cabecalho_empresa" vira o cabeçalho padrão da empresa
+    (_cabecalho_empresa.html) e a folha usa class="page folha-a4" ("folha-a4--fluxo" quando o conteúdo
+    não deve ser espaçado até o rodapé da folha).
+    Plano futuro: mover esta moldura para o kit (ver "Arquivos .md/PLANO_MOLDURA_DOCUMENTOS_KIT.md").
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><!--slot:titulo--></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'Tahoma', sans-serif;
+        }
+
+        /* Folha A4 na tela (na impressão o bloco @media print abaixo zera sombra/borda/padding) */
+        .folha-a4 {
+            background-color: #ffffff;
+            color: #1e293b;
+            width: 100%;
+            max-width: 21cm;
+            min-height: 29.7cm;
+            padding: 3rem;
+            box-sizing: border-box;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .folha-a4--fluxo {
+            justify-content: flex-start;
+        }
+
+        @media (min-width: 768px) {
+            .folha-a4 {
+                padding: 4rem;
+            }
+        }
+
+        /* ───────────────────────────────────────────────────────────────────
+           BLUEPRINT DE IMPRESSÃO UNIVERSAL
+           ─────────────────────────────────────────────────────────────────── */
+        @media print {
+            /* 1. Margens físicas padrão em A4 (sem !important: um template pode sobrescrever na seção @head) */
+            @page {
+                size: A4;
+                margin: 20mm 15mm 20mm 15mm;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: white !important;
+                padding: 0 !important;
+                color: #0f172a !important;
+            }
+
+            .page {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                box-sizing: border-box !important;
+                display: block !important;
+            }
+
+            /* 2. Barreira anti-fatiamento: blocos sensíveis não ficam partidos na borda da folha */
+            tr,
+            .break-inside-avoid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                -webkit-column-break-inside: avoid !important;
+            }
+
+            /* 3. Listas longas quebram naturalmente */
+            ol,
+            ul {
+                break-inside: auto !important;
+            }
+
+            /* 4. Proteção contra linhas órfãs/viúvas */
+            p,
+            li {
+                orphans: 2 !important;
+                widows: 2 !important;
+                break-inside: auto !important;
+            }
+
+            /* 5. Caixas com rolagem na tela imprimem inteiras; cabeçalho de tabela repete em cada folha */
+            .overflow-y-auto {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+
+            table thead {
+                display: table-header-group !important;
+            }
+        }
+    </style>
+<!--slot:head-->
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8 flex flex-col items-center select-text">
+    <!-- BARRA_ACOES_INICIO -->
+    <div
+        class="no-print print:hidden w-full max-w-[21cm] bg-[#0c1510] text-white py-4 px-6 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl border border-white/10 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-[#00f5a0]/10 border border-[#00f5a0]/30 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="text-[#00f5a0] w-5 h-5" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider"><!--slot:barra_titulo--></h4>
+                <p class="text-[10px] text-white/40 mt-0.5"><!--slot:barra_subtitulo--></p>
+            </div>
+        </div>
+        <button onclick="window.print()"
+            class="no-print print:hidden px-5 py-2.5 bg-[#00f5a0] hover:bg-[#00d48a] text-[#0c1510] font-bold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Imprimir / Salvar PDF
+        </button>
+    </div>
+    <!-- BARRA_ACOES_FIM -->
+
+<!--slot:corpo-->
+<!--slot:scripts-->
+</body>
+
+</html>

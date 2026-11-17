@@ -304,22 +304,78 @@ def calcular_azimute_e_distancia(ini_lat, ini_lon, fim_lat, fim_lon, ini_alt=Non
 
 _CACHE_TEMPLATES: dict = {}
 
+_PASTA_TEMPLATES = Path(__file__).resolve().parents[3] / "templates"
+# Moldura única dos documentos A4 (head, CSS de impressão, barra "Imprimir") e partes reutilizáveis.
+_TEMPLATE_BASE_DOCUMENTO = "_base_documento.html"
+_PARTES_DOCUMENTO = {"cabecalho_empresa": "_cabecalho_empresa.html"}
+_SECOES_DOCUMENTO = ("titulo", "barra_titulo", "barra_subtitulo", "head", "corpo", "scripts")
+_SECOES_OBRIGATORIAS = ("titulo", "barra_titulo", "corpo")
+_RE_SECAO = re.compile(r"<!--\s*@(\w+)\s*-->(.*?)<!--\s*@/\1\s*-->", re.DOTALL)
+_RE_INCLUIR = re.compile(r"<!--\s*incluir:(\w+)\s*-->")
+
+
+def _ler_template_bruto(nome_arquivo: str) -> tuple[int, str]:
+    """Lê `templates/<nome>` devolvendo (mtime_ns, conteúdo)."""
+    caminho = _PASTA_TEMPLATES / nome_arquivo
+    try:
+        return caminho.stat().st_mtime_ns, caminho.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error(f"Template not found: {caminho}")
+        raise
+
+
+def _compor_documento(nome_arquivo: str, conteudo: str) -> tuple[str, dict]:
+    """Encaixa as seções de um template de documento na moldura `_base_documento.html`.
+    Devolve (html_completo, {arquivo_dependência: mtime_ns}) para o cache saber quando recompor."""
+    secoes = {m.group(1): m.group(2).strip() for m in _RE_SECAO.finditer(conteudo)}
+    desconhecidas = set(secoes) - set(_SECOES_DOCUMENTO)
+    faltando = [s for s in _SECOES_OBRIGATORIAS if not secoes.get(s)]
+    if desconhecidas or faltando:
+        raise ValueError(
+            f"Template {nome_arquivo} inválido: seções desconhecidas={sorted(desconhecidas)} faltando={faltando}"
+        )
+
+    dependencias: dict = {}
+
+    def _ler_dependencia(arquivo: str) -> str:
+        dependencias[arquivo], texto = _ler_template_bruto(arquivo)
+        return texto
+
+    def _incluir(m: re.Match) -> str:
+        nome_parte = m.group(1)
+        if nome_parte not in _PARTES_DOCUMENTO:
+            raise ValueError(f"Template {nome_arquivo}: parte desconhecida '{nome_parte}'")
+        return _ler_dependencia(_PARTES_DOCUMENTO[nome_parte]).strip()
+
+    html = _ler_dependencia(_TEMPLATE_BASE_DOCUMENTO)
+    for nome_secao in _SECOES_DOCUMENTO:
+        valor = _RE_INCLUIR.sub(_incluir, secoes.get(nome_secao, ""))
+        html = html.replace(f"<!--slot:{nome_secao}-->", valor)
+    return html, dependencias
+
 
 def carregar_template(nome_arquivo: str) -> str:
-    """Carrega o conteúdo de um template HTML da pasta `templates/` (cache por data de modificação:
-    o lote de anuências não relê o disco a cada confrontante, mas edições no arquivo valem na hora)."""
-    project_root = Path(__file__).resolve().parents[3]
-    caminho_template = project_root / "templates" / nome_arquivo
+    """Carrega um template HTML da pasta `templates/` (cache por data de modificação: o lote de anuências
+    não relê o disco a cada confrontante, mas edições no arquivo valem na hora).
+    Templates de documento (com a seção `@corpo`) são devolvidos já encaixados na moldura
+    `_base_documento.html`, então os geradores continuam recebendo uma página completa."""
+    caminho_template = _PASTA_TEMPLATES / nome_arquivo
     try:
         mtime = caminho_template.stat().st_mtime_ns
-        em_cache = _CACHE_TEMPLATES.get(nome_arquivo)
-        if em_cache and em_cache[0] == mtime:
-            return em_cache[1]
-        conteudo = caminho_template.read_text(encoding="utf-8")
     except FileNotFoundError:
         logger.error(f"Template not found: {caminho_template}")
         raise
-    _CACHE_TEMPLATES[nome_arquivo] = (mtime, conteudo)
+    em_cache = _CACHE_TEMPLATES.get(nome_arquivo)
+    if em_cache and em_cache[0] == mtime and all(
+        (_PASTA_TEMPLATES / dep).stat().st_mtime_ns == m for dep, m in em_cache[2].items()
+    ):
+        return em_cache[1]
+
+    _, conteudo = _ler_template_bruto(nome_arquivo)
+    dependencias: dict = {}
+    if any(m.group(1) == "corpo" for m in _RE_SECAO.finditer(conteudo)):
+        conteudo, dependencias = _compor_documento(nome_arquivo, conteudo)
+    _CACHE_TEMPLATES[nome_arquivo] = (mtime, conteudo, dependencias)
     return conteudo
 
 
