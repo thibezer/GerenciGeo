@@ -721,6 +721,57 @@ def gerar_js_inicializacao_mapas(lista_mapas_data: list[dict]) -> str:
             box.appendChild(aviso);
         }}
 
+        function pontoDentroRect(p, r) {{
+            return p.x >= r.x1 && p.x <= r.x2 && p.y >= r.y1 && p.y <= r.y2;
+        }}
+
+        function segsIntersect(a, b, c, d) {{
+            function ccw(p1, p2, p3) {{
+                return (p3.y - p1.y) * (p2.x - p1.x) > (p2.y - p1.y) * (p3.x - p1.x);
+            }}
+            return (ccw(a, c, d) !== ccw(b, c, d)) && (ccw(a, b, c) !== ccw(a, b, d));
+        }}
+
+        function segIntersectaRect(p1, p2, r) {{
+            if (Math.max(p1.x, p2.x) < r.x1 || Math.min(p1.x, p2.x) > r.x2 ||
+                Math.max(p1.y, p2.y) < r.y1 || Math.min(p1.y, p2.y) > r.y2) {{
+                return false;
+            }}
+            if (pontoDentroRect(p1, r) || pontoDentroRect(p2, r)) {{
+                return true;
+            }}
+            const tl = {{ x: r.x1, y: r.y1 }};
+            const tr = {{ x: r.x2, y: r.y1 }};
+            const br = {{ x: r.x2, y: r.y2 }};
+            const bl = {{ x: r.x1, y: r.y2 }};
+            return segsIntersect(p1, p2, tl, tr) ||
+                   segsIntersect(p1, p2, tr, br) ||
+                   segsIntersect(p1, p2, br, bl) ||
+                   segsIntersect(p1, p2, bl, tl);
+        }}
+
+        function expandirRect(r, pad) {{
+            return {{ x1: r.x1 - pad, y1: r.y1 - pad, x2: r.x2 + pad, y2: r.y2 + pad }};
+        }}
+
+        function areaSobreposicao(r1, r2) {{
+            const ox = Math.max(0, Math.min(r1.x2, r2.x2) - Math.max(r1.x1, r2.x1));
+            const oy = Math.max(0, Math.min(r1.y2, r2.y2) - Math.max(r1.y1, r2.y1));
+            return ox * oy;
+        }}
+
+        function medirCaixaTooltip(container, texto) {{
+            const probe = document.createElement("div");
+            probe.className = "leaflet-tooltip custom-tooltip";
+            probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;top:-9999px;left:-9999px;";
+            probe.textContent = texto;
+            container.appendChild(probe);
+            const w = probe.offsetWidth || (texto.length * 5.5 + 14);
+            const h = probe.offsetHeight || 18;
+            container.removeChild(probe);
+            return {{ w: w, h: h }};
+        }}
+
         mapasData.forEach(function(m) {{
             try {{
                 if (typeof L === "undefined") {{
@@ -765,6 +816,7 @@ def gerar_js_inicializacao_mapas(lista_mapas_data: list[dict]) -> str:
                     }});
                 }}
 
+                const pontosComRotulo = [];
                 if (m.lindeira_pontos && m.lindeira_pontos.length > 0) {{
                     m.lindeira_pontos.forEach(function(pt) {{
                         const marker = L.circleMarker(pt.coords, {{
@@ -776,12 +828,7 @@ def gerar_js_inicializacao_mapas(lista_mapas_data: list[dict]) -> str:
                         }}).addTo(map);
 
                         if (pt.exibir_nome) {{
-                            marker.bindTooltip(pt.nome, {{
-                                permanent: true,
-                                direction: 'top',
-                                className: 'custom-tooltip',
-                                offset: [0, -5]
-                            }});
+                            pontosComRotulo.push({{ pt: pt, marker: marker }});
                         }}
                     }});
                 }}
@@ -796,6 +843,195 @@ def gerar_js_inicializacao_mapas(lista_mapas_data: list[dict]) -> str:
                         padding: [20, 20]
                     }});
                 }}
+
+                let labelLayers = [];
+                function posicionarRotulosSemColisao() {{
+                    labelLayers.forEach(function(layer) {{
+                        if (map.hasLayer(layer)) map.removeLayer(layer);
+                    }});
+                    labelLayers = [];
+                    pontosComRotulo.forEach(function(item) {{
+                        if (item.marker.getTooltip()) item.marker.unbindTooltip();
+                    }});
+
+                    if (pontosComRotulo.length === 0) return;
+
+                    const mapSize = map.getSize();
+                    const container = map.getContainer();
+
+                    const lindeiraSegsPx = (m.lindeira || []).map(function(seg) {{
+                        return [map.latLngToContainerPoint(seg[0]), map.latLngToContainerPoint(seg[1])];
+                    }});
+
+                    const poligonoSegsPx = [];
+                    if (m.poligono && m.poligono.length > 1) {{
+                        const polyPts = m.poligono.map(function(c) {{ return map.latLngToContainerPoint(c); }});
+                        for (let i = 0; i < polyPts.length; i++) {{
+                            poligonoSegsPx.push([polyPts[i], polyPts[(i + 1) % polyPts.length]]);
+                        }}
+                    }}
+
+                    const todosVerticesPx = (m.lindeira_pontos || []).map(function(p) {{
+                        return map.latLngToContainerPoint(p.coords);
+                    }});
+
+                    const caixasFixadas = [];
+                    const leaderLinesPx = [];
+
+                    pontosComRotulo.forEach(function(item) {{
+                        const p = map.latLngToContainerPoint(item.pt.coords);
+                        const dim = medirCaixaTooltip(container, item.pt.nome);
+                        const w = dim.w;
+                        const h = dim.h;
+                        const arrowH = 6;
+                        const gapCardinal = 5;
+
+                        const candidatos = [
+                            {{
+                                direction: 'top',
+                                offset: [0, -gapCardinal],
+                                leader: false,
+                                distPenalty: 0,
+                                cx: p.x,
+                                cy: p.y - gapCardinal - arrowH - h / 2,
+                                rect: {{ x1: p.x - w / 2, y1: p.y - gapCardinal - arrowH - h, x2: p.x + w / 2, y2: p.y - gapCardinal - arrowH }}
+                            }},
+                            {{
+                                direction: 'bottom',
+                                offset: [0, gapCardinal],
+                                leader: false,
+                                distPenalty: 1,
+                                cx: p.x,
+                                cy: p.y + gapCardinal + arrowH + h / 2,
+                                rect: {{ x1: p.x - w / 2, y1: p.y + gapCardinal + arrowH, x2: p.x + w / 2, y2: p.y + gapCardinal + arrowH + h }}
+                            }},
+                            {{
+                                direction: 'right',
+                                offset: [gapCardinal, 0],
+                                leader: false,
+                                distPenalty: 1,
+                                cx: p.x + gapCardinal + arrowH + w / 2,
+                                cy: p.y,
+                                rect: {{ x1: p.x + gapCardinal + arrowH, y1: p.y - h / 2, x2: p.x + gapCardinal + arrowH + w, y2: p.y + h / 2 }}
+                            }},
+                            {{
+                                direction: 'left',
+                                offset: [-gapCardinal, 0],
+                                leader: false,
+                                distPenalty: 1,
+                                cx: p.x - gapCardinal - arrowH - w / 2,
+                                cy: p.y,
+                                rect: {{ x1: p.x - gapCardinal - arrowH - w, y1: p.y - h / 2, x2: p.x - gapCardinal - arrowH, y2: p.y + h / 2 }}
+                            }}
+                        ];
+
+                        const gaps = [10, 20, 32, 46, 62];
+                        const numAngulos = 16;
+                        gaps.forEach(function(gap) {{
+                            for (let k = 0; k < numAngulos; k++) {{
+                                const ang = (k * 2 * Math.PI) / numAngulos;
+                                const ux = Math.cos(ang);
+                                const uy = Math.sin(ang);
+                                const spanX = Math.abs(ux) > 1e-4 ? (w / 2) / Math.abs(ux) : 1e9;
+                                const spanY = Math.abs(uy) > 1e-4 ? (h / 2) / Math.abs(uy) : 1e9;
+                                const halfSpan = Math.min(spanX, spanY);
+                                const cx = p.x + ux * (halfSpan + gap);
+                                const cy = p.y + uy * (halfSpan + gap);
+                                candidatos.push({{
+                                    direction: 'center',
+                                    offset: [Math.round(cx - p.x), Math.round(cy - p.y)],
+                                    leader: true,
+                                    distPenalty: 15 + gap * 1.5,
+                                    cx: cx,
+                                    cy: cy,
+                                    rect: {{ x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2 }}
+                                }});
+                            }}
+                        }});
+
+                        let melhor = candidatos[0];
+                        let menorCusto = Infinity;
+
+                        candidatos.forEach(function(cand) {{
+                            let custo = cand.distPenalty;
+                            const r = cand.rect;
+
+                            if (r.x1 < 6 || r.y1 < 6 || r.x2 > mapSize.x - 6 || r.y2 > mapSize.y - 6) {{
+                                custo += 100000;
+                            }}
+
+                            const rCaixaPad = expandirRect(r, 4);
+                            caixasFixadas.forEach(function(outra) {{
+                                const area = areaSobreposicao(rCaixaPad, expandirRect(outra, 4));
+                                if (area > 0) {{
+                                    custo += 50000 + area * 100;
+                                }}
+                                if (cand.leader && segIntersectaRect(p, {{ x: cand.cx, y: cand.cy }}, expandirRect(outra, 2))) {{
+                                    custo += 10000;
+                                }}
+                            }});
+
+                            const rLindPad = expandirRect(r, 4);
+                            lindeiraSegsPx.forEach(function(seg) {{
+                                if (segIntersectaRect(seg[0], seg[1], rLindPad)) {{
+                                    custo += 6000;
+                                }}
+                            }});
+
+                            const rPolyPad = expandirRect(r, 3);
+                            poligonoSegsPx.forEach(function(seg) {{
+                                if (segIntersectaRect(seg[0], seg[1], rPolyPad)) {{
+                                    custo += 1800;
+                                }}
+                            }});
+
+                            const rVertPad = expandirRect(r, 5);
+                            todosVerticesPx.forEach(function(vp) {{
+                                const ehProprio = Math.abs(vp.x - p.x) < 1 && Math.abs(vp.y - p.y) < 1;
+                                if (ehProprio && !cand.leader) return;
+                                if (pontoDentroRect(vp, rVertPad)) {{
+                                    custo += 4000;
+                                }}
+                            }});
+
+                            leaderLinesPx.forEach(function(ll) {{
+                                if (segIntersectaRect(ll[0], ll[1], rCaixaPad)) {{
+                                    custo += 1200;
+                                }}
+                            }});
+
+                            if (custo < menorCusto) {{
+                                menorCusto = custo;
+                                melhor = cand;
+                            }}
+                        }});
+
+                        caixasFixadas.push(melhor.rect);
+
+                        if (melhor.leader) {{
+                            const destLatLng = map.containerPointToLatLng([melhor.cx, melhor.cy]);
+                            const leaderLine = L.polyline([item.pt.coords, destLatLng], {{
+                                color: '#0284c7',
+                                weight: 1.2,
+                                opacity: 0.85,
+                                dashArray: '2, 2',
+                                interactive: false
+                            }}).addTo(map);
+                            labelLayers.push(leaderLine);
+                            leaderLinesPx.push([p, {{ x: melhor.cx, y: melhor.cy }}]);
+                        }}
+
+                        item.marker.bindTooltip(item.pt.nome, {{
+                            permanent: true,
+                            direction: melhor.direction,
+                            className: melhor.leader ? 'custom-tooltip custom-tooltip-no-arrow' : 'custom-tooltip',
+                            offset: melhor.offset
+                        }});
+                    }});
+                }}
+
+                posicionarRotulosSemColisao();
+                map.on('zoomend', posicionarRotulosSemColisao);
 
                 let tilesOk = 0;
                 let tilesErro = 0;

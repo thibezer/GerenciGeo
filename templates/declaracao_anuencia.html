@@ -102,11 +102,28 @@
         font-size: 8px !important;
         font-weight: bold !important;
         padding: 2px 6px !important;
+        white-space: nowrap !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
 
-    .custom-tooltip::before {
+    .leaflet-tooltip-top.custom-tooltip::before {
         border-top-color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    .leaflet-tooltip-bottom.custom-tooltip::before {
+        border-bottom-color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    .leaflet-tooltip-left.custom-tooltip::before {
+        border-left-color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    .leaflet-tooltip-right.custom-tooltip::before {
+        border-right-color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    .custom-tooltip-no-arrow::before {
+        display: none !important;
     }
 </style>
 <!-- @/head -->
