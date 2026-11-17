@@ -26,7 +26,7 @@ from services.documentacao.cartorio.utils import (  # noqa: F401  (formatar_cpf/
 )
 from services.documentacao.cartorio.data_fetcher import SQL_PROPRIETARIOS
 from services.documentacao.cartorio.qualificacao import (
-    assinatura_div,
+    grade_assinaturas,
     domicilio_do_proprietario,
     flex,
     genero_normalizado,
@@ -455,13 +455,14 @@ class BorderAreaReportGenerator:
         ass = dict(container="min-w-[240px] flex-1 max-w-[280px]", linha="mt-8 mb-2",
                    nome_cls="text-xs font-bold text-slate-900 text-center uppercase tracking-wide",
                    legenda_cls="text-[10px] text-slate-500 text-center font-medium mt-0.5")
-        bloco_assinaturas_html = '<div class="mt-6 pt-2 flex flex-row flex-wrap justify-around gap-x-8 gap-y-8 w-full">'
+        grupos_ass: list[list[dict]] = []
         for owner, info in zip(owners, infos):
             legenda = flex(info["genero"], "Requerente Proprietário", "Requerente Proprietária", "Requerente Proprietário(a)")
-            bloco_assinaturas_html += assinatura_div(owner.get("nome_completo"), legenda, **ass)
+            grupo = [{"nome": owner.get("nome_completo"), "legenda": legenda}]
             if info["casal"]:
-                bloco_assinaturas_html += assinatura_div(info["nome_conjuge"], "Requerente Cônjuge", **ass)
-        bloco_assinaturas_html += "</div>"
+                grupo.append({"nome": info["nome_conjuge"], "legenda": "Requerente Cônjuge"})
+            grupos_ass.append(grupo)
+        bloco_assinaturas_html = grade_assinaturas(grupos_ass, margem_topo="mt-6 pt-2", **ass)
 
         # Valor venal / ITR
         valor_venal_itr = mat_data.get("valor_itr")

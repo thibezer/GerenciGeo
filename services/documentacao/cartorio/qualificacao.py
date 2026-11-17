@@ -354,6 +354,57 @@ def assinatura_div(
         """
 
 
+def grade_assinaturas(grupos: list[list[dict]], *, margem_topo: str = "mt-4", **estilo) -> str:
+    """Grade de assinaturas em 2 colunas, uma linha por vez, sem quebrar no meio.
+
+    Cada grupo é uma lista de assinaturas (dicts com 'nome', 'legenda' e opcional 'linha_extra')
+    que deve ficar junta: titular + cônjuge saem sempre lado a lado na mesma linha. Pessoas
+    sozinhas se emparelham entre si; a última que sobrar fica centralizada (nunca encostada à esquerda).
+    `estilo` repassa nome_cls/legenda_cls/linha ao assinatura_div; a largura é controlada pela grade.
+    """
+    estilo = {k: v for k, v in estilo.items() if k != "container"}
+    estilo.setdefault("linha", "mt-10 mb-1.5")
+
+    def _cel(a: dict) -> str:
+        return assinatura_div(a.get("nome"), a.get("legenda", ""), container="w-full min-w-0",
+                              linha_extra=a.get("linha_extra", ""), **estilo)
+
+    linhas: list[list[dict]] = []
+    sozinhos: list[dict] = []
+    for grupo in grupos:
+        grupo = [a for a in grupo if a is not None]
+        if len(grupo) == 1:
+            sozinhos.append(grupo[0])
+            if len(sozinhos) == 2:
+                linhas.append(sozinhos)
+                sozinhos = []
+            continue
+        if not grupo:
+            continue
+        # Casal (ou grupo maior) entra inteiro em linhas próprias; avulso pendente sai antes para manter a ordem.
+        if sozinhos:
+            linhas.append(sozinhos)
+            sozinhos = []
+        for i in range(0, len(grupo), 2):
+            linhas.append(grupo[i:i + 2])
+    if sozinhos:
+        linhas.append(sozinhos)
+
+    html = [f'<div class="{margem_topo} flex flex-col gap-y-6 w-full">']
+    for linha in linhas:
+        if len(linha) == 2:
+            html.append('<div class="grid grid-cols-2 gap-x-12 w-full break-inside-avoid" style="page-break-inside:avoid">')
+            html.extend(_cel(a) for a in linha)
+        else:
+            html.append('<div class="flex justify-center w-full break-inside-avoid" style="page-break-inside:avoid">'
+                        '<div class="w-[calc(50%-1.5rem)]">')
+            html.append(_cel(linha[0]))
+            html.append('</div>')
+        html.append('</div>')
+    html.append('</div>')
+    return "".join(html)
+
+
 def qualificacao_resumida(d: dict) -> Html:
     """'NOME, inscrito(a) no CPF nº X e portador(a) do RG nº Y' (declarações curtas). PJ: só o CNPJ."""
     p = normalizar_pessoa(d)

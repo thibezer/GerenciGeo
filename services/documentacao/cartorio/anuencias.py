@@ -26,7 +26,7 @@ from services.documentacao.cartorio.data_fetcher import (
 )
 from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
 from services.documentacao.cartorio.qualificacao import (
-    assinatura_div,
+    grade_assinaturas,
     categoria_estado_civil,
     descrever_proprietarios_curto,
     flex,
@@ -553,22 +553,23 @@ def gerar_declaracao_anuencia_html(
 
     tabela_divisas_html = gerar_tabela_divisas_html(mat_desenho_id, confrontante_id, segmentos=pre["segs"])
 
-    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-4 w-full">'
-    estilo_ass = dict(container="min-w-[170px] flex-1 max-w-[260px]", linha="mt-6 mb-1.5")
+    # Cada grupo fica na mesma linha (titular + cônjuge lado a lado); a grade evita linhas tortas.
+    grupos_ass: list[list[dict]] = []
 
-    # 1. Assinatura dos Proprietários Requerentes e Cônjuge (Imóvel que está sendo georreferenciado)
+    # 1. Proprietários Requerentes e Cônjuge (imóvel que está sendo georreferenciado)
     for owner in dados["owners"]:
         g_owner = genero_normalizado(owner.get("genero"))
-        bloco_assinaturas += assinatura_div(owner.get("nome_completo"), legenda_requerente(g_owner), **estilo_ass)
+        grupo = [{"nome": owner.get("nome_completo"), "legenda": legenda_requerente(g_owner)}]
         if tem_conjuge(owner):
-            bloco_assinaturas += assinatura_div(owner.get("nome_conjuge"), legenda_conjuge_requerente(owner, g_owner), **estilo_ass)
+            grupo.append({"nome": owner.get("nome_conjuge"), "legenda": legenda_conjuge_requerente(owner, g_owner)})
+        grupos_ass.append(grupo)
 
-    # 2. Assinatura do Confrontante Anuente Principal
+    # 2. Confrontante Anuente Principal
     if titular_assina:
         if info_conf["pj"] and representantes:
-            for rep in representantes:
-                rotulo_rep = f"Representante Legal de {c_nome_raw}" if c_nome_raw else "Representante Legal"
-                bloco_assinaturas += assinatura_div(valor_preenchido(rep.get("nome")), rotulo_rep, **estilo_ass)
+            rotulo_rep = f"Representante Legal de {c_nome_raw}" if c_nome_raw else "Representante Legal"
+            grupos_ass.append([{"nome": valor_preenchido(rep.get("nome")), "legenda": rotulo_rep} for rep in representantes])
+            grupo_conf: list[dict] = []
         else:
             if info_conf["pj"]:
                 rotulo_conf_principal = "Confrontante Anuente (representante legal)"
@@ -576,17 +577,19 @@ def gerar_declaracao_anuencia_html(
                 rotulo_conf_principal = "Confrontante Anuente (Condômino)"
             else:
                 rotulo_conf_principal = "Confrontante Anuente"
-            bloco_assinaturas += assinatura_div(c_nome_raw, rotulo_conf_principal, **estilo_ass)
+            grupo_conf = [{"nome": c_nome_raw, "legenda": rotulo_conf_principal}]
         if info_conf["casal"]:
-            bloco_assinaturas += assinatura_div(info_conf["nome_conjuge"], "Cônjuge do Confrontante Anuente", **estilo_ass)
+            grupo_conf.append({"nome": info_conf["nome_conjuge"], "legenda": "Cônjuge do Confrontante Anuente"})
+        grupos_ass.append(grupo_conf)
 
-    # 3. Assinatura dos Coproprietários / Condôminos Extras que assinam
+    # 3. Coproprietários / Condôminos extras que assinam
     for cp, info_cp in zip(coproprietarios, infos[1:] if titular_assina else infos):
-        bloco_assinaturas += assinatura_div(cp.get("nome"), "Coproprietário(a) Anuente", **estilo_ass)
+        grupo = [{"nome": cp.get("nome"), "legenda": "Coproprietário(a) Anuente"}]
         if info_cp["casal"]:
-            bloco_assinaturas += assinatura_div(info_cp["nome_conjuge"], "Cônjuge do(a) Coproprietário(a) Anuente", **estilo_ass)
+            grupo.append({"nome": info_cp["nome_conjuge"], "legenda": "Cônjuge do(a) Coproprietário(a) Anuente"})
+        grupos_ass.append(grupo)
 
-    bloco_assinaturas += "</div>"
+    bloco_assinaturas = grade_assinaturas(grupos_ass)
 
     # Construção descritiva do imóvel confrontante (Lote / Matrícula)
     c_lote = _rotulo_lote(c_lote_raw, c_nome_raw)

@@ -29,7 +29,7 @@ from services.documentacao.cartorio.data_fetcher import (
 )
 from services.documentacao.cartorio.qualificacao import (
     _rotulo_identidade,
-    assinatura_div,
+    grade_assinaturas,
     domicilio_do_proprietario,
     flex,
     flexionar_nacionalidade,
@@ -221,16 +221,17 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         """
         texto_encerramento_html = f"<strong>ENCERRAMENTO DA MATRÍCULA Nº {esc(num_mat)}</strong> e a subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA</strong>"
 
-    bloco_assinaturas = '<div class="mt-3 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">'
+    grupos_ass: list[list[dict]] = []
     owners_sem_endereco = []
     for owner in dados["owners"]:
         if not valor_preenchido(owner.get("endereco_completo")):
             owners_sem_endereco.append(valor_preenchido(owner.get("nome_completo")) or "Proprietário(a)")
         g = genero_normalizado(owner.get("genero"))
-        bloco_assinaturas += assinatura_div(owner.get("nome_completo"), legenda_requerente(g))
+        grupo = [{"nome": owner.get("nome_completo"), "legenda": legenda_requerente(g)}]
         if tem_conjuge(owner):
-            bloco_assinaturas += assinatura_div(owner.get("nome_conjuge"), "Cônjuge Requerente")
-    bloco_assinaturas += "</div>"
+            grupo.append({"nome": owner.get("nome_conjuge"), "legenda": "Cônjuge Requerente"})
+        grupos_ass.append(grupo)
+    bloco_assinaturas = grade_assinaturas(grupos_ass, margem_topo="mt-3")
 
     aviso_pendencias_html = ""
     if owners_sem_endereco:
@@ -327,12 +328,10 @@ def gerar_declaracao_responsabilidade_html(lev_id: int, matricula_id: int) -> st
                 previstas no art. 299 do Código Penal Brasileiro, que:</p>
         """
 
-    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-center gap-x-4 gap-y-3 w-full">'
-    for owner in dados["owners"]:
-        bloco_assinaturas += assinatura_div(
-            owner.get("nome_completo"), "Declarante Proprietário", legenda_cls="text-[9.5px] text-slate-500 text-center font-medium mt-0.5"
-        )
-    bloco_assinaturas += "</div>"
+    bloco_assinaturas = grade_assinaturas(
+        [[{"nome": o.get("nome_completo"), "legenda": "Declarante Proprietário"}] for o in dados["owners"]],
+        legenda_cls="text-[9.5px] text-slate-500 text-center font-medium mt-0.5",
+    )
 
     template = carregar_template("declaracao_responsabilidade.html")
     return renderizar_template(template, {
@@ -895,15 +894,16 @@ def gerar_declaracao_anuencia_desmembramento_html(lev_id: int, matricula_id: int
     codigo_credenciado = valor_preenchido(dados["lev"].get("codigo_credenciado")) or "_____"
     codigo_sigef_original = valor_preenchido(dados["mat"].get("georreferenciamento")) or "_" * 36
 
-    bloco_assinaturas = '<div class="mt-4 flex flex-row flex-wrap justify-center gap-x-4 gap-y-3 w-full">'
     mono = "text-[9.5px] text-slate-600 text-center font-medium mt-0.5 font-mono"
+    grupos_ass: list[list[dict]] = []
     for owner in dados["owners"]:
         cpf_f = valor_preenchido(formatar_cpf(owner.get("cpf_cnpj"))) or "_" * 14
-        bloco_assinaturas += assinatura_div(owner.get("nome_completo"), f"CPF: {cpf_f}", legenda_cls=mono)
+        grupo = [{"nome": owner.get("nome_completo"), "legenda": f"CPF: {cpf_f}"}]
         if tem_conjuge(owner):
             conj_cpf_f = valor_preenchido(formatar_cpf(owner.get("cpf_conjuge"))) or "_" * 14
-            bloco_assinaturas += assinatura_div(owner.get("nome_conjuge"), f"CPF: {conj_cpf_f}", legenda_cls=mono)
-    bloco_assinaturas += "</div>"
+            grupo.append({"nome": owner.get("nome_conjuge"), "legenda": f"CPF: {conj_cpf_f}"})
+        grupos_ass.append(grupo)
+    bloco_assinaturas = grade_assinaturas(grupos_ass, legenda_cls=mono)
 
     template = carregar_template("declaracao_anuencia_desmembramento.html")
     return renderizar_template(template, {
@@ -1122,10 +1122,10 @@ def gerar_requerimento_averbacao_casamento_html(
     ass = dict(container="min-w-[260px] flex-1 max-w-[320px]", linha="mt-6 mb-2",
                nome_cls="text-xs font-bold text-slate-900 text-center uppercase tracking-wide",
                legenda_cls="text-[9px] text-slate-400 text-center uppercase tracking-wider font-semibold")
-    bloco_assinaturas = '<div class="mt-8 flex flex-row flex-wrap justify-around gap-x-8 gap-y-12 w-full">'
-    bloco_assinaturas += assinatura_div(nome_requerente, "Requerente", linha_extra=f"CPF: {esc(cpf_requerente)}", **ass)
-    bloco_assinaturas += assinatura_div(nome_conjuge, "Cônjuge", linha_extra=f"CPF: {esc(cpf_conjuge)}", **ass)
-    bloco_assinaturas += "</div>"
+    bloco_assinaturas = grade_assinaturas([[
+        {"nome": nome_requerente, "legenda": "Requerente", "linha_extra": f"CPF: {esc(cpf_requerente)}"},
+        {"nome": nome_conjuge, "legenda": "Cônjuge", "linha_extra": f"CPF: {esc(cpf_conjuge)}"},
+    ]], margem_topo="mt-8", **ass)
 
     template = carregar_template("requerimento_averbacao_casamento.html")
     return renderizar_template(template, {
