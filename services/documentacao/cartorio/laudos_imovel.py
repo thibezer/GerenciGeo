@@ -12,6 +12,7 @@ from services.documentacao.cartorio.utils import (
     formatar_area_ha,
     formatar_cpf,
     formatar_data_br,
+    formatar_documento_identidade,
     formatar_numero_br,
     formatar_regime_bens_extenso,  # noqa: F401  (reexportado: único formatador de regime de bens)
     formatar_rg,
@@ -27,6 +28,7 @@ from services.documentacao.cartorio.data_fetcher import (
     obter_dados_matricula_sem_levantamento,
 )
 from services.documentacao.cartorio.qualificacao import (
+    _rotulo_identidade,
     assinatura_div,
     domicilio_do_proprietario,
     flex,
@@ -220,15 +222,29 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         texto_encerramento_html = f"<strong>ENCERRAMENTO DA MATRÍCULA Nº {esc(num_mat)}</strong> e a subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA</strong>"
 
     bloco_assinaturas = '<div class="mt-3 flex flex-row flex-wrap justify-around items-end gap-x-4 gap-y-3 w-full">'
+    owners_sem_endereco = []
     for owner in dados["owners"]:
+        if not valor_preenchido(owner.get("endereco_completo")):
+            owners_sem_endereco.append(valor_preenchido(owner.get("nome_completo")) or "Proprietário(a)")
         g = genero_normalizado(owner.get("genero"))
         bloco_assinaturas += assinatura_div(owner.get("nome_completo"), legenda_requerente(g))
         if tem_conjuge(owner):
             bloco_assinaturas += assinatura_div(owner.get("nome_conjuge"), "Cônjuge Requerente")
     bloco_assinaturas += "</div>"
 
+    aviso_pendencias_html = ""
+    if owners_sem_endereco:
+        nomes_pend = esc(", ".join(owners_sem_endereco))
+        aviso_pendencias_html = (
+            '<div class="no-print print:hidden mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-[11px] leading-snug">'
+            f'<strong>Atenção (não impresso):</strong> O endereço completo (logradouro/número/bairro) de <strong>{nomes_pend}</strong> '
+            'não está preenchido no cadastro — consta apenas município/UF. Atualize o cadastro do cliente antes de protocolar no Registro de Imóveis.'
+            '</div>'
+        )
+
     template = carregar_template("requerimento_cartorio.html")
     return renderizar_template(template, {
+        "aviso_pendencias_html": Html(aviso_pendencias_html),
         "nome_lote": nome_lote,
         "comarca": comarca,
         "estado_com_artigo": estado_com_artigo(dados["prop"].get("uf")),
@@ -967,7 +983,7 @@ def gerar_requerimento_averbacao_casamento_html(
         )
         for d in doc_rows:
             d_dict = dict(d)
-            if d_dict.get("tipo_documento") == "RG" and not orgao_rg_requerente:
+            if d_dict.get("tipo_documento") in ("RG", "CIN") and not orgao_rg_requerente:
                 oe = valor_preenchido(d_dict.get("orgao_emissor"))
                 uf_e = valor_preenchido(d_dict.get("uf_emissor"))
                 if oe or uf_e:
@@ -1012,24 +1028,24 @@ def gerar_requerimento_averbacao_casamento_html(
     nacionalidade_requerente = flexionar_nacionalidade(target_owner.get("nacionalidade"), g_req)
     profissao_requerente = valor_preenchido(target_owner.get("profissao")) or "_" * 20
     rg_req_raw = valor_preenchido(target_owner.get("rg_ie"))
-    rg_requerente = formatar_rg(rg_req_raw) if rg_req_raw else ""
+    orgao_req_eff = orgao_rg_requerente if orgao_rg_requerente and orgao_rg_requerente != "_____/__" else ""
+    if not orgao_req_eff:
+        oe_t, uf_t = valor_preenchido(target_owner.get("rg_orgao")), valor_preenchido(target_owner.get("rg_uf"))
+        if oe_t and uf_t:
+            orgao_req_eff = f"{oe_t}/{uf_t}"
+        elif oe_t or uf_t:
+            orgao_req_eff = oe_t or uf_t
+    rg_requerente, req_eh_cin = formatar_documento_identidade(rg_req_raw, target_owner.get("cpf_cnpj"))
     cpf_requerente = formatar_cpf(target_owner.get("cpf_cnpj")) or "_" * 14
     inscrito_req = flex(g_req, "inscrito", "inscrita", "inscrito(a)")
     portador_req = flex(g_req, "portador", "portadora", "portador(a)")
     if rg_requerente:
-        orgao_uf_txt = f", órgão expedidor {esc(orgao_rg_requerente)}" if orgao_rg_requerente and orgao_rg_requerente != "_____/__" else ""
-        documentos_requerente = Html(f"{portador_req} da cédula de identidade RG nº <strong>{esc(rg_requerente)}</strong>{orgao_uf_txt}, {inscrito_req} no CPF/MF sob o nº <strong>{esc(cpf_requerente)}</strong>")
+        orgao_uf_txt = f", órgão expedidor {esc(orgao_req_eff)}" if orgao_req_eff else ""
+        documentos_requerente = Html(f"{portador_req} da {_rotulo_identidade(req_eh_cin)} nº <strong>{esc(rg_requerente)}</strong>{orgao_uf_txt}, {inscrito_req} no CPF/MF sob o nº <strong>{esc(cpf_requerente)}</strong>")
     else:
         documentos_requerente = Html(f"{inscrito_req} no CPF/MF sob o nº <strong>{esc(cpf_requerente)}</strong>")
 
-    end_parts = []
-    if valor_preenchido(target_owner.get("endereco_completo")):
-        end_parts.append(valor_preenchido(target_owner["endereco_completo"]))
-    if valor_preenchido(target_owner.get("cep")):
-        end_parts.append(f"CEP {valor_preenchido(target_owner['cep'])}")
-    if valor_preenchido(target_owner.get("cidade")) and valor_preenchido(target_owner.get("estado")):
-        end_parts.append(f"{valor_preenchido(target_owner['cidade'])}/{valor_preenchido(target_owner['estado'])}")
-    endereco_completo_requerente = ", ".join(end_parts) if end_parts else "_" * 40
+    endereco_completo_requerente = domicilio_do_proprietario(target_owner) or "_" * 40
     telefone_requerente = valor_preenchido(target_owner.get("telefone")) or "(não informado)"
     email_requerente = valor_preenchido(target_owner.get("email")) or "(não informado)"
 
@@ -1041,13 +1057,21 @@ def gerar_requerimento_averbacao_casamento_html(
     )
     profissao_conjuge = valor_preenchido(params.get("profissao_conjuge")) or valor_preenchido(target_owner.get("profissao_conjuge")) or "_" * 20
     rg_conj_raw = valor_preenchido(params.get("rg_conjuge")) or valor_preenchido(target_owner.get("rg_conjuge"))
-    rg_conjuge = formatar_rg(rg_conj_raw) if rg_conj_raw else ""
-    cpf_conjuge = formatar_cpf(valor_preenchido(params.get("cpf_conjuge")) or target_owner.get("cpf_conjuge")) or "_" * 14
+    cpf_conj_raw = valor_preenchido(params.get("cpf_conjuge")) or target_owner.get("cpf_conjuge")
+    orgao_conj_eff = orgao_rg_conjuge if orgao_rg_conjuge and orgao_rg_conjuge != "_____/__" else ""
+    if not orgao_conj_eff:
+        oe_c, uf_c = valor_preenchido(target_owner.get("rg_orgao_conjuge")), valor_preenchido(target_owner.get("rg_uf_conjuge"))
+        if oe_c and uf_c:
+            orgao_conj_eff = f"{oe_c}/{uf_c}"
+        elif oe_c or uf_c:
+            orgao_conj_eff = oe_c or uf_c
+    rg_conjuge, conj_eh_cin = formatar_documento_identidade(rg_conj_raw, cpf_conj_raw)
+    cpf_conjuge = formatar_cpf(cpf_conj_raw) or "_" * 14
     inscrito_conj = flex(gc, "inscrito", "inscrita", "inscrito(a)")
     portador_conj = flex(gc, "portador", "portadora", "portador(a)")
     if rg_conjuge:
-        orgao_uf_c_txt = f", órgão expedidor {esc(orgao_rg_conjuge)}" if orgao_rg_conjuge and orgao_rg_conjuge != "_____/__" else ""
-        documentos_conjuge = Html(f"{portador_conj} da cédula de identidade RG nº <strong>{esc(rg_conjuge)}</strong>{orgao_uf_c_txt}, {inscrito_conj} no CPF/MF sob o nº <strong>{esc(cpf_conjuge)}</strong>")
+        orgao_uf_c_txt = f", órgão expedidor {esc(orgao_conj_eff)}" if orgao_conj_eff else ""
+        documentos_conjuge = Html(f"{portador_conj} da {_rotulo_identidade(conj_eh_cin)} nº <strong>{esc(rg_conjuge)}</strong>{orgao_uf_c_txt}, {inscrito_conj} no CPF/MF sob o nº <strong>{esc(cpf_conjuge)}</strong>")
     else:
         documentos_conjuge = Html(f"{inscrito_conj} no CPF/MF sob o nº <strong>{esc(cpf_conjuge)}</strong>")
     endereco_conjuge = valor_preenchido(params.get("endereco_conjuge")) or "no mesmo endereço acima indicado"

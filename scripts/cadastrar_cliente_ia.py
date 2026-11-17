@@ -164,10 +164,15 @@ def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
         if len(doc_limpo) == 14 and not dados_limpos.get("tipo_pessoa"):
             dados_limpos["tipo_pessoa"] = "PJ"
 
-    # RG / Órgão / UF
+    # RG / CIN / Órgão / UF
+    is_cin = bool(dados_limpos.pop("is_cin", False)) or str(dados_limpos.get("tipo_documento") or "").strip().upper() == "CIN"
     if dados_limpos.get("rg_ie") or dados_limpos.get("rg"):
         val_rg = str(dados_limpos.get("rg_ie") or dados_limpos.get("rg")).strip()
         dados_limpos["rg_ie"] = val_rg
+    elif is_cin and dados_limpos.get("cpf_cnpj"):
+        cpf_dig = re.sub(r"\D", "", str(dados_limpos["cpf_cnpj"]))
+        if len(cpf_dig) == 11:
+            dados_limpos["rg_ie"] = f"{cpf_dig[:3]}.{cpf_dig[3:6]}.{cpf_dig[6:9]}-{cpf_dig[9:]}"
     if dados_limpos.get("rg_orgao"):
         dados_limpos["rg_orgao"] = str(dados_limpos["rg_orgao"]).strip().upper()
     if dados_limpos.get("rg_uf"):
@@ -258,7 +263,8 @@ def normalizar_dados_cliente(dados: Dict[str, Any]) -> Dict[str, Any]:
 def _inferir_tipo_documento(dados: Dict[str, Any]) -> str:
     """Infere o tipo de documento mais adequado a partir dos campos extraídos."""
     if dados.get("tipo_documento"):
-        return str(dados["tipo_documento"]).strip().upper()
+        tipo = str(dados["tipo_documento"]).strip().upper()
+        return "RG" if tipo == "CIN" else tipo
     if dados.get("cnh_numero"):
         return "CNH"
     if dados.get("certidao_casamento_matricula") or dados.get("cartorio_casamento") or dados.get("data_casamento"):

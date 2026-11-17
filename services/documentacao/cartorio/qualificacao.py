@@ -14,9 +14,12 @@ import json
 from services.documentacao.erros import ErroDocumento
 from services.documentacao.cartorio.utils import (
     Html,
+    apenas_digitos,
     esc,
     eh_cnpj,
+    formatar_cep,
     formatar_cpf,
+    formatar_documento_identidade,
     formatar_rg,
     formatar_regime_bens_extenso,
     norm_texto,
@@ -121,6 +124,8 @@ def normalizar_pessoa(d: dict) -> dict:
         "nome": d.get("nome") or d.get("nome_completo"),
         "cpf_cnpj": d.get("cpf_cnpj"),
         "rg": d.get("rg") or d.get("rg_ie"),
+        "rg_orgao": d.get("rg_orgao"),
+        "rg_uf": d.get("rg_uf"),
         "genero": d.get("genero"),
         "nacionalidade": d.get("nacionalidade"),
         "profissao": d.get("profissao"),
@@ -130,6 +135,8 @@ def normalizar_pessoa(d: dict) -> dict:
         "nome_conjuge": d.get("nome_conjuge"),
         "cpf_conjuge": d.get("cpf_conjuge"),
         "rg_conjuge": d.get("rg_conjuge"),
+        "rg_orgao_conjuge": d.get("rg_orgao_conjuge"),
+        "rg_uf_conjuge": d.get("rg_uf_conjuge"),
         "genero_conjuge": d.get("genero_conjuge"),
         "nacionalidade_conjuge": d.get("nacionalidade_conjuge"),
         "profissao_conjuge": d.get("profissao_conjuge"),
@@ -145,11 +152,15 @@ def rotulo_doc(nome_escapado: str) -> str:
     return _strong(nome_escapado)
 
 
-def _clausula_docs(ref: str, g: str | None, rg: str, cpf: str) -> str:
+def _rotulo_identidade(eh_cin: bool) -> str:
+    return "Carteira de Identidade Nacional (CIN)" if eh_cin else "cédula de identidade RG"
+
+
+def _clausula_docs(ref: str, g: str | None, rg: str, cpf: str, eh_cin: bool = False) -> str:
     portador = flex(g, "portador", "portadora", "portador(a)")
     inscrito = flex(g, "inscrito", "inscrita", "inscrito(a)")
     if rg:
-        return f"{ref} {portador} da cédula de identidade RG nº {rg} e {inscrito} no CPF sob o nº {cpf}"
+        return f"{ref} {portador} da {_rotulo_identidade(eh_cin)} nº {rg} e {inscrito} no CPF sob o nº {cpf}"
     return f"{ref} {inscrito} no CPF sob o nº {cpf}"
 
 
@@ -188,8 +199,8 @@ def qualificar_pessoa(
     destaque = (lambda x: _strong(x)) if destaque_docs else (lambda x: x)
 
     cpf = destaque(valor_ou_lacuna(formatar_cpf(p["cpf_cnpj"]), 18))
-    rg_raw = valor_preenchido(p["rg"])
-    rg = destaque(esc(formatar_rg(rg_raw))) if rg_raw else ""
+    rg_fmt, rg_eh_cin = formatar_documento_identidade(p["rg"], p["cpf_cnpj"], p.get("rg_orgao"), p.get("rg_uf"))
+    rg = destaque(esc(rg_fmt)) if rg_fmt else ""
     dom = destaque(valor_ou_lacuna(valor_preenchido(p["endereco_completo"]) or valor_preenchido(domicilio_padrao), 50))
 
     # Pessoa jurídica (CNPJ): sem RG, estado civil ou cônjuge.
@@ -226,7 +237,7 @@ def qualificar_pessoa(
         residente = flex(g, "residente e domiciliado", "residente e domiciliada", "residente e domiciliado(a)")
         inscrito = flex(g, "inscrito", "inscrita", "inscrito(a)")
         portador = flex(g, "portador", "portadora", "portador(a)")
-        trecho_rg = f" e {portador} da cédula de identidade RG nº {rg}" if rg else ""
+        trecho_rg = f" e {portador} da {_rotulo_identidade(rg_eh_cin)} nº {rg}" if rg else ""
         texto = (
             f"{nome_s}, {nac}, {prof}, {est}, {residente} em {dom}, "
             f"{inscrito} no CPF/MF sob o nº {cpf}{trecho_rg}"
@@ -253,8 +264,10 @@ def qualificar_pessoa(
     nome_c_s = _strong(nome_c)
     nac_c = esc(flexionar_nacionalidade(p["nacionalidade_conjuge"], gc))
     prof_c = valor_ou_lacuna(p["profissao_conjuge"], 25)
-    rg_c_raw = valor_preenchido(p["rg_conjuge"])
-    rg_c = destaque(esc(formatar_rg(rg_c_raw))) if rg_c_raw else ""
+    rg_c_fmt, rg_c_eh_cin = formatar_documento_identidade(
+        p["rg_conjuge"], p["cpf_conjuge"], p.get("rg_orgao_conjuge"), p.get("rg_uf_conjuge")
+    )
+    rg_c = destaque(esc(rg_c_fmt)) if rg_c_fmt else ""
     cpf_c = destaque(valor_ou_lacuna(formatar_cpf(p["cpf_conjuge"]), 18))
 
     if uniao:
@@ -277,7 +290,7 @@ def qualificar_pessoa(
 
     texto = (
         f"{nome_s}, {nac}, {prof}, e {rel}, {nome_c_s}, {nac_c}, {prof_c}, {vinculo}, "
-        f"{_clausula_docs(ref_t, g, rg, cpf)}, {_clausula_docs(ref_c, gc, rg_c, cpf_c)}, "
+        f"{_clausula_docs(ref_t, g, rg, cpf, rg_eh_cin)}, {_clausula_docs(ref_c, gc, rg_c, cpf_c, rg_c_eh_cin)}, "
         f"{ambos} em {dom}"
     )
     info = {"pj": False, "casal": True, "uniao": uniao, "genero": g, "genero_conjuge": gc, "nome_conjuge": nome_c_raw}
@@ -349,12 +362,13 @@ def qualificacao_resumida(d: dict) -> Html:
     if eh_cnpj(p["cpf_cnpj"]):
         return Html(f"{nome_s}, pessoa jurídica inscrita no CNPJ nº {cpf}")
     g = genero_normalizado(p["genero"])
-    rg_raw = valor_preenchido(p["rg"])
-    if rg_raw:
-        rg = esc(formatar_rg(rg_raw))
+    rg_fmt, eh_cin = formatar_documento_identidade(p["rg"], p["cpf_cnpj"], p.get("rg_orgao"), p.get("rg_uf"))
+    if rg_fmt:
+        rg = esc(rg_fmt)
+        rotulo = "da Carteira de Identidade Nacional (CIN)" if eh_cin else "do RG"
         return Html(
             f"{nome_s}, {flex(g, 'inscrito', 'inscrita', 'inscrito(a)')} no CPF nº {cpf} "
-            f"e {flex(g, 'portador', 'portadora', 'portador(a)')} do RG nº {rg}"
+            f"e {flex(g, 'portador', 'portadora', 'portador(a)')} {rotulo} nº {rg}"
         )
     return Html(
         f"{nome_s}, {flex(g, 'inscrito', 'inscrita', 'inscrito(a)')} no CPF nº {cpf}"
@@ -362,12 +376,31 @@ def qualificacao_resumida(d: dict) -> Html:
 
 
 def domicilio_do_proprietario(owner: dict) -> str:
-    """Endereço do cadastro + 'cidade-UF' do cliente, sem inventar nada quando faltar."""
+    """Monta endereço completo (logradouro, número, bairro, cidade-UF e CEP) sem duplicar nem inventar."""
     partes = []
     end = valor_preenchido(owner.get("endereco_completo"))
+    end_norm = norm_texto(end)
     if end:
         partes.append(end)
-    cidade, estado = valor_preenchido(owner.get("cidade")), valor_preenchido(owner.get("estado"))
+        numero = valor_preenchido(owner.get("numero_endereco"))
+        sem_num = bool(owner.get("endereco_sem_numero"))
+        if numero and not sem_num and norm_texto(numero) not in end_norm:
+            partes.append(f"nº {numero}")
+        elif sem_num and "s/n" not in end_norm and "sem numero" not in end_norm:
+            partes.append("s/n")
+        bairro = valor_preenchido(owner.get("bairro"))
+        if bairro and norm_texto(bairro) not in end_norm:
+            partes.append(bairro)
+
+    cidade, estado = valor_preenchido(owner.get("cidade")), valor_preenchido(owner.get("estado")).upper()
     if cidade and estado:
-        partes.append(f"{cidade}-{estado}")
+        if not end or norm_texto(cidade) not in end_norm:
+            partes.append(f"{cidade}-{estado}")
+    elif cidade and (not end or norm_texto(cidade) not in end_norm):
+        partes.append(cidade)
+
+    cep_fmt = formatar_cep(owner.get("cep"))
+    if cep_fmt and apenas_digitos(cep_fmt) not in apenas_digitos(end):
+        partes.append(f"CEP {cep_fmt}")
+
     return ", ".join(partes)

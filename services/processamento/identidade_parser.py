@@ -48,6 +48,7 @@ def parse_identidade_pdf(file_bytes: bytes, filename: str = "") -> Dict[str, Any
 
     dados: Dict[str, Any] = {
         "tipo_identificado": "DOCUMENTO",
+        "is_cin": False,
         "nome_completo": None,
         "cpf": None,
         "rg_numero": None,
@@ -64,9 +65,12 @@ def parse_identidade_pdf(file_bytes: bytes, filename: str = "") -> Dict[str, Any
         "texto_bruto": texto[:2000] # Limite para auditoria
     }
 
-    # 1. Detecção de CNH (Carteira Nacional de Habilitação)
-    is_cnh = bool(
-        re.search(r"HABILITA[CÇ][AÃ]O|CARTEIRA\s+NACIONAL|DETRAN|DENATRAN|RENACH|CAT\.?\s*HAB", texto, re.IGNORECASE)
+    # 1. Detecção de CIN (Carteira de Identidade Nacional) e CNH (Carteira Nacional de Habilitação)
+    is_cin = bool(
+        re.search(r"CARTEIRA\s+DE\s+IDENTIDADE\s+NACIONAL|\bCIN\b", texto, re.IGNORECASE)
+    )
+    is_cnh = not is_cin and bool(
+        re.search(r"HABILITA[CÇ][AÃ]O|CARTEIRA\s+NACIONAL\s+DE\s+HABILITA|DETRAN|DENATRAN|RENACH|CAT\.?\s*HAB", texto, re.IGNORECASE)
     )
 
     # 2. Extração de CPF
@@ -105,32 +109,49 @@ def parse_identidade_pdf(file_bytes: bytes, filename: str = "") -> Dict[str, Any
         if orgao_detran:
             dados["cnh_orgao_uf"] = orgao_detran.group(1).upper()
 
-    # 4. Extração de RG (Registro Geral)
-    rg_match = re.search(r"(?:REGISTRO\s+GERAL|DOC(?:UMENTO)?\.?\s+IDENTIDADE|IDENTIDADE|R\.?G\.?)\s*[:\.\-]?\s*([0-9A-Za-z\.\-]{5,16})", texto, re.IGNORECASE)
+    # 4. Extração de RG / CIN (na CIN o número de registro nacional é o próprio CPF)
+    if is_cin:
+        dados["is_cin"] = True
+        dados["tipo_identificado"] = "RG"
+        if dados["cpf"] and len(dados["cpf"]) == 11:
+            c = dados["cpf"]
+            dados["rg_numero"] = f"{c[:3]}.{c[3:6]}.{c[6:9]}-{c[9:]}"
+
+    rg_match = re.search(r"(?:REGISTRO\s+GERAL|DOC(?:UMENTO)?\.?\s+IDENTIDADE|\bIDENTIDADE\b|\bR\.?G\.?)\s*[:\.\-]?\s*([0-9][0-9A-Za-z\.\-]{4,15})", texto, re.IGNORECASE)
     if rg_match:
         val_rg = rg_match.group(1).strip().replace(" ", "")
-        # Se não for idêntico ao CPF
-        if val_rg.replace(".", "").replace("-", "") != dados["cpf"]:
+        rg_digitos = re.sub(r"\D", "", val_rg)
+        if is_cin or rg_digitos != dados["cpf"]:
             dados["rg_numero"] = val_rg
             if not is_cnh:
                 dados["tipo_identificado"] = "RG"
 
-    # Órgão expedidor e UF do RG (ex: SSP/PR, SESP/SC, PC/SP, DETRAN/RJ)
-    orgao_match = re.search(r"(?:[OÓ]RG[AÃ]O\s*(?:EXPEDIDOR|EMISSOR)?|SSP|SESP|PC|IIEP|DIC)\s*[:\.\-/]?\s*([A-Z]{2,6}(?:/[A-Z]{2})?)", texto, re.IGNORECASE)
-    if orgao_match:
-        orgao_txt = orgao_match.group(1).upper()
-        if "/" in orgao_txt:
-            parts = orgao_txt.split("/")
-            dados["rg_orgao"] = parts[0]
-            dados["rg_uf"] = parts[1]
+    # Órgão expedidor e UF do RG/CIN (ex: SSP/PR, SESP/PR, IIPR/PR, IGP/SC, PC/SP, DETRAN/RJ)
+    orgao_direto = re.search(r"\b(SESP|SSP|IIPR|IGP|ITEP|IFP|POLITEC|SEJUSP|SDS|PC|IIEP|DIC)\s*[-/]\s*([A-Z]{2})\b", texto, re.IGNORECASE)
+    if orgao_direto:
+        dados["rg_orgao"] = orgao_direto.group(1).upper()
+        dados["rg_uf"] = orgao_direto.group(2).upper()
+    else:
+        orgao_match = re.search(r"(?:[OÓ]RG[AÃ]O\s*(?:EXPEDIDOR|EMISSOR)?)\s*[:\.\-/]?\s*([A-Z]{2,8}(?:\s*[-/]\s*[A-Z]{2})?)", texto, re.IGNORECASE)
+        if orgao_match:
+            orgao_txt = re.sub(r"\s+", "", orgao_match.group(1).upper())
+            if "/" in orgao_txt or "-" in orgao_txt:
+                parts = re.split(r"[-/]", orgao_txt, maxsplit=1)
+                dados["rg_orgao"] = parts[0]
+                dados["rg_uf"] = parts[1]
+            else:
+                dados["rg_orgao"] = orgao_txt
         else:
-            dados["rg_orgao"] = orgao_txt
-    elif not dados["rg_orgao"]:
-        # Fallback padrão regional se houver sigla de estado
+            sigla_orgao = re.search(r"\b(IIPR|SESP|SSP|IGP|ITEP|IFP|POLITEC|SEJUSP|SDS|IIEP|DIC)\b", texto, re.IGNORECASE)
+            if sigla_orgao:
+                dados["rg_orgao"] = sigla_orgao.group(1).upper()
+
+    if not dados["rg_uf"]:
         uf_match = re.search(r"\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b", texto)
         if uf_match:
-            dados["rg_orgao"] = "SSP"
             dados["rg_uf"] = uf_match.group(1)
+            if not dados["rg_orgao"] and not is_cin:
+                dados["rg_orgao"] = "SSP"
 
     # 5. Extração de Data de Nascimento
     nasc_match = re.search(r"(?:DATA\s+(?:DE\s+)?NASCIMENTO|NASCIMENTO|NASC\.?|D\.N\.)\s*[:\.\-]?\s*(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)

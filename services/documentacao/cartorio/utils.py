@@ -305,6 +305,62 @@ def formatar_rg(valor) -> str:
     return str(valor).strip()
 
 
+def formatar_cep(valor) -> str:
+    """Aplica máscara #####-### quando o CEP tem 8 dígitos."""
+    texto = valor_preenchido(valor)
+    if not texto:
+        return ""
+    nums = apenas_digitos(texto)
+    if len(nums) == 8:
+        return f"{nums[:5]}-{nums[5:]}"
+    return texto
+
+
+def formatar_documento_identidade(rg, cpf=None, orgao=None, uf=None) -> tuple[str, bool]:
+    """Formata RG tradicional ou CIN (Carteira de Identidade Nacional) com órgão/UF sem duplicar.
+
+    Reconhece CIN quando o número de 11 dígitos coincide com o CPF ou quando há indicação explícita
+    de 'CIN' no documento/órgão. Retorna (documento_formatado, eh_cin).
+    """
+    rg_txt = valor_preenchido(rg)
+    if not rg_txt:
+        return "", False
+
+    rg_dig = apenas_digitos(rg_txt)
+    cpf_dig = apenas_digitos(cpf)
+    orgao_s = valor_preenchido(orgao).upper()
+    uf_s = valor_preenchido(uf).upper()
+
+    eh_cin = bool(
+        re.search(r"\bCIN\b", rg_txt, re.IGNORECASE)
+        or re.search(r"\bCIN\b", orgao_s, re.IGNORECASE)
+        or (len(rg_dig) == 11 and len(cpf_dig) == 11 and rg_dig == cpf_dig)
+    )
+
+    if eh_cin and len(rg_dig) == 11 and not re.search(r"[A-Za-z]", rg_txt):
+        rg_base = formatar_cpf(rg_dig)
+    else:
+        rg_base = formatar_rg(rg_txt)
+
+    rg_upper = rg_base.upper()
+    tem_orgao = bool(orgao_s) and bool(re.search(rf"(?<![A-Z0-9]){re.escape(orgao_s)}(?![A-Z0-9])", rg_upper))
+    tem_uf = bool(uf_s) and bool(re.search(rf"(?:[-/\s]|^){re.escape(uf_s)}$", rg_upper) or re.search(rf"[-/]{re.escape(uf_s)}(?![A-Z0-9])", rg_upper))
+
+    add_orgao = orgao_s if (orgao_s and not tem_orgao) else ""
+    add_uf = uf_s if (uf_s and not tem_uf) else ""
+
+    if add_orgao and add_uf:
+        rg_fmt = f"{rg_base} - {add_orgao}/{add_uf}"
+    elif add_orgao:
+        rg_fmt = f"{rg_base} - {add_orgao}"
+    elif add_uf:
+        rg_fmt = f"{rg_base}/{add_uf}"
+    else:
+        rg_fmt = rg_base
+
+    return rg_fmt, eh_cin
+
+
 def formatar_regime_bens_extenso(regime) -> str:
     """Normaliza as variantes do cadastro (códigos 'comunhao_parcial', rótulos 'Comunhão Parcial de Bens',
     'separacao_total'...) para um único rótulo por extenso. Vazio fica vazio: nunca presume um regime."""

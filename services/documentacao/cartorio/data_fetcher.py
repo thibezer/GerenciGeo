@@ -6,9 +6,12 @@ from services.documentacao.cartorio.utils import Html, calcular_azimute_e_distan
 # Proprietários vinculados a uma propriedade. O gênero vem SEMPRE de pessoas.genero (NULL = não informado);
 # `sexo` é mantido como alias para código legado, mas deixou de ler clientes.sexo (que tinha default 'M').
 SQL_PROPRIETARIOS = """
-    SELECT c.id as cliente_id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie, p.estado_civil, p.regime_bens,
-           p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
-           p.profissao, p.nacionalidade, p.endereco_completo, p.genero, p.genero AS sexo,
+    SELECT c.id as cliente_id, p.id as pessoa_id, p.nome as nome_completo, p.cpf_cnpj, p.rg as rg_ie,
+           p.rg_orgao, p.rg_uf, p.estado_civil, p.regime_bens,
+           p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge, p.rg_orgao_conjuge, p.rg_uf_conjuge,
+           p.genero_conjuge, p.nacionalidade_conjuge, p.profissao_conjuge,
+           p.profissao, p.nacionalidade, p.endereco_completo, p.numero_endereco, p.endereco_sem_numero, p.bairro,
+           p.genero, p.genero AS sexo,
            c.cidade, c.estado, c.cep, c.email, c.telefone,
            pc.percentual_participacao
     FROM propriedade_clientes pc
