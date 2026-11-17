@@ -341,9 +341,10 @@ def assinatura_div(
     nome_cls: str = "text-[11px] font-bold text-slate-900 text-center uppercase tracking-wide leading-tight",
     legenda_cls: str = "text-[9px] text-slate-500 text-center font-medium mt-0.5",
     linha_extra: str = "",
+    lacuna_nome: bool = True,
 ) -> str:
     """Bloco de assinatura (linha + nome + legenda), tudo escapado. Nome vazio vira linha de preenchimento."""
-    nome_s = valor_ou_lacuna(nome, 32)
+    nome_s = valor_ou_lacuna(nome, 32) if (lacuna_nome or valor_preenchido(nome)) else "&nbsp;"
     extra = f'\n            <div class="text-[9.5px] text-slate-600 text-center font-medium mt-0.5 font-mono">{linha_extra}</div>' if linha_extra else ""
     return f"""
         <div class="flex flex-col items-center {container}">
@@ -366,8 +367,10 @@ def grade_assinaturas(grupos: list[list[dict]], *, margem_topo: str = "mt-4", **
     estilo.setdefault("linha", "mt-10 mb-1.5")
 
     def _cel(a: dict) -> str:
+        # Sem nome: a própria linha de assinatura já basta; um espaço reservado mantém a legenda
+        # alinhada à da coluna vizinha (evita a segunda linha de "____" embaixo da primeira).
         return assinatura_div(a.get("nome"), a.get("legenda", ""), container="w-full min-w-0",
-                              linha_extra=a.get("linha_extra", ""), **estilo)
+                              linha_extra=a.get("linha_extra", ""), lacuna_nome=False, **estilo)
 
     linhas: list[list[dict]] = []
     sozinhos: list[dict] = []
