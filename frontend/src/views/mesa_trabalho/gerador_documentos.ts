@@ -1960,6 +1960,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           if (!val) return;
           const limpo = val.replace(/\D/g, '');
           if (limpo.length !== 11 && limpo.length !== 14) return;
+          const cpAtual = coproprietariosAtuais[idx];
+          if (!cpAtual || cpAtual._ultimoCpfBuscado === limpo) return;
+          cpAtual._ultimoCpfBuscado = limpo;
+
           if (statusEl) {
             statusEl.innerText = 'Buscando...';
             statusEl.classList.remove('hidden');
@@ -1988,6 +1992,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               }
             }
           } catch (e) {
+            if (coproprietariosAtuais[idx]) coproprietariosAtuais[idx]._ultimoCpfBuscado = '';
             console.error(e);
           } finally {
             if (statusEl) statusEl.classList.add('hidden');
@@ -2035,8 +2040,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
+    let ultimoCpfBuscado = '';
+
     const abrirFormularioNovoConfrontante = () => {
       if (!containerForm) return;
+      ultimoCpfBuscado = '';
       containerForm.classList.remove('hidden');
       if (inputConfId) inputConfId.value = '';
       containerForm.dataset.confrontanteId = '';
@@ -2123,6 +2131,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             
             (document.getElementById('input-conf-nome') as any).value = selectedConf.nome || '';
             if (inputCpf) inputCpf.value = selectedConf.cpf_cnpj ? formatarCpfCnpjDinamico(selectedConf.cpf_cnpj) : '';
+            ultimoCpfBuscado = (selectedConf.cpf_cnpj || '').replace(/\D/g, '');
             (document.getElementById('conf-genero') as any).value = selectedConf.genero || 'M';
             (document.getElementById('input-conf-rg') as any).value = selectedConf.rg || '';
             (document.getElementById('input-conf-nacionalidade') as any).value = selectedConf.nacionalidade || 'brasileiro(a)';
@@ -2144,7 +2153,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             const chkTit = document.getElementById('chk-titular-assina') as HTMLInputElement | null;
             if (chkTit) chkTit.checked = selectedConf.titular_assina !== 0;
             coproprietariosAtuais = (selectedConf.coproprietarios && Array.isArray(selectedConf.coproprietarios)) 
-              ? JSON.parse(JSON.stringify(selectedConf.coproprietarios)) 
+              ? JSON.parse(JSON.stringify(selectedConf.coproprietarios)).map((cp: any) => ({
+                  ...cp,
+                  _ultimoCpfBuscado: (cp.cpf_cnpj || '').replace(/\D/g, '')
+                }))
               : [];
             renderizarCardsCoproprietarios();
             renderizarStatusAnexoMatricula(selectedConf);
@@ -2273,6 +2285,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (!cpfVal) return;
       const cpfLimpo = cpfVal.replace(/\D/g, '');
       if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) return;
+      if (cpfLimpo === ultimoCpfBuscado) return;
+      ultimoCpfBuscado = cpfLimpo;
       
       if (statusBuscaCpf) {
         statusBuscaCpf.innerText = 'Buscando cadastro...';
@@ -2314,6 +2328,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           }
         }
       } catch (err) {
+        ultimoCpfBuscado = '';
         console.error("Erro ao buscar confrontante por CPF:", err);
       } finally {
         if (statusBuscaCpf) statusBuscaCpf.classList.add('hidden');
@@ -2340,7 +2355,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       });
     }
 
+    let salvandoQualificacao = false;
     const executarSalvarQualificacao = async () => {
+      if (salvandoQualificacao) return;
+
       let confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId || (selectAnuencia ? selectAnuencia.value : '');
       if (confIdVal === 'lote' || confIdVal === 'novo') confIdVal = '';
       
@@ -2356,6 +2374,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         inputNome?.focus?.();
         return;
       }
+
+      salvandoQualificacao = true;
 
       const payload = {
         nome: nome,
@@ -2445,6 +2465,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         console.error("Erro ao salvar qualificações:", err);
         showToast("Erro de rede ao salvar qualificações do confrontante.", "error");
       } finally {
+        salvandoQualificacao = false;
         if (btnSalvarConf) {
           btnSalvarConf.removeAttribute('carregando');
           btnSalvarConf.removeAttribute('disabled');
@@ -2454,15 +2475,16 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     };
 
     if (btnSalvarConf) {
-      btnSalvarConf.onclick = executarSalvarQualificacao;
-      btnSalvarConf.addEventListener('ui-click', executarSalvarQualificacao);
+      btnSalvarConf.onclick = () => {
+        executarSalvarQualificacao();
+      };
     }
 
     if (formConfrontante) {
-      formConfrontante.addEventListener('submit', (e) => {
+      formConfrontante.onsubmit = (e) => {
         e.preventDefault();
         executarSalvarQualificacao();
-      });
+      };
     }
 
     if (fileInputMatricula) {
@@ -2817,8 +2839,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     };
   };
 
-  // 8. Reatribui a inicialização de eventos e executa imediatamente
+  // 8. Reatribui a inicialização de eventos com guarda contra dupla vinculação
+  let eventosCartorioInicializados = false;
   ctx.inicializarEventosCartorio = () => {
+    if (eventosCartorioInicializados) return;
+    eventosCartorioInicializados = true;
     inicializarEventosCartorio();
     inicializarHomologacaoIncra();
     inicializarAuditoriaBancoPontos();
