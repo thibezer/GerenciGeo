@@ -527,20 +527,26 @@ def gerar_declaracao_anuencia_html(
 
     # Qualificação do confrontante principal e dos coproprietários
     representantes = normalizar_representantes(conf.get("representante_json"))
-    def _sem_conjuge_sep_total(p_dict: dict) -> bool:
+    def _conjuge_dispensado(p_dict: dict) -> bool:
         return p_dict.get("conjuge_assina") == 0 and formatar_regime_bens_extenso(p_dict.get("regime_bens")) == "Separação Total de Bens"
+
+    def _sem_conjuge_qualif(p_dict: dict) -> bool:
+        # Mantém os dados do cônjuge na qualificação se preenchidos; omite apenas se em branco.
+        return _conjuge_dispensado(p_dict) and not valor_preenchido(p_dict.get("nome_conjuge"))
 
     qualif_conf, info_conf = qualificar_pessoa(
         conf, rotulo_erro="O confrontante", regime_obrigatorio=True,
-        representante=representantes, sem_conjuge=_sem_conjuge_sep_total(conf),
+        representante=representantes, sem_conjuge=_sem_conjuge_qualif(conf),
     )
+    info_conf["conjuge_assina"] = not _conjuge_dispensado(conf)
     qualificacoes = [qualif_conf] if titular_assina else []
     infos = [info_conf] if titular_assina else []
     for cp in coproprietarios:
         q_cp, info_cp = qualificar_pessoa(
             cp, rotulo_erro="O coproprietário", regime_obrigatorio=True,
-            domicilio_padrao=conf.get("endereco_completo"), sem_conjuge=_sem_conjuge_sep_total(cp),
+            domicilio_padrao=conf.get("endereco_completo"), sem_conjuge=_sem_conjuge_qualif(cp),
         )
+        info_cp["conjuge_assina"] = not _conjuge_dispensado(cp)
         qualificacoes.append(q_cp)
         infos.append(info_cp)
 
@@ -550,13 +556,13 @@ def gerar_declaracao_anuencia_html(
     else:
         qualificacao_confrontante = qualificacoes[0]
 
-    # Número e gênero dos declarantes (cônjuges também assinam)
+    # Número e gênero dos declarantes (cônjuges assinam salvo dispensa na separação total)
     generos = []
     for info in infos:
         generos.append(info["genero"])
-        if info["casal"]:
+        if info["casal"] and info.get("conjuge_assina", True):
             generos.append(info["genero_conjuge"])
-    plural = len(infos) > 1 or any(i["casal"] for i in infos)
+    plural = len(infos) > 1 or any(i["casal"] and i.get("conjuge_assina", True) for i in infos)
     genero_grupo = genero_plural(generos) if plural else infos[0]["genero"]
     termos = _termos_declarantes(plural, genero_grupo)
     if coproprietarios_todos:
@@ -591,14 +597,14 @@ def gerar_declaracao_anuencia_html(
             else:
                 rotulo_conf_principal = "Confrontante Anuente"
             grupo_conf = [{"nome": c_nome_raw, "legenda": rotulo_conf_principal}]
-        if info_conf["casal"]:
+        if info_conf["casal"] and info_conf.get("conjuge_assina", True):
             grupo_conf.append({"nome": info_conf["nome_conjuge"], "legenda": "Cônjuge do Confrontante Anuente"})
         grupos_ass.append(grupo_conf)
 
     # 3. Coproprietários / Condôminos extras que assinam
     for cp, info_cp in zip(coproprietarios, infos[1:] if titular_assina else infos):
         grupo = [{"nome": cp.get("nome"), "legenda": "Coproprietário(a) Anuente"}]
-        if info_cp["casal"]:
+        if info_cp["casal"] and info_cp.get("conjuge_assina", True):
             grupo.append({"nome": info_cp["nome_conjuge"], "legenda": "Cônjuge do(a) Coproprietário(a) Anuente"})
         grupos_ass.append(grupo)
 

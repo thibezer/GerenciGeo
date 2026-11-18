@@ -205,10 +205,10 @@ class TestConfrontantesQualificacao(unittest.TestCase):
         alvo = next(c for c in confs if c["id"] == cid)
         self.assertEqual(alvo["conjuge_assina"], 0)
 
-        # Anuência sem assinatura do cônjuge
+        # Anuência sem assinatura do cônjuge: mantém os dados na qualificação, remove só a assinatura
         html_sem = gerar_declaracao_anuencia_html(self.lev_id, mat_id, cid, validar_dispensa=False)
         self.assertIn("Separação Total de Bens", html_sem)
-        self.assertNotIn("Ana Separação", html_sem)
+        self.assertIn("Ana Separação", html_sem)
         self.assertNotIn("Cônjuge do Confrontante Anuente", html_sem)
 
         # Atualiza para incluir assinatura do cônjuge
