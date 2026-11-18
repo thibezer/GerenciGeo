@@ -354,8 +354,8 @@ export const renderMesaTrabalho = (): string => {
 
                <!-- Emissão de documentos (sempre no topo, quebra em linhas conforme a largura) -->
                <div class="space-y-3" id="container-pecas-cartorio">
-                 <!-- Central de documentos: peças agrupadas por finalidade (esq.) + anuência de confrontante (dir.) -->
-                 <div class="grade-docs-conf grid grid-cols-1 2xl:grid-cols-[1fr_380px] gap-4 items-start">
+                 <!-- Central de documentos: peças agrupadas por finalidade + anuência de confrontante empilhados -->
+                 <div class="grade-docs-conf grid grid-cols-1 gap-4">
                    <details class="doc-card doc-collapsible" data-persist="cartorio-docs" open>
                      <summary class="doc-card-title doc-summary"><i data-lucide="files"></i> Peças técnicas <span class="doc-summary-count">7 documentos</span><i data-lucide="chevron-down" class="doc-chevron"></i></summary>
                      <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4">
