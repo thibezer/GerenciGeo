@@ -234,6 +234,10 @@ def qualificar_pessoa(
         est = esc(rotulo_estado_civil(p["estado_civil"], g)) or LACUNA_ESTADO_CIVIL
         if not est:
             est = LACUNA_ESTADO_CIVIL
+        if sem_conjuge and cat in ("casado", "uniao_estavel"):
+            regime = formatar_regime_bens_extenso(p["regime_bens"])
+            if regime:
+                est = f"{est} sob o regime de {esc(regime)}"
         residente = flex(g, "residente e domiciliado", "residente e domiciliada", "residente e domiciliado(a)")
         inscrito = flex(g, "inscrito", "inscrita", "inscrito(a)")
         portador = flex(g, "portador", "portadora", "portador(a)")

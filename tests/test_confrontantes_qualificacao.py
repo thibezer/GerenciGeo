@@ -166,5 +166,59 @@ class TestConfrontantesQualificacao(unittest.TestCase):
         self.assertEqual(res_put.status_code, 200)
         self.assertIsNotNone(res_put.json().get("pessoa_id"))
 
+    def test_separacao_total_conjuge_assina_toggle_e_anuencia(self):
+        from services.documentacao.cartorio.anuencias import gerar_declaracao_anuencia_html
+
+        # Cria matrícula + pontos + segmento ligando ao confrontante para gerar anuência
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO matriculas (propriedade_id, numero_matricula) VALUES (?, '9999')", (self.prop_id,))
+            mat_id = cursor.lastrowid
+            cursor.execute("INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, ordem_caminhamento) VALUES (?, ?, 'P1', 'M', -23.76, -53.32, 1)", (self.lev_id, mat_id))
+            p1_id = cursor.lastrowid
+            cursor.execute("INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, ordem_caminhamento) VALUES (?, ?, 'P2', 'M', -23.761, -53.321, 2)", (self.lev_id, mat_id))
+            p2_id = cursor.lastrowid
+            conn.commit()
+
+        payload_sep = {
+            "nome": "Carlos Separação",
+            "cpf_cnpj": "66112233445",
+            "genero": "M",
+            "estado_civil": "casado",
+            "regime_bens": "separacao_total",
+            "nome_conjuge": "Ana Separação",
+            "cpf_conjuge": "66223344556",
+            "lote": "Lote Vizinho",
+            "conjuge_assina": False,
+        }
+        res_post = self.client.post(f"/levantamentos/{self.lev_id}/confrontantes", json=payload_sep)
+        self.assertEqual(res_post.status_code, 200)
+        cid = res_post.json()["id"]
+
+        with DatabaseManager() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO segmentos (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id) VALUES (?, ?, ?, ?, ?)", (self.lev_id, mat_id, p1_id, p2_id, cid))
+            conn.commit()
+
+        # Verifica GET retornando conjuge_assina = 0
+        confs = self.client.get(f"/levantamentos/{self.lev_id}/confrontantes").json()
+        alvo = next(c for c in confs if c["id"] == cid)
+        self.assertEqual(alvo["conjuge_assina"], 0)
+
+        # Anuência sem assinatura do cônjuge
+        html_sem = gerar_declaracao_anuencia_html(self.lev_id, mat_id, cid, validar_dispensa=False)
+        self.assertIn("Separação Total de Bens", html_sem)
+        self.assertNotIn("Ana Separação", html_sem)
+        self.assertNotIn("Cônjuge do Confrontante Anuente", html_sem)
+
+        # Atualiza para incluir assinatura do cônjuge
+        payload_sep["conjuge_assina"] = True
+        res_put = self.client.put(f"/confrontantes/{cid}", json=payload_sep)
+        self.assertEqual(res_put.status_code, 200)
+
+        html_com = gerar_declaracao_anuencia_html(self.lev_id, mat_id, cid, validar_dispensa=False)
+        self.assertIn("Ana Separação", html_com)
+        self.assertIn("Cônjuge do Confrontante Anuente", html_com)
+
 if __name__ == '__main__':
     unittest.main()

@@ -563,6 +563,10 @@ export const renderMesaTrabalho = (): string => {
                                <i data-lucide="users" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                                <span class="text-[10px] font-bold uppercase tracking-wider text-mint-vibrant">Qualificação do Cônjuge / Companheiro(a)</span>
                             </div>
+                            <label id="box-conjuge-assina-separacao" class="hidden flex items-center gap-2 px-3 py-2 rounded-technical bg-mint-vibrant/5 border border-mint-vibrant/20 text-[11px] text-white/80 cursor-pointer">
+                               <input type="checkbox" id="chk-conjuge-assina" class="accent-emerald-400 w-4 h-4" checked>
+                               <span><strong>Incluir assinatura do cônjuge</strong> na anuência <span class="text-white/40">(na separação total de bens alguns cartórios ainda exigem)</span></span>
+                            </label>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
                                <div class="col-span-1 sm:grid-cols-2 lg:col-span-2">
                                   <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Cônjuge</label>

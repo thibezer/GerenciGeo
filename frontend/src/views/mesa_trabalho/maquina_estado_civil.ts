@@ -23,6 +23,9 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement): void 
     '#input-conf-conjuge-cpf, #input-conf-conjuge-rg, #conf-conjuge-genero, #input-conf-conjuge-nacionalidade, #input-conf-conjuge-profissao'
   ) as NodeListOf<any>;
 
+  const boxConjugeAssina = cardElement.querySelector('#box-conjuge-assina-separacao') as HTMLElement | null;
+  const chkConjugeAssina = cardElement.querySelector('#chk-conjuge-assina') as HTMLInputElement | null;
+
   const atualizarCampos = () => {
     if (!selectEstadoCivil || !groupConjuge) return;
     const estCivil = (selectEstadoCivil.value || '').toLowerCase().trim();
@@ -36,11 +39,22 @@ export function configurarMaquinadeEstadosCivil(cardElement: HTMLElement): void 
         selectRegime.value = '';
       }
       groupConjuge.classList.add('hidden');
+      boxConjugeAssina?.classList.add('hidden');
+      if (chkConjugeAssina) chkConjugeAssina.checked = true;
     } else {
       if (selectRegime) {
         selectRegime.removeAttribute('disabled');
       }
       groupConjuge.classList.remove('hidden');
+
+      const regime = (selectRegime?.value || '').toLowerCase().trim();
+      const ehSeparacaoTotal = regime === 'separacao_total';
+      if (boxConjugeAssina) {
+        boxConjugeAssina.classList.toggle('hidden', !ehSeparacaoTotal);
+      }
+      if (!ehSeparacaoTotal && chkConjugeAssina) {
+        chkConjugeAssina.checked = true;
+      }
 
       if (inputConjugeNome) {
         inputConjugeNome.removeAttribute('disabled');
