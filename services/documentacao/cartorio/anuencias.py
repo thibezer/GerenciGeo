@@ -633,7 +633,13 @@ def gerar_declaracao_anuencia_html(
     script_inicializacao_mapas = gerar_js_inicializacao_mapas([map_data]) if map_data else ""
 
     html_content = carregar_template("declaracao_anuencia.html")
+    titulo_aba = (
+        f"DRL {c_matricula_raw} - {num_matricula_exibicao} - {c_nome_exib}"
+        if c_matricula_raw
+        else f"DRL {num_matricula_exibicao} - {c_nome_exib}"
+    )
     valores = {
+        "titulo_aba": titulo_aba,
         "c_nome": c_nome_exib,
         "municipio": dados["prop"].get("municipio") or "_____",
         "uf": uf_exibicao(dados["prop"].get("uf")),
@@ -840,7 +846,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
 
     # Ajusta título e barra de ações
     template_base = template_base.replace(
-        "<title>DRL {numero_matricula} - {c_nome}</title>",
+        "<title>{titulo_aba}</title>",
         f"<title>Lote de Anuências - {esc(rotulo_mat)} {esc(num_mat)}</title>"
     )
 

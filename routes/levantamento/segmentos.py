@@ -1,13 +1,14 @@
 import os
 import io
 import csv
+import html
 import json
 import logging
 import zipfile
 import xml.etree.ElementTree as ET
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
@@ -586,17 +587,44 @@ async def upload_confrontante_matricula(cid: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/confrontantes/{cid}/visualizar-matricula")
-def visualizar_confrontante_matricula(cid: int):
+def visualizar_confrontante_matricula(cid: int, raw: bool = False):
     try:
-        row = execute_query("SELECT caminho_matricula_pdf FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
+        row = execute_query(
+            """
+            SELECT c.caminho_matricula_pdf, c.matricula_imovel, COALESCE(pe.nome, c.nome) AS nome
+            FROM confrontantes c
+            LEFT JOIN pessoas pe ON pe.id = c.pessoa_id
+            WHERE c.id = ?
+            """,
+            params=(cid,),
+            fetch_one=True,
+        )
         if not row or not row["caminho_matricula_pdf"]:
             raise HTTPException(status_code=404, detail="Matrícula do confrontante não anexada")
-            
+
         path = row["caminho_matricula_pdf"]
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
-            
-        return FileResponse(path)
+
+        if raw:
+            return FileResponse(path, filename=os.path.basename(path), content_disposition_type="inline")
+
+        mat = (row["matricula_imovel"] or "").strip()
+        nome = (row["nome"] or "").strip()
+        titulo = f"Mat. {mat}" if mat else (f"Mat. {nome}" if nome else "Matrícula do Confrontante")
+        titulo_esc = html.escape(titulo)
+        raw_url = f"/confrontantes/{cid}/visualizar-matricula?raw=1"
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            conteudo = f'<img src="{raw_url}" alt="{titulo_esc}" style="max-width:100%;max-height:100vh;object-fit:contain;display:block;margin:auto;">'
+        else:
+            conteudo = f'<iframe src="{raw_url}" title="{titulo_esc}" style="border:0;width:100%;height:100vh;display:block;"></iframe>'
+
+        return HTMLResponse(
+            f'<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>{titulo_esc}</title></head>'
+            f'<body style="margin:0;background:#1a1a1a;display:flex;align-items:center;justify-content:center;min-height:100vh;">{conteudo}</body></html>'
+        )
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))

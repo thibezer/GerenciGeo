@@ -83,7 +83,7 @@ class TestMatriculasCompartilhadas(unittest.TestCase):
     def test_gerar_anuencia_matricula_compartilhada(self):
         """Gera a carta de anuência para a matrícula que não tem desenho próprio e valida se herda os dados da matrícula base"""
         html = gerar_declaracao_anuencia_html(1, 20, 50)
-        self.assertIn("<title>DRL 679 e 682 - ", html)
+        self.assertIn("<title>DRL 999 - 679 e 682 - ", html)
         self.assertNotIn("<title>Declaração", html)
         self.assertIn("679 e 682", html)
         self.assertIn("Matrículas nºs", html)
