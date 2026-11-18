@@ -49,21 +49,23 @@ export function htmlCard(
        </label>`
     : '';
 
-  const blocoAssinatura = c.dispensada
-    ? `<span class="text-[11px] text-slate-300" title="${c.dispensa_inferida ? 'Dispensada automaticamente pelo nome (via ou curso de água público). Clique em Exigir se este confrontante for particular.' : 'Anuência dispensada (ente público).'}">${c.dispensa_inferida ? 'Ente público (pelo nome)' : 'Ente público'}</span>
-       <button type="button" class="btn-conf-exigir ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Voltar a exigir a anuência de ${nome}" title="Voltar a exigir a anuência deste confrontante">Exigir</button>`
-    : `<label class="inline-flex items-center gap-1.5 min-h-[28px] text-[11px] ${completo ? 'text-emerald-300' : 'text-white/70'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
+  const blocoStatus = c.dispensada
+    ? `<span class="text-[11px] text-slate-300" title="${c.dispensa_inferida ? 'Dispensada automaticamente pelo nome (via ou curso de água público). Clique em Exigir se este confrontante for particular.' : 'Anuência dispensada (ente público).'}">${c.dispensa_inferida ? 'Ente público (pelo nome)' : 'Ente público'}</span>`
+    : `<label class="inline-flex items-center gap-1.5 min-h-[24px] text-[11px] ${completo ? 'text-emerald-300' : 'text-white/70'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
          <input type="checkbox" class="chk-conf-assinada accent-emerald-400 w-4 h-4" data-id="${c.id}" ${parcial ? 'data-parcial="1"' : ''} ${completo ? 'checked' : ''} ${ocupado ? 'disabled' : ''}
                 aria-label="Anuência assinada de ${nome}${parcial ? ` (${c.assinadas} de ${c.qtd_divisas} divisas)` : ''}" />
          <span>${parcial ? `${c.assinadas}/${c.qtd_divisas} divisas` : 'Assinada'}</span>
-       </label>
-       <button type="button" class="btn-conf-dispensar ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Dispensar a anuência de ${nome}" title="Ente público (estrada, rio, ferrovia): dispensa a anuência e tira da contagem">Dispensar</button>`;
+       </label>`;
+
+  const acaoDispensa = c.dispensada
+    ? `<button type="button" class="btn-conf-exigir ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Voltar a exigir a anuência de ${nome}" title="Voltar a exigir a anuência deste confrontante">Exigir</button>`
+    : `<button type="button" class="btn-conf-dispensar ${CLS_LINK}" data-id="${c.id}" ${ocupado ? 'disabled' : ''} aria-label="Dispensar a anuência de ${nome}" title="Ente público (estrada, rio, ferrovia): dispensa a anuência e tira da contagem">Dispensar</button>`;
 
   const btnEditar = (primario: boolean) => primario
-    ? `<button type="button" class="btn-conf-editar ${CLS_BTN_PRIM}" data-id="${c.id}" aria-label="Completar cadastro de ${nome}" title="Completar a qualificação (CPF/CNPJ, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3"></i>Completar cadastro</button>`
-    : `<button type="button" class="btn-conf-editar ${CLS_BTN_SEC}" data-id="${c.id}" aria-label="Editar ${nome}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3 text-mint-vibrant"></i>Editar</button>`;
-  const btnTrecho = `<button type="button" class="btn-conf-ver ${CLS_BTN_SEC}" data-id="${c.id}" aria-label="Pré-visualizar divisa de ${nome}" title="Pré-visualizar divisa"><i data-lucide="eye" class="w-3 h-3"></i>Divisa</button>`;
-  const btnGerar = (primario: boolean) => `<button type="button" class="btn-conf-gerar ${primario ? CLS_BTN_PRIM : CLS_BTN_SEC}" data-id="${c.id}" aria-label="Gerar anuência de ${nome}" title="${est === 'incompleto' ? 'Gerar anuência (cadastro incompleto)' : 'Gerar anuência'}"><i data-lucide="file-down" class="w-3 h-3"></i>${primario ? 'Gerar anuência' : 'Gerar'}</button>`;
+    ? `<button type="button" class="btn-conf-editar ${CLS_BTN_PRIM} !px-2" data-id="${c.id}" aria-label="Completar cadastro de ${nome}" title="Completar cadastro (CPF/CNPJ, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>`
+    : `<button type="button" class="btn-conf-editar ${CLS_BTN_SEC} !px-2" data-id="${c.id}" aria-label="Editar ${nome}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3.5 h-3.5 text-mint-vibrant"></i></button>`;
+  const btnTrecho = `<button type="button" class="btn-conf-ver ${CLS_BTN_SEC} !px-2" data-id="${c.id}" aria-label="Pré-visualizar divisa de ${nome}" title="Pré-visualizar divisa"><i data-lucide="spline" class="w-3.5 h-3.5"></i></button>`;
+  const btnGerar = (primario: boolean) => `<button type="button" class="btn-conf-gerar ${primario ? CLS_BTN_PRIM : CLS_BTN_SEC} !px-2" data-id="${c.id}" aria-label="Gerar anuência de ${nome}" title="${est === 'incompleto' ? 'Gerar anuência (cadastro incompleto)' : 'Gerar anuência'}"><i data-lucide="file-down" class="w-3.5 h-3.5"></i></button>`;
 
   let acoes: string;
   if (est === 'incompleto') acoes = `${btnEditar(true)}${btnTrecho}${btnGerar(false)}`;
@@ -80,28 +82,32 @@ export function htmlCard(
   const emFoco = destacado === c.id;
   return `
     <div role="listitem" class="rounded-lg border transition-colors ${emFoco ? 'border-mint-vibrant/50 bg-mint-vibrant/[0.05]' : 'bg-white/[0.025] border-white/[0.09] hover:border-white/20'}" data-conf-id="${c.id}">
-      <div class="px-2.5 pt-2 pb-2 space-y-1.5">
+      <div class="px-3 pt-2.5 pb-2 space-y-1.5">
         <div class="flex items-start gap-1.5">
           ${checkLote}
-          <button type="button" class="btn-conf-expandir inline-flex items-center justify-center w-7 h-7 shrink-0 rounded text-white/70 hover:text-white hover:bg-white/10"
-                  data-id="${c.id}" aria-expanded="${aberto}" aria-controls="conf-trechos-${c.id}"
-                  aria-label="${aberto ? 'Ocultar' : 'Mostrar'} trechos de ${nome}" title="${aberto ? 'Ocultar trechos' : 'Mostrar trechos'}">
-            <i data-lucide="${aberto ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
-          </button>
-          <button type="button" class="btn-conf-focar group min-w-0 flex-1 text-left rounded px-1 py-1 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-mint-vibrant"
+          <button type="button" class="btn-conf-focar group min-w-0 flex-1 text-left rounded py-0.5 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-mint-vibrant"
                   data-id="${c.id}" aria-pressed="${destacado === c.id}" aria-label="Enquadrar ${nome} no mapa" title="Enquadrar no mapa">
             <span class="flex items-start gap-1.5 text-[13px] font-semibold leading-snug">
               <i data-lucide="map-pin" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-mint-vibrant/80 group-hover:text-mint-vibrant"></i>
               <span class="break-words underline-offset-2 group-hover:underline">${nome}</span>
             </span>
           </button>
+          <button type="button" class="btn-conf-expandir inline-flex items-center justify-center w-7 h-7 shrink-0 rounded text-white/70 hover:text-white hover:bg-white/10"
+                  data-id="${c.id}" aria-expanded="${aberto}" aria-controls="conf-trechos-${c.id}"
+                  aria-label="${aberto ? 'Ocultar' : 'Mostrar'} trechos de ${nome}" title="${aberto ? 'Ocultar trechos' : 'Mostrar trechos'}">
+            <i data-lucide="${aberto ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4"></i>
+          </button>
         </div>
-        <div class="pl-9 text-[11px] text-white/60 leading-snug flex flex-wrap items-center gap-x-1.5">${partesSub.map((p, i) => (i > 0 ? `<span aria-hidden="true">·</span>` : '') + `<span>${p}</span>`).join('')}</div>
-        <div class="pl-9 flex items-center gap-2 flex-wrap">
+        <div class="text-[11px] text-white/60 leading-snug flex flex-wrap items-center gap-x-1.5">${partesSub.map((p, i) => (i > 0 ? `<span aria-hidden="true">·</span>` : '') + `<span>${p}</span>`).join('')}</div>
+        <div class="flex items-center gap-2 flex-wrap pt-0.5">
           <span class="inline-flex items-center gap-1 px-2 min-h-[22px] text-[11px] font-semibold rounded-full border ${chip.cls}"><i data-lucide="${chip.icone}" class="w-3 h-3"></i>${chip.texto}</span>
-          ${blocoAssinatura}
+          ${blocoStatus}
         </div>
-        <div class="pl-9 flex items-center gap-1.5 flex-wrap">${acoes}</div>
+        <div class="flex items-center gap-1.5 pt-0.5">
+          ${acaoDispensa}
+          <span class="flex-1"></span>
+          ${acoes}
+        </div>
       </div>
       <div id="conf-trechos-${c.id}" class="px-3 pb-2.5 pt-0.5 space-y-1 border-t border-white/5" ${aberto ? '' : 'hidden'}>
         ${aberto ? `${trechos}<button type="button" class="btn-conf-filtrar ${CLS_LINK} text-mint-vibrant/90 hover:text-mint-vibrant" data-id="${c.id}">Filtrar a tabela por este confrontante</button>` : ''}
