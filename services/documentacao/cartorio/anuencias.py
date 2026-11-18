@@ -10,6 +10,7 @@ from services.documentacao.cartorio.utils import (
     carregar_template,
     esc,
     formatar_cpf,
+    formatar_regime_bens_extenso,
     formatar_rg,
     obter_data_extenso,
     renderizar_template,
@@ -82,7 +83,8 @@ _SQL_CONFRONTANTES = """
            c.matricula_imovel,
            c.lote,
            c.representante_json,
-           c.titular_assina
+           c.titular_assina,
+           c.conjuge_assina
     FROM confrontantes c
     LEFT JOIN pessoas p ON c.pessoa_id = p.id
     WHERE c.levantamento_id = ? AND c.id IN ({marcas})
@@ -525,14 +527,19 @@ def gerar_declaracao_anuencia_html(
 
     # Qualificação do confrontante principal e dos coproprietários
     representantes = normalizar_representantes(conf.get("representante_json"))
+    def _sem_conjuge_sep_total(p_dict: dict) -> bool:
+        return p_dict.get("conjuge_assina") == 0 and formatar_regime_bens_extenso(p_dict.get("regime_bens")) == "Separação Total de Bens"
+
     qualif_conf, info_conf = qualificar_pessoa(
-        conf, rotulo_erro="O confrontante", regime_obrigatorio=True, representante=representantes
+        conf, rotulo_erro="O confrontante", regime_obrigatorio=True,
+        representante=representantes, sem_conjuge=_sem_conjuge_sep_total(conf),
     )
     qualificacoes = [qualif_conf] if titular_assina else []
     infos = [info_conf] if titular_assina else []
     for cp in coproprietarios:
         q_cp, info_cp = qualificar_pessoa(
-            cp, rotulo_erro="O coproprietário", regime_obrigatorio=True, domicilio_padrao=conf.get("endereco_completo")
+            cp, rotulo_erro="O coproprietário", regime_obrigatorio=True,
+            domicilio_padrao=conf.get("endereco_completo"), sem_conjuge=_sem_conjuge_sep_total(cp),
         )
         qualificacoes.append(q_cp)
         infos.append(info_cp)
@@ -827,7 +834,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
 
     # Ajusta título e barra de ações
     template_base = template_base.replace(
-        "<title>Declaração de Anuência do Confrontante - {c_nome}</title>",
+        "<title>DRL {numero_matricula} - {c_nome}</title>",
         f"<title>Lote de Anuências - {esc(rotulo_mat)} {esc(num_mat)}</title>"
     )
 
