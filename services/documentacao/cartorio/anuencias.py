@@ -440,14 +440,20 @@ def _termos_declarantes(plural: bool, genero_grupo: str | None) -> dict:
     }
 
 
+_PREFIXO_IMOVEL_LOTE = re.compile(
+    r"^(?:lote|gleba|fazenda|s[ií]tio|ch[aá]cara|est[aâ]ncia|granja|quinh[aã]o|parcela|[aá]rea|im[oó]vel)\b",
+    re.IGNORECASE,
+)
+
+
 def _rotulo_lote(c_lote, c_nome) -> str:
-    """'Lote nº 5-A3' fica como está; '5-A3' vira 'Lote 5-A3'; igual ao nome do confrontante é omitido."""
+    """'Lote nº 5-A3' ou 'Fazenda ...' fica como está; '5-A3' vira 'Lote 5-A3'; igual ao nome do confrontante é omitido."""
     lote = valor_preenchido(c_lote)
     if not lote:
         return ""
     if re.sub(r"\s+", " ", lote).casefold() == re.sub(r"\s+", " ", valor_preenchido(c_nome)).casefold():
         return ""
-    if re.match(r"^lote\b", lote, re.IGNORECASE):
+    if _PREFIXO_IMOVEL_LOTE.match(lote):
         return lote
     return f"Lote {lote}"
 

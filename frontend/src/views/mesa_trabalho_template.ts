@@ -544,8 +544,8 @@ export const renderMesaTrabalho = (): string => {
                                </ui-lista-flutuante>
                             </div>
                             <div class="col-span-1">
-                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Lote / Gleba Confrontante</label>
-                               <ui-campo-texto type="text" id="input-conf-lote" class="w-full" placeholder="Ex: Lote nº 6-B"></ui-campo-texto>
+                               <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Lote / Imóvel Confrontante</label>
+                               <ui-campo-texto type="text" id="input-conf-lote" class="w-full" placeholder="Ex: Lote nº 6-B / Fazenda Santa Maria"></ui-campo-texto>
                             </div>
                             <div class="col-span-1">
                                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Matrícula (Nº / CRI / Comarca)</label>

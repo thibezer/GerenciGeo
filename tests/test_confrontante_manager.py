@@ -1,7 +1,10 @@
 import unittest
 import sqlite3
 from database.models import create_tables
-from services.gestores.confrontante_manager import resolver_confrontantes_planilha
+from services.gestores.confrontante_manager import (
+    extrair_dados_confrontante_planilha,
+    resolver_confrontantes_planilha,
+)
 
 class TestConfrontanteManager(unittest.TestCase):
     def setUp(self):
@@ -40,6 +43,7 @@ class TestConfrontanteManager(unittest.TestCase):
                 pessoa_id INTEGER NOT NULL,
                 levantamento_id INTEGER NOT NULL,
                 nome TEXT,
+                lote TEXT,
                 matricula_imovel TEXT,
                 cns_confrontante TEXT,
                 tipo_relacao TEXT,
@@ -101,6 +105,66 @@ class TestConfrontanteManager(unittest.TestCase):
         self.cursor.execute("SELECT * FROM confrontantes WHERE id = ?", (c_id,))
         c_row = self.cursor.fetchone()
         self.assertEqual(c_row["nome"], "JOSE SANTOS")
+
+    def test_extrair_dados_confrontante_planilha_separa_lote_e_proprietario(self):
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("Lote nº 6-B"),
+            (None, "Lote nº 6-B"),
+        )
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("Lote 12, Gleba 03, Matrícula 1234"),
+            (None, "Lote 12, Gleba 03"),
+        )
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("Lote nº 5-A-13, propriedade de JOAO DA SILVA"),
+            ("JOAO DA SILVA", "Lote nº 5-A-13"),
+        )
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("Lote 12 - MARIA SOUZA"),
+            ("MARIA SOUZA", "Lote 12"),
+        )
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("Fazenda Santa Maria"),
+            (None, "Fazenda Santa Maria"),
+        )
+        self.assertEqual(
+            extrair_dados_confrontante_planilha("ESTRADA MUNICIPAL YARA"),
+            ("ESTRADA MUNICIPAL YARA", None),
+        )
+
+    def test_resolver_confrontantes_planilha_grava_lote_sem_sobrescrever_proprietario(self):
+        pontos_mock = [
+            {
+                "codigo_completo": "VRT-0001",
+                "confrontante_descritivo": "Lote nº 6-B",
+                "matricula_confrontante": "",
+                "cns_confrontante": "",
+            },
+            {
+                "codigo_completo": "VRT-0002",
+                "confrontante_descritivo": "Lote nº 6-B",
+                "matricula_confrontante": "",
+                "cns_confrontante": "",
+            },
+            {
+                "codigo_completo": "VRT-0003",
+                "confrontante_descritivo": "Lote 10, propriedade de CARLOS PEREIRA",
+                "matricula_confrontante": "9876",
+                "cns_confrontante": "",
+            },
+        ]
+        res = resolver_confrontantes_planilha(self.lev_id, pontos_mock, self.cursor)
+        self.assertEqual(res["VRT-0001"], res["VRT-0002"])
+
+        self.cursor.execute("SELECT nome, lote FROM confrontantes WHERE id = ?", (res["VRT-0001"],))
+        row_lote = self.cursor.fetchone()
+        self.assertEqual(row_lote["lote"], "Lote nº 6-B")
+        self.assertEqual(row_lote["nome"], "Confrontante - Lote nº 6-B")
+
+        self.cursor.execute("SELECT nome, lote FROM confrontantes WHERE id = ?", (res["VRT-0003"],))
+        row_prop = self.cursor.fetchone()
+        self.assertEqual(row_prop["nome"], "CARLOS PEREIRA")
+        self.assertEqual(row_prop["lote"], "Lote 10")
 
 if __name__ == '__main__':
     unittest.main()

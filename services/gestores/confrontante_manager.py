@@ -7,35 +7,99 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def extrair_nome_confrontante_limpo(descritivo: str) -> str:
+_PADRAO_LOTE_IMOVEL = re.compile(
+    r'^(?:lote(?:\s+(?:rural|urbano))?|gleba|fazenda|s[ií]tio|ch[aá]cara|est[aâ]ncia|granja|quinh[aã]o|parcela|[aá]rea|im[oó]vel(?:\s+rural)?)\b',
+    re.IGNORECASE,
+)
+_PREFIXO_VERBAL_CONF = re.compile(
+    r'^(?:limita|confronta|divisa|faz\s+divisa|linda)\s+com\s+(?:o|a|os|as)?\s*',
+    re.IGNORECASE,
+)
+_SUFIXO_METADADO_LOTE = re.compile(
+    r'^(?:gleba|setor|quadra|lote)\b',
+    re.IGNORECASE,
+)
+_METADADO_NAO_PESSOA = re.compile(
+    r'^(?:gleba|setor|quadra|matr[ií]cula|mat\.|cns|incra|ccir|munic[ií]pio|comarca|estado|uf)\b',
+    re.IGNORECASE,
+)
+
+
+def _limpar_espacos(texto: str) -> str:
+    return re.sub(r'\s+', ' ', texto).strip()
+
+
+def _extrair_lote_de_prefixo(prefixo: str):
+    """Extrai o nome do lote/imóvel de um trecho anterior a 'propriedade de' / 'posse de'."""
+    limpo = _PREFIXO_VERBAL_CONF.sub('', prefixo or '').strip(' ,;-:')
+    limpo = re.sub(r'(?:,?\s*\bde\s*)$', '', limpo, flags=re.IGNORECASE).strip(' ,;-:')
+    if not limpo or len(limpo) >= 80 or not _PADRAO_LOTE_IMOVEL.match(limpo):
+        return None
+    partes = [p.strip() for p in re.split(r'[,;\n\(\)]', limpo) if p.strip()]
+    if not partes:
+        return None
+    lote = partes[0]
+    if len(partes) > 1 and _SUFIXO_METADADO_LOTE.match(partes[1]) and not re.search(r'\bmatr|\bcns\b', partes[1], re.IGNORECASE):
+        lote = f"{lote}, {partes[1]}"
+    return _limpar_espacos(lote) if len(lote) >= 3 else None
+
+
+def extrair_dados_confrontante_planilha(descritivo: str):
     """
-    Extrai nome limpo do campo descritivo do confrontante (coluna L da planilha INCRA).
-    Usado como FALLBACK quando não há número de matrícula (coluna K) preenchido.
-    Exemplos de saída: 'ESTRADA MUNICIPAL YARA', 'RIO PARANÁ'
+    Extrai (nome_proprietario, nome_lote) do campo descritivo do confrontante (coluna L da planilha INCRA).
+    Evita que denominações de lote/imóvel ('Lote nº 6-B', 'Fazenda Santa Maria') sejam gravadas
+    como nome do proprietário quando não há titular explícito.
     """
     if not descritivo:
-        return None
+        return None, None
 
-    match_prop = re.search(r'propriedade\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
-    if match_prop:
-        nome = match_prop.group(1).strip()
-    else:
-        match_posse = re.search(r'posse\s+de\s+([^,;\n\(\)]+)', descritivo, re.IGNORECASE)
-        if match_posse:
-            nome = match_posse.group(1).strip()
-        else:
-            parts = re.split(r'[,;\n\(\)]', descritivo)
-            first_part = parts[0].strip() if parts else ""
-            if first_part and len(first_part) < 60:
-                nome = first_part
-            else:
-                nome = None
+    texto = descritivo.strip()
 
-    if nome:
-        nome = re.sub(r'\s+', ' ', nome).strip()
+    # 1. Padrão explícito: "... propriedade de X" ou "... posse de X"
+    match_explicito = re.search(r'(?:propriedade|posse)\s+de\s+([^,;\n\(\)]+)', texto, re.IGNORECASE)
+    if match_explicito:
+        nome = _limpar_espacos(match_explicito.group(1))
+        nome = nome if len(nome) >= 3 else None
+        lote = _extrair_lote_de_prefixo(texto[:match_explicito.start()])
+        return nome, lote
+
+    # 2. Texto inicia com identificação de lote/imóvel rural (ex.: "Lote nº 6-B", "Lote 12 - João", "Fazenda Boa Vista")
+    sem_verbo = _PREFIXO_VERBAL_CONF.sub('', texto).strip()
+    if _PADRAO_LOTE_IMOVEL.match(sem_verbo):
+        # Tenta separar "Lote nº 6-B - João da Silva" ou "Lote nº 6-B (João da Silva)"
+        match_sep = re.match(r'^(.+?)\s*(?:\s+[-/]\s+|\()\s*([^()\n,;]+)\)?\s*$', sem_verbo)
+        if match_sep:
+            esq = _limpar_espacos(match_sep.group(1).strip(' ,;-:'))
+            dir_ = _limpar_espacos(match_sep.group(2).strip(' ,;-:'))
+            if esq and dir_ and len(esq) < 60 and len(dir_) >= 3 and not _METADADO_NAO_PESSOA.match(dir_):
+                return dir_, esq
+
+        partes = [p.strip() for p in re.split(r'[,;\n\(\)]', sem_verbo) if p.strip()]
+        if partes and len(partes[0]) < 80:
+            lote = partes[0]
+            if len(partes) > 1 and _SUFIXO_METADADO_LOTE.match(partes[1]) and not re.search(r'\bmatr|\bcns\b', partes[1], re.IGNORECASE):
+                lote = f"{lote}, {partes[1]}"
+            lote = _limpar_espacos(lote)
+            return None, (lote if len(lote) >= 3 else None)
+        return None, None
+
+    # 3. Caso geral (ex.: "ESTRADA MUNICIPAL YARA", "RIO PARANÁ", "João da Silva")
+    parts = re.split(r'[,;\n\(\)]', texto)
+    first_part = parts[0].strip() if parts else ""
+    if first_part and len(first_part) < 60:
+        nome = _limpar_espacos(first_part)
         if len(nome) >= 3:
-            return nome
-    return None
+            return nome, None
+    return None, None
+
+
+def extrair_nome_confrontante_limpo(descritivo: str) -> str:
+    """
+    Extrai nome limpo do proprietário/ente do campo descritivo do confrontante (coluna L da planilha INCRA).
+    Exemplos de saída: 'JOAO DA SILVA', 'ESTRADA MUNICIPAL YARA', 'RIO PARANÁ'.
+    """
+    nome, _ = extrair_dados_confrontante_planilha(descritivo)
+    return nome
 
 def normalizar_texto_busca(texto: str) -> str:
     """Remove acentos, espaços múltiplos e padroniza caixa para busca segura"""
@@ -75,66 +139,97 @@ def normalizar_matricula(matricula: str) -> str:
         
     return texto
 
+def _selecionar_candidato_compativel(candidatos: list, matricula_conf: str, matricula_conf_norm: str, cns_conf: str, cursor, cache_por_matricula: dict):
+    """Seleciona um confrontante existente compatível com a matrícula informada e preenche matrícula/CNS se ausentes."""
+    pode_usar_candidato = None
+    for cand in candidatos:
+        cand_mat = cand["matricula"]
+        cand_mat_norm = normalizar_matricula(cand_mat)
+
+        if not matricula_conf:
+            if not cand_mat:
+                return cand["id"]
+            if pode_usar_candidato is None:
+                pode_usar_candidato = cand["id"]
+        else:
+            if not cand_mat:
+                cursor.execute(
+                    "UPDATE confrontantes SET matricula_imovel = ?, cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
+                    (matricula_conf, cns_conf if cns_conf else None, cand["id"]),
+                )
+                cand["matricula"] = matricula_conf
+                cache_por_matricula[matricula_conf_norm] = cand["id"]
+                return cand["id"]
+            if cand_mat_norm == matricula_conf_norm:
+                return cand["id"]
+    return pode_usar_candidato
+
+
+def _preencher_lote_se_vazio(cursor, confrontante_id: int, lote_conf: str):
+    if lote_conf:
+        cursor.execute(
+            "UPDATE confrontantes SET lote = COALESCE(NULLIF(TRIM(lote), ''), ?) WHERE id = ?",
+            (lote_conf, confrontante_id),
+        )
+
+
 def resolver_confrontantes_planilha(levantamento_id: int, pontos_ordenados: list, cursor) -> dict:
     """
     Motor de Resolução de Confrontantes (Single-Pass Cache) refinado.
     Analisa os pontos detectados no ODS e associa ou insere os confrontantes de forma desduplicada,
-    evitando mesclar confrontantes com o mesmo nome mas matrículas diferentes.
+    separando nome do proprietário e nome do lote/imóvel quando possível.
     """
     # 1. Carregar todos os confrontantes do levantamento
     # COALESCE: esquema novo usa c.nome; esquema legado usa pe.nome via pessoa_id
     cursor.execute(
         f"""SELECT c.id, COALESCE({sql_nome_confrontante('c', 'pe')}, '') as nome,
-                  c.matricula_imovel, c.cns_confrontante
+                  c.matricula_imovel, c.cns_confrontante, c.lote
            FROM confrontantes c
            LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
            WHERE c.levantamento_id = ?""",
         (levantamento_id,)
     )
     confrontantes_existentes = cursor.fetchall()
-    
-    # Montar caches em memória para desduplicação rápida
-    # Para buscas por matrícula normalizada:
+
+    # Caches em memória para desduplicação rápida (matrícula -> id; nome/lote -> lista de candidatos)
     cache_por_matricula = {}
-    # Para buscas por nome (pode ter múltiplos IDs se houver matrículas diferentes, então guardamos como lista)
     cache_por_nome = {}
-    
+    cache_por_lote = {}
+
     for c_row in confrontantes_existentes:
         c_id = c_row["id"]
         c_nome_norm = normalizar_texto_busca(c_row["nome"])
+        c_lote_norm = normalizar_texto_busca(c_row["lote"])
         c_mat = (c_row["matricula_imovel"] or "").strip().upper()
         c_mat_norm = normalizar_matricula(c_mat)
-        
+
         if c_mat_norm:
             cache_por_matricula[c_mat_norm] = c_id
         if c_nome_norm:
-            if c_nome_norm not in cache_por_nome:
-                cache_por_nome[c_nome_norm] = []
-            cache_por_nome[c_nome_norm].append({
-                "id": c_id,
-                "matricula": c_mat
-            })
+            cache_por_nome.setdefault(c_nome_norm, []).append({"id": c_id, "matricula": c_mat})
+        if c_lote_norm:
+            cache_por_lote.setdefault(c_lote_norm, []).append({"id": c_id, "matricula": c_mat})
 
     mapa_vertices_confrontante_id = {}
-    
+
     # 2. Resolver cada ponto
     for p in pontos_ordenados:
         matricula_conf = (p.get("matricula_confrontante") or "").strip().upper()
         matricula_conf_norm = normalizar_matricula(matricula_conf)
         cns_conf = (p.get("cns_confrontante") or "").strip()
         desc = (p.get("confrontante_descritivo") or "").strip()
-        nome_conf = extrair_nome_confrontante_limpo(desc)
+        nome_conf, lote_conf = extrair_dados_confrontante_planilha(desc)
         nome_conf_norm = normalizar_texto_busca(nome_conf)
-        
-        if not matricula_conf and not nome_conf:
+        lote_conf_norm = normalizar_texto_busca(lote_conf)
+
+        if not matricula_conf and not nome_conf and not lote_conf:
             continue
-            
+
         confrontante_id_resolvido = None
-        
+
         # A. 1ª Opção: Busca pela Matrícula Confrontante Normalizada
         if matricula_conf_norm and matricula_conf_norm in cache_por_matricula:
             confrontante_id_resolvido = cache_por_matricula[matricula_conf_norm]
-            # Atualiza dados auxiliares (nome, cns) se preenchidos
             if nome_conf and nome_conf_norm != matricula_conf_norm:
                 cursor.execute(
                     "UPDATE confrontantes SET nome = ?, cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
@@ -145,74 +240,67 @@ def resolver_confrontantes_planilha(levantamento_id: int, pontos_ordenados: list
                     "UPDATE confrontantes SET cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
                     (cns_conf, confrontante_id_resolvido)
                 )
-        
-        # B. 2ª Opção: Busca pelo nome com validação de matrícula
+            _preencher_lote_se_vazio(cursor, confrontante_id_resolvido, lote_conf)
+
+        # B. 2ª Opção: Busca pelo nome do proprietário com validação de matrícula
         elif nome_conf_norm and nome_conf_norm in cache_por_nome:
-            # Temos confrontantes cadastrados com esse nome. Vamos analisar se algum serve.
-            candidatos = cache_por_nome[nome_conf_norm]
-            pode_usar_candidato = None
-            
-            for cand in candidatos:
-                cand_mat = cand["matricula"]
-                cand_mat_norm = normalizar_matricula(cand_mat)
-                
-                if not matricula_conf:
-                    # Se na planilha a matrícula está vazia, preferimos o que também não tem matrícula
-                    if not cand_mat:
-                        pode_usar_candidato = cand["id"]
-                        break
-                    else:
-                        # Se todos têm matrícula, mas a planilha não tem, podemos usar o primeiro
-                        # como fallback, ou deixar para o final do loop
-                        if pode_usar_candidato is None:
-                            pode_usar_candidato = cand["id"]
-                else:
-                    # Se na planilha temos matrícula, mas o existente não tem matrícula
-                    if not cand_mat:
-                        pode_usar_candidato = cand["id"]
-                        # Vamos atualizar a matrícula desse candidato existente para a nova informada
-                        cursor.execute(
-                            "UPDATE confrontantes SET matricula_imovel = ?, cns_confrontante = COALESCE(cns_confrontante, ?) WHERE id = ?",
-                            (matricula_conf, cns_conf if cns_conf else None, cand["id"])
-                        )
-                        cand["matricula"] = matricula_conf
-                        cache_por_matricula[matricula_conf_norm] = cand["id"]
-                        break
-                    elif cand_mat_norm == matricula_conf_norm:
-                        pode_usar_candidato = cand["id"]
-                        break
-            
-            if pode_usar_candidato:
-                confrontante_id_resolvido = pode_usar_candidato
-            else:
-                # Se não puder usar nenhum existente (pois têm matrículas diferentes), força criação de um novo
-                confrontante_id_resolvido = None
-                
+            confrontante_id_resolvido = _selecionar_candidato_compativel(
+                cache_por_nome[nome_conf_norm], matricula_conf, matricula_conf_norm, cns_conf, cursor, cache_por_matricula
+            )
+            if confrontante_id_resolvido:
+                _preencher_lote_se_vazio(cursor, confrontante_id_resolvido, lote_conf)
+
+        # B2. 2ª Opção (fallback): Busca pelo nome do lote quando o proprietário não foi informado
+        elif not nome_conf_norm and lote_conf_norm and lote_conf_norm in cache_por_lote:
+            confrontante_id_resolvido = _selecionar_candidato_compativel(
+                cache_por_lote[lote_conf_norm], matricula_conf, matricula_conf_norm, cns_conf, cursor, cache_por_matricula
+            )
+
         # C. 3ª Opção: Inserir novo confrontante
         if not confrontante_id_resolvido:
-            final_nome = nome_conf if nome_conf else f"Confrontante da Matrícula {matricula_conf}"
+            if nome_conf:
+                final_nome = nome_conf
+            elif matricula_conf:
+                final_nome = f"Confrontante da Matrícula {matricula_conf}"
+            else:
+                final_nome = f"Confrontante - {lote_conf}"
             pessoa_id = criar_pessoa_basica(cursor, final_nome)
 
             cursor.execute(
-                "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome, matricula_imovel, cns_confrontante, origem) VALUES (?, ?, ?, ?, ?, 'auto')",
-                (pessoa_id, levantamento_id, final_nome, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
+                "INSERT INTO confrontantes (pessoa_id, levantamento_id, nome, lote, matricula_imovel, cns_confrontante, origem) VALUES (?, ?, ?, ?, ?, ?, 'auto')",
+                (pessoa_id, levantamento_id, final_nome, lote_conf if lote_conf else None, matricula_conf if matricula_conf else None, cns_conf if cns_conf else None)
             )
             confrontante_id_resolvido = cursor.lastrowid
-            
+
             # Alimentar caches em tempo de execução
             if matricula_conf_norm:
                 cache_por_matricula[matricula_conf_norm] = confrontante_id_resolvido
             if nome_conf_norm:
-                if nome_conf_norm not in cache_por_nome:
-                    cache_por_nome[nome_conf_norm] = []
-                cache_por_nome[nome_conf_norm].append({
-                    "id": confrontante_id_resolvido,
-                    "matricula": matricula_conf
-                })
-                
+                cache_por_nome.setdefault(nome_conf_norm, []).append({"id": confrontante_id_resolvido, "matricula": matricula_conf})
+            if lote_conf_norm:
+                cache_por_lote.setdefault(lote_conf_norm, []).append({"id": confrontante_id_resolvido, "matricula": matricula_conf})
+
         mapa_vertices_confrontante_id[p["codigo_completo"]] = confrontante_id_resolvido
-        
+
     return mapa_vertices_confrontante_id
+
+def _buscar_conf_por_campo(confs_db: list, campo: str, valor_norm: str, matricula_conf_norm: str):
+    """Busca confrontante por campo normalizado ('nome' ou 'lote'), priorizando matrícula compatível."""
+    candidato_sem_mat = None
+    candidato_com_mat = None
+    for c in confs_db:
+        if normalizar_texto_busca(c.get(campo)) != valor_norm:
+            continue
+        c_mat = (c["matricula_imovel"] or "").strip().upper()
+        c_mat_norm = normalizar_matricula(c_mat)
+        if not c_mat:
+            candidato_sem_mat = c["id"]
+        elif matricula_conf_norm and c_mat_norm == matricula_conf_norm:
+            return c["id"]
+        elif candidato_com_mat is None:
+            candidato_com_mat = c["id"]
+    return candidato_sem_mat or candidato_com_mat
+
 
 def vincular_confrontantes_pontos(levantamento_id: int, pontos_inseridos: list, cursor) -> dict:
     """
@@ -220,24 +308,25 @@ def vincular_confrontantes_pontos(levantamento_id: int, pontos_inseridos: list, 
     Retorna um mapeamento de codigo_completo para o confrontante_id correto.
     """
     cursor.execute(
-        f"""SELECT c.id, COALESCE({sql_nome_confrontante('c', 'pe')}, '') as nome, c.matricula_imovel
+        f"""SELECT c.id, COALESCE({sql_nome_confrontante('c', 'pe')}, '') as nome, c.matricula_imovel, c.lote
            FROM confrontantes c
            LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
            WHERE c.levantamento_id = ?""",
         (levantamento_id,)
     )
     confs_db = [dict(r) for r in cursor.fetchall()]
-    
+
     mapa_vertices_conf = {}
     for p in pontos_inseridos:
         matricula_conf = (p.get("matricula_confrontante") or "").strip().upper()
         matricula_conf_norm = normalizar_matricula(matricula_conf)
         desc = (p.get("confrontante_descritivo") or "").strip()
-        nome_conf = extrair_nome_confrontante_limpo(desc)
+        nome_conf, lote_conf = extrair_dados_confrontante_planilha(desc)
         nome_conf_norm = normalizar_texto_busca(nome_conf)
-        
+        lote_conf_norm = normalizar_texto_busca(lote_conf)
+
         conf_id = None
-        
+
         # 1. Tentar encontrar por matrícula
         if matricula_conf_norm:
             for c in confs_db:
@@ -245,30 +334,15 @@ def vincular_confrontantes_pontos(levantamento_id: int, pontos_inseridos: list, 
                 if normalizar_matricula(c_mat) == matricula_conf_norm:
                     conf_id = c["id"]
                     break
-                    
-        # 2. Se não achou por matrícula (ou se a matrícula for vazia), tenta por nome
+
+        # 2. Se não achou por matrícula, tenta por nome ou lote
         if not conf_id and nome_conf_norm:
-            candidato_sem_mat = None
-            candidato_com_mat = None
-            for c in confs_db:
-                c_nome_norm = normalizar_texto_busca(c["nome"])
-                if c_nome_norm == nome_conf_norm:
-                    c_mat = (c["matricula_imovel"] or "").strip().upper()
-                    c_mat_norm = normalizar_matricula(c_mat)
-                    if not c_mat:
-                        candidato_sem_mat = c["id"]
-                    elif matricula_conf_norm and c_mat_norm == matricula_conf_norm:
-                        conf_id = c["id"]
-                        break
-                    else:
-                        if candidato_com_mat is None:
-                            candidato_com_mat = c["id"]
-            
-            if not conf_id:
-                conf_id = candidato_sem_mat or candidato_com_mat
-                
+            conf_id = _buscar_conf_por_campo(confs_db, "nome", nome_conf_norm, matricula_conf_norm)
+        if not conf_id and lote_conf_norm:
+            conf_id = _buscar_conf_por_campo(confs_db, "lote", lote_conf_norm, matricula_conf_norm)
+
         mapa_vertices_conf[p["codigo_completo"]] = conf_id
-        
+
     return mapa_vertices_conf
 
 
@@ -293,7 +367,12 @@ ORIGENS_CONFRONTANTE = ("sigef", "manual", "auto")  # NULL = legado/desconhecido
 def nome_padrao(nome) -> bool:
     """True para nomes gerados automaticamente (nada que o usuário tenha digitado como cadastro)."""
     n = normalizar_nome(nome)
-    return n in ("", "CONFRONTANTE") or n.startswith("CONFRONTANTE DA MATRICULA") or n.startswith("VIZINHO SIGEF")
+    return (
+        n in ("", "CONFRONTANTE")
+        or n.startswith("CONFRONTANTE DA MATRICULA")
+        or n.startswith("CONFRONTANTE - ")
+        or n.startswith("VIZINHO SIGEF")
+    )
 
 
 def criar_pessoa_basica(cursor, nome: str) -> int:
