@@ -3,7 +3,7 @@ import { API_BASE } from '../../config';
 import { initIcons, showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { CamadaConfrontantes } from './camada_confrontantes';
-import type { TrechoMapa } from './camada_confrontantes';
+import { criarListaConfrontantes, type ResumoConfrontantes, type ListaConfrontantes } from './lista_confrontantes';
 import { criarPassosCartorio } from './passos_cartorio';
 import { homologadosDaMatricula } from './pontos_visiveis';
 import { configurarSplitterCartorio } from './splitter_cartorio';
@@ -47,32 +47,6 @@ const ROTULO_CAMPO: Record<string, string> = {
   metodo_posicionamento: 'Método',
 };
 
-interface TrechoConfrontante { de: string; para: string; qtd_divisas: number; comprimento_m: number; tipo_limite: string | null }
-interface ResumoConfrontante {
-  qtd_divisas: number;
-  comprimento_m: number;
-  trechos: TrechoConfrontante[];
-}
-interface ConfrontanteResumo extends ResumoConfrontante {
-  id: number;
-  nome: string;
-  matricula_imovel: string | null;
-  lote?: string | null;
-  cpf_cnpj: string | null;
-  assinadas: number;
-  /** Anuência dispensada (via/curso d'água público); `dispensa_inferida` = veio do nome, sem decisão explícita. */
-  dispensada?: boolean;
-  dispensa_inferida?: boolean;
-}
-interface ResumoConfrontantes {
-  confrontantes: ConfrontanteResumo[];
-  sem_confrontante: ResumoConfrontante;
-  total_divisas: number;
-  sequencia: TrechoMapa[];
-}
-
-const fmtMetros = (m: number) => `${m.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
-
 const PEND_CLS = 'border-amber-400/60 bg-amber-500/10';
 
 type CampoEditavel = 'confrontante_descritivo' | 'matricula_confrontante' | 'tipo_limite' | 'metodo_posicionamento';
@@ -88,7 +62,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   const marcados = new Set<number>();
   let alteracoes: AlteracaoSigef[] = [];
   let resumoConf: ResumoConfrontantes | null = null;
-  const confExpandidos = new Set<number>();
+  let listaConfrontantes: ListaConfrontantes | null = null;
+  const listaConfAbort = new AbortController();
 
   // Fluxo em 4 passos + splitter mapa | painel
   const passos = criarPassosCartorio();
@@ -255,103 +230,61 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     return linhas.map(l => l.map(c => sep === ';' ? `"${c.replace(/"/g, '""')}"` : c).join(sep)).join('\n');
   };
 
-  const renderResumoConfrontantes = () => {
-    const lista = document.getElementById('lista-resumo-confrontantes');
-    const badge = document.getElementById('badge-resumo-anuencias');
-    if (!lista) return;
-    const r = resumoConf;
-    if (!r || (r.confrontantes.length === 0 && r.sem_confrontante.qtd_divisas === 0)) {
-      lista.innerHTML = `<div class="txt-aux italic py-4 text-center text-xs">Nenhum confrontante vinculado às divisas desta matrícula.</div>`;
-      if (badge) badge.innerText = '—';
-      passos.atualizar({ anuenciasExigidas: 0, anuenciasAssinadas: 0, confrontantesSemCpf: 0 });
-      return;
+  const garantirListaConfrontantes = (): ListaConfrontantes | null => {
+    if (!listaConfrontantes) {
+      listaConfrontantes = criarListaConfrontantes({
+        ctx,
+        signal: listaConfAbort.signal,
+        camadaConf,
+        abrirEdicao: (id) => abrirEdicaoConfrontante(String(id)),
+        abrirNovo: () => document.getElementById('btn-novo-confrontante-cartorio')?.click(),
+        preVisualizar: (id) => acionarAnuencia(String(id), 'btn-preview-anuencia'),
+        gerarAnuencia: (id) => acionarAnuencia(String(id), 'btn-emitir-anuencia'),
+        gerarLote: (ids) => {
+          if (!ctx.currentLevId || !ctx.currentMatriculaId) return;
+          const qs = ids.length > 0 ? `?confrontantes_ids=${encodeURIComponent(ids.join(','))}` : '';
+          window.open(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/anuencia-lote-html${qs}`, '_blank');
+        },
+        filtrarTabelaPorConfrontante: (nome) => {
+          const busca = document.getElementById('input-busca-vertices-cartorio') as HTMLInputElement | null;
+          if (busca) {
+            busca.value = nome;
+            renderTabelaVertices();
+            passos.irPara('divisas');
+          }
+        },
+        filtrarTabelaSemConfrontante: () => {
+          const chk = document.getElementById('chk-vertices-so-pendentes') as HTMLInputElement | null;
+          if (chk) {
+            chk.checked = true;
+            renderTabelaVertices();
+            passos.irPara('divisas');
+          }
+        },
+        irParaTabelaVertices: () => passos.irPara('divisas'),
+        aoCarregar: (r) => {
+          resumoConf = r;
+          if (!r || (r.confrontantes.length === 0 && r.sem_confrontante.qtd_divisas === 0)) {
+            passos.atualizar({ anuenciasExigidas: 0, anuenciasAssinadas: 0, confrontantesSemCpf: 0 });
+          } else {
+            const exigidos = r.confrontantes.filter(c => !c.dispensada);
+            const assinados = exigidos.filter(c => c.assinadas === c.qtd_divisas).length;
+            passos.atualizar({
+              anuenciasExigidas: exigidos.length,
+              anuenciasAssinadas: assinados,
+              confrontantesSemCpf: exigidos.filter(c => !c.cpf_cnpj).length,
+            });
+          }
+          atualizarCamadaMapa();
+        },
+      });
     }
-
-    const exigidos = r.confrontantes.filter(c => !c.dispensada);
-    const dispensados = r.confrontantes.length - exigidos.length;
-    const assinados = exigidos.filter(c => c.assinadas === c.qtd_divisas).length;
-    passos.atualizar({
-      anuenciasExigidas: exigidos.length,
-      anuenciasAssinadas: assinados,
-      confrontantesSemCpf: exigidos.filter(c => !c.cpf_cnpj).length,
-    });
-    if (badge) badge.innerText = `${assinados}/${exigidos.length} anuências assinadas${dispensados ? ` · ${dispensados} dispensada${dispensados === 1 ? '' : 's'}` : ''}`;
-
-    const sem = r.sem_confrontante;
-    const alertaSem = sem.qtd_divisas > 0 ? `
-      <div class="col-span-all flex items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
-        <div class="text-[11px] text-amber-200">
-          <strong>${sem.qtd_divisas}</strong> divisa(s) sem confrontante · ${fmtMetros(sem.comprimento_m)}
-        </div>
-        <button type="button" class="btn-conf-filtrar-sem text-[10px] font-bold text-amber-300 hover:text-amber-100 underline underline-offset-2">Ver na tabela</button>
-      </div>` : '';
-
-    lista.innerHTML = alertaSem + r.confrontantes.map(c => {
-      const aberto = confExpandidos.has(c.id);
-      const completo = c.assinadas === c.qtd_divisas;
-      const dispensada = !!c.dispensada;
-      const incompletoCadastro = !c.cpf_cnpj && !dispensada;
-      return `
-        <div class="bg-white/[0.025] border border-white/[0.07] rounded-lg" data-conf-id="${c.id}">
-          <div class="px-2.5 pt-2 pb-1.5 space-y-1.5">
-            <div class="flex items-start gap-1.5">
-              <button type="button" class="btn-conf-expandir text-white/40 hover:text-white p-0.5 mt-0.5" data-id="${c.id}" title="Mostrar trechos">
-                <i data-lucide="${aberto ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5"></i>
-              </button>
-              <button type="button" class="btn-conf-focar min-w-0 flex-1 text-left" data-id="${c.id}" title="Enquadrar no mapa">
-                <div class="text-xs font-semibold leading-snug break-words">${escapeHtml(c.nome)}</div>
-                <div class="text-[10px] text-white/40 leading-snug">
-                  ${c.lote ? `Lote ${escapeHtml(c.lote)} · ` : ''}${c.matricula_imovel ? `Mat. ${escapeHtml(c.matricula_imovel)} · ` : ''}${c.qtd_divisas} divisa${c.qtd_divisas === 1 ? '' : 's'} · ${fmtMetros(c.comprimento_m)}
-                  ${incompletoCadastro ? ` · <span class="link-conf-completar text-amber-300 hover:text-amber-200 underline cursor-pointer" data-id="${c.id}" title="Completar qualificação (sem CPF/CNPJ)">sem CPF/CNPJ</span>` : ''}
-                </div>
-              </button>
-            </div>
-            <div class="flex items-center gap-1.5 pl-5 flex-wrap">
-              ${dispensada ? `
-              <span class="inline-flex items-center gap-1 text-[10px] text-sky-300" title="${c.dispensa_inferida ? 'Dispensada automaticamente pelo nome (via ou curso de água público). Clique em Exigir se este confrontante for particular.' : 'Anuência dispensada (ente público).'}">
-                <i data-lucide="landmark" class="w-3 h-3"></i>Dispensada${c.dispensa_inferida ? ' (ente público)' : ''}
-              </span>
-              <button type="button" class="btn-conf-exigir text-[10px] text-white/50 hover:text-white underline underline-offset-2" data-id="${c.id}" title="Voltar a exigir a anuência deste confrontante">Exigir</button>` : `
-              <label class="flex items-center gap-1 text-[10px] ${completo ? 'text-emerald-300' : 'text-white/40'} cursor-pointer select-none" title="Anuência assinada (todas as divisas deste confrontante)">
-                <input type="checkbox" class="chk-conf-assinada accent-emerald-400" data-id="${c.id}" ${completo ? 'checked' : ''} />
-                Assinada
-              </label>
-              <button type="button" class="btn-conf-dispensar text-[10px] text-white/40 hover:text-white underline underline-offset-2" data-id="${c.id}" title="Ente público (estrada, rio, ferrovia): dispensa a anuência e tira da contagem">Dispensar</button>`}
-              <span class="flex-1"></span>
-              <button type="button" class="btn-conf-editar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-white/10 text-white/80 hover:text-white hover:bg-white/10 hover:border-mint-vibrant/40 transition-all active:scale-95" data-id="${c.id}" title="Editar qualificação completa do confrontante (CPF, RG, cônjuge, matrícula...)"><i data-lucide="edit-3" class="w-3 h-3 text-mint-vibrant"></i>Editar</button>
-              <button type="button" class="btn-conf-ver inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 transition-all active:scale-95" data-id="${c.id}" title="Ver trecho no mapa"><i data-lucide="eye" class="w-3 h-3"></i>Trecho</button>
-              ${dispensada ? '' : `<button type="button" class="btn-conf-gerar inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border border-mint-vibrant/25 text-mint-vibrant hover:bg-mint-vibrant/10 transition-all active:scale-95" data-id="${c.id}" title="Gerar anuência"><i data-lucide="file-down" class="w-3 h-3"></i>Gerar</button>`}
-            </div>
-          </div>
-          ${aberto ? `
-            <div class="px-3 pb-2.5 pt-0.5 space-y-1 border-t border-white/5">
-              ${c.trechos.map(t => `
-                <div class="flex items-center justify-between gap-2 text-[10px] font-mono text-white/60 pt-1">
-                  <span class="truncate">${escapeHtml(t.de)} ➔ ${escapeHtml(t.para)}</span>
-                  <span class="shrink-0 text-white/40">${t.qtd_divisas} div. · ${fmtMetros(t.comprimento_m)}${t.tipo_limite ? ` · ${escapeHtml(t.tipo_limite)}` : ''}</span>
-                </div>`).join('')}
-              <button type="button" class="btn-conf-filtrar text-[10px] text-mint-vibrant/80 hover:text-mint-vibrant underline underline-offset-2 pt-1" data-id="${c.id}">Filtrar tabela por este confrontante</button>
-            </div>` : ''}
-        </div>`;
-    }).join('');
-    initIcons();
+    return listaConfrontantes;
   };
 
   const carregarResumoConfrontantes = async () => {
-    if (!ctx.currentLevId || !ctx.currentMatriculaId) {
-      resumoConf = null;
-      renderResumoConfrontantes();
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/resumo-confrontantes`);
-      resumoConf = res.ok ? await res.json() : null;
-    } catch (err) {
-      console.error('Erro ao carregar resumo de confrontantes:', err);
-      resumoConf = null;
-    }
-    renderResumoConfrontantes();
-    atualizarCamadaMapa();
+    const inst = garantirListaConfrontantes();
+    if (inst) await inst.carregar();
   };
 
   /** O formulário abre como painel sobre os passos: começa do topo e leva o foco ao primeiro campo */
@@ -391,112 +324,25 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     document.getElementById(botaoId)?.click();
   };
 
-  /** Dispensa a anuência de um ente público (ou volta a exigi-la) e recarrega a lista. */
-  const definirDispensaAnuencia = async (confId: number, dispensada: boolean) => {
-    try {
-      const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes/${confId}/dispensa-anuencia`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dispensada })
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      showToast('Não foi possível alterar a dispensa da anuência.', 'error');
-      return;
-    }
-    await carregarResumoConfrontantes();
-  };
-
   const vincularEventosResumoConfrontantes = () => {
-    const lista = document.getElementById('lista-resumo-confrontantes');
-    if (!lista || lista.dataset.eventosVinculados === '1') return;
-    lista.dataset.eventosVinculados = '1';
-
+    garantirListaConfrontantes();
     const btnMapaConf = document.getElementById('btn-mapa-toggle-confrontantes');
-    btnMapaConf?.addEventListener('click', () => {
-      const ligar = !btnMapaConf.classList.contains('ativo');
-      btnMapaConf.classList.toggle('ativo', ligar);
-      camadaConf.setVisivel(ligar);
-    });
+    if (btnMapaConf && btnMapaConf.dataset.eventosVinculados !== '1') {
+      btnMapaConf.dataset.eventosVinculados = '1';
+      btnMapaConf.addEventListener('click', () => {
+        const ligar = !btnMapaConf.classList.contains('ativo');
+        btnMapaConf.classList.toggle('ativo', ligar);
+        camadaConf.setVisivel(ligar);
+      });
+    }
     const btnMapaSigef = document.getElementById('btn-mapa-toggle-sigef');
-    btnMapaSigef?.addEventListener('click', () => {
-      ctx.mapaController?.setLayerVisibility?.('sigef', !camadaSigefAtiva());
-      sincronizarBotoesMapa();
-    });
-
-    lista.addEventListener('click', (e) => {
-      const alvo = e.target as HTMLElement;
-      const btn = alvo.closest('button') as HTMLButtonElement | null;
-      if (!btn) {
-        const linkIncompleto = alvo.closest('.link-conf-completar') as HTMLElement | null;
-        if (linkIncompleto && linkIncompleto.dataset.id) {
-          abrirEdicaoConfrontante(linkIncompleto.dataset.id);
-        }
-        return;
-      }
-      const id = btn.dataset.id || '';
-
-      if (btn.classList.contains('btn-conf-expandir')) {
-        const n = Number(id);
-        if (confExpandidos.has(n)) confExpandidos.delete(n); else confExpandidos.add(n);
-        renderResumoConfrontantes();
-      } else if (btn.classList.contains('btn-conf-focar')) {
-        camadaConf.focar(Number(id));
-      } else if (btn.classList.contains('btn-conf-editar')) {
-        abrirEdicaoConfrontante(id);
-      } else if (btn.classList.contains('btn-conf-ver')) {
-        acionarAnuencia(id, 'btn-preview-anuencia');
-      } else if (btn.classList.contains('btn-conf-gerar')) {
-        acionarAnuencia(id, 'btn-emitir-anuencia');
-      } else if (btn.classList.contains('btn-conf-dispensar') || btn.classList.contains('btn-conf-exigir')) {
-        definirDispensaAnuencia(Number(id), btn.classList.contains('btn-conf-dispensar'));
-      } else if (btn.classList.contains('btn-conf-filtrar')) {
-        const conf = resumoConf?.confrontantes.find(c => String(c.id) === id);
-        const busca = document.getElementById('input-busca-vertices-cartorio') as HTMLInputElement | null;
-        if (conf && busca) {
-          busca.value = conf.nome;
-          renderTabelaVertices();
-          passos.irPara('divisas');
-        }
-      } else if (btn.classList.contains('btn-conf-filtrar-sem')) {
-        const chk = document.getElementById('chk-vertices-so-pendentes') as HTMLInputElement | null;
-        if (chk) {
-          chk.checked = true;
-          renderTabelaVertices();
-          passos.irPara('divisas');
-        }
-      }
-    });
-
-    lista.addEventListener('change', async (e) => {
-      const el = e.target as HTMLInputElement;
-      if (!el.classList.contains('chk-conf-assinada')) return;
-      try {
-        const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${el.dataset.id}/anuencia-assinada`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assinada: el.checked })
-        });
-        if (!res.ok) throw new Error();
-      } catch {
-        showToast('Não foi possível salvar o status da anuência.', 'error');
-        el.checked = !el.checked;
-        return;
-      }
-      await carregarResumoConfrontantes();
-    });
-
-    document.getElementById('btn-anuencia-lote')?.addEventListener('click', () => {
-      const select = document.getElementById('select-confrontante-anuencia') as HTMLSelectElement | null;
-      if (!select) return;
-      if (![...select.options].some(o => o.value === 'lote')) {
-        const opt = document.createElement('option');
-        opt.value = 'lote';
-        select.appendChild(opt);
-      }
-      select.value = 'lote';
-      document.getElementById('btn-emitir-anuencia')?.click();
-    });
+    if (btnMapaSigef && btnMapaSigef.dataset.eventosVinculados !== '1') {
+      btnMapaSigef.dataset.eventosVinculados = '1';
+      btnMapaSigef.addEventListener('click', () => {
+        ctx.mapaController?.setLayerVisibility?.('sigef', !camadaSigefAtiva());
+        sincronizarBotoesMapa();
+      });
+    }
   };
 
   const salvarVertices = async (ids: number[], campos: Partial<Record<CampoEditavel, string>>): Promise<boolean> => {

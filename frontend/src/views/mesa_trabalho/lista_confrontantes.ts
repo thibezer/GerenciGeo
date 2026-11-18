@@ -101,7 +101,7 @@ export function criarListaConfrontantes(deps: ListaConfrontantesDeps): ListaConf
       </div>
     </div>
     <div data-conf-corpo role="list" aria-label="Confrontantes da matrícula" aria-busy="false"
-         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;align-items:start"></div>`;
+         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:8px;align-items:start"></div>`;
   initIcons();
 
   const barra = lista.querySelector('[data-conf-barra]') as HTMLElement;

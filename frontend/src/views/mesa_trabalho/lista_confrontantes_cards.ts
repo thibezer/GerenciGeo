@@ -77,8 +77,9 @@ export function htmlCard(
       <span class="shrink-0 text-white/60">${pluralizar(t.qtd_divisas, 'divisa', 'divisas')} · ${fmtMetros(t.comprimento_m)}${t.tipo_limite ? ` · ${escapeHtml(t.tipo_limite)}` : ''}</span>
     </div>`).join('');
 
+  const emFoco = destacado === c.id;
   return `
-    <div role="listitem" class="bg-white/[0.025] border border-white/[0.09] rounded-lg" data-conf-id="${c.id}">
+    <div role="listitem" class="rounded-lg border transition-colors ${emFoco ? 'border-mint-vibrant/50 bg-mint-vibrant/[0.05]' : 'bg-white/[0.025] border-white/[0.09] hover:border-white/20'}" data-conf-id="${c.id}">
       <div class="px-2.5 pt-2 pb-2 space-y-1.5">
         <div class="flex items-start gap-1.5">
           ${checkLote}

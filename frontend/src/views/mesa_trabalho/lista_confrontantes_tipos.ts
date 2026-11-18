@@ -47,11 +47,11 @@ export const fmtMetros = (m: number) =>
 export const pluralizar = (n: number, singular: string, plural: string) =>
   `${n} ${n === 1 ? singular : plural}`;
 
-/** Prefixa "Lote" só quando o campo ainda não começa por tipo de imóvel/lote ("Lote n° 5-A-13", "Fazenda ..." já vêm completos). */
+/** Prefixa "Lote" só quando o campo ainda não começa por tipo de imóvel/lote ("Lote n° 5-A-13", "Lotes nº 161...", "Fazenda ..." já vêm completos). */
 export const rotuloLote = (lote: string | null | undefined): string => {
   const t = (lote ?? '').trim();
   if (!t) return '';
-  return /^(?:lote|gleba|fazenda|s[ií]tio|ch[aá]cara|est[aâ]ncia|granja|quinh[aã]o|parcela|[aá]rea|im[oó]vel)\b/i.test(t) ? t : `Lote ${t}`;
+  return /^(?:lotes?|glebas?|fazendas?|s[ií]tios?|ch[aá]caras?|est[aâ]ncias?|granjas?|quinh(?:ão|ões)|parcelas?|[aá]reas?|im[oó]ve(?:l|is))\b/i.test(t) ? t : `Lote ${t}`;
 };
 
 export const rotuloMatricula = (mat: string | null | undefined): string => {
