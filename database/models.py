@@ -328,6 +328,41 @@ def create_tables(conn):
         );
         """,
         """
+        CREATE TABLE IF NOT EXISTS confrontante_envolvidos_usufruto (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            confrontante_id INTEGER NOT NULL,
+            pessoa_id INTEGER,
+            papel TEXT NOT NULL DEFAULT 'DONATARIO' CHECK(papel IN ('USUFRUTUARIO', 'DONATARIO', 'NU_PROPRIETARIO', 'COPROPRIETARIO', 'PROPRIETARIO', 'POSSUIDOR')),
+            nome TEXT NOT NULL,
+            cpf_cnpj TEXT,
+            rg TEXT,
+            rg_orgao TEXT,
+            rg_uf TEXT,
+            genero TEXT DEFAULT 'M',
+            nacionalidade TEXT DEFAULT 'brasileiro(a)',
+            profissao TEXT,
+            estado_civil TEXT,
+            regime_bens TEXT,
+            endereco_completo TEXT,
+            nome_conjuge TEXT,
+            cpf_conjuge TEXT,
+            rg_conjuge TEXT,
+            rg_orgao_conjuge TEXT,
+            rg_uf_conjuge TEXT,
+            genero_conjuge TEXT DEFAULT 'F',
+            nacionalidade_conjuge TEXT DEFAULT 'brasileiro(a)',
+            profissao_conjuge TEXT,
+            assina INTEGER DEFAULT 1,
+            conjuge_assina INTEGER DEFAULT 1,
+            ordem INTEGER DEFAULT 0,
+            observacao TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (confrontante_id) REFERENCES confrontantes(id) ON DELETE CASCADE,
+            FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL
+        );
+        """,
+        """
         CREATE TABLE IF NOT EXISTS segmentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             levantamento_id INTEGER NOT NULL,
@@ -1773,12 +1808,15 @@ def migrar_integridade_confrontantes_e_indices(conn):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_confrontantes_pessoa ON confrontantes(pessoa_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_coprop_confrontante ON confrontante_coproprietarios(confrontante_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_coprop_pessoa ON confrontante_coproprietarios(pessoa_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usufruto_confrontante ON confrontante_envolvidos_usufruto(confrontante_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_usufruto_pessoa ON confrontante_envolvidos_usufruto(pessoa_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_anuencias_levantamento ON anuencias_confrontantes(levantamento_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_pontos_levantamento_confrontante ON pontos(levantamento_id, confrontante_id)")
         for tabela, nome_idx in (
             ("pessoas", "idx_pessoas_doc_norm"),
             ("confrontantes", "idx_confrontantes_doc_norm"),
             ("confrontante_coproprietarios", "idx_coprop_doc_norm"),
+            ("confrontante_envolvidos_usufruto", "idx_usufruto_doc_norm"),
         ):
             cursor.execute(
                 f"CREATE INDEX IF NOT EXISTS {nome_idx} ON {tabela}({sql_doc_normalizado('cpf_cnpj')}) "
