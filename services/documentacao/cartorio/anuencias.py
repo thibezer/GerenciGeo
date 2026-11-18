@@ -1061,7 +1061,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
             "vertice_inicial": ext_ini_nome,
             "vertice_final": ext_fim_nome,
             "extensao_total_m": round(extensao_total, 2),
-            "extensao_total_str": f"{extensao_total:.2f} m",
+            "extensao_total_str": f"{extensao_total:.2f}".replace(".", ",") + " m",
             "qtd_segmentos": len(segmentos_detalhados),
             "qtd_vertices": len(lindeira_pontos)
         },

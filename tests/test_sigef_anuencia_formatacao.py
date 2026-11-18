@@ -79,6 +79,10 @@ class TestSigefAnuenciaFormatacao(unittest.TestCase):
         self.assertIn("-53°51'41,597\"", html)
         self.assertIn("-23°59'22,331\"", html)
         self.assertIn("-53°50'45,019\"", html)
+        # Vértice final do trecho (XRXR-V-0001) também deve exibir suas coordenadas
+        self.assertIn("Vértice Final: XRXR-V-0001", html)
+        self.assertIn("-23°59'23,496\"", html)
+        self.assertIn("-53°50'43,019\"", html)
 
 
 if __name__ == "__main__":

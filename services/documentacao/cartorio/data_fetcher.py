@@ -269,6 +269,10 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int, segmentos
         </tr>
         """
 
+    ultimo = segmentos[-1]
+    fim_lat_f = _fmt_coord(ultimo.get("fim_lat"))
+    fim_lon_f = _fmt_coord(ultimo.get("fim_lon"))
+
     table_html = f"""
     <div class="my-1.5 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
         <table class="w-full text-left border-collapse bg-slate-50/50">
@@ -285,6 +289,13 @@ def gerar_tabela_divisas_html(matricula_id: int, confrontante_id: int, segmentos
             <tbody>
                 {linhas_html}
             </tbody>
+            <tfoot>
+                <tr class="bg-slate-100/80 border-t border-slate-300 text-[11px] text-slate-700 font-mono">
+                    <td colspan="4" class="px-3 py-1 font-bold text-slate-800">Vértice Final: {esc(ultimo['fim_nome'])}</td>
+                    <td class="px-3 py-1 text-right">{fim_lat_f}</td>
+                    <td class="px-3 py-1 text-right">{fim_lon_f}</td>
+                </tr>
+            </tfoot>
         </table>
     </div>
     """

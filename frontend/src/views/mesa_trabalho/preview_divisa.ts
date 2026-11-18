@@ -167,7 +167,7 @@ export function criarPreviewDivisa(deps: PreviewDivisaDeps): PreviewDivisa {
       texto('preview-anuencia-imovel-req', `${data.imovel?.nome ?? ''} - Matrícula ${data.imovel?.matricula || 'S/N'}`);
 
       const metricas = data.metricas || {};
-      texto('preview-anuencia-extensao', metricas.extensao_total_str || '0.00 m');
+      texto('preview-anuencia-extensao', metricas.extensao_total_str || '0,00 m');
       texto('preview-anuencia-caminhamento',
         (metricas.vertice_inicial && metricas.vertice_final && metricas.vertice_inicial !== '-')
           ? `${metricas.vertice_inicial} ➔ ${metricas.vertice_final}` : 'Não encadeado');
