@@ -457,6 +457,28 @@ function ensureSchema(PDO $pdo): void {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME(3) NULL,
             FOREIGN KEY (levantamento_id) REFERENCES levantamentos(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+        "CREATE TABLE IF NOT EXISTS arquivos_enviados_ia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sha256 VARCHAR(128) NOT NULL,
+            nome_arquivo VARCHAR(255) NOT NULL,
+            extensao VARCHAR(32) NULL,
+            tamanho_bytes BIGINT DEFAULT 0,
+            categoria VARCHAR(50) NOT NULL DEFAULT 'OUTRO',
+            tipo_documento VARCHAR(80) NULL,
+            entidade_tipo VARCHAR(50) NULL,
+            entidade_id INT NULL,
+            entidade_nome VARCHAR(255) NULL,
+            origem_envio VARCHAR(50) DEFAULT 'IA_CHAT',
+            caminho_origem TEXT NULL,
+            caminho_arquivado TEXT NULL,
+            resumo_extracao TEXT NULL,
+            enviado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME(3) NULL,
+            INDEX idx_arq_env_sha256 (sha256),
+            INDEX idx_arq_env_nome (nome_arquivo),
+            INDEX idx_arq_env_ent (entidade_tipo, entidade_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     ];
 
@@ -504,6 +526,7 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'matriculas', 'livro_registro', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'folha_registro', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'caminho_arquivo_pdf', 'VARCHAR(255) NULL');
+    addColumnSafe($pdo, 'matriculas', 'caminho_arquivo_pdf_limpo', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'matriculas', 'cri_comarca', 'VARCHAR(150) NULL');
     addColumnSafe($pdo, 'matriculas', 'cri_circunscricao', 'VARCHAR(100) NULL');
     addColumnSafe($pdo, 'matriculas', 'valor_itr', 'DECIMAL(12,2) NULL');
@@ -665,18 +688,18 @@ const SYNC_TABELAS_MYSQL = [
     'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
     'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
     'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
-    'alteracoes_sigef'
+    'alteracoes_sigef', 'arquivos_enviados_ia'
 ];
 
 /**
  * Prepara o MySQL para o merge por registro (updated_at) e para as tabelas extras da sincronização.
- * Idempotente e executada uma única vez (flag 'schema_sync_v4' em configuracoes).
+ * Idempotente e executada uma única vez (flag 'schema_sync_v5' em configuracoes).
  * Triggers: carimbam updated_at (UTC, ms) em edições feitas direto na nuvem; o /sync/batch define @gg_sync
  * para que os triggers não sobrescrevam o carimbo vindo do PC.
  */
 function ensureSyncSchema(PDO $pdo): string {
     try {
-        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v4' LIMIT 1");
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v5' LIMIT 1");
         $st->execute();
         $flag = $st->fetchColumn();
         if ($flag) return (string)$flag;
@@ -749,7 +772,7 @@ function ensureSyncSchema(PDO $pdo): string {
     }
 
     try {
-        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v4', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v5', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
     } catch (Exception $e) {}
     return $resultado;
 }
@@ -2885,6 +2908,102 @@ if (preg_match('#^/profissionais(?:/([0-9]+))?$#', $route, $matches)) {
     }
 }
 
+// 6.1 ROTAS DE HISTÓRICO DE ARQUIVOS ENVIADOS (IA & ANEXOS)
+if (preg_match('#^/arquivos-enviados(?:/(verificar|[0-9]+))?$#', $route, $matches)) {
+    $sub = $matches[1] ?? null;
+
+    if ($method === 'GET' && !$sub) {
+        $busca = trim((string)($_GET['busca'] ?? ''));
+        $categoria = strtoupper(trim((string)($_GET['categoria'] ?? '')));
+        $limite = max(1, min((int)($_GET['limite'] ?? 200), 1000));
+
+        $where = [];
+        $params = [];
+        if ($categoria !== '' && !in_array($categoria, ['TODOS', 'TODAS'], true)) {
+            $where[] = 'UPPER(categoria) = ?';
+            $params[] = $categoria;
+        }
+        if ($busca !== '') {
+            $like = '%' . $busca . '%';
+            $where[] = "(nome_arquivo LIKE ? OR COALESCE(entidade_nome, '') LIKE ? OR COALESCE(tipo_documento, '') LIKE ? OR sha256 LIKE ? OR COALESCE(resumo_extracao, '') LIKE ?)";
+            array_push($params, $like, $like, $like, $like, $like);
+        }
+        $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+        $sql = "SELECT * FROM arquivos_enviados_ia {$whereSql} ORDER BY enviado_em DESC, id DESC LIMIT {$limite}";
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        jsonResponse($st->fetchAll());
+    }
+
+    if ($method === 'POST' && $sub === 'verificar') {
+        $input = getJsonInput();
+        $itens = is_array($input['arquivos'] ?? null) ? $input['arquivos'] : [];
+        $resultados = [];
+        foreach ($itens as $item) {
+            if (!is_array($item)) continue;
+            $sha = strtolower(trim((string)($item['sha256'] ?? '')));
+            $nome = trim((string)($item['nome_arquivo'] ?? ''));
+            $tam = isset($item['tamanho_bytes']) ? (int)$item['tamanho_bytes'] : null;
+
+            $corrHash = [];
+            if ($sha !== '') {
+                $stH = $pdo->prepare("SELECT * FROM arquivos_enviados_ia WHERE LOWER(sha256) = LOWER(?) ORDER BY enviado_em DESC, id DESC");
+                $stH->execute([$sha]);
+                $corrHash = $stH->fetchAll();
+            }
+            $idsHash = array_flip(array_map(fn($r) => (int)$r['id'], $corrHash));
+            $corrNome = [];
+            if ($nome !== '') {
+                $stN = $pdo->prepare("SELECT * FROM arquivos_enviados_ia WHERE LOWER(TRIM(nome_arquivo)) = LOWER(TRIM(?)) ORDER BY enviado_em DESC, id DESC");
+                $stN->execute([$nome]);
+                foreach ($stN->fetchAll() as $rn) {
+                    if (!isset($idsHash[(int)$rn['id']])) $corrNome[] = $rn;
+                }
+            }
+            $resultados[] = [
+                'ja_enviado' => count($corrHash) > 0,
+                'mesmo_nome' => count($corrNome) > 0 && count($corrHash) === 0,
+                'sha256' => $sha ?: null,
+                'nome_arquivo' => $nome,
+                'tamanho_bytes' => $tam,
+                'correspondencias_hash' => $corrHash,
+                'correspondencias_nome' => $corrNome,
+            ];
+        }
+        jsonResponse(['resultados' => $resultados]);
+    }
+
+    if ($method === 'POST' && !$sub) {
+        $input = getJsonInput();
+        $nome = basename(trim((string)($input['nome_arquivo'] ?? 'arquivo')));
+        $sha = strtolower(trim((string)($input['sha256'] ?? ''))) ?: hash('sha256', $nome);
+        $ext = strtolower(pathinfo($nome, PATHINFO_EXTENSION));
+        $ext = $ext ? ('.' . $ext) : '';
+        $tam = (int)($input['tamanho_bytes'] ?? 0);
+        $categoria = strtoupper(trim((string)($input['categoria'] ?? 'OUTRO')));
+        $tipoDoc = strtoupper(trim((string)($input['tipo_documento'] ?? ''))) ?: null;
+        $entTipo = strtolower(trim((string)($input['entidade_tipo'] ?? ''))) ?: null;
+        $entId = isset($input['entidade_id']) && $input['entidade_id'] !== '' ? (int)$input['entidade_id'] : null;
+        $entNome = $input['entidade_nome'] ?? null;
+        $origem = $input['origem_envio'] ?? 'UI_UPLOAD';
+        $resumo = $input['resumo_extracao'] ?? null;
+
+        $stInsert = $pdo->prepare(
+            "INSERT INTO arquivos_enviados_ia (sha256, nome_arquivo, extensao, tamanho_bytes, categoria, tipo_documento, entidade_tipo, entidade_id, entidade_nome, origem_envio, resumo_extracao)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stInsert->execute([$sha, $nome, $ext, $tam, $categoria, $tipoDoc, $entTipo, $entId, $entNome, $origem, $resumo]);
+        touchCloudSyncTimestamp($pdo);
+        jsonResponse(['id' => (int)$pdo->lastInsertId(), 'sha256' => $sha, 'nome_arquivo' => $nome], 201);
+    }
+
+    if ($method === 'DELETE' && $sub && ctype_digit((string)$sub)) {
+        excluirComLapide($pdo, 'arquivos_enviados_ia', (int)$sub);
+        touchCloudSyncTimestamp($pdo);
+        jsonResponse(['sucesso' => true, 'message' => 'Registro removido do histórico de arquivos enviados.']);
+    }
+}
+
 /**
  * Sincroniza dinamicamente linhas de uma tabela filtrando estritamente pelas colunas que existem no MySQL
  */
@@ -3076,6 +3195,9 @@ if ($route === '/sync/batch' && $method === 'POST') {
         if (!empty($data['alteracoes_sigef'])) {
             syncTableRows($pdo, 'alteracoes_sigef', $data['alteracoes_sigef']);
         }
+        if (!empty($data['arquivos_enviados_ia'])) {
+            syncTableRows($pdo, 'arquivos_enviados_ia', $data['arquivos_enviados_ia']);
+        }
         foreach (['banco_pontos', 'anuencias_confrontantes'] as $tExtra) {
             if (!empty($data[$tExtra])) {
                 syncTableRows($pdo, $tExtra, $data[$tExtra]);
@@ -3150,7 +3272,7 @@ if ($route === '/sync/pull' && $method === 'GET') {
         'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
         'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
         'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
-        'alteracoes_sigef'
+        'alteracoes_sigef', 'arquivos_enviados_ia'
     ];
 
     $payload = [];

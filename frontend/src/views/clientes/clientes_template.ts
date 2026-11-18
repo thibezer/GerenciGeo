@@ -20,6 +20,10 @@ export const renderClientesTemplate = (): string => `
               <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
             </span>
           </label>
+          <button type="button" class="lp-btn-sec" id="btn-clientes-arquivos-enviados" title="Histórico e conferência de arquivos já enviados">
+            <i data-lucide="file-check-2" class="w-4 h-4"></i>
+            Arquivos enviados
+          </button>
           <button type="button" class="lp-btn-primario" id="btn-abrir-modal-cliente">
             <i data-lucide="plus" class="w-4 h-4"></i>
             Novo cliente

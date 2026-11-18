@@ -6,7 +6,7 @@ import re
 import tempfile
 import logging
 from typing import List, Optional, Literal
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from utils.transformer_cache import get_transformer
@@ -45,13 +45,20 @@ from services.gestores.matricula_manager import (
     atualizar_matricula,
     criar_matricula,
     definir_caminho_pdf,
+    definir_caminhos_pdf,
     excluir_matricula,
     listar_historico,
     listar_levantamentos_ativos,
     listar_matriculas_do_levantamento,
     obter_caminho_pdf,
+    obter_caminhos_pdf,
     obter_propriedade_e_numero,
     vincular_desenho,
+)
+from services.processamento.pdf_limpeza import gerar_pdf_sem_marca
+from services.gestores.historico_arquivos_service import (
+    calcular_sha256_bytes,
+    registrar_arquivo_enviado,
 )
 
 router = APIRouter(tags=["Pontos de Campo & Matrículas do Levantamento"])
@@ -166,6 +173,25 @@ def delete_matricula(mid: int):
     except Exception as e:
         raise _http_erro(e)
 
+def _resolver_caminho_pdf_matricula(mid: int, path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    if os.path.exists(path):
+        return path
+    from config import BASE_DIR, EXPORT_BASE_FOLDER
+    nome_arq = os.path.basename(path)
+    row = obter_propriedade_e_numero(mid)
+    candidatos = [
+        os.path.join(BASE_DIR, "uploads", "documentos_matriculas", str(mid), nome_arq),
+    ]
+    if row:
+        candidatos.insert(0, os.path.join(EXPORT_BASE_FOLDER, "Propriedades", f"Prop_{row['propriedade_id']}", nome_arq))
+    for cand in candidatos:
+        if os.path.exists(cand):
+            return cand
+    return path
+
+
 @router.post("/matriculas/{mid}/upload-pdf")
 async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
     try:
@@ -178,28 +204,115 @@ async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
         prop_folder = os.path.join(EXPORT_BASE_FOLDER, "Propriedades", f"Prop_{prop_id}")
         os.makedirs(prop_folder, exist_ok=True)
 
-        ext = os.path.splitext(file.filename)[1]
+        ext = os.path.splitext(file.filename or "")[1].lower()
         if not ext:
             ext = ".pdf"
 
-        filename = f"Matricula_{mid}_Certidao{ext}"
-        filepath = os.path.join(prop_folder, filename)
+        filename_original = f"Matricula_{mid}_Certidao_Original{ext}"
+        filepath_original = os.path.join(prop_folder, filename_original)
 
-        with open(filepath, "wb") as buffer:
-            content = await file.read()
+        content = await file.read()
+        with open(filepath_original, "wb") as buffer:
             buffer.write(content)
 
-        definir_caminho_pdf(mid, filepath)
-        return {"message": "PDF da matrícula anexado com sucesso", "caminho": filepath}
+        filepath_limpo: Optional[str] = None
+        res_limpeza: Optional[dict] = None
+        eh_pdf = ext == ".pdf" or content.lstrip()[:5].startswith(b"%PDF")
+        if eh_pdf:
+            destino_limpo = os.path.join(prop_folder, f"Matricula_{mid}_Certidao_Sem_Marca.pdf")
+            res_limpeza = gerar_pdf_sem_marca(filepath_original, destino_limpo)
+            if res_limpeza.get("sucesso"):
+                filepath_limpo = destino_limpo
+
+        definir_caminhos_pdf(mid, filepath_original, filepath_limpo)
+
+        # Registra no histórico de arquivos enviados (para não repetir)
+        try:
+            prop_row = execute_query(
+                "SELECT nome_propriedade FROM propriedades WHERE id = ?",
+                params=(prop_id,),
+                fetch_one=True,
+            )
+            nome_prop = prop_row["nome_propriedade"] if prop_row else f"Propriedade #{prop_id}"
+            registrar_arquivo_enviado(
+                nome_arquivo=file.filename or filename_original,
+                sha256=calcular_sha256_bytes(content),
+                tamanho_bytes=len(content),
+                categoria="MATRICULA",
+                tipo_documento="MATRICULA",
+                entidade_tipo="matricula",
+                entidade_id=mid,
+                entidade_nome=f"Matrícula {row['numero_matricula']} — {nome_prop}",
+                origem_envio="UI_UPLOAD",
+                caminho_arquivado=filepath_original,
+                resumo_extracao="Original + Sem marca d'água" if filepath_limpo else "Somente original",
+            )
+        except Exception as ex_hist:
+            logging.getLogger(__name__).warning(f"Aviso ao registrar upload de matrícula no histórico: {ex_hist}")
+
+        return {
+            "message": (
+                "Certidão anexada: versão original e sem marca d'água geradas com sucesso!"
+                if filepath_limpo
+                else "PDF original da matrícula anexado com sucesso"
+            ),
+            "caminho": filepath_original,
+            "caminho_limpo": filepath_limpo,
+            "limpeza": res_limpeza,
+        }
     except Exception as e:
         raise _http_erro(e) if not isinstance(e, HTTPException) else e
 
-@router.get("/matriculas/{mid}/download-pdf")
-def download_matricula_pdf(mid: int, download: bool = False):
+
+@router.post("/matriculas/{mid}/limpar-pdf")
+def limpar_pdf_matricula_existente(mid: int):
+    """Gera (ou regera) a versão sem marca d'água a partir do PDF original já salvo da matrícula."""
     try:
-        path = obter_caminho_pdf(mid)
+        row = obter_propriedade_e_numero(mid)
+        if not row:
+            raise HTTPException(status_code=404, detail="Matrícula não encontrada")
+
+        caminhos = obter_caminhos_pdf(mid)
+        path_original = _resolver_caminho_pdf_matricula(mid, caminhos.get("original"))
+        if not path_original or not os.path.exists(path_original):
+            raise HTTPException(status_code=404, detail="PDF original da matrícula não encontrado no servidor")
+
+        pasta = os.path.dirname(path_original)
+        destino_limpo = os.path.join(pasta, f"Matricula_{mid}_Certidao_Sem_Marca.pdf")
+        res_limpeza = gerar_pdf_sem_marca(path_original, destino_limpo)
+        if not res_limpeza.get("sucesso"):
+            raise HTTPException(
+                status_code=500,
+                detail=res_limpeza.get("erro") or "Falha ao remover marca d'água do PDF.",
+            )
+
+        definir_caminhos_pdf(mid, path_original, destino_limpo)
+        return {
+            "sucesso": True,
+            "message": "Versão sem marca d'água gerada com sucesso!",
+            "caminho": path_original,
+            "caminho_limpo": destino_limpo,
+            "limpeza": res_limpeza,
+        }
+    except Exception as e:
+        raise _http_erro(e) if not isinstance(e, HTTPException) else e
+
+
+@router.get("/matriculas/{mid}/download-pdf")
+def download_matricula_pdf(
+    mid: int,
+    download: bool = False,
+    versao: str = Query("original", description="Versão desejada: 'original' ou 'limpo'"),
+):
+    try:
+        caminhos = obter_caminhos_pdf(mid)
+        chave = "limpo" if (versao or "").strip().lower() in ("limpo", "sem_marca", "sem-marca") else "original"
+        path = _resolver_caminho_pdf_matricula(mid, caminhos.get(chave))
         if not path:
-            raise HTTPException(status_code=404, detail="PDF da matrícula não encontrado")
+            raise HTTPException(
+                status_code=404,
+                detail="PDF sem marca d'água não encontrado para esta matrícula" if chave == "limpo" else "PDF da matrícula não encontrado",
+            )
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
 
@@ -208,14 +321,20 @@ def download_matricula_pdf(mid: int, download: bool = False):
     except Exception as e:
         raise _http_erro(e) if not isinstance(e, HTTPException) else e
 
+
 @router.delete("/matriculas/{mid}/pdf")
 def delete_matricula_pdf(mid: int):
     try:
-        path = obter_caminho_pdf(mid)
-        if path and os.path.exists(path):
-            os.remove(path)
-        definir_caminho_pdf(mid, None)
-        return {"message": "PDF da matrícula excluído com sucesso"}
+        caminhos = obter_caminhos_pdf(mid)
+        for chave in ("original", "limpo"):
+            path = _resolver_caminho_pdf_matricula(mid, caminhos.get(chave))
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError as ex_rm:
+                    logging.getLogger(__name__).warning(f"Aviso ao remover {chave} da matrícula {mid}: {ex_rm}")
+        definir_caminhos_pdf(mid, None, None)
+        return {"message": "PDFs da matrícula excluídos com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

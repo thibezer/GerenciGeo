@@ -17,6 +17,13 @@ Esta skill orienta o agente a inspecionar visualmente imagens, prints, PDFs ou i
 
 ## 📋 Protocolo de Execução Passo a Passo
 
+### 0. Conferir se o(s) Arquivo(s) Já Foram Enviados (Anti-Repetição)
+Sempre que receber arquivos do usuário no chat (imagens, prints ou PDFs), verifique primeiro se algum deles já foi processado antes:
+```powershell
+python scripts/verificar_arquivo_ia.py --arquivo "<caminho1>" --arquivo "<caminho2>"
+```
+Se `ja_enviado: true`, avise o usuário logo no início da resposta informando a data do envio anterior e a qual cliente o arquivo já foi vinculado (evitando trabalho repetido). Só reenvie/sobrescreva se ele confirmar.
+
 ### 1. Inspecionar e Reconhecer o(s) Documento(s)
 Identifique visualmente o(s) modelo(s) enviado(s). Se houver múltiplos arquivos do mesmo cliente (ex.: frente e verso do RG, ou RG + Comprovante + Certidão de Casamento), **consolide todos os campos em um único payload JSON** e anexe todas as imagens juntas.
 
@@ -124,7 +131,7 @@ python scripts/cadastrar_cliente_ia.py --json '<PAYLOAD_JSON>'
 **Regras de Enriquecimento, Simulação e Sobrescrita**:
 - **Cliente Novo**: Cadastra atomicamente a pessoa e o registro de cliente (textos 100% em CAIXA ALTA vindos de OCR são convertidos automaticamente para *Title Case* preservando preposições e siglas como `LTDA`/`PR`).
 - **Cliente Existente (Padrão — Enriquecimento Seguro)**: Localiza por CPF/CNPJ (ou por nome exato único quando o documento não tiver CPF). Preenche **apenas os campos que estavam vazios/nulos** e faz merge de metadados, **sem sobrescrever** dados pré-existentes válidos.
-- **Prevenção de Duplicidade**: Anexos idênticos (mesmo conteúdo/hash) não são duplicados na pasta do cliente.
+- **Prevenção de Duplicidade & Histórico Anti-Repetição**: Anexos idênticos (mesmo conteúdo/SHA-256) não são duplicados na pasta do cliente e ficam automaticamente registrados na tabela `arquivos_enviados_ia` (acessível também pelo botão **Arquivos enviados** na tela de Clientes e Propriedades).
 - **Correção/Substituição Explícita (`--sobrescrever`)**: Use `--sobrescrever` **somente** quando o usuário pedir explicitamente para atualizar/substituir um dado já cadastrado (ex.: *"atualize o endereço dele para esse novo"*).
 - **Pré-visualização (`--dry-run`)**: Use `--dry-run` quando o documento estiver duvidoso/borrado e você quiser conferir o payload normalizado antes de gravar no banco.
 - **Alerta de Cônjuge para Georreferenciamento**: Se o cliente for `Casado(a)` ou `União Estável` e faltarem Nome ou CPF do cônjuge, o sistema abre pendência técnica automática para fins de INCRA/SIGEF.

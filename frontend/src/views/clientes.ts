@@ -7,6 +7,7 @@ import type {
   ClienteDocumento
 } from '../types';
 import { initIcons, escapeHtml } from '../utils';
+import { abrirModalHistoricoArquivosIA } from '../utils/historico_arquivos_ia';
 import { API_BASE } from '../config';
 import { renderClientesTemplate } from './clientes/clientes_template';
 import {
@@ -331,6 +332,10 @@ export const clientesRoute: RouteDef = {
     selectSexo?.addEventListener('ui-selecionar', (e) => atualizarNacionalidadePorSelect(selectSexo, inputNacionalidade, 'M', e));
     selectGeneroConjuge?.addEventListener('change', (e) => atualizarNacionalidadePorSelect(selectGeneroConjuge, inputNacionalidadeConjuge, 'F', e));
     selectGeneroConjuge?.addEventListener('ui-selecionar', (e) => atualizarNacionalidadePorSelect(selectGeneroConjuge, inputNacionalidadeConjuge, 'F', e));
+
+    document.getElementById('btn-clientes-arquivos-enviados')?.addEventListener('click', () => {
+      abrirModalHistoricoArquivosIA('CLIENTE');
+    });
 
     // Botões de abertura/fechamento de modais
     document.getElementById('btn-abrir-modal-cliente')?.addEventListener('click', () => {

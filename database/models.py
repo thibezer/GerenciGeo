@@ -176,6 +176,7 @@ def create_tables(conn):
             denominacao TEXT,
             georreferenciamento TEXT,
             caminho_arquivo_pdf TEXT,
+            caminho_arquivo_pdf_limpo TEXT,
             matricula_origem_desenho_id INTEGER REFERENCES matriculas(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
@@ -524,6 +525,34 @@ def create_tables(conn):
         """,
         """
         CREATE INDEX IF NOT EXISTS idx_reg_excluidos ON registros_excluidos(tabela, registro_id);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS arquivos_enviados_ia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sha256 TEXT NOT NULL,
+            nome_arquivo TEXT NOT NULL,
+            extensao TEXT,
+            tamanho_bytes INTEGER DEFAULT 0,
+            categoria TEXT NOT NULL DEFAULT 'OUTRO',
+            tipo_documento TEXT,
+            entidade_tipo TEXT,
+            entidade_id INTEGER,
+            entidade_nome TEXT,
+            origem_envio TEXT DEFAULT 'IA_CHAT',
+            caminho_origem TEXT,
+            caminho_arquivado TEXT,
+            resumo_extracao TEXT,
+            enviado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_arq_enviados_sha256 ON arquivos_enviados_ia(sha256);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_arq_enviados_nome ON arquivos_enviados_ia(nome_arquivo);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_arq_enviados_entidade ON arquivos_enviados_ia(entidade_tipo, entidade_id);
         """
     ]
 
@@ -846,6 +875,7 @@ def create_tables(conn):
             ("denominacao", "TEXT"),
             ("georreferenciamento", "TEXT"),
             ("caminho_arquivo_pdf", "TEXT"),
+            ("caminho_arquivo_pdf_limpo", "TEXT"),
             ("matricula_origem_desenho_id", "INTEGER"),
             ("area_sigef_ha", "REAL")
         ]
@@ -1786,7 +1816,8 @@ def migrar_integridade_confrontantes_e_indices(conn):
 TABELAS_SINCRONIZAVEIS = [
     "pessoas", "profissionais", "clientes", "cliente_documentos", "propriedades", "propriedade_clientes",
     "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes",
-    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios", "alteracoes_sigef"
+    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios", "alteracoes_sigef",
+    "arquivos_enviados_ia"
 ]
 
 _SQL_AGORA_UTC = "strftime('%Y-%m-%d %H:%M:%f','now')"

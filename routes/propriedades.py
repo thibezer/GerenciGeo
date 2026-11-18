@@ -457,15 +457,32 @@ async def upload_propriedade_car(prop_id: int, file: UploadFile = File(...)):
         # Limpa caracteres especiais
         safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
         dest_path = dest_dir / f"CAR_{safe_filename}"
-        
+
+        content = await file.read()
         with open(dest_path, "wb") as buffer:
-            buffer.write(await file.read())
-            
+            buffer.write(content)
+
         execute_query(
             "UPDATE propriedades SET caminho_arquivo_car = ? WHERE id = ?",
             params=(str(dest_path), prop_id),
             commit=True
         )
+        try:
+            from services.gestores.historico_arquivos_service import calcular_sha256_bytes, registrar_arquivo_enviado
+            registrar_arquivo_enviado(
+                nome_arquivo=file.filename or safe_filename,
+                sha256=calcular_sha256_bytes(content),
+                tamanho_bytes=len(content),
+                categoria="PROPRIEDADE",
+                tipo_documento="CAR",
+                entidade_tipo="propriedade",
+                entidade_id=prop_id,
+                entidade_nome=prop["nome_propriedade"],
+                origem_envio="UI_UPLOAD",
+                caminho_arquivado=str(dest_path),
+            )
+        except Exception:
+            pass
         return {"message": "Arquivo do CAR enviado com sucesso", "caminho": str(dest_path)}
     except HTTPException:
         raise
@@ -485,15 +502,32 @@ async def upload_propriedade_ccir(prop_id: int, file: UploadFile = File(...)):
         
         safe_filename = re.sub(r'[\\/*?:"<>|]', "", file.filename)
         dest_path = dest_dir / f"CCIR_{safe_filename}"
-        
+
+        content = await file.read()
         with open(dest_path, "wb") as buffer:
-            buffer.write(await file.read())
-            
+            buffer.write(content)
+
         execute_query(
             "UPDATE propriedades SET caminho_arquivo_ccir = ? WHERE id = ?",
             params=(str(dest_path), prop_id),
             commit=True
         )
+        try:
+            from services.gestores.historico_arquivos_service import calcular_sha256_bytes, registrar_arquivo_enviado
+            registrar_arquivo_enviado(
+                nome_arquivo=file.filename or safe_filename,
+                sha256=calcular_sha256_bytes(content),
+                tamanho_bytes=len(content),
+                categoria="PROPRIEDADE",
+                tipo_documento="CCIR",
+                entidade_tipo="propriedade",
+                entidade_id=prop_id,
+                entidade_nome=prop["nome_propriedade"],
+                origem_envio="UI_UPLOAD",
+                caminho_arquivado=str(dest_path),
+            )
+        except Exception:
+            pass
         return {"message": "Arquivo do CCIR enviado com sucesso", "caminho": str(dest_path)}
     except HTTPException:
         raise

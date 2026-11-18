@@ -1,6 +1,14 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, formatarCAR, formatarCCIR, formatarCNS, showToast, customAlert, customConfirm, escapeHtml, formatarDataHoraUtc } from '../utils';
+import { abrirModalHistoricoArquivosIA } from '../utils/historico_arquivos_ia';
+
+const ehAmbienteLocal = (): boolean =>
+  typeof window !== 'undefined' && (
+    window.location.origin.includes('localhost') ||
+    window.location.origin.includes('127.0.0.1') ||
+    window.location.origin.includes('[::1]')
+  );
 import { renderBotoesPaginacaoHtml } from '../utils/lista_padrao';
 import {
   filtrarPropriedades,
@@ -68,6 +76,10 @@ export const propriedadesRoute: RouteDef = {
               <kbd class="lp-kbd" title="Atalho: pressione / para buscar">/</kbd>
             </span>
           </label>
+          <button type="button" class="lp-btn-sec" id="btn-prop-arquivos-enviados" title="Histórico e conferência de arquivos já enviados">
+            <i data-lucide="file-check-2" class="w-4 h-4"></i>
+            Arquivos enviados
+          </button>
           <button type="button" class="lp-btn-primario" id="btn-abrir-modal-propriedade" title="Nova propriedade" aria-label="Nova propriedade">
             <i data-lucide="plus" class="w-4 h-4"></i>
             Nova propriedade
@@ -871,6 +883,10 @@ export const propriedadesRoute: RouteDef = {
     document.getElementById('btn-cancelar-prop')?.addEventListener('click', fecharModalPropriedade);
     document.getElementById('btn-fechar-modal-hist-mat')?.addEventListener('click', fecharModalHistMat);
 
+    document.getElementById('btn-prop-arquivos-enviados')?.addEventListener('click', () => {
+       abrirModalHistoricoArquivosIA('MATRICULA');
+    });
+
     document.getElementById('btn-abrir-modal-propriedade')?.addEventListener('click', () => {
        abrirModalPropriedade(null);
     });
@@ -1636,17 +1652,36 @@ export const propriedadesRoute: RouteDef = {
                 maximumFractionDigits: 4
              });
 
-             // Bloco PDF
+             // Bloco PDF (Original + Sem Marca d'Água)
              let pdfHtml = '';
              if (m.caminho_arquivo_pdf) {
                 const parts = m.caminho_arquivo_pdf.split(/[\\/]/);
                 const pdfName = parts[parts.length - 1];
+                const temLimpo = Boolean(m.caminho_arquivo_pdf_limpo);
+                const local = ehAmbienteLocal();
+
+                const btnSemMarca = temLimpo
+                  ? `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=limpo" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/25 transition-colors" title="Abrir PDF sem marca d'água">
+                        <i data-lucide="sparkles" class="w-3 h-3"></i>
+                        Sem marca
+                     </a>`
+                  : (local
+                      ? `<button type="button" onclick="window.limparPdfMatricula(${m.id})" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer" title="Remover marca d'água deste PDF">
+                           <i data-lucide="wand-2" class="w-3 h-3"></i>
+                           Tirar marca
+                         </button>`
+                      : '');
+
+                const btnOriginal = `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=original" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/75 border border-white/15 hover:text-white hover:bg-white/10 transition-colors" title="Ver PDF original (${escapeHtml(pdfName)})">
+                      <i data-lucide="file-text" class="w-3 h-3"></i>
+                      Original
+                   </a>`;
+
                 pdfHtml = `
-                   <div class="flex items-center justify-center gap-1">
-                      <a href="${API_BASE}/matriculas/${m.id}/download-pdf" target="_blank" class="text-mint-vibrant hover:text-white transition-colors p-1" title="Ver Certidão PDF (${escapeHtml(pdfName)})">
-                         <i data-lucide="file-text" class="w-4 h-4"></i>
-                      </a>
-                      <button onclick="window.excluirPdfMatricula(${m.id})" class="text-white/40 hover:text-red-400 p-1 cursor-pointer" title="Remover PDF">
+                   <div class="flex items-center justify-center gap-1 flex-wrap">
+                      ${btnSemMarca}
+                      ${btnOriginal}
+                      <button type="button" onclick="window.excluirPdfMatricula(${m.id})" class="text-white/40 hover:text-red-400 p-1 cursor-pointer" title="Remover PDFs">
                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                       </button>
                    </div>
@@ -1654,7 +1689,7 @@ export const propriedadesRoute: RouteDef = {
              } else {
                 pdfHtml = `
                    <div class="flex items-center justify-center">
-                      <button onclick="document.getElementById('input-pdf-mat-${m.id}').click()" class="text-white/40 hover:text-mint-vibrant p-1 transition-colors cursor-pointer" title="Enviar Certidão PDF">
+                      <button type="button" onclick="document.getElementById('input-pdf-mat-${m.id}').click()" class="text-white/40 hover:text-mint-vibrant p-1 transition-colors cursor-pointer" title="Enviar Certidão PDF (gera automaticamente versão sem marca d'água)">
                          <i data-lucide="upload" class="w-4 h-4"></i>
                       </button>
                       <input type="file" id="input-pdf-mat-${m.id}" class="hidden" accept=".pdf" onchange="window.uploadPdfMatricula(event, ${m.id})" />
@@ -1719,7 +1754,7 @@ export const propriedadesRoute: RouteDef = {
        }
     };
 
-    // --- UPLOAD E DELEÇÃO DE PDF DE MATRÍCULA ---
+    // --- UPLOAD, LIMPEZA DE MARCA D'ÁGUA E DELEÇÃO DE PDF DE MATRÍCULA ---
     (window as any).uploadPdfMatricula = async (event: any, mid: number) => {
        const file = event.target.files[0];
        if (!file) return;
@@ -1736,7 +1771,10 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) {
              customAlert(data.error);
           } else {
-             showToast("Certidão em PDF anexada à matrícula com sucesso!", "success");
+             const msg = data.caminho_limpo
+               ? "Certidão anexada! Versão original e versão sem marca d'água salvas."
+               : "Certidão em PDF anexada à matrícula com sucesso!";
+             showToast(msg, "success");
              loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
           }
        } catch (err) {
@@ -1744,8 +1782,26 @@ export const propriedadesRoute: RouteDef = {
        }
     };
 
+    (window as any).limparPdfMatricula = async (mid: number) => {
+       try {
+          showToast("Removendo marca d'água do PDF...", "info");
+          const res = await fetch(`${API_BASE}/matriculas/${mid}/limpar-pdf`, {
+             method: 'POST'
+          });
+          const data = await lerRespostaApi(res);
+          if (data.error) {
+             customAlert(data.error);
+          } else {
+             showToast("Versão sem marca d'água gerada com sucesso!", "success");
+             loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
+          }
+       } catch (err) {
+          showToast("Erro de conexão ao limpar marca d'água do PDF.", "error");
+       }
+    };
+
     (window as any).excluirPdfMatricula = async (mid: number) => {
-       if (!(await customConfirm("Deseja realmente remover o arquivo PDF da certidão desta matrícula?"))) return;
+       if (!(await customConfirm("Deseja realmente remover os arquivos PDF (original e sem marca) desta matrícula?"))) return;
 
        try {
           const res = await fetch(`${API_BASE}/matriculas/${mid}/pdf`, {
@@ -1755,7 +1811,7 @@ export const propriedadesRoute: RouteDef = {
           if (data.error) {
              customAlert(data.error);
           } else {
-             showToast("PDF removido com sucesso.", "success");
+             showToast("PDFs removidos com sucesso.", "success");
              loadMatriculasDaPropriedade(propriedadeSelecionadaId!);
           }
        } catch (err) {

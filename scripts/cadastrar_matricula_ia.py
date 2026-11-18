@@ -24,7 +24,17 @@ if BASE_DIR not in sys.path:
 from config import DB_PATH, EXPORT_BASE_FOLDER
 from database.connection import DatabaseManager, execute_query
 from services.gestores.cliente_manager import limpar_documento, vincular_cliente_propriedade
-from services.gestores.matricula_manager import resolver_campos_matricula, COLUNAS_MATRICULA
+from services.gestores.matricula_manager import (
+    definir_caminhos_pdf,
+    resolver_campos_matricula,
+    COLUNAS_MATRICULA,
+)
+from services.processamento.pdf_limpeza import gerar_pdf_sem_marca
+from services.gestores.historico_arquivos_service import (
+    calcular_sha256_arquivo,
+    registrar_arquivo_enviado,
+    verificar_arquivo_enviado,
+)
 
 logger = logging.getLogger("cadastrar_matricula_ia")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -72,8 +82,17 @@ def converter_area_para_hectares(dados: Dict[str, Any], uf: str = "PR") -> Optio
     return None
 
 
-def anexar_arquivo_matricula(matricula_id: int, propriedade_id: int, caminho_pdf: str, num_matricula: str) -> Optional[str]:
-    """Copia o PDF da matrícula para o diretório oficial e atualiza o caminho no banco."""
+def anexar_arquivo_matricula(
+    matricula_id: int,
+    propriedade_id: int,
+    caminho_pdf: str,
+    num_matricula: str,
+    nome_propriedade: str = "",
+) -> Optional[Dict[str, Any]]:
+    """
+    Arquiva o PDF original da matrícula, gera automaticamente a versão limpa (sem marca d'água),
+    atualiza ambas as colunas no banco e registra o envio no histórico anti-repetição.
+    """
     if not caminho_pdf or not os.path.exists(caminho_pdf):
         return None
 
@@ -81,18 +100,57 @@ def anexar_arquivo_matricula(matricula_id: int, propriedade_id: int, caminho_pdf
         dest_dir = os.path.join(BASE_DIR, "uploads", "documentos_matriculas", str(matricula_id))
         os.makedirs(dest_dir, exist_ok=True)
 
-        num_limpo = re.sub(r'[^0-9A-Za-z]', '_', str(num_matricula))
-        nome_final = f"Matricula_{num_limpo}.pdf"
-        caminho_final = os.path.join(dest_dir, nome_final)
-
-        shutil.copy2(caminho_pdf, caminho_final)
-
-        execute_query(
-            "UPDATE matriculas SET caminho_arquivo_pdf = ? WHERE id = ?",
-            params=(caminho_final, matricula_id),
-            commit=True
+        sha256_orig = calcular_sha256_arquivo(caminho_pdf)
+        tam_orig = os.path.getsize(caminho_pdf)
+        verificacao = verificar_arquivo_enviado(
+            caminho=caminho_pdf,
+            sha256=sha256_orig,
+            nome_arquivo=os.path.basename(caminho_pdf),
+            tamanho_bytes=tam_orig,
         )
-        return caminho_final
+
+        ext = os.path.splitext(caminho_pdf)[1].lower() or ".pdf"
+        num_limpo = re.sub(r'[^0-9A-Za-z]', '_', str(num_matricula))
+        nome_original = f"Matricula_{num_limpo}_Original{ext}"
+        caminho_original = os.path.join(dest_dir, nome_original)
+
+        shutil.copy2(caminho_pdf, caminho_original)
+
+        caminho_sem_marca: Optional[str] = None
+        res_limpeza: Optional[Dict[str, Any]] = None
+        with open(caminho_original, "rb") as f_chk:
+            cabecalho = f_chk.read(8)
+        if ext == ".pdf" or cabecalho.lstrip().startswith(b"%PDF"):
+            destino_limpo = os.path.join(dest_dir, f"Matricula_{num_limpo}_Sem_Marca.pdf")
+            res_limpeza = gerar_pdf_sem_marca(caminho_original, destino_limpo)
+            if res_limpeza.get("sucesso"):
+                caminho_sem_marca = destino_limpo
+
+        definir_caminhos_pdf(matricula_id, caminho_original, caminho_sem_marca)
+
+        registro_hist = registrar_arquivo_enviado(
+            nome_arquivo=os.path.basename(caminho_pdf),
+            sha256=sha256_orig,
+            tamanho_bytes=tam_orig,
+            categoria="MATRICULA",
+            tipo_documento="MATRICULA",
+            entidade_tipo="matricula",
+            entidade_id=matricula_id,
+            entidade_nome=f"Matrícula {num_matricula} — {nome_propriedade or f'Propriedade #{propriedade_id}'}",
+            origem_envio="IA_CHAT",
+            caminho_origem=caminho_pdf,
+            caminho_arquivado=caminho_original,
+            resumo_extracao="Original + Sem marca d'água" if caminho_sem_marca else "Somente original",
+        )
+
+        return {
+            "caminho_original": caminho_original,
+            "caminho_limpo": caminho_sem_marca,
+            "limpeza": res_limpeza,
+            "ja_enviado_anteriormente": bool(verificacao.get("ja_enviado")),
+            "correspondencias_anteriores": verificacao.get("correspondencias_hash") or [],
+            "historico_id": registro_hist.get("id"),
+        }
     except Exception as e:
         logger.error(f"Erro ao anexar PDF da matrícula {matricula_id}: {e}")
         return None
@@ -253,11 +311,22 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
             matricula_id = cursor.lastrowid
             conn.commit()
 
-    # 3. Anexa o PDF da matrícula se fornecido
+    # 3. Anexa o PDF da matrícula (original + versão sem marca d'água) se fornecido
     caminho_doc = caminho_pdf or dados.get("caminho_arquivo_pdf") or dados.get("arquivo_pdf")
+    pdf_info = None
     pdf_salvo = None
+    pdf_limpo_salvo = None
     if caminho_doc:
-        pdf_salvo = anexar_arquivo_matricula(matricula_id, propriedade_id, caminho_doc, num_matricula)
+        pdf_info = anexar_arquivo_matricula(
+            matricula_id,
+            propriedade_id,
+            caminho_doc,
+            num_matricula,
+            nome_propriedade=nome_propriedade,
+        )
+        if pdf_info:
+            pdf_salvo = pdf_info.get("caminho_original")
+            pdf_limpo_salvo = pdf_info.get("caminho_limpo")
 
     # 4. Vínculo Inteligente com Proprietários (Clientes)
     proprietarios_input = dados.get("proprietarios") or []
@@ -329,6 +398,11 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
         "acao_matricula": acao_matricula,
         "proprietarios": proprietarios_vinculados,
         "arquivo_pdf_salvo": pdf_salvo,
+        "arquivo_pdf_limpo_salvo": pdf_limpo_salvo,
+        "limpeza_marca_dagua": pdf_info.get("limpeza") if pdf_info else None,
+        "arquivo_ja_enviado": bool(pdf_info.get("ja_enviado_anteriormente")) if pdf_info else False,
+        "correspondencias_anteriores": pdf_info.get("correspondencias_anteriores", []) if pdf_info else [],
+        "historico_arquivo_id": pdf_info.get("historico_id") if pdf_info else None,
         "memorial_descritivo_extraido": bool(memorial_georref),
         "mensagem": f"Matrícula nº {num_matricula} ({acao_matricula}) processada com sucesso na Propriedade ID {propriedade_id} ({acao_propriedade})."
     }

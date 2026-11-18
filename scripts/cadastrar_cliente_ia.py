@@ -33,6 +33,10 @@ from services.gestores.cliente_manager import (
     limpar_documento,
     validar_cpf_cnpj
 )
+from services.gestores.historico_arquivos_service import (
+    registrar_arquivo_enviado,
+    verificar_arquivo_enviado,
+)
 
 logger = logging.getLogger("cadastrar_cliente_ia")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -286,8 +290,14 @@ def _hash_arquivo(caminho: str) -> str:
     return h.hexdigest()
 
 
-def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Copia a imagem/PDF para a pasta oficial de documentos do cliente e registra na base."""
+def anexar_arquivo_documento(
+    cliente_id: int,
+    caminho_imagem: str,
+    dados: Dict[str, Any],
+    nome_cliente: Optional[str] = None,
+    cpf_cnpj: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Copia a imagem/PDF para a pasta oficial de documentos do cliente e registra na base e no histórico."""
     if not caminho_imagem or not os.path.exists(caminho_imagem):
         return None
 
@@ -311,18 +321,43 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         destino_dir = os.path.join(BASE_DIR, "uploads", "documentos_clientes", str(cliente_id))
         os.makedirs(destino_dir, exist_ok=True)
 
-        # Evita duplicação caso o mesmo arquivo já tenha sido anexado para este cliente
         hash_novo = _hash_arquivo(caminho_imagem)
+        tam_novo = os.path.getsize(caminho_imagem)
+        verificacao = verificar_arquivo_enviado(
+            caminho=caminho_imagem,
+            sha256=hash_novo,
+            nome_arquivo=nome_arquivo,
+            tamanho_bytes=tam_novo,
+        )
+        entidade_rotulo = f"{nome_cliente or dados.get('nome_completo') or f'Cliente #{cliente_id}'} ({cpf_cnpj or dados.get('cpf_cnpj') or 'S/CPF'})"
+
+        # Evita duplicação caso o mesmo arquivo já tenha sido anexado para este cliente
         for arq_existente in os.listdir(destino_dir):
             caminho_ex = os.path.join(destino_dir, arq_existente)
             if os.path.isfile(caminho_ex) and _hash_arquivo(caminho_ex) == hash_novo:
+                registrar_arquivo_enviado(
+                    nome_arquivo=nome_arquivo,
+                    sha256=hash_novo,
+                    tamanho_bytes=tam_novo,
+                    categoria="CLIENTE",
+                    tipo_documento=tipo_doc,
+                    entidade_tipo="cliente",
+                    entidade_id=cliente_id,
+                    entidade_nome=entidade_rotulo,
+                    origem_envio="IA_CHAT",
+                    caminho_origem=caminho_imagem,
+                    caminho_arquivado=caminho_ex,
+                    resumo_extracao=f"{tipo_doc} ({numero_doc})",
+                )
                 return {
                     "tipo": tipo_doc,
                     "numero": numero_doc,
                     "caminho": caminho_ex,
                     "arquivo": arq_existente,
                     "tamanho_bytes": os.path.getsize(caminho_ex),
-                    "duplicado": True
+                    "duplicado": True,
+                    "ja_enviado_anteriormente": True,
+                    "correspondencias_anteriores": verificacao.get("correspondencias_hash") or [],
                 }
 
         novo_nome = f"{tipo_doc}_{timestamp}{ext}"
@@ -348,16 +383,41 @@ def anexar_arquivo_documento(cliente_id: int, caminho_imagem: str, dados: Dict[s
         }
 
         res_doc = salvar_documento_cliente(cliente_id, doc_payload)
+        reg_hist = registrar_arquivo_enviado(
+            nome_arquivo=nome_arquivo,
+            sha256=hash_novo,
+            tamanho_bytes=tamanho,
+            categoria="CLIENTE",
+            tipo_documento=tipo_doc,
+            entidade_tipo="cliente",
+            entidade_id=cliente_id,
+            entidade_nome=entidade_rotulo,
+            origem_envio="IA_CHAT",
+            caminho_origem=caminho_imagem,
+            caminho_arquivado=caminho_final,
+            resumo_extracao=f"{tipo_doc} ({numero_doc})",
+        )
         if "error" in res_doc:
             logger.warning(f"Aviso ao registrar documento na tabela: {res_doc['error']}")
-            return {"tipo": tipo_doc, "caminho": caminho_final, "arquivo": novo_nome, "aviso": res_doc["error"]}
+            return {
+                "tipo": tipo_doc,
+                "caminho": caminho_final,
+                "arquivo": novo_nome,
+                "aviso": res_doc["error"],
+                "ja_enviado_anteriormente": bool(verificacao.get("ja_enviado")),
+                "correspondencias_anteriores": verificacao.get("correspondencias_hash") or [],
+                "historico_id": reg_hist.get("id"),
+            }
 
         return {
             "tipo": tipo_doc,
             "numero": numero_doc,
             "caminho": caminho_final,
             "arquivo": novo_nome,
-            "tamanho_bytes": tamanho
+            "tamanho_bytes": tamanho,
+            "ja_enviado_anteriormente": bool(verificacao.get("ja_enviado")),
+            "correspondencias_anteriores": verificacao.get("correspondencias_hash") or [],
+            "historico_id": reg_hist.get("id"),
         }
     except Exception as e:
         logger.error(f"Erro ao anexar arquivo de documento: {e}")
@@ -559,6 +619,10 @@ def processar_cadastro_ia(
             return {"sucesso": False, "erro": res_create["error"]}
         cliente_id = res_create.get("id")
         pessoa_id = res_create.get("pessoa_id")
+        if not pessoa_id and cliente_id:
+            row_pid = execute_query("SELECT pessoa_id FROM clientes WHERE id = ?", params=(cliente_id,), fetch_one=True)
+            if row_pid:
+                pessoa_id = row_pid["pessoa_id"]
         acao = "CRIADO"
 
     # 3. Anexa documento(s) se imagem(ns)/PDF(s) fornecidos
@@ -575,10 +639,22 @@ def processar_cadastro_ia(
         caminhos_lista.extend([c for c in dados["caminhos_imagens"] if c])
 
     docs_anexos = []
+    avisos_duplicidade = []
     for c_doc in dict.fromkeys(caminhos_lista):
-        info = anexar_arquivo_documento(cliente_id, c_doc, dados)
+        info = anexar_arquivo_documento(
+            cliente_id,
+            c_doc,
+            dados,
+            nome_cliente=nome,
+            cpf_cnpj=cpf_cnpj,
+        )
         if info:
             docs_anexos.append(info)
+            if info.get("ja_enviado_anteriormente") or info.get("duplicado"):
+                avisos_duplicidade.append({
+                    "arquivo_enviado": os.path.basename(c_doc),
+                    "correspondencias": info.get("correspondencias_anteriores") or [],
+                })
     doc_info = docs_anexos[0] if docs_anexos else None
 
     # 4. Verificação de Pendência de Cônjuge para Georreferenciamento
@@ -621,6 +697,7 @@ def processar_cadastro_ia(
         "campos_salvos": campos_atualizados,
         "documento_anexo": doc_info,
         "documentos_anexos": docs_anexos,
+        "avisos_duplicidade": avisos_duplicidade,
         "alerta_conjuge": alerta_conjuge,
         "mensagem": msg
     }

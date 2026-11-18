@@ -290,8 +290,32 @@ def obter_caminho_pdf(mid: int) -> str | None:
     return row["caminho_arquivo_pdf"] if row and row["caminho_arquivo_pdf"] else None
 
 
+def obter_caminhos_pdf(mid: int) -> dict:
+    """Retorna os caminhos do PDF original e da versão sem marca d'água da matrícula."""
+    row = execute_query(
+        "SELECT caminho_arquivo_pdf, caminho_arquivo_pdf_limpo FROM matriculas WHERE id = ?",
+        params=(mid,),
+        fetch_one=True,
+    )
+    if not row:
+        return {"original": None, "limpo": None}
+    return {
+        "original": row["caminho_arquivo_pdf"] or None,
+        "limpo": row["caminho_arquivo_pdf_limpo"] or None,
+    }
+
+
 def definir_caminho_pdf(mid: int, caminho: str | None) -> None:
     execute_query("UPDATE matriculas SET caminho_arquivo_pdf = ? WHERE id = ?", params=(caminho, mid), commit=True)
+
+
+def definir_caminhos_pdf(mid: int, caminho_original: str | None, caminho_limpo: str | None) -> None:
+    """Atualiza simultaneamente o caminho do PDF original e o caminho do PDF sem marca d'água."""
+    execute_query(
+        "UPDATE matriculas SET caminho_arquivo_pdf = ?, caminho_arquivo_pdf_limpo = ? WHERE id = ?",
+        params=(caminho_original, caminho_limpo, mid),
+        commit=True,
+    )
 
 
 def listar_historico(mid: int) -> list[dict]:

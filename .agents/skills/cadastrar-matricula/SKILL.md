@@ -17,6 +17,17 @@ Esta skill orienta o agente a realizar a leitura visual minuciosa (OCR Multimoda
 
 ## 📋 Protocolo de Execução Passo a Passo
 
+### 0. Conferir se o PDF Já Foi Enviado & Limpeza Automática de Marca d'Água
+Sempre que receber um arquivo PDF de matrícula do usuário, verifique primeiro se ele já consta no histórico:
+```powershell
+python scripts/verificar_arquivo_ia.py --arquivo "<CAMINHO_DO_PDF>"
+```
+Se `ja_enviado: true`, avise imediatamente o usuário informando a data do envio anterior e a matrícula vinculada.
+
+> 💡 **Dica de leitura (PDF com marca d'água)**: Se a marca d'água do cartório dificultar a leitura visual das folhas, você pode gerar uma versão limpa temporária antes da leitura com:
+> `python scripts/verificar_arquivo_ia.py --limpar-pdf "<CAMINHO_DO_PDF>"`
+> E ao rodar `cadastrar_matricula_ia.py --pdf ...` no passo 3, o sistema já guarda automaticamente **tanto o original quanto a versão sem marca d'água**!
+
 ### 1. Leitura Completa de Todas as Folhas e Fichas
 Inspecione visualmente o cabeçalho do imóvel e **toda a cadeia de atos registrais** (Registros `R.` e Averbações `Av.`):
 
@@ -101,7 +112,7 @@ O script executa de forma atômica:
 1. Encontra ou cadastra a `propriedade`.
 2. Cria ou atualiza a `matricula` com o memorial descritivo e dados cartorários.
 3. Associa automaticamente os proprietários já cadastrados no banco via tabela `propriedade_clientes`.
-4. Copia e arquiva o arquivo PDF físico na pasta oficial (`uploads/documentos_matriculas/{id}/`).
+4. Copia e arquiva o PDF **original** na pasta oficial (`uploads/documentos_matriculas/{id}/`), gera automaticamente a versão **sem marca d'água** (`_Sem_Marca.pdf`) via Ghostscript + PyMuPDF e registra o arquivo em `arquivos_enviados_ia` para evitar envios repetidos.
 
 ---
 

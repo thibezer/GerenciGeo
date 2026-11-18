@@ -328,10 +328,28 @@ def importar_identidade_pdf(cliente_id: int, file_bytes: bytes, filename: str, u
                 cursor.execute(f"UPDATE clientes SET {', '.join(campos_atualizar_cli)} WHERE id = ?", params_cli)
 
             conn.commit()
+        saved_file_path = file_path
         file_path = None  # Arquivo agora pertence ao documento gravado
 
-        # 6. Grava trilha de auditoria
+        # 6. Grava trilha de auditoria e histórico de arquivos enviados
         registrar_acesso_sensivel(cliente_id, "DOCUMENTO_PDF", f"IMPORTACAO_IDENTIDADE_{tipo_doc} ({filename})", usuario=usuario, ip_origem=ip_origem)
+        try:
+            from services.gestores.historico_arquivos_service import calcular_sha256_bytes, registrar_arquivo_enviado
+            registrar_arquivo_enviado(
+                nome_arquivo=filename or safe_filename,
+                sha256=calcular_sha256_bytes(file_bytes),
+                tamanho_bytes=tamanho_bytes,
+                categoria="CLIENTE",
+                tipo_documento=tipo_doc,
+                entidade_tipo="cliente",
+                entidade_id=cliente_id,
+                entidade_nome=f"{cli_row['nome']} ({cli_row['cpf_cnpj'] or 'S/CPF'})",
+                origem_envio="UI_UPLOAD",
+                caminho_arquivado=saved_file_path,
+                resumo_extracao=f"Identidade {tipo_doc} importada na ficha do cliente",
+            )
+        except Exception as ex_hist:
+            logger.warning(f"Aviso ao registrar PDF de identidade no histórico: {ex_hist}")
 
         return {
             "sucesso": True,
