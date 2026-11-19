@@ -49,6 +49,19 @@ def parece_ente_publico(nome: Optional[str]) -> bool:
     return True
 
 
+_PREFIXOS_VIA = ("estrada", "rodovia", "caminho", "via", "br", "pr", "sc", "rs")
+
+
+def parece_via_publica(nome: Optional[str]) -> bool:
+    """True se o nome indica estrada/rodovia/caminho públicos (ex.: 'Estrada Municipal Yara', 'BR-376').
+    Rios, córregos e ferrovias são entes públicos (`parece_ente_publico`), mas não vias: ficam de fora."""
+    if not parece_ente_publico(nome):
+        return False
+    n = _PREFIXO_DESCRITIVO.sub("", _normalizar(nome or ""))
+    m = _PADRAO_ENTE_PUBLICO.match(n)
+    return bool(m) and m.group(1) in _PREFIXOS_VIA
+
+
 def status_efetivo(status_registrado: Optional[str], nome: Optional[str], qtd_divisas: int, qtd_assinadas: int) -> str:
     """Status que vale para o confrontante, combinando registro, divisas marcadas e inferência por nome."""
     if status_registrado == STATUS_DISPENSADO:

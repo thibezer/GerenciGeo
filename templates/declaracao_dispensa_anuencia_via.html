@@ -1,0 +1,72 @@
+<!-- Documento encaixado na moldura templates/_base_documento.html (ver o comentário de lá). -->
+<!-- Declaração e laudo técnico de dispensa de anuência de confrontante que é VIA PÚBLICA (estrada/rodovia).
+     Exigência do Registro de Imóveis: constar a faixa de domínio e a área non aedificandi (Provimento CNJ nº 195/2025)
+     e estar assinado digitalmente pelo responsável técnico e pelos proprietários. -->
+<!-- @titulo -->Dispensa de Anuência de Via Pública - {nome_lote}<!-- @/titulo -->
+<!-- @barra_titulo -->Dispensa de Anuência - Via Pública<!-- @/barra_titulo -->
+<!-- @barra_subtitulo -->Declaração e laudo técnico para assinatura digital<!-- @/barra_subtitulo -->
+
+<!-- @corpo -->
+{aviso_html}
+
+<!-- Página Principal (A4) -->
+<div class="page folha-a4 folha-a4--fluxo">
+    <div>
+        <!--incluir:cabecalho_empresa-->
+
+        <div class="text-center mb-3">
+            <h2 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Declaração e Laudo Técnico de Dispensa de Anuência de Confrontante</h2>
+            <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Confrontante: {rotulo_vias}</p>
+        </div>
+
+        <div class="space-y-5 text-xs text-justify leading-relaxed text-slate-700">
+
+            <p>{abertura_html}</p>
+
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">1. Responsável Técnico</h3>
+                <p>{secao_rt_html}</p>
+            </div>
+
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">2. Proprietários</h3>
+                <p>{secao_proprietarios_html}</p>
+            </div>
+
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">3. Imóvel</h3>
+                <p>{secao_imovel_html}</p>
+            </div>
+
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">4. {titulo_secao_vias}</h3>
+                <p class="mb-2">{intro_vias_html}</p>
+                {secao_vias_html}
+            </div>
+
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">5. Declarações</h3>
+                <p class="mb-2">Declaram, sob as penas da lei, em especial o art. 299 do Código Penal Brasileiro, que:</p>
+                <div class="pl-4 space-y-2.5 font-medium text-slate-600">
+                    {declaracoes_html}
+                </div>
+            </div>
+
+            <div class="break-inside-avoid">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-[#10b981] border-b border-slate-100 pb-1.5 mb-2">6. Requerimento</h3>
+                <p>{requerimento_html}</p>
+            </div>
+
+            <p class="text-[11px] text-slate-500 italic break-inside-avoid">Documento firmado digitalmente pelo responsável técnico e por todos os proprietários, cuja validade e autenticidade são verificáveis nas respectivas assinaturas eletrônicas.</p>
+        </div>
+    </div>
+
+    <!-- Fechamento (data e assinaturas) unido para evitar quebra órfã -->
+    <div class="break-inside-avoid w-full mt-6">
+        <p class="text-left text-xs font-medium text-slate-900">{municipio}-{uf}, {data_extenso}.</p>
+        <div class="pt-2">
+            {bloco_assinaturas}
+        </div>
+    </div>
+</div>
+<!-- @/corpo -->

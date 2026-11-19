@@ -1263,6 +1263,27 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
+    const btnDispensaVia = document.getElementById('btn-emitir-dispensa-via');
+    if (btnDispensaVia) {
+      btnDispensaVia.onclick = async () => {
+        if (!(await validarPreRequisitosPecas())) return;
+        // TRT/ART: o servidor usa a salva no levantamento (lacuna se não houver)
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/declaracao-dispensa-via-html`;
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            const erro = await resp.json().catch(() => null);
+            showToast(erro?.detail || 'Não foi possível gerar a dispensa de anuência de estrada.', 'info');
+            return;
+          }
+        } catch {
+          showToast('Falha de comunicação ao gerar a dispensa de anuência de estrada.', 'info');
+          return;
+        }
+        window.open(url, '_blank');
+      };
+    }
+
     const btnAverbacaoCasamento = document.getElementById('btn-emitir-averbacao-casamento');
     if (btnAverbacaoCasamento) {
       btnAverbacaoCasamento.onclick = async () => {

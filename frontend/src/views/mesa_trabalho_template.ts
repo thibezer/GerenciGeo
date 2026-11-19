@@ -357,7 +357,7 @@ export const renderMesaTrabalho = (): string => {
                  <!-- Central de documentos: peças agrupadas por finalidade + anuência de confrontante empilhados -->
                  <div class="grade-docs-conf grid grid-cols-1 gap-4">
                    <details class="doc-card doc-collapsible" data-persist="cartorio-docs" open>
-                     <summary class="doc-card-title doc-summary"><i data-lucide="files"></i> Peças técnicas <span class="doc-summary-count">7 documentos</span><i data-lucide="chevron-down" class="doc-chevron"></i></summary>
+                     <summary class="doc-card-title doc-summary"><i data-lucide="files"></i> Peças técnicas <span class="doc-summary-count">8 documentos</span><i data-lucide="chevron-down" class="doc-chevron"></i></summary>
                      <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4">
                      <div class="doc-group">
                        <div class="doc-group-title">Retificação e registro</div>
@@ -420,6 +420,17 @@ export const renderMesaTrabalho = (): string => {
                          <span class="doc-row-text">
                            <span class="doc-row-title">Averbação de Casamento</span>
                            <span class="doc-row-desc">Atualiza o estado civil na matrícula</span>
+                         </span>
+                         <i data-lucide="file-down" class="doc-row-go"></i>
+                       </button>
+                     </div>
+                     <div class="doc-group">
+                       <div class="doc-group-title">Estradas e vias públicas</div>
+                       <button class="doc-row" id="btn-emitir-dispensa-via" type="button" title="Dispensa de Anuência de Estrada">
+                         <span class="doc-row-icon"><i data-lucide="route"></i></span>
+                         <span class="doc-row-text">
+                           <span class="doc-row-title">Dispensa de Anuência de Estrada</span>
+                           <span class="doc-row-desc">Declaração/laudo com faixa de domínio, para assinatura digital</span>
                          </span>
                          <i data-lucide="file-down" class="doc-row-go"></i>
                        </button>

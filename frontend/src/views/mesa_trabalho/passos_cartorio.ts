@@ -41,6 +41,7 @@ const PECAS: PecaTecnica[] = [
   { botao: 'btn-emitir-manual-proprietario' },
   { botao: 'btn-emitir-anuencia-desmembramento', opcional: true },
   { botao: 'btn-emitir-averbacao-casamento', opcional: true },
+  { botao: 'btn-emitir-dispensa-via', opcional: true },
 ];
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;

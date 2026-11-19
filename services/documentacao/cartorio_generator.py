@@ -67,6 +67,11 @@ class CartorioReportGenerator:
         return gerar_requerimento_averbacao_casamento_html(lev_id, matricula_id, cliente_id, params)
 
     @staticmethod
+    def gerar_declaracao_dispensa_via_html(lev_id: int, matricula_id: int, numero_trt: str = None, data_trt: str = "", confrontante_id: int = None) -> str:
+        from services.documentacao.cartorio.dispensa_via import gerar_declaracao_dispensa_via_html
+        return gerar_declaracao_dispensa_via_html(lev_id, matricula_id, numero_trt, data_trt, confrontante_id)
+
+    @staticmethod
     def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontante_id: int) -> dict:
         from services.documentacao.cartorio.anuencias import obter_preview_divisa_confrontante
         return obter_preview_divisa_confrontante(lev_id, matricula_id, confrontante_id)

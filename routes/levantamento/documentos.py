@@ -387,6 +387,25 @@ def get_manual_proprietario_html(id: int, matricula_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-dispensa-via-html", response_class=HTMLResponse)
+def get_declaracao_dispensa_via_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = "", confrontante_id: Optional[int] = None):
+    """Declaração/laudo de dispensa de anuência de estrada(s) confrontante(s), para assinatura digital."""
+    from services.documentacao.cartorio_generator import CartorioReportGenerator
+    from services.documentacao.erros import ErroDocumento, NaoEncontrado
+    try:
+        html = CartorioReportGenerator.gerar_declaracao_dispensa_via_html(
+            lev_id=id, matricula_id=matricula_id, numero_trt=numero_trt, data_trt=data_trt, confrontante_id=confrontante_id
+        )
+        return HTMLResponse(content=html)
+    except NaoEncontrado as ne:
+        raise HTTPException(status_code=404, detail=str(ne))
+    except ErroDocumento as ed:
+        raise HTTPException(status_code=422, detail=str(ed))
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Erro ao gerar declaração de dispensa de via: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno ao gerar a declaração de dispensa de anuência.")
+
+
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-anuencia-desmembramento-html", response_class=HTMLResponse)
 def get_declaracao_anuencia_desmembramento_html(id: int, matricula_id: int, codigo_cns: Optional[str] = Query(None), qtd_parcelas: int = Query(3)):
     try:
