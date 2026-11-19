@@ -221,6 +221,8 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         self.assertIn("Ligia Mayra Volttani Koyama", html)
         self.assertIn("Debora Fernanda Volttani Koyama", html)
         self.assertIn("Vértice Final: XRXR-P-0007", html)
+        self.assertIn("Lotes de terras nº 138 e 139", html)
+        self.assertNotIn("Lote Lotes", html)
 
     def test_conjuge_dispensado_em_comunhao_parcial_incomunicavel(self):
         salvar_envolvidos_usufruto(

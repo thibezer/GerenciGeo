@@ -158,7 +158,7 @@ export function criarPreviewDivisa(deps: PreviewDivisaDeps): PreviewDivisa {
         `Confrontação com ${data.imovel?.nome ?? ''} (${data.imovel?.matricula ? `Matrícula ${data.imovel.matricula}` : 'Área do Projeto'})`);
       texto('preview-anuencia-nome-conf', data.confrontante?.nome || '-');
       texto('preview-anuencia-cpf-conf', data.confrontante?.cpf_cnpj || 'Não informado');
-      const rotuloLote = data.confrontante?.lote ? (/^\s*lote\b/i.test(data.confrontante.lote) ? data.confrontante.lote : `Lote ${data.confrontante.lote}`) : '';
+      const rotuloLote = data.confrontante?.lote ? (/^\s*lotes?\b/i.test(data.confrontante.lote) ? data.confrontante.lote : `Lote ${data.confrontante.lote}`) : '';
       const partes = [
         rotuloLote,
         data.confrontante?.matricula_imovel && data.confrontante.matricula_imovel !== 'Não informada' ? `Mat. ${data.confrontante.matricula_imovel}` : '',

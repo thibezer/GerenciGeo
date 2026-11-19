@@ -443,7 +443,7 @@ def _termos_declarantes(plural: bool, genero_grupo: str | None) -> dict:
 
 
 _PREFIXO_IMOVEL_LOTE = re.compile(
-    r"^(?:lote|gleba|fazenda|s[ií]tio|ch[aá]cara|est[aâ]ncia|granja|quinh[aã]o|parcela|[aá]rea|im[oó]vel)\b",
+    r"^(?:lotes?|glebas?|fazendas?|s[ií]tios?|ch[aá]caras?|est[aâ]ncias?|granjas?|quinh(?:[aã]o|[oõ]es)|parcelas?|[aá]reas?|im[oó]ve(?:l|is))\b",
     re.IGNORECASE,
 )
 
