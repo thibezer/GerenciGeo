@@ -1268,7 +1268,15 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       btnDispensaVia.onclick = async () => {
         if (!(await validarPreRequisitosPecas())) return;
         // TRT/ART: o servidor usa a salva no levantamento (lacuna se não houver)
-        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/declaracao-dispensa-via-html`;
+        const faixaVal = prompt("Largura da faixa de domínio da estrada, em metros (opcional; ex.: 15):", "");
+        if (faixaVal === null) return;
+        const naoEdifVal = prompt("Largura da área non aedificandi, em metros (opcional; ex.: 15):", "");
+        if (naoEdifVal === null) return;
+        const params = new URLSearchParams();
+        if (faixaVal.trim()) params.set('faixa_dominio_m', faixaVal.trim());
+        if (naoEdifVal.trim()) params.set('faixa_nao_edificante_m', naoEdifVal.trim());
+        const qs = params.toString();
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/declaracao-dispensa-via-html${qs ? `?${qs}` : ''}`;
         try {
           const resp = await fetch(url);
           if (!resp.ok) {

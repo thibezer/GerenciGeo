@@ -85,6 +85,18 @@ class TestDeclaracaoDispensaVia(unittest.TestCase):
         self.assertIn("assinatura digital", html)
         self.assertNotIn("{", html.split("<body", 1)[-1].split("<script", 1)[0].replace("{{", ""), "placeholder sem preencher")
 
+    def test_larguras_opcionais_entram_no_texto(self):
+        html = CartorioReportGenerator.gerar_declaracao_dispensa_via_html(
+            self.lev_id, self.mat_id, faixa_dominio_m="15", faixa_nao_edificante_m="7,5")
+        self.assertIn("15,00 m", html)
+        self.assertIn("7,50 m", html)
+        sem = CartorioReportGenerator.gerar_declaracao_dispensa_via_html(self.lev_id, self.mat_id)
+        self.assertNotIn("medidas a partir do eixo", sem)
+
+    def test_largura_invalida_gera_erro(self):
+        with self.assertRaises(ErroDocumento):
+            CartorioReportGenerator.gerar_declaracao_dispensa_via_html(self.lev_id, self.mat_id, faixa_dominio_m="abc")
+
     def test_sem_estrada_gera_erro_claro(self):
         with DatabaseManager() as conn:
             cur = conn.cursor()

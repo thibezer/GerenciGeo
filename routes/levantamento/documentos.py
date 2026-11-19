@@ -388,13 +388,14 @@ def get_manual_proprietario_html(id: int, matricula_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/declaracao-dispensa-via-html", response_class=HTMLResponse)
-def get_declaracao_dispensa_via_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = "", confrontante_id: Optional[int] = None):
+def get_declaracao_dispensa_via_html(id: int, matricula_id: int, numero_trt: Optional[str] = None, data_trt: Optional[str] = "", confrontante_id: Optional[int] = None, faixa_dominio_m: Optional[str] = "", faixa_nao_edificante_m: Optional[str] = ""):
     """Declaração/laudo de dispensa de anuência de estrada(s) confrontante(s), para assinatura digital."""
     from services.documentacao.cartorio_generator import CartorioReportGenerator
     from services.documentacao.erros import ErroDocumento, NaoEncontrado
     try:
         html = CartorioReportGenerator.gerar_declaracao_dispensa_via_html(
-            lev_id=id, matricula_id=matricula_id, numero_trt=numero_trt, data_trt=data_trt, confrontante_id=confrontante_id
+            lev_id=id, matricula_id=matricula_id, numero_trt=numero_trt, data_trt=data_trt, confrontante_id=confrontante_id,
+            faixa_dominio_m=faixa_dominio_m, faixa_nao_edificante_m=faixa_nao_edificante_m,
         )
         return HTMLResponse(content=html)
     except NaoEncontrado as ne:

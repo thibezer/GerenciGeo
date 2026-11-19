@@ -64,6 +64,20 @@ TEXTO_FAIXA_DOMINIO = (
 )
 
 
+def _medida_m(valor, campo: str) -> str:
+    """'15', '15,5' ou '15.5' -> '15,50' (metros); vazio -> ''; inválido ou não positivo -> 422."""
+    texto = valor_preenchido(valor)
+    if not texto:
+        return ""
+    try:
+        numero = float(texto.replace(",", "."))
+    except ValueError:
+        numero = 0.0
+    if numero <= 0:
+        raise ErroDocumento(f"{campo} deve ser um número positivo em metros (ex.: 15 ou 15,5).")
+    return formatar_numero_br(numero, 2)
+
+
 def _forte(texto) -> str:
     return f'<strong class="text-slate-900">{esc(texto)}</strong>'
 
@@ -115,7 +129,16 @@ def _trechos_e_extensao(segs: list[dict]) -> tuple[str, float]:
     return trechos, total
 
 
-def _secao_vias(vias: list[dict], segs_por_via: dict[int, list[dict]], mat_desenho_id: int) -> str:
+def _linha_medidas(faixa_dominio: str, faixa_nao_edif: str) -> str:
+    itens = []
+    if faixa_dominio:
+        itens.append(f"faixa de domínio: {_forte(faixa_dominio + ' m')}")
+    if faixa_nao_edif:
+        itens.append(f"área <em>non aedificandi</em>: {_forte(faixa_nao_edif + ' m')}")
+    return (" " + "; ".join(itens) + ".") if itens else ""
+
+
+def _secao_vias(vias: list[dict], segs_por_via: dict[int, list[dict]], mat_desenho_id: int, medidas: str = "") -> str:
     blocos = []
     for i, v in enumerate(vias, start=1):
         segs = segs_por_via[v["id"]]
@@ -124,7 +147,7 @@ def _secao_vias(vias: list[dict], segs_por_via: dict[int, list[dict]], mat_desen
         blocos.append(f"""
         <div class="break-inside-avoid mb-3">
             <p class="font-semibold text-slate-800 mb-1">4.{i} {_forte(v["nome"])} <span class="font-normal text-slate-500">— via pública (bem de uso comum do povo)</span></p>
-            <p class="text-[11px] text-slate-600">Trecho(s) da divisa com o imóvel: vértices {esc(trechos)}; extensão lindeira: <strong class="font-mono">{esc(ext_txt)}</strong>.</p>
+            <p class="text-[11px] text-slate-600">Trecho(s) da divisa com o imóvel: vértices {esc(trechos)}; extensão lindeira: <strong class="font-mono">{esc(ext_txt)}</strong>.{medidas}</p>
             {gerar_tabela_divisas_html(mat_desenho_id, v["id"], segs)}
         </div>""")
     return "".join(blocos)
@@ -170,13 +193,23 @@ def _secao_imovel(dados: dict, mats: list) -> str:
     )
 
 
-def _declaracoes(plural: bool, trt: str, data_trt: str) -> str:
+def _medidas_texto(faixa_dominio: str, faixa_nao_edif: str) -> str:
+    """Complemento com as larguras informadas (', sendo a faixa de domínio de X m e a área non aedificandi de Y m')."""
+    partes = []
+    if faixa_dominio:
+        partes.append(f"a faixa de domínio de {_forte(faixa_dominio + ' m')}")
+    if faixa_nao_edif:
+        partes.append(f"a área <em>non aedificandi</em> de {_forte(faixa_nao_edif + ' m')}")
+    return f", sendo {' e '.join(partes)}, medidas a partir do eixo/limite da via conforme a legislação do ente competente" if partes else ""
+
+
+def _declaracoes(plural: bool, trt: str, data_trt: str, faixa_dominio: str = "", faixa_nao_edif: str = "") -> str:
     via = "as vias públicas identificadas" if plural else "a via pública identificada"
     via_curta = "as vias" if plural else "a via"
     itens = [
         f"{via} na Seção 4 {'são bens' if plural else 'é bem'} de uso comum do povo (art. 99, I, do Código Civil), "
         "de titularidade do ente público competente, sem proprietário ou possuidor particular a quem se possa colher anuência;",
-        f"{TEXTO_FAIXA_DOMINIO};",
+        f"{TEXTO_FAIXA_DOMINIO}{_medidas_texto(faixa_dominio, faixa_nao_edif)};",
         f"o perímetro levantado na divisa com {via_curta} não avança sobre a faixa de domínio público, conforme os vértices, "
         f"azimutes e distâncias da Seção 4, extraídos do levantamento georreferenciado executado sob a TRT/ART nº {_forte(trt)}, "
         f"registrada em {_forte(data_trt)};",
@@ -193,11 +226,14 @@ def _declaracoes(plural: bool, trt: str, data_trt: str) -> str:
 
 def gerar_declaracao_dispensa_via_html(
     lev_id: int, matricula_id: int, numero_trt: str = None, data_trt: str = "", confrontante_id: int | None = None,
+    faixa_dominio_m: str = "", faixa_nao_edificante_m: str = "",
 ) -> str:
     dados = obter_dados_comuns(lev_id, matricula_id)
     if not dados["owners"]:
         raise ErroDocumento("Não há proprietários vinculados a esta propriedade. Cadastre o proprietário primeiro.")
 
+    faixa_dominio = _medida_m(faixa_dominio_m, "A largura da faixa de domínio")
+    faixa_nao_edif = _medida_m(faixa_nao_edificante_m, "A largura da área non aedificandi")
     final_trt, data_trt_f = _trt_do_levantamento(dados, numero_trt, data_trt)
     mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
 
@@ -272,8 +308,8 @@ def gerar_declaracao_dispensa_via_html(
             f"O imóvel confronta com {'as vias públicas' if plural else 'a via pública'} a seguir, nos trechos "
             "descritos pelos vértices, azimutes e distâncias do levantamento georreferenciado:"
         ),
-        "secao_vias_html": Html(_secao_vias(vias, segs_por_via, mat_desenho_id)),
-        "declaracoes_html": Html(_declaracoes(plural, final_trt, data_trt_f)),
+        "secao_vias_html": Html(_secao_vias(vias, segs_por_via, mat_desenho_id, _linha_medidas(faixa_dominio, faixa_nao_edif))),
+        "declaracoes_html": Html(_declaracoes(plural, final_trt, data_trt_f, faixa_dominio, faixa_nao_edif)),
         "requerimento_html": Html(requerimento),
         "municipio": _municipio(dados),
         "uf": _uf(dados),
