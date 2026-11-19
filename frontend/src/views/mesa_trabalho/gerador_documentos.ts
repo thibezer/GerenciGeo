@@ -1942,7 +1942,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
 
       containerUsufruto.innerHTML = usufrutoEnvolvidosAtuais.map((env, idx) => {
         const papel = (env.papel || 'DONATARIO').toUpperCase();
-        const estCiv = (env.estado_civil || 'solteiro').toLowerCase();
+        const estCiv = normalizarEstadoCivil(env.estado_civil || 'solteiro');
+        const regBens = normalizarRegimeBens(env.regime_bens || '');
+        const generoVal = (env.genero || 'M').toUpperCase() === 'F' ? 'F' : 'M';
+        const generoConjVal = (env.genero_conjuge || 'F').toUpperCase() === 'M' ? 'M' : 'F';
         const casado = estCiv.includes('casad') || estCiv.includes('estav') || estCiv.includes('estáv') || estCiv === 'uniao_estavel';
         const conjugeAssina = !(env.conjuge_assina === false || env.conjuge_assina === 0);
         const cpfFmt = env.cpf_cnpj ? formatarCpfCnpjDinamico(env.cpf_cnpj) : '';
@@ -1996,9 +1999,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
               <div>
                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
-                <ui-lista-flutuante class="w-full" data-field="genero" data-idx="${idx}">
-                  <option value="M" ${env.genero === 'M' || !env.genero ? 'selected' : ''}>Homem</option>
-                  <option value="F" ${env.genero === 'F' ? 'selected' : ''}>Mulher</option>
+                <ui-lista-flutuante class="w-full" data-field="genero" data-idx="${idx}" value="${generoVal}">
+                  <option value="M" ${generoVal === 'M' ? 'selected' : ''}>Homem</option>
+                  <option value="F" ${generoVal === 'F' ? 'selected' : ''}>Mulher</option>
                 </ui-lista-flutuante>
               </div>
               <div>
@@ -2011,7 +2014,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               </div>
               <div>
                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
-                <ui-lista-flutuante class="w-full" data-field="estado_civil" data-idx="${idx}">
+                <ui-lista-flutuante class="w-full" data-field="estado_civil" data-idx="${idx}" value="${escapeHtml(estCiv)}">
                   <option value="solteiro" ${estCiv === 'solteiro' ? 'selected' : ''}>Solteiro(a)</option>
                   <option value="casado" ${estCiv === 'casado' ? 'selected' : ''}>Casado(a)</option>
                   <option value="uniao_estavel" ${estCiv === 'uniao_estavel' ? 'selected' : ''}>União Estável</option>
@@ -2024,12 +2027,12 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
               <div>
                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
-                <ui-lista-flutuante class="select-usufruto-regime w-full" data-field="regime_bens" data-idx="${idx}" ${!casado ? 'disabled' : ''}>
-                  <option value="" ${!env.regime_bens ? 'selected' : ''}>Não se aplica</option>
-                  <option value="comunhao_parcial" ${env.regime_bens === 'comunhao_parcial' ? 'selected' : ''}>Comunhão Parcial</option>
-                  <option value="comunhao_universal" ${env.regime_bens === 'comunhao_universal' ? 'selected' : ''}>Comunhão Universal</option>
-                  <option value="separacao_total" ${env.regime_bens === 'separacao_total' ? 'selected' : ''}>Separação Total</option>
-                  <option value="participacao_final" ${env.regime_bens === 'participacao_final' ? 'selected' : ''}>Participação Final nos Aquestos</option>
+                <ui-lista-flutuante class="select-usufruto-regime w-full" data-field="regime_bens" data-idx="${idx}" value="${escapeHtml(regBens)}" ${!casado ? 'disabled' : ''}>
+                  <option value="" ${!regBens ? 'selected' : ''}>Não se aplica</option>
+                  <option value="comunhao_parcial" ${regBens === 'comunhao_parcial' ? 'selected' : ''}>Comunhão Parcial</option>
+                  <option value="comunhao_universal" ${regBens === 'comunhao_universal' ? 'selected' : ''}>Comunhão Universal</option>
+                  <option value="separacao_total" ${regBens === 'separacao_total' ? 'selected' : ''}>Separação Total</option>
+                  <option value="participacao_final" ${regBens === 'participacao_final' ? 'selected' : ''}>Participação Final nos Aquestos</option>
                 </ui-lista-flutuante>
               </div>
               <div class="sm:col-span-2 lg:col-span-3">
@@ -2061,9 +2064,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                 </div>
                 <div>
                   <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
-                  <ui-lista-flutuante class="w-full" data-field="genero_conjuge" data-idx="${idx}">
-                    <option value="F" ${env.genero_conjuge === 'F' || !env.genero_conjuge ? 'selected' : ''}>Mulher</option>
-                    <option value="M" ${env.genero_conjuge === 'M' ? 'selected' : ''}>Homem</option>
+                  <ui-lista-flutuante class="w-full" data-field="genero_conjuge" data-idx="${idx}" value="${generoConjVal}">
+                    <option value="F" ${generoConjVal === 'F' ? 'selected' : ''}>Mulher</option>
+                    <option value="M" ${generoConjVal === 'M' ? 'selected' : ''}>Homem</option>
                   </ui-lista-flutuante>
                 </div>
                 <div>
@@ -2081,6 +2084,18 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       }).join('');
 
       initIcons();
+      usufrutoEnvolvidosAtuais.forEach((env, idx) => {
+        const card = containerUsufruto.querySelector(`.card-usufruto[data-idx="${idx}"]`);
+        if (!card) return;
+        const setSelect = (field: string, val: string) => {
+          const el = card.querySelector(`ui-lista-flutuante[data-field="${field}"]`) as any;
+          if (el) el.value = val;
+        };
+        setSelect('genero', (env.genero || 'M').toUpperCase() === 'F' ? 'F' : 'M');
+        setSelect('estado_civil', normalizarEstadoCivil(env.estado_civil || 'solteiro'));
+        setSelect('regime_bens', normalizarRegimeBens(env.regime_bens || ''));
+        setSelect('genero_conjuge', (env.genero_conjuge || 'F').toUpperCase() === 'M' ? 'M' : 'F');
+      });
       containerUsufruto.querySelectorAll('.btn-remover-usufruto').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const idx = Number((e.currentTarget as HTMLElement).dataset.idx);
