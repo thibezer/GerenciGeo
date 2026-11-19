@@ -248,6 +248,79 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         self.assertIn("Donatária (Nu-proprietária) Anuente", html)
         self.assertNotIn("Cônjuge da Donatária Anuente", html)
 
+    def test_rotas_http_anexo_usufruto(self):
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+
+        # 1. Sem envolvidos ainda -> GET 200 lista vazia e HTML 422
+        r_get = client.get("/confrontantes/22/usufruto-envolvidos")
+        self.assertEqual(r_get.status_code, 200)
+        self.assertEqual(r_get.json()["envolvidos"], [])
+
+        r_html_vazio = client.get("/levantamentos/1/matriculas/10/confrontantes/22/anuencia-usufruto-html")
+        self.assertEqual(r_html_vazio.status_code, 422)
+
+        # 2. Confrontante inexistente -> 404
+        self.assertEqual(client.get("/confrontantes/999999/usufruto-envolvidos").status_code, 404)
+
+        # 3. Papel inválido -> 422
+        r_inv = client.put(
+            "/confrontantes/22/usufruto-envolvidos",
+            json={"envolvidos": [{"papel": "INVALIDO", "nome": "Teste"}]},
+        )
+        self.assertEqual(r_inv.status_code, 422)
+
+        # 4. PUT válido -> salva e gera DRL HTML 200
+        r_put = client.put(
+            "/confrontantes/22/usufruto-envolvidos",
+            json={
+                "envolvidos": [
+                    {
+                        "papel": "USUFRUTUARIO",
+                        "nome": "Vitor Shin Itiro Koyama",
+                        "cpf_cnpj": "143.403.309-06",
+                        "genero": "M",
+                        "profissao": "bancário",
+                        "estado_civil": "casado",
+                        "regime_bens": "comunhao_parcial",
+                        "endereco_completo": "Iporã-PR",
+                        "nome_conjuge": "Tereza Amália Volttani Koyama",
+                        "genero_conjuge": "F",
+                        "profissao_conjuge": "aposentada",
+                    },
+                    {
+                        "papel": "DONATARIO",
+                        "nome": "Ligia Mayra Volttani Koyama",
+                        "cpf_cnpj": "047.273.279-02",
+                        "genero": "F",
+                        "profissao": "serventuária da justiça",
+                        "estado_civil": "viuvo",
+                        "endereco_completo": "Maringá-PR",
+                    },
+                ]
+            },
+        )
+        self.assertEqual(r_put.status_code, 200)
+        self.assertEqual(r_put.json()["total"], 2)
+
+        r_html = client.get("/levantamentos/1/matriculas/10/confrontantes/22/anuencia-usufruto-html")
+        self.assertEqual(r_html.status_code, 200)
+        body = html_lib.unescape(r_html.text)
+        self.assertIn("Usufrutuário Anuente", body)
+        self.assertIn("Donatária (Nu-proprietária) Anuente", body)
+
+        # 5. Levantamento arquivado bloqueia PUT (403)
+        with DatabaseManager() as conn:
+            conn.execute("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = 1")
+            conn.commit()
+        r_arq = client.put(
+            "/confrontantes/22/usufruto-envolvidos",
+            json={"envolvidos": []},
+        )
+        self.assertEqual(r_arq.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

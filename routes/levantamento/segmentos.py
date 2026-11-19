@@ -56,6 +56,37 @@ class CoproprietarioCreate(BaseModel):
     assina: Optional[bool] = True
     conjuge_assina: Optional[bool] = True
 
+
+class EnvolvidoUsufrutoItem(BaseModel):
+    papel: str = "DONATARIO"
+    nome: str
+    cpf_cnpj: Optional[str] = None
+    rg: Optional[str] = None
+    rg_orgao: Optional[str] = None
+    rg_uf: Optional[str] = None
+    genero: Optional[str] = "M"
+    nacionalidade: Optional[str] = "brasileiro(a)"
+    profissao: Optional[str] = None
+    estado_civil: Optional[str] = None
+    regime_bens: Optional[str] = None
+    endereco_completo: Optional[str] = None
+    nome_conjuge: Optional[str] = None
+    cpf_conjuge: Optional[str] = None
+    rg_conjuge: Optional[str] = None
+    rg_orgao_conjuge: Optional[str] = None
+    rg_uf_conjuge: Optional[str] = None
+    genero_conjuge: Optional[str] = "F"
+    nacionalidade_conjuge: Optional[str] = "brasileiro(a)"
+    profissao_conjuge: Optional[str] = None
+    assina: Optional[bool] = True
+    conjuge_assina: Optional[bool] = True
+    ordem: Optional[int] = None
+    observacao: Optional[str] = None
+
+
+class EnvolvidosUsufrutoPayload(BaseModel):
+    envolvidos: List[EnvolvidoUsufrutoItem] = []
+
 class ConfrontanteCreate(BaseModel):
     nome: str
     cpf_cnpj: Optional[str] = None
@@ -505,6 +536,34 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/confrontantes/{cid}/usufruto-envolvidos")
+def get_usufruto_envolvidos(cid: int):
+    row = execute_query("SELECT id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=404, detail="Confrontante não encontrado.")
+    from services.documentacao.cartorio.usufruto_anuencia import listar_envolvidos_usufruto
+    return {"confrontante_id": cid, "envolvidos": listar_envolvidos_usufruto(cid)}
+
+
+@router.put("/confrontantes/{cid}/usufruto-envolvidos")
+def put_usufruto_envolvidos(cid: int, payload: EnvolvidosUsufrutoPayload):
+    row = execute_query("SELECT id, levantamento_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=404, detail="Confrontante não encontrado.")
+    verificar_levantamento_arquivado(row["levantamento_id"])
+
+    from services.documentacao.cartorio.usufruto_anuencia import salvar_envolvidos_usufruto
+    from services.documentacao.erros import ErroDocumento, NaoEncontrado
+    try:
+        dados = [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in payload.envolvidos]
+        salvos = salvar_envolvidos_usufruto(cid, dados)
+        return {"confrontante_id": cid, "envolvidos": salvos, "total": len(salvos)}
+    except NaoEncontrado as ne:
+        raise HTTPException(status_code=404, detail=str(ne))
+    except ErroDocumento as ed:
+        raise HTTPException(status_code=422, detail=str(ed))
+
 
 @router.delete("/confrontantes/{cid}")
 def delete_confrontante(cid: int):

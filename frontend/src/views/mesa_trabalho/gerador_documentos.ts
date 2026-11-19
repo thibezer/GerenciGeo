@@ -1913,6 +1913,400 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
+    // ── Bloco Anexo: Usufruto / Doação da Nua Propriedade ───────────────────────────
+    const containerUsufruto = document.getElementById('lista-usufruto-container');
+    const badgeUsufrutoQtd = document.getElementById('badge-usufruto-qtd');
+    const btnAddUsufruto = document.getElementById('btn-adicionar-usufruto');
+    const btnSalvarUsufruto = document.getElementById('btn-salvar-usufruto-anexo') as HTMLButtonElement | null;
+    const btnGerarDrlUsufruto = document.getElementById('btn-gerar-drl-usufruto') as HTMLButtonElement | null;
+    let usufrutoEnvolvidosAtuais: any[] = [];
+
+    const atualizarBadgeUsufruto = () => {
+      if (badgeUsufrutoQtd) {
+        const n = usufrutoEnvolvidosAtuais.length;
+        badgeUsufrutoQtd.textContent = `${n} ${n === 1 ? 'envolvido' : 'envolvidos'}`;
+      }
+    };
+
+    const renderizarCardsUsufruto = () => {
+      atualizarBadgeUsufruto();
+      if (!containerUsufruto) return;
+      if (usufrutoEnvolvidosAtuais.length === 0) {
+        containerUsufruto.innerHTML = `
+          <div class="py-3 px-4 rounded-technical border border-dashed border-amber-400/20 text-center text-[11px] text-white/40">
+             Nenhum envolvido de usufruto/doação cadastrado. <span class="text-white/60">Clique em "Adicionar Envolvido" para incluir usufrutuários e donatários (nu-proprietários).</span>
+          </div>
+        `;
+        return;
+      }
+
+      containerUsufruto.innerHTML = usufrutoEnvolvidosAtuais.map((env, idx) => {
+        const papel = (env.papel || 'DONATARIO').toUpperCase();
+        const estCiv = (env.estado_civil || 'solteiro').toLowerCase();
+        const casado = estCiv.includes('casad') || estCiv.includes('estav') || estCiv.includes('estáv') || estCiv === 'uniao_estavel';
+        const conjugeAssina = !(env.conjuge_assina === false || env.conjuge_assina === 0);
+        const cpfFmt = env.cpf_cnpj ? formatarCpfCnpjDinamico(env.cpf_cnpj) : '';
+        const cpfConjFmt = env.cpf_conjuge ? formatarCpfCnpjDinamico(env.cpf_conjuge) : '';
+        return `
+          <div class="card-usufruto p-3.5 bg-white/[0.015] border border-amber-400/20 rounded-technical space-y-3" data-idx="${idx}">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300">
+                  Envolvido #${idx + 1}
+                </span>
+                <select class="select-usufruto-papel bg-[#0c1510] border border-white/15 rounded px-2 py-1 text-[11px] text-white" data-field="papel" data-idx="${idx}">
+                  <option value="USUFRUTUARIO" ${papel === 'USUFRUTUARIO' ? 'selected' : ''}>Usufrutuário(a)</option>
+                  <option value="DONATARIO" ${papel === 'DONATARIO' ? 'selected' : ''}>Donatário(a) / Nu-proprietário(a)</option>
+                  <option value="NU_PROPRIETARIO" ${papel === 'NU_PROPRIETARIO' ? 'selected' : ''}>Nu-proprietário(a)</option>
+                  <option value="COPROPRIETARIO" ${papel === 'COPROPRIETARIO' ? 'selected' : ''}>Coproprietário(a)</option>
+                  <option value="PROPRIETARIO" ${papel === 'PROPRIETARIO' ? 'selected' : ''}>Proprietário(a)</option>
+                  <option value="POSSUIDOR" ${papel === 'POSSUIDOR' ? 'selected' : ''}>Possuidor(a)</option>
+                </select>
+                <label class="flex items-center gap-1.5 ml-1 text-[11px] text-white/80 cursor-pointer">
+                  <input type="checkbox" class="chk-usufruto-assina accent-amber-400 w-3.5 h-3.5" data-idx="${idx}" ${env.assina === false || env.assina === 0 ? '' : 'checked'}>
+                  Assina
+                </label>
+              </div>
+              <button type="button" class="btn-remover-usufruto text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded transition-all cursor-pointer" data-idx="${idx}" title="Remover envolvido">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF / CNPJ</label>
+                <ui-campo-texto type="text" class="input-usufruto-cpf w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfFmt)}"></ui-campo-texto>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome Completo *</label>
+                <ui-campo-texto type="text" class="input-usufruto-nome w-full" data-field="nome" data-idx="${idx}" placeholder="Nome completo" value="${escapeHtml(env.nome || '')}" required></ui-campo-texto>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="col-span-2">
+                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">RG</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="rg" data-idx="${idx}" placeholder="RG" value="${escapeHtml(env.rg || '')}"></ui-campo-texto>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Órgão/UF</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="rg_orgao" data-idx="${idx}" placeholder="SSP/PR" value="${escapeHtml([env.rg_orgao, env.rg_uf].filter(Boolean).join('/'))}"></ui-campo-texto>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                <ui-lista-flutuante class="w-full" data-field="genero" data-idx="${idx}">
+                  <option value="M" ${env.genero === 'M' || !env.genero ? 'selected' : ''}>Homem</option>
+                  <option value="F" ${env.genero === 'F' ? 'selected' : ''}>Mulher</option>
+                </ui-lista-flutuante>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                <ui-campo-texto type="text" class="w-full" data-field="nacionalidade" data-idx="${idx}" placeholder="brasileiro(a)" value="${escapeHtml(env.nacionalidade || 'brasileiro(a)')}"></ui-campo-texto>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão</label>
+                <ui-campo-texto type="text" class="w-full" data-field="profissao" data-idx="${idx}" placeholder="Profissão" value="${escapeHtml(env.profissao || '')}"></ui-campo-texto>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Estado Civil</label>
+                <ui-lista-flutuante class="w-full" data-field="estado_civil" data-idx="${idx}">
+                  <option value="solteiro" ${estCiv === 'solteiro' ? 'selected' : ''}>Solteiro(a)</option>
+                  <option value="casado" ${estCiv === 'casado' ? 'selected' : ''}>Casado(a)</option>
+                  <option value="uniao_estavel" ${estCiv === 'uniao_estavel' ? 'selected' : ''}>União Estável</option>
+                  <option value="divorciado" ${estCiv === 'divorciado' ? 'selected' : ''}>Divorciado(a)</option>
+                  <option value="viuvo" ${estCiv === 'viuvo' ? 'selected' : ''}>Viúvo(a)</option>
+                </ui-lista-flutuante>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+              <div>
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Regime de Bens</label>
+                <ui-lista-flutuante class="select-usufruto-regime w-full" data-field="regime_bens" data-idx="${idx}" ${!casado ? 'disabled' : ''}>
+                  <option value="" ${!env.regime_bens ? 'selected' : ''}>Não se aplica</option>
+                  <option value="comunhao_parcial" ${env.regime_bens === 'comunhao_parcial' ? 'selected' : ''}>Comunhão Parcial</option>
+                  <option value="comunhao_universal" ${env.regime_bens === 'comunhao_universal' ? 'selected' : ''}>Comunhão Universal</option>
+                  <option value="separacao_total" ${env.regime_bens === 'separacao_total' ? 'selected' : ''}>Separação Total</option>
+                  <option value="participacao_final" ${env.regime_bens === 'participacao_final' ? 'selected' : ''}>Participação Final nos Aquestos</option>
+                </ui-lista-flutuante>
+              </div>
+              <div class="sm:col-span-2 lg:col-span-3">
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Endereço de Domicílio</label>
+                <ui-campo-texto type="text" class="w-full" data-field="endereco_completo" data-idx="${idx}" placeholder="Deixe em branco para usar o do confrontante" value="${escapeHtml(env.endereco_completo || '')}"></ui-campo-texto>
+              </div>
+            </div>
+
+            <div class="box-usufruto-conjuge p-3 bg-white/[0.02] border border-white/5 rounded-technical space-y-2.5 ${casado ? '' : 'hidden'}" data-idx="${idx}">
+              <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-1.5">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-300">Cônjuge / Companheiro(a)</span>
+                <label class="flex items-center gap-1.5 text-[10px] text-white/80 cursor-pointer">
+                  <input type="checkbox" class="chk-usufruto-conjuge-assina accent-amber-400 w-3.5 h-3.5" data-idx="${idx}" ${conjugeAssina ? 'checked' : ''}>
+                  <span><strong>Incluir assinatura do cônjuge</strong> (desmarque se dispensado por incomunicabilidade/separação)</span>
+                </label>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <div class="sm:col-span-2">
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Nome do Cônjuge</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="nome_conjuge" data-idx="${idx}" placeholder="Nome completo" value="${escapeHtml(env.nome_conjuge || '')}"></ui-campo-texto>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">CPF do Cônjuge</label>
+                  <ui-campo-texto type="text" class="input-usufruto-cpf-conjuge w-full" data-field="cpf_conjuge" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfConjFmt)}"></ui-campo-texto>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">RG do Cônjuge</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="rg_conjuge" data-idx="${idx}" placeholder="RG / Órgão" value="${escapeHtml(env.rg_conjuge || '')}"></ui-campo-texto>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
+                  <ui-lista-flutuante class="w-full" data-field="genero_conjuge" data-idx="${idx}">
+                    <option value="F" ${env.genero_conjuge === 'F' || !env.genero_conjuge ? 'selected' : ''}>Mulher</option>
+                    <option value="M" ${env.genero_conjuge === 'M' ? 'selected' : ''}>Homem</option>
+                  </ui-lista-flutuante>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Nacionalidade</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="nacionalidade_conjuge" data-idx="${idx}" placeholder="brasileiro(a)" value="${escapeHtml(env.nacionalidade_conjuge || 'brasileiro(a)')}"></ui-campo-texto>
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-[10px] font-medium tracking-wider uppercase text-white/40 mb-1">Profissão do Cônjuge</label>
+                  <ui-campo-texto type="text" class="w-full" data-field="profissao_conjuge" data-idx="${idx}" placeholder="Profissão" value="${escapeHtml(env.profissao_conjuge || '')}"></ui-campo-texto>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      initIcons();
+      containerUsufruto.querySelectorAll('.btn-remover-usufruto').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = Number((e.currentTarget as HTMLElement).dataset.idx);
+          if (!isNaN(idx) && idx >= 0 && idx < usufrutoEnvolvidosAtuais.length) {
+            usufrutoEnvolvidosAtuais.splice(idx, 1);
+            renderizarCardsUsufruto();
+          }
+        });
+      });
+      containerUsufruto.querySelectorAll('[data-field]').forEach(input => {
+        const handler = (e: any) => {
+          const idx = Number(input.getAttribute('data-idx'));
+          const field = input.getAttribute('data-field');
+          if (isNaN(idx) || !field || !usufrutoEnvolvidosAtuais[idx]) return;
+          if (field === 'rg_orgao') {
+            const partes = String(e.target.value || '').split('/').map((p: string) => p.trim());
+            usufrutoEnvolvidosAtuais[idx].rg_orgao = partes[0] || '';
+            usufrutoEnvolvidosAtuais[idx].rg_uf = partes[1] || '';
+            return;
+          }
+          usufrutoEnvolvidosAtuais[idx][field] = e.target.value;
+          if (field === 'estado_civil' || field === 'regime_bens') {
+            if (field === 'estado_civil') {
+              usufrutoEnvolvidosAtuais[idx].estado_civil = normalizarEstadoCivil(e.target.value);
+            } else {
+              usufrutoEnvolvidosAtuais[idx].regime_bens = normalizarRegimeBens(e.target.value);
+            }
+            const val = normalizarEstadoCivil(usufrutoEnvolvidosAtuais[idx].estado_civil);
+            const casado = val.includes('casad') || val.includes('estav') || val.includes('estáv') || val === 'uniao_estavel';
+            const card = containerUsufruto.querySelector(`.card-usufruto[data-idx="${idx}"]`);
+            card?.querySelector('.box-usufruto-conjuge')?.classList.toggle('hidden', !casado);
+            const selectReg = card?.querySelector('.select-usufruto-regime') as any;
+            if (selectReg) {
+              if (casado) selectReg.removeAttribute('disabled');
+              else {
+                selectReg.setAttribute('disabled', '');
+                selectReg.value = '';
+                usufrutoEnvolvidosAtuais[idx].regime_bens = '';
+              }
+            }
+          }
+        };
+        input.addEventListener('input', handler);
+        input.addEventListener('change', handler);
+        input.addEventListener('ui-selecionar', handler);
+      });
+      containerUsufruto.querySelectorAll('.chk-usufruto-assina').forEach(chk => {
+        chk.addEventListener('change', () => {
+          const i = Number(chk.getAttribute('data-idx'));
+          if (usufrutoEnvolvidosAtuais[i]) usufrutoEnvolvidosAtuais[i].assina = (chk as HTMLInputElement).checked;
+        });
+      });
+      containerUsufruto.querySelectorAll('.chk-usufruto-conjuge-assina').forEach(chk => {
+        chk.addEventListener('change', () => {
+          const i = Number(chk.getAttribute('data-idx'));
+          if (usufrutoEnvolvidosAtuais[i]) usufrutoEnvolvidosAtuais[i].conjuge_assina = (chk as HTMLInputElement).checked;
+        });
+      });
+      containerUsufruto.querySelectorAll('.input-usufruto-cpf').forEach(input => {
+        const idx = Number(input.getAttribute('data-idx'));
+        const buscarCpf = async (val: string) => {
+          const limpo = (val || '').replace(/\D/g, '');
+          if (limpo.length !== 11 && limpo.length !== 14) return;
+          const envAtual = usufrutoEnvolvidosAtuais[idx];
+          if (!envAtual || envAtual._ultimoCpfBuscado === limpo) return;
+          envAtual._ultimoCpfBuscado = limpo;
+          try {
+            const res = await fetch(`${API_BASE}/confrontantes/buscar-por-cpf?cpf=${encodeURIComponent(limpo)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.nome && usufrutoEnvolvidosAtuais[idx]) {
+                Object.assign(usufrutoEnvolvidosAtuais[idx], {
+                  nome: data.nome || '',
+                  rg: data.rg || '',
+                  genero: data.genero || 'M',
+                  nacionalidade: data.nacionalidade || 'brasileiro(a)',
+                  profissao: data.profissao || '',
+                  estado_civil: normalizarEstadoCivil(data.estado_civil),
+                  regime_bens: normalizarRegimeBens(data.regime_bens),
+                  nome_conjuge: data.nome_conjuge || '',
+                  cpf_conjuge: data.cpf_conjuge || '',
+                  rg_conjuge: data.rg_conjuge || '',
+                  genero_conjuge: data.genero_conjuge || 'F',
+                  nacionalidade_conjuge: data.nacionalidade_conjuge || 'brasileiro(a)',
+                  profissao_conjuge: data.profissao_conjuge || '',
+                  endereco_completo: data.endereco_completo || '',
+                });
+                renderizarCardsUsufruto();
+                showToast("✨ Dados do envolvido preenchidos pelo CPF!", "success");
+              }
+            }
+          } catch (err) {
+            if (usufrutoEnvolvidosAtuais[idx]) usufrutoEnvolvidosAtuais[idx]._ultimoCpfBuscado = '';
+            console.error(err);
+          }
+        };
+        input.addEventListener('input', (e: any) => {
+          e.target.value = formatarCpfCnpjDinamico(e.target.value);
+          const limpo = e.target.value.replace(/\D/g, '');
+          if (limpo.length === 11 || limpo.length === 14) buscarCpf(e.target.value);
+        });
+        input.addEventListener('blur', (e: any) => buscarCpf(e.target.value));
+      });
+    };
+
+    const carregarEnvolvidosUsufruto = async (confId: number | string) => {
+      if (!confId) {
+        usufrutoEnvolvidosAtuais = [];
+        renderizarCardsUsufruto();
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/confrontantes/${confId}/usufruto-envolvidos`);
+        if (res.ok) {
+          const data = await res.json();
+          usufrutoEnvolvidosAtuais = Array.isArray(data?.envolvidos)
+            ? data.envolvidos.map((e: any) => ({ ...e, _ultimoCpfBuscado: (e.cpf_cnpj || '').replace(/\D/g, '') }))
+            : [];
+        } else {
+          usufrutoEnvolvidosAtuais = [];
+        }
+      } catch {
+        usufrutoEnvolvidosAtuais = [];
+      }
+      renderizarCardsUsufruto();
+    };
+
+    if (btnAddUsufruto) {
+      btnAddUsufruto.onclick = () => {
+        usufrutoEnvolvidosAtuais.push({
+          papel: usufrutoEnvolvidosAtuais.length === 0 ? 'USUFRUTUARIO' : 'DONATARIO',
+          nome: '',
+          cpf_cnpj: '',
+          rg: '',
+          rg_orgao: '',
+          rg_uf: '',
+          genero: 'M',
+          nacionalidade: 'brasileiro(a)',
+          profissao: '',
+          estado_civil: 'solteiro',
+          regime_bens: '',
+          endereco_completo: '',
+          nome_conjuge: '',
+          cpf_conjuge: '',
+          rg_conjuge: '',
+          genero_conjuge: 'F',
+          nacionalidade_conjuge: 'brasileiro(a)',
+          profissao_conjuge: '',
+          assina: true,
+          conjuge_assina: true,
+        });
+        renderizarCardsUsufruto();
+      };
+    }
+
+    if (btnSalvarUsufruto) {
+      btnSalvarUsufruto.onclick = async () => {
+        const confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId;
+        if (!confIdVal) {
+          showToast("Salve ou selecione um confrontante antes de salvar os envolvidos de usufruto.", "info");
+          return;
+        }
+        const payload = {
+          envolvidos: usufrutoEnvolvidosAtuais
+            .map((e, idx) => ({
+              papel: e.papel || 'DONATARIO',
+              nome: (e.nome || '').trim(),
+              cpf_cnpj: (e.cpf_cnpj || '').trim() || null,
+              rg: (e.rg || '').trim() || null,
+              rg_orgao: (e.rg_orgao || '').trim() || null,
+              rg_uf: (e.rg_uf || '').trim() || null,
+              genero: e.genero || 'M',
+              nacionalidade: (e.nacionalidade || '').trim() || 'brasileiro(a)',
+              profissao: (e.profissao || '').trim() || null,
+              estado_civil: e.estado_civil || 'solteiro',
+              regime_bens: e.regime_bens || null,
+              endereco_completo: (e.endereco_completo || '').trim() || null,
+              nome_conjuge: (e.nome_conjuge || '').trim() || null,
+              cpf_conjuge: (e.cpf_conjuge || '').trim() || null,
+              rg_conjuge: (e.rg_conjuge || '').trim() || null,
+              genero_conjuge: e.genero_conjuge || 'F',
+              nacionalidade_conjuge: (e.nacionalidade_conjuge || '').trim() || 'brasileiro(a)',
+              profissao_conjuge: (e.profissao_conjuge || '').trim() || null,
+              assina: !(e.assina === false || e.assina === 0),
+              conjuge_assina: !(e.conjuge_assina === false || e.conjuge_assina === 0),
+              ordem: idx,
+            }))
+            .filter(e => e.nome.length > 0),
+        };
+        try {
+          btnSalvarUsufruto.disabled = true;
+          const res = await fetch(`${API_BASE}/confrontantes/${confIdVal}/usufruto-envolvidos`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            usufrutoEnvolvidosAtuais = Array.isArray(data?.envolvidos) ? data.envolvidos : [];
+            renderizarCardsUsufruto();
+            showToast(`Envolvidos de usufruto salvos (${usufrutoEnvolvidosAtuais.length}).`, "success");
+          } else {
+            showToast(data.detail || "Erro ao salvar envolvidos de usufruto.", "error");
+          }
+        } catch {
+          showToast("Erro de rede ao salvar envolvidos de usufruto.", "error");
+        } finally {
+          btnSalvarUsufruto.disabled = false;
+        }
+      };
+    }
+
+    if (btnGerarDrlUsufruto) {
+      btnGerarDrlUsufruto.onclick = () => {
+        const confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId;
+        if (!ctx.currentLevId || !ctx.currentMatriculaId || !confIdVal) {
+          showToast("Selecione um levantamento, matrícula e confrontante válidos.", "info");
+          return;
+        }
+        window.open(
+          `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${confIdVal}/anuencia-usufruto-html`,
+          '_blank'
+        );
+      };
+    }
+
     let ultimoCpfBuscado = '';
 
     const abrirFormularioNovoConfrontante = () => {
@@ -1955,6 +2349,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       aplicarTipoPessoa();
       coproprietariosAtuais = [];
       renderizarCardsCoproprietarios();
+      usufrutoEnvolvidosAtuais = [];
+      renderizarCardsUsufruto();
       renderizarStatusAnexoMatricula(null);
       initIcons();
 
@@ -2036,6 +2432,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                 }))
               : [];
             renderizarCardsCoproprietarios();
+            await carregarEnvolvidosUsufruto(selectedConf.id);
             renderizarStatusAnexoMatricula(selectedConf);
             initIcons();
             aplicarTipoPessoa();

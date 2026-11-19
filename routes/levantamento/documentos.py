@@ -544,6 +544,25 @@ def get_declaracao_anuencia_html(id: int, matricula_id: int, confrontante_id: in
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+@router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/anuencia-usufruto-html", response_class=HTMLResponse)
+def get_declaracao_anuencia_usufruto_html(id: int, matricula_id: int, confrontante_id: int):
+    from services.documentacao.cartorio.usufruto_anuencia import gerar_anexo_usufruto_drl_html
+    from services.documentacao.erros import ErroDocumento, NaoEncontrado
+    try:
+        html = gerar_anexo_usufruto_drl_html(
+            lev_id=id,
+            matricula_id=matricula_id,
+            confrontante_id=confrontante_id,
+        )
+        return HTMLResponse(content=html)
+    except NaoEncontrado as ne:
+        raise HTTPException(status_code=404, detail=str(ne))
+    except ErroDocumento as ed:
+        raise HTTPException(status_code=422, detail=str(ed))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/documentos/anuencia-forcada-james", response_class=HTMLResponse)
 def get_anuencia_forcada_james():
     caminho = Path("anuencia_james_corradini.html")
