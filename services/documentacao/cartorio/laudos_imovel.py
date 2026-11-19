@@ -143,6 +143,16 @@ def _juntar_qualificacoes(qualificacoes: list[str]) -> str:
     return ";<br>".join(qualificacoes[:-1]) + ";<br>e " + qualificacoes[-1]
 
 
+def _codigos_sigef(mats: list) -> list[str]:
+    """Códigos de certificação SIGEF distintos cadastrados nas matrículas (a gleba unificada tem uma só poligonal)."""
+    vistos: list[str] = []
+    for m in mats:
+        c = valor_preenchido(m.get("georreferenciamento"))
+        if c and c not in vistos:
+            vistos.append(c)
+    return vistos
+
+
 def _avisos_requerimento(dados: dict, mats: list, owners_sem_endereco: list, final_trt: str, data_trt_f: str) -> list[str]:
     """Pendências que deixam lacunas ou inconsistências na peça (exibidas só na tela, nunca impressas)."""
     avisos = []
@@ -162,11 +172,9 @@ def _avisos_requerimento(dados: dict, mats: list, owners_sem_endereco: list, fin
             "Fusão de matrículas (art. 234 da Lei 6.015/1973): confirme que os imóveis são contíguos e pertencem ao "
             "mesmo proprietário em todas as matrículas — o sistema não verifica isso por matrícula."
         )
-        sem_sigef =[_num_mat(m) for m in mats if not valor_preenchido(m.get("georreferenciamento"))]
-        if sem_sigef:
+        if not _codigos_sigef(mats):
             avisos.append(
-                f"Matrícula(s) <strong>{esc(', '.join(sem_sigef))}</strong> sem código de certificação SIGEF cadastrado "
-                "(a tabela exibe “Não Certificado”, o que contradiz o item 4)."
+                "Nenhuma das matrículas tem o código de certificação SIGEF cadastrado: o item 4 e a tabela ficaram com lacuna."
             )
         comarcas = {valor_preenchido(m.get("cri_comarca")).upper() for m in mats if valor_preenchido(m.get("cri_comarca"))}
         if len(comarcas) > 1:
@@ -196,9 +204,11 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
 
     # Se houver múltiplas matrículas, consolidamos os dados em uma tabela
     if len(mats) > 1:
+        codigos_sigef = _codigos_sigef(mats)
         linhas_tabela = ""
         for m in mats:
-            sigef_m = valor_preenchido(m.get("georreferenciamento")) or "Não Certificado"
+            # A poligonal certificada é uma só: matrícula sem código próprio exibe o código comum, se houver um único
+            sigef_m = valor_preenchido(m.get("georreferenciamento")) or (codigos_sigef[0] if len(codigos_sigef) == 1 else "_" * 20)
             denominacao_m = m.get("denominacao") or dados["prop"].get("nome_propriedade") or "_____"
             linhas_tabela += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
@@ -248,7 +258,7 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">4.</span>
-                <span>Em cumprimento às normas vigentes, o <strong>INCRA certificou</strong> a poligonal da gleba contínua no SIGEF, atestando que ela não se sobrepõe a nenhuma outra constante de seu cadastro georreferenciado e que o memorial descritivo atende às exigências técnicas (art. 176, § 5º, da Lei nº 6.015/1973).</span>
+                <span>Em cumprimento às normas vigentes, o <strong>INCRA certificou</strong> a poligonal da gleba contínua no SIGEF, sob o código <strong class="font-mono text-slate-900 font-bold">{esc(", ".join(codigos_sigef) or "_" * 20)}</strong>, atestando que ela não se sobrepõe a nenhuma outra constante de seu cadastro georreferenciado e que o memorial descritivo atende às exigências técnicas (art. 176, § 5º, da Lei nº 6.015/1973).</span>
             </li>
         """
         texto_encerramento_html = f"ao <strong>ENCERRAMENTO DAS MATRÍCULAS ORIGINÁRIAS DE NÚMEROS {esc(lista_mats_str.upper())}</strong> (fusão, nos termos do art. 234 da Lei nº 6.015/1973 e do § 6º do art. 440-AX do CNN/CN/CNJ-Extra) e à subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA E UNIFICADA</strong>"

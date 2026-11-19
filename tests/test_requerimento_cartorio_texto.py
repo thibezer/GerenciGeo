@@ -64,16 +64,25 @@ class TestAvisosRequerimento(unittest.TestCase):
         avisos = _avisos_requerimento(self._dados(), [{}], ["Fulano"], LACUNA_TRT, LACUNA_DATA)
         self.assertEqual(len(avisos), 2)
 
-    def test_unificada_sem_sigef_e_comarcas_diferentes(self):
+    def test_unificada_codigo_em_uma_matricula_nao_gera_aviso_de_sigef(self):
+        mats = [{"numero_matricula": "1", "georreferenciamento": "abc"}, {"numero_matricula": "2"}]
+        avisos = _avisos_requerimento(self._dados(), mats, [], "TRT-1", "01/01/2026")
+        self.assertFalse(any("SIGEF" in a for a in avisos))
+
+    def test_unificada_sem_nenhum_codigo_sigef(self):
+        mats = [{"numero_matricula": "1"}, {"numero_matricula": "2"}]
+        avisos = _avisos_requerimento(self._dados(), mats, [], "TRT-1", "01/01/2026")
+        self.assertTrue(any("SIGEF" in a for a in avisos))
+
+    def test_unificada_comarcas_diferentes(self):
         mats = [
             {"numero_matricula": "1", "georreferenciamento": "abc", "cri_comarca": "Umuarama"},
             {"numero_matricula": "2", "georreferenciamento": "", "cri_comarca": "Cianorte"},
         ]
         avisos = _avisos_requerimento(self._dados(), mats, [], "TRT-1", "01/01/2026")
         texto = " ".join(avisos)
-        self.assertEqual(len(avisos), 3)
+        self.assertEqual(len(avisos), 2)
         self.assertIn("art. 234", texto)
-        self.assertIn("2", texto)
         self.assertIn("CIANORTE", texto)
 
     def test_sem_proprietario(self):
