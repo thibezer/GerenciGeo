@@ -5,6 +5,7 @@ from services.documentacao.erros import ErroDocumento, NaoEncontrado
 from services.documentacao.cartorio.utils import (
     Html,
     LACUNA_DATA,
+    LACUNA_TRT,
     carregar_template,
     esc,
     estado_com_artigo,
@@ -76,7 +77,7 @@ def _lista_mats_str(dados: dict, mats: list) -> str:
 
 def _nome_lote_unificado(dados: dict, lista_mats_str: str) -> str:
     rotulo_mat = dados.get("rotulo_matricula") or "Matrículas nºs"
-    return f"{dados['prop']['nome_propriedade']} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
+    return f"{dados['prop'].get('nome_propriedade') or '_____'} ({dados.get('denominacoes_str') or 'Glebas Unificadas'} - {rotulo_mat} {lista_mats_str})"
 
 
 def _area_total(mats: list) -> float | None:
@@ -104,6 +105,74 @@ def _trt_do_levantamento(dados: dict, numero_trt, data_trt) -> tuple[str, str]:
 
 # ── Requerimento ao Registro de Imóveis ──────────────────────────────────────────────
 
+def _termos_requerentes(owners: list) -> dict:
+    """Concordância (número e gênero) das palavras que designam os requerentes: proprietários + cônjuges.
+    Um único requerente vai ao singular ('vem', 'REQUER'); vários, ao plural; gênero neutro se desconhecido."""
+    generos = []
+    for o in owners:
+        g = genero_normalizado(o.get("genero"))
+        generos.append(g)
+        if tem_conjuge(o):
+            generos.append(genero_conjuge_efetivo(o.get("genero_conjuge"), g))
+    g = genero_plural(generos) if generos else None
+    if len(generos) == 1:
+        return {
+            "req_cap": flex(g, "O requerente", "A requerente", "O(A) requerente"),
+            "req_min": flex(g, "o requerente", "a requerente", "o(a) requerente"),
+            "req_legitimos": flex(g, "o legítimo proprietário e possuidor", "a legítima proprietária e possuidora",
+                                  "o(a) legítimo(a) proprietário(a) e possuidor(a)"),
+            "sao": "é", "vem": "vem", "requerem": "REQUER", "pedem": "pede e espera",
+            "declaram": "declara", "declaram_cap": "Declara", "terem": "ter",
+        }
+    return {
+        "req_cap": flex(g, "Os requerentes", "As requerentes", "Os requerentes"),
+        "req_min": flex(g, "os requerentes", "as requerentes", "os requerentes"),
+        "req_legitimos": flex(g, "os legítimos proprietários e possuidores", "as legítimas proprietárias e possuidoras",
+                              "os legítimos proprietários e possuidores"),
+        "sao": "são", "vem": "vêm", "requerem": "REQUEREM", "pedem": "pedem e esperam",
+        "declaram": "declaram", "declaram_cap": "Declaram", "terem": "terem",
+    }
+
+
+def _juntar_qualificacoes(qualificacoes: list[str]) -> str:
+    """Qualificações separadas por ';' e o 'e' antes da última, como em peça forense."""
+    if not qualificacoes:
+        return "_" * 40
+    if len(qualificacoes) == 1:
+        return qualificacoes[0]
+    return ";<br>".join(qualificacoes[:-1]) + ";<br>e " + qualificacoes[-1]
+
+
+def _avisos_requerimento(dados: dict, mats: list, owners_sem_endereco: list, final_trt: str, data_trt_f: str) -> list[str]:
+    """Pendências que deixam lacunas ou inconsistências na peça (exibidas só na tela, nunca impressas)."""
+    avisos = []
+    if not dados["owners"]:
+        avisos.append("Nenhum proprietário vinculado à propriedade: a qualificação dos requerentes ficou em branco.")
+    if owners_sem_endereco:
+        avisos.append(
+            f"O endereço completo (logradouro/número/bairro) de <strong>{esc(', '.join(owners_sem_endereco))}</strong> "
+            "não está preenchido no cadastro — consta apenas município/UF. Atualize o cadastro do cliente antes de protocolar."
+        )
+    if final_trt == LACUNA_TRT or data_trt_f == LACUNA_DATA:
+        avisos.append("Número ou data da TRT/ART não informados: o item 8 ficou com lacuna.")
+    if not valor_preenchido(dados["lev"].get("nome_profissional")) or not valor_preenchido(dados["lev"].get("registro_profissional")):
+        avisos.append("Nome ou registro do responsável técnico não informados: o item 8 ficou com lacuna.")
+    if len(mats) > 1:
+        sem_sigef = [_num_mat(m) for m in mats if not valor_preenchido(m.get("georreferenciamento"))]
+        if sem_sigef:
+            avisos.append(
+                f"Matrícula(s) <strong>{esc(', '.join(sem_sigef))}</strong> sem código de certificação SIGEF cadastrado "
+                "(a tabela exibe “Não Certificado”, o que contradiz o item 4)."
+            )
+        comarcas = {valor_preenchido(m.get("cri_comarca")).upper() for m in mats if valor_preenchido(m.get("cri_comarca"))}
+        if len(comarcas) > 1:
+            avisos.append(
+                f"As matrículas pertencem a comarcas/ofícios diferentes ({esc(', '.join(sorted(comarcas)))}): "
+                "a unificação exige o mesmo Registro de Imóveis. O cabeçalho usa apenas a comarca da matrícula principal."
+            )
+    return avisos
+
+
 def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt: str = None, data_trt: str = "") -> str:
     dados = obter_dados_comuns(lev_id, matricula_id)
 
@@ -114,7 +183,8 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
     for owner in dados["owners"]:
         qualif, _info = qualificar_pessoa(_owner_texto(owner), rotulo_erro="O proprietário")
         qualificacoes.append(qualif)
-    qualificacao_completa = Html(";<br>".join(qualificacoes) if qualificacoes else "_" * 40)
+    qualificacao_completa = Html(_juntar_qualificacoes(qualificacoes))
+    termos = _termos_requerentes(dados["owners"])
 
     mats = _mats(dados)
     comarca = _comarca(dados)
@@ -125,7 +195,7 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         linhas_tabela = ""
         for m in mats:
             sigef_m = valor_preenchido(m.get("georreferenciamento")) or "Não Certificado"
-            denominacao_m = m.get("denominacao") or dados["prop"]["nome_propriedade"]
+            denominacao_m = m.get("denominacao") or dados["prop"].get("nome_propriedade") or "_____"
             linhas_tabela += f"""
             <tr class="border-b border-slate-100 font-mono text-[10px] text-slate-700 hover:bg-slate-50/50 transition-colors">
                 <td class="px-3 py-2 font-bold text-slate-900">{esc(denominacao_m)}</td>
@@ -142,7 +212,7 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         itens_iniciais_requerimento_html = f"""
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">1.</span>
-                <span class="w-full">Os requerentes são os legítimos proprietários e possuidores dos imóveis rurais contíguos situados no município de <strong class="text-slate-900">{municipio_uf}</strong>, denominados e caracterizados conforme a tabela de glebas abaixo descrita, as quais formam uma <strong>gleba territorial contínua e unificada</strong>:
+                <div class="w-full">{termos["req_cap"]} {termos["sao"]} {termos["req_legitimos"]} dos imóveis rurais contíguos situados no município de <strong class="text-slate-900">{municipio_uf}</strong>, denominados e caracterizados conforme a tabela de glebas abaixo descrita, as quais formam uma <strong>gleba territorial contínua e unificada</strong>:
 
                     <div class="overflow-x-auto mt-3 border border-slate-200 rounded-lg shadow-sm w-full break-inside-avoid">
                         <table class="w-full text-left border-collapse">
@@ -159,10 +229,10 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
                             </tbody>
                         </table>
                     </div>
-                </span>
+                </div>
             </li>
 
-            <li class="flex items-start gap-2 mt-4">
+            <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">2.</span>
                 <span>As referidas áreas contíguas, somadas, perfazem uma extensão territorial total de <strong>{esc(area_total_str)} ha</strong> de direito, registradas conforme as antigas descrições precárias de limites nos assentos imobiliários originários descritos.</span>
             </li>
@@ -181,7 +251,7 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
 
     else:
         # Caso de matrícula única (preserva comportamento original de forma isolada)
-        nome_lote = dados["mat"].get("denominacao") or dados["prop"]["nome_propriedade"]
+        nome_lote = dados["mat"].get("denominacao") or dados["prop"].get("nome_propriedade") or "_____"
         area_m_str = formatar_area_ha(dados["mat"].get("area_ha"))
         georref_sigef = valor_preenchido(dados["mat"].get("georreferenciamento")) or "_" * 20
         num_mat = _num_mat(dados["mat"])
@@ -189,10 +259,10 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         itens_iniciais_requerimento_html = f"""
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">1.</span>
-                <span>Os requerentes são os legítimos proprietários e possuidores do imóvel rural denominado <strong
+                <span>{termos["req_cap"]} {termos["sao"]} {termos["req_legitimos"]} do imóvel rural denominado <strong
                         class="text-slate-900">{esc(nome_lote)}</strong>, situado no município de {municipio_uf},
-                    objeto da <strong>Matrícula nº {esc(num_mat)}</strong> deste prestigiado Ofício de Registro
-                    Imobiliário.</span>
+                    objeto da <strong>Matrícula nº {esc(num_mat)}</strong> deste Ofício de Registro de
+                    Imóveis.</span>
             </li>
 
             <li class="flex items-start gap-2">
@@ -233,18 +303,20 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         grupos_ass.append(grupo)
     bloco_assinaturas = grade_assinaturas(grupos_ass, margem_topo="mt-3")
 
+    avisos = _avisos_requerimento(dados, mats, owners_sem_endereco, final_trt, data_trt_f)
     aviso_pendencias_html = ""
-    if owners_sem_endereco:
-        nomes_pend = esc(", ".join(owners_sem_endereco))
+    if avisos:
+        itens_aviso = "".join(f"<li>{a}</li>" for a in avisos)
         aviso_pendencias_html = (
             '<div class="no-print print:hidden mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-[11px] leading-snug">'
-            f'<strong>Atenção (não impresso):</strong> O endereço completo (logradouro/número/bairro) de <strong>{nomes_pend}</strong> '
-            'não está preenchido no cadastro — consta apenas município/UF. Atualize o cadastro do cliente antes de protocolar no Registro de Imóveis.'
+            f'<strong>Atenção (não impresso) — revise antes de protocolar no Registro de Imóveis:</strong>'
+            f'<ul class="list-disc pl-5 mt-1 space-y-0.5">{itens_aviso}</ul>'
             '</div>'
         )
 
     template = carregar_template("requerimento_cartorio.html")
     return renderizar_template(template, {
+        **termos,
         "aviso_pendencias_html": Html(aviso_pendencias_html),
         "nome_lote": nome_lote,
         "comarca": comarca,
@@ -253,7 +325,7 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
         "itens_iniciais_requerimento_html": Html(itens_iniciais_requerimento_html),
         "texto_encerramento_html": Html(texto_encerramento_html),
         "nome_profissional": _nome_prof(dados),
-        "conselho_profissional": valor_preenchido(dados["lev"].get("conselho_profissional")) or "conselho profissional",
+        "conselho_profissional": valor_preenchido(dados["lev"].get("conselho_profissional")) or "_____",
         "registro_profissional": valor_preenchido(dados["lev"].get("registro_profissional")) or "_____",
         "final_trt": final_trt,
         "data_trt_f": data_trt_f,
