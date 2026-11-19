@@ -71,7 +71,8 @@ class TestAvisosRequerimento(unittest.TestCase):
         ]
         avisos = _avisos_requerimento(self._dados(), mats, [], "TRT-1", "01/01/2026")
         texto = " ".join(avisos)
-        self.assertEqual(len(avisos), 2)
+        self.assertEqual(len(avisos), 3)
+        self.assertIn("art. 234", texto)
         self.assertIn("2", texto)
         self.assertIn("CIANORTE", texto)
 

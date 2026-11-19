@@ -158,7 +158,11 @@ def _avisos_requerimento(dados: dict, mats: list, owners_sem_endereco: list, fin
     if not valor_preenchido(dados["lev"].get("nome_profissional")) or not valor_preenchido(dados["lev"].get("registro_profissional")):
         avisos.append("Nome ou registro do responsável técnico não informados: o item 8 ficou com lacuna.")
     if len(mats) > 1:
-        sem_sigef = [_num_mat(m) for m in mats if not valor_preenchido(m.get("georreferenciamento"))]
+        avisos.append(
+            "Fusão de matrículas (art. 234 da Lei 6.015/1973): confirme que os imóveis são contíguos e pertencem ao "
+            "mesmo proprietário em todas as matrículas — o sistema não verifica isso por matrícula."
+        )
+        sem_sigef =[_num_mat(m) for m in mats if not valor_preenchido(m.get("georreferenciamento"))]
         if sem_sigef:
             avisos.append(
                 f"Matrícula(s) <strong>{esc(', '.join(sem_sigef))}</strong> sem código de certificação SIGEF cadastrado "
@@ -239,15 +243,15 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">3.</span>
-                <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão do perímetro unificado das glebas para fins de obtenção da certificação técnica junto ao INCRA, constatou-se formalmente que os dados descritivos e as áreas históricas contidos nas matrículas descritas não correspondem à exata, fidedigna e atual realidade de fato existente e consolidada em campo.</span>
+                <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão do perímetro unificado das glebas para fins de obtenção da certificação técnica junto ao INCRA, constatou-se que os dados descritivos e as áreas históricas contidos nas matrículas descritas não correspondem integralmente à realidade atual dos imóveis verificada em campo.</span>
             </li>
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">4.</span>
-                <span>Em cumprimento às normas vigentes, o <strong>INCRA aprovou o projeto de georreferenciamento</strong> da gleba contínua, emitindo a respectiva Certificação SIGEF com os protocolos técnicos e código identificador perimétrico.</span>
+                <span>Em cumprimento às normas vigentes, o <strong>INCRA certificou</strong> a poligonal da gleba contínua no SIGEF, atestando que ela não se sobrepõe a nenhuma outra constante de seu cadastro georreferenciado e que o memorial descritivo atende às exigências técnicas (art. 176, § 5º, da Lei nº 6.015/1973).</span>
             </li>
         """
-        texto_encerramento_html = f"<strong>ENCERRAMENTO DAS MATRÍCULAS ORIGINÁRIAS DE NÚMEROS {esc(lista_mats_str.upper())}</strong> e a subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA E UNIFICADA</strong>"
+        texto_encerramento_html = f"ao <strong>ENCERRAMENTO DAS MATRÍCULAS ORIGINÁRIAS DE NÚMEROS {esc(lista_mats_str.upper())}</strong> (fusão, nos termos do art. 234 da Lei nº 6.015/1973 e do § 6º do art. 440-AX do CNN/CN/CNJ-Extra) e à subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA E UNIFICADA</strong>"
 
     else:
         # Caso de matrícula única (preserva comportamento original de forma isolada)
@@ -276,20 +280,20 @@ def gerar_requerimento_cartorio_html(lev_id: int, matricula_id: int, numero_trt:
                 <span class="font-bold text-slate-900">3.</span>
                 <span>Ocorre que, realizando-se o levantamento topográfico georreferenciado e de alta precisão do
                     imóvel para fins de obtenção da certificação técnica junto ao INCRA, constatou-se formalmente
-                    que os dados descritivos e a área histórica contidos na matrícula descrita não correspondem à
-                    exata, fidedigna e atual realidade de fato existente e consolidada em campo.</span>
+                    que os dados descritivos e a área histórica contidos na matrícula descrita não correspondem
+                    integralmente à realidade atual do imóvel verificada em campo.</span>
             </li>
 
             <li class="flex items-start gap-2">
                 <span class="font-bold text-slate-900">4.</span>
-                <span>Em cumprimento às normas vigentes, o <strong>INCRA aprovou o projeto de
-                        georreferenciamento</strong> do referido imóvel, emitindo a Certificação SIGEF sob o número
-                    de protocolo técnico <strong
-                        class="font-mono text-slate-900 font-bold">{esc(georref_sigef)}</strong>, apurando e certificando
-                    a poligonal perimetral exata da propriedade.</span>
+                <span>Em cumprimento às normas vigentes, o <strong>INCRA certificou</strong> a poligonal do referido
+                    imóvel no SIGEF, sob o código <strong
+                        class="font-mono text-slate-900 font-bold">{esc(georref_sigef)}</strong>, atestando que ela não se
+                    sobrepõe a nenhuma outra constante de seu cadastro georreferenciado e que o memorial descritivo
+                    atende às exigências técnicas (art. 176, § 5º, da Lei nº 6.015/1973).</span>
             </li>
         """
-        texto_encerramento_html = f"<strong>ENCERRAMENTO DA MATRÍCULA Nº {esc(num_mat)}</strong> e a subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA</strong>"
+        texto_encerramento_html = f"ao <strong>ENCERRAMENTO DA MATRÍCULA Nº {esc(num_mat)}</strong> e à subsequente <strong>ABERTURA DE NOVA MATRÍCULA GEORREFERENCIADA</strong>"
 
     grupos_ass: list[list[dict]] = []
     owners_sem_endereco = []
