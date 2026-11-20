@@ -12,6 +12,7 @@ from services.documentacao.cartorio.anuencias import (
     _prefetch_confrontantes,
     _rotulo_lote,
     _termos_declarantes,
+    extrair_corpo_declaracao,
     gerar_anexo_grafico_html,
 )
 from services.documentacao.cartorio.data_fetcher import (
@@ -440,11 +441,22 @@ def gerar_anexo_usufruto_drl_html(
     matricula_id: int,
     confrontante_id: int,
     envolvidos: list[dict] | None = None,
-) -> str:
-    """Gera a DRL completa em modo anexo contemplando usufrutuários e donatários (nu-proprietários)."""
-    dados = obter_dados_comuns(lev_id, matricula_id)
+    apenas_corpo: bool = False,
+    dados_comuns: dict | None = None,
+    retornar_map_data: bool = False,
+    *,
+    precarregado: dict | None = None,
+    contexto_mapa: dict | None = None,
+) -> str | tuple[str, dict]:
+    """Gera a DRL completa contemplando usufrutuários e donatários (nu-proprietários).
+
+    Aceita os mesmos parâmetros de montagem da anuência comum (corpo/lote, dados e mapa pré-carregados),
+    pois a anuência comum delega para cá quando o confrontante tem envolvidos de usufruto.
+    """
+    dados = dados_comuns if dados_comuns is not None else obter_dados_comuns(lev_id, matricula_id)
     mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id
-    precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, [confrontante_id], matricula_id=matricula_id)
+    if precarregado is None:
+        precarregado = _prefetch_confrontantes(lev_id, mat_desenho_id, [confrontante_id], matricula_id=matricula_id)
     pre = precarregado.get(confrontante_id)
     if not pre or not pre.get("conf"):
         raise NaoEncontrado(f"Confrontante ID {confrontante_id} não encontrado para este levantamento.")
@@ -503,6 +515,7 @@ def gerar_anexo_usufruto_drl_html(
         rotulo_confrontante_croqui,
         rotulo_matricula=rotulo_matricula,
         num_matricula=num_matricula_exibicao,
+        contexto=contexto_mapa,
         segmentos=pre["segs"],
     )
     script_inicializacao_mapas = gerar_js_inicializacao_mapas([map_data]) if map_data else ""
@@ -554,4 +567,8 @@ def gerar_anexo_usufruto_drl_html(
         "final_trt": valor_preenchido(dados["lev"].get("lev_numero_trt")) or LACUNA_TRT,
         **montagem["termos"],
     }
-    return renderizar_template(html_content, valores)
+    html_final = renderizar_template(html_content, valores)
+    res_html = extrair_corpo_declaracao(html_final) if apenas_corpo else html_final
+    if retornar_map_data:
+        return res_html, map_data
+    return res_html

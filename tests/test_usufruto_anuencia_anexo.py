@@ -250,6 +250,39 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         self.assertIn("Donatária (Nu-proprietária) Anuente", html)
         self.assertNotIn("Cônjuge da Donatária Anuente", html)
 
+    def test_anuencia_comum_troca_automaticamente_por_drl_de_usufruto(self):
+        from services.documentacao.cartorio.anuencias import (
+            gerar_declaracao_anuencia_html,
+            gerar_declaracao_anuencia_lote_html,
+        )
+
+        # Sem usufruto cadastrado: anuência comum (confrontante como proprietário)
+        comum = html_lib.unescape(gerar_declaracao_anuencia_html(1, 10, 22, validar_dispensa=False))
+        self.assertNotIn("Usufrutuário Anuente", comum)
+
+        salvar_envolvidos_usufruto(
+            22,
+            [
+                {"papel": "USUFRUTUARIO", "nome": "Vitor Shin Itiro Koyama", "genero": "M",
+                 "profissao": "bancário", "estado_civil": "solteiro", "endereco_completo": "Iporã-PR"},
+                {"papel": "DONATARIO", "nome": "Ligia Mayra Volttani Koyama", "genero": "F",
+                 "profissao": "serventuária", "estado_civil": "viuvo", "endereco_completo": "Maringá-PR"},
+            ],
+        )
+
+        individual = html_lib.unescape(gerar_declaracao_anuencia_html(1, 10, 22))
+        self.assertIn("Usufrutuário Anuente", individual)
+        self.assertIn("Donatária (Nu-proprietária) Anuente", individual)
+
+        corpo, map_data = gerar_declaracao_anuencia_html(
+            1, 10, 22, apenas_corpo=True, retornar_map_data=True
+        )
+        self.assertIn("Usufrutuário Anuente", html_lib.unescape(corpo))
+        self.assertNotIn("<html", corpo.lower())
+
+        lote = html_lib.unescape(gerar_declaracao_anuencia_lote_html(1, 10))
+        self.assertIn("Usufrutuário Anuente", lote)
+
     def test_rotas_http_anexo_usufruto(self):
         from fastapi.testclient import TestClient
         from api import app

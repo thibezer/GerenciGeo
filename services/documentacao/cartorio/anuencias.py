@@ -500,6 +500,19 @@ def gerar_declaracao_anuencia_html(
                     "(via/curso d'água); use 'Exigir' para gerar."
                 )
 
+    # Confrontante com usufruto/doação da nua propriedade: a DRL própria substitui a comum automaticamente.
+    from services.documentacao.cartorio.usufruto_anuencia import (
+        gerar_anexo_usufruto_drl_html,
+        listar_envolvidos_usufruto,
+    )
+    envolvidos_usufruto = [e for e in listar_envolvidos_usufruto(confrontante_id) if valor_preenchido(e.get("nome"))]
+    if envolvidos_usufruto:
+        return gerar_anexo_usufruto_drl_html(
+            lev_id, matricula_id, confrontante_id, envolvidos_usufruto,
+            apenas_corpo=apenas_corpo, dados_comuns=dados, retornar_map_data=retornar_map_data,
+            precarregado=precarregado, contexto_mapa=contexto_mapa,
+        )
+
     nome_lote = (dados["prop"].get("nome_propriedade") or dados["mat"].get("denominacao")) if dados.get("is_unificada") else (dados["mat"].get("denominacao") or dados["prop"].get("nome_propriedade"))
     comarca = str(dados["mat"].get("cri_comarca") or dados["prop"]["municipio"] or "").upper()
     proprietarios_html = descrever_proprietarios_curto(dados["owners"]) if dados["owners"] else Html("_" * 30)
@@ -668,24 +681,27 @@ def gerar_declaracao_anuencia_html(
     }
     html_content = renderizar_template(html_content, valores)
 
-    res_html = html_content
-    if apenas_corpo:
-        match = re.search(r'(<!-- INICIO CORPO CONSOLIDADO -->.*?<!-- FIM CORPO CONSOLIDADO -->)', html_content, re.DOTALL)
-        if match:
-            res_html = match.group(1)
-        else:
-            # Fallback robusto se os marcadores dedicados não forem encontrados
-            match_fallback = re.search(r'(<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->.*)', html_content, re.DOTALL)
-            if match_fallback:
-                corpo_html = match_fallback.group(1)
-                corpo_html = re.sub(r'<!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->.*', '', corpo_html, flags=re.DOTALL)
-                corpo_html = re.sub(r'<script.*', '', corpo_html, flags=re.DOTALL)
-                corpo_html = re.sub(r'</body>.*', '', corpo_html, flags=re.DOTALL)
-                res_html = corpo_html.strip()
+    res_html = extrair_corpo_declaracao(html_content) if apenas_corpo else html_content
 
     if retornar_map_data:
         return res_html, map_data
     return res_html
+
+
+def extrair_corpo_declaracao(html_content: str) -> str:
+    """Recorta só o corpo (folhas) da declaração renderizada, para montagem em lote."""
+    match = re.search(r'(<!-- INICIO CORPO CONSOLIDADO -->.*?<!-- FIM CORPO CONSOLIDADO -->)', html_content, re.DOTALL)
+    if match:
+        return match.group(1)
+    # Fallback robusto se os marcadores dedicados não forem encontrados
+    match_fallback = re.search(r'(<!-- FOLHA A4 ESCRITÓRIO/CARTÓRIO -->.*)', html_content, re.DOTALL)
+    if match_fallback:
+        corpo_html = match_fallback.group(1)
+        corpo_html = re.sub(r'<!-- SCRIPT DE INICIALIZAÇÃO DE MAPAS -->.*', '', corpo_html, flags=re.DOTALL)
+        corpo_html = re.sub(r'<script.*', '', corpo_html, flags=re.DOTALL)
+        corpo_html = re.sub(r'</body>.*', '', corpo_html, flags=re.DOTALL)
+        return corpo_html.strip()
+    return html_content
 
 
 # ── Lote ─────────────────────────────────────────────────────────────────────────────
