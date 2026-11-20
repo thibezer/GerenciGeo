@@ -1954,8 +1954,15 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (badgeUsufrutoQtd) {
         const n = usufrutoEnvolvidosAtuais.length;
         badgeUsufrutoQtd.textContent = `${n} ${n === 1 ? 'envolvido' : 'envolvidos'}`;
+        badgeUsufrutoQtd.className = n > 0
+          ? 'text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20'
+          : 'text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-white/40 border border-white/10';
       }
     };
+
+    // Recolhido por padrão (recurso avançado); abre sozinho só se o confrontante já tem envolvidos
+    const boxUsufruto = document.getElementById('box-usufruto-anexo') as HTMLDetailsElement | null;
+    const definirUsufrutoAberto = (aberto: boolean) => { if (boxUsufruto) boxUsufruto.open = aberto; };
 
     const renderizarCardsUsufruto = () => {
       atualizarBadgeUsufruto();
@@ -2250,6 +2257,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         usufrutoEnvolvidosAtuais = [];
       }
       renderizarCardsUsufruto();
+      definirUsufrutoAberto(usufrutoEnvolvidosAtuais.length > 0);
     };
 
     if (btnAddUsufruto) {
@@ -2395,6 +2403,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       renderizarCardsCoproprietarios();
       usufrutoEnvolvidosAtuais = [];
       renderizarCardsUsufruto();
+      definirUsufrutoAberto(false);
       renderizarStatusAnexoMatricula(null);
       initIcons();
 

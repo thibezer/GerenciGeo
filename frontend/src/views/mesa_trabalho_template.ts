@@ -651,43 +651,41 @@ export const renderMesaTrabalho = (): string => {
                          </div>
 
                          <!-- Bloco 4.2 (Anexo): Usufruto / Doação da Nua Propriedade -->
-                         <div class="p-4 bg-amber-500/[0.03] border border-amber-400/20 rounded-technical space-y-3" id="box-usufruto-anexo">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-                               <div class="flex items-center gap-2">
-                                  <div class="w-6 h-6 rounded bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-300">
-                                     <i data-lucide="file-signature" class="w-3.5 h-3.5"></i>
-                                  </div>
-                                  <div>
-                                     <div class="flex items-center gap-2">
-                                        <span class="text-[11px] font-bold uppercase tracking-wider text-white">Usufruto / Doação da Nua Propriedade (Anexo)</span>
-                                        <span id="badge-usufruto-qtd" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">0 envolvidos</span>
-                                     </div>
-                                     <span class="text-[9px] text-white/40 block">Para matrículas confrontantes com usufrutuários e donatários (nu-proprietários)</span>
-                                  </div>
-                               </div>
-                               <div class="flex flex-wrap items-center gap-2">
-                                  <button type="button" id="btn-adicionar-usufruto" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400/10 text-amber-300 border border-amber-400/30 hover:bg-amber-400/20 transition-all cursor-pointer active:scale-95">
+                         <!-- Recolhido por padrão (uso raro); abre sozinho quando o confrontante já tem envolvidos cadastrados -->
+                         <details class="group border border-dashed border-white/15 open:border-amber-400/30 open:bg-amber-500/[0.03] rounded-technical transition-colors" id="box-usufruto-anexo">
+                            <summary class="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                               <i data-lucide="file-signature" class="w-3.5 h-3.5 text-white/40 group-open:text-amber-300"></i>
+                               <span class="text-[10px] font-bold uppercase tracking-wider text-white/40 border border-white/15 rounded px-1.5 py-0.5">Avançado</span>
+                               <span class="text-[11px] font-bold uppercase tracking-wider text-white/70">Usufruto / Doação da Nua Propriedade</span>
+                               <span id="badge-usufruto-qtd" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-white/40 border border-white/10">0 envolvidos</span>
+                               <i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-white/40 transition-transform group-open:rotate-180"></i>
+                            </summary>
+
+                            <div class="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
+                               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <span class="text-[10px] text-white/40">Só quando a matrícula confrontante tiver usufrutuários e donatários (nu-proprietários). Gera uma DRL própria, no lugar da anuência comum.</span>
+                                  <button type="button" id="btn-adicionar-usufruto" class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400/10 text-amber-300 border border-amber-400/30 hover:bg-amber-400/20 transition-all cursor-pointer active:scale-95">
                                      <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
                                      Adicionar Envolvido
                                   </button>
                                </div>
-                            </div>
 
-                            <div id="lista-usufruto-container" class="space-y-3">
-                               <!-- Preenchido dinamicamente via JS -->
-                            </div>
+                               <div id="lista-usufruto-container" class="space-y-3">
+                                  <!-- Preenchido dinamicamente via JS -->
+                               </div>
 
-                            <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
-                               <button type="button" id="btn-salvar-usufruto-anexo" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all cursor-pointer active:scale-95">
-                                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                                  Salvar Envolvidos (Usufruto)
-                               </button>
-                               <button type="button" id="btn-gerar-drl-usufruto" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400 text-[#0c1510] hover:bg-amber-300 transition-all cursor-pointer active:scale-95">
-                                  <i data-lucide="printer" class="w-3.5 h-3.5"></i>
-                                  Gerar DRL (Usufruto/Donatários)
-                               </button>
+                               <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
+                                  <button type="button" id="btn-salvar-usufruto-anexo" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all cursor-pointer active:scale-95">
+                                     <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                     Salvar Envolvidos (Usufruto)
+                                  </button>
+                                  <button type="button" id="btn-gerar-drl-usufruto" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400 text-[#0c1510] hover:bg-amber-300 transition-all cursor-pointer active:scale-95">
+                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                                     Gerar DRL (Usufruto/Donatários)
+                                  </button>
+                               </div>
                             </div>
-                         </div>
+                         </details>
                          
                          <!-- Upload de Matrícula PDF -->
                          <div class="p-3.5 bg-white/[0.02] border border-white/10 rounded-technical flex flex-col sm:flex-row sm:items-center justify-between gap-3">
