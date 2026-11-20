@@ -76,6 +76,17 @@ def main():
         if not server_ready:
             print("[AVISO] Servidor demorou para responder, abrindo webview mesmo assim...")
         
+        # Modo dev: se o Vite (npm --prefix frontend run dev) estiver rodando na 5173, a janela carrega o código-fonte
+        # ao vivo (F5/HMR refletem edições do front sem rebuild); a API segue na 8000 via proxy do Vite.
+        base_url = "http://127.0.0.1:8000"
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:5173/principal.html", timeout=1) as resp:
+                if resp.status == 200:
+                    base_url = "http://127.0.0.1:5173"
+                    print("[DEV] Vite detectado na 5173: front ao vivo.")
+        except Exception:
+            pass
+
         class WindowAPI:
             def minimize(self):
                 w = webview.active_window()
@@ -101,7 +112,7 @@ def main():
                 # Abre janela estilo modal Options do CAD
                 webview.create_window(
                     "Opções",
-                    "http://127.0.0.1:8000/config_mapa.html",
+                    f"{base_url}/config_mapa.html",
                     width=660,
                     height=520,
                     resizable=False,
@@ -115,7 +126,7 @@ def main():
         api = WindowAPI()
         window = webview.create_window(
             "GerenciGeo",
-            "http://127.0.0.1:8000/principal.html",
+            f"{base_url}/principal.html",
             width=1280,
             height=800,
             min_size=(1024, 768),
