@@ -1949,6 +1949,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const btnGerarDrlUsufruto = document.getElementById('btn-gerar-drl-usufruto') as HTMLButtonElement | null;
     let usufrutoEnvolvidosAtuais: any[] = [];
     let usufrutoCarregado = true; // false quando a leitura do servidor falhou
+    // O salvamento principal é definido mais abaixo; o botão da DRL o chama por esta referência.
+    const salvarQualificacaoRef: { fn?: (opts?: { manterAberto?: boolean }) => Promise<string | null> } = {};
 
     const atualizarBadgeUsufruto = () => {
       if (badgeUsufrutoQtd) {
@@ -2311,6 +2313,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               nome_conjuge: (e.nome_conjuge || '').trim() || null,
               cpf_conjuge: (e.cpf_conjuge || '').trim() || null,
               rg_conjuge: (e.rg_conjuge || '').trim() || null,
+              rg_orgao_conjuge: (e.rg_orgao_conjuge || '').trim() || null,
+              rg_uf_conjuge: (e.rg_uf_conjuge || '').trim() || null,
+              observacao: (e.observacao || '').trim() || null,
               genero_conjuge: e.genero_conjuge || 'F',
               nacionalidade_conjuge: (e.nacionalidade_conjuge || '').trim() || 'brasileiro(a)',
               profissao_conjuge: (e.profissao_conjuge || '').trim() || null,
@@ -2322,16 +2327,20 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     };
 
     if (btnGerarDrlUsufruto) {
-      btnGerarDrlUsufruto.onclick = () => {
-        const confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId;
-        if (!ctx.currentLevId || !ctx.currentMatriculaId || !confIdVal) {
-          showToast("Selecione um levantamento, matrícula e confrontante válidos.", "info");
+      btnGerarDrlUsufruto.onclick = async () => {
+        if (!ctx.currentLevId || !ctx.currentMatriculaId) {
+          showToast("Selecione um levantamento e uma matrícula válidos.", "info");
           return;
         }
-        window.open(
-          `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${confIdVal}/anuencia-usufruto-html`,
-          '_blank'
-        );
+        // Abre a aba já (gesto do clique) para o navegador não bloquear o pop-up após o salvamento assíncrono.
+        const janela = window.open('', '_blank');
+        const confId = await salvarQualificacaoRef.fn?.({ manterAberto: true });
+        if (!confId) {
+          janela?.close();
+          return;
+        }
+        const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/matriculas/${ctx.currentMatriculaId}/confrontantes/${confId}/anuencia-usufruto-html`;
+        if (janela) janela.location.href = url; else window.open(url, '_blank');
       };
     }
 
@@ -2660,15 +2669,16 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
 
     let salvandoQualificacao = false;
-    const executarSalvarQualificacao = async () => {
-      if (salvandoQualificacao) return;
+    // Retorna o id do confrontante salvo (ou null se não salvou). `manterAberto` mantém o formulário na tela.
+    const executarSalvarQualificacao = async (opts: { manterAberto?: boolean } = {}): Promise<string | null> => {
+      if (salvandoQualificacao) return null;
 
       let confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId || (selectAnuencia ? selectAnuencia.value : '');
       if (confIdVal === 'lote' || confIdVal === 'novo') confIdVal = '';
       
       if (!ctx.currentLevId) {
         showToast("Nenhum levantamento ativo selecionado.", "info");
-        return;
+        return null;
       }
 
       const inputNome = document.getElementById('input-conf-nome') as any;
@@ -2676,10 +2686,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (!nome) {
         showToast("O Nome Completo / Razão Social do confrontante é obrigatório.", "info");
         inputNome?.focus?.();
-        return;
+        return null;
       }
 
       salvandoQualificacao = true;
+      let idSalvo: string | null = null;
 
       const payload = {
         nome: nome,
@@ -2749,10 +2760,20 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         if (res.ok) {
           showToast(confIdVal ? "Qualificação do confrontante salva com sucesso!" : "Novo confrontante cadastrado com sucesso!", "success");
           
+          idSalvo = String(confIdVal || data?.id || data?.confrontante_id || '') || null;
+
           await ctx.carregarConfrontantesAtivosSelect();
           await ctx.loadLevantamentoDetails();
 
-          fecharFormularioConfrontante();
+          if (opts.manterAberto) {
+            if (idSalvo) {
+              if (inputConfId) inputConfId.value = idSalvo;
+              if (containerForm) containerForm.dataset.confrontanteId = idSalvo;
+              if (txtConfIdEdicao) txtConfIdEdicao.innerText = idSalvo;
+            }
+          } else {
+            fecharFormularioConfrontante();
+          }
         } else {
           let errorMsg = "Erro ao salvar qualificações do confrontante.";
           if (data.detail) {
@@ -2779,7 +2800,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         }
         initIcons();
       }
+      return idSalvo;
     };
+
+    salvarQualificacaoRef.fn = executarSalvarQualificacao;
 
     if (btnSalvarConf) {
       btnSalvarConf.onclick = () => {

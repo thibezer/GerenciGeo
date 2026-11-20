@@ -44,6 +44,7 @@ from services.documentacao.cartorio.utils import (
     valor_preenchido,
 )
 from services.documentacao.erros import ErroDocumento, NaoEncontrado
+from utils.validadores import sql_doc_normalizado
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,16 @@ _SINONIMOS_PAPEL = {
     "proprietaria": "PROPRIETARIO",
     "possuidor": "POSSUIDOR",
     "possuidora": "POSSUIDOR",
+}
+
+
+_ROTULO_ERRO_PAPEL = {
+    "USUFRUTUARIO": "usufrutuário",
+    "DONATARIO": "donatário",
+    "NU_PROPRIETARIO": "nu-proprietário",
+    "COPROPRIETARIO": "coproprietário",
+    "PROPRIETARIO": "proprietário",
+    "POSSUIDOR": "possuidor",
 }
 
 
@@ -115,7 +126,7 @@ def _upsert_pessoa_envolvido(cursor, env: dict) -> int | None:
 
     nome = valor_preenchido(env.get("nome"))
     cursor.execute(
-        "SELECT id FROM pessoas WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?",
+        f"SELECT id FROM pessoas WHERE {sql_doc_normalizado('cpf_cnpj')} = ?",
         (cpf_limpo,),
     )
     row = cursor.fetchone()
@@ -124,11 +135,11 @@ def _upsert_pessoa_envolvido(cursor, env: dict) -> int | None:
         cursor.execute(
             """
             UPDATE pessoas
-            SET nome = ?, rg = ?, rg_orgao = COALESCE(?, rg_orgao), rg_uf = COALESCE(?, rg_uf),
-                genero = ?, nacionalidade = ?, profissao = ?, estado_civil = ?, regime_bens = ?,
-                endereco_completo = ?, nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = ?,
+            SET nome = ?, rg = COALESCE(?, rg), rg_orgao = COALESCE(?, rg_orgao), rg_uf = COALESCE(?, rg_uf),
+                genero = ?, nacionalidade = ?, profissao = COALESCE(?, profissao), estado_civil = ?, regime_bens = ?,
+                endereco_completo = COALESCE(?, endereco_completo), nome_conjuge = ?, cpf_conjuge = ?, rg_conjuge = COALESCE(?, rg_conjuge),
                 rg_orgao_conjuge = COALESCE(?, rg_orgao_conjuge), rg_uf_conjuge = COALESCE(?, rg_uf_conjuge),
-                genero_conjuge = ?, nacionalidade_conjuge = ?, profissao_conjuge = ?
+                genero_conjuge = ?, nacionalidade_conjuge = ?, profissao_conjuge = COALESCE(?, profissao_conjuge)
             WHERE id = ?
             """,
             (
@@ -359,7 +370,7 @@ def montar_qualificacao_e_assinaturas_usufruto(
         papeis_ativos.add(papel)
         conjuge_assina = _conjuge_assina_envolvido(env)
         sem_conjuge = not conjuge_assina and not valor_preenchido(env.get("nome_conjuge"))
-        rotulo_err = "O usufrutuário" if papel == "USUFRUTUARIO" else "O donatário"
+        rotulo_err = f"O {_ROTULO_ERRO_PAPEL.get(papel, 'envolvido')}"
 
         qualif_html, info = qualificar_pessoa(
             env,
@@ -531,7 +542,12 @@ def gerar_anexo_usufruto_drl_html(
         "{imovel_confrontante}, assumindo integralmente as responsabilidades da declaração a seguir, "
         "em estrita conformidade com o <strong>artigo 213 da Lei Federal nº 6.015 de 1973</strong>"
     )
-    html_content = padrao_clausula.sub(nova_clausula, html_content, count=1)
+    html_content, trocas = padrao_clausula.subn(nova_clausula, html_content, count=1)
+    if not trocas:
+        logger.warning(
+            "DRL de usufruto: a cláusula de condomínio do template declaracao_anuencia.html mudou; "
+            "a qualidade jurídica (usufrutuários/donatários) NÃO foi aplicada no texto. Atualize o padrão."
+        )
 
     titulo_aba = (
         f"DRL {c_matricula_raw} - {num_matricula_exibicao} - {c_nome_exib}"

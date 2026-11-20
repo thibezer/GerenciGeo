@@ -663,7 +663,7 @@ export const renderMesaTrabalho = (): string => {
 
                             <div class="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                  <span class="text-[10px] text-white/40">Só quando a matrícula confrontante tiver usufrutuários e donatários (nu-proprietários). Gera uma DRL própria, no lugar da anuência comum.</span>
+                                  <span class="text-[10px] text-white/40">Só quando a matrícula confrontante tiver usufrutuários e donatários (nu-proprietários). Gera uma DRL própria no lugar da anuência comum: assinam apenas os envolvidos abaixo (o titular e os coproprietários acima não entram; inclua-os aqui se também assinam).</span>
                                   <button type="button" id="btn-adicionar-usufruto" class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400/10 text-amber-300 border border-amber-400/30 hover:bg-amber-400/20 transition-all cursor-pointer active:scale-95">
                                      <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
                                      Adicionar Envolvido

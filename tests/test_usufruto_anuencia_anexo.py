@@ -283,6 +283,26 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         lote = html_lib.unescape(gerar_declaracao_anuencia_lote_html(1, 10))
         self.assertIn("Usufrutuário Anuente", lote)
 
+    def test_campo_opcional_em_branco_nao_apaga_dados_da_pessoa_existente(self):
+        with DatabaseManager() as conn:
+            conn.execute(
+                "INSERT INTO pessoas (id, nome, cpf_cnpj, rg, profissao, endereco_completo) "
+                "VALUES (50, 'Ligia Mayra', '047.273.279-02', '8.435.621-2', 'serventuária', 'Maringá-PR')"
+            )
+            conn.commit()
+        salvar_envolvidos_usufruto(
+            22,
+            [{"papel": "DONATARIO", "nome": "Ligia Mayra Volttani Koyama", "cpf_cnpj": "04727327902",
+              "genero": "F", "estado_civil": "solteiro"}],
+        )
+        with DatabaseManager() as conn:
+            row = conn.execute("SELECT nome, rg, profissao, endereco_completo FROM pessoas WHERE id = 50").fetchone()
+        self.assertEqual(row[0], "Ligia Mayra Volttani Koyama")
+        self.assertEqual(row[1], "8.435.621-2")
+        self.assertEqual(row[2], "serventuária")
+        self.assertEqual(row[3], "Maringá-PR")
+        self.assertEqual(listar_envolvidos_usufruto(22)[0]["pessoa_id"], 50)
+
     def test_salvar_qualificacao_grava_usufruto_na_mesma_requisicao(self):
         from fastapi.testclient import TestClient
         from api import app
