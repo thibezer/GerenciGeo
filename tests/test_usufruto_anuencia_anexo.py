@@ -283,6 +283,35 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         lote = html_lib.unescape(gerar_declaracao_anuencia_lote_html(1, 10))
         self.assertIn("Usufrutuário Anuente", lote)
 
+    def test_salvar_qualificacao_grava_usufruto_na_mesma_requisicao(self):
+        from fastapi.testclient import TestClient
+        from api import app
+
+        client = TestClient(app)
+        base = {"nome": "Vitor Shin Itiro Koyama", "lote": "Lotes de terras nº 138 e 139", "matricula_imovel": "6.622"}
+        envolvido = {"papel": "USUFRUTUARIO", "nome": "Vitor Shin Itiro Koyama", "genero": "M",
+                     "estado_civil": "solteiro", "endereco_completo": "Iporã-PR"}
+
+        # Lista enviada -> grava
+        r = client.put("/confrontantes/22", json={**base, "usufruto_envolvidos": [envolvido]})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(len(listar_envolvidos_usufruto(22)), 1)
+
+        # Campo ausente (null) -> não mexe
+        r = client.put("/confrontantes/22", json=base)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(len(listar_envolvidos_usufruto(22)), 1)
+
+        # Papel inválido -> 422
+        r = client.put("/confrontantes/22", json={**base, "usufruto_envolvidos": [{**envolvido, "papel": "XYZ"}]})
+        self.assertEqual(r.status_code, 422, r.text)
+        self.assertEqual(len(listar_envolvidos_usufruto(22)), 1)
+
+        # Lista vazia -> remove
+        r = client.put("/confrontantes/22", json={**base, "usufruto_envolvidos": []})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(listar_envolvidos_usufruto(22), [])
+
     def test_rotas_http_anexo_usufruto(self):
         from fastapi.testclient import TestClient
         from api import app

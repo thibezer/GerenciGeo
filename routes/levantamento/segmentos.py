@@ -110,6 +110,8 @@ class ConfrontanteCreate(BaseModel):
     codigo_incra_imovel: Optional[str] = None
     lote: Optional[str] = None
     coproprietarios: Optional[List[CoproprietarioCreate]] = []
+    # Usufruto/doação da nua propriedade: None = não mexe; lista (mesmo vazia) substitui os envolvidos salvos.
+    usufruto_envolvidos: Optional[List[EnvolvidoUsufrutoItem]] = None
     representante: Optional[dict] = None  # legado (um só); use `representantes`
     representantes: Optional[List[dict]] = None
     titular_assina: Optional[bool] = True
@@ -119,6 +121,19 @@ def _representantes_json(c) -> Optional[str]:
     """Serializa os representantes legais (lista; aceita o campo legado `representante`) ou None se vazio."""
     reps = normalizar_representantes(c.representantes if c.representantes is not None else c.representante)
     return json.dumps(reps, ensure_ascii=False) if reps else None
+
+
+def _salvar_usufruto_na_transacao(cursor, confrontante_id: int, c: "ConfrontanteCreate"):
+    """Grava os envolvidos de usufruto na mesma transação do confrontante (papel inválido -> 422)."""
+    if c.usufruto_envolvidos is None:
+        return
+    from services.documentacao.cartorio.usufruto_anuencia import salvar_envolvidos_usufruto_transacao
+    from services.documentacao.erros import ErroDocumento
+    dados = [i.model_dump() if hasattr(i, "model_dump") else i.dict() for i in c.usufruto_envolvidos]
+    try:
+        salvar_envolvidos_usufruto_transacao(cursor, confrontante_id, dados)
+    except ErroDocumento as ed:
+        raise HTTPException(status_code=422, detail=str(ed))
 
 
 def salvar_coproprietarios_transacao(cursor, confrontante_id: int, coproprietarios: list):
@@ -382,6 +397,7 @@ def create_confrontante(id: int, c: ConfrontanteCreate):
             
             if c.coproprietarios:
                 salvar_coproprietarios_transacao(cursor, confrontante_id, c.coproprietarios)
+            _salvar_usufruto_na_transacao(cursor, confrontante_id, c)
 
             conn.commit()
             
@@ -525,6 +541,7 @@ def update_confrontante(cid: int, c: ConfrontanteCreate):
             
             if c.coproprietarios is not None:
                 salvar_coproprietarios_transacao(cursor, cid, c.coproprietarios)
+            _salvar_usufruto_na_transacao(cursor, cid, c)
 
             conn.commit()
 

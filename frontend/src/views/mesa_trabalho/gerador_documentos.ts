@@ -1946,9 +1946,9 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     const containerUsufruto = document.getElementById('lista-usufruto-container');
     const badgeUsufrutoQtd = document.getElementById('badge-usufruto-qtd');
     const btnAddUsufruto = document.getElementById('btn-adicionar-usufruto');
-    const btnSalvarUsufruto = document.getElementById('btn-salvar-usufruto-anexo') as HTMLButtonElement | null;
     const btnGerarDrlUsufruto = document.getElementById('btn-gerar-drl-usufruto') as HTMLButtonElement | null;
     let usufrutoEnvolvidosAtuais: any[] = [];
+    let usufrutoCarregado = true; // false quando a leitura do servidor falhou
 
     const atualizarBadgeUsufruto = () => {
       if (badgeUsufrutoQtd) {
@@ -2238,6 +2238,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     };
 
     const carregarEnvolvidosUsufruto = async (confId: number | string) => {
+      usufrutoCarregado = true;
       if (!confId) {
         usufrutoEnvolvidosAtuais = [];
         renderizarCardsUsufruto();
@@ -2252,9 +2253,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             : [];
         } else {
           usufrutoEnvolvidosAtuais = [];
+          usufrutoCarregado = false;
         }
       } catch {
         usufrutoEnvolvidosAtuais = [];
+        usufrutoCarregado = false;
       }
       renderizarCardsUsufruto();
       definirUsufrutoAberto(usufrutoEnvolvidosAtuais.length > 0);
@@ -2288,15 +2291,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       };
     }
 
-    if (btnSalvarUsufruto) {
-      btnSalvarUsufruto.onclick = async () => {
-        const confIdVal = inputConfId?.value?.trim() || containerForm?.dataset?.confrontanteId;
-        if (!confIdVal) {
-          showToast("Salve ou selecione um confrontante antes de salvar os envolvidos de usufruto.", "info");
-          return;
-        }
-        const payload = {
-          envolvidos: usufrutoEnvolvidosAtuais
+    // Salvos junto com "Salvar Qualificação". null = lista não carregada (não enviar, para não apagar dados).
+    const montarPayloadUsufruto = () => {
+      if (!usufrutoCarregado) return null;
+      return usufrutoEnvolvidosAtuais
             .map((e, idx) => ({
               papel: e.papel || 'DONATARIO',
               nome: (e.nome || '').trim(),
@@ -2320,30 +2318,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               conjuge_assina: !(e.conjuge_assina === false || e.conjuge_assina === 0),
               ordem: idx,
             }))
-            .filter(e => e.nome.length > 0),
-        };
-        try {
-          btnSalvarUsufruto.disabled = true;
-          const res = await fetch(`${API_BASE}/confrontantes/${confIdVal}/usufruto-envolvidos`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok) {
-            usufrutoEnvolvidosAtuais = Array.isArray(data?.envolvidos) ? data.envolvidos : [];
-            renderizarCardsUsufruto();
-            showToast(`Envolvidos de usufruto salvos (${usufrutoEnvolvidosAtuais.length}).`, "success");
-          } else {
-            showToast(data.detail || "Erro ao salvar envolvidos de usufruto.", "error");
-          }
-        } catch {
-          showToast("Erro de rede ao salvar envolvidos de usufruto.", "error");
-        } finally {
-          btnSalvarUsufruto.disabled = false;
-        }
-      };
-    }
+            .filter(e => e.nome.length > 0);
+    };
 
     if (btnGerarDrlUsufruto) {
       btnGerarDrlUsufruto.onclick = () => {
@@ -2402,6 +2378,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       coproprietariosAtuais = [];
       renderizarCardsCoproprietarios();
       usufrutoEnvolvidosAtuais = [];
+      usufrutoCarregado = true;
       renderizarCardsUsufruto();
       definirUsufrutoAberto(false);
       renderizarStatusAnexoMatricula(null);
@@ -2746,7 +2723,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             assina: !(cp.assina === false || cp.assina === 0),
             conjuge_assina: !(cp.conjuge_assina === false || cp.conjuge_assina === 0)
           }))
-          .filter(cp => cp.nome.length > 0)
+          .filter(cp => cp.nome.length > 0),
+        usufruto_envolvidos: montarPayloadUsufruto(),
       };
 
       if (btnSalvarConf) {

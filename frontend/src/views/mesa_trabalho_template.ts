@@ -675,10 +675,7 @@ export const renderMesaTrabalho = (): string => {
                                </div>
 
                                <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-white/5">
-                                  <button type="button" id="btn-salvar-usufruto-anexo" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all cursor-pointer active:scale-95">
-                                     <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                                     Salvar Envolvidos (Usufruto)
-                                  </button>
+                                  <span class="mr-auto text-[10px] text-white/40">Gravado ao clicar em "Salvar Qualificação".</span>
                                   <button type="button" id="btn-gerar-drl-usufruto" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold rounded-technical bg-amber-400 text-[#0c1510] hover:bg-amber-300 transition-all cursor-pointer active:scale-95">
                                      <i data-lucide="printer" class="w-3.5 h-3.5"></i>
                                      Gerar DRL (Usufruto/Donatários)
