@@ -4,6 +4,7 @@ import { initIcons, showToast, escapeHtml } from '../../utils';
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
 import { CamadaConfrontantes } from './camada_confrontantes';
 import { criarListaConfrontantes, type ResumoConfrontantes, type ListaConfrontantes } from './lista_confrontantes';
+import { estadoDe, type ConfrontanteResumo } from './lista_confrontantes_tipos';
 import { criarPassosCartorio } from './passos_cartorio';
 import { homologadosDaMatricula } from './pontos_visiveis';
 import { configurarSplitterCartorio } from './splitter_cartorio';
@@ -20,6 +21,7 @@ import {
   validarCampos,
   limparErros,
   observarLimpezaDeErros,
+  ligarAtalhosFormulario,
   type RascunhoFormulario
 } from '@thibezer/ui-components-kit/forms';
 import { confirmarAcao, confirmarDescarteSeSujo, UIToast } from '@thibezer/ui-components-kit/feedback';
@@ -2763,12 +2765,19 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     // A inicialização pode rodar de novo (troca de matrícula/aba): solta os ouvintes da anterior para não duplicar.
     soltarRascunhoAnterior?.();
     if (containerForm) {
+      const badgeNaoSalvo = document.getElementById('badge-conf-nao-salvo');
       rascunho = criarRascunhoFormulario(containerForm, {
         estadoExterno: () => [representantesAtuais, coproprietariosAtuais, usufrutoEnvolvidosAtuais],
+        aoMudar: (sujo) => badgeNaoSalvo?.classList.toggle('hidden', !sujo),
       });
       const rascunhoAtual = rascunho;
       const pararLimpezaErros = observarLimpezaDeErros(containerForm);
-      soltarRascunhoAnterior = () => { rascunhoAtual.destruir(); pararLimpezaErros(); };
+      // Ctrl/Cmd+S salva (inclusive dentro dos campos); Esc fecha, pedindo confirmação se houver alterações.
+      const pararAtalhos = ligarAtalhosFormulario(containerForm, {
+        salvar: () => { void salvarQualificacaoRef.fn?.(); },
+        cancelar: () => { void fecharComConfirmacao(); },
+      });
+      soltarRascunhoAnterior = () => { rascunhoAtual.destruir(); pararLimpezaErros(); pararAtalhos(); };
     }
 
     let salvandoQualificacao = false;
@@ -2923,6 +2932,33 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     if (btnSalvarConf) {
       btnSalvarConf.onclick = () => {
         executarSalvarQualificacao();
+      };
+    }
+
+    /** Próximo confrontante com cadastro incompleto (sem CPF/CNPJ), na ordem do perímetro, dando a volta na lista. */
+    const proximoIncompleto = (idAtual: string): ConfrontanteResumo | null => {
+      const lista = (resumoConf?.confrontantes ?? [])
+        .map((c, i) => ({ c, i }))
+        .sort((a, b) => (a.c.ordem_perimetro ?? Number.MAX_SAFE_INTEGER) - (b.c.ordem_perimetro ?? Number.MAX_SAFE_INTEGER) || a.i - b.i)
+        .map(({ c }) => c);
+      const pos = lista.findIndex(c => String(c.id) === idAtual);
+      const incompletos = lista.filter(c => estadoDe(c) === 'incompleto' && String(c.id) !== idAtual);
+      return incompletos.find(c => lista.indexOf(c) > pos) ?? incompletos[0] ?? null;
+    };
+
+    const btnSalvarProximo = document.getElementById('btn-salvar-proximo-confrontante');
+    if (btnSalvarProximo) {
+      btnSalvarProximo.onclick = async () => {
+        const idSalvo = await executarSalvarQualificacao({ manterAberto: true });
+        if (!idSalvo) return;
+        await carregarResumoConfrontantes();
+        const proximo = proximoIncompleto(idSalvo);
+        if (proximo) {
+          abrirEdicaoConfrontante(String(proximo.id));
+        } else {
+          fecharFormularioConfrontante();
+          showToast('Todos os confrontantes têm cadastro completo.', 'success');
+        }
       };
     }
 

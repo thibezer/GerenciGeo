@@ -477,6 +477,7 @@ export const renderMesaTrabalho = (): string => {
                                <h6 class="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
                                   Qualificação Completa do Confrontante
                                   <span id="badge-conf-status" class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-mint-vibrant/10 text-mint-vibrant border border-mint-vibrant/20">EDIÇÃO</span>
+                                  <span id="badge-conf-nao-salvo" role="status" aria-live="polite" class="hidden text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">● Alterações não salvas</span>
                                </h6>
                                <span class="text-[10px] text-white/40 block">Vínculo com matrícula, certidões e cartas de anuência expressa</span>
                             </div>
@@ -712,7 +713,10 @@ export const renderMesaTrabalho = (): string => {
                             <ui-botao-primario variante="secondary" id="btn-cancelar-confrontante-qualificacao" type="button" class="min-w-[120px]">
                                Cancelar
                             </ui-botao-primario>
-                            <ui-botao-primario variante="primary" id="btn-salvar-confrontante-qualificacao" type="button" class="min-w-[190px]">
+                            <ui-botao-primario variante="secondary" id="btn-salvar-proximo-confrontante" type="button" class="min-w-[170px]" title="Salva e abre o próximo confrontante com cadastro incompleto">
+                               Salvar e próximo
+                            </ui-botao-primario>
+                            <ui-botao-primario variante="primary" id="btn-salvar-confrontante-qualificacao" type="button" class="min-w-[190px]" title="Salvar (Ctrl+S)">
                                <i data-lucide="save" class="w-4 h-4 mr-2"></i> Salvar Qualificação
                             </ui-botao-primario>
                          </div>
