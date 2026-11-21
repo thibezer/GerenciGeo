@@ -13,6 +13,23 @@ import {
   configurarMaquinadeEstadosCivil,
   formatarCpfCnpjDinamico
 } from './maquina_estado_civil';
+import { erroCpf, erroCpfCnpj } from './validadores_documento';
+import {
+  criarRascunhoFormulario,
+  preencherCampos,
+  validarCampos,
+  limparErros,
+  observarLimpezaDeErros,
+  type RascunhoFormulario
+} from '@thibezer/ui-components-kit/forms';
+import { confirmarAcao, confirmarDescarteSeSujo, UIToast } from '@thibezer/ui-components-kit/feedback';
+
+let soltarRascunhoAnterior: (() => void) | null = null;
+
+/** Erros e conflitos precisam de ação do operador: ficam na tela até serem fechados (nunca um toast de 3 s). */
+const avisarErroPersistente = (mensagem: string) => {
+  UIToast.notificar({ tipo: 'erro', mensagem, duracao: 0, fechavel: true });
+};
 
 interface VerticeConfrontante {
   id: number;
@@ -964,12 +981,26 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
   };
 
+  /** O upload grava direto no confrontante: sem id (cadastro novo ainda não salvo) o anexo fica desabilitado. */
+  const habilitarAnexoMatricula = (habilitado: boolean) => {
+    const input = document.getElementById('file-matricula-conf') as HTMLInputElement | null;
+    const rotulo = document.querySelector<HTMLElement>('label[for="file-matricula-conf"]');
+    if (input) input.disabled = !habilitado;
+    if (rotulo) {
+      rotulo.setAttribute('aria-disabled', String(!habilitado));
+      rotulo.classList.toggle('opacity-40', !habilitado);
+      rotulo.classList.toggle('pointer-events-none', !habilitado);
+      rotulo.title = habilitado ? '' : 'Salve o cadastro para anexar a matrícula.';
+    }
+  };
+
   const renderizarStatusAnexoMatricula = (selectedConf: any) => {
     const statusEl = document.getElementById('status-matricula-anexo');
     const btnVer = document.getElementById('btn-ver-matricula-conf');
     const btnRemover = document.getElementById('btn-remover-matricula-conf');
 
     if (!statusEl) return;
+    habilitarAnexoMatricula(Boolean(selectedConf?.id));
 
     if (selectedConf && selectedConf.caminho_matricula_pdf) {
       const pathStr = selectedConf.caminho_matricula_pdf;
@@ -988,29 +1019,37 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (btnRemover) {
         btnRemover.classList.remove('hidden');
         btnRemover.onclick = async () => {
-          if (!confirm("Deseja realmente remover o anexo da matrícula deste confrontante?")) return;
-          
+          const quem = selectedConf.nome ? ` de ${selectedConf.nome}` : '';
+          const confirmado = await confirmarAcao({
+            titulo: 'Remover matrícula',
+            mensagem: `O arquivo da matrícula${quem} será apagado e não poderá ser recuperado.`,
+            rotuloConfirmar: 'Remover matrícula',
+            rotuloCancelar: 'Manter arquivo',
+            destrutivo: true
+          });
+          if (!confirmado) return;
+
           try {
             const res = await fetch(`${API_BASE}/confrontantes/${selectedConf.id}/matricula`, {
               method: 'DELETE'
             });
             if (res.ok) {
-              alert("Matrícula removida com sucesso!");
+              showToast("Matrícula removida.", "success");
               selectedConf.caminho_matricula_pdf = null;
               renderizarStatusAnexoMatricula(selectedConf);
               await ctx.loadLevantamentoDetails();
             } else {
-              const errData = await res.json();
-              alert(errData.detail || "Erro ao remover matrícula.");
+              const errData = await res.json().catch(() => ({}));
+              avisarErroPersistente(errData.detail || "Erro ao remover matrícula.");
             }
           } catch (err) {
             console.error("Erro ao remover matrícula:", err);
-            alert("Erro de rede ao remover matrícula.");
+            avisarErroPersistente("Erro de rede ao remover matrícula.");
           }
         };
       }
     } else {
-      statusEl.innerHTML = `<span class="text-white/50">Nenhum arquivo anexado.</span>`;
+      statusEl.innerHTML = `<span class="text-white/50">${selectedConf?.id ? 'Nenhum arquivo anexado.' : 'Salve o cadastro para poder anexar a matrícula.'}</span>`;
       if (btnVer) btnVer.classList.add('hidden');
       if (btnRemover) btnRemover.classList.add('hidden');
     }
@@ -2345,9 +2384,18 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     }
 
     let ultimoCpfBuscado = '';
+    /** Detecta alterações não salvas (campos + listas dinâmicas); criado junto do salvamento, mais abaixo. */
+    let rascunho: RascunhoFormulario | null = null;
+    const formularioAberto = () => Boolean(containerForm) && !containerForm.classList.contains('hidden');
+    /** Pergunta antes de descartar alterações não salvas; sem alterações, segue direto. */
+    const podeDescartarFormulario = async (): Promise<boolean> => {
+      if (!rascunho || !formularioAberto()) return true;
+      return confirmarDescarteSeSujo(rascunho);
+    };
 
-    const abrirFormularioNovoConfrontante = () => {
+    const abrirFormularioNovoConfrontante = async () => {
       if (!containerForm) return;
+      if (!(await podeDescartarFormulario())) return;
       ultimoCpfBuscado = '';
       containerForm.classList.remove('hidden');
       if (inputConfId) inputConfId.value = '';
@@ -2392,6 +2440,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       definirUsufrutoAberto(false);
       renderizarStatusAnexoMatricula(null);
       initIcons();
+      limparErros(containerForm);
+      rascunho?.marcarLimpo();
 
       setTimeout(() => {
         ajustarVisibilidadeFormulario(containerForm);
@@ -2404,16 +2454,23 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (inputConfId) inputConfId.value = '';
       if (containerForm) containerForm.dataset.confrontanteId = '';
       if (selectAnuencia) selectAnuencia.value = '';
+      if (containerForm) limparErros(containerForm);
+      rascunho?.marcarLimpo();
+    };
+
+    /** Cancelar / X: confirma só quando há alterações não salvas. */
+    const fecharComConfirmacao = async () => {
+      if (await podeDescartarFormulario()) fecharFormularioConfrontante();
     };
 
     if (btnNovoConf) {
       btnNovoConf.onclick = abrirFormularioNovoConfrontante;
     }
     if (btnFecharCard) {
-      btnFecharCard.onclick = fecharFormularioConfrontante;
+      btnFecharCard.onclick = fecharComConfirmacao;
     }
     if (btnCancelarConf) {
-      btnCancelarConf.onclick = fecharFormularioConfrontante;
+      btnCancelarConf.onclick = fecharComConfirmacao;
     }
 
     if (selectAnuencia) {
@@ -2423,7 +2480,14 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           if (containerForm) containerForm.classList.add('hidden');
           return;
         }
-        
+
+        // Trocar de confrontante com alterações não salvas: confirma; se recusar, volta ao que estava aberto.
+        const abertoAgora = containerForm?.dataset.confrontanteId || '';
+        if (formularioAberto() && !(await podeDescartarFormulario())) {
+          selectAnuencia.value = abertoAgora;
+          return;
+        }
+
         try {
           const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/confrontantes`);
           const confs = await res.json();
@@ -2476,10 +2540,12 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             initIcons();
             aplicarTipoPessoa();
             ajustarVisibilidadeFormulario(containerForm);
+            limparErros(containerForm);
+            rascunho?.marcarLimpo();
           }
         } catch (err) {
           console.error("Erro ao carregar qualificacoes do confrontante:", err);
-          showToast("Erro ao carregar dados do confrontante.", "error");
+          avisarErroPersistente("Erro ao carregar dados do confrontante.");
         }
       });
     }
@@ -2611,33 +2677,58 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         if (res.ok) {
           const data = await res.json();
           if (data && data.nome) {
-            (document.getElementById('input-conf-nome') as any).value = data.nome || '';
-            (document.getElementById('conf-genero') as any).value = data.genero || 'M';
-            (document.getElementById('input-conf-rg') as any).value = data.rg || '';
-            (document.getElementById('input-conf-nacionalidade') as any).value = data.nacionalidade || 'brasileiro(a)';
-            (document.getElementById('input-conf-profissao') as any).value = data.profissao || '';
-            (document.getElementById('conf-estado-civil') as any).value = normalizarEstadoCivil(data.estado_civil);
-            (document.getElementById('conf-regime-bens') as any).value = normalizarRegimeBens(data.regime_bens);
-            (document.getElementById('input-conf-conjuge-nome') as any).value = data.nome_conjuge || '';
-            if (inputCpfConjuge) inputCpfConjuge.value = data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '';
-            (document.getElementById('input-conf-conjuge-rg') as any).value = data.rg_conjuge || '';
-            (document.getElementById('conf-conjuge-genero') as any).value = data.genero_conjuge || 'F';
-            (document.getElementById('input-conf-conjuge-nacionalidade') as any).value = data.nacionalidade_conjuge || 'brasileiro(a)';
-            (document.getElementById('input-conf-conjuge-profissao') as any).value = data.profissao_conjuge || '';
-            (document.getElementById('input-conf-endereco') as any).value = data.endereco_completo || '';
-            if (data.matricula_imovel) {
-              const inputMat = document.getElementById('input-conf-matricula-imovel') as any;
-              if (inputMat && !inputMat.value.trim()) {
-                inputMat.value = data.matricula_imovel;
-              }
+            // Só preenche o que está vazio (ou ainda no padrão do formulário): o que o operador digitou nunca é sobrescrito.
+            const PADROES: Record<string, string> = {
+              'conf-genero': 'M',
+              'input-conf-nacionalidade': 'brasileiro(a)',
+              'conf-estado-civil': 'solteiro',
+              'conf-conjuge-genero': 'F',
+              'input-conf-conjuge-nacionalidade': 'brasileiro(a)',
+            };
+            const resultado = preencherCampos(containerForm, {
+              'input-conf-nome': data.nome,
+              'conf-genero': data.genero,
+              'input-conf-rg': data.rg,
+              'input-conf-nacionalidade': data.nacionalidade,
+              'input-conf-profissao': data.profissao,
+              'conf-estado-civil': data.estado_civil ? normalizarEstadoCivil(data.estado_civil) : '',
+              'conf-regime-bens': data.regime_bens ? normalizarRegimeBens(data.regime_bens) : '',
+              'input-conf-conjuge-nome': data.nome_conjuge,
+              'input-conf-conjuge-cpf': data.cpf_conjuge ? formatarCpfCnpjDinamico(data.cpf_conjuge) : '',
+              'input-conf-conjuge-rg': data.rg_conjuge,
+              'conf-conjuge-genero': data.genero_conjuge,
+              'input-conf-conjuge-nacionalidade': data.nacionalidade_conjuge,
+              'input-conf-conjuge-profissao': data.profissao_conjuge,
+              'input-conf-endereco': data.endereco_completo,
+              'input-conf-matricula-imovel': data.matricula_imovel,
+            }, {
+              vazioSe: (chave, atual) => atual.trim() === '' || PADROES[chave] === atual,
+            });
+
+            const reaplicarRegras = () => {
+              if (containerForm) configurarMaquinadeEstadosCivil(containerForm);
+              aplicarTipoPessoa();
+            };
+            reaplicarRegras();
+
+            const qtd = resultado.aplicados.length;
+            if (qtd > 0) {
+              UIToast.notificar({
+                tipo: 'sucesso',
+                mensagem: `Cadastro encontrado pelo CPF/CNPJ: ${qtd} ${qtd === 1 ? 'campo preenchido' : 'campos preenchidos'}.`,
+                duracao: 8000,
+                acao: { rotulo: 'Desfazer', onClick: () => { resultado.desfazer(); reaplicarRegras(); } },
+              });
             }
-            
-            if (containerForm) {
-              configurarMaquinadeEstadosCivil(containerForm);
+            if (resultado.conflitos.length > 0) {
+              const c = resultado.conflitos.length;
+              UIToast.notificar({
+                tipo: 'info',
+                mensagem: `${c} ${c === 1 ? 'campo já preenchido foi mantido' : 'campos já preenchidos foram mantidos'} (diferem do cadastro encontrado).`,
+                duracao: 10000,
+                acao: { rotulo: `Substituir ${c}`, onClick: () => { resultado.substituirConflitos(); reaplicarRegras(); } },
+              });
             }
-            
-            aplicarTipoPessoa();
-            showToast("✨ Dados de qualificação carregados automaticamente pelo CPF/CNPJ!", "success");
           }
         }
       } catch (err) {
@@ -2668,6 +2759,18 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       });
     }
 
+    // Alterações não salvas = campos + listas dinâmicas (representantes, coproprietários, usufruto).
+    // A inicialização pode rodar de novo (troca de matrícula/aba): solta os ouvintes da anterior para não duplicar.
+    soltarRascunhoAnterior?.();
+    if (containerForm) {
+      rascunho = criarRascunhoFormulario(containerForm, {
+        estadoExterno: () => [representantesAtuais, coproprietariosAtuais, usufrutoEnvolvidosAtuais],
+      });
+      const rascunhoAtual = rascunho;
+      const pararLimpezaErros = observarLimpezaDeErros(containerForm);
+      soltarRascunhoAnterior = () => { rascunhoAtual.destruir(); pararLimpezaErros(); };
+    }
+
     let salvandoQualificacao = false;
     // Retorna o id do confrontante salvo (ou null se não salvou). `manterAberto` mantém o formulário na tela.
     const executarSalvarQualificacao = async (opts: { manterAberto?: boolean } = {}): Promise<string | null> => {
@@ -2683,9 +2786,18 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
 
       const inputNome = document.getElementById('input-conf-nome') as any;
       const nome = (inputNome?.value || '').trim();
-      if (!nome) {
-        showToast("O Nome Completo / Razão Social do confrontante é obrigatório.", "info");
-        inputNome?.focus?.();
+
+      // Validação inline: o erro fica no campo (aria-invalid + mensagem) e o foco vai ao primeiro inválido.
+      const validacao = containerForm
+        ? validarCampos(containerForm, {
+            'input-conf-nome': (v) => (v.trim() ? null : 'Informe o nome completo ou a razão social.'),
+            'input-conf-cpf': (v) => erroCpfCnpj(v, 'CPF/CNPJ'),
+            'input-conf-conjuge-cpf': (v) => erroCpf(v, 'CPF do cônjuge'),
+          }, { ignorar: (campo) => campo.closest('.hidden') !== null })
+        : { valido: Boolean(nome), erros: [] };
+      if (!validacao.valido) {
+        const n = validacao.erros.length;
+        showToast(`Corrija ${n === 1 ? 'o campo destacado' : `os ${n} campos destacados`} para salvar.`, 'error', 6000);
         return null;
       }
 
@@ -2761,6 +2873,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           showToast(confIdVal ? "Qualificação do confrontante salva com sucesso!" : "Novo confrontante cadastrado com sucesso!", "success");
           
           idSalvo = String(confIdVal || data?.id || data?.confrontante_id || '') || null;
+          rascunho?.marcarLimpo();
 
           await ctx.carregarConfrontantesAtivosSelect();
           await ctx.loadLevantamentoDetails();
@@ -2770,6 +2883,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               if (inputConfId) inputConfId.value = idSalvo;
               if (containerForm) containerForm.dataset.confrontanteId = idSalvo;
               if (txtConfIdEdicao) txtConfIdEdicao.innerText = idSalvo;
+              habilitarAnexoMatricula(true);
+              if (!confIdVal) renderizarStatusAnexoMatricula({ id: idSalvo });
             }
           } else {
             fecharFormularioConfrontante();
@@ -2787,11 +2902,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           } else if (data.message) {
             errorMsg = String(data.message);
           }
-          showToast(errorMsg, "error");
+          avisarErroPersistente(errorMsg);
         }
       } catch (err) {
         console.error("Erro ao salvar qualificações:", err);
-        showToast("Erro de rede ao salvar qualificações do confrontante.", "error");
+        avisarErroPersistente("Erro de rede ao salvar qualificações do confrontante. Nada foi perdido: o formulário continua preenchido.");
       } finally {
         salvandoQualificacao = false;
         if (btnSalvarConf) {
