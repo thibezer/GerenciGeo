@@ -30,6 +30,44 @@ instalarFetchAutenticado();
 // Aplica patches nos Web Components para dimensões de modais e respiro interno dos campos
 aplicarPatchesUI();
 
+// Garante que os Web Components do kit não sejam removidos por tree-shaking quando resolvidos via src/
+const classesKit: Array<[string, any]> = [
+  ['ui-ribbon', (uiKit as any).UIRibbon],
+  ['ui-paleta-ferramentas', (uiKit as any).UIPaletaFerramentas],
+  ['ui-tabela', (uiKit as any).UITabela],
+  ['ui-tabela-propriedades', (uiKit as any).UITabelaPropriedades],
+  ['ui-painel-propriedades', (uiKit as any).UIPainelPropriedades],
+  ['ui-botao', (uiKit as any).UIBotao],
+  ['ui-lista-flutuante', (uiKit as any).UIListaFlutuante],
+  ['ui-campo-texto', (uiKit as any).UICampoTexto],
+  ['ui-area-texto', (uiKit as any).UIAreaTexto],
+  ['ui-texto', (uiKit as any).UITexto],
+  ['ui-texto-editavel', (uiKit as any).UITextoEditavel],
+  ['ui-icone', (uiKit as any).UIIcone],
+  ['ui-checkbox', (uiKit as any).UICheckbox],
+  ['ui-radio', (uiKit as any).UIRadio],
+  ['ui-switch', (uiKit as any).UISwitch],
+  ['ui-badge', (uiKit as any).UIBadge],
+  ['ui-avatar', (uiKit as any).UIAvatar],
+  ['ui-segmented', (uiKit as any).UISegmented],
+  ['ui-calendario', (uiKit as any).UICalendario],
+  ['ui-linha', (uiKit as any).UILinha],
+  ['ui-card', (uiKit as any).UICard],
+  ['ui-modal', (uiKit as any).UIModal],
+  ['ui-drawer', (uiKit as any).UIDrawer],
+  ['ui-alerta', (uiKit as any).UIAlerta],
+  ['ui-tooltip', (uiKit as any).UITooltip],
+  ['ui-stat', (uiKit as any).UIStat],
+  ['ui-skeleton', (uiKit as any).UISkeleton]
+];
+if (typeof customElements !== 'undefined') {
+  for (const [tag, Cls] of classesKit) {
+    if (Cls && !customElements.get(tag)) {
+      customElements.define(tag, Cls);
+    }
+  }
+}
+
 // Adapters de compatibilidade para métodos legados chamados pelas views da Mesa de Trabalho
 export const aplicarAdaptersCAD = (cadProto: any) => {
   if (!cadProto) return;
