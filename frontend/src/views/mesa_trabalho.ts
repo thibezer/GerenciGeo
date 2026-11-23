@@ -219,10 +219,13 @@ export const mesaTrabalhoRoute: RouteDef = {
             ctx.bancoPontosList = Array.isArray(bpData) ? bpData : [];
             const mesaRibbon = document.getElementById('mesa-ribbon') as any;
             if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
+              const rotuloCampo = ctx.pontosList?.length
+                ? `Fonte: Campo (${ctx.pontosList.length} pts)`
+                : 'Fonte: Campo';
               mesaRibbon.atualizarItem('btn-toggle-fonte-pontos', {
                 rotulo: ctx.bancoPontosExibido
                   ? `Planilha SIGEF (${ctx.bancoPontosList.length} pts)`
-                  : 'Fonte: Campo',
+                  : rotuloCampo,
                 icone: ctx.bancoPontosExibido ? SVGS.fileCheck : SVGS.layers,
                 ativo: ctx.bancoPontosExibido
               });
@@ -710,10 +713,21 @@ export const mesaTrabalhoRoute: RouteDef = {
         splitterMapa?.classList.add('hidden');
       }
 
-      // Sincroniza a aba ativa no Web Component <ui-ribbon> oficial
+      // Sincroniza a aba ativa e recolhimento automático na etapa Peças de Cartório
       const mesaRibbon = document.getElementById('mesa-ribbon') as any;
-      if (mesaRibbon && typeof mesaRibbon.selecionarAba === 'function' && mesaRibbon.abaAtiva !== etapa) {
-        mesaRibbon.selecionarAba(etapa, false);
+      if (mesaRibbon) {
+        if (typeof mesaRibbon.selecionarAba === 'function' && mesaRibbon.abaAtiva !== etapa) {
+          mesaRibbon.selecionarAba(etapa, false);
+        }
+        if (etapa === 'documentos') {
+          if (!mesaRibbon.recolhido) {
+            mesaRibbon._recolhidoPorCartorio = true;
+            mesaRibbon.recolhido = true;
+          }
+        } else if (mesaRibbon._recolhidoPorCartorio) {
+          mesaRibbon._recolhidoPorCartorio = false;
+          mesaRibbon.recolhido = false;
+        }
       }
 
       initIcons();
@@ -1250,22 +1264,6 @@ export const mesaTrabalhoRoute: RouteDef = {
       });
     });
 
-    document.getElementById('btn-etapa-geoprocessamento')?.addEventListener('click', () => {
-      ctx.alternarEtapa('geoprocessamento');
-    });
-
-    document.getElementById('btn-etapa-cartorio')?.addEventListener('click', () => {
-      ctx.alternarEtapa('cartorio');
-    });
-
-    document.getElementById('btn-etapa-documentos')?.addEventListener('click', () => {
-      ctx.alternarEtapa('documentos');
-    });
-
-    document.getElementById('btn-etapa-auditoria')?.addEventListener('click', () => {
-      ctx.alternarEtapa('auditoria');
-    });
-
     document.getElementById('btn-atualizar-historico-campo')?.addEventListener('click', () => {
       renderHistoricoCampo(ctx);
     });
@@ -1319,11 +1317,14 @@ export const mesaTrabalhoRoute: RouteDef = {
       // Atualiza o item no Ribbon oficial
       const mesaRibbon = document.getElementById('mesa-ribbon') as any;
       if (mesaRibbon && typeof mesaRibbon.atualizarItem === 'function') {
+        const rotuloCampo = ctx.pontosList?.length
+          ? `Fonte: Campo (${ctx.pontosList.length} pts)`
+          : 'Fonte: Campo';
         mesaRibbon.atualizarItem('btn-toggle-fonte-pontos', {
           ativo: ctx.bancoPontosExibido,
           rotulo: ctx.bancoPontosExibido
             ? `Planilha SIGEF (${ctx.bancoPontosList.length} pts)`
-            : 'Fonte: Campo',
+            : rotuloCampo,
           icone: ctx.bancoPontosExibido ? SVGS.fileCheck : SVGS.layers
         });
       }

@@ -64,7 +64,7 @@ export function setupVizinhosMesa(ctx: MesaTrabalhoContext): void {
     }
     mesaRibbon?.atualizarItem?.('btn-importar-csv-vizinho', {
       rotulo: 'Importando...',
-      desabilitado: true
+      disabled: true
     });
 
     try {
@@ -125,7 +125,7 @@ export function setupVizinhosMesa(ctx: MesaTrabalhoContext): void {
       }
       mesaRibbon?.atualizarItem?.('btn-importar-csv-vizinho', {
         rotulo: 'Importar Vizinhos',
-        desabilitado: false
+        disabled: false
       });
     }
   });
@@ -147,7 +147,7 @@ export function setupVizinhosMesa(ctx: MesaTrabalhoContext): void {
     }
     mesaRibbon?.atualizarItem?.('btn-limpar-vizinhos', {
       rotulo: 'Apagando...',
-      desabilitado: true
+      disabled: true
     });
 
     try {
@@ -174,7 +174,7 @@ export function setupVizinhosMesa(ctx: MesaTrabalhoContext): void {
       }
       mesaRibbon?.atualizarItem?.('btn-limpar-vizinhos', {
         rotulo: 'Apagar Dados',
-        desabilitado: false
+        disabled: false
       });
     }
   });

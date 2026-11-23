@@ -90,7 +90,7 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               id: 'btn-toggle-vizinhos-mapa',
               rotulo: 'Exibir no Mapa',
               tamanho: 'pequeno',
-              tipo: 'ferramenta',
+              tipo: 'toggle',
               ativo: ctx.exibirVizinhosNoMapa !== false,
               icone: SVGS.eye
             },
@@ -283,7 +283,7 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
           prioridade: 7,
           itens: [
             {
-              id: 'btn-offset-cad',
+              id: 'btn-offset-cad-cartorio',
               rotulo: 'Offset CAD',
               tamanho: 'grande',
               tipo: 'botao',
@@ -291,7 +291,7 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               icone: SVGS.offsetCad
             },
             {
-              id: 'btn-vertice-virtual',
+              id: 'btn-vertice-virtual-cartorio',
               rotulo: 'Vértice Virtual',
               tamanho: 'grande',
               tipo: 'botao',
@@ -449,15 +449,25 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
 
       // Atalhos diretos de etapas e peças
       if (toolId === 'btn-ir-memorial') {
-        showToast('Acesse as etapas de Peças de Cartório na view principal.', 'info');
+        const btnLaudo = document.getElementById('btn-emitir-laudo-tec');
+        if (btnLaudo) {
+          btnLaudo.click();
+        } else {
+          document.getElementById('container-pecas-cartorio')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         return;
       }
       if (toolId === 'btn-ir-requerimento') {
-        showToast('Acesse o requerimento de ratificação no painel de cartório.', 'info');
+        const btnReq = document.getElementById('btn-emitir-req-cartorio');
+        if (btnReq) {
+          btnReq.click();
+        } else {
+          document.getElementById('container-pecas-cartorio')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         return;
       }
 
-      if (toolId === 'btn-offset-cad') {
+      if (toolId === 'btn-offset-cad' || toolId === 'btn-offset-cad-cartorio') {
         import('../ferramenta_offset_mapa').then(({ FerramentaOffsetMapa }) => {
           if (!ctx.ferramentaOffsetMapa) {
             ctx.ferramentaOffsetMapa = new FerramentaOffsetMapa(ctx);
@@ -467,7 +477,7 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
         return;
       }
 
-      if (toolId === 'btn-vertice-virtual') {
+      if (toolId === 'btn-vertice-virtual' || toolId === 'btn-vertice-virtual-cartorio') {
         import('../modal_vertice_virtual').then(({ abrirModalVerticeVirtual }) => {
           abrirModalVerticeVirtual(ctx);
         });
@@ -575,29 +585,7 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
     cleanups.push(() => btnSalvar.removeEventListener('click', onSalvarClick));
   }
 
-  // 6. Janela AutoCAD Titlebar via pywebview js_api
-  const winBtnMin = document.getElementById('win-btn-minimize');
-  if (winBtnMin) {
-    const onMinClick = () => { (window as any).pywebview?.api?.minimize(); };
-    winBtnMin.addEventListener('click', onMinClick);
-    cleanups.push(() => winBtnMin.removeEventListener('click', onMinClick));
-  }
-
-  const winBtnMax = document.getElementById('win-btn-maximize');
-  if (winBtnMax) {
-    const onMaxClick = () => { (window as any).pywebview?.api?.toggle_maximize(); };
-    winBtnMax.addEventListener('click', onMaxClick);
-    cleanups.push(() => winBtnMax.removeEventListener('click', onMaxClick));
-  }
-
-  const winBtnClose = document.getElementById('win-btn-close');
-  if (winBtnClose) {
-    const onCloseClick = () => { (window as any).pywebview?.api?.close(); };
-    winBtnClose.addEventListener('click', onCloseClick);
-    cleanups.push(() => winBtnClose.removeEventListener('click', onCloseClick));
-  }
-
-  // 7. AutoCAD Properties Panel Toggle Action
+  // 6. AutoCAD Properties Panel Toggle Action
   const panel = document.getElementById('painel-propriedades');
   const btnToggleProps = document.getElementById('btn-toggle-props');
   const workspaceBody = document.querySelector('.workspace-body') as HTMLElement | null;

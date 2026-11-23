@@ -24,6 +24,14 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
   // Inicializa o gerenciamento de pontos vizinhos e confrontantes
   setupVizinhosMesa(ctx);
 
+  const setRibbonItemLoading = (id: string, loading: boolean, loadingRotulo: string, defaultRotulo: string) => {
+    const mesaRibbon = document.getElementById('mesa-ribbon') as any;
+    mesaRibbon?.atualizarItem?.(id, {
+      disabled: loading,
+      rotulo: loading ? loadingRotulo : defaultRotulo
+    });
+  };
+
   // Download de arquivos Rinex em ZIP
   document.getElementById('btn-download-rinex-zip')?.addEventListener('click', async () => {
     if (!ctx.currentLevId) return;
@@ -35,12 +43,14 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       originalHtml = btn.innerHTML;
       btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 mr-1 animate-spin"></i> Preparando...`;
     }
+    setRibbonItemLoading('btn-download-rinex-zip', true, 'Preparando...', 'Baixar RINEX');
 
     try {
       const url = `${API_BASE}/levantamentos/${ctx.currentLevId}/rinex/download-zip`;
       const res = await fetch(url);
 
       if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+      setRibbonItemLoading('btn-download-rinex-zip', false, 'Preparando...', 'Baixar RINEX');
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -60,6 +70,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       showToast('Download do pacote RINEX iniciado com sucesso!', 'success');
     } catch (e: any) {
       if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+      setRibbonItemLoading('btn-download-rinex-zip', false, 'Preparando...', 'Baixar RINEX');
       showToast('Erro de comunicação ao baixar arquivos RINEX: ' + e.message, 'error');
     }
   });
@@ -81,6 +92,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       btnConsolidar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Consolidando...`;
       initIcons();
     }
+    setRibbonItemLoading('btn-consolidar-pontos-utm', true, 'Consolidando...', 'CSV UTM');
 
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/consolidar-pontos`, { method: 'POST' });
@@ -102,6 +114,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         btnConsolidar.innerHTML = originalHtmlConsolidar;
         initIcons();
       }
+      setRibbonItemLoading('btn-consolidar-pontos-utm', false, 'Consolidando...', 'CSV UTM');
     }
   });
 
@@ -117,6 +130,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Gerando...`;
       initIcons();
     }
+    setRibbonItemLoading('btn-exportar-planilha-sigef', true, 'Gerando...', 'Planilha SIGEF');
 
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/exportar-planilha-sigef`, { method: 'POST' });
@@ -139,6 +153,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         btn.innerHTML = originalHtml;
         initIcons();
       }
+      setRibbonItemLoading('btn-exportar-planilha-sigef', false, 'Gerando...', 'Planilha SIGEF');
     }
   });
 
@@ -167,6 +182,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       btnReordenar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Reordenando...`;
       initIcons();
     }
+    setRibbonItemLoading('btn-reordenar-caminhamento', true, 'Reordenando...', 'Reordenar');
 
     try {
       const url = ctx.etapaAtiva === 'geoprocessamento'
@@ -189,6 +205,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         btnReordenar.innerHTML = originalHtmlReordenar;
         initIcons();
       }
+      setRibbonItemLoading('btn-reordenar-caminhamento', false, 'Reordenando...', 'Reordenar');
     }
   });
 
@@ -205,6 +222,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       btnArquivar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Arquivando...`;
       initIcons();
     }
+    setRibbonItemLoading('btn-arquivar-projeto-seguro', true, 'Arquivando...', 'Arquivar');
 
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/arquivar`, { method: 'POST' });
@@ -219,6 +237,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         btnArquivar.innerHTML = originalHtmlArquivar;
         initIcons();
       }
+      setRibbonItemLoading('btn-arquivar-projeto-seguro', false, 'Arquivando...', 'Arquivar');
     }
   });
 
@@ -247,6 +266,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
       btnZerar.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Limpando...`;
       initIcons();
     }
+    setRibbonItemLoading('btn-limpar-dados-levantamento', true, 'Limpando...', 'Zerar Dados');
 
     try {
       const res = await fetch(`${API_BASE}/levantamentos/${ctx.currentLevId}/limpar-dados`, { method: 'POST' });
@@ -270,6 +290,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         btnZerar.innerHTML = originalHtml;
         initIcons();
       }
+      setRibbonItemLoading('btn-limpar-dados-levantamento', false, 'Limpando...', 'Zerar Dados');
     }
   });
 
@@ -494,7 +515,7 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
   window.addEventListener('keydown', (ctx as any)._canetaKeydownListener);
 
   document.getElementById('btn-override-base-manual')?.addEventListener('click', () => {
-    alert("Para sobrescrever a base manualmente, clique com o botão direito sobre o vértice base na tabela e selecione 'Editar / Detalhes do Ponto'.");
+    showToast("Para sobrescrever a base manualmente, clique com o botão direito sobre o vértice base na tabela e selecione 'Editar / Detalhes do Ponto'.", 'info');
   });
 
   document.getElementById('btn-toggle-ocultar-ignorados')?.addEventListener('click', () => {
