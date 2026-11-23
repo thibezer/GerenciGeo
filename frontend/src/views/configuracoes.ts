@@ -111,6 +111,15 @@ export const configuracoesRoute: RouteDef = {
                 <input type="text" id="input-prof-endereco" placeholder="Av. Brasil, 1500, Paranavaí - PR" />
               </label>
 
+              <div class="grid grid-cols-2 gap-2">
+                <label class="lp-campo"><span>Telefone</span>
+                  <input type="text" id="input-prof-telefone" placeholder="(44) 99999-9999" />
+                </label>
+                <label class="lp-campo"><span>E-mail</span>
+                  <input type="email" id="input-prof-email" placeholder="contato@exemplo.com" />
+                </label>
+              </div>
+
               <div class="flex justify-end gap-2 pt-2" style="border-top:1px solid var(--lp-line)">
                 <button type="button" id="btn-cancelar-prof" class="lp-btn-sec">Cancelar</button>
                 <button type="submit" id="btn-salvar-prof" class="lp-btn-primario">
@@ -262,6 +271,8 @@ export const configuracoesRoute: RouteDef = {
     const inputRg = document.getElementById('input-prof-rg') as HTMLInputElement;
     const inputConselho = document.getElementById('input-prof-conselho') as HTMLInputElement;
     const inputEnderecoRes = document.getElementById('input-prof-endereco-res') as HTMLInputElement;
+    const inputTelefone = document.getElementById('input-prof-telefone') as HTMLInputElement;
+    const inputEmail = document.getElementById('input-prof-email') as HTMLInputElement;
     const msgCpf = document.getElementById('cpf-validation-msg');
 
     let profissionais: Profissional[] = [];
@@ -360,6 +371,8 @@ export const configuracoesRoute: RouteDef = {
       inputRg.value = p.rg || '';
       inputConselho.value = p.conselho || '';
       inputEnderecoRes.value = p.endereco_residencial || '';
+      inputTelefone.value = p.telefone || '';
+      inputEmail.value = p.email || '';
       avaliarCpf();
       if (formTitulo) formTitulo.innerHTML = `<i data-lucide="edit"></i>Editar cadastro técnico`;
       initIcons();
@@ -388,7 +401,9 @@ export const configuracoesRoute: RouteDef = {
         cpf,
         rg: inputRg.value.trim(),
         conselho: inputConselho.value.trim(),
-        endereco_residencial: inputEnderecoRes.value.trim()
+        endereco_residencial: inputEnderecoRes.value.trim(),
+        telefone: inputTelefone.value.trim(),
+        email: inputEmail.value.trim()
       };
 
       const btnSalvar = document.getElementById('btn-salvar-prof') as HTMLButtonElement | null;

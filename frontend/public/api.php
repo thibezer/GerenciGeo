@@ -145,6 +145,8 @@ function ensureSchema(PDO $pdo): void {
             rg VARCHAR(32),
             conselho VARCHAR(50),
             endereco_residencial TEXT,
+            telefone VARCHAR(50),
+            email VARCHAR(150),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
@@ -2921,17 +2923,43 @@ if (preg_match('#^/profissionais(?:/([0-9]+))?$#', $route, $matches)) {
 
     if ($method === 'POST' && !$profId) {
         $input = getJsonInput();
-        $stmt = $pdo->prepare("INSERT INTO profissionais (nome, registro, codigo_credenciado, endereco, cpf, rg, conselho) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO profissionais (nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial, telefone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $input['nome'] ?? 'Novo Profissional',
             $input['registro'] ?? null,
             $input['codigo_credenciado'] ?? null,
             $input['endereco'] ?? null,
+            $input['nacionalidade'] ?? 'brasileiro(a)',
+            $input['formacao'] ?? null,
             $input['cpf'] ?? null,
             $input['rg'] ?? null,
-            $input['conselho'] ?? null
+            $input['conselho'] ?? null,
+            $input['endereco_residencial'] ?? null,
+            $input['telefone'] ?? null,
+            $input['email'] ?? null
         ]);
         jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Profissional cadastrado!'], 201);
+    }
+
+    if ($method === 'PUT' && $profId) {
+        $input = getJsonInput();
+        $stmt = $pdo->prepare("UPDATE profissionais SET nome = ?, registro = ?, codigo_credenciado = ?, endereco = ?, nacionalidade = ?, formacao = ?, cpf = ?, rg = ?, conselho = ?, endereco_residencial = ?, telefone = ?, email = ? WHERE id = ?");
+        $stmt->execute([
+            $input['nome'] ?? 'Novo Profissional',
+            $input['registro'] ?? null,
+            $input['codigo_credenciado'] ?? null,
+            $input['endereco'] ?? null,
+            $input['nacionalidade'] ?? 'brasileiro(a)',
+            $input['formacao'] ?? null,
+            $input['cpf'] ?? null,
+            $input['rg'] ?? null,
+            $input['conselho'] ?? null,
+            $input['endereco_residencial'] ?? null,
+            $input['telefone'] ?? null,
+            $input['email'] ?? null,
+            $profId
+        ]);
+        jsonResponse(['message' => 'Cadastro do profissional atualizado com sucesso!']);
     }
 
     if ($method === 'DELETE' && $profId) {

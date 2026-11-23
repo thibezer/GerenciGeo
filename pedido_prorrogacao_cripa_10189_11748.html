@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pedidos de Prorrogação — Matrículas 10.189 e 11.748 (Francisco Antonio Cripa)</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 20mm 20mm 20mm 20mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #e2e8f0;
+      font-family: "Times New Roman", Times, Georgia, serif;
+      color: #111827;
+      line-height: 1.55;
+      font-size: 11.5pt;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 12px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .toolbar-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toolbar-info strong {
+      font-size: 14px;
+      color: #ffffff;
+    }
+
+    .toolbar-info span {
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-print {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 18px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-print:hover {
+      background: #1d4ed8;
+    }
+
+    .pages-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px 48px;
+      gap: 28px;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      background: #ffffff;
+      padding: 20mm 20mm 20mm 20mm;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+      position: relative;
+    }
+
+    .doc-header {
+      text-align: center;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      font-size: 11.5pt;
+      line-height: 1.4;
+      border-bottom: 1.5px solid #111827;
+      padding-bottom: 10px;
+    }
+
+    .meta-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-left: 3px solid #1e293b;
+      padding: 10px 14px;
+      margin-bottom: 18px;
+      font-size: 10.5pt;
+      line-height: 1.45;
+    }
+
+    .meta-box p {
+      margin: 2px 0;
+      text-align: left;
+    }
+
+    .body-text p {
+      margin: 0 0 12px 0;
+      text-align: justify;
+      text-indent: 1.25cm;
+    }
+
+    .closing {
+      margin-top: 22px;
+      text-indent: 1.25cm;
+    }
+
+    .location-date {
+      margin-top: 22px;
+      text-align: right;
+    }
+
+    .signature-block {
+      margin-top: 48px;
+      text-align: center;
+      line-height: 1.35;
+    }
+
+    .signature-line {
+      width: 320px;
+      margin: 0 auto 6px auto;
+      border-top: 1px solid #111827;
+    }
+
+    .editable-missing {
+      background: #fef08a;
+      color: #854d0e;
+      padding: 0 4px;
+      border-radius: 3px;
+      border: 1px dashed #ca8a04;
+      font-weight: bold;
+      outline: none;
+    }
+
+    .editable-missing:focus {
+      background: #ffffff;
+      color: #111827;
+      border: 1px solid #2563eb;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .pages-wrapper {
+        padding: 0;
+        gap: 0;
+      }
+
+      .page {
+        width: 100%;
+        min-height: auto;
+        padding: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      .meta-box {
+        background: #ffffff;
+      }
+
+      .editable-missing {
+        background: transparent;
+        color: inherit;
+        border: none;
+        padding: 0;
+        font-weight: inherit;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <div class="toolbar-info">
+      <strong>Pedidos de Prorrogação de Prazo — Matrículas nº 10.189 e nº 11.748</strong>
+      <span>Documentos completos e prontos para impressão ou geração de PDF (2 páginas A4).</span>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+    </div>
+  </div>
+
+  <div class="pages-wrapper">
+    <!-- DOCUMENTO 1: MATRÍCULA 10.189 -->
+    <section class="page">
+      <div class="doc-header">
+        ILUSTRÍSSIMO SENHOR OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE IPORÃ – ESTADO DO PARANÁ
+      </div>
+
+      <div class="meta-box">
+        <p><strong>Referência:</strong> Prenotação nº 146009 (vencimento em 23/11/2026)</p>
+        <p><strong>Diligência Registral:</strong> nº 4262/2026 (emitida em 04/11/2026)</p>
+        <p><strong>Imóvel:</strong> Matrícula nº 10.189 — Lotes de terras nº 161-A, 162, 163, 163-P, 164 e 164-A, com área de 40,00 Alqueires Paulista, Gleba Atlântida, Bairro Leomar, Município e Comarca de Iporã/PR</p>
+        <p><strong>Interessado/Proprietário:</strong> Francisco Antonio Cripa</p>
+        <p><strong>Procedimento:</strong> Georreferenciamento sem aumento de área maior que 30%</p>
+      </div>
+
+      <div class="body-text">
+        <p>
+          <strong>Dimas de Assis Ribeiro</strong>, brasileiro, Técnico em Agronomia, inscrito no CFTA sob o nº 36770434920, portador do RG nº 2.197.916-3 SSP/PR e inscrito no CPF sob o nº 367.704.349-20, com endereço profissional na R. Gov. Ney Braga, nº 5153, Galeria Edifício Verdes Mares, sala 8, em Umuarama/PR, telefone (44) 98811-8541, e-mail completa.geo@gmail.com, na qualidade de responsável técnico pelo levantamento topográfico e procedimento de georreferenciamento de interesse do proprietário <strong>Francisco Antonio Cripa</strong> (cujo nome constou com grafia invertida como "Antonio Francisco Cripa" no campo de apresentante da nota de exigência, tratando-se da mesma pessoa qualificada nos itens 2 e 3 da diligência), vem, respeitosamente, à presença de Vossa Senhoria, requerer a <strong>PRORROGAÇÃO DE PRAZO</strong> para o cumprimento da Diligência Registral nº 4262/2026, referente à Prenotação nº 146009, pelos fatos a seguir expostos:
+        </p>
+
+        <p>
+          Tramita nesta Serventia o procedimento de georreferenciamento referente à Matrícula nº 10.189, tendo sido expedida a Diligência Registral nº 4262/2026, com vencimento da prenotação previsto para o dia 23/11/2026.
+        </p>
+
+        <p>
+          Este responsável técnico e o proprietário já deram início às retificações técnicas e providências documentais necessárias ao cumprimento das exigências formuladas. Contudo, ainda não foi possível colher a assinatura de todos os vizinhos confrontantes nas Declarações de Reconhecimento de Limites (DRLs) após as correções exigidas nos quadros de confrontações (itens 5 a 9 da diligência, envolvendo proprietários, usufrutuários e donatários das matrículas confrontantes nºs 3.957, 6.622, 5.893, 5.895 e 5.196, com posterior reconhecimento de firma), paralelamente à conclusão das demais exigências documentais e técnicas (anuência do credor fiduciário, certidão de casamento atualizada, declaração de dispensa de anuência da Estrada Municipal Yara e retificações de planta, memorial descritivo do SIGEF e TRT).
+        </p>
+
+        <p>
+          Diante da dificuldade logística para localizar e obter a assinatura com reconhecimento de firma de todos os confrontantes antes do vencimento da prenotação, torna-se indispensável a dilação do prazo para a conclusão do procedimento.
+        </p>
+
+        <p>
+          Diante do exposto, requer a Vossa Senhoria o deferimento da prorrogação do prazo da Prenotação nº 146009 e da Diligência Registral nº 4262/2026 por mais 30 (trinta) dias, bem como a retificação do cadastro do apresentante/proprietário para constar corretamente <strong>Francisco Antonio Cripa</strong>, viabilizando a coleta de todas as assinaturas pendentes e a reapresentação integral da documentação exigida.
+        </p>
+      </div>
+
+      <div class="closing">
+        Termos em que,<br />
+        Pede deferimento.
+      </div>
+
+      <div class="location-date">
+        Iporã/PR, 23 de novembro de 2026.
+      </div>
+
+      <div class="signature-block">
+        <div class="signature-line"></div>
+        <strong>Dimas de Assis Ribeiro</strong><br />
+        Técnico em Agronomia — CFTA nº 36770434920<br />
+        CPF: 367.704.349-20
+      </div>
+    </section>
+
+    <!-- DOCUMENTO 2: MATRÍCULA 11.748 -->
+    <section class="page">
+      <div class="doc-header">
+        ILUSTRÍSSIMO SENHOR OFICIAL DO SERVIÇO DE REGISTRO DE IMÓVEIS DA COMARCA DE IPORÃ – ESTADO DO PARANÁ
+      </div>
+
+      <div class="meta-box">
+        <p><strong>Referência:</strong> Prenotação nº 146010 (vencimento em 23/11/2026)</p>
+        <p><strong>Diligência Registral:</strong> nº 4326/2026 (emitida em 10/11/2026)</p>
+        <p><strong>Imóvel:</strong> Matrícula nº 11.748 — Lote de terras nº 221-B, com área de 7,26 Hectares, da Gleba Francisco Alves, Setor Sul, Núcleo Xambrê, Município de Francisco Alves, Comarca de Iporã/PR</p>
+        <p><strong>Interessado/Proprietário:</strong> Francisco Antonio Cripa</p>
+        <p><strong>Procedimento:</strong> Georreferenciamento sem aumento de área maior que 30%</p>
+      </div>
+
+      <div class="body-text">
+        <p>
+          <strong>Dimas de Assis Ribeiro</strong>, brasileiro, Técnico em Agronomia, inscrito no CFTA sob o nº 36770434920, portador do RG nº 2.197.916-3 SSP/PR e inscrito no CPF sob o nº 367.704.349-20, com endereço profissional na R. Gov. Ney Braga, nº 5153, Galeria Edifício Verdes Mares, sala 8, em Umuarama/PR, telefone (44) 98811-8541, e-mail completa.geo@gmail.com, na qualidade de responsável técnico pelo levantamento topográfico e procedimento de georreferenciamento de interesse do proprietário <strong>Francisco Antonio Cripa</strong> (cujo nome constou com grafia invertida como "Antonio Francisco Cripa" no campo de apresentante da nota de exigência, tratando-se da mesma pessoa qualificada nos itens 1 e 2 da diligência), vem, respeitosamente, à presença de Vossa Senhoria, requerer a <strong>PRORROGAÇÃO DE PRAZO</strong> para o cumprimento da Diligência Registral nº 4326/2026, referente à Prenotação nº 146010, pelos fatos a seguir expostos:
+        </p>
+
+        <p>
+          Tramita nesta Serventia o procedimento de georreferenciamento referente à Matrícula nº 11.748, originando a Diligência Registral nº 4326/2026, cuja prenotação possui vencimento nesta data, 23/11/2026.
+        </p>
+
+        <p>
+          Este responsável técnico e o proprietário já estão executando as retificações técnicas e providenciando os documentos solicitados na nota de exigência. Entretanto, ainda não foi possível obter a assinatura de todos os vizinhos confrontantes na Declaração de Reconhecimento de Limites (DRL) após a retificação técnica do quadro de confrontações (especialmente quanto ao item 3 da diligência, referente à matrícula confrontante nº 12.600, com posterior reconhecimento de firma), somando-se ao trâmite necessário para a conclusão das demais exigências técnicas, cadastrais e fiscais (requerimentos individualizados, documentos pessoais, declaração de dispensa de anuência da Estrada do Bagre, retificações de TRT, planta e memorial descritivo do SIGEF, retificação de ITR e CAR, laudo técnico e declaração de responsabilidade).
+        </p>
+
+        <p>
+          Considerando o prazo exíguo entre a emissão da diligência (10/11/2026) e o vencimento da prenotação (23/11/2026), bem como a necessidade de reunir os envolvidos para assinatura e reconhecimento de firma, mostra-se necessária a concessão de prazo adicional.
+        </p>
+
+        <p>
+          Diante do exposto, requer a Vossa Senhoria o deferimento da prorrogação do prazo da Prenotação nº 146010 e da Diligência Registral nº 4326/2026 por mais 30 (trinta) dias, bem como a retificação do cadastro do apresentante/proprietário para constar corretamente <strong>Francisco Antonio Cripa</strong>, para que seja possível finalizar a coleta das assinaturas dos confrontantes e apresentar toda a documentação retificada.
+        </p>
+      </div>
+
+      <div class="closing">
+        Termos em que,<br />
+        Pede deferimento.
+      </div>
+
+      <div class="location-date">
+        Iporã/PR, 23 de novembro de 2026.
+      </div>
+
+      <div class="signature-block">
+        <div class="signature-line"></div>
+        <strong>Dimas de Assis Ribeiro</strong><br />
+        Técnico em Agronomia — CFTA nº 36770434920<br />
+        CPF: 367.704.349-20
+      </div>
+    </section>
+  </div>
+</body>
+</html>

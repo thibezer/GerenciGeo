@@ -15,6 +15,8 @@ export interface Profissional {
   codigo_credenciado?: string | null;
   endereco?: string | null;
   endereco_residencial?: string | null;
+  telefone?: string | null;
+  email?: string | null;
   contador_m?: number | null;
   contador_p?: number | null;
   contador_v?: number | null;

@@ -22,7 +22,9 @@ def create_tables(conn):
             cpf TEXT,
             rg TEXT,
             conselho TEXT,
-            endereco_residencial TEXT
+            endereco_residencial TEXT,
+            telefone TEXT,
+            email TEXT
         );
         """,
         """
@@ -742,7 +744,9 @@ def create_tables(conn):
             ("cpf", "TEXT"),
             ("rg", "TEXT"),
             ("conselho", "TEXT"),
-            ("endereco_residencial", "TEXT")
+            ("endereco_residencial", "TEXT"),
+            ("telefone", "TEXT"),
+            ("email", "TEXT")
         ]
         cursor.execute("PRAGMA table_info(profissionais)")
         colunas_profissionais_existentes = {row[1] for row in cursor.fetchall()}

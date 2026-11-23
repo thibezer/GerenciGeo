@@ -113,6 +113,8 @@ class ProfissionalCreate(BaseModel):
     rg: Optional[str] = ""
     conselho: Optional[str] = ""
     endereco_residencial: Optional[str] = ""
+    telefone: Optional[str] = ""
+    email: Optional[str] = ""
 
 # ── Pendências ─────────────────────────────────────────────────────────────────
 
@@ -479,7 +481,7 @@ def get_arquivo_documento_cliente(cliente_id: int, doc_id: int, download: bool =
 @router.get("/profissionais")
 def get_profissionais():
     try:
-        rows = execute_query("SELECT id, nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial, contador_m, contador_p, contador_v FROM profissionais ORDER BY nome ASC", fetch_all=True)
+        rows = execute_query("SELECT id, nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial, telefone, email, contador_m, contador_p, contador_v FROM profissionais ORDER BY nome ASC", fetch_all=True)
         return [dict(r) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -487,8 +489,8 @@ def get_profissionais():
 @router.post("/profissionais")
 def create_profissional(p: ProfissionalCreate):
     try:
-        query = "INSERT INTO profissionais (nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        execute_query(query, params=(p.nome, p.registro, p.codigo_credenciado, p.endereco, p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial), commit=True)
+        query = "INSERT INTO profissionais (nome, registro, codigo_credenciado, endereco, nacionalidade, formacao, cpf, rg, conselho, endereco_residencial, telefone, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        execute_query(query, params=(p.nome, p.registro, p.codigo_credenciado, p.endereco, p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial, p.telefone, p.email), commit=True)
         return {"sucesso": True, "message": "Profissional cadastrado com sucesso!"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -496,8 +498,8 @@ def create_profissional(p: ProfissionalCreate):
 @router.put("/profissionais/{prof_id}")
 def update_profissional(prof_id: int, p: ProfissionalCreate):
     try:
-        query = "UPDATE profissionais SET nome = ?, registro = ?, codigo_credenciado = ?, endereco = ?, nacionalidade = ?, formacao = ?, cpf = ?, rg = ?, conselho = ?, endereco_residencial = ? WHERE id = ?"
-        execute_query(query, params=(p.nome, p.registro, p.codigo_credenciado, p.endereco, p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial, prof_id), commit=True)
+        query = "UPDATE profissionais SET nome = ?, registro = ?, codigo_credenciado = ?, endereco = ?, nacionalidade = ?, formacao = ?, cpf = ?, rg = ?, conselho = ?, endereco_residencial = ?, telefone = ?, email = ? WHERE id = ?"
+        execute_query(query, params=(p.nome, p.registro, p.codigo_credenciado, p.endereco, p.nacionalidade, p.formacao, p.cpf, p.rg, p.conselho, p.endereco_residencial, p.telefone, p.email, prof_id), commit=True)
         return {"sucesso": True, "message": "Cadastro do profissional atualizado com sucesso!"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
