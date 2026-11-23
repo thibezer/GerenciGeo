@@ -713,21 +713,10 @@ export const mesaTrabalhoRoute: RouteDef = {
         splitterMapa?.classList.add('hidden');
       }
 
-      // Sincroniza a aba ativa e recolhimento automático na etapa Peças de Cartório
+      // Sincroniza a aba ativa no Web Component <ui-ribbon> oficial
       const mesaRibbon = document.getElementById('mesa-ribbon') as any;
-      if (mesaRibbon) {
-        if (typeof mesaRibbon.selecionarAba === 'function' && mesaRibbon.abaAtiva !== etapa) {
-          mesaRibbon.selecionarAba(etapa, false);
-        }
-        if (etapa === 'documentos') {
-          if (!mesaRibbon.recolhido) {
-            mesaRibbon._recolhidoPorCartorio = true;
-            mesaRibbon.recolhido = true;
-          }
-        } else if (mesaRibbon._recolhidoPorCartorio) {
-          mesaRibbon._recolhidoPorCartorio = false;
-          mesaRibbon.recolhido = false;
-        }
+      if (mesaRibbon && typeof mesaRibbon.selecionarAba === 'function' && mesaRibbon.abaAtiva !== etapa) {
+        mesaRibbon.selecionarAba(etapa, false);
       }
 
       initIcons();

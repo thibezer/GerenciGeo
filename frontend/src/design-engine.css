@@ -2285,6 +2285,8 @@ details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent);
 /* Etapa Peças de Cartório: ribbon sem a linha de ferramentas (só havia um atalho duplicado) */
 .workspace-wrapper.ribbon-compacto { --ribbon-h: 80px; }
 .workspace-wrapper.ribbon-compacto .rl3-panels { display: none; }
+.workspace-wrapper.ribbon-compacto ui-ribbon#mesa-ribbon { min-height: 31px; }
+.workspace-wrapper.ribbon-compacto ui-ribbon#mesa-ribbon::part(painel) { display: none; }
 /* Ações em lote de pontos não se aplicam a esta etapa */
 .workspace-wrapper.ribbon-compacto #batch-action-bar-mesa { display: none !important; }
 
