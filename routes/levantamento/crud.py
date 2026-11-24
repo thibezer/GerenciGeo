@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from database.connection import DatabaseManager, execute_query
 from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
-from routes.deps import verificar_levantamento_arquivado
+from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
 from routes.processamento import _converter_gns_background
 
 router = APIRouter(tags=["Levantamentos (CRUD e Workspace)"])
@@ -128,6 +128,7 @@ def get_levantamento_por_id(id: int):
 
 @router.post("/levantamentos")
 def create_levantamento(lev: LevantamentoCreate):
+    verificar_propriedade_arquivada(lev.propriedade_id)
     try:
         with DatabaseManager() as conn:
             cursor = conn.cursor()
@@ -159,13 +160,37 @@ def create_levantamento(lev: LevantamentoCreate):
 def update_levantamento(lev_id: int, lev: LevantamentoUpdate):
     verificar_levantamento_arquivado(lev_id)
     try:
-        atual = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True)
+        atual = execute_query("SELECT status, propriedade_id FROM levantamentos WHERE id = ?", params=(lev_id,), fetch_one=True)
         if not atual:
             raise HTTPException(status_code=404, detail="Levantamento não encontrado.")
 
         prop = execute_query("SELECT nome_propriedade FROM propriedades WHERE id = ?", params=(lev.propriedade_id,), fetch_one=True)
         if not prop:
             raise HTTPException(status_code=404, detail="Propriedade não encontrada.")
+
+        if lev.propriedade_id != atual["propriedade_id"]:
+            verificar_propriedade_arquivada(lev.propriedade_id)
+            qtd_pontos = execute_query(
+                "SELECT COUNT(*) AS c FROM pontos WHERE levantamento_id = ? AND matricula_id IS NOT NULL",
+                params=(lev_id,), fetch_one=True
+            )["c"]
+            qtd_segs = execute_query(
+                "SELECT COUNT(*) AS c FROM segmentos WHERE levantamento_id = ? AND matricula_id IS NOT NULL",
+                params=(lev_id,), fetch_one=True
+            )["c"]
+            qtd_banco = execute_query(
+                "SELECT COUNT(*) AS c FROM banco_pontos WHERE levantamento_id = ? AND matricula_id IS NOT NULL",
+                params=(lev_id,), fetch_one=True
+            )["c"]
+            if qtd_pontos or qtd_segs or qtd_banco:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Não é possível alterar a propriedade do levantamento enquanto houver dados vinculados "
+                        f"a matrículas da propriedade atual ({qtd_pontos} ponto(s), {qtd_segs} segmento(s), "
+                        f"{qtd_banco} ponto(s) homologado(s)). Desvincule ou limpe os dados antes."
+                    )
+                )
 
         # O caminho da pasta deriva da propriedade e do ano da data de início: se mudar, a pasta acompanha
         wm = WorkspaceManager()

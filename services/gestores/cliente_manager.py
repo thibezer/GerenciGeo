@@ -599,7 +599,7 @@ def cadastrar_cliente(cli_data: dict) -> dict:
                     cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula, bairro
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                pessoa_id, cli_data.get("profissional_id") or 1, data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
+                pessoa_id, cli_data.get("profissional_id"), data_nascimento_fundacao, email, telefone, cidade, estado, cep, sexo, senha_gov,
                 cnh_numero, cnh_categoria, cnh_validade, cnh_orgao_uf, rg_orgao, rg_uf, naturalidade, certidao_casamento_matricula, bairro
             ))
             cliente_id = cursor.lastrowid
@@ -994,19 +994,24 @@ def _excluir_cliente_em_transacao(cursor, cliente_id: int, usuario: str = "Opera
     cursor.execute("DELETE FROM cliente_historico_logs WHERE id_cliente = ?", (cliente_id,))
     cursor.execute("DELETE FROM propriedade_clientes WHERE cliente_id = ?", (cliente_id,))
     cursor.execute("DELETE FROM clientes WHERE id = ?", (cliente_id,))
-    cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('clientes', ?)", (cliente_id,))
 
     if pessoa_id:
-        cursor.execute("SELECT 1 FROM clientes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-        outro_cli = cursor.fetchone()
-        cursor.execute("SELECT 1 FROM confrontantes WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
-        outro_conf = cursor.fetchone()
-        if not outro_cli and not outro_conf:
+        outro_papel = False
+        for tabela_papel in (
+            "clientes",
+            "confrontantes",
+            "confrontante_coproprietarios",
+            "confrontante_envolvidos_usufruto",
+        ):
+            cursor.execute(f"SELECT 1 FROM {tabela_papel} WHERE pessoa_id = ? LIMIT 1", (pessoa_id,))
+            if cursor.fetchone():
+                outro_papel = True
+                break
+        if not outro_papel:
             # representante_legal_id não tem FK: sem isso a PJ ficaria apontando para uma pessoa inexistente
             cursor.execute("UPDATE pessoas SET representante_legal_id = NULL WHERE representante_legal_id = ?", (pessoa_id,))
             cursor.execute("DELETE FROM cliente_documentos WHERE pessoa_id = ?", (pessoa_id,))
             cursor.execute("DELETE FROM pessoas WHERE id = ?", (pessoa_id,))
-            cursor.execute("INSERT INTO registros_excluidos (tabela, registro_id) VALUES ('pessoas', ?)", (pessoa_id,))
     return None, None
 
 

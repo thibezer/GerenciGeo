@@ -40,7 +40,7 @@ async def verificar_tranca_read_only(request: HTTPConnection):
     Analisa requisições de escrita e bloqueia se o levantamento estiver ARQUIVADO.
     """
     # Dependência global: também é resolvida em rotas WebSocket (que não têm método HTTP)
-    if request.scope.get("type") != "http" or request.scope.get("method") not in ["POST", "PUT", "DELETE"]:
+    if request.scope.get("type") != "http" or request.scope.get("method") not in ["POST", "PUT", "PATCH", "DELETE"]:
         return
 
     # Desarquivar e gerar link público de leitura são permitidos em levantamentos arquivados

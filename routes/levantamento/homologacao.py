@@ -709,13 +709,18 @@ def deletar_planilha_homologada(id: int, planilha_origem: str = Query(...)):
         execute_query("DELETE FROM alteracoes_sigef WHERE levantamento_id = ? AND planilha_origem = ?", params=(id, planilha_origem), commit=True)
         execute_query("DELETE FROM banco_pontos WHERE levantamento_id = ? AND planilha_origem = ?", params=(id, planilha_origem), commit=True)
         
-        pontos_da_planilha = execute_query("SELECT DISTINCT matricula_id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", params=(id, planilha_origem), fetch_all=True)
-        matriculas_afetadas = [r["matricula_id"] for r in (pontos_da_planilha or []) if r["matricula_id"]]
-        
+        pontos_da_planilha = execute_query(
+            "SELECT id, matricula_id FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1",
+            params=(id, planilha_origem), fetch_all=True
+        )
+        ids_pontos_planilha = [r["id"] for r in (pontos_da_planilha or [])]
+        if ids_pontos_planilha:
+            placeholders = ",".join(["?"] * len(ids_pontos_planilha))
+            execute_query(
+                f"DELETE FROM segmentos WHERE levantamento_id = ? AND origem_homologada = 1 AND (ponto_inicio_id IN ({placeholders}) OR ponto_fim_id IN ({placeholders}))",
+                params=tuple([id] + ids_pontos_planilha + ids_pontos_planilha), commit=True
+            )
         execute_query("DELETE FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ? AND origem_homologada = 1", params=(id, planilha_origem), commit=True)
-        if matriculas_afetadas:
-            placeholders = ",".join(["?"] * len(matriculas_afetadas))
-            execute_query(f"DELETE FROM segmentos WHERE levantamento_id = ? AND matricula_id IN ({placeholders})", params=tuple([id] + list(matriculas_afetadas)), commit=True)
         
         with DatabaseManager() as conn:
             cursor = conn.cursor()

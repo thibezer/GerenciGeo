@@ -21,7 +21,7 @@ from services.gestores.levantamento_manager import (
     analisar_duplicatas_e_sobreposicoes,
     vincular_ponto_matricula,
 )
-from routes.deps import verificar_levantamento_arquivado
+from routes.deps import verificar_levantamento_arquivado, verificar_propriedade_arquivada
 from services.gestores.vertices_virtuais_manager import (
     VerticeVirtualErro,
     inserir_lote_vertices_virtuais,
@@ -200,6 +200,7 @@ async def upload_matricula_pdf(mid: int, file: UploadFile = File(...)):
             raise HTTPException(status_code=404, detail="Matrícula não encontrada")
 
         prop_id = row["propriedade_id"]
+        verificar_propriedade_arquivada(prop_id)
         from config import EXPORT_BASE_FOLDER
         prop_folder = os.path.join(EXPORT_BASE_FOLDER, "Propriedades", f"Prop_{prop_id}")
         os.makedirs(prop_folder, exist_ok=True)
@@ -271,6 +272,7 @@ def limpar_pdf_matricula_existente(mid: int):
         row = obter_propriedade_e_numero(mid)
         if not row:
             raise HTTPException(status_code=404, detail="Matrícula não encontrada")
+        verificar_propriedade_arquivada(row["propriedade_id"])
 
         caminhos = obter_caminhos_pdf(mid)
         path_original = _resolver_caminho_pdf_matricula(mid, caminhos.get("original"))
@@ -325,6 +327,9 @@ def download_matricula_pdf(
 @router.delete("/matriculas/{mid}/pdf")
 def delete_matricula_pdf(mid: int):
     try:
+        row = obter_propriedade_e_numero(mid)
+        if row:
+            verificar_propriedade_arquivada(row["propriedade_id"])
         caminhos = obter_caminhos_pdf(mid)
         for chave in ("original", "limpo"):
             path = _resolver_caminho_pdf_matricula(mid, caminhos.get(chave))
@@ -335,6 +340,8 @@ def delete_matricula_pdf(mid: int):
                     logging.getLogger(__name__).warning(f"Aviso ao remover {chave} da matrícula {mid}: {ex_rm}")
         definir_caminhos_pdf(mid, None, None)
         return {"message": "PDFs da matrícula excluídos com sucesso"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

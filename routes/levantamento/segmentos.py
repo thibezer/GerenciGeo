@@ -585,22 +585,20 @@ def put_usufruto_envolvidos(cid: int, payload: EnvolvidosUsufrutoPayload):
 @router.delete("/confrontantes/{cid}")
 def delete_confrontante(cid: int):
     try:
-        row = execute_query("SELECT levantamento_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
+        row = execute_query("SELECT levantamento_id, pessoa_id FROM confrontantes WHERE id = ?", params=(cid,), fetch_one=True)
         if not row:
             raise HTTPException(status_code=404, detail="Confrontante não encontrado.")
             
         verificar_levantamento_arquivado(row["levantamento_id"])
+        pessoa_id = row["pessoa_id"]
             
         with DatabaseManager() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM confrontantes WHERE id = ?", (cid,))
             
-            # Limpa pessoas órfãs (não associadas a clientes nem confrontantes)
-            cursor.execute("""
-                DELETE FROM pessoas 
-                WHERE id NOT IN (SELECT pessoa_id FROM clientes WHERE pessoa_id IS NOT NULL)
-                  AND id NOT IN (SELECT pessoa_id FROM confrontantes WHERE pessoa_id IS NOT NULL);
-            """)
+            # Remove a pessoa apenas se nenhuma outra tabela (clientes, confrontantes, coproprietários, usufruto, docs, representante) a referenciar
+            from services.gestores.confrontante_manager import apagar_pessoa_se_orfa
+            apagar_pessoa_se_orfa(cursor, pessoa_id)
             conn.commit()
         return {"message": "Confrontante removido com sucesso"}
     except Exception as e:

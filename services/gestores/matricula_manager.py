@@ -297,6 +297,18 @@ def excluir_matricula(mid: int) -> int | None:
             409,
             f"Não é possível excluir: esta matrícula é origem do desenho de outra(s) matrícula(s) ({numeros}). Desvincule-as antes."
         )
+
+    # Bloqueia exclusão silenciosa se houver pontos, segmentos ou banco_pontos homologados vinculados
+    qtd_pontos = execute_query("SELECT COUNT(*) AS c FROM pontos WHERE matricula_id = ?", params=(mid,), fetch_one=True)["c"]
+    qtd_segs = execute_query("SELECT COUNT(*) AS c FROM segmentos WHERE matricula_id = ?", params=(mid,), fetch_one=True)["c"]
+    qtd_banco = execute_query("SELECT COUNT(*) AS c FROM banco_pontos WHERE matricula_id = ?", params=(mid,), fetch_one=True)["c"]
+    if qtd_pontos or qtd_segs or qtd_banco:
+        raise MatriculaErro(
+            409,
+            f"Não é possível excluir a matrícula pois existem dados vinculados ({qtd_pontos} ponto(s), "
+            f"{qtd_segs} segmento(s), {qtd_banco} ponto(s) homologado(s)). Remova ou transfira os dados antes."
+        )
+
     execute_query("DELETE FROM matriculas WHERE id = ?", params=(mid,), commit=True)
     return propriedade_id
 
