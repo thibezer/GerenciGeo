@@ -612,21 +612,22 @@ export const renderClientesTemplate = (): string => `
                 <section class="det-sec">
                    <h6 class="det-sec-titulo">Contato & Endereço</h6>
                    <dl class="det-grid">
-                      <div>
+                      <div class="det-span-2">
                          <dt class="det-l">Telefone / Celular</dt>
-                         <dd class="det-v flex items-center gap-2">
-                            <span class="font-mono" id="det-cli-telefone">-</span>
-                            <a id="btn-det-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-[10px] font-bold transition-all" title="Abrir no WhatsApp" aria-label="Conversar no WhatsApp">
+                         <dd class="det-v flex items-center gap-1.5 whitespace-nowrap">
+                            <span id="det-cli-telefone">-</span>
+                            <a id="btn-det-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="hidden inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-[10px] font-bold transition-all shrink-0" title="Abrir no WhatsApp" aria-label="Conversar no WhatsApp">
                                <i data-lucide="message-circle" class="w-3 h-3"></i>
                                WhatsApp
                             </a>
                          </dd>
                       </div>
                       <div class="det-span-2"><dt class="det-l">E-mail</dt><dd class="det-v break-words" id="det-cli-email">-</dd></div>
+                      <div style="grid-column: span 3;"><dt class="det-l">Endereço Completo</dt><dd class="det-v break-words" id="det-cli-endereco">-</dd></div>
                       <div>
-                         <dt class="det-l flex items-center justify-between"><span>Senha GOV</span><span class="text-[9px] text-mint-vibrant lowercase font-mono">auditada</span></dt>
+                         <dt class="det-l">Senha GOV</dt>
                          <dd class="det-v flex items-center gap-1.5">
-                            <span class="font-mono" id="det-cli-senhagov">-</span>
+                            <span id="det-cli-senhagov">-</span>
                             <button type="button" id="btn-revelar-senhagov-det" class="text-white/40 hover:text-mint-vibrant hidden transition-colors cursor-pointer p-0.5" title="Mostrar/Ocultar Senha GOV" aria-label="Mostrar ou ocultar Senha GOV">
                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                             </button>
@@ -635,7 +636,6 @@ export const renderClientesTemplate = (): string => `
                             </button>
                          </dd>
                       </div>
-                      <div class="det-span-4"><dt class="det-l">Endereço Completo</dt><dd class="det-v break-words" id="det-cli-endereco">-</dd></div>
                    </dl>
                 </section>
 
