@@ -147,33 +147,25 @@ export const propriedadesRoute: RouteDef = {
     </div>
 
     <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
-    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px;">
+    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px; --ui-modal-body-py: 0px;">
        <div class="flex flex-col h-full overflow-hidden">
-          <!-- Abas de Navegação + Excluir -->
-          <div class="flex items-center justify-between border-b border-white/5 bg-white/[0.01] px-2 shrink-0 gap-2">
-             <div class="flex items-center overflow-x-auto scrollbar-none">
-                <button class="px-3 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
-                   <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                   Dados Gerais & Anexos
-                </button>
-                <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
-                   <i data-lucide="users" class="w-3.5 h-3.5"></i>
-                   Proprietários
-                   <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
-                </button>
-                <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
-                   <i data-lucide="layers" class="w-3.5 h-3.5"></i>
-                   Glebas & Matrículas
-                   <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
-                </button>
-             </div>
-             <div class="flex items-center gap-1.5 shrink-0 py-1">
-                <ui-botao variante="destrutivo" class="hidden" id="btn-prop-excluir" title="Excluir Propriedade">
-                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                   Excluir
-                </ui-botao>
-                <button type="button" class="hidden" id="btn-fechar-modal-prop"></button>
-             </div>
+          <!-- Abas de Navegação (mesma altura da linha 1) -->
+          <div class="-mx-5 px-5 h-9 flex items-stretch border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none shrink-0 gap-1">
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
+                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                Dados Gerais & Anexos
+             </button>
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
+                <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                Proprietários
+                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
+             </button>
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
+                <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                Glebas & Matrículas
+                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
+             </button>
+             <button type="button" class="hidden" id="btn-fechar-modal-prop"></button>
           </div>
           
           <!-- Conteúdo com Scroll -->
@@ -227,11 +219,17 @@ export const propriedadesRoute: RouteDef = {
                       </div>
                    </div>
 
-                   <div class="flex justify-end gap-2">
-                      <button type="button" class="btn-secondary h-8 text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
-                      <button type="submit" class="btn-primary h-8 text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
-                         Salvar Alterações
+                   <div class="flex items-center justify-between gap-2 pt-1">
+                      <button type="button" class="hidden h-8 px-3 rounded-lg text-xs font-medium text-red-400/80 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 flex items-center gap-1.5 transition-colors cursor-pointer" id="btn-prop-excluir" title="Excluir esta propriedade">
+                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                         Excluir propriedade
                       </button>
+                      <div class="flex items-center gap-2 ml-auto">
+                         <button type="button" class="btn-secondary h-8 text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
+                         <button type="submit" class="btn-primary h-8 text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
+                            Salvar Alterações
+                         </button>
+                      </div>
                    </div>
                 </form>
 
