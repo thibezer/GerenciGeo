@@ -551,6 +551,16 @@ const initApp = () => {
   }
 };
 
+// Permite recarregar a aplicação via F5 ou Ctrl+R mesmo no WebView2 desktop (debug=False)
+window.addEventListener('keydown', (e: KeyboardEvent) => {
+  const isF5 = e.key === 'F5';
+  const isCtrlR = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'r';
+  if (isF5 || isCtrlR) {
+    e.preventDefault();
+    window.location.reload();
+  }
+});
+
 iniciarAvisoAtualizacao();
 
 if (document.readyState === 'loading') {
