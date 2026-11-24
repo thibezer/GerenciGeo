@@ -623,6 +623,23 @@ ui-select {
   font-family: var(--geo-font-sans) !important;
 }
 
+/* Modais padrão compacto: força altura real de 26px sobre padding !important */
+#modal-propriedade .glass-input {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 2px 10px !important;
+  line-height: 20px !important;
+}
+
+#modal-propriedade .btn-primary,
+#modal-propriedade .btn-secondary {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 24px !important;
+}
+
 .glass-input:focus,
 #input-search-ponto:focus,
 #input-search-ordenador:focus {

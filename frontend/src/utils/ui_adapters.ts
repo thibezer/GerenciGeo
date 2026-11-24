@@ -18,7 +18,13 @@ export const patchModalShadow = (modalEl: HTMLElement) => {
   if (header) header.setAttribute('part', 'header');
   if (titulo) titulo.setAttribute('part', 'titulo');
   if (body) body.setAttribute('part', 'body');
-  if (footer) footer.setAttribute('part', 'footer');
+  if (footer) {
+    footer.setAttribute('part', 'footer');
+    const temFooter = Boolean(modalEl.querySelector('[slot="rodape"], [slot="footer"]'));
+    if (!temFooter) {
+      (footer as HTMLElement).style.display = 'none';
+    }
+  }
 
   const style = document.createElement('style');
   style.id = 'patch-modal-dimensoes';
