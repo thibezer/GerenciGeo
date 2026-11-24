@@ -50,7 +50,16 @@ def get_levantamentos():
             SELECT l.*, 
                    p.nome_propriedade, p.codigo_car, p.codigo_ccir, p.municipio, p.uf,
                    (SELECT COUNT(*) FROM pontos p_pts WHERE p_pts.levantamento_id = l.id) as total_pontos,
-                   (SELECT COUNT(*) FROM segmentos s WHERE s.levantamento_id = l.id) as total_segmentos
+                   (SELECT COUNT(*) FROM segmentos s WHERE s.levantamento_id = l.id) as total_segmentos,
+                   NULLIF(MAX(
+                       COALESCE(l.updated_at, ''),
+                       COALESCE(l.created_at, ''),
+                       COALESCE((SELECT MAX(COALESCE(pt.updated_at, pt.created_at)) FROM pontos pt WHERE pt.levantamento_id = l.id), ''),
+                       COALESCE((SELECT MAX(s.updated_at) FROM segmentos s WHERE s.levantamento_id = l.id), ''),
+                       COALESCE((SELECT MAX(cf.updated_at) FROM confrontantes cf WHERE cf.levantamento_id = l.id), ''),
+                       COALESCE((SELECT MAX(bp.updated_at) FROM banco_pontos bp WHERE bp.levantamento_id = l.id), ''),
+                       COALESCE((SELECT MAX(al.updated_at) FROM alteracoes_sigef al WHERE al.levantamento_id = l.id), '')
+                   ), '') as ultima_alteracao
             FROM levantamentos l
             JOIN propriedades p ON l.propriedade_id = p.id
         """

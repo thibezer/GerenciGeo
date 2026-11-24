@@ -404,6 +404,7 @@ export const levantamentosRoute: RouteDef = {
                         <tr>
                            ${th('nome', 'Levantamento', 'lp-celula-nome')}
                            ${th('data', 'Início')}
+                           ${th('ultima_alteracao', 'Última alteração', 'lp-oculta-sm')}
                            ${th(null, 'Status')}
                            ${th(null, 'Proprietários', 'lp-oculta-lg lp-celula-fixa')}
                            ${th('pontos', 'Medições', 'lp-col-num lp-oculta-md')}

@@ -99,3 +99,14 @@ test('linha com muitos proprietários mostra só o principal e a contagem; a lis
   assert.ok(!semAtributos.includes('Dono Numero 6'), 'demais nomes não aparecem no texto visível');
   assert.ok(html.includes('Dono Numero 6 (95%)'), 'mas aparecem no tooltip');
 });
+
+test('ordenação por última alteração: usa ultima_alteracao/updated_at/created_at e deixa ausentes no fim', () => {
+  const comAlt: Levantamento[] = [
+    lev({ id: 1, nome_propriedade: 'Alfa', ultima_alteracao: '2026-11-20 10:00:00.000' }),
+    lev({ id: 2, nome_propriedade: 'Beta', ultima_alteracao: null, updated_at: null, created_at: null }),
+    lev({ id: 3, nome_propriedade: 'Gama', updated_at: '2026-11-24 09:30:00.000' }),
+    lev({ id: 4, nome_propriedade: 'Delta', created_at: '2026-11-22 15:00:00' })
+  ];
+  assert.deepEqual(ids(ordenarLevantamentos(comAlt, 'ultima_alteracao', 'desc')), [3, 4, 1, 2]);
+  assert.deepEqual(ids(ordenarLevantamentos(comAlt, 'ultima_alteracao', 'asc')), [1, 4, 3, 2]);
+});

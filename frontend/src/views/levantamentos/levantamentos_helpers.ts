@@ -1,4 +1,4 @@
-import { escapeHtml, formatarCCIR, formatarDataBr } from '../../utils';
+import { escapeHtml, formatarCCIR, formatarDataBr, formatarDataHoraUtc } from '../../utils';
 
 export { formatarDataBr };
 
@@ -17,6 +17,9 @@ export interface Levantamento {
   nome_propriedade: string;
   status: string;
   data_inicio: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  ultima_alteracao?: string | null;
   numero_trt?: string | null;
   codigo_car?: string | null;
   codigo_ccir?: string | null;
@@ -28,7 +31,7 @@ export interface Levantamento {
 }
 
 export type SegmentoLev = 'todos' | 'andamento' | 'concluido' | 'arquivado' | 'pendencias';
-export type CampoOrdemLev = 'nome' | 'data' | 'pontos';
+export type CampoOrdemLev = 'nome' | 'data' | 'ultima_alteracao' | 'pontos';
 export type DirecaoOrdem = 'asc' | 'desc';
 
 export interface PendenciaLev {
@@ -114,6 +117,29 @@ export const filtrarLevantamentos = <T extends Levantamento>(lista: T[], termo: 
   });
 };
 
+const parseDataUtcMs = (valor?: string | null): number | null => {
+  const raw = (valor || '').trim();
+  if (!raw) return null;
+  const semFuso = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(raw);
+  const ms = Date.parse(semFuso ? `${raw.replace(' ', 'T')}Z` : raw);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+export const obterUltimaAlteracaoLev = (l: Levantamento): string | null =>
+  l.ultima_alteracao || l.updated_at || l.created_at || null;
+
+export const formatarUltimaAlteracaoLev = (valor?: string | null): string => {
+  const ms = parseDataUtcMs(valor);
+  if (ms === null) return '—';
+  return new Date(ms).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).replace(',', '');
+};
+
 /** Ordenação estável, sem mutar a entrada; empate sempre desempata por nome A-Z. */
 export const ordenarLevantamentos = <T extends Levantamento>(lista: T[], campo: CampoOrdemLev, direcao: DirecaoOrdem): T[] => {
   const fator = direcao === 'asc' ? 1 : -1;
@@ -122,7 +148,14 @@ export const ordenarLevantamentos = <T extends Levantamento>(lista: T[], campo: 
     let r = 0;
     if (campo === 'nome') r = nomes(a, b);
     else if (campo === 'data') r = (a.data_inicio || '').localeCompare(b.data_inicio || '');
-    else r = (a.total_pontos || 0) - (b.total_pontos || 0);
+    else if (campo === 'ultima_alteracao') {
+      const ta = parseDataUtcMs(obterUltimaAlteracaoLev(a));
+      const tb = parseDataUtcMs(obterUltimaAlteracaoLev(b));
+      if (ta === null && tb === null) r = 0;
+      else if (ta === null) return 1;
+      else if (tb === null) return -1;
+      else r = ta - tb;
+    } else r = (a.total_pontos || 0) - (b.total_pontos || 0);
     return r !== 0 ? r * fator : nomes(a, b);
   });
 };
@@ -144,6 +177,9 @@ export const renderLinhasLevHtml = (lista: Levantamento[]): string => lista.map(
        </div>`
     : '<span class="lp-muted" style="font-size:12.5px">Sem proprietário</span>';
   const arquivado = l.status === 'ARQUIVADO';
+  const ultimaAltRaw = obterUltimaAlteracaoLev(l);
+  const ultimaAltCurta = formatarUltimaAlteracaoLev(ultimaAltRaw);
+  const ultimaAltCompleta = ultimaAltRaw ? formatarDataHoraUtc(ultimaAltRaw) : 'Sem registro de alteração';
   return `
     <tr class="lev-list-item" data-id="${l.id}" tabindex="0" aria-label="Abrir ${nome} na mesa de trabalho">
       <td class="lp-celula-fixa lp-celula-nome">
@@ -156,6 +192,7 @@ export const renderLinhasLevHtml = (lista: Levantamento[]): string => lista.map(
         </div>
       </td>
       <td><span class="lp-mono" style="font-size:12.5px">${escapeHtml(formatarDataBr(l.data_inicio))}</span></td>
+      <td class="lp-oculta-sm"><span class="lp-mono" style="font-size:12.5px;color:var(--lp-text-2)" title="${escapeHtml(ultimaAltCompleta)}">${escapeHtml(ultimaAltCurta)}</span></td>
       <td>
         <div class="flex flex-wrap items-center gap-1">
           <span class="lp-tag ${classeTagStatus(l.status)}">${escapeHtml(rotuloStatus(l.status))}</span>
