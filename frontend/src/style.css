@@ -844,19 +844,24 @@ ui-select::part(select) {
 /* ==========================================================================
    Ficha de Detalhes do Cliente (rótulo/valor denso, seções contínuas)
    ========================================================================== */
-.det-sec { display: flex; flex-direction: column; gap: 8px; }
-.det-sec + .det-sec { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 12px; }
+.det-sec { display: flex; flex-direction: column; gap: 6px; }
+.det-sec + .det-sec { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 8px; }
 .det-sec-titulo { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-mint-vibrant, #00e08a); line-height: 1; }
-.det-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+.det-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; margin: 0; }
 @media (min-width: 640px) { .det-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .det-grid > div { min-width: 0; }
 .det-span-2 { grid-column: span 2; }
 .det-span-4 { grid-column: 1 / -1; }
-.det-l { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
-.det-v { font-size: 13px; font-weight: 600; color: #fff; margin: 2px 0 0; min-height: 18px; }
+.det-l { font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255, 255, 255, 0.42); }
+.det-v { font-size: 12px; font-weight: 600; color: #fff; margin: 1px 0 0; min-height: 16px; font-variant-numeric: tabular-nums; }
 .det-v.det-vazio, .det-vazio { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
 .det-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: rgba(255, 255, 255, 0.55); padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); }
-.det-chip b { color: #fff; font-family: ui-monospace, monospace; }
+.det-chip b { color: #fff; font-variant-numeric: tabular-nums; }
+#modal-detalhes-cliente .font-mono,
+#modal-cliente .font-mono {
+  font-family: var(--geo-font-sans, 'Inter', sans-serif) !important;
+  font-variant-numeric: tabular-nums !important;
+}
 
 /* Tabelas rasas e dropzone horizontal das abas do detalhe do cliente (sem caixas aninhadas) */
 .det-tabela-wrap { max-height: 260px; overflow-y: auto; }
