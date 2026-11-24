@@ -47,7 +47,7 @@ Inspecione visualmente o cabeçalho do imóvel e **toda a cadeia de atos registr
    - `data_emissao_certidao` e `tipo_certidao`: Data de emissão da certidão e tipo (`INTEIRO_TEOR`, `SIMPLES_CONSULTA`, `ONUS_REAIS`).
 
 2. **Identificação e Dimensões do Imóvel**:
-   - `denominacao`: Nome da gleba, lote, fazenda ou sítio (ex.: `Lotes nºs 161-A, 162, 163, 163-P, 164 e 164-A - Gleba Atlântida, Bairro Leomar`).
+   - `denominacao`: **Apenas a identificação curta e direta do(s) lote(s) ou imóvel** (ex.: `Lotes nºs 8, 9 e 10`, `Lote nº 8-A`, `Lote nº 5/B-Remanescente`, `Lotes nºs 6 e 6-D`), **sem** incluir o texto explicativo de subdivisões anteriores, gleba, núcleo ou observações entre parênteses. Esse histórico detalhado deve permanecer apenas no memorial/descrição completa, não na `denominacao`.
    - `municipio_localizacao` e `uf_localizacao` (além de `municipio` / `uf`): Município e UF onde o imóvel está localizado (pode diferir da comarca do cartório).
    - `area_alqueires` e `tipo_alqueire`: Quantidade de alqueires e padrão (ex.: `40,00 alqueires paulistas`).
    - `area_m2`: Metros quadrados descritos (ex.: `968.000,00 m²`).
@@ -80,7 +80,7 @@ Monte o JSON com os dados consolidados:
 {
   "numero_matricula": "10.189",
   "nome_propriedade": "Lotes nºs 161-A a 164-A - Gleba Atlântida",
-  "denominacao": "Lotes nºs 161-A, 162, 163, 163-P, 164 e 164-A - Gleba Atlântida, Bairro Leomar",
+  "denominacao": "Lotes nºs 161-A a 164-A",
   "municipio": "Iporã",
   "uf": "PR",
   "cri_comarca": "Iporã",
