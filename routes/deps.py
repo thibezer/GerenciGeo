@@ -24,14 +24,11 @@ def usuario_da_requisicao(request) -> str:
     sem sessão válida, cai no operador local genérico.
     """
     try:
-        from routes.auth import active_sessions
-        cabecalho = request.headers.get("Authorization") or ""
-        token = cabecalho.replace("Bearer ", "").strip() if "Bearer " in cabecalho else cabecalho.strip()
-        user_id = active_sessions.get(token) if token else None
-        if user_id:
-            row = execute_query("SELECT name, email FROM users WHERE id = ?", params=(user_id,), fetch_one=True)
-            if row:
-                return (row["name"] or row["email"] or "Operador Local")
+        from routes.auth import get_token_from_request, resolver_usuario_por_token
+        token = get_token_from_request(request)
+        user = resolver_usuario_por_token(token) if token else None
+        if user:
+            return (user.get("name") or user.get("email") or "Operador Local")
     except Exception as e:
         logging.getLogger(__name__).warning(f"Não foi possível resolver o usuário da requisição: {e}")
     return "Operador Local"

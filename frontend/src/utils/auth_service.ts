@@ -5,8 +5,15 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  is_blocked?: number;
   profile_image?: string | null;
   created_at?: string;
+}
+
+export interface AuthRegisterResult {
+  user: AuthUser;
+  pendingApproval: boolean;
+  message: string;
 }
 
 const STORAGE_KEY_USER = 'gerencigeo_auth_user';
@@ -50,10 +57,56 @@ export class AuthService {
     return this.getUser() !== null;
   }
 
+  static isAdmin(): boolean {
+    const user = this.getUser();
+    return (user?.role || '').toLowerCase() === 'admin';
+  }
+
+  /**
+   * Atualiza os dados do usuário autenticado junto ao servidor (/auth/me).
+   */
+  static async refreshSession(): Promise<AuthUser | null> {
+    const token = this.getToken();
+    if (!token) return null;
+    try {
+      const isLocal = window.location.origin.includes('localhost') ||
+                      window.location.origin.includes('127.0.0.1') ||
+                      window.location.origin.includes('[::1]');
+      const endpoint = !isLocal
+        ? `${window.location.origin}/api.php?action=me`
+        : `${API_BASE}/auth/me`;
+      const res = await fetch(endpoint, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      if (res.status === 401 || res.status === 403) {
+        return null;
+      }
+      if (!res.ok) return this.getUser();
+      const data = await res.json();
+      if (data?.user) {
+        const updated: AuthUser = {
+          id: Number(data.user.id) || 1,
+          name: String(data.user.name || data.user.email || 'Usuário'),
+          email: String(data.user.email || ''),
+          role: String(data.user.role || 'user'),
+          is_blocked: Number(data.user.is_blocked || 0),
+          profile_image: data.user.profile_image || null,
+          created_at: data.user.created_at || ''
+        };
+        const storage = localStorage.getItem(STORAGE_KEY_TOKEN) ? localStorage : sessionStorage;
+        storage.setItem(STORAGE_KEY_USER, JSON.stringify(updated));
+        return updated;
+      }
+    } catch {
+      // offline/erro transitório mantém sessão local
+    }
+    return this.getUser();
+  }
+
   /**
    * Realiza o cadastro de um novo usuário via API
    */
-  static async register(name: string, email: string, password: string): Promise<AuthUser> {
+  static async register(name: string, email: string, password: string): Promise<AuthRegisterResult> {
     const isLocal = window.location.origin.includes('localhost') || 
                     window.location.origin.includes('127.0.0.1') || 
                     window.location.origin.includes('[::1]');
@@ -90,18 +143,27 @@ export class AuthService {
       id: Number(rawUser.id) || 1,
       name: String(rawUser.name || rawUser.email || name || 'Usuário'),
       email: String(rawUser.email || email),
-      role: String(rawUser.role || 'admin'),
+      role: String(rawUser.role || 'user'),
+      is_blocked: Number(rawUser.is_blocked ?? (data.pending_approval ? 1 : 0)),
       profile_image: rawUser.profile_image || null,
       created_at: rawUser.created_at || ''
     };
 
-    const token: string = data.token || 'session_token';
+    const pendingApproval = Boolean(data.pending_approval) || !data.token;
 
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    localStorage.setItem(STORAGE_KEY_TOKEN, token);
-    localStorage.setItem(STORAGE_KEY_REMEMBER, 'true');
+    if (!pendingApproval && data.token) {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEY_TOKEN, String(data.token));
+      localStorage.setItem(STORAGE_KEY_REMEMBER, 'true');
+    }
 
-    return user;
+    return {
+      user,
+      pendingApproval,
+      message: String(data.message || (pendingApproval
+        ? 'Cadastro realizado! Aguarde a aprovação de um administrador.'
+        : 'Conta criada com sucesso!'))
+    };
   }
 
   /**

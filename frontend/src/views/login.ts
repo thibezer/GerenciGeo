@@ -431,8 +431,24 @@ export const loginRoute: RouteDef = {
             btnSubmitRegister.disabled = true;
           }
 
-          const user = await AuthService.register(name, email, password);
-          const userName = (user && user.name) ? user.name : (name || 'Usuário');
+          const result = await AuthService.register(name, email, password);
+          if (result.pendingApproval) {
+            showToast(result.message || 'Cadastro realizado! Aguarde a aprovação de um administrador.', 'info');
+            formRegister.reset();
+            const linkToLogin = document.getElementById('link-switch-to-login');
+            linkToLogin?.click();
+            if (inputEmail) {
+              inputEmail.value = email;
+              inputEmail.setAttribute('value', email);
+            }
+            const subtitleEl = document.getElementById('auth-subtitle');
+            if (subtitleEl) {
+              subtitleEl.innerHTML = `<span class="text-amber-400 font-medium">Conta criada! Aguarde um administrador liberar seu acesso para fazer login.</span>`;
+            }
+            return;
+          }
+
+          const userName = (result.user && result.user.name) ? result.user.name : (name || 'Usuário');
           showToast(`Conta criada com sucesso! Bem-vindo, ${userName}!`, 'success');
 
           // Atualiza as informações do usuário no rodapé da Sidebar

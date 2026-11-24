@@ -1,7 +1,13 @@
 import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, showToast, customConfirm, customAlert } from '../utils';
+import { AuthService } from '../utils/auth_service';
 import { realtimeSyncClient } from '../utils/realtime_sync_client';
+import {
+  renderSecaoMinhaConta,
+  renderSecaoControleAcessos,
+  initControleAcessos
+} from './configuracoes/controle_acessos';
 import {
   aplicarMascaraCPF,
   validarCPF,
@@ -17,13 +23,18 @@ let escModalBanco: ((e: KeyboardEvent) => void) | null = null;
 export const configuracoesRoute: RouteDef = {
   render: () => `
     <div class="gap-2 animate-in fade-in duration-300 select-text flex flex-col h-full min-h-0 flex-1">
-      <!-- Barra superior (padrão de listagem): título + total + busca + ação primária -->
+      <!-- Barra superior (padrão de listagem): título + abas + busca + ação primária -->
       <div class="lp-bar">
-        <div class="lp-bar-left">
-          <h2 class="lp-titulo" title="Parâmetros globais e cadastro de Responsáveis Técnicos do GerenciGeo">Configurações</h2>
+        <div class="lp-bar-left flex-wrap">
+          <h2 class="lp-titulo" title="Parâmetros globais, segurança e cadastro de Responsáveis Técnicos do GerenciGeo">Configurações</h2>
+          <div class="lp-seg" id="cfg-tabs" role="tablist" aria-label="Seções de configurações">
+            <button type="button" class="ativo" data-cfg-tab="profissionais" role="tab" aria-selected="true">Responsáveis Técnicos</button>
+            <button type="button" data-cfg-tab="conta" role="tab" aria-selected="false">Minha Conta</button>
+            ${AuthService.isAdmin() ? `<button type="button" data-cfg-tab="acessos" role="tab" aria-selected="false">Controle de Acessos <span id="badge-acessos-pendentes" class="hidden ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">0</span></button>` : ''}
+          </div>
           <span class="lp-tag lp-tag-pf" id="cfg-prof-count" title="Responsáveis técnicos cadastrados">0 profissionais</span>
         </div>
-        <div class="lp-bar-right">
+        <div class="lp-bar-right" id="cfg-prof-acoes">
           <label class="lp-busca" id="busca-wrap" style="width:clamp(170px,18vw,320px)">
             <i data-lucide="search"></i>
             <input type="text" id="busca-profissional" placeholder="Buscar profissional" autocomplete="off" aria-label="Buscar profissional" />
@@ -39,7 +50,7 @@ export const configuracoesRoute: RouteDef = {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-2 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
+      <div id="painel-profissionais" class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-2 flex-1 min-h-0 overflow-y-auto lg:overflow-visible">
         <!-- Esquerda: responsáveis técnicos (tabela que rola por dentro) -->
         <div class="lp-card lg:min-h-0" style="min-height:280px">
           <div class="lp-card-titulo"><i data-lucide="users"></i>Responsáveis técnicos cadastrados</div>
@@ -155,6 +166,9 @@ export const configuracoesRoute: RouteDef = {
           </details>
         </div>
       </div>
+
+      ${renderSecaoMinhaConta()}
+      ${AuthService.isAdmin() ? renderSecaoControleAcessos() : ''}
 
       <!-- MODAL BANCO DE PONTOS DO PROFISSIONAL -->
       <div id="modal-banco-pontos" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -563,6 +577,26 @@ export const configuracoesRoute: RouteDef = {
     document.addEventListener('keydown', atalhoBuscaCfg);
 
     loadProfissionais();
+    initControleAcessos();
+    AuthService.refreshSession();
+
+    const cfgTabs = document.getElementById('cfg-tabs');
+    cfgTabs?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-cfg-tab]');
+      if (!btn) return;
+      const tab = btn.dataset.cfgTab;
+      cfgTabs.querySelectorAll('button[data-cfg-tab]').forEach(b => {
+        const ativo = b === btn;
+        b.classList.toggle('ativo', ativo);
+        b.setAttribute('aria-selected', ativo ? 'true' : 'false');
+      });
+      document.getElementById('painel-profissionais')?.classList.toggle('hidden', tab !== 'profissionais');
+      document.getElementById('painel-minha-conta')?.classList.toggle('hidden', tab !== 'conta');
+      document.getElementById('painel-controle-acessos')?.classList.toggle('hidden', tab !== 'acessos');
+      document.getElementById('cfg-prof-acoes')?.classList.toggle('hidden', tab !== 'profissionais');
+      document.getElementById('cfg-prof-count')?.classList.toggle('hidden', tab !== 'profissionais');
+      initIcons();
+    });
   },
   cleanup: () => {
     if (atalhoBuscaCfg) { document.removeEventListener('keydown', atalhoBuscaCfg); atalhoBuscaCfg = null; }
