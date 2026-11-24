@@ -116,9 +116,59 @@ export const clientesRoute: RouteDef = {
     const modalDetalhes = document.getElementById('modal-detalhes-cliente') as UIModalElement | null;
 
     // Auxiliares de modais
+    const montarSeletorPfPjNoCabecalho = () => {
+      const seletor = document.getElementById('seletor-tipo-pessoa');
+      const shadow = modalCadastro?.shadowRoot;
+      if (!seletor || !shadow) return;
+
+      if (!shadow.querySelector('#estilo-seletor-pf-pj')) {
+        const style = document.createElement('style');
+        style.id = 'estilo-seletor-pf-pj';
+        style.textContent = `
+          .pf-pj-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            margin-right: auto;
+          }
+          .pf-pj-btn {
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.3;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.55);
+            transition: all 0.15s ease;
+          }
+          .pf-pj-btn:hover { color: #ffffff; }
+          .pf-pj-btn.bg-mint-vibrant {
+            background: #00e08a;
+            color: #07150e;
+          }
+        `;
+        shadow.appendChild(style);
+      }
+
+      const header = shadow.querySelector('.ui-modal__header');
+      const closeBtn = shadow.querySelector('.ui-modal__close');
+      if (header && seletor.parentNode !== header) {
+        seletor.classList.remove('hidden');
+        header.insertBefore(seletor, closeBtn || null);
+      }
+    };
+
     const abrirModalCadastro = () => {
+      montarSeletorPfPjNoCabecalho();
       if (modalCadastro?.abrir) modalCadastro.abrir();
       else modalCadastro?.classList.remove('hidden');
+      requestAnimationFrame(montarSeletorPfPjNoCabecalho);
     };
     const fecharModalCadastro = () => {
       if (modalCadastro?.fechar) modalCadastro.fechar();

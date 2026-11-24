@@ -96,20 +96,14 @@ export const renderClientesTemplate = (): string => `
        <form id="form-cliente" class="space-y-2" style="--ui-altura-minima: 26px; --ui-campo-altura: 26px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
-          <!-- Barra Superior: Tipo de Pessoa + Legenda de Obrigatórios -->
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-white/10">
-             <div class="flex items-center gap-3">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-white/60">Tipo de Pessoa</span>
-                <div class="flex items-center gap-1 p-0.5 bg-black/40 border border-white/10 rounded-md">
-                   <button type="button" id="btn-tipo-pf" class="px-3 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
-                      Pessoa Física (PF)
-                   </button>
-                   <button type="button" id="btn-tipo-pj" class="px-3 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
-                      Pessoa Jurídica (PJ)
-                   </button>
-                </div>
-             </div>
-             <span class="text-[10px] text-white/45 font-mono"><span class="text-mint-vibrant font-bold">*</span> Campos obrigatórios</span>
+          <!-- Seletor PF / PJ (movido para o cabeçalho do modal via JS) -->
+          <div id="seletor-tipo-pessoa" class="pf-pj-group hidden">
+             <button type="button" id="btn-tipo-pf" class="pf-pj-btn bg-mint-vibrant text-forest-deep shadow-sm">
+                Pessoa Física (PF)
+             </button>
+             <button type="button" id="btn-tipo-pj" class="pf-pj-btn text-white/50 hover:text-white">
+                Pessoa Jurídica (PJ)
+             </button>
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
