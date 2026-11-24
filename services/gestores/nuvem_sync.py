@@ -587,12 +587,16 @@ async def pull_dados_nuvem() -> dict:
                     except Exception as e_del:
                         logger.warning(f"Aviso ao aplicar exclusão remota {t_exc}:{id_exc}: {e_del}")
 
-            # Ordem hierárquica para respeitar integridade
+            # Ordem hierárquica para respeitar integridade (e garante que toda tabela de SYNC_TABLES participe do pull)
             ordem_tabelas = [
                 "pessoas", "profissionais", "clientes", "cliente_documentos", "propriedades", "propriedade_clientes",
                 "matriculas", "levantamentos", "pontos", "segmentos", "confrontantes", "confrontante_coproprietarios",
-                "pendencias", "banco_pontos", "anuencias_confrontantes", "alteracoes_sigef"
+                "confrontante_envolvidos_usufruto", "pendencias", "banco_pontos", "anuencias_confrontantes",
+                "alteracoes_sigef", "arquivos_enviados_ia"
             ]
+            for t_sync in SYNC_TABLES:
+                if t_sync not in ordem_tabelas:
+                    ordem_tabelas.append(t_sync)
 
             for t in ordem_tabelas:
                 rows = data_cloud.get(t) or []

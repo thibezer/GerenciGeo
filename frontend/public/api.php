@@ -731,19 +731,19 @@ function ensureSchema(PDO $pdo): void {
 const SYNC_TABELAS_MYSQL = [
     'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
     'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
-    'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
-    'alteracoes_sigef', 'arquivos_enviados_ia'
+    'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'confrontante_envolvidos_usufruto',
+    'cliente_documentos', 'alteracoes_sigef', 'arquivos_enviados_ia'
 ];
 
 /**
  * Prepara o MySQL para o merge por registro (updated_at) e para as tabelas extras da sincronização.
- * Idempotente e executada uma única vez (flag 'schema_sync_v5' em configuracoes).
+ * Idempotente e executada uma única vez (flag 'schema_sync_v6' em configuracoes).
  * Triggers: carimbam updated_at (UTC, ms) em edições feitas direto na nuvem; o /sync/batch define @gg_sync
  * para que os triggers não sobrescrevam o carimbo vindo do PC.
  */
 function ensureSyncSchema(PDO $pdo): string {
     try {
-        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v5' LIMIT 1");
+        $st = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'schema_sync_v6' LIMIT 1");
         $st->execute();
         $flag = $st->fetchColumn();
         if ($flag) return (string)$flag;
@@ -796,6 +796,31 @@ function ensureSyncSchema(PDO $pdo): string {
     foreach ($ddl as $sql) {
         try { $pdo->exec($sql); } catch (Exception $e) {}
     }
+
+    // Colunas de paridade SQLite <-> MySQL para evitar perda silenciosa no /sync/batch (v6)
+    $colunasParidade = [
+        ['pontos', 'alt_original', 'DOUBLE NULL'],
+        ['pontos', 'sigma_e', 'DOUBLE NULL'],
+        ['pontos', 'sigma_n', 'DOUBLE NULL'],
+        ['pontos', 'lat_corrigido', 'DOUBLE NULL'],
+        ['pontos', 'lon_corrigido', 'DOUBLE NULL'],
+        ['pontos', 'alt_corrigido', 'DOUBLE NULL'],
+        ['confrontantes', 'representante_json', 'MEDIUMTEXT NULL'],
+        ['confrontantes', 'titular_assina', 'TINYINT(1) DEFAULT 1'],
+        ['confrontantes', 'conjuge_assina', 'TINYINT(1) DEFAULT 1'],
+        ['confrontante_coproprietarios', 'assina', 'TINYINT(1) DEFAULT 1'],
+        ['confrontante_coproprietarios', 'conjuge_assina', 'TINYINT(1) DEFAULT 1'],
+        ['cliente_documentos', 'pessoa_id', 'INT NULL'],
+        ['cliente_documentos', 'uf_emissor', 'VARCHAR(10) NULL'],
+        ['cliente_documentos', 'categoria_cnh', 'VARCHAR(20) NULL'],
+        ['cliente_documentos', 'observacoes', 'TEXT NULL'],
+        ['matriculas', 'valor_itr', 'DOUBLE NULL'],
+        ['matriculas', 'matricula_origem_desenho_id', 'INT NULL'],
+    ];
+    foreach ($colunasParidade as [$tabPar, $colPar, $defPar]) {
+        addColumnSafe($pdo, $tabPar, $colPar, $defPar);
+    }
+
     $resultado = 'ok';
     foreach (SYNC_TABELAS_MYSQL as $t) {
         addColumnSafe($pdo, $t, 'updated_at', 'DATETIME(3) NULL');
@@ -816,7 +841,7 @@ function ensureSyncSchema(PDO $pdo): string {
     }
 
     try {
-        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v5', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('schema_sync_v6', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$resultado]);
     } catch (Exception $e) {}
     return $resultado;
 }
@@ -2018,10 +2043,17 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                        p.rg_uf,
                        p.naturalidade,
                        p.certidao_casamento_matricula,
-                       COALESCE((SELECT COUNT(*) FROM propriedade_clientes pc WHERE pc.cliente_id = c.id), 
-                                (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.cliente_id = c.id), 0) as total_propriedades,
-                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id) as total_documentos,
-                       (SELECT COUNT(*) FROM propriedade_clientes pc JOIN levantamentos l ON pc.propriedade_id = l.propriedade_id WHERE pc.cliente_id = c.id) as total_levantamentos
+                       (SELECT COUNT(DISTINCT prop_id) FROM (
+                            SELECT propriedade_id AS prop_id FROM propriedade_proprietarios WHERE cliente_id = c.id
+                            UNION
+                            SELECT propriedade_id AS prop_id FROM propriedade_clientes WHERE cliente_id = c.id
+                        ) u_props) as total_propriedades,
+                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id OR cd.pessoa_id = c.pessoa_id) as total_documentos,
+                       (SELECT COUNT(DISTINCT l.id) FROM levantamentos l WHERE l.propriedade_id IN (
+                            SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id
+                            UNION
+                            SELECT propriedade_id FROM propriedade_clientes WHERE cliente_id = c.id
+                        )) as total_levantamentos
                 FROM clientes c
                 JOIN pessoas p ON c.pessoa_id = p.id
                 LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
@@ -2101,10 +2133,17 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                        p.rg_uf,
                        p.naturalidade,
                        p.certidao_casamento_matricula,
-                       COALESCE((SELECT COUNT(*) FROM propriedade_clientes pc WHERE pc.cliente_id = c.id), 
-                                (SELECT COUNT(*) FROM propriedade_proprietarios pp WHERE pp.cliente_id = c.id), 0) as total_propriedades,
-                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id) as total_documentos,
-                       (SELECT COUNT(*) FROM propriedade_clientes pc JOIN levantamentos l ON pc.propriedade_id = l.propriedade_id WHERE pc.cliente_id = c.id) as total_levantamentos
+                       (SELECT COUNT(DISTINCT prop_id) FROM (
+                            SELECT propriedade_id AS prop_id FROM propriedade_proprietarios WHERE cliente_id = c.id
+                            UNION
+                            SELECT propriedade_id AS prop_id FROM propriedade_clientes WHERE cliente_id = c.id
+                        ) u_props) as total_propriedades,
+                       (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id OR cd.pessoa_id = c.pessoa_id) as total_documentos,
+                       (SELECT COUNT(DISTINCT l.id) FROM levantamentos l WHERE l.propriedade_id IN (
+                            SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id
+                            UNION
+                            SELECT propriedade_id FROM propriedade_clientes WHERE cliente_id = c.id
+                        )) as total_levantamentos
                 FROM clientes c
                 JOIN pessoas p ON c.pessoa_id = p.id
                 LEFT JOIN pessoas rep ON p.representante_legal_id = rep.id
@@ -2614,7 +2653,9 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
         $numero = trim($input['numero'] ?? ($input['numero_matricula'] ?? ''));
         $area = (float)($input['area_registrada_ha'] ?? ($input['area_ha'] ?? 0));
         $areaSigef = isset($input['area_sigef_ha']) && $input['area_sigef_ha'] !== '' ? (float)$input['area_sigef_ha'] : null;
-        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, area_sigef_ha, perimetro_m, ccir, itr, denominacao, georreferenciamento) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $valorItr = isset($input['valor_itr']) && $input['valor_itr'] !== '' ? (float)$input['valor_itr'] : null;
+        $matOrigem = isset($input['matricula_origem_desenho_id']) && $input['matricula_origem_desenho_id'] !== '' ? (int)$input['matricula_origem_desenho_id'] : null;
+        $stmt = $pdo->prepare("INSERT INTO matriculas (propriedade_id, numero, numero_matricula, livro, folha, cartorio, area_ha, area_sigef_ha, perimetro_m, ccir, itr, valor_itr, denominacao, georreferenciamento, matricula_origem_desenho_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $propId,
             $numero,
@@ -2627,10 +2668,14 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
             (float)($input['perimetro_m'] ?? 0),
             $input['codigo_ccir'] ?? ($input['ccir'] ?? null),
             $input['codigo_itr'] ?? ($input['itr'] ?? null),
+            $valorItr,
             $input['denominacao_gleba'] ?? ($input['denominacao'] ?? null),
-            $input['georreferenciamento'] ?? null
+            $input['georreferenciamento'] ?? null,
+            $matOrigem
         ]);
-        jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Matrícula criada com sucesso!'], 201);
+        $newMatId = (int)$pdo->lastInsertId();
+        touchCloudSyncTimestamp($pdo);
+        jsonResponse(['id' => $newMatId, 'message' => 'Matrícula criada com sucesso!'], 201);
     }
 
     // GET /propriedades/{id}/proprietarios (ou /clientes)
@@ -2862,7 +2907,9 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
             $oficioRi,
             (float)($input['area_total_ha'] ?? 0)
         ]);
-        jsonResponse(['id' => (int)$pdo->lastInsertId(), 'message' => 'Propriedade criada com sucesso!'], 201);
+        $newPropId = (int)$pdo->lastInsertId();
+        touchCloudSyncTimestamp($pdo);
+        jsonResponse(['id' => $newPropId, 'message' => 'Propriedade criada com sucesso!'], 201);
     }
 
     // PUT /propriedades/{id}
@@ -2904,11 +2951,17 @@ if (preg_match('#^/propriedades(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+)(?:/([0-9]+))?)
             $areaTotal,
             $propId
         ]);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['id' => $propId, 'message' => 'Propriedade atualizada com sucesso!']);
     }
 
     // DELETE /propriedades/{id}
     if ($method === 'DELETE' && $propId && !$subResource) {
+        $stLev = $pdo->prepare("SELECT COUNT(*) FROM levantamentos WHERE propriedade_id = ?");
+        $stLev->execute([(int)$propId]);
+        if ((int)$stLev->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Não é possível excluir: existem levantamentos vinculados a esta propriedade.'], 409);
+        }
         excluirComLapide($pdo, 'propriedades', (int)$propId);
         touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Propriedade excluída com sucesso!']);
@@ -2931,7 +2984,8 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
         $num = $input['numero'] ?? ($input['numero_matricula'] ?? null);
         $temAreaSigef = array_key_exists('area_sigef_ha', $input);
         $areaSigefVal = $temAreaSigef && $input['area_sigef_ha'] !== null && $input['area_sigef_ha'] !== '' ? (float)$input['area_sigef_ha'] : null;
-        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), numero_matricula = COALESCE(?, numero_matricula), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), area_sigef_ha = CASE WHEN ? THEN ? ELSE area_sigef_ha END, perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), denominacao = COALESCE(?, denominacao), georreferenciamento = COALESCE(?, georreferenciamento) WHERE id = ?");
+        $valorItr = isset($input['valor_itr']) && $input['valor_itr'] !== '' ? (float)$input['valor_itr'] : null;
+        $stmt = $pdo->prepare("UPDATE matriculas SET numero = COALESCE(?, numero), numero_matricula = COALESCE(?, numero_matricula), livro = COALESCE(?, livro), folha = COALESCE(?, folha), cartorio = COALESCE(?, cartorio), area_ha = COALESCE(?, area_ha), area_sigef_ha = CASE WHEN ? THEN ? ELSE area_sigef_ha END, perimetro_m = COALESCE(?, perimetro_m), ccir = COALESCE(?, ccir), itr = COALESCE(?, itr), valor_itr = COALESCE(?, valor_itr), denominacao = COALESCE(?, denominacao), georreferenciamento = COALESCE(?, georreferenciamento) WHERE id = ?");
         $stmt->execute([
             $num,
             $num,
@@ -2944,14 +2998,30 @@ if (preg_match('#^/matriculas/([0-9]+)(?:/([a-zA-Z0-9_-]+))?$#', $route, $matche
             isset($input['perimetro_m']) ? (float)$input['perimetro_m'] : null,
             $input['ccir'] ?? ($input['codigo_ccir'] ?? null),
             $input['itr'] ?? ($input['codigo_itr'] ?? null),
+            $valorItr,
             $input['denominacao'] ?? ($input['denominacao_gleba'] ?? null),
             $input['georreferenciamento'] ?? null,
             $matId
         ]);
+        touchCloudSyncTimestamp($pdo);
         jsonResponse(['id' => $matId, 'message' => 'Matrícula atualizada!']);
     }
 
     if ($method === 'DELETE' && !$action) {
+        $stDer = $pdo->prepare("SELECT COUNT(*) FROM matriculas WHERE matricula_origem_desenho_id = ?");
+        $stDer->execute([(int)$matId]);
+        if ((int)$stDer->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Não é possível excluir: esta matrícula é origem do desenho de outra(s) matrícula(s).'], 409);
+        }
+        $stPt = $pdo->prepare("SELECT COUNT(*) FROM pontos WHERE matricula_id = ?");
+        $stPt->execute([(int)$matId]);
+        $stSeg = $pdo->prepare("SELECT COUNT(*) FROM segmentos WHERE matricula_id = ?");
+        $stSeg->execute([(int)$matId]);
+        $stBp = $pdo->prepare("SELECT COUNT(*) FROM banco_pontos WHERE matricula_id = ?");
+        $stBp->execute([(int)$matId]);
+        if ((int)$stPt->fetchColumn() > 0 || (int)$stSeg->fetchColumn() > 0 || (int)$stBp->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Não é possível excluir a matrícula pois existem pontos, segmentos ou pontos homologados vinculados.'], 409);
+        }
         excluirComLapide($pdo, 'matriculas', (int)$matId);
         touchCloudSyncTimestamp($pdo);
         jsonResponse(['message' => 'Matrícula excluída com sucesso!']);
@@ -2986,7 +3056,7 @@ if (preg_match('#^/levantamentos(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route,
 
     // GET /levantamentos/{id}/matriculas
     if ($method === 'GET' && $levId && $action === 'matriculas') {
-        $stmt = $pdo->prepare("SELECT m.*, COALESCE(m.numero, m.numero_matricula) as numero FROM matriculas m JOIN levantamento_matriculas lm ON m.id = lm.matricula_id WHERE lm.levantamento_id = ?");
+        $stmt = $pdo->prepare("SELECT m.*, COALESCE(m.numero, m.numero_matricula) as numero FROM matriculas m JOIN levantamentos l ON m.propriedade_id = l.propriedade_id WHERE l.id = ? ORDER BY m.id ASC");
         $stmt->execute([$levId]);
         jsonResponse($stmt->fetchAll());
     }
@@ -3465,15 +3535,11 @@ if ($route === '/sync/batch' && $method === 'POST') {
         }
         if (!empty($data['pontos'])) {
             foreach ($data['pontos'] as &$pt) {
-                $lat = $pt['lat_corrigido'] ?? ($pt['lat'] ?? null);
-                $lon = $pt['lon_corrigido'] ?? ($pt['lon'] ?? null);
-                $alt = $pt['alt_corrigido'] ?? ($pt['alt'] ?? null);
+                // Preserva lat/lon/alt brutos e lat_corrigido/lon_corrigido/alt_corrigido separadamente
+                $altEfetiva = $pt['alt_corrigido'] ?? ($pt['alt'] ?? null);
                 $este = $pt['e_original'] ?? ($pt['este'] ?? null);
                 $norte = $pt['n_original'] ?? ($pt['norte'] ?? null);
-                $pt['lat'] = $lat;
-                $pt['lon'] = $lon;
-                $pt['alt'] = $alt;
-                $pt['altitude'] = $alt;
+                $pt['altitude'] = $altEfetiva;
                 $pt['este'] = $este;
                 $pt['norte'] = $norte;
             }
@@ -3500,6 +3566,9 @@ if ($route === '/sync/batch' && $method === 'POST') {
         }
         if (!empty($data['confrontante_coproprietarios'])) {
             syncTableRows($pdo, 'confrontante_coproprietarios', $data['confrontante_coproprietarios']);
+        }
+        if (!empty($data['confrontante_envolvidos_usufruto'])) {
+            syncTableRows($pdo, 'confrontante_envolvidos_usufruto', $data['confrontante_envolvidos_usufruto']);
         }
         if (!empty($data['cliente_documentos'])) {
             foreach ($data['cliente_documentos'] as &$cd) {
@@ -3589,12 +3658,7 @@ if ($route === '/sync/pull' && $method === 'GET') {
     $pdo = getDb();
     $authUser = requireAuth($pdo);
 
-    $tables = [
-        'pessoas', 'profissionais', 'clientes', 'propriedades', 'propriedade_proprietarios',
-        'matriculas', 'levantamentos', 'pontos', 'segmentos', 'pendencias', 'confrontantes',
-        'banco_pontos', 'anuencias_confrontantes', 'confrontante_coproprietarios', 'cliente_documentos',
-        'alteracoes_sigef', 'arquivos_enviados_ia'
-    ];
+    $tables = SYNC_TABELAS_MYSQL;
 
     $payload = [];
     foreach ($tables as $t) {

@@ -1888,8 +1888,8 @@ def migrar_integridade_confrontantes_e_indices(conn):
 TABELAS_SINCRONIZAVEIS = [
     "pessoas", "profissionais", "clientes", "cliente_documentos", "propriedades", "propriedade_clientes",
     "matriculas", "levantamentos", "pontos", "segmentos", "pendencias", "confrontantes",
-    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios", "alteracoes_sigef",
-    "arquivos_enviados_ia"
+    "banco_pontos", "anuencias_confrontantes", "confrontante_coproprietarios", "confrontante_envolvidos_usufruto",
+    "alteracoes_sigef", "arquivos_enviados_ia"
 ]
 
 _SQL_AGORA_UTC = "strftime('%Y-%m-%d %H:%M:%f','now')"
