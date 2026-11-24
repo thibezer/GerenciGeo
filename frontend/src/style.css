@@ -794,6 +794,18 @@ ui-modal#modal-cliente ui-select::part(select) {
   border-radius: 5px !important;
 }
 
+ui-modal#modal-cliente ui-campo-texto::part(wrapper),
+ui-modal#modal-cliente ui-select::part(trigger) {
+  padding-left: 7px !important;
+  padding-right: 7px !important;
+  gap: 0 !important;
+}
+
+ui-modal#modal-cliente ui-campo-texto::part(input) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
 /* Formulário de cliente: leitura confortável e conteúdo rolável em telas baixas. */
 ui-modal#modal-cliente::part(body) {
   max-height: calc(100vh - 150px);

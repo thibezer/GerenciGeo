@@ -108,8 +108,8 @@ export const renderClientesTemplate = (): string => `
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
           <div id="bloco-campos-pf" class="space-y-2">
-             <!-- Card 1: Dados Pessoais -->
-             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
+             <!-- Bloco 1: Dados Pessoais -->
+             <div class="space-y-2">
                 <div class="flex items-center justify-between">
                    <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados Pessoais</h5>
                 </div>
@@ -169,8 +169,8 @@ export const renderClientesTemplate = (): string => `
                 </div>
              </div>
 
-             <!-- Card 2: Documentos (RG & CNH Opcional) -->
-             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
+             <!-- Bloco 2: Documentos (RG & CNH Opcional) -->
+             <div class="pt-2 border-t border-white/5 space-y-2">
                 <div class="flex items-center justify-between">
                    <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Documentos (RG & CNH Opcional)</h5>
                 </div>
@@ -220,7 +220,7 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA JURÍDICA (Oculta por padrão) -->
-          <div id="bloco-campos-pj" class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2 hidden">
+          <div id="bloco-campos-pj" class="space-y-2 hidden">
              <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados da Empresa (Pessoa Jurídica)</h5>
              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-[10px] gap-y-2 items-end">
                 <div>
@@ -259,7 +259,7 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CÔNJUGE & REGIME NOTARIAL (Visível para Casado e União Estável) -->
-          <div id="secao-conjuge" class="bg-mint-vibrant/[0.02] border border-mint-vibrant/20 rounded-lg p-2.5 space-y-2 hidden">
+          <div id="secao-conjuge" class="pt-2 border-t border-mint-vibrant/20 space-y-2 hidden">
              <div class="flex items-center justify-between">
                 <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge & Regime Notarial</h5>
                 <span class="text-[9px] text-white/45 font-mono">Qualificação Notarial</span>
@@ -367,7 +367,7 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CONTATO E LOCALIZAÇÃO -->
-          <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
+          <div class="pt-2 border-t border-white/5 space-y-2">
              <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
              <!-- Linha 1: Telefone (1) + Email (1) + Senha GOV (1) -->
              <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
