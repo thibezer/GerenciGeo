@@ -92,19 +92,19 @@ export const renderClientesTemplate = (): string => `
     </div>
 
     <!-- MODAL DE CADASTRO / EDIÇÃO -->
-    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" tamanho="grande" class="modal-compact-header modal-cliente-amplo" style="--ui-modal-largura: 920px; max-width: 920px; --ui-modal-padding-x: 24px;">
-       <form id="form-cliente" class="space-y-3" style="--ui-altura-minima: 32px; --ui-campo-altura: 32px;">
+    <ui-modal id="modal-cliente" titulo="Cadastro de Cliente" tamanho="grande" class="modal-compact-header modal-cliente-amplo" style="--ui-modal-largura: 920px; max-width: 920px; --ui-modal-padding-x: 14px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px; --ui-modal-body-py: 14px; --ui-modal-footer-py: 6px; --ui-modal-footer-min-h: 38px;">
+       <form id="form-cliente" class="space-y-2" style="--ui-altura-minima: 26px; --ui-campo-altura: 26px;">
           <input type="hidden" name="tipo_pessoa" id="input-tipo-pessoa" value="PF">
 
           <!-- Barra Superior: Tipo de Pessoa + Legenda de Obrigatórios -->
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-white/10">
              <div class="flex items-center gap-3">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-white/60">Tipo de Pessoa</span>
                 <div class="flex items-center gap-1 p-0.5 bg-black/40 border border-white/10 rounded-md">
-                   <button type="button" id="btn-tipo-pf" class="px-3 py-1 text-[11px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
+                   <button type="button" id="btn-tipo-pf" class="px-3 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer bg-mint-vibrant text-forest-deep shadow-sm">
                       Pessoa Física (PF)
                    </button>
-                   <button type="button" id="btn-tipo-pj" class="px-3 py-1 text-[11px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
+                   <button type="button" id="btn-tipo-pj" class="px-3 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer text-white/50 hover:text-white">
                       Pessoa Jurídica (PJ)
                    </button>
                 </div>
@@ -113,15 +113,15 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA FÍSICA -->
-          <div id="bloco-campos-pf" class="space-y-3">
+          <div id="bloco-campos-pf" class="space-y-2">
              <!-- Card 1: Dados Pessoais -->
-             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-3 space-y-2.5">
+             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
                 <div class="flex items-center justify-between">
                    <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados Pessoais</h5>
                 </div>
 
                 <!-- Linha 1: Nome Completo (2) + Sexo/Gênero (1) -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                    <div class="sm:col-span-2">
                       <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Nome Completo <span class="text-mint-vibrant">*</span></label>
                       <ui-campo-texto name="nome_completo" id="input-nome-completo" placeholder="Ex: João da Silva" required></ui-campo-texto>
@@ -136,7 +136,7 @@ export const renderClientesTemplate = (): string => `
                 </div>
 
                 <!-- Linha 2: CPF (1) + Data Nasc. (1) + Estado Civil (1) -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                    <div>
                       <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">CPF <span class="text-mint-vibrant">*</span></label>
                       <ui-campo-texto name="cpf_cnpj" id="input-cpf-cnpj" placeholder="000.000.000-00" required></ui-campo-texto>
@@ -159,7 +159,7 @@ export const renderClientesTemplate = (): string => `
                 </div>
 
                 <!-- Linha 3: Profissão (1) + Nacionalidade (1) + Naturalidade (1) -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                    <div>
                       <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Profissão</label>
                       <ui-campo-texto name="profissao" placeholder="Ex: Produtor Rural"></ui-campo-texto>
@@ -176,13 +176,13 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Card 2: Documentos (RG & CNH Opcional) -->
-             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-3 space-y-2.5">
+             <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
                 <div class="flex items-center justify-between">
                    <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Documentos (RG & CNH Opcional)</h5>
                 </div>
 
                 <!-- Linha RG: Número + Órgão + UF -->
-                <div class="grid grid-cols-12 gap-2.5 items-end">
+                <div class="grid grid-cols-12 gap-x-[10px] gap-y-2 items-end">
                    <div class="col-span-12 sm:col-span-4">
                       <div class="flex items-center justify-between mb-1 gap-2">
                          <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70">RG (Número)</label>
@@ -208,7 +208,7 @@ export const renderClientesTemplate = (): string => `
                 </div>
 
                 <!-- Linha CNH Complementar -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                    <div>
                       <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">CNH Categoria</label>
                       <ui-campo-texto name="cnh_categoria" placeholder="Ex: AB"></ui-campo-texto>
@@ -226,9 +226,9 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: IDENTIFICAÇÃO PESSOA JURÍDICA (Oculta por padrão) -->
-          <div id="bloco-campos-pj" class="bg-white/[0.02] border border-white/10 rounded-lg p-3 space-y-2.5 hidden">
+          <div id="bloco-campos-pj" class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2 hidden">
              <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados da Empresa (Pessoa Jurídica)</h5>
-             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Razão Social <span class="text-mint-vibrant">*</span></label>
                    <ui-campo-texto name="razao_social" id="input-razao-social" placeholder="Razão social da empresa"></ui-campo-texto>
@@ -238,7 +238,7 @@ export const renderClientesTemplate = (): string => `
                    <ui-campo-texto name="nome_fantasia" id="input-nome-fantasia" placeholder="Nome fantasia (opcional)"></ui-campo-texto>
                 </div>
              </div>
-             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+             <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">CNPJ <span class="text-mint-vibrant">*</span></label>
                    <ui-campo-texto name="cnpj_pj" id="input-cnpj-pj" placeholder="00.000.000/0000-00"></ui-campo-texto>
@@ -265,14 +265,14 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CÔNJUGE & REGIME NOTARIAL (Visível para Casado e União Estável) -->
-          <div id="secao-conjuge" class="bg-mint-vibrant/[0.02] border border-mint-vibrant/20 rounded-lg p-3 space-y-2.5 hidden">
+          <div id="secao-conjuge" class="bg-mint-vibrant/[0.02] border border-mint-vibrant/20 rounded-lg p-2.5 space-y-2 hidden">
              <div class="flex items-center justify-between">
                 <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Dados do Cônjuge & Regime Notarial</h5>
                 <span class="text-[9px] text-white/45 font-mono">Qualificação Notarial</span>
              </div>
 
              <!-- Linha 1: Nome Cônjuge (2) + Gênero (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div class="sm:col-span-2">
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Nome do Cônjuge</label>
                    <ui-campo-texto name="nome_conjuge" placeholder="Nome completo do(a) esposo(a)"></ui-campo-texto>
@@ -287,7 +287,7 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Linha 2: CPF (1) + RG (1) + Profissão (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">CPF do Cônjuge</label>
                    <ui-campo-texto name="cpf_conjuge" placeholder="000.000.000-00"></ui-campo-texto>
@@ -321,7 +321,7 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Linha 3: Nacionalidade (1) + Regime de Bens (1) + Data Celebração (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Nacionalidade</label>
                    <ui-campo-texto name="nacionalidade_conjuge" id="input-nacionalidade-conjuge" value="Brasileira" placeholder="Ex: Brasileira"></ui-campo-texto>
@@ -344,7 +344,7 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Linha 4: Matrícula Certidão (1) + Cartório Civil (1) + Assento (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Matrícula Certidão (32 díg.)</label>
                    <ui-campo-texto name="certidao_casamento_matricula" placeholder="Nº da Matrícula"></ui-campo-texto>
@@ -373,10 +373,10 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- SEÇÃO: CONTATO E LOCALIZAÇÃO -->
-          <div class="bg-white/[0.02] border border-white/10 rounded-lg p-3 space-y-2.5">
+          <div class="bg-white/[0.02] border border-white/10 rounded-lg p-2.5 space-y-2">
              <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Contato & Localização</h5>
              <!-- Linha 1: Telefone (1) + Email (1) + Senha GOV (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Telefone / Celular</label>
                    <ui-campo-texto name="telefone" placeholder="(99) 99999-9999"></ui-campo-texto>
@@ -395,7 +395,7 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Linha 2: CEP (1) + Logradouro (2) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1 flex items-center justify-between">
                       <span>CEP</span>
@@ -410,7 +410,7 @@ export const renderClientesTemplate = (): string => `
              </div>
 
              <!-- Linha 3: Número (1) + Bairro (1) + Cidade / UF (1) -->
-             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+             <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-[10px] gap-y-2 items-end">
                 <div>
                    <label class="block text-[10px] font-semibold tracking-wider uppercase text-white/70 mb-1">Número / Compl.</label>
                    <ui-campo-texto name="numero_endereco" placeholder="Ex: 100, Apto 2"></ui-campo-texto>
@@ -463,17 +463,17 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
        </form>
-       <div slot="rodape" class="flex justify-end items-center gap-3 w-full py-1">
-          <ui-botao variante="secundario" id="btn-cancelar-cliente" class="min-w-[120px]">Cancelar</ui-botao>
-          <ui-botao variante="primario" id="btn-salvar-cliente" class="min-w-[150px]">Salvar Cliente</ui-botao>
+       <div slot="rodape" class="flex justify-end items-center gap-2 w-full" style="--ui-altura-minima: 26px;">
+          <ui-botao variante="secundario" id="btn-cancelar-cliente" class="min-w-[110px]">Cancelar</ui-botao>
+          <ui-botao variante="primario" id="btn-salvar-cliente" class="min-w-[140px]">Salvar Cliente</ui-botao>
        </div>
     </ui-modal>
 
     <!-- MODAL DE DETALHES (FICHA COMPACTA: SEÇÕES CONTÍNUAS, RÓTULO/VALOR EM GRADE ÚNICA) -->
-    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente" tamanho="extra-grande" class="modal-amplo" style="--ui-modal-largura: 780px; max-width: 780px;">
-       <div class="space-y-3">
+    <ui-modal id="modal-detalhes-cliente" titulo="Detalhes do Cliente" tamanho="extra-grande" class="modal-amplo" style="--ui-modal-largura: 780px; max-width: 780px; --ui-modal-padding-x: 14px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px; --ui-modal-body-py: 14px;">
+       <div class="space-y-2">
           <!-- Cabeçalho: identidade + indicadores + ações -->
-          <div class="flex items-start justify-between pb-3 border-b border-white/5 gap-2">
+          <div class="flex items-start justify-between pb-2 border-b border-white/5 gap-2">
              <div class="flex items-center gap-3 min-w-0">
                 <ui-avatar id="det-cli-avatar" nome="??" tamanho="md"></ui-avatar>
                 <div class="min-w-0">
@@ -508,16 +508,16 @@ export const renderClientesTemplate = (): string => `
           </div>
 
           <!-- Abas de Navegação -->
-          <div class="flex border-b border-white/5 overflow-x-auto scrollbar-none gap-1">
-             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap" data-tab-det="tab-det-dados">Dados Cadastrais</button>
-             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-docs">Documentos & Anexos</button>
-             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-meta">Metadados</button>
-             <button class="px-3 py-1.5 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
+          <div class="-mx-[14px] px-[14px] h-9 flex items-stretch border-b border-white/5 overflow-x-auto scrollbar-none gap-1">
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-det whitespace-nowrap cursor-pointer" data-tab-det="tab-det-dados">Dados Cadastrais</button>
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap cursor-pointer" data-tab-det="tab-det-docs">Documentos & Anexos</button>
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap cursor-pointer" data-tab-det="tab-det-meta">Metadados</button>
+             <button class="px-3 h-full text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white transition-colors tab-btn-det whitespace-nowrap cursor-pointer" data-tab-det="tab-det-historico">Histórico & Auditoria</button>
           </div>
 
-          <div class="space-y-4">
+          <div class="space-y-2.5">
              <!-- ABA 1: DADOS CADASTRAIS — seções contínuas, sem caixas aninhadas -->
-             <div id="tab-det-dados" class="tab-content-det space-y-4">
+             <div id="tab-det-dados" class="tab-content-det space-y-2.5">
 
                 <!-- Empresa (somente PJ) -->
                 <section id="det-bloco-pj" class="det-sec hidden">
