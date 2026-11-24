@@ -605,7 +605,9 @@ export const mesaTrabalhoRoute: RouteDef = {
           try {
             ctx.triagemMap.invalidateSize();
           } catch (e) {}
-          const pontosMat = ctx.pontosList.filter(p => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
+          const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
+          const effectiveMatId = (matAtiva && matAtiva.matricula_origem_desenho_id) ? matAtiva.matricula_origem_desenho_id : ctx.currentMatriculaId;
+          const pontosMat = ctx.pontosList.filter(p => p && String(p.matricula_id) === String(effectiveMatId));
           const validCoords = pontosMat.filter(p => p.lat && p.lon && p.lat !== 0 && p.lon !== 0).map(p => L.latLng(p.lat, p.lon));
           if (validCoords.length > 0 && ctx.triagemMap) {
             const bounds = L.latLngBounds(validCoords);
@@ -748,12 +750,13 @@ export const mesaTrabalhoRoute: RouteDef = {
         ? ctx.obterPontosParaOrdenacao()
         : (ctx.pontosList || []).filter(p => p && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)));
 
-      if (ctx.currentMatriculaId) {
-        pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(ctx.currentMatriculaId));
-      }
-
       const matAtiva = ctx.matriculasList.find((m: any) => String(m.id) === String(ctx.currentMatriculaId));
       const effectiveMatId = (matAtiva && matAtiva.matricula_origem_desenho_id) ? matAtiva.matricula_origem_desenho_id : ctx.currentMatriculaId;
+
+      if (effectiveMatId) {
+        pontosMat = pontosMat.filter((p: any) => p && String(p.matricula_id) === String(effectiveMatId));
+      }
+
       const segmentosMat = effectiveMatId
         ? (ctx.segmentosList || []).filter((s: any) => String(s.matricula_id) === String(effectiveMatId))
         : (ctx.segmentosList || []);

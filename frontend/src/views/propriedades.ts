@@ -1273,18 +1273,18 @@ export const propriedadesRoute: RouteDef = {
 
        const renderOpcoes = (termo: string) => {
           const t = termo.toLowerCase();
-          const filtrados = todosClientesList.filter(c => 
-             c.nome_completo.toLowerCase().includes(t) ||
-             c.cpf_cnpj.includes(t)
+          const filtrados = todosClientesList.filter(c =>
+             (c.nome_completo || '').toLowerCase().includes(t) ||
+             (c.cpf_cnpj || '').toLowerCase().includes(t)
           );
 
           if (filtrados.length === 0) {
              listaFlutuante.innerHTML = '<div class="p-2.5 text-xs text-white/30 italic">Nenhum cliente localizado.</div>';
           } else {
              listaFlutuante.innerHTML = filtrados.map(c => `
-                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${escapeHtml(c.nome_completo)}">
-                   <span class="font-bold text-white">${escapeHtml(c.nome_completo)}</span>
-                   <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${escapeHtml(c.cpf_cnpj)}</span>
+                <div class="opcao-vinc-item p-2 hover:bg-mint-vibrant/10 cursor-pointer text-xs transition-colors flex flex-col" data-id="${c.id}" data-nome="${escapeHtml(c.nome_completo || '')}">
+                   <span class="font-bold text-white">${escapeHtml(c.nome_completo || '')}</span>
+                   <span class="text-[9px] text-white/40 font-mono mt-0.5">Doc: ${escapeHtml(c.cpf_cnpj || 'Sem CPF/CNPJ')}</span>
                 </div>
              `).join('');
 

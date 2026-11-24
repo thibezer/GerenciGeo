@@ -62,9 +62,10 @@ class ShapefileExporter:
 
         # 3. Busca os proprietários (clientes vinculados à propriedade) e concatena seus nomes
         query_proprietarios = """
-            SELECT c.nome_completo, pc.percentual_participacao
+            SELECT p.nome AS nome_completo, pc.percentual_participacao
             FROM propriedade_clientes pc
             JOIN clientes c ON pc.cliente_id = c.id
+            JOIN pessoas p ON c.pessoa_id = p.id
             WHERE pc.propriedade_id = ?
         """
         rows_proprietarios = execute_query(query_proprietarios, params=(propriedade_id,), fetch_all=True)
@@ -108,9 +109,6 @@ class ShapefileExporter:
 
         if not lons_validas:
             raise ValueError("Não há coordenadas de longitude válidas para determinar o fuso UTM.")
-
-        lon_media = sum(lons_validas) / len(lons_validas)
-        from services.processamento.geoprocessamento import calcular_zona_utm_segura
 
         # O sistema de projeção padrão é SIRGAS 2000 / UTM Zone 22S (EPSG:31982) incondicionalmente para os limites Shapefile exportados do projeto.
         zona_utm = 22
@@ -243,8 +241,8 @@ class ShapefileExporter:
             w_poly.field("AREA_HA", "N", size=12, decimal=4)
             w_poly.field("CCIR", "C", size=30)
             w_poly.field("ITR", "C", size=30)
-            w_poly.field("PROFISSIONA", "C", size=100)
-            w_poly.field("RT_REGISTRO", "C", size=50)
+            w_poly.field("PROFISSION", "C", size=100)
+            w_poly.field("RT_REGISTR", "C", size=50)
             w_poly.field("RT_CREDENC", "C", size=50)
             w_poly.field("PROPRIETAR", "C", size=250)
 
@@ -265,7 +263,7 @@ class ShapefileExporter:
                 lev_data["municipio"],
                 lev_data["uf"],
                 mat_data["area_ha"] or 0.0,
-                mat_data["ccir"] or "Não Informado",
+                mat_data["ccir"] or lev_data.get("codigo_ccir") or "Não Informado",
                 mat_data["itr"] or "Não Informado",
                 lev_data["profissional_nome"],
                 lev_data["profissional_registro"],

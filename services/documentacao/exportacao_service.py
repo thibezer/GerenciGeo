@@ -112,17 +112,43 @@ class ExportacaoService:
             prop_data = dict(prop_row) if prop_row else {}
 
             cli_rows = execute_query(
-                "SELECT c.*, pc.percentual_participacao FROM propriedade_clientes pc JOIN clientes c ON pc.cliente_id = c.id WHERE pc.propriedade_id = ?",
+                """
+                SELECT c.*, p.nome AS nome_completo, p.cpf_cnpj, p.rg AS rg_ie,
+                       p.tipo_pessoa, p.razao_social, p.nome_fantasia,
+                       p.nacionalidade, p.profissao, p.estado_civil, p.regime_bens,
+                       p.endereco_completo, p.nome_conjuge, p.cpf_conjuge, p.rg_conjuge,
+                       pc.percentual_participacao
+                FROM propriedade_clientes pc
+                JOIN clientes c ON pc.cliente_id = c.id
+                JOIN pessoas p ON c.pessoa_id = p.id
+                WHERE pc.propriedade_id = ?
+                """,
                 params=(propriedade_id,), fetch_all=True
             )
-            clientes = [dict(c) for c in cli_rows]
+            clientes = []
+            for c in cli_rows:
+                c_dict = dict(c)
+                c_dict.pop("senha_gov", None)
+                clientes.append(c_dict)
 
             # matriculas
             mat_rows = execute_query("SELECT * FROM matriculas WHERE propriedade_id = ?", params=(propriedade_id,), fetch_all=True)
             matriculas = [dict(m) for m in mat_rows]
 
             # confrontantes
-            conf_rows = execute_query("SELECT * FROM confrontantes WHERE levantamento_id = ?", params=(levantamento_id,), fetch_all=True)
+            conf_rows = execute_query(
+                """
+                SELECT cf.*,
+                       COALESCE(cf.nome, p.nome) AS nome_resolvido,
+                       COALESCE(cf.cpf_cnpj, p.cpf_cnpj) AS cpf_cnpj_resolvido,
+                       COALESCE(cf.rg, p.rg) AS rg_resolvido,
+                       COALESCE(cf.endereco_completo, p.endereco_completo) AS endereco_resolvido
+                FROM confrontantes cf
+                LEFT JOIN pessoas p ON cf.pessoa_id = p.id
+                WHERE cf.levantamento_id = ?
+                """,
+                params=(levantamento_id,), fetch_all=True
+            )
             confrontantes = [dict(c) for c in conf_rows]
 
             # pontos
@@ -166,7 +192,10 @@ class ExportacaoService:
         método de posicionamento, tipo de limite, confrontante, CNS e matrícula do confrontante.
         """
         query_pontos = """
-            SELECT p.id, p.nome_vertice, p.codigo_sigef, p.tipo_ponto, p.lat, p.lon, p.alt,
+            SELECT p.id, p.nome_vertice, p.codigo_sigef, p.tipo_ponto,
+                   COALESCE(p.lat_corrigido, p.lat) AS lat,
+                   COALESCE(p.lon_corrigido, p.lon) AS lon,
+                   COALESCE(p.alt_corrigido, p.alt) AS alt,
                    p.sigma_lat, p.sigma_lon, p.sigma_alt, p.sigma_e, p.sigma_n, p.sigma_z,
                    p.ordem_caminhamento, p.matricula_id, p.confrontante_id,
                    p.metodo_posicionamento,
