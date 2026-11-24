@@ -147,10 +147,10 @@ export const propriedadesRoute: RouteDef = {
     </div>
 
     <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
-    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px; --ui-modal-body-py: 0px;">
+    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 14px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px; --ui-modal-body-py: 0px;">
        <div class="flex flex-col h-full overflow-hidden">
           <!-- Abas de Navegação (mesma altura da linha 1) -->
-          <div class="-mx-5 px-5 h-9 flex items-stretch border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none shrink-0 gap-1">
+          <div class="-mx-[14px] px-[14px] h-9 flex items-stretch border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none shrink-0 gap-1">
              <button class="px-3 h-full text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
                 <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                 Dados Gerais & Anexos
@@ -168,34 +168,34 @@ export const propriedadesRoute: RouteDef = {
              <button type="button" class="hidden" id="btn-fechar-modal-prop"></button>
           </div>
           
-          <!-- Conteúdo com Scroll -->
-          <div class="p-4 overflow-y-auto flex-1 space-y-3">
+          <!-- Conteúdo com Scroll (margem superior/inferior igual às laterais: 14px) -->
+          <div class="py-[14px] px-0 overflow-y-auto flex-1 space-y-2">
              <!-- ABA 1: DADOS GERAIS & ANEXOS -->
-             <div id="tab-prop-dados" class="tab-content-prop space-y-4">
+             <div id="tab-prop-dados" class="tab-content-prop space-y-2">
                 <!-- Formulário de Dados Cadastrais -->
-                <form id="form-propriedade" class="space-y-2.5">
+                <form id="form-propriedade" class="space-y-2">
                    <div class="flex items-center justify-between pb-1 border-b border-white/5">
                       <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Identificação Cadastral</span>
                       <span class="text-[9px] text-white/30 font-mono">* Campos obrigatórios</span>
                    </div>
 
-                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2.5">
+                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-[10px] gap-y-2">
                       <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Nome da Propriedade *</label>
-                         <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-8 font-medium" placeholder="Ex: Fazenda Três Barras">
+                         <input type="text" name="nome_propriedade" required class="glass-input w-full text-xs h-[26px] font-medium" placeholder="Ex: Fazenda Três Barras">
                       </div>
                       <div>
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Município *</label>
-                         <input type="text" name="municipio" required list="lista-municipios-cartorios" autocomplete="off" class="glass-input w-full text-xs h-8" placeholder="Ex: Umuarama">
+                         <input type="text" name="municipio" required list="lista-municipios-cartorios" autocomplete="off" class="glass-input w-full text-xs h-[26px]" placeholder="Ex: Umuarama">
                          <datalist id="lista-municipios-cartorios"></datalist>
                       </div>
                       <div>
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">UF *</label>
-                         <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-8 uppercase font-mono" placeholder="PR">
+                         <input type="text" name="uf" required maxlength="2" class="glass-input w-full text-xs h-[26px] uppercase font-mono" placeholder="PR">
                       </div>
                       <div class="col-span-2 sm:col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Ofício do RI (Cartório)</label>
-                         <input type="text" name="oficio_ri" list="lista-oficios-ri" autocomplete="off" class="glass-input w-full text-xs h-8" placeholder="Ex: 1º Ofício, 2º Ofício, Único">
+                         <input type="text" name="oficio_ri" list="lista-oficios-ri" autocomplete="off" class="glass-input w-full text-xs h-[26px]" placeholder="Ex: 1º Ofício, 2º Ofício, Único">
                          <datalist id="lista-oficios-ri">
                             <option value="1º Ofício"></option>
                             <option value="2º Ofício"></option>
@@ -205,28 +205,28 @@ export const propriedadesRoute: RouteDef = {
                       </div>
                       <div class="col-span-2 sm:col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">CNS do RI (XX.XXX-X)</label>
-                         <input type="text" name="cns_ri" list="lista-cns-ri" inputmode="numeric" maxlength="8" autocomplete="off" class="glass-input w-full text-xs h-8 font-mono text-amber-300" placeholder="00.000-0">
+                         <input type="text" name="cns_ri" list="lista-cns-ri" inputmode="numeric" maxlength="8" autocomplete="off" class="glass-input w-full text-xs h-[26px] font-mono text-amber-300" placeholder="00.000-0">
                          <datalist id="lista-cns-ri"></datalist>
                       </div>
                       <div id="ri-municipio-sugestoes" class="col-span-2 sm:col-span-4 hidden text-[10px] space-y-1.5"></div>
                       <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CAR</label>
-                         <input type="text" name="codigo_car" class="glass-input w-full text-xs h-8 font-mono text-mint-vibrant" placeholder="PR-4128104-58A2...">
+                         <input type="text" name="codigo_car" class="glass-input w-full text-xs h-[26px] font-mono text-mint-vibrant" placeholder="PR-4128104-58A2...">
                       </div>
                       <div class="col-span-2">
                          <label class="block text-[9px] text-white/50 uppercase font-bold mb-1">Código do CCIR</label>
-                         <input type="text" name="codigo_ccir" class="glass-input w-full text-xs h-8 font-mono text-blue-400" placeholder="000.000.000.000-0">
+                         <input type="text" name="codigo_ccir" class="glass-input w-full text-xs h-[26px] font-mono text-blue-400" placeholder="000.000.000.000-0">
                       </div>
                    </div>
 
-                   <div class="flex items-center justify-between gap-2 pt-1">
-                      <button type="button" class="hidden h-8 px-3 rounded-lg text-xs font-medium text-red-400/80 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 flex items-center gap-1.5 transition-colors cursor-pointer" id="btn-prop-excluir" title="Excluir esta propriedade">
+                   <div class="flex items-center justify-between gap-2 pt-0.5">
+                      <button type="button" class="hidden h-[26px] px-3 rounded-lg text-xs font-medium text-red-400/80 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 flex items-center gap-1.5 transition-colors cursor-pointer" id="btn-prop-excluir" title="Excluir esta propriedade">
                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                          Excluir propriedade
                       </button>
                       <div class="flex items-center gap-2 ml-auto">
-                         <button type="button" class="btn-secondary h-8 text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
-                         <button type="submit" class="btn-primary h-8 text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
+                         <button type="button" class="btn-secondary h-[26px] text-xs py-0 px-4 cursor-pointer" id="btn-cancelar-prop">Cancelar</button>
+                         <button type="submit" class="btn-primary h-[26px] text-xs py-0 px-5 font-bold cursor-pointer" id="btn-submit-prop">
                             Salvar Alterações
                          </button>
                       </div>
@@ -234,13 +234,13 @@ export const propriedadesRoute: RouteDef = {
                 </form>
 
                 <!-- Seção de Anexos Físicos (CAR & CCIR) -->
-                <div id="secao-anexos-propriedade" class="space-y-2 pt-3 border-t border-white/5">
+                <div id="secao-anexos-propriedade" class="space-y-2 pt-2 border-t border-white/5">
                    <div class="flex items-center justify-between">
                       <span class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider">Documentos Digitais & Certidões</span>
                       <span class="text-[9px] text-white/30 font-mono">Upload e gestão de arquivos</span>
                    </div>
 
-                   <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                   <div class="grid grid-cols-1 md:grid-cols-2 gap-[10px]">
                       <!-- Bloco CAR -->
                       <div class="flex flex-col space-y-1.5">
                          <div class="flex items-center justify-between">
@@ -309,7 +309,7 @@ export const propriedadesRoute: RouteDef = {
              </div>
              
              <!-- ABA 2: PROPRIETÁRIOS -->
-             <div id="tab-prop-proprietarios" class="tab-content-prop hidden space-y-3">
+             <div id="tab-prop-proprietarios" class="tab-content-prop hidden space-y-2">
                 <!-- Aviso se propriedade for nova -->
                 <div id="aviso-proprietarios-nova" class="hidden py-8 text-center">
                    <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
@@ -317,17 +317,17 @@ export const propriedadesRoute: RouteDef = {
                    <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para habilitar o vínculo de coproprietários e quotas.</p>
                 </div>
 
-                <div id="conteudo-tab-proprietarios" class="space-y-3">
+                <div id="conteudo-tab-proprietarios" class="space-y-2">
                    <!-- Formulário de vínculo compacto -->
-                   <div class="space-y-2.5">
+                   <div class="space-y-2">
                       <div class="flex items-center justify-between">
                          <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none">Vincular Proprietário</h5>
                          <div id="badge-status-composicao"></div>
                       </div>
-                      <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-3 items-end">
+                      <form id="form-vincular-proprietario" class="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-x-[10px] gap-y-2 items-end">
                          <div class="relative">
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Buscar Cliente</label>
-                            <input type="text" id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." class="glass-input w-full text-xs h-8 pr-7" autocomplete="off" required>
+                            <input type="text" id="busca-proprietario-cliente" placeholder="Digite nome ou CPF..." class="glass-input w-full text-xs h-[26px] pr-7" autocomplete="off" required>
                             <input type="hidden" id="vinc-cliente-id" required>
                             <div id="lista-vinc-clientes" class="absolute left-0 right-0 mt-1 max-h-36 overflow-y-auto bg-[#0a100d] border border-white/10 rounded shadow-2xl z-50 hidden divide-y divide-white/5">
                                <!-- Opções dinâmicas -->
@@ -335,9 +335,9 @@ export const propriedadesRoute: RouteDef = {
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Participação (%)</label>
-                            <input type="number" id="vinc-participacao" min="0.01" max="100" step="0.01" placeholder="Ex: 50.00" required class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="number" id="vinc-participacao" min="0.01" max="100" step="0.01" placeholder="Ex: 50.00" required class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
-                         <button type="submit" class="btn-primary h-8 text-xs font-bold px-5 cursor-pointer whitespace-nowrap" id="btn-submit-vinc-prop">Vincular</button>
+                         <button type="submit" class="btn-primary h-[26px] text-xs font-bold px-5 cursor-pointer whitespace-nowrap" id="btn-submit-vinc-prop">Vincular</button>
                       </form>
                       <div class="flex items-center justify-between text-[9px] text-white/30 font-mono uppercase">
                          <p>Quota Restante Disponível: <span class="text-mint-vibrant font-bold" id="lbl-quota-restante">100.00%</span></p>
@@ -365,7 +365,7 @@ export const propriedadesRoute: RouteDef = {
              </div>
              
              <!-- ABA 3: MATRÍCULAS -->
-             <div id="tab-prop-matriculas" class="tab-content-prop hidden space-y-3">
+             <div id="tab-prop-matriculas" class="tab-content-prop hidden space-y-2">
                 <!-- Aviso se propriedade for nova -->
                 <div id="aviso-matriculas-nova" class="hidden py-8 text-center">
                    <i data-lucide="info" class="w-7 h-7 text-mint-vibrant/60 mx-auto mb-2"></i>
@@ -373,52 +373,52 @@ export const propriedadesRoute: RouteDef = {
                    <p class="text-[10px] text-white/40 mt-1 max-w-sm mx-auto">Salve os dados cadastrais na primeira aba para cadastrar matrículas, glebas e certidões em PDF.</p>
                 </div>
 
-                <div id="conteudo-tab-matriculas" class="space-y-3">
+                <div id="conteudo-tab-matriculas" class="space-y-2">
                    <!-- Cadastro de Matrícula Compacto -->
-                   <div class="space-y-2.5">
+                   <div class="space-y-2">
                       <h5 class="text-[10px] font-bold text-mint-vibrant uppercase tracking-wider leading-none" id="form-matricula-titulo">Cadastrar Gleba / Matrícula</h5>
-                      <form id="form-cadastrar-matricula-prop" class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                      <form id="form-cadastrar-matricula-prop" class="grid grid-cols-2 md:grid-cols-4 gap-x-[10px] gap-y-2 items-end">
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Nº Matrícula *</label>
-                            <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-numero" required placeholder="Ex: 12.345" class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div class="col-span-1">
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Denominação *</label>
-                            <input type="text" id="input-new-mat-denominacao" required placeholder="Ex: Lote 12-A" class="glass-input w-full text-xs h-8">
+                            <input type="text" id="input-new-mat-denominacao" required placeholder="Ex: Lote 12-A" class="glass-input w-full text-xs h-[26px]">
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Área (Ha) *</label>
-                            <input type="text" id="input-new-mat-area" required placeholder="Ex: 45,1234" class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-area" required placeholder="Ex: 45,1234" class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1" title="Área exata certificada/calculada no SIGEF (opcional)">Área SIGEF (Ha)</label>
-                            <input type="text" id="input-new-mat-area-sigef" placeholder="Ex: 45,1289" class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-area-sigef" placeholder="Ex: 45,1289" class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código CCIR</label>
-                            <input type="text" id="input-new-mat-ccir" placeholder="950.082..." class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-ccir" placeholder="950.082..." class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Código ITR / NIRF</label>
-                            <input type="text" id="input-new-mat-itr" placeholder="1.234.567-8" class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-itr" placeholder="1.234.567-8" class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div>
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Valor ITR (R$)</label>
-                            <input type="number" step="0.01" id="input-new-mat-valor-itr" placeholder="Ex: 1500.00" class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="number" step="0.01" id="input-new-mat-valor-itr" placeholder="Ex: 1500.00" class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div class="col-span-2">
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">SIGEF (UUID do Georreferenciamento)</label>
-                            <input type="text" id="input-new-mat-georreferenciamento" placeholder="a5b4c3d2-..." class="glass-input w-full text-xs h-8 font-mono">
+                            <input type="text" id="input-new-mat-georreferenciamento" placeholder="a5b4c3d2-..." class="glass-input w-full text-xs h-[26px] font-mono">
                          </div>
                          <div class="col-span-2">
                             <label class="block text-[9px] text-white/40 uppercase font-bold mb-1">Desenho Territorial / Gleba Unificada</label>
-                            <select id="select-new-mat-origem-desenho" class="glass-input w-full text-xs h-8 bg-[#0c1510] text-white/90">
+                            <select id="select-new-mat-origem-desenho" class="glass-input w-full text-xs h-[26px] bg-[#0c1510] text-white/90">
                                <option value="">Desenho próprio independente (Não unificada)</option>
                             </select>
                          </div>
                          <div class="col-span-2 md:col-span-4 flex justify-end gap-2">
-                            <button type="button" class="btn-secondary h-8 text-xs font-bold px-4 hidden cursor-pointer" id="btn-cancelar-edicao-mat">Cancelar</button>
-                            <button type="submit" class="btn-primary h-8 text-xs font-bold px-6 cursor-pointer" id="btn-submit-mat">Salvar Matrícula</button>
+                            <button type="button" class="btn-secondary h-[26px] text-xs font-bold px-4 hidden cursor-pointer" id="btn-cancelar-edicao-mat">Cancelar</button>
+                            <button type="submit" class="btn-primary h-[26px] text-xs font-bold px-6 cursor-pointer" id="btn-submit-mat">Salvar Matrícula</button>
                          </div>
                       </form>
                    </div>

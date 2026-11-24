@@ -24,7 +24,7 @@ export const patchModalShadow = (modalEl: HTMLElement) => {
   style.id = 'patch-modal-dimensoes';
   style.textContent = `
     :host {
-      --modal-pad-x: var(--ui-modal-padding-x, 22px);
+      --modal-pad-x: var(--ui-modal-padding-x, 14px);
     }
     .ui-modal__dialog {
       max-width: var(--ui-modal-largura, 560px) !important;
@@ -50,16 +50,16 @@ export const patchModalShadow = (modalEl: HTMLElement) => {
     .ui-modal__header {
       padding-left: var(--modal-pad-x) !important;
       padding-right: var(--modal-pad-x) !important;
-      padding-top: var(--ui-modal-header-py, 10px) !important;
-      padding-bottom: var(--ui-modal-header-py, 10px) !important;
-      min-height: var(--ui-modal-header-min-h, 36px) !important;
+      padding-top: var(--ui-modal-header-py, 6px) !important;
+      padding-bottom: var(--ui-modal-header-py, 6px) !important;
+      min-height: var(--ui-modal-header-min-h, 34px) !important;
       box-sizing: border-box !important;
     }
     .ui-modal__body {
       padding-left: var(--modal-pad-x) !important;
       padding-right: var(--modal-pad-x) !important;
-      padding-top: var(--ui-modal-body-py, 12px) !important;
-      padding-bottom: var(--ui-modal-body-py, 12px) !important;
+      padding-top: var(--ui-modal-body-py, 14px) !important;
+      padding-bottom: var(--ui-modal-body-py, 14px) !important;
       box-sizing: border-box !important;
     }
     .ui-modal__footer {
