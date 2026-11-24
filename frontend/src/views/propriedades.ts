@@ -1698,27 +1698,27 @@ export const propriedadesRoute: RouteDef = {
                 const local = ehAmbienteLocal();
 
                 const btnSemMarca = temLimpo
-                  ? `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=limpo" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/25 transition-colors" title="Abrir PDF sem marca d'água">
-                        <i data-lucide="sparkles" class="w-3 h-3"></i>
+                  ? `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=limpo" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/30 hover:bg-mint-vibrant/25 transition-colors whitespace-nowrap shrink-0" title="Abrir PDF sem marca d'água">
+                        <i data-lucide="sparkles" class="w-3 h-3 shrink-0"></i>
                         Sem marca
                      </a>`
                   : (local
-                      ? `<button type="button" onclick="window.limparPdfMatricula(${m.id})" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer" title="Remover marca d'água deste PDF">
-                           <i data-lucide="wand-2" class="w-3 h-3"></i>
+                      ? `<button type="button" onclick="window.limparPdfMatricula(${m.id})" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer whitespace-nowrap shrink-0" title="Remover marca d'água deste PDF">
+                           <i data-lucide="wand-2" class="w-3 h-3 shrink-0"></i>
                            Tirar marca
                          </button>`
                       : '');
 
-                const btnOriginal = `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=original" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/75 border border-white/15 hover:text-white hover:bg-white/10 transition-colors" title="Ver PDF original (${escapeHtml(pdfName)})">
-                      <i data-lucide="file-text" class="w-3 h-3"></i>
+                const btnOriginal = `<a href="${API_BASE}/matriculas/${m.id}/download-pdf?versao=original" target="_blank" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/75 border border-white/15 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap shrink-0" title="Ver PDF original (${escapeHtml(pdfName)})">
+                      <i data-lucide="file-text" class="w-3 h-3 shrink-0"></i>
                       Original
                    </a>`;
 
                 pdfHtml = `
-                   <div class="flex items-center justify-center gap-1 flex-wrap">
+                   <div class="flex items-center justify-center gap-1 whitespace-nowrap">
                       ${btnSemMarca}
                       ${btnOriginal}
-                      <button type="button" onclick="window.excluirPdfMatricula(${m.id})" class="text-white/40 hover:text-red-400 p-1 cursor-pointer" title="Remover PDFs">
+                      <button type="button" onclick="window.excluirPdfMatricula(${m.id})" class="text-white/40 hover:text-red-400 p-1 cursor-pointer shrink-0" title="Remover PDFs">
                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                       </button>
                    </div>
@@ -1757,14 +1757,13 @@ export const propriedadesRoute: RouteDef = {
                       <span class="block text-[9px] text-white/40">${escapeHtml(m.denominacao) || 'Lote sem nome'}</span>
                       ${desenhoHtml}
                    </td>
-                   <td class="px-3 py-1.5 text-right font-mono text-white/90 font-medium">
+                   <td class="px-3 py-1.5 text-right font-sans tabular-nums text-xs text-white/95 font-semibold whitespace-nowrap">
                       <span class="block">${areaFormatada} ha</span>
-                      ${m.area_sigef_ha != null && m.area_sigef_ha !== '' ? `<span class="block text-[9px] text-mint-vibrant" title="Área exata vinda do SIGEF">SIGEF: ${Number(m.area_sigef_ha).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha</span>` : ''}
+                      ${m.area_sigef_ha != null && m.area_sigef_ha !== '' ? `<span class="block text-[9px] font-normal text-mint-vibrant" title="Área exata vinda do SIGEF">SIGEF: ${Number(m.area_sigef_ha).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha</span>` : ''}
                    </td>
-                   <td class="px-3 py-1.5 text-white/60 leading-tight">
-                      <span class="block">CCIR: ${displayCcir}</span>
-                      <span class="block">ITR/NIRF: ${escapeHtml(m.itr) || 'N/A'} ${m.valor_itr ? `(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})` : ''}</span>
-                      <span class="block text-[9px] text-mint-vibrant truncate font-mono max-w-[170px]" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${m.georreferenciamento ? 'Sim' : 'Não'}</span>
+                   <td class="px-3 py-1.5 text-[10px] leading-snug text-white/60 whitespace-nowrap">
+                      <span class="block"><span class="text-white/35">CCIR</span> <span class="text-white/75 tabular-nums">${displayCcir}</span></span>
+                      <span class="block"><span class="text-white/35">ITR</span> <span class="text-white/75 tabular-nums">${escapeHtml(m.itr) || 'N/A'}</span>${m.valor_itr ? ` <span class="text-white/40">(R$ ${m.valor_itr.toLocaleString('pt-BR', {minimumFractionDigits: 2})})</span>` : ''} <span class="mx-1 text-white/20">•</span> <span class="${m.georreferenciamento ? 'text-mint-vibrant' : 'text-white/35'}" title="${escapeHtml(m.georreferenciamento) || ''}">SIGEF: ${m.georreferenciamento ? 'Sim' : 'Não'}</span></span>
                    </td>
                    <td class="px-3 py-1.5 text-center">${pdfHtml}</td>
                    <td class="px-3 py-1.5 text-right">
