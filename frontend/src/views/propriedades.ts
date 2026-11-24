@@ -147,38 +147,33 @@ export const propriedadesRoute: RouteDef = {
     </div>
 
     <!-- MODAL UNIFICADO DE PROPRIEDADE (CADASTRO, EDIÇÃO, ANEXOS, PROPRIETÁRIOS E MATRÍCULAS) -->
-    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px;">
+    <ui-modal id="modal-propriedade" titulo="Nova Propriedade" tamanho="grande" class="modal-compact-header modal-propriedade-amplo" style="--ui-modal-largura: 900px; max-width: 900px; --ui-modal-padding-x: 20px; --ui-modal-header-py: 6px; --ui-modal-header-min-h: 34px;">
        <div class="flex flex-col h-full overflow-hidden">
-          <!-- Subtítulo e Ações -->
-          <div class="px-2 py-1.5 border-b border-white/5 flex justify-between items-center bg-white/[0.01] shrink-0">
-             <div class="min-w-0">
-                <p class="text-[10px] text-white/40 font-mono leading-none truncate" id="modal-prop-subtitulo">Preencha os dados cadastrais do imóvel rural</p>
+          <!-- Abas de Navegação + Excluir -->
+          <div class="flex items-center justify-between border-b border-white/5 bg-white/[0.01] px-2 shrink-0 gap-2">
+             <div class="flex items-center overflow-x-auto scrollbar-none">
+                <button class="px-3 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
+                   <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                   Dados Gerais & Anexos
+                </button>
+                <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
+                   <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                   Proprietários
+                   <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
+                </button>
+                <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
+                   <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                   Glebas & Matrículas
+                   <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
+                </button>
              </div>
-             <div class="flex items-center gap-1.5 shrink-0">
+             <div class="flex items-center gap-1.5 shrink-0 py-1">
                 <ui-botao variante="destrutivo" class="hidden" id="btn-prop-excluir" title="Excluir Propriedade">
                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                    Excluir
                 </ui-botao>
                 <button type="button" class="hidden" id="btn-fechar-modal-prop"></button>
              </div>
-          </div>
-          
-          <!-- Abas de Navegação -->
-          <div class="flex border-b border-white/5 bg-white/[0.01] overflow-x-auto scrollbar-none px-2 shrink-0">
-             <button class="px-3 py-2 text-xs font-bold border-b-2 border-mint-vibrant text-mint-vibrant tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-dados">
-                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                Dados Gerais & Anexos
-             </button>
-             <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-proprietarios" id="tab-btn-proprietarios">
-                <i data-lucide="users" class="w-3.5 h-3.5"></i>
-                Proprietários
-                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-proprietarios">0</span>
-             </button>
-             <button class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-white/40 hover:text-white tab-btn-prop whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer" data-tab-prop="tab-prop-matriculas" id="tab-btn-matriculas">
-                <i data-lucide="layers" class="w-3.5 h-3.5"></i>
-                Glebas & Matrículas
-                <span class="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-white/5 text-white/60" id="tab-badge-matriculas">0</span>
-             </button>
           </div>
           
           <!-- Conteúdo com Scroll -->
@@ -1341,11 +1336,57 @@ export const propriedadesRoute: RouteDef = {
     };
 
     // --- GESTÃO DO MODAL UNIFICADO DE PROPRIEDADE ---
+    const atualizarCabecalhoModalProp = (titulo: string, meta?: string) => {
+       const modalEl = document.getElementById('modal-propriedade');
+       if (!modalEl) return;
+       modalEl.setAttribute('titulo', titulo);
+
+       const aplicarNoShadow = () => {
+          const shadow = modalEl.shadowRoot;
+          const tituloEl = shadow?.querySelector('.ui-modal__titulo') as HTMLElement | null;
+          if (!tituloEl) return;
+
+          tituloEl.style.display = 'flex';
+          tituloEl.style.alignItems = 'center';
+          tituloEl.style.gap = '10px';
+          tituloEl.style.flexWrap = 'wrap';
+          tituloEl.style.fontSize = '14px';
+          tituloEl.style.lineHeight = '1.2';
+
+          let textoNode = tituloEl.querySelector('.modal-prop-titulo-texto') as HTMLElement | null;
+          let metaNode = tituloEl.querySelector('.modal-prop-titulo-meta') as HTMLElement | null;
+
+          if (!textoNode) {
+             tituloEl.textContent = '';
+             textoNode = document.createElement('span');
+             textoNode.className = 'modal-prop-titulo-texto';
+             tituloEl.appendChild(textoNode);
+          }
+          textoNode.textContent = titulo;
+
+          if (meta) {
+             if (!metaNode) {
+                metaNode = document.createElement('span');
+                metaNode.className = 'modal-prop-titulo-meta';
+                metaNode.style.fontSize = '11px';
+                metaNode.style.fontWeight = '400';
+                metaNode.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+                metaNode.style.color = 'rgba(255, 255, 255, 0.5)';
+                tituloEl.appendChild(metaNode);
+             }
+             metaNode.textContent = meta;
+          } else if (metaNode) {
+             metaNode.remove();
+          }
+       };
+
+       aplicarNoShadow();
+       requestAnimationFrame(aplicarNoShadow);
+    };
+
     const abrirModalPropriedade = (id: number | null, abaInicial: string = 'tab-prop-dados') => {
        propriedadeSelecionadaId = id;
 
-       const modalTitulo = document.getElementById('modal-prop-titulo');
-       const modalSubtitulo = document.getElementById('modal-prop-subtitulo');
        const submitBtn = document.getElementById('btn-submit-prop');
        const btnExcluir = document.getElementById('btn-prop-excluir');
        const secaoAnexos = document.getElementById('secao-anexos-propriedade');
@@ -1365,8 +1406,7 @@ export const propriedadesRoute: RouteDef = {
           riAutoPreenchido = false;
           oficioAutoPorCns = false;
           atualizarSugestoesRiNoModal();
-          if (modalTitulo) modalTitulo.innerText = "Nova Propriedade";
-          if (modalSubtitulo) modalSubtitulo.innerText = "Preencha os dados cadastrais do imóvel rural";
+          atualizarCabecalhoModalProp("Nova Propriedade", "Novo cadastro");
           if (submitBtn) submitBtn.innerText = "Cadastrar Propriedade";
           btnExcluir?.classList.add('hidden');
           secaoAnexos?.classList.add('hidden');
@@ -1385,8 +1425,7 @@ export const propriedadesRoute: RouteDef = {
           const p = todasPropriedades.find(x => String(x.id) === String(id));
           if (!p) return;
 
-          if (modalTitulo) modalTitulo.innerText = p.nome_propriedade;
-          if (modalSubtitulo) modalSubtitulo.innerText = `${p.municipio} / ${p.uf} • Cadastro ID: #${p.id}`;
+          atualizarCabecalhoModalProp(p.nome_propriedade, `${p.municipio} / ${p.uf} • ID #${p.id}`);
           if (submitBtn) submitBtn.innerText = "Salvar Alterações";
           btnExcluir?.classList.remove('hidden');
           secaoAnexos?.classList.remove('hidden');
