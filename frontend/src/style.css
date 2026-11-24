@@ -172,9 +172,9 @@ select.glass-input option {
 }
 
 #sidebar.sidebar-collapsed {
-  width: 60px !important;
-  padding-left: 8px !important;
-  padding-right: 8px !important;
+  width: 46px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
 }
 
 /* Oculta textos suavemente */
@@ -187,12 +187,15 @@ select.glass-input option {
   justify-content: center;
   padding-left: 0 !important;
   padding-right: 0 !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
 }
 
 /* Ajusta o espaçamento do cabeçalho da sidebar quando colapsado */
 #sidebar.sidebar-collapsed #sidebar-header {
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+  margin-bottom: 12px !important;
   justify-content: center;
   align-items: center;
   padding-left: 0 !important;
@@ -201,7 +204,7 @@ select.glass-input option {
 
 #sidebar.sidebar-collapsed #sidebar-header #btn-toggle-sidebar {
   margin-left: 0;
-  padding: 6px;
+  padding: 4px;
 }
 
 /* Ajusta o rodapé e configurações quando colapsado */
@@ -216,7 +219,14 @@ select.glass-input option {
   padding-right: 0 !important;
 }
 
-#sidebar.sidebar-collapsed #btn-sidebar-settings {
+#sidebar.sidebar-collapsed #sidebar-footer .sidebar-footer-actions {
+  flex-direction: column;
+  gap: 6px;
+}
+
+#sidebar.sidebar-collapsed #btn-sidebar-settings,
+#sidebar.sidebar-collapsed #btn-sidebar-logout {
+  width: 100%;
   padding-left: 0 !important;
   padding-right: 0 !important;
   justify-content: center;
@@ -632,7 +642,7 @@ thead th,
     top: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
-    width: 224px !important;
+    width: 196px !important;
     z-index: var(--geo-z-max) !important;
     transform: translateX(-100%) !important;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -657,8 +667,12 @@ thead th,
     flex-direction: row !important;
     justify-content: space-between !important;
     align-items: center !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  #sidebar.sidebar-mobile-active #sidebar-footer .sidebar-footer-actions {
+    flex-direction: row !important;
   }
   
   /* Esconde o botão de recolhimento padrão no celular */
