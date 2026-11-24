@@ -721,7 +721,7 @@ ui-modal.modal-cliente-amplo,
 ui-modal[tamanho="grande"] {
   --ui-modal-largura: 1000px !important;
   --ui-modal-max-largura: 94vw !important;
-  --ui-modal-padding-x: 24px !important;
+  --ui-modal-padding-x: 14px !important;
   max-width: 1000px !important;
 }
 
@@ -741,11 +741,11 @@ ui-modal[tamanho="grande"] {
 /* Cabeçalho e Estrutura Harmônica de Modais Compactos */
 ui-modal::part(header),
 ui-modal#modal-cliente::part(header) {
-  padding-left: 22px !important;
-  padding-right: 22px !important;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
-  min-height: 38px !important;
+  padding-left: var(--ui-modal-padding-x, 14px) !important;
+  padding-right: var(--ui-modal-padding-x, 14px) !important;
+  padding-top: var(--ui-modal-header-py, 6px) !important;
+  padding-bottom: var(--ui-modal-header-py, 6px) !important;
+  min-height: var(--ui-modal-header-min-h, 34px) !important;
 }
 
 ui-modal::part(titulo),
@@ -758,27 +758,27 @@ ui-modal#modal-cliente::part(titulo) {
 
 ui-modal::part(body),
 ui-modal#modal-cliente::part(body) {
-  padding-left: 22px !important;
-  padding-right: 22px !important;
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  padding-left: var(--ui-modal-padding-x, 14px) !important;
+  padding-right: var(--ui-modal-padding-x, 14px) !important;
+  padding-top: var(--ui-modal-body-py, 14px) !important;
+  padding-bottom: var(--ui-modal-body-py, 14px) !important;
 }
 
 ui-modal::part(footer),
 ui-modal#modal-cliente::part(footer) {
-  padding-left: 22px !important;
-  padding-right: 22px !important;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
-  min-height: 42px !important;
+  padding-left: var(--ui-modal-padding-x, 14px) !important;
+  padding-right: var(--ui-modal-padding-x, 14px) !important;
+  padding-top: var(--ui-modal-footer-py, 8px) !important;
+  padding-bottom: var(--ui-modal-footer-py, 8px) !important;
+  min-height: var(--ui-modal-footer-min-h, 38px) !important;
 }
 
-/* Modal de Cliente: Alta Densidade Técnica (Campos 25px com Recuo Padrão Nativo do Componentes-UI) */
+/* Modal de Cliente: Alta Densidade Técnica (Campos 26px) */
 ui-modal#modal-cliente ui-campo-texto,
 ui-modal#modal-cliente ui-select,
 ui-modal#modal-cliente ui-lista-flutuante {
-  --ui-altura-minima: 32px !important;
-  --ui-campo-altura: 32px !important;
+  --ui-altura-minima: 26px !important;
+  --ui-campo-altura: 26px !important;
   --ui-raio-borda: 5px !important;
 }
 
@@ -787,10 +787,10 @@ ui-modal#modal-cliente ui-campo-texto::part(wrapper),
 ui-modal#modal-cliente ui-campo-texto::part(container),
 ui-modal#modal-cliente ui-select::part(trigger),
 ui-modal#modal-cliente ui-select::part(select) {
-  height: 32px !important;
-  min-height: 32px !important;
+  height: 26px !important;
+  min-height: 26px !important;
   font-size: 12px !important;
-  line-height: 32px !important;
+  line-height: 26px !important;
   border-radius: 5px !important;
 }
 
@@ -802,14 +802,14 @@ ui-modal#modal-cliente::part(body) {
 }
 
 ui-modal#modal-cliente #form-cliente label {
-  font-size: 10px !important;
-  line-height: 1.25 !important;
+  font-size: 9.5px !important;
+  line-height: 1.2 !important;
   margin-bottom: 3px !important;
 }
 
 ui-modal#modal-cliente #form-cliente {
-  --ui-altura-minima: 32px;
-  --ui-campo-altura: 32px;
+  --ui-altura-minima: 26px;
+  --ui-campo-altura: 26px;
 }
 
 @media (max-width: 640px) {

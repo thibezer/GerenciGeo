@@ -463,9 +463,9 @@ export const renderClientesTemplate = (): string => `
              </div>
           </div>
        </form>
-       <div slot="rodape" class="flex justify-end items-center gap-2 w-full" style="--ui-altura-minima: 26px;">
-          <ui-botao variante="secundario" id="btn-cancelar-cliente" class="min-w-[110px]">Cancelar</ui-botao>
-          <ui-botao variante="primario" id="btn-salvar-cliente" class="min-w-[140px]">Salvar Cliente</ui-botao>
+       <div slot="rodape" class="flex justify-end items-center gap-2 w-full">
+          <button type="button" id="btn-cancelar-cliente" class="btn-secondary h-[26px] px-4 text-xs cursor-pointer">Cancelar</button>
+          <button type="button" id="btn-salvar-cliente" class="btn-primary h-[26px] px-5 text-xs font-bold cursor-pointer">Salvar Cliente</button>
        </div>
     </ui-modal>
 

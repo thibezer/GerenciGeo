@@ -632,7 +632,9 @@ ui-select {
 }
 
 #modal-propriedade .btn-primary,
-#modal-propriedade .btn-secondary {
+#modal-propriedade .btn-secondary,
+#modal-cliente .btn-primary,
+#modal-cliente .btn-secondary {
   height: 26px !important;
   min-height: 26px !important;
   padding-top: 0 !important;
