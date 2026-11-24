@@ -11,7 +11,6 @@ from services.gestores.cliente_manager import (
     atualizar_cliente,
     excluir_cliente,
     excluir_clientes_lote,
-    vincular_cliente_propriedade,
     revelar_senha_gov,
     obter_acessos_cliente,
     obter_documentos_cliente,

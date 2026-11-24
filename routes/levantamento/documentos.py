@@ -29,18 +29,6 @@ router = APIRouter(tags=["Documentos, Laudos e Exportações"])
 
 # ── Modelos ────────────────────────────────────────────────────────────────────
 
-class PayloadLaudoFronteira(BaseModel):
-    matricula_id: int
-    profissional_id: int
-    numero_trt: str
-    data_quitacao_trt: str = ""
-
-class PayloadLaudoFronteiraLote(BaseModel):
-    matriculas_ids: List[int]
-    profissional_id: int
-    numero_trt: str
-    data_quitacao_trt: str = ""
-
 class MatriculaFronteiraUpdate(BaseModel):
     id: int
     numero_matricula: str
@@ -583,13 +571,6 @@ def get_declaracao_anuencia_usufruto_html(id: int, matricula_id: int, confrontan
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/documentos/anuencia-forcada-james", response_class=HTMLResponse)
-def get_anuencia_forcada_james():
-    caminho = Path("anuencia_james_corradini.html")
-    if caminho.exists():
-        return HTMLResponse(content=caminho.read_text(encoding="utf-8"))
-    raise HTTPException(status_code=404, detail="Arquivo anuencia_james_corradini.html não encontrado")
-
 @router.get("/levantamentos/{id}/matriculas/{matricula_id}/confrontantes/{confrontante_id}/preview-divisa")
 def get_preview_divisa_confrontante(id: int, matricula_id: int, confrontante_id: int):
     try:
@@ -623,13 +604,8 @@ def get_declaracao_anuencia_lote_html(id: int, matricula_id: int, confrontantes_
 def gerar_requerimento(id: int, matricula_id: int):
     try:
         from services.documentacao.cartorio_generator import CartorioReportGenerator
-        try:
-            html = CartorioReportGenerator.gerar_requerimento_cartorio_html(id, matricula_id)
-            return HTMLResponse(content=html)
-        except Exception:
-            from services.gestores.levantamento_manager import gerar_requerimento_html
-            html = gerar_requerimento_html(id, matricula_id)
-            return HTMLResponse(content=html)
+        html = CartorioReportGenerator.gerar_requerimento_cartorio_html(id, matricula_id)
+        return HTMLResponse(content=html)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
@@ -644,15 +620,12 @@ def gerar_termo_anuencia_na_matricula(id: int, confrontante_id: int):
             params=(id, confrontante_id),
             fetch_one=True
         )
-        if row_mat and row_mat["matricula_id"]:
-            try:
-                html = CartorioReportGenerator.gerar_declaracao_anuencia_html(id, row_mat["matricula_id"], confrontante_id)
-                return HTMLResponse(content=html)
-            except Exception:
-                pass
-        from services.gestores.levantamento_manager import gerar_termo_anuencia_html
-        html = gerar_termo_anuencia_html(id, confrontante_id)
+        if not row_mat or not row_mat["matricula_id"]:
+            raise HTTPException(status_code=404, detail="Nenhum segmento vinculado a este confrontante para gerar a anuência.")
+        html = CartorioReportGenerator.gerar_declaracao_anuencia_html(id, row_mat["matricula_id"], confrontante_id)
         return HTMLResponse(content=html)
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:

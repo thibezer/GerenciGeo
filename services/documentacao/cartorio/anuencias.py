@@ -916,7 +916,6 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
 def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontante_id: int) -> dict:
     """Retorna os dados geométricos e cadastrais para a pré-visualização interativa do trecho da divisa a ser anuído."""
     from services.documentacao.cartorio.utils import calcular_azimute_e_distancia, calcular_distancia_sgl
-    from pyproj import Geod
 
     dados = obter_dados_comuns(lev_id, matricula_id)
     mat_desenho_id = dados.get("matricula_desenho_id") or matricula_id

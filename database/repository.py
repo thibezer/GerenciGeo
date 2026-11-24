@@ -50,60 +50,6 @@ class ProfissionalRepo(GenericRepo):
         
         return proximo_valor
 
-class ClienteRepo(GenericRepo):
-    def __init__(self):
-        super().__init__("clientes")
-
-    def insert(self, data_dict):
-        cols = ", ".join(data_dict.keys())
-        placeholders = ", ".join(["?"] * len(data_dict))
-        query = f"INSERT INTO clientes ({cols}) VALUES ({placeholders})"
-        return execute_query(query, params=tuple(data_dict.values()), fetch_all=False, commit=True)
-        
-    def update(self, item_id, data_dict):
-        set_clause = ", ".join([f"{k} = ?" for k in data_dict.keys()])
-        query = f"UPDATE clientes SET {set_clause} WHERE id = ?"
-        params = list(data_dict.values())
-        params.append(item_id)
-        return execute_query(query, params=tuple(params), fetch_all=False, commit=True)
-
-class PropriedadeRepo(GenericRepo):
-    def __init__(self):
-        super().__init__("propriedades")
-        
-    def insert(self, nome, codigo_sncr, municipio, uf):
-        query = "INSERT INTO propriedades (nome, codigo_sncr, municipio, uf) VALUES (?, ?, ?, ?)"
-        return execute_query(query, params=(nome, codigo_sncr, municipio, uf), fetch_all=False, commit=True)
-
-    def update(self, prop_id, nome, codigo_sncr, municipio, uf):
-        query = "UPDATE propriedades SET nome = ?, codigo_sncr = ?, municipio = ?, uf = ? WHERE id = ?"
-        return execute_query(query, params=(nome, codigo_sncr, municipio, uf, prop_id), fetch_all=False, commit=True)
-
-class PropriedadeClienteRepo(GenericRepo):
-    def __init__(self):
-        super().__init__("propriedade_clientes")
-        
-    def associar_socios(self, propriedade_id, cliente_list):
-        query = "INSERT INTO propriedade_clientes (propriedade_id, cliente_id, percentual_participacao) VALUES (?,?,?)"
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.executemany(query, [(propriedade_id, cli['id'], cli['percentual']) for cli in cliente_list])
-            conn.commit()
-
-    def get_by_propriedade(self, propriedade_id):
-        query = """
-            SELECT pc.*, p.nome, c.id as cliente_id 
-            FROM propriedade_clientes pc 
-            JOIN clientes c ON pc.cliente_id = c.id 
-            JOIN pessoas p ON c.pessoa_id = p.id
-            WHERE pc.propriedade_id = ?
-        """
-        return [dict(r) for r in execute_query(query, params=(propriedade_id,), fetch_all=True)]
-
-    def limpar_socios(self, propriedade_id):
-        query = "DELETE FROM propriedade_clientes WHERE propriedade_id = ?"
-        return execute_query(query, params=(propriedade_id,), fetch_all=False, commit=True)
-
 class MunicipioRepo(GenericRepo):
     def __init__(self):
         super().__init__("municipios")

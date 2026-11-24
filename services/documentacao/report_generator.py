@@ -37,11 +37,6 @@ from services.documentacao.cartorio.qualificacao import (
 
 logger = logging.getLogger(__name__)
 
-# Diretório base original dos templates definidos no Google Drive do usuário
-ORIGINAL_TEMPLATES_DIR = Path(
-    r"G:\.shortcut-targets-by-id\12gyUSmCZB9ndFe3-BOib0TWAYaaMTxaF\TRANSITO\Área de Fronteira\Modelos área de Fronteira"
-)
-
 # Coordenada fixada da Fronteira Internacional Brasil-Paraguai estabelecida constitucionalmente
 BORDER_LAT = -24.0671222
 BORDER_LON = -54.2868778

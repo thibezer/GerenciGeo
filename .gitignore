@@ -44,8 +44,7 @@ nuvem_session.json
 # Rascunhos e saídas de teste temporárias
 saida.txt
 err.txt
-scratch/test_*
-scratch/*.txt
+scratch/
 saida_rinex/
 saida_ppp/
 saida_hgo/
@@ -64,6 +63,7 @@ Geo_Workspace/
 # Documentos gerados com dados pessoais de clientes (CPF, nomes): nunca versionar
 /anuencia_*.html
 /confrontantes_*.html
+/pedido_prorrogacao_*.html
 *.log.*
 logs/
 
