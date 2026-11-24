@@ -17,8 +17,12 @@ Esta skill orienta o agente a realizar a leitura visual minuciosa (OCR Multimoda
 
 ## 📋 Protocolo de Execução Passo a Passo
 
-### 0. Conferir se o PDF Já Foi Enviado & Limpeza Automática de Marca d'Água
-Sempre que receber um arquivo PDF de matrícula do usuário, verifique primeiro se ele já consta no histórico:
+### 0. Pasta de Entrada (`Matriculas_Entrada`) & Conferência Anti-Repetição
+Quando o usuário pedir para **"analisar as matrículas da pasta"**, **"processar a pasta de entrada"** ou similar, liste primeiro os arquivos pendentes na pasta oficial (`D:\Programação\Geo\Matriculas_Entrada`):
+```powershell
+python scripts/cadastrar_matricula_ia.py --listar-entrada
+```
+Sempre que receber um arquivo PDF de matrícula (da pasta de entrada ou enviado no chat), verifique também se ele já consta no histórico:
 ```powershell
 python scripts/verificar_arquivo_ia.py --arquivo "<CAMINHO_DO_PDF>"
 ```
@@ -33,25 +37,29 @@ Inspecione visualmente o cabeçalho do imóvel e **toda a cadeia de atos registr
 
 1. **Dados Cartorários do Cabeçalho**:
    - `numero_matricula`: Número de registro da matrícula (ex.: `10.189`).
-   - `cri_comarca`: Comarca do Registro de Imóveis (ex.: `Iporã`).
-   - `cri_circunscricao`: Nome da serventia / cartório (ex.: `Serviço de Registro de Imóveis de Iporã - PR`).
+   - `cnm`: Código Nacional de Matrícula (ex.: `079947.2.0019940-98`).
+   - `cri_comarca`: Comarca do Registro de Imóveis (ex.: `Umuarama`).
+   - `cri_circunscricao`: Nome da serventia / cartório (ex.: `1º Ofício de Registro de Imóveis de Umuarama - PR`).
+   - `cns_ri` e `oficio_ri`: CNS do cartório (6 primeiros dígitos do CNM, ex.: `079947`) e ofício (`1º Ofício`).
    - `livro_registro`: Livro de registro (geralmente `2` - Registro Geral).
-   - `folha_registro`: Ficha e folha (ex.: `1.1`).
-   - `data_registro`: Data do registro primitivo.
+   - `folha_registro`: Ficha e folha (ex.: `01 a 07`).
+   - `data_abertura`: Data de abertura/registro primitivo da matrícula.
+   - `data_emissao_certidao` e `tipo_certidao`: Data de emissão da certidão e tipo (`INTEIRO_TEOR`, `SIMPLES_CONSULTA`, `ONUS_REAIS`).
 
 2. **Identificação e Dimensões do Imóvel**:
    - `denominacao`: Nome da gleba, lote, fazenda ou sítio (ex.: `Lotes nºs 161-A, 162, 163, 163-P, 164 e 164-A - Gleba Atlântida, Bairro Leomar`).
-   - `municipio` e `uf`: Localização do imóvel.
+   - `municipio_localizacao` e `uf_localizacao` (além de `municipio` / `uf`): Município e UF onde o imóvel está localizado (pode diferir da comarca do cartório).
    - `area_alqueires` e `tipo_alqueire`: Quantidade de alqueires e padrão (ex.: `40,00 alqueires paulistas`).
    - `area_m2`: Metros quadrados descritos (ex.: `968.000,00 m²`).
    - `area_ha`: Área calculada em hectares (no PR/SP: $1\text{ alqueire paulista} = 2,42\text{ ha} = 24.200\text{ m}^2$).
    - `codigo_ccir`: Código INCRA / CCIR registrado no cabeçalho ou nas averbações (ex.: `718.092.046.140/12`).
    - `codigo_itr` / `nirf`: Código da Receita Federal (ITR / NIRF, ex.: `0.981.437-0` ou `6.035.093`).
    - `codigo_car`: Código do CAR (se constar averbado).
+   - `reserva_legal_ha`: Área de Reserva Legal averbada na matrícula (em hectares), se houver.
 
 3. **Memorial Descritivo e Confrontações Perimetrais**:
-   - Transcreva fielmente a amarração perimetral descrita no imóvel: ponto de partida, rumos/azimutes, distâncias métricas, divisas, confrontantes e acidentes geográficos (córregos, rios, estradas municipais).
-   - Salve no campo `georreferenciamento` da matrícula.
+   - Transcreva fielmente a amarração perimetral descrita no imóvel no campo `georreferenciamento`.
+   - Sempre que possível, extraia também `confrontantes_estruturados` (lista/JSON com lado/direção, confrontante, rumo e extensão em metros) para cruzamento de "colcha de retalhos" entre matrículas da mesma propriedade.
 
 4. **Rastreamento da Cadeia Dominial (Proprietários Vigentes)**:
    - ⚠️ **ATENÇÃO CRÍTICA**: Nunca utilize apenas os proprietários do cabeçalho da matrícula se houver vendas posteriores (`R.`) ou averbações de partilha!
@@ -62,6 +70,7 @@ Inspecione visualmente o cabeçalho do imóvel e **toda a cadeia de atos registr
 
 5. **Ônus e Gravames Ativos**:
    - Liste hipotecas, penhoras, cédulas rurais e verifique se há cancelamentos averbados (`Av. de Cancelamento`).
+   - Grave os gravames não cancelados em `onus_ativos`.
 
 ---
 
@@ -103,9 +112,9 @@ Monte o JSON com os dados consolidados:
 ---
 
 ### 3. Execução da Automação no GerenciGeo
-Execute o utilitário oficial passando o JSON e o caminho do PDF:
+Execute o utilitário oficial passando o JSON e o caminho do PDF (adicione `--remover-origem` quando o arquivo vier da pasta `Matriculas_Entrada`, para apagá-lo da pasta de entrada automaticamente após o arquivamento seguro):
 ```powershell
-python scripts/cadastrar_matricula_ia.py --json '<PAYLOAD_JSON>' --pdf '<CAMINHO_DO_PDF>'
+python scripts/cadastrar_matricula_ia.py --file '<CAMINHO_JSON>' --pdf '<CAMINHO_DO_PDF>' --remover-origem
 ```
 
 O script executa de forma atômica:

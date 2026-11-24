@@ -21,7 +21,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from config import DB_PATH, EXPORT_BASE_FOLDER
+from config import DB_PATH, EXPORT_BASE_FOLDER, MATRICULAS_INBOX_FOLDER
 from database.connection import DatabaseManager, execute_query
 from services.gestores.cliente_manager import limpar_documento, vincular_cliente_propriedade
 from services.gestores.matricula_manager import (
@@ -156,7 +156,41 @@ def anexar_arquivo_matricula(
         return None
 
 
-def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[str] = None) -> Dict[str, Any]:
+def listar_arquivos_entrada() -> Dict[str, Any]:
+    """Garante a existência da pasta inbox de matrículas e lista arquivos pendentes."""
+    os.makedirs(MATRICULAS_INBOX_FOLDER, exist_ok=True)
+    extensoes = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+    arquivos = []
+    for nome in sorted(os.listdir(MATRICULAS_INBOX_FOLDER)):
+        caminho = os.path.join(MATRICULAS_INBOX_FOLDER, nome)
+        if os.path.isfile(caminho) and os.path.splitext(nome)[1].lower() in extensoes:
+            arquivos.append({
+                "nome": nome,
+                "caminho": caminho,
+                "tamanho_bytes": os.path.getsize(caminho),
+            })
+    return {
+        "sucesso": True,
+        "pasta_entrada": MATRICULAS_INBOX_FOLDER,
+        "total": len(arquivos),
+        "arquivos": arquivos,
+    }
+
+
+def _normalizar_texto_ou_json(valor: Any) -> Optional[str]:
+    if valor is None:
+        return None
+    if isinstance(valor, (dict, list)):
+        return json.dumps(valor, ensure_ascii=False)
+    s = str(valor).strip()
+    return s or None
+
+
+def processar_matricula_ia(
+    dados_brutos: Dict[str, Any],
+    caminho_pdf: Optional[str] = None,
+    remover_origem: bool = False,
+) -> Dict[str, Any]:
     """
     Processa dados extraídos de certidão de matrícula via IA, localizando ou criando a
     propriedade correspondente, cadastrando/atualizando a matrícula e associando os proprietários.
@@ -229,31 +263,39 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
             if row_nome:
                 propriedade_id = row_nome["id"]
 
-        # Se não existe, cria a propriedade
-        if not propriedade_id:
-            with DatabaseManager() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, municipio, uf)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (nome_propriedade, codigo_car, codigo_ccir, municipio, uf))
-                propriedade_id = cursor.lastrowid
-                conn.commit()
-            acao_propriedade = "CRIADA"
-        else:
-            # Atualiza dados ausentes na propriedade encontrada (enriquecimento)
-            campos_up_p = []
-            vals_up_p = []
-            if codigo_ccir:
-                campos_up_p.append("codigo_ccir = COALESCE(NULLIF(codigo_ccir, ''), ?)")
-                vals_up_p.append(codigo_ccir)
-            if codigo_car:
-                campos_up_p.append("codigo_car = COALESCE(NULLIF(codigo_car, ''), ?)")
-                vals_up_p.append(codigo_car)
-            if campos_up_p:
-                vals_up_p.append(propriedade_id)
-                execute_query(f"UPDATE propriedades SET {', '.join(campos_up_p)} WHERE id = ?", params=tuple(vals_up_p), commit=True)
-                acao_propriedade = "ATUALIZADA"
+            if not propriedade_id:
+                with DatabaseManager() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO propriedades (nome_propriedade, codigo_car, codigo_ccir, municipio, uf)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (nome_propriedade, codigo_car, codigo_ccir, municipio, uf))
+                    propriedade_id = cursor.lastrowid
+                    conn.commit()
+                acao_propriedade = "CRIADA"
+
+    # Enriquece campos vazios da propriedade (mesmo quando propriedade_id já foi informado)
+    cns_ri = _normalizar_texto_ou_json(dados.get("cns_ri"))
+    oficio_ri = _normalizar_texto_ou_json(dados.get("oficio_ri"))
+    if propriedade_id and acao_propriedade != "CRIADA":
+        campos_up_p = []
+        vals_up_p = []
+        if codigo_ccir:
+            campos_up_p.append("codigo_ccir = COALESCE(NULLIF(codigo_ccir, ''), ?)")
+            vals_up_p.append(codigo_ccir)
+        if codigo_car:
+            campos_up_p.append("codigo_car = COALESCE(NULLIF(codigo_car, ''), ?)")
+            vals_up_p.append(codigo_car)
+        if cns_ri:
+            campos_up_p.append("cns_ri = COALESCE(NULLIF(cns_ri, ''), ?)")
+            vals_up_p.append(cns_ri)
+        if oficio_ri:
+            campos_up_p.append("oficio_ri = COALESCE(NULLIF(oficio_ri, ''), ?)")
+            vals_up_p.append(oficio_ri)
+        if campos_up_p:
+            vals_up_p.append(propriedade_id)
+            execute_query(f"UPDATE propriedades SET {', '.join(campos_up_p)} WHERE id = ?", params=tuple(vals_up_p), commit=True)
+            acao_propriedade = "ATUALIZADA"
 
     # 2. Localização ou Criação da Matrícula
     matricula_id = None
@@ -271,6 +313,18 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
     livro = dados.get("livro_registro") or dados.get("livro") or "2"
     folha = dados.get("folha_registro") or dados.get("folha") or dados.get("ficha")
     memorial_georref = dados.get("georreferenciamento") or dados.get("memorial_descritivo") or dados.get("divisas_confrontacoes")
+    cnm = _normalizar_texto_ou_json(dados.get("cnm"))
+    municipio_loc = _normalizar_texto_ou_json(dados.get("municipio_localizacao") or dados.get("municipio_imovel") or dados.get("municipio"))
+    uf_loc = _normalizar_texto_ou_json(dados.get("uf_localizacao") or dados.get("uf_imovel") or uf)
+    if uf_loc:
+        uf_loc = uf_loc.upper()[:2]
+    data_abertura = _normalizar_texto_ou_json(dados.get("data_abertura") or dados.get("data_registro"))
+    data_emissao_certidao = _normalizar_texto_ou_json(dados.get("data_emissao_certidao") or dados.get("data_certidao"))
+    tipo_certidao = _normalizar_texto_ou_json(dados.get("tipo_certidao"))
+    onus_ativos = _normalizar_texto_ou_json(dados.get("onus_ativos") or dados.get("onus"))
+    reserva_legal_raw = dados.get("reserva_legal_ha")
+    reserva_legal_ha = float(reserva_legal_raw) if reserva_legal_raw not in (None, "") else None
+    confrontantes_estruturados = _normalizar_texto_ou_json(dados.get("confrontantes_estruturados"))
 
     if row_mat:
         matricula_id = row_mat["id"]
@@ -288,12 +342,24 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
                 itr = COALESCE(?, itr),
                 denominacao = COALESCE(?, denominacao),
                 georreferenciamento = COALESCE(?, georreferenciamento),
-                area_ha = COALESCE(?, area_ha)
+                area_ha = COALESCE(?, area_ha),
+                cnm = COALESCE(?, cnm),
+                municipio_localizacao = COALESCE(?, municipio_localizacao),
+                uf_localizacao = COALESCE(?, uf_localizacao),
+                data_abertura = COALESCE(?, data_abertura),
+                data_emissao_certidao = COALESCE(?, data_emissao_certidao),
+                tipo_certidao = COALESCE(?, tipo_certidao),
+                onus_ativos = COALESCE(?, onus_ativos),
+                reserva_legal_ha = COALESCE(?, reserva_legal_ha),
+                confrontantes_estruturados = COALESCE(?, confrontantes_estruturados)
             WHERE id = ?
         """
         execute_query(sql_up_m, params=(
             cri_comarca, cri_circ, livro, folha, codigo_ccir, codigo_itr,
-            denominacao, memorial_georref, area_ha, matricula_id
+            denominacao, memorial_georref, area_ha,
+            cnm, municipio_loc, uf_loc, data_abertura, data_emissao_certidao,
+            tipo_certidao, onus_ativos, reserva_legal_ha, confrontantes_estruturados,
+            matricula_id
         ), commit=True)
     else:
         # Insere nova matrícula
@@ -302,11 +368,15 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
             cursor.execute("""
                 INSERT INTO matriculas (
                     propriedade_id, numero_matricula, cri_comarca, cri_circunscricao, livro_registro,
-                    folha_registro, ccir, itr, denominacao, georreferenciamento, area_ha
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    folha_registro, ccir, itr, denominacao, georreferenciamento, area_ha,
+                    cnm, municipio_localizacao, uf_localizacao, data_abertura, data_emissao_certidao,
+                    tipo_certidao, onus_ativos, reserva_legal_ha, confrontantes_estruturados
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 propriedade_id, num_matricula, cri_comarca, cri_circ, livro,
-                folha, codigo_ccir, codigo_itr, denominacao, memorial_georref, area_ha
+                folha, codigo_ccir, codigo_itr, denominacao, memorial_georref, area_ha,
+                cnm, municipio_loc, uf_loc, data_abertura, data_emissao_certidao,
+                tipo_certidao, onus_ativos, reserva_legal_ha, confrontantes_estruturados
             ))
             matricula_id = cursor.lastrowid
             conn.commit()
@@ -316,6 +386,7 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
     pdf_info = None
     pdf_salvo = None
     pdf_limpo_salvo = None
+    arquivo_origem_removido = False
     if caminho_doc:
         pdf_info = anexar_arquivo_matricula(
             matricula_id,
@@ -327,6 +398,18 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
         if pdf_info:
             pdf_salvo = pdf_info.get("caminho_original")
             pdf_limpo_salvo = pdf_info.get("caminho_limpo")
+            if (
+                remover_origem
+                and pdf_salvo
+                and os.path.exists(pdf_salvo)
+                and os.path.exists(caminho_doc)
+                and os.path.abspath(caminho_doc) != os.path.abspath(pdf_salvo)
+            ):
+                try:
+                    os.remove(caminho_doc)
+                    arquivo_origem_removido = True
+                except Exception as ex_rm:
+                    logger.warning(f"Não foi possível remover arquivo de entrada {caminho_doc}: {ex_rm}")
 
     # 4. Vínculo Inteligente com Proprietários (Clientes)
     proprietarios_input = dados.get("proprietarios") or []
@@ -399,6 +482,7 @@ def processar_matricula_ia(dados_brutos: Dict[str, Any], caminho_pdf: Optional[s
         "proprietarios": proprietarios_vinculados,
         "arquivo_pdf_salvo": pdf_salvo,
         "arquivo_pdf_limpo_salvo": pdf_limpo_salvo,
+        "arquivo_origem_removido": arquivo_origem_removido,
         "limpeza_marca_dagua": pdf_info.get("limpeza") if pdf_info else None,
         "arquivo_ja_enviado": bool(pdf_info.get("ja_enviado_anteriormente")) if pdf_info else False,
         "correspondencias_anteriores": pdf_info.get("correspondencias_anteriores", []) if pdf_info else [],
@@ -413,8 +497,14 @@ def main():
     parser.add_argument("--json", type=str, help="Payload JSON com dados da matrícula.")
     parser.add_argument("--file", type=str, help="Arquivo .json com os dados.")
     parser.add_argument("--pdf", type=str, help="Caminho do arquivo PDF da certidão de matrícula.")
+    parser.add_argument("--remover-origem", action="store_true", help="Remove o arquivo de origem (ex.: da pasta Matriculas_Entrada) após arquivá-lo com sucesso.")
+    parser.add_argument("--listar-entrada", action="store_true", help="Lista arquivos pendentes na pasta de entrada (Matriculas_Entrada) e encerra.")
 
     args = parser.parse_args()
+
+    if args.listar_entrada:
+        print(json.dumps(listar_arquivos_entrada(), indent=2, ensure_ascii=False))
+        return
 
     payload_dict = None
     if args.json:
@@ -446,7 +536,7 @@ def main():
         }, ensure_ascii=False))
         sys.exit(1)
 
-    resultado = processar_matricula_ia(payload_dict, caminho_pdf=args.pdf)
+    resultado = processar_matricula_ia(payload_dict, caminho_pdf=args.pdf, remover_origem=args.remover_origem)
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
 
 

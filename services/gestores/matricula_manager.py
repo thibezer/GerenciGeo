@@ -1,6 +1,7 @@
 """
 Regras de domínio para os campos editáveis de uma matrícula.
 """
+import json
 from database.connection import execute_query
 
 # Coluna gravada -> chaves aceitas no payload, em ordem de prioridade
@@ -12,9 +13,17 @@ _ALIASES_MATRICULA = {
     "valor_itr": ("valor_itr",),
     "georreferenciamento": ("georreferenciamento",),
     "matricula_origem_desenho_id": ("matricula_origem_desenho_id",),
+    "cnm": ("cnm",),
+    "municipio_localizacao": ("municipio_localizacao", "municipio_imovel"),
+    "uf_localizacao": ("uf_localizacao", "uf_imovel"),
+    "data_abertura": ("data_abertura", "data_registro"),
+    "data_emissao_certidao": ("data_emissao_certidao", "data_certidao"),
+    "tipo_certidao": ("tipo_certidao",),
+    "onus_ativos": ("onus_ativos", "onus"),
+    "confrontantes_estruturados": ("confrontantes_estruturados",),
 }
 
-COLUNAS_MATRICULA = (*_ALIASES_MATRICULA.keys(), "area_ha", "area_sigef_ha")
+COLUNAS_MATRICULA = (*_ALIASES_MATRICULA.keys(), "area_ha", "area_sigef_ha", "reserva_legal_ha")
 
 
 def _vazio(valor) -> bool:
@@ -60,6 +69,18 @@ def resolver_campos_matricula(enviados: dict, atual: dict | None = None) -> dict
         resolvidos["area_sigef_ha"] = float(val_sigef) if not _vazio(val_sigef) else None
     else:
         resolvidos["area_sigef_ha"] = atual.get("area_sigef_ha")
+
+    # Área de Reserva Legal averbada na matrícula (opcional)
+    if "reserva_legal_ha" in enviados:
+        val_rl = enviados.get("reserva_legal_ha")
+        resolvidos["reserva_legal_ha"] = float(val_rl) if not _vazio(val_rl) else None
+    else:
+        resolvidos["reserva_legal_ha"] = atual.get("reserva_legal_ha")
+
+    # Normaliza campos JSON estruturados quando enviados como dict/list
+    for campo_json in ("onus_ativos", "confrontantes_estruturados"):
+        if isinstance(resolvidos.get(campo_json), (dict, list)):
+            resolvidos[campo_json] = json.dumps(resolvidos[campo_json], ensure_ascii=False)
 
     return resolvidos
 

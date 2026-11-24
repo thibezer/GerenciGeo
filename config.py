@@ -48,6 +48,11 @@ if os.environ.get("GERENCIGEO_TEST") == "1":
     import tempfile
     EXPORT_BASE_FOLDER = os.path.join(tempfile.gettempdir(), f"gerencigeo_testes_workspace{os.environ.get('GERENCIGEO_TEST_SUFFIX', '')}")
 
+MATRICULAS_INBOX_FOLDER = os.environ.get(
+    "GERENCIGEO_MATRICULAS_INBOX",
+    os.path.join(EXPORT_BASE_FOLDER, "Matriculas_Entrada"),
+)
+
 IBGE_SIGEF_LIMITES = {
     'artificial': 0.50,
     'natural': 3.00,

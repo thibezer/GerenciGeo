@@ -567,6 +567,15 @@ function ensureSchema(PDO $pdo): void {
     addColumnSafe($pdo, 'matriculas', 'valor_itr', 'DECIMAL(12,2) NULL');
     addColumnSafe($pdo, 'matriculas', 'georreferenciamento', 'VARCHAR(50) NULL');
     addColumnSafe($pdo, 'matriculas', 'matricula_origem_desenho_id', 'INT NULL');
+    addColumnSafe($pdo, 'matriculas', 'cnm', 'VARCHAR(64) NULL');
+    addColumnSafe($pdo, 'matriculas', 'municipio_localizacao', 'VARCHAR(150) NULL');
+    addColumnSafe($pdo, 'matriculas', 'uf_localizacao', 'VARCHAR(10) NULL');
+    addColumnSafe($pdo, 'matriculas', 'data_abertura', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'matriculas', 'data_emissao_certidao', 'VARCHAR(32) NULL');
+    addColumnSafe($pdo, 'matriculas', 'tipo_certidao', 'VARCHAR(50) NULL');
+    addColumnSafe($pdo, 'matriculas', 'onus_ativos', 'TEXT NULL');
+    addColumnSafe($pdo, 'matriculas', 'reserva_legal_ha', 'DECIMAL(12,4) NULL');
+    addColumnSafe($pdo, 'matriculas', 'confrontantes_estruturados', 'LONGTEXT NULL');
 
     addColumnSafe($pdo, 'levantamentos', 'nome', 'VARCHAR(255) NULL');
     addColumnSafe($pdo, 'levantamentos', 'cliente_id', 'INT NULL');
@@ -1235,6 +1244,21 @@ function requireAuth(PDO $pdo): array {
     return $user;
 }
 
+function requireAdmin(PDO $pdo): array {
+    $user = requireAuth($pdo);
+    if (strtolower((string)($user['role'] ?? '')) !== 'admin') {
+        jsonResponse(['error' => 'Acesso negado: operação restrita a administradores.'], 403);
+    }
+    return $user;
+}
+
+function revogarTokensUsuario(PDO $pdo, int $userId): void {
+    try {
+        $pdo->prepare("DELETE FROM user_tokens WHERE user_id = ?")->execute([$userId]);
+        $pdo->prepare("UPDATE users SET api_token = NULL WHERE id = ?")->execute([$userId]);
+    } catch (Exception $e) {}
+}
+
 /**
  * Atualiza o timestamp global de mutações para que outros computadores detectem alterações em tempo real
  */
@@ -1301,25 +1325,43 @@ if ($route === '/auth/register' || (isset($_GET['action']) && $_GET['action'] ==
         jsonResponse(['error' => 'Este e-mail já está cadastrado no sistema.'], 400);
     }
 
+    $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    $isFirstUser = ($totalUsers === 0);
+    $assignedRole = $isFirstUser ? 'admin' : 'user';
+    $assignedBlocked = $isFirstUser ? 0 : 1;
+
     $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, ?, 'admin', 0)");
-    $stmt->execute([$name, $email, $hashedPassword]);
+    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, ?, ?, ?)");
+    $stmt->execute([$name, $email, $hashedPassword, $assignedRole, $assignedBlocked]);
     $userId = (int)$pdo->lastInsertId();
 
-    $token = emitirToken($pdo, $userId);
+    $safeUser = [
+        'id' => $userId,
+        'name' => $name,
+        'email' => $email,
+        'role' => $assignedRole,
+        'is_blocked' => $assignedBlocked,
+        'profile_image' => null,
+        'created_at' => date('Y-m-d H:i:s')
+    ];
+
+    if ($isFirstUser) {
+        $token = emitirToken($pdo, $userId);
+        jsonResponse([
+            'status' => 'success',
+            'pending_approval' => false,
+            'token' => $token,
+            'user' => $safeUser,
+            'message' => 'Conta administradora criada com sucesso!'
+        ]);
+    }
 
     jsonResponse([
         'status' => 'success',
-        'token' => $token,
-        'user' => [
-            'id' => $userId,
-            'name' => $name,
-            'email' => $email,
-            'role' => 'admin',
-            'profile_image' => null,
-            'created_at' => date('Y-m-d H:i:s')
-        ],
-        'message' => 'Conta criada com sucesso!'
+        'pending_approval' => true,
+        'token' => null,
+        'user' => $safeUser,
+        'message' => 'Cadastro realizado! Sua conta está bloqueada aguardando aprovação de um administrador.'
     ]);
 }
 
@@ -1348,7 +1390,7 @@ if ($route === '/auth/login' || $route === '/nuvem/login' || (isset($_GET['actio
     }
 
     if (!empty($user['is_blocked'])) {
-        jsonResponse(['sucesso' => false, 'error' => 'Os administradores bloquearam o seu acesso.', 'mensagem' => 'Os administradores bloquearam o seu acesso.'], 403);
+        jsonResponse(['sucesso' => false, 'error' => 'Os administradores bloquearam o seu acesso ou sua conta aguarda aprovação.', 'mensagem' => 'Os administradores bloquearam o seu acesso ou sua conta aguarda aprovação.'], 403);
     }
 
     if (!password_verify($password, $user['password'])) {
@@ -1419,10 +1461,228 @@ if ($route === '/auth/me' || (isset($_GET['action']) && $_GET['action'] === 'me'
             'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'] ?? 'admin',
+            'is_blocked' => (int)($user['is_blocked'] ?? 0),
             'profile_image' => $user['profile_image'] ?? null,
             'created_at' => $user['created_at'] ?? null
         ]
     ]);
+}
+
+if ($route === '/auth/change-password' && $method === 'POST') {
+    $pdo = getDb();
+    $authUser = requireAuth($pdo);
+    $input = getJsonInput();
+    $currentPwd = (string)($input['current_password'] ?? '');
+    $newPwd = (string)($input['new_password'] ?? '');
+
+    if ($currentPwd === '' || $newPwd === '') {
+        jsonResponse(['error' => 'Informe a senha atual e a nova senha.'], 400);
+    }
+    if (strlen($newPwd) < 6) {
+        jsonResponse(['error' => 'A nova senha deve conter no mínimo 6 caracteres.'], 400);
+    }
+
+    $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([(int)$authUser['id']]);
+    $row = $stmt->fetch();
+    if (!$row || !password_verify($currentPwd, $row['password'])) {
+        jsonResponse(['error' => 'Senha atual incorreta.'], 401);
+    }
+
+    $newHash = password_hash($newPwd, PASSWORD_BCRYPT);
+    $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$newHash, (int)$authUser['id']]);
+    jsonResponse(['status' => 'success', 'message' => 'Senha alterada com sucesso.']);
+}
+
+if ($route === '/auth/users') {
+    $pdo = getDb();
+    $admin = requireAdmin($pdo);
+
+    if ($method === 'GET') {
+        $stmt = $pdo->query("
+            SELECT u.id, u.name, u.email, u.role, u.is_blocked, u.profile_image, u.created_at,
+                   (SELECT COUNT(*) FROM user_tokens t WHERE t.user_id = u.id) AS active_sessions_count
+            FROM users u
+            ORDER BY u.is_blocked DESC, CASE u.role WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 ELSE 3 END ASC, u.id ASC
+        ");
+        $users = [];
+        while ($r = $stmt->fetch()) {
+            $users[] = [
+                'id' => (int)$r['id'],
+                'name' => $r['name'],
+                'email' => $r['email'],
+                'role' => $r['role'] ?? 'user',
+                'is_blocked' => (int)($r['is_blocked'] ?? 0),
+                'profile_image' => $r['profile_image'] ?? null,
+                'created_at' => $r['created_at'] ?? null,
+                'active_sessions_count' => (int)($r['active_sessions_count'] ?? 0)
+            ];
+        }
+        jsonResponse(['status' => 'success', 'users' => $users]);
+    }
+
+    if ($method === 'POST') {
+        $input = getJsonInput();
+        $name = trim((string)($input['name'] ?? ''));
+        $email = trim(strtolower((string)($input['email'] ?? '')));
+        $password = (string)($input['password'] ?? '');
+        $role = trim(strtolower((string)($input['role'] ?? 'user')));
+        $isBlocked = !empty($input['is_blocked']) ? 1 : 0;
+
+        if ($name === '' || $email === '' || $password === '') {
+            jsonResponse(['error' => 'Informe nome, e-mail e senha.'], 400);
+        }
+        if (strlen($password) < 6) {
+            jsonResponse(['error' => 'A senha deve conter no mínimo 6 caracteres.'], 400);
+        }
+        if (!in_array($role, ['admin', 'moderator', 'user'], true)) {
+            jsonResponse(['error' => 'Perfil inválido. Use admin, moderator ou user.'], 400);
+        }
+
+        $chk = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1");
+        $chk->execute([$email]);
+        if ($chk->fetch()) {
+            jsonResponse(['error' => 'Este e-mail já está cadastrado no sistema.'], 400);
+        }
+
+        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $pdo->prepare("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, ?, ?, ?)")
+            ->execute([$name, $email, $hash, $role, $isBlocked]);
+        $newId = (int)$pdo->lastInsertId();
+
+        jsonResponse([
+            'status' => 'success',
+            'user' => [
+                'id' => $newId,
+                'name' => $name,
+                'email' => $email,
+                'role' => $role,
+                'is_blocked' => $isBlocked,
+                'profile_image' => null,
+                'created_at' => date('Y-m-d H:i:s'),
+                'active_sessions_count' => 0
+            ],
+            'message' => 'Usuário criado com sucesso.'
+        ]);
+    }
+    jsonResponse(['error' => 'Método não permitido.'], 405);
+}
+
+if (preg_match('#^/auth/users/(\d+)/reset-password$#', $route, $m) && $method === 'POST') {
+    $pdo = getDb();
+    requireAdmin($pdo);
+    $targetId = (int)$m[1];
+    $input = getJsonInput();
+    $newPwd = (string)($input['new_password'] ?? '');
+
+    if (strlen($newPwd) < 6) {
+        jsonResponse(['error' => 'A nova senha deve conter no mínimo 6 caracteres.'], 400);
+    }
+
+    $chk = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+    $chk->execute([$targetId]);
+    if (!$chk->fetch()) {
+        jsonResponse(['error' => 'Usuário não encontrado.'], 404);
+    }
+
+    $hash = password_hash($newPwd, PASSWORD_BCRYPT);
+    $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $targetId]);
+    revogarTokensUsuario($pdo, $targetId);
+    jsonResponse(['status' => 'success', 'message' => 'Senha redefinida e sessões anteriores encerradas.']);
+}
+
+if (preg_match('#^/auth/users/(\d+)/revoke-sessions$#', $route, $m) && $method === 'POST') {
+    $pdo = getDb();
+    requireAdmin($pdo);
+    $targetId = (int)$m[1];
+
+    $chk = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+    $chk->execute([$targetId]);
+    if (!$chk->fetch()) {
+        jsonResponse(['error' => 'Usuário não encontrado.'], 404);
+    }
+
+    revogarTokensUsuario($pdo, $targetId);
+    jsonResponse(['status' => 'success', 'message' => 'Todas as sessões deste usuário foram encerradas.']);
+}
+
+if (preg_match('#^/auth/users/(\d+)$#', $route, $m)) {
+    $pdo = getDb();
+    $admin = requireAdmin($pdo);
+    $targetId = (int)$m[1];
+
+    $chk = $pdo->prepare("SELECT id, name, email, role, is_blocked, profile_image, created_at FROM users WHERE id = ? LIMIT 1");
+    $chk->execute([$targetId]);
+    $target = $chk->fetch();
+    if (!$target) {
+        jsonResponse(['error' => 'Usuário não encontrado.'], 404);
+    }
+
+    if ($method === 'PUT') {
+        $input = getJsonInput();
+        $newName = isset($input['name']) ? trim((string)$input['name']) : $target['name'];
+        $newEmail = isset($input['email']) ? trim(strtolower((string)$input['email'])) : $target['email'];
+        $newRole = isset($input['role']) ? trim(strtolower((string)$input['role'])) : ($target['role'] ?? 'user');
+        $newBlocked = isset($input['is_blocked']) ? (!empty($input['is_blocked']) ? 1 : 0) : (int)$target['is_blocked'];
+
+        if ($newName === '' || $newEmail === '') {
+            jsonResponse(['error' => 'Nome e e-mail são obrigatórios.'], 400);
+        }
+        if (!in_array($newRole, ['admin', 'moderator', 'user'], true)) {
+            jsonResponse(['error' => 'Perfil inválido. Use admin, moderator ou user.'], 400);
+        }
+        if ($targetId === (int)$admin['id']) {
+            if ($newBlocked === 1) {
+                jsonResponse(['error' => 'Você não pode bloquear sua própria conta.'], 400);
+            }
+            if ($newRole !== 'admin') {
+                jsonResponse(['error' => 'Você não pode remover seu próprio perfil de administrador.'], 400);
+            }
+        }
+
+        $dup = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ? AND id != ? LIMIT 1");
+        $dup->execute([$newEmail, $targetId]);
+        if ($dup->fetch()) {
+            jsonResponse(['error' => 'Já existe outro usuário com este e-mail.'], 400);
+        }
+
+        $pdo->prepare("UPDATE users SET name = ?, email = ?, role = ?, is_blocked = ? WHERE id = ?")
+            ->execute([$newName, $newEmail, $newRole, $newBlocked, $targetId]);
+
+        if ($newBlocked === 1) {
+            revogarTokensUsuario($pdo, $targetId);
+        }
+
+        $stCnt = $pdo->prepare("SELECT COUNT(*) FROM user_tokens WHERE user_id = ?");
+        $stCnt->execute([$targetId]);
+        $sessCnt = (int)$stCnt->fetchColumn();
+
+        jsonResponse([
+            'status' => 'success',
+            'user' => [
+                'id' => $targetId,
+                'name' => $newName,
+                'email' => $newEmail,
+                'role' => $newRole,
+                'is_blocked' => $newBlocked,
+                'profile_image' => $target['profile_image'] ?? null,
+                'created_at' => $target['created_at'] ?? null,
+                'active_sessions_count' => $sessCnt
+            ],
+            'message' => 'Dados do usuário atualizados com sucesso.'
+        ]);
+    }
+
+    if ($method === 'DELETE') {
+        if ($targetId === (int)$admin['id']) {
+            jsonResponse(['error' => 'Você não pode excluir sua própria conta.'], 400);
+        }
+        revogarTokensUsuario($pdo, $targetId);
+        $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$targetId]);
+        jsonResponse(['status' => 'success', 'message' => 'Usuário excluído com sucesso.']);
+    }
+
+    jsonResponse(['error' => 'Método não permitido.'], 405);
 }
 
 // 2. Estatísticas do Dashboard

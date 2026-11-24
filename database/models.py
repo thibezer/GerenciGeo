@@ -180,6 +180,15 @@ def create_tables(conn):
             caminho_arquivo_pdf TEXT,
             caminho_arquivo_pdf_limpo TEXT,
             matricula_origem_desenho_id INTEGER REFERENCES matriculas(id),
+            cnm TEXT,
+            municipio_localizacao TEXT,
+            uf_localizacao TEXT,
+            data_abertura TEXT,
+            data_emissao_certidao TEXT,
+            tipo_certidao TEXT,
+            onus_ativos TEXT,
+            reserva_legal_ha REAL,
+            confrontantes_estruturados TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (propriedade_id) REFERENCES propriedades(id) ON DELETE CASCADE
         );
@@ -553,6 +562,18 @@ def create_tables(conn):
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         """,
         """
+        CREATE TABLE IF NOT EXISTS user_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_user_tokens_user ON user_tokens(user_id);
+        """,
+        """
         CREATE TABLE IF NOT EXISTS registros_excluidos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tabela TEXT NOT NULL,
@@ -916,7 +937,16 @@ def create_tables(conn):
             ("caminho_arquivo_pdf", "TEXT"),
             ("caminho_arquivo_pdf_limpo", "TEXT"),
             ("matricula_origem_desenho_id", "INTEGER"),
-            ("area_sigef_ha", "REAL")
+            ("area_sigef_ha", "REAL"),
+            ("cnm", "TEXT"),
+            ("municipio_localizacao", "TEXT"),
+            ("uf_localizacao", "TEXT"),
+            ("data_abertura", "TEXT"),
+            ("data_emissao_certidao", "TEXT"),
+            ("tipo_certidao", "TEXT"),
+            ("onus_ativos", "TEXT"),
+            ("reserva_legal_ha", "REAL"),
+            ("confrontantes_estruturados", "TEXT"),
         ]
         cursor.execute("PRAGMA table_info(matriculas)")
         colunas_matriculas_existentes = {row[1] for row in cursor.fetchall()}
