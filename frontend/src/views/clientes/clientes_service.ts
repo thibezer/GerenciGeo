@@ -16,10 +16,21 @@ export const cabecalhosAuth = (): Record<string, string> => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+/** Sessão ausente/expirada (401/403): diferente de falha de rede ou erro do servidor. */
+export class SessaoExpiradaError extends Error {
+  constructor() {
+    super('Sessão expirada. Entre novamente.');
+    this.name = 'SessaoExpiradaError';
+  }
+}
+
 export const fetchTodosClientes = async (): Promise<Cliente[]> => {
   const res = await fetch(`${API_BASE}/clientes`);
+  if (res.status === 401 || res.status === 403) {
+    throw new SessaoExpiradaError();
+  }
   if (!res.ok) {
-    throw new Error(`Erro ao carregar clientes: ${res.statusText}`);
+    throw new Error(`Erro ao carregar clientes (HTTP ${res.status}).`);
   }
   const data = await res.json();
   if (data && data.error) {

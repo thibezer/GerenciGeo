@@ -9,9 +9,11 @@ import type {
 import { initIcons, escapeHtml } from '../utils';
 import { abrirModalHistoricoArquivosIA } from '../utils/historico_arquivos_ia';
 import { API_BASE } from '../config';
+import { AuthService } from '../utils/auth_service';
 import { renderClientesTemplate } from './clientes/clientes_template';
 import {
   fetchTodosClientes,
+  SessaoExpiradaError,
   fetchClienteHistorico,
   fetchClienteAcessosApi,
   fetchClienteDocumentosApi,
@@ -1460,9 +1462,17 @@ export const clientesRoute: RouteDef = {
           console.error("Erro ao obter clientes:", err);
           body.innerHTML = '';
           if (statusDiv) {
+            const sessaoExpirada = err instanceof SessaoExpiradaError;
+            const titulo = sessaoExpirada ? 'Sessão expirada' : 'Erro de conexão com o servidor';
+            const texto = sessaoExpirada
+              ? 'Sua sessão não é mais válida. Entre novamente para ver os clientes.'
+              : 'Não foi possível carregar os clientes.';
+            const rotulo = sessaoExpirada ? 'Entrar novamente' : 'Tentar novamente';
             statusDiv.classList.remove('hidden');
-            statusDiv.innerHTML = '<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">Erro de conexão com o servidor</div><div class="lp-estado-txt">Não foi possível carregar os clientes.</div><button type="button" class="lp-btn-sec" id="btn-recarregar-clientes">Tentar novamente</button></div>';
-            document.getElementById('btn-recarregar-clientes')?.addEventListener('click', () => { loadClientes(); });
+            statusDiv.innerHTML = `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">${titulo}</div><div class="lp-estado-txt">${texto}</div><button type="button" class="lp-btn-sec" id="btn-recarregar-clientes">${rotulo}</button></div>`;
+            document.getElementById('btn-recarregar-clientes')?.addEventListener('click', () => {
+              if (sessaoExpirada) { AuthService.logout(); } else { loadClientes(); }
+            });
             initIcons();
           }
         });
