@@ -128,13 +128,23 @@ export function initNuvemSyncModal(ctx?: any) {
       }
 
       if (!isLocal && !data.autenticado) {
-        const storedUser = localStorage.getItem('gerencigeo_auth_user');
-        if (storedUser) {
-          try {
-            data.user = JSON.parse(storedUser);
-            data.autenticado = true;
-            data.status = 'SYNCED';
-          } catch (e) {}
+        if (res.ok && data.status === 'UNAUTHENTICATED') {
+          // O servidor respondeu e recusou o token: a sessão salva no navegador é inválida.
+          // Descarta-a para o modal pedir login (um novo token destrava Clientes e demais cadastros).
+          ['gerencigeo_auth_user', 'gerencigeo_auth_token'].forEach(k => {
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
+          });
+        } else {
+          // Servidor inacessível: mantém a sessão local só para exibição (modo degradado).
+          const storedUser = localStorage.getItem('gerencigeo_auth_user');
+          if (storedUser) {
+            try {
+              data.user = JSON.parse(storedUser);
+              data.autenticado = true;
+              data.status = 'SYNCED';
+            } catch (e) {}
+          }
         }
       }
 
