@@ -82,18 +82,18 @@ class TestDeclaracaoDesmembramento(unittest.TestCase):
 
             # Criar pontos de teste
             cursor.execute("""
-                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
-                VALUES (?, ?, 'P1', -24.1, -53.1, 'P', 1)
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento, origem_homologada)
+                VALUES (?, ?, 'P1', -24.1, -53.1, 'P', 1, 1)
             """, (cls.lev_id, cls.mat_id))
             p1_id = cursor.lastrowid
             cursor.execute("""
-                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
-                VALUES (?, ?, 'P2', -24.2, -53.2, 'P', 2)
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento, origem_homologada)
+                VALUES (?, ?, 'P2', -24.2, -53.2, 'P', 2, 1)
             """, (cls.lev_id, cls.mat_id))
             p2_id = cursor.lastrowid
             cursor.execute("""
-                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento)
-                VALUES (?, ?, 'P3', -24.3, -53.3, 'P', 3)
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento, origem_homologada)
+                VALUES (?, ?, 'P3', -24.3, -53.3, 'P', 3, 1)
             """, (cls.lev_id, cls.mat_id))
             p3_id = cursor.lastrowid
 

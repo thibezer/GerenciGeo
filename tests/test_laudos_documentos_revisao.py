@@ -65,8 +65,8 @@ class TestLaudosDocumentosRevisao(unittest.TestCase):
 
             # 8. Ponto Base tipo M no MS (Longitude ~ -57.5, deve cair na Zona 21S)
             cursor.execute("""
-                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, status_ponto)
-                VALUES (?, ?, 'M-01', 'M', -19.0, -57.5, 120.0, 'CORRIGIDO')
+                INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, tipo_ponto, lat, lon, alt, status_ponto, origem_homologada)
+                VALUES (?, ?, 'M-01', 'M', -19.0, -57.5, 120.0, 'CORRIGIDO', 1)
             """, (cls.lev_id, cls.mat_id))
 
             # 9. Banco de pontos

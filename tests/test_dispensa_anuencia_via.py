@@ -52,8 +52,8 @@ class TestDeclaracaoDispensaVia(unittest.TestCase):
 
             pts = []
             for i, (lat, lon) in enumerate([(-24.10, -53.10), (-24.11, -53.10), (-24.12, -53.11), (-24.13, -53.12)], start=1):
-                cur.execute("INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento) "
-                            "VALUES (?, ?, ?, ?, ?, 'P', ?)", (cls.lev_id, cls.mat_id, f"P{i}", lat, lon, i))
+                cur.execute("INSERT INTO pontos (levantamento_id, matricula_id, nome_vertice, lat, lon, tipo_ponto, ordem_caminhamento, origem_homologada) "
+                            "VALUES (?, ?, ?, ?, ?, 'P', ?, 1)", (cls.lev_id, cls.mat_id, f"P{i}", lat, lon, i))
                 pts.append(cur.lastrowid)
             cur.execute("INSERT INTO confrontantes (levantamento_id, nome) VALUES (?, 'Estrada Municipal Yara')", (cls.lev_id,))
             cls.estrada_id = cur.lastrowid

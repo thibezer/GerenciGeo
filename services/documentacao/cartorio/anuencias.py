@@ -124,6 +124,7 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
         SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
         FROM pontos
         WHERE levantamento_id = ?
+          AND origem_homologada = 1
           AND (
               matricula_id = ?
               OR matricula_id IS NULL
@@ -144,7 +145,7 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
             """
             SELECT id, nome_vertice, lat, lon, lat_corrigido, lon_corrigido, tipo_ponto, ordem_caminhamento, ignorar_poligono, origem_homologada
             FROM pontos
-            WHERE levantamento_id = ?
+            WHERE levantamento_id = ? AND origem_homologada = 1
             ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
             """,
             params=(lev_id,),
@@ -179,12 +180,7 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
         JOIN pontos pi ON pi.id = s.ponto_inicio_id
         JOIN pontos pf ON pf.id = s.ponto_fim_id
         WHERE s.levantamento_id = ? AND s.matricula_id = ?
-        AND (
-            (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
-            OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
-                            AND (h.matricula_id = s.matricula_id OR h.matricula_id IS NULL)
-                            AND h.origem_homologada = 1)
-        )
+        AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
         ORDER BY s.id ASC
         """,
         params=(lev_id, mat_desenho_id),
@@ -206,9 +202,8 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
 
     # Fallback se não houver segmentos perimétricos ou se a cadeia tiver menos de 3 pontos
     if len(poligono_coords) < 3:
-        pts_filtrados = [p for p in pts_validos if (p.get("ignorar_poligono") or 0) == 0 and p.get("tipo_ponto") != 'B']
-        if any(p.get("origem_homologada") == 1 for p in pts_filtrados):
-            pts_filtrados = [p for p in pts_filtrados if p.get("origem_homologada") == 1]
+        pts_filtrados = [p for p in pts_validos
+                         if (p.get("ignorar_poligono") or 0) == 0 and p.get("tipo_ponto") != 'B' and p.get("origem_homologada") == 1]
         poligono_coords = [[p["_lat"], p["_lon"]] for p in pts_filtrados]
 
     return {"pts_coords": pts_coords, "poligono_coords": poligono_coords, "zona_utm": zona_utm, "matricula_id": mat_desenho_id}
@@ -275,7 +270,10 @@ def gerar_anexo_grafico_html(
                 f"""
                 SELECT s.id AS seg_id, s.ponto_inicio_id, s.ponto_fim_id
                 FROM segmentos s
+                JOIN pontos pi ON pi.id = s.ponto_inicio_id
+                JOIN pontos pf ON pf.id = s.ponto_fim_id
                 WHERE s.levantamento_id = ? AND s.matricula_id IN ({marcas_mats}) AND s.confrontante_id = ?
+                  AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
                 ORDER BY s.id ASC
                 """,
                 params=tuple([lev_id] + mats + [confrontante_id]),
@@ -732,7 +730,9 @@ def _confrontantes_do_perimetro(lev_id: int, mat_desenho_id: int) -> list[int]:
                MIN(s.id) AS primeiro_seg
         FROM segmentos s
         JOIN pontos pi ON pi.id = s.ponto_inicio_id
+        JOIN pontos pf ON pf.id = s.ponto_fim_id
         WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id IS NOT NULL
+          AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
         GROUP BY s.confrontante_id
         ORDER BY ordem ASC, primeiro_seg ASC
         """,
@@ -958,6 +958,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
         JOIN pontos pi ON s.ponto_inicio_id = pi.id
         JOIN pontos pf ON s.ponto_fim_id = pf.id
         WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
+          AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
         ORDER BY s.id ASC
         """,
         params=(lev_id, mat_desenho_id, confrontante_id),

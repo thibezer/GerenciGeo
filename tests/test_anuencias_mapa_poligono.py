@@ -111,6 +111,17 @@ class TestAnuenciasMapaPoligono(unittest.TestCase):
         poligono = map_data["poligono"]
         self.assertEqual(len(poligono), 4, f"Fallback deve filtrar os 4 pontos homologados, obtido {len(poligono)}")
 
+    def test_divisas_de_campo_nao_entram_no_cartorio(self):
+        """Cartório usa só o arquivo homologado: divisa do mesmo confrontante entre pontos brutos é ignorada"""
+        with DatabaseManager() as conn:
+            conn.cursor().execute("INSERT INTO segmentos (id, levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef) VALUES (20, 1, 10, 201, 202, 100, 'LN1', 'PG1')")
+            conn.commit()
+
+        html, map_data = gerar_anexo_grafico_html(1, 10, 100, "Lote Vizinho", "1234")
+        self.assertEqual(len(map_data["lindeira"]), 2, "Divisa de campo (RIO1->RIO2) não pode entrar na lindeira")
+        nomes = {p["nome"] for p in map_data["lindeira_pontos"]}
+        self.assertFalse(nomes & {"RIO1", "RIO2", "RIO3"})
+
     def test_divisa_lindeira_atravessa_virada_perimetro(self):
         """Valida ordenação topológica quando o confrontante cruza a virada do perímetro (V4 -> V1 -> V2)"""
         with DatabaseManager() as conn:

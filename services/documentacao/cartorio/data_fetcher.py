@@ -181,6 +181,8 @@ def resolver_matricula_desenho(matricula_id: int) -> int:
     return row_orig["matricula_origem_desenho_id"] if row_orig and row_orig["matricula_origem_desenho_id"] else matricula_id
 
 
+# Regra do cartório: documentos usam SOMENTE os pontos/divisas do arquivo homologado (planilha SIGEF
+# validada e lançada no sistema, origem_homologada = 1), nunca os pontos brutos de campo do levantamento.
 _SQL_SEGMENTOS_DETALHADOS = """
     SELECT s.id AS seg_id, s.confrontante_id, s.ponto_inicio_id, s.ponto_fim_id, s.tipo_limite_sigef, s.metodo_posicionamento_sigef,
            pi.nome_vertice as ini_nome, COALESCE(pi.lat_corrigido, pi.lat) as ini_lat, COALESCE(pi.lon_corrigido, pi.lon) as ini_lon,
@@ -192,6 +194,7 @@ _SQL_SEGMENTOS_DETALHADOS = """
     JOIN pontos pi ON s.ponto_inicio_id = pi.id
     JOIN pontos pf ON s.ponto_fim_id = pf.id
     WHERE s.matricula_id IN ({marcas_mats}) AND s.confrontante_id IN ({marcas_confs})
+      AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
     ORDER BY s.id ASC
 """
 

@@ -753,7 +753,10 @@ def status_cartorio(id: int):
             FROM confrontantes c
             LEFT JOIN pessoas p ON c.pessoa_id = p.id
             JOIN segmentos s ON s.confrontante_id = c.id AND s.levantamento_id = c.levantamento_id
+            JOIN pontos pi ON pi.id = s.ponto_inicio_id
+            JOIN pontos pf ON pf.id = s.ponto_fim_id
             WHERE c.levantamento_id = ?
+              AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
             GROUP BY c.id
             """,
             params=(id,), fetch_all=True
@@ -782,11 +785,7 @@ def status_cartorio(id: int):
                JOIN pontos pi ON pi.id = s.ponto_inicio_id
                JOIN pontos pf ON pf.id = s.ponto_fim_id
                WHERE s.levantamento_id = ? AND s.confrontante_id IS NULL
-               AND (
-                   (pi.origem_homologada = 1 AND pf.origem_homologada = 1)
-                   OR NOT EXISTS (SELECT 1 FROM pontos h WHERE h.levantamento_id = s.levantamento_id
-                                   AND h.matricula_id = s.matricula_id AND h.origem_homologada = 1)
-               )""",
+               AND pi.origem_homologada = 1 AND pf.origem_homologada = 1""",
             params=(id,), fetch_one=True
         )["n"]
 

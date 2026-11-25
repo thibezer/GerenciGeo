@@ -8,7 +8,24 @@ from database.connection import DatabaseManager, execute_query
 from utils.transformer_cache import get_transformer
 
 
+def _camada_homologada(r) -> int:
+    try:
+        return 1 if r["origem_homologada"] == 1 else 0
+    except (KeyError, IndexError):
+        return 0
+
+
 def ordenar_sem_intercalar(rows) -> list:
+    """Camada de campo (bruta) primeiro e camada homologada (arquivo lançado) depois, cada uma sem intercalar.
+
+    Campo e homologado têm numeração própria (ambos 1..N); misturá-los por (ordem, id) cruzava o polígono.
+    """
+    rows = list(rows)
+    return [pid for camada in (0, 1)
+            for pid in _ordenar_camada([r for r in rows if _camada_homologada(r) == camada])]
+
+
+def _ordenar_camada(rows) -> list:
     """
     Devolve os ids na ordem em que devem ser renumerados (1..N) quando há ordens duplicadas/nulas.
 
@@ -58,7 +75,7 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
                 # Seleciona todos os pontos dessa matrícula, ignorando o tipo 'B'
                 cursor.execute(
                     """
-                    SELECT id, ordem_caminhamento, tipo_ponto
+                    SELECT id, ordem_caminhamento, tipo_ponto, origem_homologada
                     FROM pontos
                     WHERE levantamento_id = ? AND matricula_id = ? AND tipo_ponto != 'B'
                     ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC
@@ -82,7 +99,7 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
             # 2. Sanitizar pontos órfãos (matricula_id IS NULL), ignorando tipo 'B'
             cursor.execute(
                 """
-                SELECT id, ordem_caminhamento, tipo_ponto
+                SELECT id, ordem_caminhamento, tipo_ponto, origem_homologada
                 FROM pontos
                 WHERE levantamento_id = ? AND matricula_id IS NULL AND tipo_ponto != 'B'
                 ORDER BY CASE WHEN ordem_caminhamento IS NULL OR ordem_caminhamento = 0 THEN 999999 ELSE ordem_caminhamento END ASC, id ASC

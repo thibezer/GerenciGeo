@@ -99,8 +99,11 @@ def _vias_do_levantamento(lev_id: int, mat_desenho_id: int, matricula_id: int, c
         LEFT JOIN pessoas p ON p.id = c.pessoa_id
         WHERE c.levantamento_id = ?
           AND EXISTS (SELECT 1 FROM segmentos s
+                      JOIN pontos pi ON pi.id = s.ponto_inicio_id
+                      JOIN pontos pf ON pf.id = s.ponto_fim_id
                       WHERE s.confrontante_id = c.id AND s.levantamento_id = c.levantamento_id
-                        AND s.matricula_id IN (?, ?))
+                        AND s.matricula_id IN (?, ?)
+                        AND pi.origem_homologada = 1 AND pf.origem_homologada = 1)
         ORDER BY c.id
         """,
         params=(lev_id, mat_desenho_id, matricula_id), fetch_all=True,

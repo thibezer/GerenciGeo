@@ -598,7 +598,7 @@ def gerar_laudo_tecnico_html(lev_id: int, matricula_id: int, numero_trt: str = N
         """
         SELECT AVG(COALESCE(lon_corrigido, lon)) as avg_lon 
         FROM pontos 
-        WHERE levantamento_id = ? 
+        WHERE levantamento_id = ? AND origem_homologada = 1
           AND (lon IS NOT NULL OR lon_corrigido IS NOT NULL) 
           AND (lon != 0.0 OR lon_corrigido != 0.0)
         """,
