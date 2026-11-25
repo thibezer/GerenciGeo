@@ -8,6 +8,34 @@ from database.connection import DatabaseManager, execute_query
 from utils.transformer_cache import get_transformer
 
 
+def ordenar_sem_intercalar(rows) -> list:
+    """
+    Devolve os ids na ordem em que devem ser renumerados (1..N) quando há ordens duplicadas/nulas.
+
+    Ordenar só por (ordem, id) intercala trechos que entraram juntos com numeração própria
+    (ex.: 1..28, 1..33, 1..32 viram 1ª,1ª,1ª,2ª,2ª,2ª...), gerando um polígono em zigue-zague.
+    Quando os pontos, vistos por id, formam poucos trechos longos de ordem crescente, os trechos
+    são mantidos inteiros e concatenados; senão (lista embaralhada pelo usuário) mantém (ordem, id).
+    """
+    def valida(o):
+        return o is not None and o > 0
+
+    por_ordem = sorted(rows, key=lambda r: (r["ordem_caminhamento"] if valida(r["ordem_caminhamento"]) else 999999, r["id"]))
+    validos = sorted((r for r in rows if valida(r["ordem_caminhamento"])), key=lambda r: r["id"])
+    sem_ordem = sorted((r for r in rows if not valida(r["ordem_caminhamento"])), key=lambda r: r["id"])
+
+    trechos = []
+    for r in validos:
+        if trechos and r["ordem_caminhamento"] > trechos[-1][-1]["ordem_caminhamento"]:
+            trechos[-1].append(r)
+        else:
+            trechos.append([r])
+
+    if len(trechos) < 2 or len(validos) / len(trechos) < 5:
+        return [r["id"] for r in por_ordem]
+    return [r["id"] for t in trechos for r in t] + [r["id"] for r in sem_ordem]
+
+
 def sanitizar_ordens_duplicadas(levantamento_id: int):
     """
     Garante de forma robusta e determinística que não existam ordens de caminhamento duplicadas
@@ -45,11 +73,7 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
 
                 if tem_duplicidade or tem_nulo:
                     logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, matricula={mid}")
-                    update_data = []
-                    nova_ordem = 1
-                    for r in rows:
-                        update_data.append((nova_ordem, r["id"]))
-                        nova_ordem += 1
+                    update_data = [(nova_ordem, pid) for nova_ordem, pid in enumerate(ordenar_sem_intercalar(rows), start=1)]
                     cursor.executemany(
                         "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
                         update_data
@@ -72,11 +96,7 @@ def sanitizar_ordens_duplicadas(levantamento_id: int):
 
             if tem_dup_orf or tem_nul_orf:
                 logger.info(f"[SANITIZACAO_ORDEM] Corrigindo ordens para levantamento={levantamento_id}, pontos orfaos")
-                update_data = []
-                nova_ordem = 1
-                for r in rows_orfaos:
-                    update_data.append((nova_ordem, r["id"]))
-                    nova_ordem += 1
+                update_data = [(nova_ordem, pid) for nova_ordem, pid in enumerate(ordenar_sem_intercalar(rows_orfaos), start=1)]
                 cursor.executemany(
                     "UPDATE pontos SET ordem_caminhamento = ? WHERE id = ?",
                     update_data
