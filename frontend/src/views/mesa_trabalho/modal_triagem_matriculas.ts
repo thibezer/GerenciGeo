@@ -96,10 +96,10 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span id="triagem-badge-total" class="px-2 py-0.5 rounded bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/25 font-mono text-[10px] font-bold whitespace-nowrap shrink-0">0 pendentes</span>
-          <ui-botao id="btn-triagem-abrir-pasta" variante="secondary" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Abrir pasta no Windows Explorer">
+          <ui-botao id="btn-triagem-abrir-pasta" inline variante="secondary" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Abrir pasta no Windows Explorer">
             Abrir Pasta
           </ui-botao>
-          <ui-botao id="btn-triagem-atualizar" variante="ghost" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Recarregar fila">
+          <ui-botao id="btn-triagem-atualizar" inline variante="ghost" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Recarregar fila">
             Atualizar
           </ui-botao>
         </div>
@@ -183,7 +183,7 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
         <span class="truncate">No chat: <strong class="text-white/85 group-hover:text-mint-vibrant transition-colors">"Analise as matrículas da pasta"</strong></span>
         <i data-lucide="copy" class="w-3 h-3 text-white/35 group-hover:text-mint-vibrant shrink-0"></i>
       </button>
-      <ui-botao variante="secondary" tamanho="sm" class="shrink-0 whitespace-nowrap" style="white-space: nowrap;" dismiss-modal>Fechar</ui-botao>
+      <ui-botao inline variante="secondary" tamanho="sm" class="shrink-0 whitespace-nowrap" style="white-space: nowrap;" dismiss-modal>Fechar</ui-botao>
     </div>
   `;
 

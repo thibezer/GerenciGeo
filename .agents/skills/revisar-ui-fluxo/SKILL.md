@@ -27,7 +27,8 @@ Antes de tudo, garanta que nada cubra modais, dropdowns ou tooltips:
 ## 2. Botões, Badges e Rodapés (Zero Quebra Indesejada)
 - **Botões e badges em uma única linha**:
   - Todo botão de ação e badge de contagem deve ter `whitespace-nowrap shrink-0`.
-  - Em Web Components `<ui-botao>` dentro de containers `flex`, adicione `class="... whitespace-nowrap shrink-0"` e `style="white-space: nowrap;"` quando houver risco de compressão.
+  - **Regra crítica do `<ui-botao>` (`@thibezer/ui-components-kit`)**: por padrão o `:host` de `<ui-botao>` possui `width: 100%`. Sempre passe o atributo **`inline`** (`<ui-botao inline ...>`) quando o botão estiver em barras de topo, toolbars ou rodapés ao lado de outros elementos; sem `inline`, o botão estica para 100% e empurra os demais itens para fora da tela.
+  - Em Web Components `<ui-botao>` dentro de containers `flex`, adicione `inline` + `class="... whitespace-nowrap shrink-0"` e `style="white-space: nowrap;"`.
 - **Rodapé de modal (`slot="rodape"`)**:
   - Evite `flex-wrap` quando houver texto informativo à esquerda + botão `Fechar`/ação à direita; isso faz o botão cair para a linha de baixo e esticar em 100% da largura.
   - Use `flex items-center justify-between gap-3 w-full`, colocando `min-w-0` no texto e `shrink-0 whitespace-nowrap` nos botões.
