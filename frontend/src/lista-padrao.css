@@ -173,7 +173,7 @@
 .lp-tile-rodape { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
 /* Faixa numérica / código curto */
-.lp-chip { display: inline-block; font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1; padding: 3px 6px; border-radius: 5px; color: var(--lp-text-2); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); }
+.lp-chip { display: inline-block; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 5px; color: var(--lp-text-2); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--lp-line-strong); }
 
 /* Aviso recolhível (âmbar) e painel de detalhe */
 .lp-aviso { border: 1px solid rgba(251, 191, 36, 0.28); background: rgba(251, 191, 36, 0.05); border-radius: 8px; flex-shrink: 0; }
