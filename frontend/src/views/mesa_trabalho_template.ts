@@ -756,16 +756,15 @@ export const renderMesaTrabalho = (): string => {
                    </div>
 
                    <!-- Container de Mapeamento de Abas/Arquivos -->
-                   <div id="container-mapeamento-abas-homologacao" class="hidden space-y-3 bg-white/5 border border-white/10 rounded-xl p-4">
+                   <div id="container-mapeamento-abas-homologacao" class="hidden space-y-2.5 bg-white/5 border border-white/10 rounded-xl p-3.5 overflow-hidden">
                      <h5 class="text-xs font-bold text-mint-vibrant uppercase tracking-wider flex items-center gap-1.5">
-                       <i data-lucide="layers" class="w-4 h-4"></i>
-                       Mapeamento de Abas ➔ Matrículas
+                       <i data-lucide="layers" class="w-4 h-4 shrink-0"></i>
+                       <span>Mapeamento de Abas</span>
                      </h5>
-                     <p class="text-[10px] text-white/40">Selecione qual matrícula corresponde a cada trecho/aba identificado:</p>
-                     <div id="lista-abas-mapeamento" class="space-y-3 max-h-[200px] overflow-y-auto pr-1"></div>
+                     <div id="lista-abas-mapeamento" class="space-y-2.5 max-h-[220px] overflow-y-auto overflow-x-hidden pr-1"></div>
                    </div>
 
-                   <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
+                   <button class="btn-primary w-full py-2 text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap opacity-55 cursor-not-allowed" id="btn-processar-homologacao" disabled type="button">
                      <i data-lucide="upload" class="w-4 h-4"></i>
                      Importar Pontos no Banco
                    </button>

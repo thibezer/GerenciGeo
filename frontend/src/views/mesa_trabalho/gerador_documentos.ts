@@ -3105,11 +3105,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             
             // Criar um bloco para o arquivo
             const fileBlock = document.createElement('div');
-            fileBlock.className = 'space-y-2 border-b border-white/5 pb-2 last:border-b-0 last:pb-0';
+            fileBlock.className = 'space-y-2 border-b border-white/5 pb-2.5 last:border-b-0 last:pb-0 min-w-0';
             
             const fileTitle = document.createElement('div');
-            fileTitle.className = 'text-xs font-bold text-white/70 flex items-center gap-1.5 pt-1';
-            fileTitle.innerHTML = `<i data-lucide="file" class="w-3.5 h-3.5 text-white/40"></i> ${filename}`;
+            fileTitle.className = 'text-xs font-bold text-white/75 flex items-center gap-1.5 pt-0.5 min-w-0';
+            fileTitle.innerHTML = `<i data-lucide="file" class="w-3.5 h-3.5 text-white/40 shrink-0"></i> <span class="truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</span>`;
             fileBlock.appendChild(fileTitle);
             
             resData.abas.forEach((aba: any) => {
@@ -3117,17 +3117,17 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               const mapKey = `${filename}#${aba.nome}`;
               
               const abaRow = document.createElement('div');
-              abaRow.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-2 pl-4';
+              abaRow.className = 'flex flex-col gap-1.5 pl-3 min-w-0';
               
               const labelDiv = document.createElement('div');
-              labelDiv.className = 'flex items-center gap-2 text-xs text-white/50';
+              labelDiv.className = 'flex items-center justify-between gap-2 text-xs text-white/50 min-w-0';
               labelDiv.innerHTML = `
-                <span class="font-semibold text-white/80">${escapeHtml(aba.nome)}</span>
-                <span class="text-[10px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-white/40 font-mono">${aba.qtd_pontos} pts</span>
+                <span class="font-semibold text-white/85 truncate min-w-0" title="${escapeHtml(aba.nome)}">${escapeHtml(aba.nome)}</span>
+                <span class="text-[10px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white/50 font-mono whitespace-nowrap shrink-0">${aba.qtd_pontos} pts</span>
               `;
               
               const select = document.createElement('select');
-              select.className = 'selecao-matricula-aba bg-white/5 border border-white/10 hover:border-white/20 text-white rounded px-2 py-1 text-xs outline-none transition-colors w-full sm:w-[220px]';
+              select.className = 'selecao-matricula-aba bg-forest-deep/60 border border-white/15 hover:border-mint-vibrant/40 focus:border-mint-vibrant text-white rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors w-full min-w-0';
               select.setAttribute('data-map-key', mapKey);
               
               let selectHtml = `<option value="">-- Não importar --</option>`;
@@ -3246,7 +3246,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       if (selectedFiles.length === 0 || !ctx.currentLevId) return;
       
       // Coletar mapeamento do DOM
-      const mapeamento: Record<string, number> = {};
+      const mapeamento: Record<string, string | null> = {};
       const selects = listaAbasMapeamento.querySelectorAll('.selecao-matricula-aba') as NodeListOf<HTMLSelectElement>;
       
       let temPeloMenosUmMapeado = false;
@@ -3254,7 +3254,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         const key = select.getAttribute('data-map-key');
         const val = select.value;
         if (key) {
-          mapeamento[key] = val ? parseInt(val) : null as any;
+          mapeamento[key] = val || null;
           if (val) {
             temPeloMenosUmMapeado = true;
           }
