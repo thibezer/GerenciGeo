@@ -747,10 +747,11 @@ export const mesaTrabalhoRoute: RouteDef = {
     ctx.atualizarPolilinhaMapaTemp = () => {
       if (!ctx.triagemMap) return;
       if (ctx.etapaAtiva === 'documentos') {
+        const pontosOficiais = pontosParaMapa(pontosOficiaisDaMatricula(ctx));
         ctx.mapaController.clearOverlays(false);
         limparCamadaRascunhoVirtual(ctx);
-        ctx.mapaController.plotPontos(pontosParaMapa(pontosOficiaisDaMatricula(ctx)), (pId: number) => ctx.cliqueVerticeMapa?.(pId));
-        ctx.mapaController.plotSegmentos([], []);
+        ctx.mapaController.plotPontos(pontosOficiais, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
+        ctx.mapaController.plotSegmentos([], pontosOficiais);
         if (ctx.pontosHomologadosList?.length && ctx.poligonalHomologadaVisivel !== false) {
           ctx.mapaController.plotPoligonalHomologada(homologadosDaMatricula(ctx));
         }
