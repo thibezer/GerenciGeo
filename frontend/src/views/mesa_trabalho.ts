@@ -3,7 +3,8 @@ import type { RouteDef } from '../types';
 import { API_BASE } from '../config';
 import { initIcons, customAlert, customConfirm, showToast } from '../utils';
 import { renderMesaTrabalho } from './mesa_trabalho_template';
-import { bancoPontosDaMatricula } from './mesa_trabalho/pontos_visiveis';
+import { bancoPontosDaMatricula, homologadosDaMatricula, pontosOficiaisDaMatricula } from './mesa_trabalho/pontos_visiveis';
+import { limparCamadaRascunhoVirtual } from './mesa_trabalho/camada_rascunho_virtual';
 import { pontosParaMapa } from './mesa_trabalho/coordenadas_mapa';
 import { atualizarPainelPropriedades } from './mesa_trabalho/painel_propriedades';
 import { atualizarAreaMedida } from './mesa_trabalho/area_medida';
@@ -596,6 +597,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       ctx.areaMedida = null;
       void atualizarAreaMedida(ctx);
       if (ctx.etapaAtiva === 'documentos') {
+        ctx.atualizarPolilinhaMapaTemp?.();
         ctx.carregarHomologacaoDados(ctx.currentProfissionalId ?? 0);
       }
 
@@ -744,7 +746,16 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     ctx.atualizarPolilinhaMapaTemp = () => {
       if (!ctx.triagemMap) return;
-      if (ctx.etapaAtiva === 'documentos') return;
+      if (ctx.etapaAtiva === 'documentos') {
+        ctx.mapaController.clearOverlays(false);
+        limparCamadaRascunhoVirtual(ctx);
+        ctx.mapaController.plotPontos(pontosParaMapa(pontosOficiaisDaMatricula(ctx)), (pId: number) => ctx.cliqueVerticeMapa?.(pId));
+        ctx.mapaController.plotSegmentos([], []);
+        if (ctx.pontosHomologadosList?.length && ctx.poligonalHomologadaVisivel !== false) {
+          ctx.mapaController.plotPoligonalHomologada(homologadosDaMatricula(ctx));
+        }
+        return;
+      }
       if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
       let pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)

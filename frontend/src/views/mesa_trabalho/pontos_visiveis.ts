@@ -1,4 +1,5 @@
 import type { MesaTrabalhoContext } from './mesa_trabalho_context';
+import { ehVerticeVirtualRascunho } from './modal_promover_virtuais';
 
 /**
  * Filtros que decidem quais vértices a Mesa Geodésica mostra (tabela E mapa): "ocultar fora da poligonal",
@@ -72,6 +73,21 @@ export function bancoPontosDaMatricula(ctx: MesaTrabalhoContext): any[] {
 /** Pontos homologados (tabela `pontos`) da matrícula ativa, para a poligonal de Peças de Cartório. */
 export function homologadosDaMatricula(ctx: MesaTrabalhoContext): any[] {
   return filtrarPorMatriculaAtiva(ctx, ctx.pontosHomologadosList || []);
+}
+
+/** Pontos (X) do perímetro oficial da matrícula ativa usados como referência em Peças de Cartório (sem bases, ignorados ou rascunhos). */
+export function pontosOficiaisDaMatricula(ctx: MesaTrabalhoContext): any[] {
+  const base: any[] = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
+    ? ctx.obterPontosParaOrdenacao()
+    : (ctx.pontosList || []).filter(p => p && (!ctx.arquivosDesativadosList || !ctx.arquivosDesativadosList.includes(p.arquivo_origem)));
+
+  return filtrarPorMatriculaAtiva(ctx, base).filter(p =>
+    p &&
+    p.ignorar_poligono !== 1 &&
+    p.tipo_ponto !== 'B' &&
+    p.tipo !== 'B' &&
+    !ehVerticeVirtualRascunho(p)
+  );
 }
 
 function filtrarPorMatriculaAtiva(ctx: MesaTrabalhoContext, todos: any[]): any[] {

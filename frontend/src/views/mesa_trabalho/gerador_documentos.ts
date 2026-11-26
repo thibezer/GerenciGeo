@@ -7,7 +7,6 @@ import { criarListaConfrontantes, type ResumoConfrontantes, type ListaConfrontan
 import { estadoDe, type ConfrontanteResumo } from './lista_confrontantes_tipos';
 import { criarPassosCartorio } from './passos_cartorio';
 import { homologadosDaMatricula } from './pontos_visiveis';
-import { limparCamadaRascunhoVirtual } from './camada_rascunho_virtual';
 import { configurarSplitterCartorio } from './splitter_cartorio';
 import {
   normalizarEstadoCivil,
@@ -156,12 +155,8 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
       camadaConf.remover();
       return;
     }
-    // Em Peças de Cartório o mapa exibe apenas pontos/polígonos oficiais (homologados, confrontantes e SIGEF)
-    ctx.mapaController?.clearOverlays?.(false);
-    limparCamadaRascunhoVirtual(ctx);
-    if (ctx.pontosHomologadosList?.length && ctx.poligonalHomologadaVisivel !== false) {
-      ctx.mapaController?.plotPoligonalHomologada?.(homologadosDaMatricula(ctx));
-    }
+    // Em Peças de Cartório o mapa exibe apenas os pontos (X) do perímetro oficial de referência e camadas oficiais (homologados, confrontantes e SIGEF)
+    ctx.atualizarPolilinhaMapaTemp?.();
     matriculaDosPassos = undefined;
     reiniciarPassosSeTrocouMatricula();
     // O mapa muda de tamanho ao entrar na etapa: espera o layout assentar antes de enquadrar
