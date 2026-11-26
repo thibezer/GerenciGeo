@@ -861,7 +861,7 @@ export const levantamentosRoute: RouteDef = {
                         <div style="margin-top:4px; color:rgba(255, 255, 255, 0.85);">N: ${p.norte.toFixed(3)}</div>
                         <div style="color:rgba(255, 255, 255, 0.85);">E: ${p.este.toFixed(3)}</div>
                         <div style="color:rgba(255, 255, 255, 0.85);">Alt: ${p.alt.toFixed(3)}</div>
-                        <div style="font-size:9px; color:rgba(255, 255, 255, 0.45); font-family:'JetBrains Mono',monospace; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
+                        <div style="font-size:9px; color:rgba(255, 255, 255, 0.45); font-variant-numeric:tabular-nums; margin-top:4px;">Lat ${p.lat.toFixed(6)} &nbsp; Lon ${p.lon.toFixed(6)}</div>
                      </div>
                   `, { maxWidth: 220 })
                   .addTo(mapaTriagem!);

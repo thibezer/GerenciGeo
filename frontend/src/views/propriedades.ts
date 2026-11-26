@@ -1368,7 +1368,8 @@ export const propriedadesRoute: RouteDef = {
                 metaNode.className = 'modal-prop-titulo-meta';
                 metaNode.style.fontSize = '11px';
                 metaNode.style.fontWeight = '400';
-                metaNode.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+                metaNode.style.fontFamily = 'inherit';
+                metaNode.style.fontVariantNumeric = 'tabular-nums';
                 metaNode.style.color = 'rgba(255, 255, 255, 0.5)';
                 tituloEl.appendChild(metaNode);
              }

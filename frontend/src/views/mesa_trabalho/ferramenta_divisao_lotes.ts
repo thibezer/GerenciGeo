@@ -190,7 +190,7 @@ export class FerramentaDivisaoLotes {
         #painel-flutuante-divisao-lotes .dl-close:hover { color:#fff; }
         #painel-flutuante-divisao-lotes .dl-body { padding:10px 12px; overflow-y:auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
         #painel-flutuante-divisao-lotes .dl-foot { display:flex; gap:8px; padding:10px 12px; border-top:1px solid rgba(255,255,255,.12); }
-        #painel-flutuante-divisao-lotes .dl-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.5); margin-bottom:4px; font-family:ui-monospace,monospace; }
+        #painel-flutuante-divisao-lotes .dl-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.5); margin-bottom:4px; font-variant-numeric:tabular-nums; }
         #painel-flutuante-divisao-lotes .dl-box { background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.08); border-radius:6px; padding:8px; }
         #painel-flutuante-divisao-lotes .dl-ref { color:#fbbf24; font-weight:600; }
         #painel-flutuante-divisao-lotes .dl-row { display:flex; gap:8px; align-items:center; }
@@ -219,7 +219,7 @@ export class FerramentaDivisaoLotes {
         #painel-flutuante-divisao-lotes .dl-card-t { display:flex; justify-content:space-between; font-weight:700; }
         #painel-flutuante-divisao-lotes .dl-card-a .dl-card-t { color:#34d399; }
         #painel-flutuante-divisao-lotes .dl-card-b .dl-card-t { color:#60a5fa; }
-        #painel-flutuante-divisao-lotes .dl-mono { font-family:ui-monospace,monospace; color:rgba(255,255,255,.85); }
+        #painel-flutuante-divisao-lotes .dl-mono { font-variant-numeric:tabular-nums; color:rgba(255,255,255,.85); }
         #painel-flutuante-divisao-lotes .dl-empty { color:rgba(255,255,255,.45); font-style:italic; text-align:center; padding:6px 0; }
         #painel-flutuante-divisao-lotes .dl-hidden { display:none !important; }
         #painel-flutuante-divisao-lotes .dl-undo { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-radius:6px; background:rgba(99,102,241,.14); border:1px solid rgba(99,102,241,.4); color:#c7d2fe; }

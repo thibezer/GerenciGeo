@@ -112,7 +112,7 @@
 
   /* --- Tipografia --- */
   --geo-font-sans: 'Inter', 'Segoe UI', 'Tahoma', system-ui, sans-serif;
-  --geo-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace;
+  --geo-font-mono: var(--geo-font-sans);
 
   /* --- Z-Index Layers --- */
   --geo-z-base:        0;
@@ -921,7 +921,8 @@ td[colspan][class*="text-center"] {
   border-radius: 3px;
   color: rgba(255,255,255,0.85);
   cursor: pointer;
-  font-family: monospace;
+  font-family: var(--geo-font-sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 400;
 }
 .rl1-select:focus { border-color: rgba(0,245,160,0.25); outline: none; }
@@ -969,7 +970,8 @@ td[colspan][class*="text-center"] {
 .rl2-badge {
   font-size: 9px;
   font-weight: 400;
-  font-family: monospace;
+  font-family: var(--geo-font-sans);
+  font-variant-numeric: tabular-nums;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 1px 6px;
@@ -1011,7 +1013,7 @@ td[colspan][class*="text-center"] {
   text-overflow: ellipsis;
   font-weight: 400;
 }
-.rl2-meta-value.font-mono { font-family: monospace; font-size: 10px; }
+.rl2-meta-value.font-mono { font-family: var(--geo-font-sans); font-variant-numeric: tabular-nums; font-size: 10px; }
 
 /* Customização do componente Oficial <ui-ribbon> da Mesa de Trabalho */
 ui-ribbon#mesa-ribbon {
@@ -1547,7 +1549,8 @@ fluent-badge.rl2-badge {
   max-height: 15px !important;
   line-height: 15px !important;
   font-size: 8.5px !important;
-  font-family: monospace;
+  font-family: var(--geo-font-sans);
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
   padding: 0 6px !important;
   border-radius: 3px !important;

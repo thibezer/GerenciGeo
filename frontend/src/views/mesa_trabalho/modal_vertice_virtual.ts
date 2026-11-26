@@ -744,7 +744,7 @@ export async function abrirModalVerticeVirtual(ctx: MesaTrabalhoContext, abaInic
       </marker>
     </defs>
   `;
-  const estiloRotulo = 'font-size="9" font-family="ui-monospace,monospace"';
+  const estiloRotulo = 'font-size="9" font-family="inherit"';
 
   // Esquema ilustrativo: linha de apoio (cinza, com sentido) e linha deslocada (verde tracejada)
   const renderDiagramaOffset = () => {
