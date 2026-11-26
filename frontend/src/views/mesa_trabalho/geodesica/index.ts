@@ -496,14 +496,14 @@ export function setupMesaGeodesica(ctx: MesaTrabalhoContext): void {
         ctx.ferramentaCaneta = new FerramentaCanetaSelecao(ctx);
       }
       ctx.ferramentaCaneta.alternar();
-    } else if (tecla === 'd') {
+    } else if (tecla === 'd' && ctx.etapaAtiva !== 'documentos') {
       e.preventDefault();
       if (!ctx.ferramentaDivisaoLotes) {
         const { FerramentaDivisaoLotes } = await import('../ferramenta_divisao_lotes');
         ctx.ferramentaDivisaoLotes = new FerramentaDivisaoLotes(ctx);
       }
       ctx.ferramentaDivisaoLotes.alternar();
-    } else if (tecla === 'o') {
+    } else if (tecla === 'o' && ctx.etapaAtiva !== 'documentos') {
       e.preventDefault();
       if (!ctx.ferramentaOffsetMapa) {
         const { FerramentaOffsetMapa } = await import('../ferramenta_offset_mapa');
