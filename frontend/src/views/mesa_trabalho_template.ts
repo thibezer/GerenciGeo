@@ -354,6 +354,21 @@ export const renderMesaTrabalho = (): string => {
 
                <!-- Emissão de documentos (sempre no topo, quebra em linhas conforme a largura) -->
                <div class="space-y-3" id="container-pecas-cartorio">
+                 <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10">
+                   <div class="flex items-center gap-2 text-xs text-white/75">
+                     <i data-lucide="folder-input" class="w-4 h-4 text-mint-vibrant shrink-0"></i>
+                     <span>Precisa cadastrar uma matrícula do proprietário ou de um confrontante?</span>
+                   </div>
+                   <button
+                     type="button"
+                     id="btn-triagem-matriculas-cartorio"
+                     class="btn-secondary py-1.5 px-3 text-xs font-bold flex items-center gap-1.5 border-mint-vibrant/30 bg-mint-vibrant/10 hover:bg-mint-vibrant/20 text-mint-vibrant rounded-lg transition-all active:scale-95 shrink-0"
+                     title="Abrir tela de triagem para enviar certidões de matrícula com observação para a IA"
+                   >
+                     <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+                     <span>Triagem de Matrículas</span>
+                   </button>
+                 </div>
                  <!-- Central de documentos: peças agrupadas por finalidade + anuência de confrontante empilhados -->
                  <div class="grade-docs-conf grid grid-cols-1 gap-4">
                    <details class="doc-card doc-collapsible" data-persist="cartorio-docs" open>

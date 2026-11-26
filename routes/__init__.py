@@ -9,6 +9,7 @@ from routes.auth import router as auth_router
 from routes.nuvem import router as nuvem_router
 from routes.atualizacao import router as atualizacao_router
 from routes.arquivos import router as arquivos_router
+from routes.matriculas_triagem import router as matriculas_triagem_router
 
 router = APIRouter()
 router.include_router(auth_router)
@@ -21,3 +22,4 @@ router.include_router(levantamento_router)
 router.include_router(nuvem_router)
 router.include_router(atualizacao_router)
 router.include_router(arquivos_router)
+router.include_router(matriculas_triagem_router)

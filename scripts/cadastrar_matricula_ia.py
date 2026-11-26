@@ -157,24 +157,9 @@ def anexar_arquivo_matricula(
 
 
 def listar_arquivos_entrada() -> Dict[str, Any]:
-    """Garante a existência da pasta inbox de matrículas e lista arquivos pendentes."""
-    os.makedirs(MATRICULAS_INBOX_FOLDER, exist_ok=True)
-    extensoes = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
-    arquivos = []
-    for nome in sorted(os.listdir(MATRICULAS_INBOX_FOLDER)):
-        caminho = os.path.join(MATRICULAS_INBOX_FOLDER, nome)
-        if os.path.isfile(caminho) and os.path.splitext(nome)[1].lower() in extensoes:
-            arquivos.append({
-                "nome": nome,
-                "caminho": caminho,
-                "tamanho_bytes": os.path.getsize(caminho),
-            })
-    return {
-        "sucesso": True,
-        "pasta_entrada": MATRICULAS_INBOX_FOLDER,
-        "total": len(arquivos),
-        "arquivos": arquivos,
-    }
+    """Garante a existência da pasta inbox de matrículas e lista arquivos pendentes com suas observações."""
+    from services.gestores.triagem_matriculas_service import listar_triagem_entrada
+    return listar_triagem_entrada(verificar_historico=False)
 
 
 def _normalizar_texto_ou_json(valor: Any) -> Optional[str]:
@@ -408,6 +393,8 @@ def processar_matricula_ia(
                 try:
                     os.remove(caminho_doc)
                     arquivo_origem_removido = True
+                    from services.gestores.triagem_matriculas_service import remover_metadata_arquivo
+                    remover_metadata_arquivo(os.path.basename(caminho_doc))
                 except Exception as ex_rm:
                     logger.warning(f"Não foi possível remover arquivo de entrada {caminho_doc}: {ex_rm}")
 

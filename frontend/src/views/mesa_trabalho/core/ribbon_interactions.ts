@@ -63,6 +63,14 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               tipo: 'botao',
               atalho: 'Ctrl+Enter',
               icone: SVGS.play
+            },
+            {
+              id: 'btn-triagem-matriculas',
+              rotulo: 'Triagem Matrículas',
+              rotuloAcessivel: 'Enviar certidões de matrícula para a pasta de extração da IA com observação',
+              tamanho: 'grande',
+              tipo: 'botao',
+              icone: SVGS.fileText
             }
           ]
         },
@@ -337,6 +345,14 @@ export function obterAbasMesaRibbon(ctx: MesaTrabalhoContext): RibbonAba[] {
               tamanho: 'grande',
               tipo: 'botao',
               icone: SVGS.fileCheck
+            },
+            {
+              id: 'btn-triagem-matriculas-doc',
+              rotulo: 'Triagem Matrículas',
+              rotuloAcessivel: 'Enviar certidões de matrícula para a pasta de extração da IA com observação',
+              tamanho: 'grande',
+              tipo: 'botao',
+              icone: SVGS.uploadCloud
             }
           ]
         }
@@ -477,6 +493,13 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
         return;
       }
 
+      if (toolId === 'btn-triagem-matriculas' || toolId === 'btn-triagem-matriculas-doc') {
+        import('../modal_triagem_matriculas').then(({ abrirModalTriagemMatriculas }) => {
+          abrirModalTriagemMatriculas(ctx);
+        });
+        return;
+      }
+
       if (toolId === 'btn-vertice-virtual' || toolId === 'btn-vertice-virtual-cartorio') {
         import('../modal_vertice_virtual').then(({ abrirModalVerticeVirtual }) => {
           abrirModalVerticeVirtual(ctx);
@@ -537,6 +560,18 @@ export function setupRibbonInteractions(ctx: MesaTrabalhoContext): () => void {
     const onVoltarClick = () => { window.location.hash = '#levantamentos'; };
     btnVoltar.addEventListener('click', onVoltarClick);
     cleanups.push(() => btnVoltar.removeEventListener('click', onVoltarClick));
+  }
+
+  // 2b. Botão Triagem de Matrículas em Peças de Cartório
+  const btnTriagemCartorio = document.getElementById('btn-triagem-matriculas-cartorio');
+  if (btnTriagemCartorio) {
+    const onTriagemCartorioClick = () => {
+      import('../modal_triagem_matriculas').then(({ abrirModalTriagemMatriculas }) => {
+        abrirModalTriagemMatriculas(ctx);
+      });
+    };
+    btnTriagemCartorio.addEventListener('click', onTriagemCartorioClick);
+    cleanups.push(() => btnTriagemCartorio.removeEventListener('click', onTriagemCartorioClick));
   }
 
   // 3. BroadcastChannel para sincronização visual de mapa
