@@ -76,8 +76,8 @@ export class CamadaConfrontantes {
     if (!this.map || !linhas?.length) return;
     const b = L.latLngBounds(linhas.flatMap(l => l.getLatLngs() as L.LatLng[]));
     if (b.isValid()) this.map.fitBounds(b, { padding: [60, 60], maxZoom: 19, animate: false });
-    linhas.forEach(l => l.setStyle({ weight: 4.5 }));
-    setTimeout(() => linhas.forEach(l => l.setStyle({ weight: 2 })), 900);
+    linhas.forEach(l => l.setStyle({ weight: 4 }));
+    setTimeout(() => linhas.forEach(l => l.setStyle({ weight: 1.5 })), 900);
   }
 
   private sincronizar() {
@@ -108,16 +108,17 @@ export class CamadaConfrontantes {
       if (t.coords.length < 2) return;
       const semConf = t.confrontante_id === null;
       const cor = semConf ? SEM_CONFRONTANTE : corDe(t.confrontante_id!);
-      const contorno = cor === PRETO ? BRANCO : PRETO;
+      const contorno = semConf ? '#080d0a' : (cor === PRETO ? BRANCO : PRETO);
       const rotulo = semConf
         ? `Sem confrontante · ${t.de} ➔ ${t.para}`
         : `${t.nome || 'Confrontante'} · ${t.de} ➔ ${t.para}`;
 
-      // Contorno + linha: o contorno garante contraste do branco no fundo claro e do preto no escuro
-      L.polyline(t.coords, { pane: PANE, color: contorno, weight: 4, opacity: 0.65, interactive: false, lineCap: 'butt' }).addTo(this.grupo);
+      // Contorno + linha: sem confrontante segue o mesmo estilo da linha verde normal do perímetro (contínua fina + contorno #080d0a) em vermelho
+      L.polyline(t.coords, {
+        pane: PANE, color: contorno, weight: 4, opacity: 0.85, interactive: false, lineCap: 'round', lineJoin: 'round',
+      }).addTo(this.grupo);
       const linha = L.polyline(t.coords, {
-        pane: PANE, color: cor, weight: 2, opacity: 0.95, lineCap: 'butt',
-        dashArray: semConf ? '6 6' : undefined,
+        pane: PANE, color: cor, weight: 1.5, opacity: 1, lineCap: 'round', lineJoin: 'round',
       }).bindTooltip(rotulo, { sticky: true, direction: 'top' }).addTo(this.grupo);
 
       if (!semConf) {
