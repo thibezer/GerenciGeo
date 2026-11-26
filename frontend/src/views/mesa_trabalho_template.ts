@@ -255,23 +255,23 @@ export const renderMesaTrabalho = (): string => {
              </div>
              <!-- Toolbar Flutuante do Mapa (Caneta de Seleção e Camadas de Cartório) -->
              <div class="absolute top-3 right-[58px] z-[400] flex items-center gap-1.5 bg-[#0c1510]/85 backdrop-blur-md border border-white/10 p-1 rounded-technical shadow-2xl" id="map-cad-floating-toolbar">
-               <button id="btn-mapa-caneta-flutuante" class="px-2 py-1 text-white/70 hover:text-mint-vibrant hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Caneta de Seleção Poligonal (Atalho: P)">
+               <button id="btn-mapa-caneta-flutuante" class="btn-mapa-edicao px-2 py-1 text-white/70 hover:text-mint-vibrant hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Caneta de Seleção Poligonal (Atalho: P)">
                  <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-mint-vibrant"></i>
                  <span>Caneta</span>
                </button>
-                <button id="btn-mapa-offset-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Offset CAD - Deslocamento Paralelo (Atalho: O)">
+                <button id="btn-mapa-offset-flutuante" class="btn-mapa-edicao px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Offset CAD - Deslocamento Paralelo (Atalho: O)">
                   <i data-lucide="git-commit" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Offset</span>
                 </button>
-                 <button id="btn-mapa-divisao-flutuante" class="px-2 py-1 text-white/70 hover:text-amber-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Divisão de Lotes por Área / Offset (Atalho: D)">
+                 <button id="btn-mapa-divisao-flutuante" class="btn-mapa-edicao px-2 py-1 text-white/70 hover:text-amber-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Divisão de Lotes por Área / Offset (Atalho: D)">
                    <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-400"></i>
                    <span>Dividir</span>
                  </button>
-                <button id="btn-mapa-vvirtual-flutuante" class="px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Assistente de Vértice Virtual (PA1 / PA2)">
+                <button id="btn-mapa-vvirtual-flutuante" class="btn-mapa-edicao px-2 py-1 text-white/70 hover:text-emerald-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Assistente de Vértice Virtual (PA1 / PA2)">
                   <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Virtual</span>
                 </button>
-                <button id="btn-mapa-toggle-vizinhos" class="px-2 py-1 text-white/70 hover:text-cyan-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Exibir/Ocultar vértices vizinhos importados no mapa">
+                <button id="btn-mapa-toggle-vizinhos" class="btn-mapa-edicao px-2 py-1 text-white/70 hover:text-cyan-400 hover:bg-white/10 rounded transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5" type="button" title="Exibir/Ocultar vértices vizinhos importados no mapa">
                   <i data-lucide="eye" class="w-3.5 h-3.5 text-cyan-400"></i>
                   <span>Vizinhos</span>
                 </button>

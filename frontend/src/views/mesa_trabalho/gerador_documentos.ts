@@ -146,6 +146,11 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
   ctx.aoMudarEtapa = (etapa: string) => {
     const noCartorio = etapa === 'documentos';
     document.querySelectorAll('.btn-mapa-cartorio').forEach(b => b.classList.toggle('hidden', !noCartorio));
+    // Mapa somente leitura na etapa: sem ferramentas de edição, sem painel de camadas e sem barra rápida (camadas/localizar/ímã/seleção)
+    document.getElementById('map-cad-floating-toolbar')?.setAttribute('data-etapa', etapa);
+    const canvasMapa = document.getElementById('mapa-triagem');
+    canvasMapa?.toggleAttribute('sem-barra-rapida', noCartorio);
+    canvasMapa?.toggleAttribute('sem-painel-camadas', noCartorio);
     if (!noCartorio) {
       camadaConf.remover();
       return;
