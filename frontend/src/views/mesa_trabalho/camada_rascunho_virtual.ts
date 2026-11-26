@@ -23,6 +23,13 @@ export function agruparRascunhosVirtuais(pontos: any[]): any[][] {
   return grupos;
 }
 
+/** Remove os rascunhos virtuais do mapa (usado na limpeza ou ao entrar em Peças de Cartório). */
+export function limparCamadaRascunhoVirtual(ctx: MesaTrabalhoContext): void {
+  const map = ctx.triagemMap;
+  if (!map) return;
+  camadas.get(map)?.clearLayers();
+}
+
 /** Desenha cada grupo de rascunhos como polilinha aberta tracejada, fora do polígono. */
 export function atualizarCamadaRascunhoVirtual(ctx: MesaTrabalhoContext): void {
   const map = ctx.triagemMap;
@@ -34,6 +41,8 @@ export function atualizarCamadaRascunhoVirtual(ctx: MesaTrabalhoContext): void {
     camadas.set(map, grupoCamada);
   }
   grupoCamada.clearLayers();
+
+  if (ctx.etapaAtiva === 'documentos') return;
 
   const matId = ctx.currentMatriculaId;
   const pontos = (ctx.pontosList || []).filter(p => !matId || String(p.matricula_id) === String(matId));

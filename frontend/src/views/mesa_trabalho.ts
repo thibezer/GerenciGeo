@@ -599,7 +599,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         ctx.carregarHomologacaoDados(ctx.currentProfissionalId ?? 0);
       }
 
-      if (ctx.triagemMap) {
+      if (ctx.triagemMap && ctx.etapaAtiva !== 'documentos') {
         setTimeout(() => {
           if (!ctx.triagemMap) return;
           try {
@@ -703,7 +703,7 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (etapa === 'geoprocessamento' || etapa === 'cartorio' || etapa === 'documentos') {
         containerMapa?.classList.remove('hidden');
         splitterMapa?.classList.toggle('hidden', etapa === 'cartorio' || etapa === 'documentos');
-        if (ctx.triagemMap) {
+        if (ctx.triagemMap && ctx.etapaAtiva !== 'documentos') {
           setTimeout(() => {
             try {
               ctx.triagemMap?.invalidateSize?.();
@@ -744,6 +744,7 @@ export const mesaTrabalhoRoute: RouteDef = {
 
     ctx.atualizarPolilinhaMapaTemp = () => {
       if (!ctx.triagemMap) return;
+      if (ctx.etapaAtiva === 'documentos') return;
       if (ctx.etapaAtiva !== 'geoprocessamento' && !ctx.currentMatriculaId) return;
 
       let pontosMat = (ctx.currentMatriculaId && ctx.obterPontosParaOrdenacao)
