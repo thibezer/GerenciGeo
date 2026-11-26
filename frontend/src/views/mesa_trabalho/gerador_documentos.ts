@@ -153,9 +153,12 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
     canvasMapa?.toggleAttribute('sem-painel-camadas', noCartorio);
     if (!noCartorio) {
       camadaConf.remover();
+      ctx.mapaController?.setLayerVisibility?.('perimetro', true);
       return;
     }
     // Em Peças de Cartório o mapa exibe apenas os pontos (X) do perímetro oficial de referência e camadas oficiais (homologados, confrontantes e SIGEF)
+    ctx.mapaController?.setLayerVisibility?.('perimetro', false);
+    ctx.mapaController?.setLayerVisibility?.('vertices', true);
     ctx.atualizarPolilinhaMapaTemp?.();
     matriculaDosPassos = undefined;
     reiniciarPassosSeTrocouMatricula();

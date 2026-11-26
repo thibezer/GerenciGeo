@@ -750,6 +750,8 @@ export const mesaTrabalhoRoute: RouteDef = {
         const pontosOficiais = pontosParaMapa(pontosOficiaisDaMatricula(ctx));
         ctx.mapaController.clearOverlays(false);
         limparCamadaRascunhoVirtual(ctx);
+        ctx.mapaController.setLayerVisibility?.('perimetro', false);
+        ctx.mapaController.setLayerVisibility?.('vertices', true);
         ctx.mapaController.plotPontos(pontosOficiais, (pId: number) => ctx.cliqueVerticeMapa?.(pId));
         ctx.mapaController.plotSegmentos([], pontosOficiais);
         if (ctx.pontosHomologadosList?.length && ctx.poligonalHomologadaVisivel !== false) {
