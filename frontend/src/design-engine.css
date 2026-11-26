@@ -786,7 +786,7 @@ td[colspan][class*="text-center"] {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     position: sticky;
     top: 0;
-    z-index: 2000;
+    z-index: var(--ui-z-docked-bar, 600);
     font-family: var(--ui-fonte-base, 'Inter', system-ui, sans-serif);
     color: #e0e0e0;
     user-select: none;
@@ -2396,6 +2396,7 @@ details.doc-collapsible > summary:hover .doc-chevron { color: var(--geo-accent);
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  z-index: 1;
   border-bottom: 0.5px solid var(--geo-border-subtle);
 }
 
