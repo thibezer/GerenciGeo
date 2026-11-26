@@ -2142,6 +2142,8 @@ fluent-dropdown.rl1-select {
 .btn-mapa-cartorio:not(.hidden) { display: inline-flex; }
 /* Em Peças de Cartório o mapa é só leitura: some com as ferramentas de edição da barra */
 #map-cad-floating-toolbar[data-etapa="documentos"] .btn-mapa-edicao { display: none !important; }
+/* Sem a barra rápida do kit à direita, a barra encosta no canto */
+#map-cad-floating-toolbar[data-etapa="documentos"] { right: 12px; max-width: calc(100% - 24px); }
 
 /* Toolbar Flutuante do Mapa (Ergonomia CAD sem colisão com o painel de camadas QGIS).
    .mapa-barra-host cobre o mapa sem capturar cliques e é o container (@container) da barra;
