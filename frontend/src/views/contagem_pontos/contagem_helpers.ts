@@ -3,7 +3,7 @@
  */
 import type { ContagemCodigo, ContagemItemProjeto, ContagemProjeto, ContagemTipo } from './contagem_service';
 
-export type CampoOrdemProjeto = 'nome' | 'pontos' | 'fora';
+export type CampoOrdemProjeto = 'nome' | 'P' | 'V' | 'M' | 'pontos' | 'fora';
 export type DirecaoOrdem = 'asc' | 'desc';
 
 export interface OpcoesFiltroProjetos {
@@ -46,12 +46,33 @@ export const filtrarProjetos = (projetos: ContagemProjeto[], opcoes: OpcoesFiltr
     });
 };
 
-/** Ordenação estável e sem mutar a entrada; empate desempata por nome A-Z. */
+const limitesTipo = (linha: LinhaProjeto, tipo: 'P' | 'V' | 'M'): [number, number] | null => {
+  const faixas = linha.itens.filter(i => i.tipo === tipo).flatMap(i => i.faixas);
+  if (!faixas.length) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const [a, b] of faixas) {
+    if (a < min) min = a;
+    if (b > max) max = b;
+  }
+  return [min, max];
+};
+
+/** Ordenação estável e sem mutar a entrada; empate desempata por nome A-Z. Vazios em P/V/M sempre no fim. */
 export const ordenarLinhasProjeto = (linhas: LinhaProjeto[], campo: CampoOrdemProjeto, direcao: DirecaoOrdem): LinhaProjeto[] => {
   const fator = direcao === 'asc' ? 1 : -1;
   const nomes = (a: LinhaProjeto, b: LinhaProjeto): number =>
     (a.p.propriedade || '').localeCompare(b.p.propriedade || '', 'pt-BR', { sensitivity: 'base' });
   return [...linhas].sort((a, b) => {
+    if (campo === 'P' || campo === 'V' || campo === 'M') {
+      const la = limitesTipo(a, campo);
+      const lb = limitesTipo(b, campo);
+      if (!la && !lb) return nomes(a, b);
+      if (!la) return 1;
+      if (!lb) return -1;
+      const r = la[0] !== lb[0] ? la[0] - lb[0] : la[1] - lb[1];
+      return r !== 0 ? r * fator : nomes(a, b);
+    }
     let r = 0;
     if (campo === 'nome') r = nomes(a, b);
     else if (campo === 'pontos') r = a.p.total_pontos - b.p.total_pontos;

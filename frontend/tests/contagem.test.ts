@@ -97,7 +97,7 @@ test('conteúdo: cada bloco de tipo é fechado (regressão: ui-card era fechado 
   assert.equal(html.split('<div').length, html.split('</div>').length, 'div aberta sem fechar');
   assert.ok(html.includes('data-teste="proximo-XRXR-M"'));
   assert.ok(html.includes('XRXR-P-0171'));
-  assert.ok(html.includes('<th>Ponto</th><th>Virtual</th><th>Marco</th>') || (html.includes('<th>Ponto</th>') && html.includes('<th>Virtual</th>') && html.includes('<th>Marco</th>')));
+  assert.ok(html.includes('data-ordem="P"') && html.includes('data-ordem="V"') && html.includes('data-ordem="M"'));
 });
 
 test('linhas projetos: separa Ponto, Virtual e Marco em 3 colunas', () => {
@@ -114,6 +114,19 @@ test('linhas projetos: separa Ponto, Virtual e Marco em 3 colunas', () => {
   const tds = html.match(/<td[\s\S]*?<\/td>/g) ?? [];
   assert.equal(tds.length, 6);
   assert.ok(tds[1].includes('0001–0004')); // Ponto
+  assert.ok(!tds[1].includes('XRXR'));     // sem repetir código quando só há 1
   assert.ok(tds[2].includes('—'));         // Virtual vazio
   assert.ok(tds[3].includes('0001–0002')); // Marco
+
+  const comCodigo = renderLinhasProjetos([{ p, itens: p.itens }], true);
+  assert.ok(comCodigo.includes('XRXR'));
+});
+
+test('ordenação por tipo P/V/M: ordem numérica e vazios sempre no fim', () => {
+  const l1 = projeto({ levantamento_id: 1, propriedade: 'A', itens: [{ codigo: 'XRXR', tipo: 'P', meu: true, quantidade: 2, faixas: [[171, 172]] }] });
+  const l2 = projeto({ levantamento_id: 2, propriedade: 'B', itens: [{ codigo: 'XRXR', tipo: 'P', meu: true, quantidade: 10, faixas: [[1, 10]] }] });
+  const l3 = projeto({ levantamento_id: 3, propriedade: 'C', itens: [{ codigo: 'XRXR', tipo: 'V', meu: true, quantidade: 4, faixas: [[112, 115]] }] });
+  const linhas = [l1, l2, l3].map(p => ({ p, itens: p.itens }));
+  assert.deepEqual(ids(ordenarLinhasProjeto(linhas, 'P', 'asc')), [2, 1, 3]);
+  assert.deepEqual(ids(ordenarLinhasProjeto(linhas, 'P', 'desc')), [1, 2, 3]);
 });

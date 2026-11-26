@@ -27,7 +27,7 @@ let aba: 'projetos' | 'terceiros' = 'projetos';
 let somenteComPontos = true;
 let incluirTerceiros = false;
 let termo = '';
-let campoOrdem: CampoOrdemProjeto = 'nome';
+let campoOrdem: CampoOrdemProjeto = 'P';
 let direcaoOrdem: DirecaoOrdem = 'asc';
 
 const copiarTexto = async (texto: string) => {
@@ -74,7 +74,8 @@ const atualizarTabelas = () => {
       campoOrdem,
       direcaoOrdem
     );
-    if (tbody) tbody.innerHTML = renderLinhasProjetos(linhas);
+    const mostrarCodigo = incluirTerceiros || dados.codigos.filter(c => c.meu).length > 1;
+    if (tbody) tbody.innerHTML = renderLinhasProjetos(linhas, mostrarCodigo);
     if (info) info.innerText = `Mostrando ${linhas.length} de ${dados.projetos.length} projeto(s)`;
   }
   initIcons();
@@ -126,7 +127,7 @@ const configurarEventos = (container: HTMLElement) => {
     const campo = th.dataset.ordem as CampoOrdemProjeto | undefined;
     if (!campo) return;
     if (campo === campoOrdem) direcaoOrdem = direcaoOrdem === 'asc' ? 'desc' : 'asc';
-    else { campoOrdem = campo; direcaoOrdem = campo === 'nome' ? 'asc' : 'desc'; }
+    else { campoOrdem = campo; direcaoOrdem = (campo === 'nome' || campo === 'P' || campo === 'V' || campo === 'M') ? 'asc' : 'desc'; }
     atualizarTabelas();
   };
   container.querySelectorAll<HTMLElement>('#wrap-projetos th[data-ordem]').forEach(th => {

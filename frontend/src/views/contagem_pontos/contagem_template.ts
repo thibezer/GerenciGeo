@@ -106,18 +106,18 @@ const blocoConflitos = (conflitos: ContagemConflito[], projetos: ContagemProjeto
     </details>`;
 };
 
-const renderCelulaTipo = (itens: ContagemItemProjeto[], tipo: 'P' | 'V' | 'M'): string => {
+const renderCelulaTipo = (itens: ContagemItemProjeto[], tipo: 'P' | 'V' | 'M', mostrarCodigo: boolean): string => {
   const doTipo = itens.filter(i => i.tipo === tipo);
   if (!doTipo.length) return '<span class="lp-muted">—</span>';
   return doTipo.map(i => `
-    <div class="flex flex-wrap items-center gap-1" style="padding:2px 0">
-      <span class="lp-mono" style="font-size:12px;font-weight:600;color:${i.meu ? 'var(--lp-accent)' : 'var(--lp-text-3)'}">${escapeHtml(i.codigo)}</span>
-      <span class="lp-sub" style="font-size:11.5px">(${i.quantidade})</span>
+    <div class="flex flex-wrap items-center gap-1.5" style="padding:2px 0">
+      ${mostrarCodigo ? `<span class="lp-mono" style="font-size:11.5px;font-weight:600;color:${i.meu ? 'var(--lp-accent)' : 'var(--lp-text-3)'}">${escapeHtml(i.codigo)}</span>` : ''}
       ${chipFaixas(i.faixas)}
+      <span class="lp-sub" style="font-size:11px">(${i.quantidade})</span>
     </div>`).join('');
 };
 
-export const renderLinhasProjetos = (linhas: LinhaProjeto[]): string => {
+export const renderLinhasProjetos = (linhas: LinhaProjeto[], mostrarCodigo = false): string => {
   if (!linhas.length) {
     return `<tr><td colspan="6" style="height:auto"><div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="search"></i></div><div class="lp-estado-titulo">Nenhum projeto encontrado</div><div class="lp-estado-txt">Nada corresponde à busca ou aos filtros aplicados.</div></div></td></tr>`;
   }
@@ -129,9 +129,9 @@ export const renderLinhasProjetos = (linhas: LinhaProjeto[]): string => {
           <span class="lp-sub">#${p.levantamento_id}${p.municipio ? ` · ${escapeHtml(p.municipio)}/${escapeHtml(p.uf ?? '')}` : ''}</span>
         </div>
       </td>
-      <td>${renderCelulaTipo(itens, 'P')}</td>
-      <td>${renderCelulaTipo(itens, 'V')}</td>
-      <td>${renderCelulaTipo(itens, 'M')}</td>
+      <td>${renderCelulaTipo(itens, 'P', mostrarCodigo)}</td>
+      <td>${renderCelulaTipo(itens, 'V', mostrarCodigo)}</td>
+      <td>${renderCelulaTipo(itens, 'M', mostrarCodigo)}</td>
       <td class="lp-col-num"><span class="lp-mono" style="font-size:13px">${p.total_pontos}</span></td>
       <td class="lp-col-num lp-oculta-sm">${p.fora_do_padrao
         ? `<span class="lp-tag lp-tag-warn" title="Pontos com nomes que não seguem CODIGO-TIPO-NNNN (ex.: estrada1, divisa2)">${p.fora_do_padrao}</span>`
@@ -215,10 +215,10 @@ export function renderContagemConteudo(dados: ContagemPontos): string {
         <table class="lp-tabela is-static">
           <thead>
             <tr>
-              <th class="lp-ordenavel" data-ordem="nome" aria-sort="ascending" tabindex="0">Projeto<span class="lp-sort-ico"></span></th>
-              <th>Ponto</th>
-              <th>Virtual</th>
-              <th>Marco</th>
+              <th class="lp-ordenavel" data-ordem="nome" tabindex="0">Projeto<span class="lp-sort-ico"></span></th>
+              <th class="lp-ordenavel" data-ordem="P" aria-sort="ascending" tabindex="0">Ponto<span class="lp-sort-ico"></span></th>
+              <th class="lp-ordenavel" data-ordem="V" tabindex="0">Virtual<span class="lp-sort-ico"></span></th>
+              <th class="lp-ordenavel" data-ordem="M" tabindex="0">Marco<span class="lp-sort-ico"></span></th>
               <th class="lp-ordenavel lp-col-num" data-ordem="pontos" tabindex="0">Pontos<span class="lp-sort-ico"></span></th>
               <th class="lp-ordenavel lp-col-num lp-oculta-sm" data-ordem="fora" tabindex="0" title="Pontos com nomes fora do padrão CODIGO-TIPO-NNNN">Fora do padrão<span class="lp-sort-ico"></span></th>
             </tr>
