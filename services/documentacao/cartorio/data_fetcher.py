@@ -194,7 +194,7 @@ _SQL_SEGMENTOS_DETALHADOS = """
     JOIN pontos pi ON s.ponto_inicio_id = pi.id
     JOIN pontos pf ON s.ponto_fim_id = pf.id
     WHERE s.matricula_id IN ({marcas_mats}) AND s.confrontante_id IN ({marcas_confs})
-      AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+      AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
     ORDER BY s.id ASC
 """
 

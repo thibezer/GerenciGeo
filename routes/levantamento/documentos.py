@@ -756,7 +756,7 @@ def status_cartorio(id: int):
             JOIN pontos pi ON pi.id = s.ponto_inicio_id
             JOIN pontos pf ON pf.id = s.ponto_fim_id
             WHERE c.levantamento_id = ?
-              AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+              AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
             GROUP BY c.id
             """,
             params=(id,), fetch_all=True
@@ -785,7 +785,7 @@ def status_cartorio(id: int):
                JOIN pontos pi ON pi.id = s.ponto_inicio_id
                JOIN pontos pf ON pf.id = s.ponto_fim_id
                WHERE s.levantamento_id = ? AND s.confrontante_id IS NULL
-               AND pi.origem_homologada = 1 AND pf.origem_homologada = 1""",
+               AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))""",
             params=(id,), fetch_one=True
         )["n"]
 

@@ -103,7 +103,7 @@ def _vias_do_levantamento(lev_id: int, mat_desenho_id: int, matricula_id: int, c
                       JOIN pontos pf ON pf.id = s.ponto_fim_id
                       WHERE s.confrontante_id = c.id AND s.levantamento_id = c.levantamento_id
                         AND s.matricula_id IN (?, ?)
-                        AND pi.origem_homologada = 1 AND pf.origem_homologada = 1)
+                        AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1)))
         ORDER BY c.id
         """,
         params=(lev_id, mat_desenho_id, matricula_id), fetch_all=True,

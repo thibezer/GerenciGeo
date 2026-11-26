@@ -180,7 +180,7 @@ def _montar_contexto_mapa(lev_id: int, matricula_id: int) -> dict | None:
         JOIN pontos pi ON pi.id = s.ponto_inicio_id
         JOIN pontos pf ON pf.id = s.ponto_fim_id
         WHERE s.levantamento_id = ? AND s.matricula_id = ?
-        AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+        AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
         ORDER BY s.id ASC
         """,
         params=(lev_id, mat_desenho_id),
@@ -273,7 +273,7 @@ def gerar_anexo_grafico_html(
                 JOIN pontos pi ON pi.id = s.ponto_inicio_id
                 JOIN pontos pf ON pf.id = s.ponto_fim_id
                 WHERE s.levantamento_id = ? AND s.matricula_id IN ({marcas_mats}) AND s.confrontante_id = ?
-                  AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+                  AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
                 ORDER BY s.id ASC
                 """,
                 params=tuple([lev_id] + mats + [confrontante_id]),
@@ -732,7 +732,7 @@ def _confrontantes_do_perimetro(lev_id: int, mat_desenho_id: int) -> list[int]:
         JOIN pontos pi ON pi.id = s.ponto_inicio_id
         JOIN pontos pf ON pf.id = s.ponto_fim_id
         WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id IS NOT NULL
-          AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+          AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
         GROUP BY s.confrontante_id
         ORDER BY ordem ASC, primeiro_seg ASC
         """,
@@ -958,7 +958,7 @@ def obter_preview_divisa_confrontante(lev_id: int, matricula_id: int, confrontan
         JOIN pontos pi ON s.ponto_inicio_id = pi.id
         JOIN pontos pf ON s.ponto_fim_id = pf.id
         WHERE s.levantamento_id = ? AND s.matricula_id = ? AND s.confrontante_id = ?
-          AND pi.origem_homologada = 1 AND pf.origem_homologada = 1
+          AND (s.origem_homologada = 1 OR (pi.origem_homologada = 1 AND pf.origem_homologada = 1))
         ORDER BY s.id ASC
         """,
         params=(lev_id, mat_desenho_id, confrontante_id),
