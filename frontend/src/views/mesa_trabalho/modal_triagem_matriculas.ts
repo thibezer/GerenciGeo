@@ -80,112 +80,110 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
 
   modal = document.createElement('ui-modal') as HTMLElement & { abrir?: () => void; fechar?: () => void };
   modal.id = MODAL_ID;
-  modal.setAttribute('titulo', 'Triagem de Matrículas (Entrada IA)');
+  modal.setAttribute('titulo', 'Lançamento de Matrículas');
   modal.setAttribute('tamanho', 'grande');
   modal.style.cssText =
-    '--ui-modal-largura: 960px; max-width: 960px; --ui-modal-padding-x: 18px; --ui-modal-header-py: 8px; --ui-modal-body-py: 14px;';
+    '--ui-modal-largura: 940px; max-width: 940px; --ui-modal-padding-x: 18px; --ui-modal-header-py: 8px; --ui-modal-body-py: 12px;';
 
   modal.innerHTML = `
-    <div class="space-y-4 text-xs text-white/90">
-      <!-- Barra informativa superior -->
-      <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10">
-        <div class="flex items-center gap-2 min-w-0">
+    <div class="space-y-3 text-xs text-white/90">
+      <!-- Barra superior compacta -->
+      <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10">
+        <div class="flex items-center gap-2 min-w-0 flex-1" title="Pasta monitorada pela IA">
           <i data-lucide="folder-input" class="w-4 h-4 text-mint-vibrant shrink-0"></i>
-          <div class="min-w-0">
-            <div class="text-[11px] font-semibold text-white/85">Envio direto para a pasta de extração da IA</div>
-            <div id="triagem-pasta-caminho" class="text-[10px] font-mono text-white/45 truncate">Carregando pasta de entrada...</div>
-          </div>
+          <span class="text-[11px] font-medium text-white/60 shrink-0 whitespace-nowrap">Pasta:</span>
+          <span id="triagem-pasta-caminho" class="text-[11px] font-mono text-white/80 truncate">Carregando...</span>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <span id="triagem-badge-total" class="px-2 py-0.5 rounded bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/25 font-mono text-[10px] font-bold">0 pendentes</span>
-          <ui-botao id="btn-triagem-abrir-pasta" variante="secondary" tamanho="sm" title="Abrir pasta Matriculas_Entrada no Windows Explorer">
+          <span id="triagem-badge-total" class="px-2 py-0.5 rounded bg-mint-vibrant/15 text-mint-vibrant border border-mint-vibrant/25 font-mono text-[10px] font-bold whitespace-nowrap shrink-0">0 pendentes</span>
+          <ui-botao id="btn-triagem-abrir-pasta" variante="secondary" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Abrir pasta no Windows Explorer">
             Abrir Pasta
           </ui-botao>
-          <ui-botao id="btn-triagem-atualizar" variante="ghost" tamanho="sm" title="Recarregar lista de arquivos">
+          <ui-botao id="btn-triagem-atualizar" variante="ghost" tamanho="sm" class="whitespace-nowrap shrink-0" style="white-space: nowrap;" title="Recarregar fila">
             Atualizar
           </ui-botao>
         </div>
       </div>
 
-      <!-- Grid principal: Envio (esquerda) + Fila Pendente (direita) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <!-- Coluna de Upload + Observação -->
-        <div class="lg:col-span-5 space-y-3 bg-white/[0.02] border border-white/10 rounded-xl p-3.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-white/70">1. Adicionar Matrículas</span>
-            <span class="text-[10px] text-white/40">PDF, PNG, JPG, TIF</span>
-          </div>
-
-          <!-- Dropzone -->
-          <label id="triagem-dropzone" class="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed border-white/15 hover:border-mint-vibrant/50 hover:bg-mint-vibrant/[0.04] cursor-pointer transition-colors text-center">
-            <input id="triagem-input-arquivos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff" class="hidden" />
-            <div class="w-9 h-9 rounded-full bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center">
-              <i data-lucide="upload-cloud" class="w-4 h-4 text-mint-vibrant"></i>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-white/85">Arraste as certidões aqui ou clique</div>
-              <div class="text-[10px] text-white/45 mt-0.5">Você pode enviar uma ou várias matrículas de uma vez</div>
-            </div>
-          </label>
-
-          <!-- Arquivos selecionados antes do envio -->
-          <div id="triagem-selecionados" class="hidden space-y-1.5 max-h-28 overflow-y-auto pr-1"></div>
-
-          <!-- Vínculo / Destino -->
-          <div class="space-y-1.5">
-            <label class="block text-[10px] font-bold uppercase tracking-wider text-white/55">De quem é esta matrícula?</label>
-            <div id="triagem-vinculo-opcoes" class="grid grid-cols-3 gap-1.5">
-              <button type="button" data-vinculo="apenas_cadastrar" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold transition-all bg-mint-vibrant/15 text-mint-vibrant border-mint-vibrant/40">
-                Só cadastrar
-              </button>
-              <button type="button" data-vinculo="proprietario" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold transition-all bg-white/[0.03] text-white/65 border-white/10 hover:border-white/25">
-                Proprietário
-              </button>
-              <button type="button" data-vinculo="confrontante" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold transition-all bg-white/[0.03] text-white/65 border-white/10 hover:border-white/25">
-                Confrontante
-              </button>
-            </div>
-          </div>
-
-          <!-- Observação -->
-          <div class="space-y-1.5">
+      <!-- Grid principal: Envio (esquerda) + Fila (direita) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+        <!-- Coluna de Upload -->
+        <div id="triagem-col-upload" class="lg:col-span-5 flex flex-col justify-between gap-3 bg-white/[0.02] border border-white/10 rounded-xl p-3.5">
+          <div class="space-y-3">
             <div class="flex items-center justify-between gap-2">
-              <label for="triagem-observacao" class="block text-[10px] font-bold uppercase tracking-wider text-white/55">Observação para extração</label>
-              <button type="button" id="triagem-btn-limpar-obs" class="text-[10px] text-white/40 hover:text-white/75 hidden">Limpar</button>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-white/75">1. Adicionar</span>
+              <span class="text-[10px] font-mono text-white/40 whitespace-nowrap">PDF, PNG, JPG, TIF</span>
             </div>
-            <textarea
-              id="triagem-observacao"
-              rows="3"
-              placeholder="Ex.: Confrontante lado norte (João Silva), matrícula do proprietário, ou deixe em branco se não souber para só cadastrar no sistema..."
-              class="w-full rounded-lg bg-black/30 border border-white/15 focus:border-mint-vibrant/60 focus:outline-none px-2.5 py-2 text-xs text-white placeholder:text-white/30 resize-y"
-            ></textarea>
+
+            <!-- Dropzone -->
+            <label id="triagem-dropzone" class="flex flex-col items-center justify-center gap-1.5 py-4 px-3 rounded-lg border-2 border-dashed border-white/15 hover:border-mint-vibrant/50 hover:bg-mint-vibrant/[0.04] cursor-pointer transition-colors text-center">
+              <input id="triagem-input-arquivos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff" class="hidden" />
+              <div class="w-8 h-8 rounded-full bg-mint-vibrant/10 border border-mint-vibrant/25 flex items-center justify-center">
+                <i data-lucide="upload-cloud" class="w-4 h-4 text-mint-vibrant"></i>
+              </div>
+              <div class="text-xs font-semibold text-white/85">Arraste ou clique para selecionar</div>
+            </label>
+
+            <!-- Arquivos selecionados antes do envio -->
+            <div id="triagem-selecionados" class="hidden space-y-1.5 max-h-24 overflow-y-auto pr-1"></div>
+
+            <!-- Vínculo -->
+            <div class="space-y-1.5">
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-white/55">Vínculo</label>
+              <div id="triagem-vinculo-opcoes" class="grid grid-cols-3 gap-1.5">
+                <button type="button" data-vinculo="apenas_cadastrar" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold whitespace-nowrap transition-all bg-mint-vibrant/15 text-mint-vibrant border-mint-vibrant/40">
+                  Só cadastrar
+                </button>
+                <button type="button" data-vinculo="proprietario" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold whitespace-nowrap transition-all bg-white/[0.03] text-white/65 border-white/10 hover:border-white/25">
+                  Proprietário
+                </button>
+                <button type="button" data-vinculo="confrontante" class="triagem-vinculo-btn px-2 py-1.5 rounded-lg border text-[10px] font-semibold whitespace-nowrap transition-all bg-white/[0.03] text-white/65 border-white/10 hover:border-white/25">
+                  Confrontante
+                </button>
+              </div>
+            </div>
+
+            <!-- Observação -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <label for="triagem-observacao" class="block text-[10px] font-bold uppercase tracking-wider text-white/55">Observação <span class="font-normal text-white/35 normal-case">(opcional)</span></label>
+                <button type="button" id="triagem-btn-limpar-obs" class="text-[10px] text-white/40 hover:text-white/75 hidden">Limpar</button>
+              </div>
+              <textarea
+                id="triagem-observacao"
+                rows="2"
+                placeholder="Ex.: Confrontante norte — João Silva"
+                class="w-full rounded-lg bg-black/30 border border-white/15 focus:border-mint-vibrant/60 focus:outline-none px-2.5 py-1.5 text-xs text-white placeholder:text-white/30 resize-none"
+              ></textarea>
+            </div>
           </div>
 
-          <ui-botao id="btn-triagem-enviar" variante="primary" class="w-full" disabled>
-            Enviar para Triagem
+          <ui-botao id="btn-triagem-enviar" variante="primary" class="w-full whitespace-nowrap" style="white-space: nowrap;" disabled>
+            Enviar para Fila
           </ui-botao>
         </div>
 
         <!-- Coluna da Fila de Arquivos -->
-        <div class="lg:col-span-7 flex flex-col bg-white/[0.02] border border-white/10 rounded-xl p-3.5 min-h-[340px]">
-          <div class="flex items-center justify-between mb-2.5">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-white/70">2. Fila Aguardando Extração</span>
-            <span class="text-[10px] text-white/40">Edite a observação ou visualize antes da IA processar</span>
+        <div class="lg:col-span-7 flex flex-col bg-white/[0.02] border border-white/10 rounded-xl p-3.5 min-h-[320px]">
+          <div class="flex items-center justify-between gap-2 mb-2.5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-white/75">2. Fila de Extração</span>
+            <span class="text-[10px] text-white/40 whitespace-nowrap">Prontas para análise da IA</span>
           </div>
 
-          <div id="triagem-lista-arquivos" class="flex-1 space-y-2 max-h-[390px] overflow-y-auto pr-1">
-            <div class="py-10 text-center text-white/40 text-xs">Carregando arquivos da pasta de entrada...</div>
+          <div id="triagem-lista-arquivos" class="flex-1 space-y-2 max-h-[360px] overflow-y-auto pr-1">
+            <div class="py-10 text-center text-white/40 text-xs">Carregando fila...</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div slot="rodape" class="flex flex-wrap items-center justify-between gap-2 w-full">
-      <div class="text-[11px] text-white/50 flex items-center gap-1.5">
-        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-mint-vibrant"></i>
-        <span>Depois de enviar, peça no chat: <strong class="text-white/80">"Analise as matrículas da pasta"</strong></span>
-      </div>
-      <ui-botao variante="secondary" tamanho="sm" dismiss-modal>Fechar</ui-botao>
+    <div slot="rodape" class="flex items-center justify-between gap-3 w-full">
+      <button type="button" id="btn-triagem-copiar-prompt" class="flex items-center gap-1.5 text-[11px] text-white/55 hover:text-white/90 transition-colors text-left min-w-0 group" title="Clique para copiar o comando do chat">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-mint-vibrant shrink-0"></i>
+        <span class="truncate">No chat: <strong class="text-white/85 group-hover:text-mint-vibrant transition-colors">"Analise as matrículas da pasta"</strong></span>
+        <i data-lucide="copy" class="w-3 h-3 text-white/35 group-hover:text-mint-vibrant shrink-0"></i>
+      </button>
+      <ui-botao variante="secondary" tamanho="sm" class="shrink-0 whitespace-nowrap" style="white-space: nowrap;" dismiss-modal>Fechar</ui-botao>
     </div>
   `;
 
@@ -212,7 +210,7 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
   // Sugestão discreta caso haja propriedade ativa na mesa de trabalho (sem forçar)
   const propNome = (ctx as any)?.currentLevData?.propriedade_nome;
   if (propNome && !obsTextarea.value) {
-    obsTextarea.placeholder = `Ex.: Confrontante da ${propNome}, ou deixe em branco se não souber para só cadastrar no sistema...`;
+    obsTextarea.placeholder = `Ex.: Confrontante de ${propNome}`;
   }
 
   const atualizarBotaoEnviar = () => {
@@ -222,12 +220,12 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
       btnEnviar.disabled = false;
       btnEnviar.textContent =
         arquivosSelecionados.length === 1
-          ? 'Enviar 1 Matrícula para Triagem'
-          : `Enviar ${arquivosSelecionados.length} Matrículas para Triagem`;
+          ? 'Enviar 1 Matrícula'
+          : `Enviar ${arquivosSelecionados.length} Matrículas`;
     } else {
       btnEnviar.setAttribute('disabled', '');
       btnEnviar.disabled = true;
-      btnEnviar.textContent = enviando ? 'Enviando...' : 'Enviar para Triagem';
+      btnEnviar.textContent = enviando ? 'Enviando...' : 'Enviar para Fila';
     }
   };
 
@@ -311,15 +309,18 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
     btnLimparObs.classList.add('hidden');
   };
 
-  // Drag and drop
-  dropzone.addEventListener('dragover', (e) => {
+  // Drag and drop na coluna inteira e paste
+  const colUpload = modal.querySelector('#triagem-col-upload') as HTMLDivElement;
+  colUpload.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropzone.classList.add('border-mint-vibrant', 'bg-mint-vibrant/10');
   });
-  dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/10');
+  colUpload.addEventListener('dragleave', (e) => {
+    if (!colUpload.contains(e.relatedTarget as Node)) {
+      dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/10');
+    }
   });
-  dropzone.addEventListener('drop', (e) => {
+  colUpload.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('border-mint-vibrant', 'bg-mint-vibrant/10');
     adicionarArquivos(e.dataTransfer?.files || null);
@@ -328,6 +329,16 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
     adicionarArquivos(inputArquivos.files);
     inputArquivos.value = '';
   });
+
+  const onPaste = (e: ClipboardEvent) => {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      adicionarArquivos(files);
+    }
+  };
+  modal.addEventListener('paste', onPaste);
 
   // Carregamento da fila
   const carregarFila = async () => {
@@ -343,10 +354,10 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
 
       if (lista.length === 0) {
         listaArquivosEl.innerHTML = `
-          <div class="flex flex-col items-center justify-center py-12 text-center gap-2 text-white/40">
-            <i data-lucide="inbox" class="w-8 h-8 text-white/20"></i>
-            <div class="text-xs font-medium text-white/60">Nenhuma matrícula pendente na fila</div>
-            <div class="text-[11px] max-w-xs">Arraste PDFs ou imagens ao lado para prepará-las para extração.</div>
+          <div class="flex flex-col items-center justify-center py-12 text-center gap-1.5 text-white/40">
+            <i data-lucide="inbox" class="w-7 h-7 text-white/20"></i>
+            <div class="text-xs font-medium text-white/60">Fila vazia</div>
+            <div class="text-[11px]">Adicione arquivos ao lado.</div>
           </div>`;
         initIcons();
         return;
@@ -358,27 +369,27 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
           const labelVinculo = LABELS_VINCULO[item.tipo_vinculo] || LABELS_VINCULO.apenas_cadastrar;
           const corr = item.correspondencias_anteriores?.[0];
           const avisoDuplicado = item.ja_enviado
-            ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-semibold" title="Arquivo idêntico já cadastrado anteriormente${corr?.entidade_nome ? `: ${escapeHtml(corr.entidade_nome)}` : ''}">Já cadastrada antes</span>`
+            ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9px] font-semibold whitespace-nowrap" title="Arquivo idêntico já cadastrado anteriormente${corr?.entidade_nome ? `: ${escapeHtml(corr.entidade_nome)}` : ''}">Já cadastrada</span>`
             : item.mesmo_nome
-              ? `<span class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[9px] font-semibold">Mesmo nome no histórico</span>`
+              ? `<span class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[9px] font-semibold whitespace-nowrap">Mesmo nome</span>`
               : '';
 
           return `
-            <div class="p-3 rounded-lg bg-black/25 border border-white/10 space-y-2" data-arquivo-nome="${escapeHtml(item.nome)}">
+            <div class="p-2.5 rounded-lg bg-black/25 border border-white/10 space-y-2" data-arquivo-nome="${escapeHtml(item.nome)}">
               <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 space-y-1">
+                <div class="min-w-0 space-y-0.5">
                   <div class="flex flex-wrap items-center gap-1.5">
                     <i data-lucide="file-text" class="w-3.5 h-3.5 text-mint-vibrant shrink-0"></i>
                     <span class="font-semibold text-xs text-white/90 truncate max-w-[260px]" title="${escapeHtml(item.nome)}">${escapeHtml(item.nome)}</span>
-                    <span class="px-1.5 py-0.5 rounded border text-[9px] font-semibold ${corVinculo}">${labelVinculo}</span>
+                    <span class="px-1.5 py-0.5 rounded border text-[9px] font-semibold whitespace-nowrap ${corVinculo}">${labelVinculo}</span>
                     ${avisoDuplicado}
                   </div>
                   <div class="text-[10px] font-mono text-white/40">
-                    ${formatarTamanho(item.tamanho_bytes)} • Enviado em ${formatarDataHora(item.enviado_em || item.modificado_em)}
+                    ${formatarTamanho(item.tamanho_bytes)} • ${formatarDataHora(item.enviado_em || item.modificado_em)}
                   </div>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
-                  <button type="button" data-acao="visualizar" class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-white/75 hover:text-white text-[10px] font-semibold flex items-center gap-1" title="Visualizar arquivo">
+                  <button type="button" data-acao="visualizar" class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-white/75 hover:text-white text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap" title="Visualizar arquivo">
                     <i data-lucide="eye" class="w-3 h-3"></i>
                     <span>Abrir</span>
                   </button>
@@ -389,8 +400,8 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
               </div>
 
               <!-- Edição rápida de vínculo e observação -->
-              <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/5">
-                <select data-campo="vinculo" class="rounded bg-black/40 border border-white/15 px-2 py-1 text-[10px] text-white/85 focus:outline-none focus:border-mint-vibrant/50">
+              <div class="flex items-center gap-1.5 pt-1.5 border-t border-white/5">
+                <select data-campo="vinculo" class="rounded bg-black/40 border border-white/15 px-2 py-1 text-[10px] text-white/85 focus:outline-none focus:border-mint-vibrant/50 shrink-0">
                   <option value="apenas_cadastrar" ${item.tipo_vinculo === 'apenas_cadastrar' ? 'selected' : ''}>Só cadastrar</option>
                   <option value="proprietario" ${item.tipo_vinculo === 'proprietario' ? 'selected' : ''}>Proprietário</option>
                   <option value="confrontante" ${item.tipo_vinculo === 'confrontante' ? 'selected' : ''}>Confrontante</option>
@@ -398,11 +409,12 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
                 <input
                   type="text"
                   data-campo="observacao"
+                  data-valor-inicial="${escapeHtml(item.observacao || '')}"
                   value="${escapeHtml(item.observacao || '')}"
-                  placeholder="Observação (de quem / confrontante...)"
-                  class="flex-1 min-w-[160px] rounded bg-black/40 border border-white/15 px-2 py-1 text-[11px] text-white placeholder:text-white/30 focus:outline-none focus:border-mint-vibrant/50"
+                  placeholder="Observação..."
+                  class="flex-1 min-w-0 rounded bg-black/40 border border-white/15 px-2 py-1 text-[11px] text-white placeholder:text-white/30 focus:outline-none focus:border-mint-vibrant/50"
                 />
-                <button type="button" data-acao="salvar-obs" class="px-2.5 py-1 rounded bg-mint-vibrant/15 hover:bg-mint-vibrant/25 text-mint-vibrant border border-mint-vibrant/25 text-[10px] font-semibold shrink-0">
+                <button type="button" data-acao="salvar-obs" class="hidden px-2.5 py-1 rounded bg-mint-vibrant/15 hover:bg-mint-vibrant/25 text-mint-vibrant border border-mint-vibrant/25 text-[10px] font-semibold whitespace-nowrap shrink-0">
                   Salvar
                 </button>
               </div>
@@ -415,12 +427,9 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
         const nomeArq = card.dataset.arquivoNome!;
         const selVinculo = card.querySelector<HTMLSelectElement>('[data-campo="vinculo"]');
         const inpObs = card.querySelector<HTMLInputElement>('[data-campo="observacao"]');
+        const btnSalvarObs = card.querySelector<HTMLButtonElement>('[data-acao="salvar-obs"]');
 
-        card.querySelector<HTMLButtonElement>('[data-acao="visualizar"]')?.addEventListener('click', () => {
-          window.open(`${API_BASE}/matriculas-triagem/entrada/${encodeURIComponent(nomeArq)}/visualizar`, '_blank');
-        });
-
-        card.querySelector<HTMLButtonElement>('[data-acao="salvar-obs"]')?.addEventListener('click', async () => {
+        const persistirMetadados = async (recarregar: boolean) => {
           try {
             const resObs = await fetch(
               `${API_BASE}/matriculas-triagem/entrada/${encodeURIComponent(nomeArq)}/observacao`,
@@ -434,13 +443,43 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
               }
             );
             if (!resObs.ok) {
-              throw new Error(await lerErroResposta(resObs, 'Erro ao salvar observação.'));
+              throw new Error(await lerErroResposta(resObs, 'Erro ao salvar alteração.'));
             }
-            showToast('Observação atualizada!', 'success');
-            await carregarFila();
+            if (inpObs) {
+              inpObs.dataset.valorInicial = inpObs.value;
+              btnSalvarObs?.classList.add('hidden');
+            }
+            showToast('Alteração salva!', 'success');
+            if (recarregar) {
+              await carregarFila();
+            }
           } catch (err: any) {
-            showToast(err?.message || 'Erro ao salvar observação.', 'error');
+            showToast(err?.message || 'Erro ao salvar alteração.', 'error');
           }
+        };
+
+        card.querySelector<HTMLButtonElement>('[data-acao="visualizar"]')?.addEventListener('click', () => {
+          window.open(`${API_BASE}/matriculas-triagem/entrada/${encodeURIComponent(nomeArq)}/visualizar`, '_blank');
+        });
+
+        selVinculo?.addEventListener('change', () => {
+          persistirMetadados(true);
+        });
+
+        inpObs?.addEventListener('input', () => {
+          const alterado = inpObs.value !== (inpObs.dataset.valorInicial ?? '');
+          btnSalvarObs?.classList.toggle('hidden', !alterado);
+        });
+
+        inpObs?.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            persistirMetadados(false);
+          }
+        });
+
+        btnSalvarObs?.addEventListener('click', () => {
+          persistirMetadados(false);
         });
 
         card.querySelector<HTMLButtonElement>('[data-acao="remover"]')?.addEventListener('click', async () => {
@@ -521,7 +560,25 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
     carregarFila();
   });
 
+  const btnCopiarPrompt = modal.querySelector('#btn-triagem-copiar-prompt') as HTMLButtonElement | null;
+  btnCopiarPrompt?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText('Analise as matrículas da pasta');
+      showToast('Comando copiado para a área de transferência!', 'success');
+    } catch {
+      showToast('Digite no chat: Analise as matrículas da pasta', 'info');
+    }
+  });
+
+  const onWindowFocus = () => {
+    if (document.body.contains(modal!)) {
+      carregarFila();
+    }
+  };
+  window.addEventListener('focus', onWindowFocus);
+
   modal.addEventListener('ui-fechar', () => {
+    window.removeEventListener('focus', onWindowFocus);
     setTimeout(() => modal?.remove(), 200);
   });
 
