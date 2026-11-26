@@ -8,7 +8,7 @@ import {
   descreverDivergencia,
   resumirUso
 } from '../src/views/contagem_pontos/contagem_helpers';
-import { renderContagemConteudo } from '../src/views/contagem_pontos/contagem_template';
+import { renderContagemConteudo, renderLinhasProjetos } from '../src/views/contagem_pontos/contagem_template';
 import type { ContagemCodigo, ContagemPontos, ContagemProjeto, ContagemTipo } from '../src/views/contagem_pontos/contagem_service';
 
 const tipo = (extra: Partial<ContagemTipo>): ContagemTipo => ({
@@ -97,4 +97,23 @@ test('conteúdo: cada bloco de tipo é fechado (regressão: ui-card era fechado 
   assert.equal(html.split('<div').length, html.split('</div>').length, 'div aberta sem fechar');
   assert.ok(html.includes('data-teste="proximo-XRXR-M"'));
   assert.ok(html.includes('XRXR-P-0171'));
+  assert.ok(html.includes('<th>Ponto</th><th>Virtual</th><th>Marco</th>') || (html.includes('<th>Ponto</th>') && html.includes('<th>Virtual</th>') && html.includes('<th>Marco</th>')));
+});
+
+test('linhas projetos: separa Ponto, Virtual e Marco em 3 colunas', () => {
+  const vazio = renderLinhasProjetos([]);
+  assert.ok(vazio.includes('colspan="6"'));
+
+  const p = projeto({
+    itens: [
+      { codigo: 'XRXR', tipo: 'P', meu: true, quantidade: 4, faixas: [[1, 4]] },
+      { codigo: 'XRXR', tipo: 'M', meu: true, quantidade: 2, faixas: [[1, 2]] }
+    ]
+  });
+  const html = renderLinhasProjetos([{ p, itens: p.itens }]);
+  const tds = html.match(/<td[\s\S]*?<\/td>/g) ?? [];
+  assert.equal(tds.length, 6);
+  assert.ok(tds[1].includes('0001–0004')); // Ponto
+  assert.ok(tds[2].includes('—'));         // Virtual vazio
+  assert.ok(tds[3].includes('0001–0002')); // Marco
 });
