@@ -88,9 +88,8 @@ export async function abrirModalTriagemMatriculas(ctx?: MesaTrabalhoContext): Pr
   modal.innerHTML = `
     <div class="space-y-3 text-xs text-white/90">
       <!-- Barra superior compacta -->
-      <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10">
+      <div class="flex items-center justify-between gap-3 px-3.5 py-2 rounded-lg bg-white/[0.03] border border-white/10">
         <div class="flex items-center gap-2 min-w-0 flex-1" title="Pasta monitorada pela IA">
-          <i data-lucide="folder-input" class="w-4 h-4 text-mint-vibrant shrink-0"></i>
           <span class="text-[11px] font-medium text-white/60 shrink-0 whitespace-nowrap">Pasta:</span>
           <span id="triagem-pasta-caminho" class="text-[11px] font-mono text-white/80 truncate">Carregando...</span>
         </div>
