@@ -28,9 +28,9 @@ export const configuracoesRoute: RouteDef = {
         <div class="lp-bar-left flex-wrap">
           <h2 class="lp-titulo" title="Parâmetros globais, segurança e cadastro de Responsáveis Técnicos do GerenciGeo">Configurações</h2>
           <div class="lp-seg" id="cfg-tabs" role="tablist" aria-label="Seções de configurações">
-            <button type="button" class="ativo" data-cfg-tab="profissionais" role="tab" aria-selected="true">Responsáveis Técnicos</button>
-            <button type="button" data-cfg-tab="conta" role="tab" aria-selected="false">Minha Conta</button>
-            ${AuthService.isAdmin() ? `<button type="button" data-cfg-tab="acessos" role="tab" aria-selected="false">Controle de Acessos <span id="badge-acessos-pendentes" class="hidden ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">0</span></button>` : ''}
+            <button type="button" class="lp-seg-btn is-active" data-cfg-tab="profissionais" role="tab" aria-selected="true">Responsáveis Técnicos</button>
+            <button type="button" class="lp-seg-btn" data-cfg-tab="conta" role="tab" aria-selected="false">Minha Conta</button>
+            ${AuthService.isAdmin() ? `<button type="button" class="lp-seg-btn" data-cfg-tab="acessos" role="tab" aria-selected="false">Controle de Acessos <span id="badge-acessos-pendentes" class="lp-seg-n hidden" style="background:rgba(251,191,36,.18);color:var(--lp-warn)">0</span></button>` : ''}
           </div>
           <span class="lp-tag lp-tag-pf" id="cfg-prof-count" title="Responsáveis técnicos cadastrados">0 profissionais</span>
         </div>
@@ -587,7 +587,7 @@ export const configuracoesRoute: RouteDef = {
       const tab = btn.dataset.cfgTab;
       cfgTabs.querySelectorAll('button[data-cfg-tab]').forEach(b => {
         const ativo = b === btn;
-        b.classList.toggle('ativo', ativo);
+        b.classList.toggle('is-active', ativo);
         b.setAttribute('aria-selected', ativo ? 'true' : 'false');
       });
       document.getElementById('painel-profissionais')?.classList.toggle('hidden', tab !== 'profissionais');

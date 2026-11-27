@@ -92,10 +92,10 @@ export const renderSecaoControleAcessos = (): string => `
     <div class="lp-card p-3 flex flex-wrap items-center justify-between gap-2" style="flex:none">
       <div class="flex flex-wrap items-center gap-2">
         <div class="lp-seg" id="acessos-filtro-seg" role="group" aria-label="Filtrar contas">
-          <button type="button" class="ativo" data-filtro="todos">Todos (<span id="cnt-usr-todos">0</span>)</button>
-          <button type="button" data-filtro="pendentes">Pendentes / Bloqueados (<span id="cnt-usr-pendentes">0</span>)</button>
-          <button type="button" data-filtro="ativos">Ativos (<span id="cnt-usr-ativos">0</span>)</button>
-          <button type="button" data-filtro="admins">Admins (<span id="cnt-usr-admins">0</span>)</button>
+          <button type="button" class="lp-seg-btn is-active" data-filtro="todos">Todos <span class="lp-seg-n" id="cnt-usr-todos">0</span></button>
+          <button type="button" class="lp-seg-btn" data-filtro="pendentes" data-tom="warn">Pendentes / Bloqueados <span class="lp-seg-n" id="cnt-usr-pendentes">0</span></button>
+          <button type="button" class="lp-seg-btn" data-filtro="ativos">Ativos <span class="lp-seg-n" id="cnt-usr-ativos">0</span></button>
+          <button type="button" class="lp-seg-btn" data-filtro="admins">Admins <span class="lp-seg-n" id="cnt-usr-admins">0</span></button>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -382,6 +382,7 @@ export const initControleAcessos = (): void => {
     if (tbody) tbody.innerHTML = Array.from({ length: 3 }, () => '<tr><td colspan="5" class="!p-0"><div class="lp-skel"></div></td></tr>').join('');
     try {
       const res = await fetch(`${API_BASE}/auth/users`);
+      if (res.status === 401) throw Object.assign(new Error('Sessão expirada. Entre novamente para ver as contas.'), { sessaoExpirada: true });
       if (!res.ok) throw new Error(await parseErroApi(res, 'Falha ao carregar contas.'));
       const data = await res.json();
       usuarios = Array.isArray(data.users) ? data.users : [];
@@ -390,8 +391,13 @@ export const initControleAcessos = (): void => {
       if (tbody) tbody.innerHTML = '';
       if (statusEl) {
         statusEl.classList.remove('hidden');
-        statusEl.innerHTML = `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">${escapeHtml(err?.message || 'Erro ao carregar usuários')}</div><button type="button" class="lp-btn-sec" id="btn-recarregar-usr">Tentar novamente</button></div>`;
-        document.getElementById('btn-recarregar-usr')?.addEventListener('click', loadUsuarios);
+        statusEl.innerHTML = `<div class="lp-estado"><div class="lp-estado-ico"><i data-lucide="alert-triangle"></i></div><div class="lp-estado-titulo">${escapeHtml(err?.message || 'Erro ao carregar usuários')}</div>${err?.sessaoExpirada
+          ? '<button type="button" class="lp-btn-primario" id="btn-recarregar-usr">Entrar novamente</button>'
+          : '<button type="button" class="lp-btn-sec" id="btn-recarregar-usr">Tentar novamente</button>'}</div>`;
+        document.getElementById('btn-recarregar-usr')?.addEventListener('click', () => {
+          if (err?.sessaoExpirada) void AuthService.logout();
+          else void loadUsuarios();
+        });
         initIcons();
       }
     }
@@ -566,7 +572,7 @@ export const initControleAcessos = (): void => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-filtro]');
     if (!btn) return;
     filtroAtual = (btn.dataset.filtro as any) || 'todos';
-    document.querySelectorAll('#acessos-filtro-seg button').forEach(b => b.classList.toggle('ativo', b === btn));
+    document.querySelectorAll('#acessos-filtro-seg button').forEach(b => b.classList.toggle('is-active', b === btn));
     renderUsuarios();
   });
 
