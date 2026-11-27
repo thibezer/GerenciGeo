@@ -103,7 +103,26 @@ class TestPontosVinculos(unittest.TestCase):
         res = client.put(f"/pontos/{self.pontos['A'][0]}", json={"nome_vertice": "A-1-NOVO"})
         self.assertEqual(res.status_code, 200, res.text)
 
+    def test_patch_tipo_limite_na_divisa_que_parte_do_vertice(self):
+        # O painel do vértice manda só `segmento.tipo_limite_sigef` (sem id): vale a divisa que parte do ponto
+        res = client.patch(f"/pontos/{self.pontos['A'][0]}", json={"segmento": {"tipo_limite_sigef": "LA2"}})
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._seg("A")["tipo_limite_sigef"], "LA2")
+        self.assertEqual(self._seg("B")["tipo_limite_sigef"], "LN1")
+
+    def test_patch_ignora_tipo_limite_solto_fora_de_segmento(self):
+        # Campo solto não existe no modelo do ponto: nada muda (o front não deve mais enviá-lo assim)
+        res = client.patch(f"/pontos/{self.pontos['A'][0]}", json={"tipo_limite_sigef": "LA2"})
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._seg("A")["tipo_limite_sigef"], "LN1")
+
     # ── PUT em lote ─────────────────────────────────────────────────────────
+    def test_lote_tipo_limite_sem_id_de_segmento(self):
+        payload = {"pontos": [{"id": self.pontos["A"][0], "segmento": {"tipo_limite_sigef": "LA2"}}]}
+        res = client.put(f"/levantamentos/{self.levs[0]}/pontos/batch", json=payload)
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._seg("A")["tipo_limite_sigef"], "LA2")
+
     def test_lote_aceita_referencias_do_proprio_levantamento(self):
         payload = {"pontos": [{"id": self.pontos["A"][0], "segmento": {"id": self.segs["A"], "tipo_limite_sigef": "LI2"}, "confrontante": {"id": self.confs["A"], "nome": "Vizinho A Lote"}}]}
         res = client.put(f"/levantamentos/{self.levs[0]}/pontos/batch", json=payload)

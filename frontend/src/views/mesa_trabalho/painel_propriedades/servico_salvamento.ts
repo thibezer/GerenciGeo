@@ -73,7 +73,8 @@ export function salvarPontoDebounced(
       pendingPontoUpdates.metodo_posicionamento = String(novoValor ?? '').trim();
       break;
     case 'tipo_limite_sigef':
-      pendingPontoUpdates.tipo_limite_sigef = String(novoValor ?? '').trim();
+      // O tipo de limite pertence à divisa que parte deste vértice: a API só o aplica dentro de `segmento`
+      pendingPontoUpdates.segmento = { ...(pendingPontoUpdates.segmento ?? {}), tipo_limite_sigef: String(novoValor ?? '').trim() };
       break;
     case 'ignorar_poligono':
       pendingPontoUpdates.ignorar_poligono = novoValor ? 1 : 0;
@@ -157,7 +158,7 @@ export async function enviarPendentesPonto(ctx: any): Promise<void> {
     const ehBase = pontoAlvo.tipo_ponto === 'B'
       || (ctx.pontosList ?? []).some((pt: Ponto) => String(pt.ponto_base_id) === String(pontoId));
 
-    if (payload.confrontante !== undefined) {
+    if (payload.confrontante !== undefined || payload.segmento !== undefined) {
       // Atualiza só confrontantes/segmentos locais, sem redesenhar painel/mapa/tabela,
       // para a edição não "sumir" ao reabrir o ponto.
       try {
@@ -251,7 +252,7 @@ export async function salvarMultiplosPontos(
       item.metodo_posicionamento = todosValores.multi_metodo_posicionamento;
     }
     if (todosValores.multi_tipo_limite_sigef) {
-      item.tipo_limite_sigef = todosValores.multi_tipo_limite_sigef;
+      item.segmento = { tipo_limite_sigef: todosValores.multi_tipo_limite_sigef };
     }
     if (todosValores.multi_ignorar_poligono !== undefined) {
       item.ignorar_poligono = todosValores.multi_ignorar_poligono ? 1 : 0;
