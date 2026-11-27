@@ -286,7 +286,7 @@ export const renderMesaTrabalho = (): string => {
                </button>
              </div>
              <!-- Mesa CAD via Web Component nativo do UI-Kit -->
-             <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" chave-grupo="matricula_id" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
+             <ui-canvas-cad id="mapa-triagem" class="mapa-leaflet-canvas w-full h-full" sem-popup-sigef chave-grupo="matricula_id" canal-configuracao="gerencigeo_map_config"></ui-canvas-cad>
           </div>
 
           <!-- Splitter de redimensionamento -->

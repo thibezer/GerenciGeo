@@ -21,7 +21,7 @@ import {
   enquadrarTodosImoveis,
   criarPainelCamadasLocaisControl
 } from './dashboard/dashboard_helpers';
-import { consultarEPlotarSigef } from '../utils/sigef_consultor';
+import { consultarSigefNoMapa } from '../utils/sigef_popup';
 
 let mapInstance: L.Map | null = null;
 
@@ -480,7 +480,7 @@ export const dashboardRoute: RouteDef = {
     // 5. Consulta GetFeatureInfo do SIGEF (Módulo Unificado)
     map.on('click', async (e: L.LeafletMouseEvent) => {
       if (!map.hasLayer(sigef)) return;
-      await consultarEPlotarSigef(map, e);
+      await consultarSigefNoMapa(map, e);
     });
 
     // 6. Geometrias dos Imóveis Locais e Camadas
