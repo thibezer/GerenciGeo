@@ -59,3 +59,13 @@
      - **Paridade de Backend Online**: Se a alteração exigir novos endpoints, filtros ou campos de resposta na API, o backend online (`frontend/public/api.php`) e as colunas no MySQL (`ensureSchema`) devem ser atualizados em paridade com as rotas FastAPI locais.
      - **Integridade de Build**: Sempre validar que as alterações passam sem erros no build do frontend (`npm run build`).
 
+
+## Cenário de Teste Fixo (cliente + propriedade de teste)
+
+10. **Use SEMPRE o cenário de teste fixo para testar manualmente, na tela ou na API; nunca cadastre dados reais nem crie dados de teste avulsos.**
+   - Ele existe no banco do app (e sincroniza com a nuvem), é identificado por **"TESTE"** no nome e é fictício. Nunca o apague nem o use como dado real.
+   - Conteúdo: cliente PF casado `CLIENTE TESTE GERENCIGEO` (+ cônjuge); propriedade `PROPRIEDADE TESTE GERENCIGEO` (Umuarama/PR, matrícula `99999`); 1 levantamento com 4 vértices `TST-P-0001..0004` e 4 divisas; confrontante PJ `EMPRESA CONFRONTANTE TESTE LTDA` (CNPJ `11.222.333/0001-81`, **3 representantes legais**); confrontante PF `CONFRONTANTE PF TESTE` (casado, com 1 coproprietário).
+   - Como achar: procure por "TESTE" nas telas Clientes/Propriedades, ou `python scripts/criar_dados_teste.py` (idempotente: reaproveita o que já existe, recria o que faltar e imprime os IDs; exige o app rodando em `http://127.0.0.1:8000`, ou `--url`).
+   - Anuência de exemplo (PJ com 3 representantes): `GET /levantamentos/{lev}/matriculas/{mat}/confrontantes/{conf}/anuencia-html` com os IDs impressos pelo script.
+   - Precisa de outro caso (ex.: usufruto, outro regime de bens)? **Estenda `scripts/criar_dados_teste.py`** em vez de criar dados soltos, e atualize esta seção.
+   - Testes automatizados continuam na base isolada `gerencigeo_test.db` (regra 7); este cenário é para teste manual/visual no app real.
