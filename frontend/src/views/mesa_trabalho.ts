@@ -17,7 +17,7 @@ import { setupOrdenadorManual } from './mesa_trabalho/ordenador_manual';
 import { setupGeradorDocumentos } from './mesa_trabalho/gerador_documentos';
 import { setupAuditoriaHistorico, renderHistoricoCampo } from './mesa_trabalho/auditoria_historico';
 import { setupMesaTrabalhoHistorico } from './mesa_trabalho/mesa_trabalho_historico';
-import { consultarEPlotarSigef } from '../utils/sigef_consultor';
+import { EVENTO_IMPORTAR_VIZINHO_SIGEF } from '../utils/sigef_consultor';
 import { setNuvemSyncContext } from './mesa_trabalho/nuvem_sync_modal';
 import {
   aplicarLargurasSalvas,
@@ -31,6 +31,7 @@ import {
 
 let _pontoSelecionadoHandler: ((e: any) => void) | null = null;
 let _recenterHandler: (() => void) | null = null;
+let _importarVizinhoSigefHandler: ((e: Event) => void) | null = null;
 
 export let activeMapaController: any = null;
 let activeDragCleanup: (() => void) | null = null;
@@ -438,24 +439,6 @@ export const mesaTrabalhoRoute: RouteDef = {
           }
         });
 
-        // O kit cobre o mapa com uma camada transparente e abre o popup do ponto por proximidade; o filtro de
-        // "clique livre" dele não enxerga esse acerto. Sem esta checagem o popup do SIGEF substituía o do ponto.
-        const cliqueSobrePonto = (pixel: { x: number; y: number } | undefined): boolean => {
-          const map = ctx.triagemMap;
-          if (!map || !pixel) return false;
-          const listas = [ctx.pontosList, ctx.bancoPontosList, ctx.pontosVizinhosList];
-          for (const lista of listas) {
-            for (const p of (lista || []) as any[]) {
-              const lat = Number(p?.lat);
-              const lon = Number(p?.lon ?? p?.lng);
-              if (!lat || !lon) continue;
-              const pt = map.latLngToContainerPoint([lat, lon]);
-              if (Math.hypot(pt.x - pixel.x, pt.y - pixel.y) <= 12) return true;
-            }
-          }
-          return false;
-        };
-
         // Vértice do perímetro da matrícula ativa mais próximo do pixel clicado (até 12 px), ou null.
         const verticePerimetroNoPixel = (pixel: { x: number; y: number } | undefined): number | null => {
           const map = ctx.triagemMap;
@@ -486,18 +469,17 @@ export const mesaTrabalhoRoute: RouteDef = {
             if (pIdSeq) ctx.lidarCliqueMarcadorSequencial(pIdSeq);
             return;
           }
-          if (cliqueSobrePonto(e.detail?.pontoPixel)) return;
-          if (ctx.triagemMap && e.detail) {
-            const ev = e.detail.eventoOriginal || e.detail;
-            const latlng = ev.latlng || (e.detail.coordenadas ? L.latLng(e.detail.coordenadas.lat, e.detail.coordenadas.lon || e.detail.coordenadas.lng) : null);
-            if (latlng) {
-              consultarEPlotarSigef(ctx.triagemMap, { ...ev, latlng }, {
-                permitirImportarConfrontante: true,
-                onImportarConfrontante: (uuid, nome) => importarConfrontanteSigef(ctx, uuid, nome)
-              });
-            }
-          }
         });
+
+        // A consulta SIGEF (popup da parcela) é do kit; o botão "Importar Confrontante" dele avisa por este evento.
+        if (_importarVizinhoSigefHandler) {
+          window.removeEventListener(EVENTO_IMPORTAR_VIZINHO_SIGEF, _importarVizinhoSigefHandler);
+        }
+        _importarVizinhoSigefHandler = (e: Event) => {
+          const { uuid, nome } = (e as CustomEvent<{ uuid?: string; nome?: string }>).detail || {};
+          if (uuid) void importarConfrontanteSigef(ctx, uuid, nome || '');
+        };
+        window.addEventListener(EVENTO_IMPORTAR_VIZINHO_SIGEF, _importarVizinhoSigefHandler);
 
         canvasEl.addEventListener('ui-acao-popup', (e: any) => {
           const { acaoId, elementoId } = e.detail || {};
@@ -1410,6 +1392,10 @@ export const mesaTrabalhoRoute: RouteDef = {
       if (_recenterHandler) {
         window.removeEventListener('gerencigeo:recenter', _recenterHandler);
         _recenterHandler = null;
+      }
+      if (_importarVizinhoSigefHandler) {
+        window.removeEventListener(EVENTO_IMPORTAR_VIZINHO_SIGEF, _importarVizinhoSigefHandler);
+        _importarVizinhoSigefHandler = null;
       }
 
       // Destrói histórico (Ctrl+Z / Ctrl+Y)
