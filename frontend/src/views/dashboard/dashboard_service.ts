@@ -60,23 +60,3 @@ export const downloadLocalShapefile = (levId: number, matId: number, numeroMatri
   document.body.removeChild(a);
 };
 
-export const consultarSigefGetFeatureInfo = async (
-  x: number,
-  y: number,
-  size: { x: number; y: number },
-  bbox: string
-): Promise<any> => {
-  const targetUrl = `https://geoportal.incra.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true&QUERY_LAYERS=geonode:sigef_geo&LAYERS=geonode:sigef_geo&INFO_FORMAT=application/json&X=${x}&Y=${y}&WIDTH=${size.x}&HEIGHT=${size.y}&SRS=EPSG:4326&BBOX=${bbox}`;
-  const isLocal = window.location.origin.includes('localhost') || 
-                  window.location.origin.includes('127.0.0.1') || 
-                  window.location.origin.includes('[::1]');
-
-  const proxyFetchUrl = isLocal 
-    ? `${API_BASE}/proxy/sigef?url=${encodeURIComponent(targetUrl)}`
-    : `${window.location.origin}/api.php?action=proxy_sigef&url=${encodeURIComponent(targetUrl)}`;
-
-  const res = await fetch(proxyFetchUrl);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-};
-
