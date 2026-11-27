@@ -4,7 +4,7 @@ Validação de simplicidade poligonal (OGC / SIGEF / INCRA),
 detecção determinística de autointerseções e desentrelaçamento 2-Opt geométrico e métrico.
 """
 import math
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 
 
 def segmentos_se_cruzam(p1: Tuple[float, float], p2: Tuple[float, float],

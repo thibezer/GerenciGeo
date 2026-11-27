@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Set, Optional, Dict, Any, List
+from typing import Set, Optional, Dict, Any
 from collections import deque
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -19,7 +19,6 @@ from config import (
 )
 from services.gestores.nuvem_sync import (
     carregar_sessao,
-    salvar_sessao,
     push_dados_nuvem,
     pull_dados_nuvem,
     checar_novidades_nuvem,

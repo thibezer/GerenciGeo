@@ -1,11 +1,11 @@
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from collections import defaultdict
-from database.connection import DatabaseManager, execute_query
+from database.connection import execute_query
 from services.gestores.cliente_manager import (
     cadastrar_cliente,
     atualizar_cliente,

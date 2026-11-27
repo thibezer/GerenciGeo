@@ -3,7 +3,6 @@ routes/ccir.py — Integração com o Banco CCIR
 """
 import os
 import shutil
-import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional

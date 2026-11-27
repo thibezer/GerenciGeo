@@ -2,7 +2,6 @@
 routes/propriedades.py — CRUD de Propriedades, Matrículas e Vínculos com Clientes
 """
 import re
-import logging
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query

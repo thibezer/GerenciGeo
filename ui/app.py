@@ -135,7 +135,7 @@ def main():
         )
         webview.start(debug=False, private_mode=False, storage_path=user_data_dir)
 
-    except Exception as e:
+    except Exception:
         error_msg = traceback.format_exc()
         try:
             log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash_app.log")

@@ -29,10 +29,8 @@ from services.documentacao.cartorio.qualificacao import (
     grade_assinaturas,
     domicilio_do_proprietario,
     flex,
-    genero_normalizado,
     genero_plural,
     qualificar_pessoa,
-    tem_conjuge,
 )
 
 logger = logging.getLogger(__name__)

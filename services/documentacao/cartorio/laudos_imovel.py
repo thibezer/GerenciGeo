@@ -1,7 +1,7 @@
 import logging
 import re
 
-from services.documentacao.erros import ErroDocumento, NaoEncontrado
+from services.documentacao.erros import ErroDocumento
 from services.documentacao.cartorio.utils import (
     Html,
     LACUNA_DATA,

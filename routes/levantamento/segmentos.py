@@ -24,7 +24,6 @@ from services.documentacao.cartorio.qualificacao import normalizar_representante
 from utils.geodesia_parser import (
     extract_codigo_parts,
     parse_num_robust,
-    parse_dms_robust,
     parse_wkt_point,
     parse_wkt_linestring,
     parse_wkt_geometry,

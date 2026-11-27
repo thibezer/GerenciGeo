@@ -13,7 +13,7 @@ import sqlite3
 import logging
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
-from shapely.geometry import Polygon, LineString, Point, MultiPolygon
+from shapely.geometry import Polygon, LineString, Point
 from shapely.geometry.polygon import LinearRing, orient
 from shapely.ops import split
 

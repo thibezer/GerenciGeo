@@ -1,6 +1,5 @@
 import os
 from utils.transformer_cache import get_transformer
-import subprocess
 from services.processamento.topologia_segmentos import (
     CAMPOS_HERDADOS,
     COLUNAS_SELECT_SEGMENTOS,
@@ -170,7 +169,6 @@ def reordenar_perimetro_matricula(levantamento_id: int, matricula_id: int) -> di
     4. Rotaciona ciclicamente a lista para iniciar no ponto extremo norte.
     5. Recria os segmentos com fechamento estrito em transação isolada de banco de dados.
     """
-    import math
     import logging
     from utils.transformer_cache import get_transformer
     from database.connection import DatabaseManager, execute_query
@@ -568,7 +566,6 @@ def associar_base_ao_lote(ponto_id_selecionado: int, base_ppp_id: int) -> int:
     Associa uma base PPP processada e corrigida a um lote de pontos importados (mesmo arquivo_origem),
     recalculando rigorosamente as coordenadas de todos os pontos do lote através de translação plana rigorosa.
     """
-    import math
     import logging
     from database.connection import execute_query, DatabaseManager
     from services.processamento.historico_campo import HistoricoCampoLogger

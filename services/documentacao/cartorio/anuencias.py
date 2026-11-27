@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from collections import defaultdict
@@ -15,7 +14,6 @@ from services.documentacao.cartorio.utils import (
     obter_data_extenso,
     renderizar_template,
     uf_exibicao,
-    valor_ou_lacuna,
     valor_preenchido,
     LACUNA_TRT,
 )
@@ -28,7 +26,6 @@ from services.documentacao.cartorio.data_fetcher import (
 from services.documentacao.cartorio.laudos_imovel import gerar_js_inicializacao_mapas
 from services.documentacao.cartorio.qualificacao import (
     grade_assinaturas,
-    categoria_estado_civil,
     descrever_proprietarios_curto,
     flex,
     genero_normalizado,
@@ -851,7 +848,7 @@ def gerar_declaracao_anuencia_lote_html(lev_id: int, matricula_id: int, confront
             nome = (precarregado.get(c_id) or {}).get("conf", {}) or {}
             logger.warning(f"Confrontante {c_id} omitido do lote de anuências: {e}")
             omitidos.append((c_id, nome.get("nome"), str(e), "erro"))
-        except Exception as e:
+        except Exception:
             nome = (precarregado.get(c_id) or {}).get("conf", {}) or {}
             logger.exception(f"Erro inesperado ao gerar a anuência do confrontante {c_id} no lote")
             omitidos.append((c_id, nome.get("nome"), "erro interno ao gerar esta anuência (veja o log do servidor)", "erro"))

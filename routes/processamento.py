@@ -5,21 +5,16 @@ import os
 import csv
 import io
 import re
-import stat
 import shutil
 import logging
 import threading
-import datetime
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Depends
 from utils.transformer_cache import get_transformer
 import requests
 
 from config import EXPORT_BASE_FOLDER
-from database.connection import execute_query
-from database.repository import HistoricoRinexRepo
 from services.gestores.workspace_manager import WorkspaceManager
-from services.processamento.triagem_inteligente import organizar_rastreios, ler_metadados_rinex
 from routes.deps import verificar_levantamento_arquivado, verificar_ambiente_local
 from routes.dashboard import add_log
 
@@ -135,7 +130,7 @@ def pick_folder():
                 folder_path = result[0] if isinstance(result, (tuple, list)) else result
                 return {"path": folder_path}
             return {"path": ""}
-    except Exception as e:
+    except Exception:
         pass
 
     try:

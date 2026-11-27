@@ -1,19 +1,16 @@
 """
 routes/levantamento/homologacao.py — Homologação de Pontos (INCRA/SIGEF) e Banco de Pontos
 """
-import re
 import io
 import csv
 import logging
 import zipfile
-import xml.etree.ElementTree as ET
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
-from utils.transformer_cache import get_transformer
 
 from database.connection import DatabaseManager, execute_query
-from routes.deps import verificar_levantamento_arquivado, extrair_nome_confrontante_limpo, ler_upload_limitado
+from routes.deps import verificar_levantamento_arquivado, ler_upload_limitado
 from utils import ods_seguro
 
 router = APIRouter(tags=["Homologação de Pontos & Banco de Pontos"])
@@ -23,7 +20,6 @@ from utils.geodesia_parser import (
     REGEX_MARCO_SEM_PREFIXO,
     extract_codigo_parts,
     parse_num_robust,
-    parse_dms_robust,
     resolver_coordenadas_robust,
     detect_csv_delimiter,
 )

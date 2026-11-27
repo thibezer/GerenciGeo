@@ -123,7 +123,6 @@ def ler_metadados_rinex(caminho_arquivo):
                 metadados['fim'] = datetime.fromtimestamp(os.path.getmtime(caminho_arquivo))
                 
         return metadados
-        return metadados
     except Exception as e:
         print(f"[TRIAGEM] Erro de leitura em {caminho_arquivo}: {e}")
         return None

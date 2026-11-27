@@ -5,7 +5,6 @@ import os
 import io
 import json
 import stat
-import shutil
 from pathlib import Path
 import zipfile
 import logging

@@ -21,55 +21,6 @@ class GenericRepo:
         execute_query(query, params=(item_id,), fetch_all=False, commit=True)
         return True
 
-class ProfissionalRepo(GenericRepo):
-    def __init__(self):
-        super().__init__("profissionais")
-
-    def insert(self, nome, registro, codigo_credenciado):
-        query = """INSERT INTO profissionais (nome, registro, codigo_credenciado) 
-                   VALUES (?, ?, ?)"""
-        return execute_query(query, params=(nome, registro, codigo_credenciado), fetch_all=False, commit=True)
-        
-    def get_and_increment_counter(self, prof_id, tipo_vertice):
-        """Busca o número do contador atual para M, P ou V e o incrementa em transação SQLite simulada"""
-        coluna = f"contador_{tipo_vertice.lower()}"
-        if tipo_vertice.upper() not in ['M', 'P', 'V']:
-            raise ValueError("Tipo de vértice inválido")
-            
-        select_query = f"SELECT {coluna} FROM profissionais WHERE id = ?"
-        row = execute_query(select_query, params=(prof_id,), fetch_all=False, fetch_one=True)
-        
-        if not row:
-            return None
-            
-        valor_atual = row[coluna]
-        proximo_valor = valor_atual + 1
-        
-        update_query = f"UPDATE profissionais SET {coluna} = ? WHERE id = ?"
-        execute_query(update_query, params=(proximo_valor, prof_id), fetch_all=False, commit=True)
-        
-        return proximo_valor
-
-class MunicipioRepo(GenericRepo):
-    def __init__(self):
-        super().__init__("municipios")
-
-    def search(self, termo, uf=None):
-        if not termo: return []
-        if uf:
-            query = "SELECT nome FROM municipios WHERE nome LIKE ? AND uf = ? ORDER BY nome LIMIT 15"
-            params = (f"{termo}%", uf)
-        else:
-            query = "SELECT nome FROM municipios WHERE nome LIKE ? ORDER BY nome LIMIT 15"
-            params = (f"{termo}%",)
-        
-        results = execute_query(query, params=params, fetch_all=True)
-        return [r['nome'] for r in results] if results else []
-
-    def insert_if_not_exists(self, nome, uf):
-        query = "INSERT OR IGNORE INTO municipios (nome, uf) VALUES (?, ?)"
-        return execute_query(query, params=(nome, uf), fetch_all=False, commit=True)
-
 class HistoricoRinexRepo(GenericRepo):
     def __init__(self):
         super().__init__("historico_rinex")

@@ -4,15 +4,14 @@ Gerencia autenticação do operador e sincronização de dados entre múltiplos 
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from routes.deps import verificar_ambiente_local
 from services.gestores.nuvem_sync import (
     login_nuvem,
     logout_nuvem,
     obter_status_nuvem,
     push_dados_nuvem,
-    pull_dados_nuvem,
-    sincronizar_tudo
+    pull_dados_nuvem
 )
 from services.gestores.realtime_sync import realtime_sync_engine
 

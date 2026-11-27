@@ -1,10 +1,8 @@
 import os
-import json
 import re
 import logging
 from datetime import datetime
 from database.connection import DatabaseManager, execute_query
-from services.gestores.workspace_manager import WorkspaceManager
 from services.documentacao.exportacao_service import ExportacaoService
 from database.repository import PendenciaRepo
 
@@ -52,7 +50,7 @@ def validar_cpf_cnpj(documento: str) -> bool:
         return _digito_cnpj(doc[:12]) == int(doc[12]) and _digito_cnpj(doc[:13]) == int(doc[13])
     return False
 
-from services.seguranca.crypto_service import encrypt_sensitive_data, decrypt_sensitive_data, CIPHER_PREFIX
+from services.seguranca.crypto_service import encrypt_sensitive_data, decrypt_sensitive_data
 
 class ClienteManager:
     """Gestor de ciclo de vida e operações de domínio sobre Clientes."""

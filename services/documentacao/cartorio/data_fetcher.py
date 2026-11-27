@@ -1,4 +1,3 @@
-import math
 from database.connection import execute_query
 from services.documentacao.erros import NaoEncontrado
 from services.documentacao.cartorio.utils import Html, calcular_azimute_e_distancia, esc, formatar_coord_gms, formatar_numero_br

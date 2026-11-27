@@ -2,8 +2,6 @@ import os
 import sys
 import logging
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
-import json
 
 # Define the global trace log file path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
