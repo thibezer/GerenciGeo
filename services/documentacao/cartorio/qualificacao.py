@@ -364,7 +364,7 @@ def grade_assinaturas(grupos: list[list[dict]], *, margem_topo: str = "mt-4", **
 
     Cada grupo é uma lista de assinaturas (dicts com 'nome', 'legenda' e opcional 'linha_extra')
     que deve ficar junta: titular + cônjuge saem sempre lado a lado na mesma linha. Pessoas
-    sozinhas se emparelham entre si; a última que sobrar fica centralizada (nunca encostada à esquerda).
+    sozinhas se emparelham entre si (mesmo com casais no meio); a que sobrar vai ao final, centralizada.
     `estilo` repassa nome_cls/legenda_cls/linha ao assinatura_div; a largura é controlada pela grade.
     """
     estilo = {k: v for k, v in estilo.items() if k != "container"}
@@ -388,10 +388,9 @@ def grade_assinaturas(grupos: list[list[dict]], *, margem_topo: str = "mt-4", **
             continue
         if not grupo:
             continue
-        # Casal (ou grupo maior) entra inteiro em linhas próprias; avulso pendente sai antes para manter a ordem.
-        if sozinhos:
-            linhas.append(sozinhos)
-            sozinhos = []
+        # Casal (ou grupo maior) entra inteiro em linhas próprias. O avulso pendente NÃO é despejado
+        # sozinho aqui (deixaria uma linha com um só signatário no meio do bloco): ele aguarda outro
+        # avulso para formar par e, se ninguém mais sobrar, vai centralizado ao final.
         for i in range(0, len(grupo), 2):
             linhas.append(grupo[i:i + 2])
     if sozinhos:
