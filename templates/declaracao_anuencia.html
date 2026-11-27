@@ -87,10 +87,16 @@
             page-break-inside: avoid !important;
         }
 
+        /* Fecho compacto na impressão: poupa ~2 cm para o bloco caber na folha em vez de deixar vazio.
+           Ainda sobra ~1,1 cm de respiro acima de cada linha para assinar. */
         .bloco-assinaturas-fechamento {
-            margin-top: 1.2cm !important;
+            margin-top: 0.5cm !important;
             padding-top: 0 !important;
         }
+
+        .bloco-assinaturas-fechamento .pt-3 { padding-top: 0.1cm !important; }
+        .bloco-assinaturas-fechamento .gap-y-6 { row-gap: 0.3cm !important; }
+        .bloco-assinaturas-fechamento .mt-10 { margin-top: 0.8cm !important; }
 
         /* Estilos específicos de impressão para Leaflet */
         .leaflet-tile-container img {
