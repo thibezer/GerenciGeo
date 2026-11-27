@@ -40,6 +40,37 @@ let activeRibbonCleanup: (() => void) | null = null;
 let activeShortcutsCleanup: (() => void) | null = null;
 let routeCleanup: (() => void) | null = null;
 
+/** Baixa os CSVs (vértices e limites) de uma parcela SIGEF vizinha para a pasta Documentos do levantamento. */
+async function importarConfrontanteSigef(ctx: MesaTrabalhoContext, uuid: string, nome: string): Promise<void> {
+  if (!ctx.currentLevId) {
+    showToast('Abra um levantamento antes de importar o confrontante.', 'error');
+    return;
+  }
+  const rotulo = nome || uuid;
+  const confirmou = await customConfirm(
+    `Importar os limites e vértices do imóvel "${rotulo}" para a pasta Documentos do levantamento atual?\n\nA consulta ao SIGEF pode levar cerca de 10 segundos.`,
+    'Importar confrontante SIGEF'
+  );
+  if (!confirmou) return;
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/levantamentos/${ctx.currentLevId}/importar-confrontante-sigef?codigo_parcela=${encodeURIComponent(uuid)}`,
+      { method: 'POST' }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      showToast(`Vértices e limites de "${rotulo}" salvos em Documentos.`, 'success');
+      ctx.loadWorkspaceArquivos();
+    } else {
+      await customAlert(`Erro na importação: ${data.detail || data.error || 'falha ao obter os arquivos do SIGEF.'}`, 'Importar confrontante SIGEF');
+    }
+  } catch (err) {
+    console.error('Erro ao importar confrontante SIGEF:', err);
+    showToast('Erro de comunicação com a API ao importar o confrontante.', 'error');
+  }
+}
+
 export const mesaTrabalhoRoute: RouteDef = {
   render: () => renderMesaTrabalho(),
   setup: () => {
@@ -479,7 +510,10 @@ export const mesaTrabalhoRoute: RouteDef = {
             const ev = e.detail.eventoOriginal || e.detail;
             const latlng = ev.latlng || (e.detail.coordenadas ? L.latLng(e.detail.coordenadas.lat, e.detail.coordenadas.lon || e.detail.coordenadas.lng) : null);
             if (latlng) {
-              consultarEPlotarSigef(ctx.triagemMap, { ...ev, latlng }, { permitirImportarConfrontante: true });
+              consultarEPlotarSigef(ctx.triagemMap, { ...ev, latlng }, {
+                permitirImportarConfrontante: true,
+                onImportarConfrontante: (uuid, nome) => importarConfrontanteSigef(ctx, uuid, nome)
+              });
             }
           }
         });
