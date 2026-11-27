@@ -13,6 +13,7 @@ Docs para agentes: ver .agents/AGENTS.md ("Cenário de teste fixo").
 """
 import argparse
 import json
+import os
 import sys
 from datetime import date
 
@@ -128,6 +129,14 @@ def main() -> int:
             req("POST", f"/levantamentos/{lev_id}/segmentos", json={
                 "matricula_id": mat_id, "ponto_inicio_id": pts[i]["id"], "ponto_fim_id": pts[(i + 1) % 4]["id"],
                 "confrontante_id": conf, "tipo_limite_sigef": "LA1", "metodo_posicionamento_sigef": "PG1"})
+
+    # 6. Marca como HOMOLOGADO (a tela de confrontantes e o cartório só enxergam o que veio do arquivo homologado).
+    # A API não expõe isso sem importar uma planilha; atualiza direto, restrito a este levantamento.
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from database.connection import execute_query
+    execute_query("UPDATE pontos SET origem_homologada = 1, arquivo_origem = COALESCE(arquivo_origem, 'TESTE_HOMOLOGADO') "
+                  "WHERE levantamento_id = ? AND nome_vertice LIKE 'TST-P-%'", params=(lev_id,), commit=True)
+    execute_query("UPDATE segmentos SET origem_homologada = 1 WHERE levantamento_id = ?", params=(lev_id,), commit=True)
 
     resumo = {"cliente_id": cliente_id, "propriedade_id": prop_id, "levantamento_id": lev_id,
               "matricula_levantamento_id": mat_id, "confrontante_pj_id": pj_id, "confrontante_pf_id": pf_id}
