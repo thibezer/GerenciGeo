@@ -147,6 +147,12 @@ class TestTrancaArquivamentoRotas(unittest.TestCase):
                             params=(self.lev_arq,), fetch_one=True)
         self.assertIn("Usuario admin (id ", log["usuario"])
 
+    def test_desarquivar_moderador_permitido(self):
+        with patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]):
+            res = self._desarquivar(self._usuario("moderator"))
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._status_arq(), "EM_ANDAMENTO")
+
     def test_desarquivar_levantamento_nao_arquivado_409(self):
         res = client.post(f"/levantamentos/{self.lev_ativo}/desarquivar", json={"justificativa": "Justificativa qualquer longa"},
                           headers={"Authorization": f"Bearer {self._usuario('admin')}"})

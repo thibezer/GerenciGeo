@@ -829,11 +829,15 @@ def _outro_levantamento_arquivado(id: int) -> bool:
     )
     return bool(row)
 
+PERFIS_DESARQUIVAR = {"admin", "moderator"}
+
 @router.post("/levantamentos/{id}/desarquivar")
 def desarquivar_levantamento(id: int, payload: DesarquivarPayload, request: Request):
-    """Desarquiva sob justificativa formal de auditoria (somente administradores), restabelecendo a escrita lindeira"""
-    from routes.auth import require_admin_user
-    admin = require_admin_user(request)
+    """Desarquiva sob justificativa formal de auditoria (administradores e moderadores), restabelecendo a escrita lindeira"""
+    from routes.auth import require_auth_user
+    admin = require_auth_user(request)
+    if (admin.get("role") or "").lower() not in PERFIS_DESARQUIVAR:
+        raise HTTPException(status_code=403, detail="Acesso negado: somente administradores e moderadores podem desarquivar levantamentos.")
 
     justificativa = (payload.justificativa or "").strip()
     if len(justificativa) < 10:

@@ -446,8 +446,9 @@ export const levantamentosRoute: RouteDef = {
                abrirModalCompartilhar(id, lev?.nome || `Levantamento #${id}`);
             } else if (btn.classList.contains('btn-desarquivar-lev')) {
                (async () => {
-                  if (!AuthService.isAdmin()) {
-                     alert("Somente administradores podem desarquivar levantamentos.");
+                  const perfil = (AuthService.getUser()?.role || '').toLowerCase();
+                  if (perfil !== 'admin' && perfil !== 'moderator') {
+                     alert("Somente administradores e moderadores podem desarquivar levantamentos.");
                      return;
                   }
                   const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento (mínimo 10 caracteres):");
