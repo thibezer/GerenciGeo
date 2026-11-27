@@ -149,7 +149,7 @@ const isLocal = window.location.origin.includes('localhost') ||
                 window.location.origin.includes('127.0.0.1') || 
                 window.location.origin.includes('[::1]');
 
-const localOnlyRoutes = ['levantamentos', 'hgo', 'fronteira', 'ccir', 'mesa_trabalho'];
+const localOnlyRoutes = ['levantamentos', 'contagem_pontos', 'hgo', 'fronteira', 'ccir', 'mesa_trabalho'];
 
 // Code-splitting: rotas carregadas sob demanda via Dynamic Import
 const routeLoaders: Record<string, () => Promise<RouteDef>> = {
