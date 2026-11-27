@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from database.connection import DatabaseManager, execute_query
-from routes.deps import verificar_levantamento_arquivado
+from routes.deps import verificar_levantamento_arquivado, exigir_vinculos_do_levantamento
 from services.gestores.anuencia_status import (
     STATUS_DISPENSADO,
     definir_dispensa,
@@ -750,6 +750,13 @@ def get_segmentos(id: int):
 @router.post("/levantamentos/{id}/segmentos")
 def create_segmento(id: int, s: SegmentoCreate):
     verificar_levantamento_arquivado(id)
+    with DatabaseManager() as conn:
+        exigir_vinculos_do_levantamento(
+            conn.cursor(), id,
+            matricula_id=s.matricula_id,
+            pontos=(s.ponto_inicio_id, s.ponto_fim_id),
+            confrontante_id=s.confrontante_id,
+        )
     try:
         query = """
             INSERT INTO segmentos (levantamento_id, matricula_id, ponto_inicio_id, ponto_fim_id, confrontante_id, tipo_limite_sigef, metodo_posicionamento_sigef)
@@ -805,6 +812,14 @@ def update_segmento(sid: int, s: SegmentoUpdate):
 
         if not updates:
             return {"message": "Nenhum campo válido para atualização"}
+
+        with DatabaseManager() as conn:
+            exigir_vinculos_do_levantamento(
+                conn.cursor(), row["levantamento_id"],
+                matricula_id=fields.get("matricula_id"),
+                pontos=(fields.get("ponto_inicio_id"), fields.get("ponto_fim_id")),
+                confrontante_id=fields.get("confrontante_id"),
+            )
 
         params.append(sid)
         query = f"UPDATE segmentos SET {', '.join(updates)} WHERE id = ?"
