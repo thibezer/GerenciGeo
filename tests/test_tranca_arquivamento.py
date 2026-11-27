@@ -91,6 +91,14 @@ class TestTrancaArquivamentoRotas(unittest.TestCase):
         row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(self.lev_ativo,), fetch_one=True)
         self.assertEqual(row["status"], "EM_ANDAMENTO")
 
+    def test_arquivamento_abortado_se_tranca_em_disco_lancar_erro(self):
+        with patch("routes.levantamento.crud.ExportacaoService.gerar_snapshot_arquivamento", return_value="snap.json"),              patch.object(WorkspaceManager, "travar_workspace_inteiro_readonly", side_effect=OSError("disco")),              patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]) as destravar:
+            res = client.post(f"/levantamentos/{self.lev_ativo}/arquivar")
+        self.assertEqual(res.status_code, 500, res.text)
+        destravar.assert_called_once()
+        row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(self.lev_ativo,), fetch_one=True)
+        self.assertEqual(row["status"], "EM_ANDAMENTO")
+
 
 def _gravavel(p: Path) -> bool:
     return bool(os.stat(p).st_mode & stat.S_IWRITE)
@@ -109,16 +117,21 @@ class TestTrancaArquivamentoDisco(unittest.TestCase):
         self.prop = self.wm.get_propriedade_folder(5)
         self.prop.mkdir(parents=True)
         self.car = self.prop / "CAR_x.pdf"
-        for f in (self.bruto, self.doc, self.car):
+        (self.prop / "Confrontantes").mkdir()
+        self.conf_deste = self.prop / "Confrontantes" / "Confrontante_1_Matricula.pdf"
+        self.conf_outro = self.prop / "Confrontantes" / "Confrontante_2_Matricula.pdf"  # de outro levantamento ativo
+        self.arquivos = (self.bruto, self.doc, self.car, self.conf_deste, self.conf_outro)
+        for f in self.arquivos:
             f.write_text("x", encoding="utf-8")
         os.chmod(self.bruto, os.stat(self.bruto).st_mode & ~stat.S_IWRITE)  # Brutos já nascem blindados
         self._p1 = patch.object(WorkspaceManager, "get_levantamento_folder", return_value=self.lev)
         self._p2 = patch.object(WorkspaceManager, "_propriedade_do_levantamento", return_value=5)
-        self._p1.start(); self._p2.start()
+        self._p3 = patch.object(WorkspaceManager, "_arquivos_confrontantes_do_levantamento", return_value=[self.conf_deste])
+        self._p1.start(); self._p2.start(); self._p3.start()
 
     def tearDown(self):
-        self._p1.stop(); self._p2.stop()
-        for f in (self.bruto, self.doc, self.car):
+        self._p1.stop(); self._p2.stop(); self._p3.stop()
+        for f in self.arquivos:
             os.chmod(f, stat.S_IWRITE | stat.S_IREAD)
         self._tmp.cleanup()
 
@@ -126,6 +139,9 @@ class TestTrancaArquivamentoDisco(unittest.TestCase):
         self.assertEqual(self.wm.travar_workspace_inteiro_readonly(1), [])
         self.assertFalse(_gravavel(self.doc))
         self.assertFalse(_gravavel(self.car))
+        self.assertFalse(_gravavel(self.conf_deste))
+        # A pasta Confrontantes é compartilhada: o PDF de outro levantamento continua gravável
+        self.assertTrue(_gravavel(self.conf_outro))
 
     def test_destravar_mantem_brutos_blindados(self):
         self.wm.travar_workspace_inteiro_readonly(1)
@@ -138,6 +154,7 @@ class TestTrancaArquivamentoDisco(unittest.TestCase):
         self.wm.travar_workspace_inteiro_readonly(1)
         self.wm.destravar_workspace_inteiro(1, incluir_propriedade=False)
         self.assertTrue(_gravavel(self.doc))
+        self.assertTrue(_gravavel(self.conf_deste))
         self.assertFalse(_gravavel(self.car))
 
 

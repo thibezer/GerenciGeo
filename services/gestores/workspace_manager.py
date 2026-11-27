@@ -167,46 +167,70 @@ class WorkspaceManager:
         row = execute_query("SELECT propriedade_id FROM levantamentos WHERE id = ?", params=(levantamento_id,), fetch_one=True)
         return row["propriedade_id"] if row else None
 
+    def _arquivos_confrontantes_do_levantamento(self, levantamento_id: int) -> list[Path]:
+        """PDFs de matrícula dos confrontantes DESTE levantamento (ficam em Prop_X/Confrontantes, junto dos de outros levantamentos)."""
+        rows = execute_query(
+            "SELECT caminho_matricula_pdf FROM confrontantes WHERE levantamento_id = ? AND caminho_matricula_pdf IS NOT NULL AND caminho_matricula_pdf != ''",
+            params=(levantamento_id,), fetch_all=True
+        )
+        return [Path(r["caminho_matricula_pdf"]) for r in rows or []]
+
     @staticmethod
-    def _alterar_escrita(folder: Path, permitir: bool, ignorar_subpasta: str = None) -> list[str]:
-        """Liga/desliga a escrita de todos os arquivos da pasta. Retorna os caminhos que falharam."""
+    def _alterar_arquivo(path_f: Path, permitir: bool, falhas: list[str]) -> None:
         import stat
         import logging
+        try:
+            permissao = os.stat(path_f).st_mode
+            os.chmod(path_f, (permissao | stat.S_IWRITE) if permitir else (permissao & ~stat.S_IWRITE))
+        except Exception as e:
+            logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao {'destravar' if permitir else 'travar'} arquivo {path_f}: {e}")
+            falhas.append(str(path_f))
+
+    @classmethod
+    def _alterar_escrita(cls, folder: Path, permitir: bool, ignorar_subpastas: tuple[str, ...] = ()) -> list[str]:
+        """Liga/desliga a escrita de todos os arquivos da pasta (exceto as subpastas ignoradas). Retorna os que falharam."""
         falhas = []
         if not folder.exists():
             return falhas
         for root, _dirs, files in os.walk(folder):
-            if ignorar_subpasta and ignorar_subpasta in Path(root).relative_to(folder).parts:
+            if any(sub in Path(root).relative_to(folder).parts for sub in ignorar_subpastas):
                 continue
             for f in files:
-                path_f = Path(root) / f
-                try:
-                    permissao = os.stat(path_f).st_mode
-                    os.chmod(path_f, (permissao | stat.S_IWRITE) if permitir else (permissao & ~stat.S_IWRITE))
-                except Exception as e:
-                    logging.getLogger(__name__).error(f"[WORKSPACE] Erro ao {'destravar' if permitir else 'travar'} arquivo {path_f}: {e}")
-                    falhas.append(str(path_f))
+                cls._alterar_arquivo(Path(root) / f, permitir, falhas)
+        return falhas
+
+    def _alterar_confrontantes(self, levantamento_id: int, permitir: bool) -> list[str]:
+        falhas = []
+        for path_f in self._arquivos_confrontantes_do_levantamento(levantamento_id):
+            if path_f.is_file():
+                self._alterar_arquivo(path_f, permitir, falhas)
         return falhas
 
     def travar_workspace_inteiro_readonly(self, levantamento_id: int) -> list[str]:
         """
-        Trava como Read-Only os arquivos da pasta do levantamento e da pasta da propriedade
-        (o arquivamento trava a propriedade inteira). Retorna os arquivos que não puderam ser travados.
+        Trava como Read-Only a pasta do levantamento, a pasta da propriedade (o arquivamento trava a propriedade
+        inteira) e os PDFs dos confrontantes deste levantamento. A subpasta Confrontantes da propriedade é
+        compartilhada com outros levantamentos, por isso só os arquivos deste são travados.
+        Retorna os arquivos que não puderam ser travados.
         """
         falhas = self._alterar_escrita(self.get_levantamento_folder(levantamento_id), permitir=False)
         prop_id = self._propriedade_do_levantamento(levantamento_id)
         if prop_id is not None:
-            falhas += self._alterar_escrita(self.get_propriedade_folder(prop_id), permitir=False)
+            falhas += self._alterar_escrita(self.get_propriedade_folder(prop_id), permitir=False, ignorar_subpastas=("Confrontantes",))
+        falhas += self._alterar_confrontantes(levantamento_id, permitir=False)
         return falhas
 
     def destravar_workspace_inteiro(self, levantamento_id: int, incluir_propriedade: bool = True) -> list[str]:
         """
-        Restabelece a escrita na pasta do levantamento, mantendo os Brutos blindados (são Read-Only desde a importação).
+        Restabelece a escrita na pasta do levantamento (mantendo os Brutos blindados, Read-Only desde a importação)
+        e nos PDFs dos confrontantes deste levantamento.
         `incluir_propriedade=False` mantém a pasta da propriedade travada (ainda há outro levantamento arquivado).
         """
-        falhas = self._alterar_escrita(self.get_levantamento_folder(levantamento_id), permitir=True, ignorar_subpasta="Brutos")
+        falhas = self._alterar_escrita(self.get_levantamento_folder(levantamento_id), permitir=True, ignorar_subpastas=("Brutos",))
+        falhas += self._alterar_confrontantes(levantamento_id, permitir=True)
         prop_id = self._propriedade_do_levantamento(levantamento_id)
         if incluir_propriedade and prop_id is not None:
+            # Sem levantamento arquivado na propriedade, nada nela deve ficar travado (inclui Confrontantes inteira)
             falhas += self._alterar_escrita(self.get_propriedade_folder(prop_id), permitir=True)
         return falhas
 

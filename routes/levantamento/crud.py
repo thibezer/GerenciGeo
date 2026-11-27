@@ -793,14 +793,18 @@ def _arquivar_levantamento(id: int) -> dict:
     snap_path = ExportacaoService.gerar_snapshot_arquivamento(id)
 
     # Disco primeiro: o status só vira ARQUIVADO se a tranca física ficou completa (senão desfaz e aborta)
-    falhas = wm.travar_workspace_inteiro_readonly(id)
     try:
+        falhas = wm.travar_workspace_inteiro_readonly(id)
         if falhas:
             raise RuntimeError(f"{len(falhas)} arquivo(s) não puderam ser travados como Somente Leitura (ex.: {falhas[0]})")
         execute_query("UPDATE levantamentos SET status = 'ARQUIVADO' WHERE id = ?", params=(id,), commit=True)
     except Exception as e:
-        wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
         logging.getLogger(__name__).error(f"Arquivamento do levantamento {id} abortado: {e}", exc_info=True)
+        try:
+            wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
+        except Exception as e_rev:
+            logging.getLogger(__name__).error(f"Falha ao desfazer a tranca em disco do levantamento {id}: {e_rev}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Arquivamento abortado ({e}), mas a tranca em disco não pôde ser desfeita: {e_rev}")
         raise HTTPException(status_code=500, detail=f"Arquivamento abortado, nada foi travado: {e}")
 
     return {
@@ -834,7 +838,12 @@ def desarquivar_levantamento(id: int, payload: DesarquivarPayload):
 
     # A pasta da propriedade só destrava se nenhum outro levantamento dela continuar arquivado
     wm = WorkspaceManager()
-    wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
+    falhas = wm.destravar_workspace_inteiro(id, incluir_propriedade=not _outro_levantamento_arquivado(id))
+    if falhas:
+        return {
+            "message": f"Levantamento desarquivado, mas {len(falhas)} arquivo(s) continuam Somente Leitura em disco (ex.: {falhas[0]}).",
+            "arquivos_travados": falhas
+        }
 
     return {"message": "Levantamento desarquivado com sucesso. Permissão de escrita restabelecida."}
 
