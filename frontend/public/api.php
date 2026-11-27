@@ -2090,11 +2090,10 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                        p.rg_uf,
                        p.naturalidade,
                        p.certidao_casamento_matricula,
-                       (SELECT COUNT(DISTINCT prop_id) FROM (
-                            SELECT propriedade_id AS prop_id FROM propriedade_proprietarios WHERE cliente_id = c.id
-                            UNION
-                            SELECT propriedade_id AS prop_id FROM propriedade_clientes WHERE cliente_id = c.id
-                        ) u_props) as total_propriedades,
+                       (SELECT COUNT(*) FROM propriedades pr
+                        WHERE pr.id IN (SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id)
+                           OR pr.id IN (SELECT propriedade_id FROM propriedade_clientes WHERE cliente_id = c.id)
+                       ) as total_propriedades,
                        (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id OR cd.pessoa_id = c.pessoa_id) as total_documentos,
                        (SELECT COUNT(DISTINCT l.id) FROM levantamentos l WHERE l.propriedade_id IN (
                             SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id
@@ -2180,11 +2179,10 @@ if (preg_match('#^/clientes(?:/([0-9]+))?(?:/([a-zA-Z0-9_-]+))?$#', $route, $mat
                        p.rg_uf,
                        p.naturalidade,
                        p.certidao_casamento_matricula,
-                       (SELECT COUNT(DISTINCT prop_id) FROM (
-                            SELECT propriedade_id AS prop_id FROM propriedade_proprietarios WHERE cliente_id = c.id
-                            UNION
-                            SELECT propriedade_id AS prop_id FROM propriedade_clientes WHERE cliente_id = c.id
-                        ) u_props) as total_propriedades,
+                       (SELECT COUNT(*) FROM propriedades pr
+                        WHERE pr.id IN (SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id)
+                           OR pr.id IN (SELECT propriedade_id FROM propriedade_clientes WHERE cliente_id = c.id)
+                       ) as total_propriedades,
                        (SELECT COUNT(*) FROM cliente_documentos cd WHERE cd.cliente_id = c.id OR cd.pessoa_id = c.pessoa_id) as total_documentos,
                        (SELECT COUNT(DISTINCT l.id) FROM levantamentos l WHERE l.propriedade_id IN (
                             SELECT propriedade_id FROM propriedade_proprietarios WHERE cliente_id = c.id
