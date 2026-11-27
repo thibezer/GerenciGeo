@@ -791,6 +791,9 @@ def _arquivar_levantamento(id: int) -> dict:
     """Rotina única de arquivamento (rota /arquivar e PUT com status ARQUIVADO): snapshot, status e tranca em disco"""
     wm = WorkspaceManager()
     snap_path = ExportacaoService.gerar_snapshot_arquivamento(id)
+    if not snap_path:
+        # Sem o snapshot de fechamento não há resguardo dos dados: não arquiva
+        raise HTTPException(status_code=500, detail="Arquivamento abortado: não foi possível gerar o snapshot de fechamento.")
 
     # Disco primeiro: o status só vira ARQUIVADO se a tranca física ficou completa (senão desfaz e aborta)
     try:
@@ -805,6 +808,11 @@ def _arquivar_levantamento(id: int) -> dict:
         except Exception as e_rev:
             logging.getLogger(__name__).error(f"Falha ao desfazer a tranca em disco do levantamento {id}: {e_rev}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Arquivamento abortado ({e}), mas a tranca em disco não pôde ser desfeita: {e_rev}")
+        # O snapshot de um fechamento que não aconteceu não deve ficar na pasta, parecendo válido
+        try:
+            Path(snap_path).unlink(missing_ok=True)
+        except Exception as e_snap:
+            logging.getLogger(__name__).warning(f"Não foi possível remover o snapshot do arquivamento abortado ({snap_path}): {e_snap}")
         raise HTTPException(status_code=500, detail=f"Arquivamento abortado, nada foi travado: {e}")
 
     return {
@@ -822,18 +830,28 @@ def _outro_levantamento_arquivado(id: int) -> bool:
     return bool(row)
 
 @router.post("/levantamentos/{id}/desarquivar")
-def desarquivar_levantamento(id: int, payload: DesarquivarPayload):
-    """Desarquiva sob justificativa formal de auditoria, restabelecendo a escrita lindeira"""
+def desarquivar_levantamento(id: int, payload: DesarquivarPayload, request: Request):
+    """Desarquiva sob justificativa formal de auditoria (somente administradores), restabelecendo a escrita lindeira"""
+    from routes.auth import require_admin_user
+    admin = require_admin_user(request)
+
+    justificativa = (payload.justificativa or "").strip()
+    if len(justificativa) < 10:
+        raise HTTPException(status_code=422, detail="Informe uma justificativa formal com pelo menos 10 caracteres.")
+
     lev_row = execute_query("SELECT id, status FROM levantamentos WHERE id = ?", params=(id,), fetch_one=True)
-    if not lev_row: 
+    if not lev_row:
         raise HTTPException(status_code=404, detail="Levantamento não localizado.")
-    
+    if lev_row["status"] != "ARQUIVADO":
+        raise HTTPException(status_code=409, detail="O levantamento não está arquivado.")
+
+    usuario = f"{admin.get('name') or admin.get('email') or 'Administrador'} (id {admin['id']})"
     execute_query(
         "INSERT INTO logs_auditoria_seguranca (levantamento_id, rota, metodo, usuario) VALUES (?, ?, ?, ?)",
-        params=(id, f"/desarquivar - Justificativa: {payload.justificativa}", "POST", "Operador_Administrador"),
+        params=(id, f"/desarquivar - Justificativa: {justificativa}", "POST", usuario),
         commit=True
     )
-    
+
     execute_query("UPDATE levantamentos SET status = 'EM_ANDAMENTO' WHERE id = ?", params=(id,), commit=True)
 
     # A pasta da propriedade só destrava se nenhum outro levantamento dela continuar arquivado

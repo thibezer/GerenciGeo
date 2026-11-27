@@ -3,6 +3,7 @@ import { API_BASE } from '../config';
 import { initIcons, showToast, escapeHtml, customConfirm } from '../utils';
 import L from 'leaflet';
 import { abrirModalCompartilhar } from './levantamentos/modal_compartilhar';
+import { AuthService } from '../utils/auth_service';
 import {
    filtrarLevantamentos,
    filtrarPorSegmento,
@@ -445,10 +446,14 @@ export const levantamentosRoute: RouteDef = {
                abrirModalCompartilhar(id, lev?.nome || `Levantamento #${id}`);
             } else if (btn.classList.contains('btn-desarquivar-lev')) {
                (async () => {
-                  const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento:");
+                  if (!AuthService.isAdmin()) {
+                     alert("Somente administradores podem desarquivar levantamentos.");
+                     return;
+                  }
+                  const justificativa = prompt("Informe a justificativa formal para o desarquivamento do levantamento (mínimo 10 caracteres):");
                   if (justificativa === null) return; // Cancelou
-                  if (!justificativa.trim()) {
-                     alert("A justificativa é obrigatória para desarquivamento.");
+                  if (justificativa.trim().length < 10) {
+                     alert("A justificativa formal é obrigatória e precisa ter pelo menos 10 caracteres.");
                      return;
                   }
 

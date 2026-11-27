@@ -2,6 +2,7 @@
 Dependências e funções auxiliares compartilhadas entre todos os roteadores.
 """
 import logging
+import re
 from fastapi import HTTPException
 from starlette.requests import HTTPConnection
 from database.connection import execute_query
@@ -34,6 +35,9 @@ def usuario_da_requisicao(request) -> str:
     return "Operador Local"
 
 
+_ROTAS_LIBERADAS_NA_TRANCA = re.compile(r"(?:/api)?/levantamentos/\d+/(?:desarquivar|compartilhar)")
+
+
 async def verificar_tranca_read_only(request: HTTPConnection):
     """
     Middleware/Dependency do FastAPI.
@@ -43,8 +47,8 @@ async def verificar_tranca_read_only(request: HTTPConnection):
     if request.scope.get("type") != "http" or request.scope.get("method") not in ["POST", "PUT", "PATCH", "DELETE"]:
         return
 
-    # Desarquivar e gerar link público de leitura são permitidos em levantamentos arquivados
-    if "/desarquivar" in request.url.path or request.url.path.endswith("/compartilhar"):
+    # Desarquivar e gerar/revogar link público de leitura são permitidos em levantamentos arquivados (só essas rotas exatas)
+    if _ROTAS_LIBERADAS_NA_TRANCA.fullmatch(request.url.path):
         return
 
     try:

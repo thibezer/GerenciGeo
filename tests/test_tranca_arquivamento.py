@@ -49,6 +49,8 @@ class TestTrancaArquivamentoRotas(unittest.TestCase):
         execute_query("DELETE FROM levantamentos WHERE id IN (?, ?)", params=levs, commit=True)
         execute_query("DELETE FROM propriedades WHERE id = ?", params=(self.prop_id,), commit=True)
         execute_query("DELETE FROM profissionais WHERE id = ?", params=(self.prof_id,), commit=True)
+        for uid in getattr(self, "_usuarios", []):
+            execute_query("DELETE FROM users WHERE id = ?", params=(uid,), commit=True)
 
     def test_criar_matricula_pela_propriedade_bloqueada(self):
         res = client.post(f"/propriedades/{self.prop_id}/matriculas", json={"numero_matricula": "888"})
@@ -80,7 +82,7 @@ class TestTrancaArquivamentoRotas(unittest.TestCase):
         self.assertEqual(row["nome_propriedade"], "Fazenda Tranca Teste")
 
     def test_arquivamento_abortado_se_tranca_em_disco_falhar(self):
-        with patch("routes.levantamento.crud.ExportacaoService.gerar_snapshot_arquivamento", return_value="snap.json"), \
+        with patch("routes.levantamento.crud.ExportacaoService.gerar_snapshot_arquivamento", return_value=str(Path(tempfile.gettempdir()) / "snap_tranca_teste.json")), \
              patch.object(WorkspaceManager, "travar_workspace_inteiro_readonly", return_value=["X:/arquivo_preso.txt"]), \
              patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]) as destravar:
             res = client.post(f"/levantamentos/{self.lev_ativo}/arquivar")
@@ -92,12 +94,73 @@ class TestTrancaArquivamentoRotas(unittest.TestCase):
         self.assertEqual(row["status"], "EM_ANDAMENTO")
 
     def test_arquivamento_abortado_se_tranca_em_disco_lancar_erro(self):
-        with patch("routes.levantamento.crud.ExportacaoService.gerar_snapshot_arquivamento", return_value="snap.json"),              patch.object(WorkspaceManager, "travar_workspace_inteiro_readonly", side_effect=OSError("disco")),              patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]) as destravar:
+        with patch("routes.levantamento.crud.ExportacaoService.gerar_snapshot_arquivamento", return_value=str(Path(tempfile.gettempdir()) / "snap_tranca_teste.json")),              patch.object(WorkspaceManager, "travar_workspace_inteiro_readonly", side_effect=OSError("disco")),              patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]) as destravar:
             res = client.post(f"/levantamentos/{self.lev_ativo}/arquivar")
         self.assertEqual(res.status_code, 500, res.text)
         destravar.assert_called_once()
         row = execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(self.lev_ativo,), fetch_one=True)
         self.assertEqual(row["status"], "EM_ANDAMENTO")
+
+
+    # ── Desarquivar: somente administradores, com usuário real na auditoria ──
+
+    def _usuario(self, role: str) -> str:
+        import secrets
+        from routes.auth import active_sessions
+        email = f"tranca_{role}_{secrets.token_hex(4)}@teste.local"
+        with DatabaseManager() as conn:
+            c = conn.cursor()
+            c.execute("INSERT INTO users (name, email, password, role, is_blocked) VALUES (?, ?, 'x', ?, 0)",
+                      (f"Usuario {role}", email, role))
+            uid = c.lastrowid
+            conn.commit()
+        self._usuarios = getattr(self, "_usuarios", []) + [uid]
+        token = secrets.token_hex(16)
+        active_sessions[token] = uid
+        return token
+
+    def _desarquivar(self, token=None, justificativa="Retificação de memorial solicitada"):
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return client.post(f"/levantamentos/{self.lev_arq}/desarquivar", json={"justificativa": justificativa}, headers=headers)
+
+    def _status_arq(self):
+        return execute_query("SELECT status FROM levantamentos WHERE id = ?", params=(self.lev_arq,), fetch_one=True)["status"]
+
+    def test_desarquivar_sem_login_401(self):
+        self.assertEqual(self._desarquivar().status_code, 401)
+        self.assertEqual(self._status_arq(), "ARQUIVADO")
+
+    def test_desarquivar_usuario_comum_403(self):
+        self.assertEqual(self._desarquivar(self._usuario("user")).status_code, 403)
+        self.assertEqual(self._status_arq(), "ARQUIVADO")
+
+    def test_desarquivar_justificativa_curta_422(self):
+        self.assertEqual(self._desarquivar(self._usuario("admin"), "ok").status_code, 422)
+        self.assertEqual(self._status_arq(), "ARQUIVADO")
+
+    def test_desarquivar_admin_grava_usuario_real(self):
+        with patch.object(WorkspaceManager, "destravar_workspace_inteiro", return_value=[]):
+            res = self._desarquivar(self._usuario("admin"))
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(self._status_arq(), "EM_ANDAMENTO")
+        log = execute_query("SELECT usuario FROM logs_auditoria_seguranca WHERE levantamento_id = ? AND rota LIKE '/desarquivar%'",
+                            params=(self.lev_arq,), fetch_one=True)
+        self.assertIn("Usuario admin (id ", log["usuario"])
+
+    def test_desarquivar_levantamento_nao_arquivado_409(self):
+        res = client.post(f"/levantamentos/{self.lev_ativo}/desarquivar", json={"justificativa": "Justificativa qualquer longa"},
+                          headers={"Authorization": f"Bearer {self._usuario('admin')}"})
+        self.assertEqual(res.status_code, 409, res.text)
+
+
+class TestRotasLiberadasNaTranca(unittest.TestCase):
+    def test_somente_rotas_exatas(self):
+        from routes.deps import _ROTAS_LIBERADAS_NA_TRANCA as r
+        for ok in ("/levantamentos/5/compartilhar", "/api/levantamentos/5/compartilhar", "/levantamentos/5/desarquivar"):
+            self.assertTrue(r.fullmatch(ok), ok)
+        for nao in ("/levantamentos/5/pontos/compartilhar", "/confrontantes/3/compartilhar",
+                    "/levantamentos/5/desarquivar/x", "/levantamentos/5/x/desarquivar", "/levantamentos/abc/compartilhar"):
+            self.assertIsNone(r.fullmatch(nao), nao)
 
 
 def _gravavel(p: Path) -> bool:
