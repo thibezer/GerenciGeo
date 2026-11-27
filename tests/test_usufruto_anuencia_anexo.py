@@ -283,6 +283,18 @@ class TestUsufrutoAnuenciaAnexo(unittest.TestCase):
         lote = html_lib.unescape(gerar_declaracao_anuencia_lote_html(1, 10))
         self.assertIn("Usufrutuário Anuente", lote)
 
+    def test_qualidade_juridica_cita_todos_os_papeis_presentes(self):
+        from services.documentacao.cartorio.usufruto_anuencia import _resumo_qualidade_juridica as resumo
+
+        self.assertEqual(
+            resumo({"USUFRUTUARIO", "DONATARIO", "PROPRIETARIO"}, "M", True),
+            "usufrutuários, donatários (nu-proprietários) e proprietários",
+        )
+        self.assertEqual(resumo({"USUFRUTUARIO", "PROPRIETARIO"}, "M", False), "usufrutuários e proprietários")
+        self.assertEqual(resumo({"USUFRUTUARIO"}, "F", False), "usufrutuária")
+        self.assertEqual(resumo({"USUFRUTUARIO"}, "F", True), "usufrutuárias")
+        self.assertEqual(resumo({"COPROPRIETARIO"}, "M", True), "coproprietários")
+
     def test_campo_opcional_em_branco_nao_apaga_dados_da_pessoa_existente(self):
         with DatabaseManager() as conn:
             conn.execute(

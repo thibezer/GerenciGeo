@@ -332,17 +332,38 @@ def _conjuge_assina_envolvido(env: dict) -> bool:
 
 
 def _resumo_qualidade_juridica(papeis_ativos: set[str], genero_grupo: str | None, plural: bool) -> str:
-    tem_usufruto = "USUFRUTUARIO" in papeis_ativos
-    tem_donatario = "DONATARIO" in papeis_ativos or "NU_PROPRIETARIO" in papeis_ativos
-    if tem_usufruto and tem_donatario:
-        return "usufrutuários e donatários (nu-proprietários)"
-    if tem_usufruto:
-        return flex(genero_grupo, "usufrutuários", "usufrutuárias", "usufrutuários(as)") if plural else flex(genero_grupo, "usufrutuário", "usufrutuária", "usufrutuário(a)")
+    """Qualidade jurídica de todos os papéis presentes ("usufrutuários, donatários (nu-proprietários) e proprietário")."""
+    termos: list[tuple[str, str, str, str]] = []  # (masc, fem, indefinido, plural fixo quando há mais de um papel)
+    if "USUFRUTUARIO" in papeis_ativos:
+        termos.append(("usufrutuário", "usufrutuária", "usufrutuário(a)", "usufrutuários"))
     if "DONATARIO" in papeis_ativos:
-        return "donatários (nu-proprietários)" if plural else flex(genero_grupo, "donatário (nu-proprietário)", "donatária (nu-proprietária)", "donatário(a) (nu-proprietário(a))")
-    if "NU_PROPRIETARIO" in papeis_ativos:
-        return "nu-proprietários" if plural else flex(genero_grupo, "nu-proprietário", "nu-proprietária", "nu-proprietário(a)")
-    return flex(genero_grupo, "proprietários", "proprietárias", "proprietários(as)") if plural else flex(genero_grupo, "proprietário", "proprietária", "proprietário(a)")
+        termos.append((
+            "donatário (nu-proprietário)", "donatária (nu-proprietária)",
+            "donatário(a) (nu-proprietário(a))", "donatários (nu-proprietários)",
+        ))
+    elif "NU_PROPRIETARIO" in papeis_ativos:
+        termos.append(("nu-proprietário", "nu-proprietária", "nu-proprietário(a)", "nu-proprietários"))
+    if "PROPRIETARIO" in papeis_ativos:
+        termos.append(("proprietário", "proprietária", "proprietário(a)", "proprietários"))
+    if "COPROPRIETARIO" in papeis_ativos:
+        termos.append(("coproprietário", "coproprietária", "coproprietário(a)", "coproprietários"))
+    if "POSSUIDOR" in papeis_ativos:
+        termos.append(("possuidor", "possuidora", "possuidor(a)", "possuidores"))
+    if not termos:
+        termos.append(("proprietário", "proprietária", "proprietário(a)", "proprietários"))
+
+    if len(termos) > 1:
+        partes = [t[3] for t in termos]  # vários papéis: plural fixo, sem flexão de gênero
+    elif plural:
+        m, f, i, pl = termos[0]
+        # plural flexionado só onde o gênero muda a forma (usufrutuários/proprietários/possuidores)
+        partes = [flex(genero_grupo, pl, pl[:-2] + "as" if pl.endswith("os") else pl, pl[:-2] + "os(as)" if pl.endswith("os") else pl)]
+    else:
+        m, f, i, _ = termos[0]
+        partes = [flex(genero_grupo, m, f, i)]
+    if len(partes) == 1:
+        return partes[0]
+    return ", ".join(partes[:-1]) + " e " + partes[-1]
 
 
 def montar_qualificacao_e_assinaturas_usufruto(
