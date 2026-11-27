@@ -2607,7 +2607,10 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
               </button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
-              ${campo('CPF', 'cpf_cnpj', '000.000.000-00')}
+              <div class="col-span-1"><div class="flex justify-between items-center mb-1">
+                <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF</label>
+                <span class="aviso-rep-cpf text-[10px] text-amber-400 font-medium ${erroCpf(r.cpf_cnpj, 'CPF') ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(erroCpf(r.cpf_cnpj, 'CPF') || '')}</span></div>
+                <ui-campo-texto type="text" class="w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(r.cpf_cnpj || '')}"></ui-campo-texto></div>
               ${campo('Nome Completo', 'nome', 'Nome do representante', 'col-span-1 sm:col-span-2 lg:col-span-2')}
               ${campo('RG / Órgão', 'rg', 'RG')}
               <div><label class="block text-[11px] font-medium tracking-wider uppercase text-white/40 mb-1">Gênero</label>
@@ -2640,6 +2643,13 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             if (fmt !== valor) { e.target.value = fmt; valor = fmt; }
           }
           representantesAtuais[idx][field] = valor;
+          if (field === 'cpf_cnpj') {
+            // Aviso discreto (não bloqueia o salvamento): só aparece com o CPF preenchido e inválido.
+            const aviso = listaRepresentantes.querySelector(`.aviso-rep-cpf[data-idx="${idx}"]`) as HTMLElement | null;
+            // Enquanto digita, só avisa com os 11 dígitos; "incompleto" aparece ao sair do campo (change).
+            const msg = (e.type === 'input' && String(valor).replace(/\D/g, '').length < 11) ? null : erroCpf(valor, 'CPF');
+            if (aviso) { aviso.textContent = msg || ''; aviso.classList.toggle('hidden', !msg); }
+          }
         };
         input.addEventListener('input', handler);
         input.addEventListener('change', handler);
