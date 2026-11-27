@@ -194,9 +194,9 @@ async def start_hgo(payload: dict, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Hosts aceitos pelo proxy do SIGEF (o front só consulta o WMS do acervo fundiário; o portal do SIGEF
-# fica permitido para os links de exportação). Qualquer outro destino é recusado (evita SSRF/proxy aberto).
-SIGEF_PROXY_HOSTS = frozenset({"geoportal.incra.gov.br", "acervofundiario.incra.gov.br", "sigef.incra.gov.br"})
+# Hosts aceitos pelo proxy do SIGEF: o front só consulta o WMS do Geoportal do INCRA (o i3Geo/acervofundiario
+# foi desativado). Qualquer outro destino é recusado (evita SSRF/proxy aberto).
+SIGEF_PROXY_HOSTS = frozenset({"geoportal.incra.gov.br"})
 # (conexão, leitura) em segundos — somados ficam abaixo dos 12 s que o front espera antes de abortar.
 SIGEF_PROXY_TIMEOUT = (4, 7)
 SIGEF_PROXY_MAX_BYTES = 2_000_000
@@ -229,14 +229,6 @@ def proxy_sigef(url: str):
     log = logging.getLogger(__name__)
     alvo = _validar_url_sigef(url)
 
-    # Apenas o i3Geo legado do acervofundiario falha com application/json e precisa de text/plain.
-    # O novo Geoportal INCRA (GeoServer) suporta e exige application/json nativo.
-    if "acervofundiario.incra.gov.br" in alvo:
-        if "INFO_FORMAT=application%2Fjson" in alvo:
-            alvo = alvo.replace("INFO_FORMAT=application%2Fjson", "INFO_FORMAT=text/plain")
-        elif "INFO_FORMAT=application/json" in alvo:
-            alvo = alvo.replace("INFO_FORMAT=application/json", "INFO_FORMAT=text/plain")
-
     try:
         response = None
         for _ in range(SIGEF_PROXY_MAX_REDIRECTS + 1):
@@ -263,35 +255,9 @@ def proxy_sigef(url: str):
         raise HTTPException(status_code=502, detail="Resposta do INCRA grande demais.")
 
     try:
-        content_type = response.headers.get("Content-Type", "").lower()
-        if "geoportal.incra.gov.br" in alvo or "json" in content_type or "utf-8" in content_type:
-            response.encoding = 'utf-8'
-        else:
-            response.encoding = 'latin-1'
+        # O GeoServer do Geoportal responde em UTF-8
+        response.encoding = 'utf-8'
         text = response.text
-
-        # Se a resposta parece ser o formato text/plain do MapServer
-        if "GetFeatureInfo results:" in text:
-            features = []
-            current_feature = {}
-
-            for line in text.splitlines():
-                # Suporta chaves e valores acentuados, cedilhas, com aspas simples, aspas duplas ou sem aspas (Item 9)
-                match = re.search(r"([\w_]+)\s*=\s*['\"]?([^'\"]*)['\"]?", line.strip())
-                if match:
-                    key, value = match.groups()
-                    current_feature[key] = value.strip()
-                elif "Feature" in line and current_feature:
-                    features.append({"properties": current_feature, "id": current_feature.get("parcela_codigo")})
-                    current_feature = {}
-
-            if current_feature:
-                features.append({
-                    "properties": current_feature,
-                    "id": current_feature.get("parcela_codigo") or current_feature.get("id")
-                })
-
-            return {"features": features}
 
         try:
             data = response.json()

@@ -1820,100 +1820,147 @@ if ($route === '/dashboard/matriculas-geometrias' || (isset($_GET['action']) && 
     }
 }
 
-// 5. Proxy SIGEF / INCRA Seguro
+// 5. Proxy SIGEF / INCRA Seguro (espelho de routes/processamento.py::proxy_sigef)
+// Só o Geoportal do INCRA (GeoServer) é consultado pelo app; o servidor antigo (i3Geo) foi desativado.
+const SIGEF_PROXY_HOSTS = ['geoportal.incra.gov.br'];
+const SIGEF_PROXY_MAX_BYTES = 2000000;
+const SIGEF_PROXY_MAX_REDIRECTS = 3;
+const SIGEF_PROXY_PRAZO_TOTAL_S = 11; // abaixo dos 12 s que o front espera antes de abortar
+
+/** Valida https://<host permitido>[:443]/... sem credenciais. Devolve [url|null, mensagem|null, status]. */
+function sigefProxyValidarUrl(string $url): array {
+    $p = parse_url(trim($url));
+    if ($p === false || !isset($p['scheme']) || !isset($p['host'])) {
+        return [null, 'URL inválida.', 400];
+    }
+    if (strtolower($p['scheme']) !== 'https') {
+        return [null, 'Somente URLs https são aceitas pelo proxy do SIGEF.', 400];
+    }
+    if (isset($p['user']) || isset($p['pass']) || (isset($p['port']) && (int)$p['port'] !== 443)) {
+        return [null, 'URL inválida para o proxy do SIGEF.', 400];
+    }
+    if (!in_array(strtolower($p['host']), SIGEF_PROXY_HOSTS, true)) {
+        return [null, 'Destino não permitido pelo proxy do SIGEF.', 403];
+    }
+    return [trim($url), null, 200];
+}
+
+/** Resolve um Location (absoluto ou relativo) contra a URL atual. */
+function sigefProxyResolverLocation(string $atual, string $location): string {
+    if (preg_match('#^https?://#i', $location)) {
+        return $location;
+    }
+    $p = parse_url($atual);
+    $base = ($p['scheme'] ?? 'https') . '://' . ($p['host'] ?? '');
+    if (strpos($location, '/') === 0) {
+        return $base . $location;
+    }
+    $dir = isset($p['path']) ? preg_replace('#/[^/]*$#', '/', $p['path']) : '/';
+    return $base . $dir . $location;
+}
+
 if ($route === '/proxy/sigef' || (isset($_GET['action']) && $_GET['action'] === 'proxy_sigef')) {
-    $targetUrl = isset($_GET['url']) ? trim($_GET['url']) : '';
-    if (empty($targetUrl)) {
+    $targetUrl = isset($_GET['url']) ? trim((string)$_GET['url']) : '';
+    if ($targetUrl === '') {
         jsonResponse(['error' => 'Parâmetro url é obrigatório.'], 400);
     }
-    $parsed = parse_url($targetUrl);
-    if (!$parsed || !isset($parsed['scheme']) || !isset($parsed['host'])) {
-        jsonResponse(['error' => 'URL inválida.'], 400);
-    }
-    $scheme = strtolower($parsed['scheme']);
-    $host = strtolower($parsed['host']);
-    $allowedHosts = [
-        'geoportal.incra.gov.br',
-        'acervofundiario.incra.gov.br',
-        'sigef.incra.gov.br',
-        'servicodados.ibge.gov.br'
-    ];
-    if ($scheme !== 'https' || !in_array($host, $allowedHosts, true)) {
-        jsonResponse(['error' => 'Destino não permitido pelo proxy de segurança.'], 403);
+    [$alvo, $erroUrl, $statusUrl] = sigefProxyValidarUrl($targetUrl);
+    if ($alvo === null) {
+        jsonResponse(['error' => $erroUrl], $statusUrl);
     }
 
-    // Apenas o i3Geo legado do acervofundiario precisa de text/plain; o Geoportal (GeoServer) suporta application/json nativo
-    if (str_contains($host, 'acervofundiario')) {
-        $targetUrl = str_replace(['INFO_FORMAT=application%2Fjson', 'INFO_FORMAT=application/json'], 'INFO_FORMAT=text/plain', $targetUrl);
-    }
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $targetUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'GerenciGeo Cloud Proxy/2.0');
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 400 || $response === false) {
-        jsonResponse(['error' => 'Falha de comunicação com o servidor do INCRA.', 'http_code' => $httpCode], 502);
-    }
-
-    // O INCRA responde em ISO-8859-1 (latin1); converte para UTF-8 limpo
-    if (function_exists('mb_convert_encoding')) {
-        $responseUtf8 = mb_convert_encoding((string)$response, 'UTF-8', 'ISO-8859-1, UTF-8');
-    } else {
-        $responseUtf8 = (string)$response;
-    }
-
-    // Se a resposta for o formato text/plain do MapServer i3Geo, parseia para JSON estruturado (Item 9 / RFC Geodésica)
-    if (str_contains($responseUtf8, 'GetFeatureInfo results:')) {
-        $features = [];
-        $currentFeature = [];
-        $lines = preg_split("/\r\n|\n|\r/", $responseUtf8);
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (preg_match("/^([\w_]+)\s*=\s*['\"]?([^'\"]*)['\"]?$/u", $line, $matches)) {
-                $currentFeature[$matches[1]] = trim($matches[2]);
-            } elseif (stripos($line, 'Feature') !== false && !empty($currentFeature)) {
-                $features[] = [
-                    'properties' => $currentFeature,
-                    'id' => $currentFeature['parcela_codigo'] ?? ($currentFeature['id_parcela'] ?? ($currentFeature['co_parcela'] ?? null))
-                ];
-                $currentFeature = [];
+    $prazo = microtime(true) + SIGEF_PROXY_PRAZO_TOTAL_S;
+    $body = '';
+    $httpCode = 0;
+    $grande = false;
+    $seguiu = false;
+    for ($salto = 0; $salto <= SIGEF_PROXY_MAX_REDIRECTS; $salto++) {
+        $restante = $prazo - microtime(true);
+        if ($restante <= 0.5) {
+            jsonResponse(['error' => 'Tempo limite de resposta do INCRA esgotado.'], 504);
+        }
+        $location = null;
+        $body = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $alvo);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, (int)max(1, ceil($restante)));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'GerenciGeo Cloud Proxy/2.0');
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($c, $linha) use (&$location) {
+            if (stripos($linha, 'location:') === 0) {
+                $location = trim(substr($linha, 9));
             }
+            return strlen($linha);
+        });
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($c, $dados) use (&$body, &$grande) {
+            if (strlen($body) + strlen($dados) > SIGEF_PROXY_MAX_BYTES) {
+                $grande = true;
+                return 0; // aborta a transferência
+            }
+            $body .= $dados;
+            return strlen($dados);
+        });
+        $ok = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errno = curl_errno($ch);
+        curl_close($ch);
+
+        if ($grande) {
+            jsonResponse(['error' => 'Resposta do INCRA grande demais.'], 502);
         }
-        if (!empty($currentFeature)) {
-            $features[] = [
-                'properties' => $currentFeature,
-                'id' => $currentFeature['parcela_codigo'] ?? ($currentFeature['id_parcela'] ?? ($currentFeature['co_parcela'] ?? null))
-            ];
+        if ($ok === false) {
+            if ($errno === CURLE_OPERATION_TIMEDOUT) {
+                jsonResponse(['error' => 'Tempo limite de resposta do INCRA esgotado.'], 504);
+            }
+            jsonResponse(['error' => 'Falha de comunicação com o servidor do INCRA.'], 502);
         }
-        jsonResponse(['features' => $features]);
+        if ($httpCode >= 300 && $httpCode < 400 && $location) {
+            // Cada salto é revalidado: um redirecionamento não pode levar a um host fora da allowlist
+            [$alvo, $erroUrl, $statusUrl] = sigefProxyValidarUrl(sigefProxyResolverLocation($alvo, $location));
+            if ($alvo === null) {
+                jsonResponse(['error' => $erroUrl], $statusUrl);
+            }
+            $seguiu = true;
+            continue;
+        }
+        $seguiu = false;
+        break;
+    }
+    if ($seguiu) {
+        jsonResponse(['error' => 'O INCRA redirecionou a consulta além do limite permitido.'], 502);
+    }
+    if ($httpCode >= 400 || $httpCode < 200) {
+        jsonResponse(['error' => 'O INCRA respondeu com HTTP ' . $httpCode . '.'], 502);
     }
 
-    // Se já for JSON válido, garante que 'id' da feature seja o UUID de parcela_codigo do SIGEF
-    $jsonDecoded = json_decode($responseUtf8, true);
-    if (is_array($jsonDecoded)) {
-        if (isset($jsonDecoded['features']) && is_array($jsonDecoded['features'])) {
-            foreach ($jsonDecoded['features'] as &$feat) {
-                if (isset($feat['properties']) && is_array($feat['properties'])) {
-                    $uuid = $feat['properties']['parcela_codigo'] ?? ($feat['properties']['co_parcela'] ?? ($feat['properties']['id_parcela'] ?? null));
-                    if ($uuid) {
-                        $feat['id'] = (string)$uuid;
-                    }
+    // O GeoServer do Geoportal responde em UTF-8; só converte se o conteúdo não for UTF-8 válido
+    // (converter às cegas a partir de ISO-8859-1 estragava os acentos, pois ele aceita qualquer byte).
+    $textoUtf8 = $body;
+    if (function_exists('mb_check_encoding') && !mb_check_encoding($body, 'UTF-8') && function_exists('mb_convert_encoding')) {
+        $textoUtf8 = mb_convert_encoding($body, 'UTF-8', 'ISO-8859-1');
+    }
+
+    $jsonDecoded = json_decode($textoUtf8, true);
+    if (!is_array($jsonDecoded)) {
+        jsonResponse(['error' => 'Resposta não é JSON', 'raw' => substr($textoUtf8, 0, 500)]);
+    }
+    // Garante que 'id' da feature seja o UUID de parcela_codigo do SIGEF (o id do GeoServer é 'sigef_geo.N')
+    if (isset($jsonDecoded['features']) && is_array($jsonDecoded['features'])) {
+        foreach ($jsonDecoded['features'] as &$feat) {
+            if (isset($feat['properties']) && is_array($feat['properties'])) {
+                $uuid = $feat['properties']['parcela_codigo'] ?? ($feat['properties']['co_parcela'] ?? ($feat['properties']['id_parcela'] ?? null));
+                if ($uuid) {
+                    $feat['id'] = trim((string)$uuid);
                 }
             }
-            unset($feat);
         }
-        jsonResponse($jsonDecoded);
+        unset($feat);
     }
-
-    // Fallback: devolve texto envelopado
-    jsonResponse(['features' => [], 'raw' => substr($responseUtf8, 0, 500)]);
+    jsonResponse($jsonDecoded);
 }
 
 // 6. Leitura e Gravação de Levantamento Compartilhado Público (por código)
