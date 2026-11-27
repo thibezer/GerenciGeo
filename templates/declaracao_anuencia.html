@@ -67,7 +67,20 @@
             widows: 3 !important;
         }
 
-        .fecho-anuencia,
+        /* FECHO inteligente (prática de peças jurídicas): a assinatura nunca fica sozinha na folha e a folha
+           anterior não fica com vazio. A cláusula final PODE quebrar (mín. 3 linhas de cada lado) e fica
+           "presa" à data + assinaturas (break-after: avoid): se o bloco de assinaturas não couber, só as
+           últimas linhas da cláusula descem junto com ele; o resto continua preenchendo a folha. */
+        .fecho-anuencia .fecho-texto,
+        .fecho-anuencia .fecho-texto p {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            orphans: 3 !important;
+            widows: 3 !important;
+        }
+
         .bloco-assinaturas-fechamento,
         .bloco-assinaturas-fechamento > div > div > div {
             break-inside: avoid !important;
@@ -171,10 +184,10 @@
         </div>
     </div>
 
-    <!-- FECHO: cláusula final + data + assinaturas formam um bloco único. Se não couber no fim da página,
-         o bloco inteiro vai junto para a próxima, então as assinaturas nunca ficam sozinhas numa folha. -->
-    <div class="fecho-anuencia break-inside-avoid w-full mt-2.5">
-        <div class="text-xs text-justify leading-relaxed text-slate-700">
+    <!-- FECHO: data + assinaturas são indivisíveis e ficam presas às últimas linhas da cláusula final
+         (que é quebrável). Assim a assinatura nunca fica sozinha numa folha e não sobra vazio na anterior. -->
+    <div class="fecho-anuencia w-full mt-2.5">
+        <div class="fecho-texto text-xs text-justify leading-relaxed text-slate-700">
             <!-- CLÁUSULA DE RECONHECIMENTO DO RT E ANUÊNCIA (CONFORME MODELO REAL) -->
             <p>{texto_declaramos_ainda} que o profissional responsável técnico
                 <strong>{nome_profissional}</strong>, inscrito no {conselho_profissional} sob o registro nº
