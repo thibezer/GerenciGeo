@@ -163,7 +163,7 @@ export const mesaTrabalhoRoute: RouteDef = {
     // 2. Registra os submódulos no contexto comum
     setupMesaTrabalhoHistorico(ctx);
     ctx.abrirModalUnificacaoSobrepostos = async () => {
-      const { abrirModalUnificacaoSobrepostos } = await import('./mesa_trabalho/unificador_sobrepostos');
+      const { abrirModalUnificacaoSobrepostos } = await import('./mesa_trabalho/sobrepostos');
       return abrirModalUnificacaoSobrepostos(ctx);
     };
     setupMesaGeodesica(ctx);

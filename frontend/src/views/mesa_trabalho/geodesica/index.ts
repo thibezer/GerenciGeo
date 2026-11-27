@@ -2,7 +2,7 @@ import { API_BASE } from '../../../config';
 import { initIcons, showToast, customConfirm } from '../../../utils';
 import { registrarEventosExportacao, exportarParaKML } from '../exportacao_cad';
 import { setNuvemSyncContext } from '../nuvem_sync_modal';
-import { FerramentaCanetaSelecao } from '../ferramenta_caneta';
+import { FerramentaCanetaSelecao } from '../caneta';
 import { focoEmCampoDeTexto } from '../foco_texto';
 import type { MesaTrabalhoContext } from '../mesa_trabalho_context';
 import { latLonToUTM } from './geodesica_calculos';
