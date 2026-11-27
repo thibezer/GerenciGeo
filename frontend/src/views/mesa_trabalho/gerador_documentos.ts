@@ -26,6 +26,16 @@ import {
 } from '@thibezer/ui-components-kit/forms';
 import { confirmarAcao, confirmarDescarteSeSujo, UIToast } from '@thibezer/ui-components-kit/feedback';
 
+/** Aviso curto (cabe na linha do rótulo) de CPF/CNPJ inválido; null se vazio ou válido. */
+const avisoDocCurto = (valor: string | null | undefined, soCpf = false): string | null => {
+  if (!(soCpf ? erroCpf(valor, 'CPF') : erroCpfCnpj(valor, 'CPF/CNPJ'))) return null;
+  const n = String(valor ?? '').replace(/\D/g, '').length;
+  if (n === 0) return 'Inválido';
+  if (n === 11 || n === 14) return n === 11 ? 'CPF inválido' : 'CNPJ inválido';
+  return 'Incompleto';
+};
+
+
 let soltarRascunhoAnterior: (() => void) | null = null;
 
 /** Erros e conflitos precisam de ação do operador: ficam na tela até serem fechados (nunca um toast de 3 s). */
@@ -1722,7 +1732,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                    <div class="flex justify-between items-center mb-1">
                       <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF / CNPJ</label>
                       <span class="status-coprop-cpf text-[10px] text-mint-vibrant font-medium hidden" data-idx="${idx}"></span>
-                      <span class="aviso-coprop-cpf text-[10px] text-amber-400 font-medium ${erroCpfCnpj(cp.cpf_cnpj, 'CPF/CNPJ') ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(erroCpfCnpj(cp.cpf_cnpj, 'CPF/CNPJ') || '')}</span>
+                      <span class="aviso-coprop-cpf text-[10px] text-amber-400 font-medium ${avisoDocCurto(cp.cpf_cnpj) ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(avisoDocCurto(cp.cpf_cnpj) || '')}</span>
                    </div>
                    <ui-campo-texto type="text" class="input-coprop-cpf w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfFmt)}"></ui-campo-texto>
                 </div>
@@ -1957,7 +1967,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
         let timerAviso: ReturnType<typeof setTimeout> | undefined;
         const atualizarAviso = (valor: string) => {
           if (!avisoEl) return;
-          const msg = erroCpfCnpj(valor, 'CPF/CNPJ');
+          const msg = avisoDocCurto(valor);
           avisoEl.textContent = msg || '';
           avisoEl.classList.toggle('hidden', !msg);
         };
@@ -2625,7 +2635,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
               <div class="col-span-1"><div class="flex justify-between items-center mb-1">
                 <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF</label>
-                <span class="aviso-rep-cpf text-[10px] text-amber-400 font-medium ${erroCpf(r.cpf_cnpj, 'CPF') ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(erroCpf(r.cpf_cnpj, 'CPF') || '')}</span></div>
+                <span class="aviso-rep-cpf text-[10px] text-amber-400 font-medium ${avisoDocCurto(r.cpf_cnpj, true) ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(avisoDocCurto(r.cpf_cnpj, true) || '')}</span></div>
                 <ui-campo-texto type="text" class="w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(r.cpf_cnpj || '')}"></ui-campo-texto></div>
               ${campo('Nome Completo', 'nome', 'Nome do representante', 'col-span-1 sm:col-span-2 lg:col-span-2')}
               ${campo('RG / Órgão', 'rg', 'RG')}
@@ -2663,7 +2673,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
             // Aviso discreto (não bloqueia o salvamento): só aparece com o CPF preenchido e inválido.
             const aviso = listaRepresentantes.querySelector(`.aviso-rep-cpf[data-idx="${idx}"]`) as HTMLElement | null;
             // Enquanto digita, só avisa com os 11 dígitos; "incompleto" aparece ao sair do campo (change).
-            const msg = (e.type === 'input' && String(valor).replace(/\D/g, '').length < 11) ? null : erroCpf(valor, 'CPF');
+            const msg = (e.type === 'input' && String(valor).replace(/\D/g, '').length < 11) ? null : avisoDocCurto(valor, true);
             if (aviso) { aviso.textContent = msg || ''; aviso.classList.toggle('hidden', !msg); }
           }
         };
