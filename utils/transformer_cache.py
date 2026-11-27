@@ -11,10 +11,3 @@ def get_transformer(crs_from: str, crs_to: str, always_xy: bool = True) -> Trans
     crs_f = str(crs_from).lower().strip()
     crs_t = str(crs_to).lower().strip()
     return Transformer.from_crs(crs_f, crs_t, always_xy=True)
-
-def transform_coords(crs_from: str, crs_to: str, x: float, y: float) -> tuple[float, float]:
-    """
-    Thread-safe coordinate transformation returning (x_out, y_out) with guaranteed always_xy=True axis order.
-    """
-    transformer = get_transformer(crs_from, crs_to)
-    return transformer.transform(x, y)

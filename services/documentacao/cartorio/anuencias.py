@@ -455,10 +455,6 @@ def _rotulo_lote(c_lote, c_nome) -> str:
     return f"Lote {lote}"
 
 
-def _nome_para_assinatura(valor):
-    return valor_preenchido(valor)
-
-
 def gerar_declaracao_anuencia_html(
     lev_id: int,
     matricula_id: int,

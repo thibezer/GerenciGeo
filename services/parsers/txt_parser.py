@@ -534,21 +534,6 @@ class TxtGeodesicParser:
             logger.error(f"[PARSER] Erro crítico ao persistir pontos no banco: {e}")
             raise e
 
-    def gerar_topologia_perimetral(self, ids_pontos: list, pontos_processados: list) -> int:
-        """
-        Gera a topologia perimetral de forma automatizada, criando os segmentos sequenciais
-        e a divisa de fechamento obrigatória (do último ponto de volta ao primeiro).
-        Mantém as regras de domínio no núcleo lógico de negócio de geoprocessamento.
-        """
-        try:
-            with DatabaseManager() as conn:
-                total = self._inserir_topologia(conn.cursor(), ids_pontos, pontos_processados)
-                conn.commit()
-            return total
-        except Exception as e:
-            logger.error(f"[PARSER] Erro crítico ao gerar topologia perimetral no banco: {e}")
-            raise e
-
     def persistir_com_topologia(self, pontos: list) -> tuple:
         """
         Grava pontos e topologia perimetral numa ÚNICA transação: se qualquer etapa falhar,

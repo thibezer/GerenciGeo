@@ -30,11 +30,6 @@ class HistoricoRinexRepo(GenericRepo):
         query = "SELECT * FROM historico_rinex WHERE arquivo_nome = ? AND arquivo_tamanho = ? AND sucesso = 1"
         return [dict(r) for r in execute_query(query, params=(nome, tamanho), fetch_all=True)]
 
-    def get_by_filename_and_size(self, nome, tamanho):
-        query = "SELECT * FROM historico_rinex WHERE arquivo_nome = ? AND arquivo_tamanho = ?"
-        row = execute_query(query, params=(nome, tamanho), fetch_all=False, fetch_one=True)
-        return dict(row) if row else None
-
     def insert(self, arquivo_nome, arquivo_tamanho, arquivo_path, ponto_nome=None, data_inicio=None, data_fim=None, latitude=None, longitude=None, sucesso=True):
         query = """INSERT INTO historico_rinex 
                    (arquivo_nome, arquivo_tamanho, arquivo_path, ponto_nome, data_inicio, data_fim, latitude, longitude, sucesso) 
@@ -69,10 +64,6 @@ class PendenciaRepo(GenericRepo):
     def update_status(self, item_id, status):
         query = "UPDATE pendencias SET status = ? WHERE id = ?"
         return execute_query(query, params=(status, item_id), fetch_all=False, commit=True)
-        
-    def get_pendentes_alta(self, limit=3):
-        query = "SELECT * FROM pendencias WHERE status = 'PENDENTE' AND prioridade = 'ALTA' ORDER BY data_criacao DESC LIMIT ?"
-        return [dict(r) for r in execute_query(query, params=(limit,), fetch_all=True)]
 
     def get_pendentes(self, limit=10):
         query = """SELECT * FROM pendencias WHERE status = 'PENDENTE' 
@@ -84,19 +75,6 @@ class PendenciaRepo(GenericRepo):
 class CcirCadastroRepo(GenericRepo):
     def __init__(self):
         super().__init__("ccir_cadastros")
-
-    def insert_bulk(self, rows):
-        """Insere múltiplos registros de CCIR em lote"""
-        query = """
-            INSERT INTO ccir_cadastros (
-                codigo_imovel, denominacao, codigo_municipio, municipio, uf,
-                area_total, titular, natureza_juridica, condicao_pessoa,
-                percentual_detencao, pais, arquivo_origem
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        with DatabaseManager() as conn:
-            cursor = conn.cursor()
-            cursor.executemany(query, rows)
 
     def substituir_registros_arquivo(self, arquivo_origem, rows):
         """Troca os registros de um arquivo de origem pelos novos numa única transação"""

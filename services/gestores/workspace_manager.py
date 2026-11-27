@@ -94,47 +94,6 @@ class WorkspaceManager:
         (folder / "Exportacoes").mkdir(parents=True, exist_ok=True)
         
         return str(folder)
-
-    def move_file_to_workspace(self, levantamento_id: int, file_path: str, category: str) -> str:
-        """
-        Move um arquivo processado para a subpasta correta.
-        Categorias: 'Brutos', 'Rinex', 'Processados', 'Documentos', 'Exportacoes'
-        """
-        import stat
-        source_path = Path(file_path)
-        if not source_path.exists():
-            raise FileNotFoundError(f"Arquivo nÃ£o encontrado: {file_path}")
-            
-        dest_folder = self.get_levantamento_folder(levantamento_id) / category
-        if not dest_folder.exists():
-            self.create_workspace(levantamento_id)
-            
-        dest_path = dest_folder / source_path.name
-        
-        # Evitar sobrescrita: adiciona sufixo numÃ©rico em caso de duplicidade
-        if dest_path.exists():
-            counter = 1
-            while True:
-                new_name = f"{source_path.stem}_{counter}{source_path.suffix}"
-                dest_path = dest_folder / new_name
-                if not dest_path.exists():
-                    break
-                counter += 1
-                
-        shutil.move(str(source_path), str(dest_path))
-
-        # Blindagem fÃ­sica: se for Brutos, define como Somente Leitura (Read-Only)
-        if category == "Brutos":
-            try:
-                permissao_atual = os.stat(dest_path).st_mode
-                os.chmod(dest_path, permissao_atual & ~stat.S_IWRITE)
-                import logging
-                logging.getLogger(__name__).info(f"[WORKSPACE] Arquivo bruto blindado como Read-Only: {dest_path.name}")
-            except Exception as e_ch:
-                import logging
-                logging.getLogger(__name__).warning(f"[WORKSPACE] NÃ£o foi possÃ­vel definir Read-Only para {dest_path.name}: {e_ch}")
-
-        return str(dest_path)
         
     def delete_workspace(self, levantamento_id: int, folder: Path = None):
         """

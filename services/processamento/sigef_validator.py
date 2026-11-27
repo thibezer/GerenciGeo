@@ -84,13 +84,6 @@ class SigefValidator:
             return None
         return math.sqrt(sigma_phi**2 + sigma_lambda**2)
 
-    @staticmethod
-    def calcular_sigma_p_95(sigma_phi: float, sigma_lambda: float) -> float:
-        """σP(95%) ≈ 1.73 * σP - Sigma expandido (2-Sigma, 95% de confiança bidimensional)"""
-        if sigma_phi is None or sigma_lambda is None:
-            return None
-        return 1.7308 * math.sqrt(sigma_phi**2 + sigma_lambda**2)
-
     @classmethod
     def validar_conformidade(cls, sigma_p: float, tipo_limite: str) -> tuple[bool, str]:
         """Retorna (conforme: bool, mensagem_alerta: str) sob nível de 68% de confiança (1-Sigma)"""

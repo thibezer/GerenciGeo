@@ -302,50 +302,6 @@ def _buscar_conf_por_campo(confs_db: list, campo: str, valor_norm: str, matricul
     return candidato_sem_mat or candidato_com_mat
 
 
-def vincular_confrontantes_pontos(levantamento_id: int, pontos_inseridos: list, cursor) -> dict:
-    """
-    Resolve e vincula os confrontantes aos pontos que foram reassociados a uma matrícula.
-    Retorna um mapeamento de codigo_completo para o confrontante_id correto.
-    """
-    cursor.execute(
-        f"""SELECT c.id, COALESCE({sql_nome_confrontante('c', 'pe')}, '') as nome, c.matricula_imovel, c.lote
-           FROM confrontantes c
-           LEFT JOIN pessoas pe ON c.pessoa_id = pe.id
-           WHERE c.levantamento_id = ?""",
-        (levantamento_id,)
-    )
-    confs_db = [dict(r) for r in cursor.fetchall()]
-
-    mapa_vertices_conf = {}
-    for p in pontos_inseridos:
-        matricula_conf = (p.get("matricula_confrontante") or "").strip().upper()
-        matricula_conf_norm = normalizar_matricula(matricula_conf)
-        desc = (p.get("confrontante_descritivo") or "").strip()
-        nome_conf, lote_conf = extrair_dados_confrontante_planilha(desc)
-        nome_conf_norm = normalizar_texto_busca(nome_conf)
-        lote_conf_norm = normalizar_texto_busca(lote_conf)
-
-        conf_id = None
-
-        # 1. Tentar encontrar por matrícula
-        if matricula_conf_norm:
-            for c in confs_db:
-                c_mat = (c["matricula_imovel"] or "").strip().upper()
-                if normalizar_matricula(c_mat) == matricula_conf_norm:
-                    conf_id = c["id"]
-                    break
-
-        # 2. Se não achou por matrícula, tenta por nome ou lote
-        if not conf_id and nome_conf_norm:
-            conf_id = _buscar_conf_por_campo(confs_db, "nome", nome_conf_norm, matricula_conf_norm)
-        if not conf_id and lote_conf_norm:
-            conf_id = _buscar_conf_por_campo(confs_db, "lote", lote_conf_norm, matricula_conf_norm)
-
-        mapa_vertices_conf[p["codigo_completo"]] = conf_id
-
-    return mapa_vertices_conf
-
-
 # ── Núcleo de identidade/limpeza de confrontantes e pessoas ───────────────────
 # Fonte única das regras usadas pelas rotas (formulário, vértice, sync CAD, importadores) para que um mesmo
 # vizinho nunca vire dois registros e nenhuma operação apague ou sobrescreva dados de outra pessoa.
@@ -379,61 +335,6 @@ def criar_pessoa_basica(cursor, nome: str) -> int:
     """Pessoa só com o nome (vizinho ainda sem qualificação). Gênero fica NULL = não informado."""
     cursor.execute("INSERT INTO pessoas (nome, genero, genero_conjuge) VALUES (?, NULL, NULL)", (nome,))
     return cursor.lastrowid
-
-
-def get_or_create_confrontante(cursor, levantamento_id: int, nome: str, matricula: str = None, cns: str = None,
-                               tipo_relacao: str = "Divisa", origem: str = "auto"):
-    """Devolve (confrontante_id, criado) reaproveitando o confrontante do levantamento com o mesmo nome
-    (comparação normalizada: sem acento, caixa e espaços) e matrícula compatível.
-
-    - mesma matrícula normalizada -> mesmo confrontante; matrículas diferentes -> registros diferentes;
-    - candidato sem matrícula recebe a matrícula/CNS informadas (completa o cadastro);
-    - nada existindo, cria pessoa + confrontante (uma pessoa por vizinho)."""
-    nome_limpo = re.sub(r"\s+", " ", (nome or "").strip())
-    matricula = (matricula or "").strip() or None
-    cns = (cns or "").strip() or None
-    if not nome_limpo:
-        nome_limpo = f"Confrontante da Matrícula {matricula}" if matricula else "Confrontante"
-    chave = normalizar_nome(nome_limpo)
-    mat_norm = normalizar_matricula(matricula) if matricula else ""
-
-    cursor.execute(
-        f"""SELECT c.id, {SQL_NOME_CONFRONTANTE} AS nome, c.matricula_imovel, c.cns_confrontante
-            FROM confrontantes c LEFT JOIN pessoas p ON p.id = c.pessoa_id
-            WHERE c.levantamento_id = ? ORDER BY c.id""",
-        (levantamento_id,),
-    )
-    candidatos = [tuple(r) for r in cursor.fetchall() if normalizar_nome(r[1]) == chave]
-
-    escolhido = None
-    for r in candidatos:
-        mat_c = normalizar_matricula(r[2]) if (r[2] or "").strip() else ""
-        if mat_norm and mat_c == mat_norm:
-            escolhido = r
-            break
-        if not mat_norm and not mat_c and escolhido is None:
-            escolhido = r
-    if escolhido is None and mat_norm:
-        # o informado tem matrícula: pode completar um candidato que ainda não tem nenhuma
-        escolhido = next((r for r in candidatos if not (r[2] or "").strip()), None)
-    if escolhido is None and not mat_norm and candidatos:
-        escolhido = candidatos[0]
-
-    if escolhido is not None:
-        cid = escolhido[0]
-        if matricula and not (escolhido[2] or "").strip():
-            cursor.execute("UPDATE confrontantes SET matricula_imovel = ? WHERE id = ?", (matricula, cid))
-        if cns and not (escolhido[3] or "").strip():
-            cursor.execute("UPDATE confrontantes SET cns_confrontante = ? WHERE id = ?", (cns, cid))
-        return cid, False
-
-    pessoa_id = criar_pessoa_basica(cursor, nome_limpo)
-    cursor.execute(
-        """INSERT INTO confrontantes (pessoa_id, levantamento_id, nome, tipo_relacao, matricula_imovel, cns_confrontante, origem)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (pessoa_id, levantamento_id, nome_limpo, tipo_relacao, matricula, cns, origem),
-    )
-    return cursor.lastrowid, True
 
 
 # Tabelas/colunas que apontam para pessoas: descobertas pelas FKs do esquema, mais colunas sem FK declarada.
@@ -558,32 +459,6 @@ def limpar_confrontantes_orfaos(levantamento_id: int, cursor=None, ids: list = N
             continue
         if _tem_dados_cadastrais(cursor, cid):
             continue
-        cursor.execute("DELETE FROM confrontantes WHERE id = ?", (cid,))
-        removidos.append(cid)
-        apagar_pessoa_se_orfa(cursor, pessoa_id)
-    return removidos
-
-
-def limpar_confrontantes_sigef(levantamento_id: int, cursor) -> list:
-    """Remove os confrontantes criados pela importação de vizinhos (origem 'sigef') que não têm divisa e que
-    ninguém qualificou à mão (CPF, matrícula, PDF, coproprietários...). Confrontantes cadastrados manualmente,
-    mesmo com código INCRA, são preservados. Apaga também as pessoas 'Vizinho SIGEF...' que ficariam órfãs.
-    Devolve os ids removidos."""
-    cursor.execute(
-        f"""SELECT c.id, c.pessoa_id, {SQL_NOME_CONFRONTANTE} FROM confrontantes c
-           LEFT JOIN pessoas p ON p.id = c.pessoa_id
-           WHERE c.levantamento_id = ? AND c.origem = 'sigef'
-             AND NOT EXISTS (SELECT 1 FROM segmentos s WHERE s.confrontante_id = c.id)""",
-        (levantamento_id,),
-    )
-    removidos = []
-    for cid, pessoa_id, nome in cursor.fetchall():
-        # nome que alguém digitou no lugar do 'Vizinho SIGEF - ...' gerado é dado cadastrado
-        if not (nome_padrao(nome) or normalizar_nome(nome).startswith("PROPRIETARIO DE")):
-            continue
-        if _tem_dados_cadastrais(cursor, cid, ignorar_importacao_sigef=True):
-            continue
-        cursor.execute("UPDATE pontos SET confrontante_id = NULL WHERE confrontante_id = ?", (cid,))
         cursor.execute("DELETE FROM confrontantes WHERE id = ?", (cid,))
         removidos.append(cid)
         apagar_pessoa_se_orfa(cursor, pessoa_id)
