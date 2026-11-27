@@ -1722,6 +1722,7 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
                    <div class="flex justify-between items-center mb-1">
                       <label class="block text-[11px] font-medium tracking-wider uppercase text-white/40">CPF / CNPJ</label>
                       <span class="status-coprop-cpf text-[10px] text-mint-vibrant font-medium hidden" data-idx="${idx}"></span>
+                      <span class="aviso-coprop-cpf text-[10px] text-amber-400 font-medium ${erroCpfCnpj(cp.cpf_cnpj, 'CPF/CNPJ') ? '' : 'hidden'}" data-idx="${idx}" role="status">${escapeHtml(erroCpfCnpj(cp.cpf_cnpj, 'CPF/CNPJ') || '')}</span>
                    </div>
                    <ui-campo-texto type="text" class="input-coprop-cpf w-full" data-field="cpf_cnpj" data-idx="${idx}" placeholder="000.000.000-00" value="${escapeHtml(cpfFmt)}"></ui-campo-texto>
                 </div>
@@ -1951,14 +1952,24 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           }
         };
 
+        // Aviso discreto (não bloqueia): ao digitar só avalia com 14 dígitos; CPF e "incompleto" ao sair do campo.
+        const avisoEl = containerCoproprietarios.querySelector(`.aviso-coprop-cpf[data-idx="${idx}"]`) as HTMLElement | null;
+        const atualizarAviso = (valor: string, digitando: boolean) => {
+          if (!avisoEl) return;
+          const msg = digitando && valor.replace(/\D/g, '').length !== 14 ? null : erroCpfCnpj(valor, 'CPF/CNPJ');
+          avisoEl.textContent = msg || '';
+          avisoEl.classList.toggle('hidden', !msg);
+        };
         input.addEventListener('input', (e: any) => {
           e.target.value = formatarCpfCnpjDinamico(e.target.value);
           const limpo = e.target.value.replace(/\D/g, '');
+          atualizarAviso(e.target.value, true);
           if (limpo.length === 11 || limpo.length === 14) {
             buscarCpf(e.target.value);
           }
         });
         input.addEventListener('blur', (e: any) => {
+          atualizarAviso(e.target.value, false);
           buscarCpf(e.target.value);
         });
       });
