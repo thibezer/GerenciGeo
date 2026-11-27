@@ -41,35 +41,32 @@ let activeRibbonCleanup: (() => void) | null = null;
 let activeShortcutsCleanup: (() => void) | null = null;
 let routeCleanup: (() => void) | null = null;
 
-/** Baixa os CSVs (vértices e limites) de uma parcela SIGEF vizinha para a pasta Documentos do levantamento. */
-async function importarConfrontanteSigef(ctx: MesaTrabalhoContext, uuid: string, nome: string): Promise<void> {
-  if (!ctx.currentLevId) {
-    showToast('Abra um levantamento antes de importar o confrontante.', 'error');
+/**
+ * Abre no navegador os CSVs (vértices e limites) de uma parcela SIGEF vizinha. O download é feito pelo próprio
+ * navegador do usuário (o SIGEF bloqueia downloads automatizados feitos pelo servidor); os dois arquivos salvos
+ * seguem para "Vizinhos (SIGEF) > Unificar SIGEF". Sem `await` antes das aberturas, para manter o gesto do usuário.
+ */
+function abrirCsvsConfrontanteSigef(uuid: string, nome: string): void {
+  if (!/^[A-Za-z0-9-]+$/.test(uuid)) {
+    showToast('Código de parcela SIGEF inválido.', 'error');
     return;
   }
-  const rotulo = nome || uuid;
-  const confirmou = await customConfirm(
-    `Importar os limites e vértices do imóvel "${rotulo}" para a pasta Documentos do levantamento atual?\n\nA consulta ao SIGEF pode levar cerca de 10 segundos.`,
-    'Importar confrontante SIGEF'
+  const abrir = (url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  const base = `https://sigef.incra.gov.br/geo/exportar`;
+  abrir(`${base}/vertice/csv/${encodeURIComponent(uuid)}`);
+  abrir(`${base}/limite/csv/${encodeURIComponent(uuid)}`);
+  showToast(
+    `CSVs de "${nome || uuid}" abertos no navegador. Salve os dois e envie em Vizinhos (SIGEF) > Unificar SIGEF. Se só um abriu, permita pop-ups para este site.`,
+    'info'
   );
-  if (!confirmou) return;
-
-  try {
-    const res = await fetch(
-      `${API_BASE}/levantamentos/${ctx.currentLevId}/importar-confrontante-sigef?codigo_parcela=${encodeURIComponent(uuid)}`,
-      { method: 'POST' }
-    );
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.success) {
-      showToast(`Vértices e limites de "${rotulo}" salvos em Documentos.`, 'success');
-      ctx.loadWorkspaceArquivos();
-    } else {
-      await customAlert(`Erro na importação: ${data.detail || data.error || 'falha ao obter os arquivos do SIGEF.'}`, 'Importar confrontante SIGEF');
-    }
-  } catch (err) {
-    console.error('Erro ao importar confrontante SIGEF:', err);
-    showToast('Erro de comunicação com a API ao importar o confrontante.', 'error');
-  }
 }
 
 export const mesaTrabalhoRoute: RouteDef = {
@@ -477,7 +474,7 @@ export const mesaTrabalhoRoute: RouteDef = {
         }
         _importarVizinhoSigefHandler = (e: Event) => {
           const { uuid, nome } = (e as CustomEvent<{ uuid?: string; nome?: string }>).detail || {};
-          if (uuid) void importarConfrontanteSigef(ctx, uuid, nome || '');
+          if (uuid) abrirCsvsConfrontanteSigef(uuid, nome || '');
         };
         window.addEventListener(EVENTO_IMPORTAR_VIZINHO_SIGEF, _importarVizinhoSigefHandler);
 
