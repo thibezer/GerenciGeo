@@ -1952,26 +1952,31 @@ export function setupGeradorDocumentos(ctx: MesaTrabalhoContext) {
           }
         };
 
-        // Aviso discreto (não bloqueia): ao digitar só avalia com 14 dígitos; CPF e "incompleto" ao sair do campo.
+        // Aviso discreto (não bloqueia): avalia após uma pequena pausa na digitação e ao sair/confirmar o campo.
         const avisoEl = containerCoproprietarios.querySelector(`.aviso-coprop-cpf[data-idx="${idx}"]`) as HTMLElement | null;
-        const atualizarAviso = (valor: string, digitando: boolean) => {
+        let timerAviso: ReturnType<typeof setTimeout> | undefined;
+        const atualizarAviso = (valor: string) => {
           if (!avisoEl) return;
-          const msg = digitando && valor.replace(/\D/g, '').length !== 14 ? null : erroCpfCnpj(valor, 'CPF/CNPJ');
+          const msg = erroCpfCnpj(valor, 'CPF/CNPJ');
           avisoEl.textContent = msg || '';
           avisoEl.classList.toggle('hidden', !msg);
         };
         input.addEventListener('input', (e: any) => {
           e.target.value = formatarCpfCnpjDinamico(e.target.value);
           const limpo = e.target.value.replace(/\D/g, '');
-          atualizarAviso(e.target.value, true);
+          const valor = e.target.value;
+          if (avisoEl) avisoEl.classList.add('hidden');
+          clearTimeout(timerAviso);
+          timerAviso = setTimeout(() => atualizarAviso(valor), 800);
           if (limpo.length === 11 || limpo.length === 14) {
             buscarCpf(e.target.value);
           }
         });
-        input.addEventListener('blur', (e: any) => {
-          atualizarAviso(e.target.value, false);
-          buscarCpf(e.target.value);
-        });
+        ['change', 'focusout', 'blur'].forEach(ev => input.addEventListener(ev, (e: any) => {
+          clearTimeout(timerAviso);
+          atualizarAviso(e.target.value);
+          if (ev !== 'change') buscarCpf(e.target.value);
+        }));
       });
     };
 
