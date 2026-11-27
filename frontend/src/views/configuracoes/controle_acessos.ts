@@ -89,8 +89,8 @@ export const renderSecaoMinhaConta = (): string => {
 export const renderSecaoControleAcessos = (): string => `
   <div id="painel-controle-acessos" class="hidden flex flex-col gap-2 flex-1 min-h-0">
     <!-- Barra de filtros e ação -->
-    <div class="lp-card p-3 flex flex-wrap items-center justify-between gap-2" style="flex:none">
-      <div class="flex flex-wrap items-center gap-2">
+    <div class="lp-card p-3 flex items-center justify-between gap-2" style="flex:none;flex-direction:row;flex-wrap:nowrap;overflow-x:auto">
+      <div class="flex items-center gap-2 shrink-0">
         <div class="lp-seg" id="acessos-filtro-seg" role="group" aria-label="Filtrar contas">
           <button type="button" class="lp-seg-btn is-active" data-filtro="todos">Todos <span class="lp-seg-n" id="cnt-usr-todos">0</span></button>
           <button type="button" class="lp-seg-btn" data-filtro="pendentes" data-tom="warn">Pendentes / Bloqueados <span class="lp-seg-n" id="cnt-usr-pendentes">0</span></button>
@@ -98,7 +98,7 @@ export const renderSecaoControleAcessos = (): string => `
           <button type="button" class="lp-seg-btn" data-filtro="admins">Admins <span class="lp-seg-n" id="cnt-usr-admins">0</span></button>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <label class="lp-busca" style="width:clamp(170px,18vw,280px)">
           <i data-lucide="search"></i>
           <input type="text" id="busca-usuario" placeholder="Buscar por nome ou e-mail" autocomplete="off" />
