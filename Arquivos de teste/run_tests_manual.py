@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Script de Testes Manuais - GerenciGeo
-Testa: Delete+stat, Path Traversal, Upload Anuencia com imagem
+Testa: Upload Anuencia com imagem (os testes de delete/path traversal saíram junto com a rota removida)
 """
 import io
 import os
@@ -20,78 +20,9 @@ def sep(titulo):
 
 
 # ─────────────────────────────────────────────────────────────
-# TESTE 1 — Upload de arquivo + Delete (valida módulo stat)
+# TESTE 1 — Upload de Anuência como imagem JPG/PNG
 # ─────────────────────────────────────────────────────────────
-sep("TESTE 1 — Delete de arquivo e módulo stat")
-
-conteudo_txt = b"arquivo de teste para validacao do modulo stat\n"
-nome_arquivo = "teste_stat_validacao.txt"
-
-print(f"[1a] Fazendo upload de '{nome_arquivo}' na categoria Processados...")
-try:
-    r = requests.post(
-        f"{BASE}/levantamentos/{LEV_ID}/upload-arquivo",
-        data={"categoria": "Processados"},
-        files={"file": (nome_arquivo, io.BytesIO(conteudo_txt), "text/plain")},
-        timeout=15,
-    )
-    print(f"     Status upload: {r.status_code}")
-    print(f"     Resposta:      {r.text[:300]}")
-    upload_ok = r.status_code in (200, 201)
-except Exception as e:
-    print(f"     ERRO na requisição: {e}")
-    upload_ok = False
-
-if upload_ok:
-    print(f"\n[1b] Deletando '{nome_arquivo}'...")
-    try:
-        r2 = requests.delete(
-            f"{BASE}/levantamentos/{LEV_ID}/arquivos/deletar",
-            params={"categoria": "Processados", "nome": nome_arquivo},
-            timeout=15,
-        )
-        print(f"     Status delete: {r2.status_code}")
-        print(f"     Resposta:      {r2.text[:400]}")
-        if r2.status_code == 200 and ("exclu" in r2.text or "sucesso" in r2.text):
-            print("\n  [PASSOU] TESTE 1 - Delete funcionou e modulo stat importado corretamente!")
-        else:
-            print("\n  [FALHOU] TESTE 1 - Resposta inesperada.")
-    except Exception as e:
-        print(f"     ERRO na requisicao: {e}")
-        print("  [FALHOU] TESTE 1")
-else:
-    print("  [AVISO] Upload falhou - pulando delecao. Verifique se o servidor esta rodando.")
-
-
-# ─────────────────────────────────────────────────────────────
-# TESTE 2 — Proteção contra Path Traversal
-# ─────────────────────────────────────────────────────────────
-sep("TESTE 2 — Proteção contra Path Traversal")
-
-payload_malicioso = "../../../config.py"
-print(f"[2] Enviando nome malicioso: '{payload_malicioso}'")
-try:
-    r3 = requests.delete(
-        f"{BASE}/levantamentos/{LEV_ID}/arquivos/deletar",
-        params={"categoria": "Processados", "nome": payload_malicioso},
-        timeout=15,
-    )
-    print(f"     Status: {r3.status_code}")
-    print(f"     Resposta: {r3.text[:400]}")
-    if r3.status_code == 404:
-        print("\n  [PASSOU] TESTE 2 - Path traversal bloqueado! Retornou 404 (nao encontrou config.py dentro de Processados).")
-    elif r3.status_code == 200:
-        print("\n  [FALHOU] TESTE 2 - PERIGO! O arquivo foi deletado (possivel path traversal real).")
-    else:
-        print(f"\n  [AVISO] TESTE 2 - Resposta inesperada: {r3.status_code}")
-except Exception as e:
-    print(f"     ERRO na requisicao: {e}")
-
-
-# ─────────────────────────────────────────────────────────────
-# TESTE 3 — Upload de Anuência como imagem JPG/PNG
-# ─────────────────────────────────────────────────────────────
-sep("TESTE 3 — Upload de Anuência como imagem PNG")
+sep("TESTE 1 — Upload de Anuência como imagem PNG")
 
 # Criar um PNG mínimo válido (1x1 pixel branco) em bytes puros
 png_minimo = bytes([
@@ -107,7 +38,7 @@ png_minimo = bytes([
 ])
 
 nome_png = "assinatura_teste.png"
-print(f"[3a] Fazendo upload de '{nome_png}' como anuência assinada (confrontante_id={CONF_ID})...")
+print(f"[1a] Fazendo upload de '{nome_png}' como anuência assinada (confrontante_id={CONF_ID})...")
 try:
     r4 = requests.post(
         f"{BASE}/levantamentos/{LEV_ID}/documentos/anuencias/{CONF_ID}/upload",
@@ -125,13 +56,13 @@ try:
 
     caminho = resp_json.get("caminho_salvo", "") or r4.text
     if r4.status_code in (200, 201) and (".png" in caminho or ".png" in r4.text):
-        print("\n  [PASSOU] TESTE 3 - Upload com PNG funcionou e a extensao .png foi preservada!")
+        print("\n  [PASSOU] TESTE 1 - Upload com PNG funcionou e a extensao .png foi preservada!")
     elif r4.status_code in (200, 201):
-        print(f"\n  [PASSOU] TESTE 3 - Status 200 OK. Verifique manualmente se a extensao .png foi preservada no disco.")
+        print(f"\n  [PASSOU] TESTE 1 - Status 200 OK. Verifique manualmente se a extensao .png foi preservada no disco.")
     elif r4.status_code == 404:
-        print(f"\n  [AVISO] TESTE 3 - Confrontante id={CONF_ID} nao existe. Tente outro ID.")
+        print(f"\n  [AVISO] TESTE 1 - Confrontante id={CONF_ID} nao existe. Tente outro ID.")
     else:
-        print(f"\n  [FALHOU] TESTE 3 - Status {r4.status_code}")
+        print(f"\n  [FALHOU] TESTE 1 - Status {r4.status_code}")
 except Exception as e:
     print(f"     ERRO na requisicao: {e}")
 

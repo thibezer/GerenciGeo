@@ -95,15 +95,6 @@ class MatriculaCreate(BaseModel):
     georreferenciamento: Optional[str] = None
     matricula_origem_desenho_id: Optional[int] = None
 
-class PayloadAssociarBase(BaseModel):
-    ponto_id_selecionado: int
-    base_ppp_id: int
-
-class PayloadOverrideManual(BaseModel):
-    arquivo_origem: str
-    dados_brutos: dict
-    dados_corrigidos: dict
-
 class ItemOrdemPonto(BaseModel):
     id: int
     ordem: int
@@ -481,34 +472,6 @@ async def importar_caderneta_txt(
         )
 
 # ── Translação e Correção de Lotes ─────────────────────────────────────────────
-
-@router.post("/levantamentos/{id}/pontos/associar-base")
-def post_associar_base_lote(id: int, payload: PayloadAssociarBase):
-    verificar_levantamento_arquivado(id)
-    try:
-        from services.processamento.geoprocessamento import associar_base_ao_lote
-        qtd = associar_base_ao_lote(payload.ponto_id_selecionado, payload.base_ppp_id)
-        ExportacaoService.gerar_documento_cliente_workspace(id)
-        return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Vínculo tardio e translação em bloco aplicados com sucesso."}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/levantamentos/{id}/pontos/corrigir-manual")
-def post_corrigir_manual_lote(id: int, payload: PayloadOverrideManual):
-    verificar_levantamento_arquivado(id)
-    try:
-        from services.processamento.geoprocessamento import aplicar_correcao_manual_lote
-        qtd = aplicar_correcao_manual_lote(
-            id, 
-            None, 
-            payload.arquivo_origem, 
-            payload.dados_brutos, 
-            payload.dados_corrigidos
-        )
-        ExportacaoService.gerar_documento_cliente_workspace(id)
-        return {"sucesso": True, "pontos_corrigidos": qtd, "mensagem": "Override manual e translação ECEF 3D aplicados com sucesso."}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 # ── Ordenação e Reordenação de Perímetros ──────────────────────────────────────
 

@@ -2,8 +2,6 @@
 routes/levantamento/documentos.py — Laudos, Requerimentos, Termos de Anuência e Exportações (Shapefile)
 """
 import re
-import os
-import stat
 import logging
 import datetime
 from pathlib import Path
@@ -893,56 +891,6 @@ def endpoint_exportar_planilha_sigef(id: int):
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=400, detail=str(e))
-
-@router.delete("/levantamentos/{lev_id}/arquivos/deletar")
-def deletar_arquivo_levantamento(lev_id: int, categoria: str, nome: str):
-    verificar_levantamento_arquivado(lev_id)
-    try:
-        wm = WorkspaceManager()
-        folder = wm.get_levantamento_folder(lev_id)
-        
-        categorias = ["Brutos", "Rinex", "Processados", "Documentos", "Exportacoes"]
-        if categoria not in categorias:
-            raise HTTPException(status_code=400, detail="Categoria de pasta de arquivos inválida.")
-            
-        # Correção 1: Limpeza de Path Traversal
-        safe_nome = Path(nome).name
-        file_path = folder / categoria / safe_nome
-        
-        if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(status_code=404, detail="Arquivo não localizado no disco.")
-            
-        try:
-            # Correção 2: Import stat adicionado no topo
-            os.chmod(file_path, stat.S_IWRITE)
-        except Exception:
-            pass
-            
-        os.remove(file_path)
-
-        pontos_removidos = 0
-        if categoria == "Processados" and safe_nome.lower().endswith(".txt"):
-            count_row = execute_query(
-                "SELECT COUNT(*) as qtd FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
-                params=(lev_id, safe_nome),
-                fetch_one=True
-            )
-            pontos_removidos = count_row["qtd"] if count_row else 0
-            execute_query(
-                "DELETE FROM pontos WHERE levantamento_id = ? AND arquivo_origem = ?",
-                params=(lev_id, safe_nome),
-                commit=True
-            )
-            logging.getLogger(__name__).info(f"[WORKSPACE] Purgados {pontos_removidos} pontos pertencentes ao lote/arquivo deletado: {safe_nome}")
-            
-        return {
-            "success": True, 
-            "message": f"Arquivo '{safe_nome}' excluído com sucesso do repositório físico.",
-            "pontos_removidos": pontos_removidos
-        }
-    except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Exportação de Shapefile (.ZIP) ─────────────────────────────────────────────
 
