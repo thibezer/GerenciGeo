@@ -578,7 +578,15 @@ export const configuracoesRoute: RouteDef = {
 
     loadProfissionais();
     initControleAcessos();
-    AuthService.refreshSession();
+    // Token recusado pelo servidor (revogado/inexistente): encerra a sessão local e volta ao login
+    if (AuthService.getToken()) {
+      AuthService.refreshSession().then(user => {
+        if (!user) {
+          showToast('Sessão expirada. Entre novamente.', 'error');
+          void AuthService.logout();
+        }
+      });
+    }
 
     const cfgTabs = document.getElementById('cfg-tabs');
     cfgTabs?.addEventListener('click', (e) => {
