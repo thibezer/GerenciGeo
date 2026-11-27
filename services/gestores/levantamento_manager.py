@@ -246,6 +246,35 @@ def recomputar_rover_apos_vinculo_base(ponto_id: int, novo_base_id: int, pt_anti
             commit=True
         )
 
+def _erro_referencias_ponto(cursor, levantamento_id: int, p_data: dict, matricula_atual=None) -> "str | None":
+    """Mensagem de erro se o payload de um ponto referencia matrícula, segmento ou confrontante de outro levantamento.
+
+    A matrícula só é conferida quando muda em relação à atual; ids vazios/0 (desvincular) são ignorados.
+    """
+    from services.gestores import vinculos
+
+    def _id_valido(valor):
+        try:
+            n = int(valor)
+        except (TypeError, ValueError):
+            return None
+        return n if n > 0 else None
+
+    mat = _id_valido(p_data.get("matricula_id")) if "matricula_id" in p_data else None
+    if mat is not None and mat != matricula_atual and not vinculos.matricula_pertence(cursor, mat, levantamento_id):
+        return f"A matrícula {mat} não pertence à propriedade deste levantamento."
+
+    conf_data = p_data.get("confrontante") or {}
+    seg_data = p_data.get("segmento") or {}
+    seg = _id_valido(seg_data.get("id"))
+    if seg is not None and not vinculos.segmento_pertence(cursor, seg, levantamento_id):
+        return f"O segmento {seg} não pertence a este levantamento."
+    for conf in (_id_valido(conf_data.get("id")), _id_valido(seg_data.get("confrontante_id"))):
+        if conf is not None and not vinculos.confrontante_pertence(cursor, conf, levantamento_id):
+            return f"O confrontante {conf} não pertence a este levantamento."
+    return None
+
+
 def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
     """
     Atualiza múltiplos pontos em lote.
@@ -286,6 +315,13 @@ def atualizar_pontos_geodesicos_batch(levantamento_id: int, data: dict) -> dict:
 
         with DatabaseManager() as conn:
             cursor = conn.cursor()
+
+            # Anti-IDOR: nenhuma referência pode apontar para outro levantamento (valida tudo antes de gravar)
+            for p_check in pontos:
+                if p_check['id'] in valid_ids:
+                    erro_ref = _erro_referencias_ponto(cursor, levantamento_id, p_check, valid_ids[p_check['id']]['matricula_id'])
+                    if erro_ref:
+                        return {"error": erro_ref, "status_code": 422}
 
             # Para manter o controle se reordenar será necessário (se ignorar_poligono mudou)
             matriculas_afetadas = set()
@@ -514,6 +550,13 @@ def atualizar_ponto_geodesico(pid: int, data: dict) -> dict:
             
         pt_antigo = dict(row)
         levantamento_id = pt_antigo["levantamento_id"]
+
+        # Anti-IDOR: matrícula, segmento e confrontante do payload precisam ser do mesmo levantamento.
+        # Fica antes de qualquer escrita (inclusive o histórico de campo) para uma rejeição não deixar rastro.
+        with DatabaseManager() as conn_ref:
+            erro_ref = _erro_referencias_ponto(conn_ref.cursor(), levantamento_id, data, pt_antigo.get("matricula_id"))
+        if erro_ref:
+            return {"error": erro_ref, "status_code": 422}
 
         # Base de campo é o tipo 'B'; 'M' é marco de divisa (vértice do perímetro). Um 'M' só continua
         # sendo tratado como base quando já tem rovers vinculados: legado da época em que 'M' significava
